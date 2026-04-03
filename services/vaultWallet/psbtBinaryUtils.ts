@@ -4,8 +4,8 @@
  */
 
 import { Buffer } from 'buffer';
-import { varIntSize, writeVarInt } from '../../utils/wallet/cryptoHelpers';
-import type { SignatureData, PsbtFieldData } from './types';
+import { varIntSize,writeVarInt } from '../../utils/wallet/cryptoHelpers';
+import type { PsbtFieldData,SignatureData } from './types';
 
 /**
  * Read a varint from buffer
@@ -27,7 +27,7 @@ export function readVarInt(buffer: Buffer, offset: number): { value: number; byt
 /**
  * Count PSBT inputs by parsing the binary
  */
-export function countPsbtInputs(psbtBuffer: Buffer, startOffset: number): number {
+export function countPsbtInputs(psbtBuffer: Buffer, _startOffset = 5): number {
   // The global map contains PSBT_GLOBAL_UNSIGNED_TX (0x00) which has the tx
   // We need to parse it to get input count
   let offset = 5; // skip magic
@@ -198,7 +198,7 @@ export function patchPsbtSignatures(
 
   // Count inputs by parsing until we hit output maps
   // We need to know how many inputs there are
-  const inputCount = countPsbtInputs(psbtBuffer, offset);
+  const inputCount = countPsbtInputs(psbtBuffer);
 
   // Parse each input map and inject signatures
   for (let inputIdx = 0; inputIdx < inputCount; inputIdx++) {
@@ -288,7 +288,7 @@ export function patchPsbtInputFields(
   offset++;
 
   // Count inputs
-  const inputCount = countPsbtInputs(psbtBuffer, 5);
+  const inputCount = countPsbtInputs(psbtBuffer);
 
   // Parse each input map and add fields
   for (let inputIdx = 0; inputIdx < inputCount; inputIdx++) {

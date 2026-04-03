@@ -24,7 +24,14 @@ export { unlockWithPasskey, recoverWithPasskey } from './unlock';
 export { atomicPinChangeWithPasskey, reencryptPasskeyMnemonicAfterPinChange } from './pinChange';
 
 // Storage management functions
-export { isPasskeyEnabled, getWalletCreationMethod, removePasskey, clearPasskeyData } from './storage';
+export {
+  clearPasskeyData,
+  getPasskeyDerivationVersion,
+  getWalletCreationMethod,
+  isPasskeyEnabled,
+  isPasskeyUpgradeRecommended,
+  removePasskey,
+} from './storage';
 
 // Re-export iCloud functions for convenience
 export { hasICloudBackup } from '../icloudStorage';

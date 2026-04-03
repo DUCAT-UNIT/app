@@ -7,6 +7,7 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 jest.mock('@bitcoinerlab/secp256k1', () => ({
@@ -73,19 +74,10 @@ describe('p2pkKeyManager', () => {
   });
 
   describe('clearP2PKCache', () => {
-    it('should delete both cache keys', async () => {
-      await clearP2PKCache();
-
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(2);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
-    });
-
-    it('should handle deletion errors gracefully', async () => {
-      (SecureStore.deleteItemAsync as jest.Mock).mockRejectedValue(new Error('Delete failed'));
-
-      // Should not throw
+    it('should clear in-memory cache without throwing', async () => {
       await expect(clearP2PKCache()).resolves.not.toThrow();
+      // No SecureStore interaction — cache is memory-only
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     });
   });
 
@@ -131,6 +123,11 @@ describe('p2pkKeyManager', () => {
         address: 'tb1ptest',
         pubkey: Buffer.from(targetPubkey, 'hex'),
       });
+
+      // The verification check does: Buffer.from(pointFromScalar(tweakedPrivkey)).slice(1).toString('hex')
+      // This must equal targetPubkey. So we need a 33-byte buffer where bytes 1-32 equal targetPubkey.
+      const verifyPubkeyBuffer = Buffer.concat([Buffer.from([0x02]), Buffer.from(targetPubkey, 'hex')]);
+      (ecc.pointFromScalar as jest.Mock).mockReturnValue(verifyPubkeyBuffer);
 
       const result = await findAccountForP2PKToken(targetPubkey);
 
@@ -190,6 +187,11 @@ describe('p2pkKeyManager', () => {
         };
       });
 
+      // The verification check does: Buffer.from(pointFromScalar(tweakedPrivkey)).slice(1).toString('hex')
+      // This must equal targetPubkey for the match to succeed.
+      const verifyPubkeyBuffer = Buffer.concat([Buffer.from([0x02]), Buffer.from(targetPubkey, 'hex')]);
+      (ecc.pointFromScalar as jest.Mock).mockReturnValue(verifyPubkeyBuffer);
+
       const result = await findAccountForP2PKToken(targetPubkey, 5);
 
       // Should have continued after error and found match
@@ -230,7 +232,9 @@ describe('p2pkKeyManager', () => {
     const mockAddress = 'tb1ptestaddress';
     const mockPrivateKey = 'ab'.repeat(32);
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      await clearP2PKCache(); // Reset in-memory cache between tests
+      jest.clearAllMocks();
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
       (withMnemonic as jest.Mock).mockImplementation(async (callback) => {
         return callback('test mnemonic');
@@ -246,68 +250,30 @@ describe('p2pkKeyManager', () => {
       });
     });
 
-    it('should return cached key when cache is valid', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce(mockAddress) // Cached address matches
-        .mockResolvedValueOnce(mockPrivateKey); // Cached private key
-
-      const result = await getP2PKPrivateKey();
-
-      expect(result).toBe(mockPrivateKey);
-      expect(getPrivateKeyForAddress).not.toHaveBeenCalled();
-    });
-
-    it('should derive new key when cache is empty', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce(null) // No cached address
-        .mockResolvedValueOnce(null); // No cached key
-
+    it('should derive key on first call (no cache)', async () => {
       const result = await getP2PKPrivateKey();
 
       expect(result).toBe(mockPrivateKey);
       expect(getPrivateKeyForAddress).toHaveBeenCalledWith(mockAddress, 0);
     });
 
-    it('should clear and re-derive when cached address does not match', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('tb1pdifferentaddress') // Different cached address
-        .mockResolvedValueOnce(mockPrivateKey);
+    it('should return cached key on second call', async () => {
+      // First call — derives
+      await getP2PKPrivateKey();
+      expect(getPrivateKeyForAddress).toHaveBeenCalledTimes(1);
 
+      // Second call — should use in-memory cache
+      (getPrivateKeyForAddress as jest.Mock).mockClear();
       const result = await getP2PKPrivateKey();
-
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
-      expect(getPrivateKeyForAddress).toHaveBeenCalled();
       expect(result).toBe(mockPrivateKey);
+      expect(getPrivateKeyForAddress).not.toHaveBeenCalled();
     });
 
-    it('should cache derived key', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
-
+    it('should not write private keys to SecureStore', async () => {
       await getP2PKPrivateKey();
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5', mockAddress);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5', mockPrivateKey);
-    });
-
-    it('should handle cache read errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Cache read error'));
-
-      const result = await getP2PKPrivateKey();
-
-      expect(result).toBe(mockPrivateKey);
-    });
-
-    it('should handle cache write errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Cache write error'));
-
-      // Should not throw
-      const result = await getP2PKPrivateKey();
-      expect(result).toBe(mockPrivateKey);
+      // Memory-only cache: no SecureStore writes for key material
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     });
   });
 });

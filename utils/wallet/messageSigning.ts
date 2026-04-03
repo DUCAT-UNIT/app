@@ -6,7 +6,8 @@ import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { MUTINYNET_NETWORK } from '../bitcoin';
-import { withMnemonic } from '../../services/secureStorageService';
+import { getCurrentAccount, withMnemonic } from '../../services/secureStorageService';
+import { getWalletDerivationMode } from '../../services/walletDerivationService';
 import { bip32, getECPair, getDerivationPath } from './cryptoHelpers';
 
 /**
@@ -16,13 +17,16 @@ import { bip32, getECPair, getDerivationPath } from './cryptoHelpers';
  * @returns Signature
  */
 export async function signMessage(address: string, message: string): Promise<string> {
-  const accountIndex = 0;
+  const [accountIndex, derivationMode] = await Promise.all([
+    getCurrentAccount(),
+    getWalletDerivationMode(),
+  ]);
 
   return await withMnemonic(async (mnemonic: string) => {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-    const derivationPath = getDerivationPath(address, accountIndex);
+    const derivationPath = getDerivationPath(address, accountIndex, derivationMode);
     const child = root.derivePath(derivationPath);
 
     const ECPairInstance = getECPair();

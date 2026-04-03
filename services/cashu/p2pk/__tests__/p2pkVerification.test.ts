@@ -102,9 +102,9 @@ describe('p2pkVerification', () => {
       expect(getP2PKRecipient(secret)).toBeNull();
     });
 
-    it('should return undefined for P2PK without data field', () => {
+    it('should return null for P2PK without data field', () => {
       const secret = JSON.stringify(['P2PK', { nonce: 'nonce123' }]);
-      expect(getP2PKRecipient(secret)).toBeUndefined();
+      expect(getP2PKRecipient(secret)).toBeNull();
     });
   });
 
@@ -171,7 +171,7 @@ describe('p2pkVerification', () => {
     });
 
     it('should return false when verification throws', async () => {
-      const witness = JSON.stringify({ signatures: ['sig'.repeat(43)] });
+      const witness = JSON.stringify({ signatures: ['ab'.repeat(64)] });
       const publicKey = 'ab'.repeat(32);
 
       (schnorr.verify as jest.Mock).mockImplementation(() => {

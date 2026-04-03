@@ -3,13 +3,12 @@
  * Shared functions for creating FIDO2 passkey credentials
  */
 
-import { Passkey } from 'react-native-passkey';
 import type { PasskeyCreateRequest } from 'react-native-passkey';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { getRandomValues } = require('react-native-quick-crypto');
+import { Passkey } from 'react-native-passkey';
 import { PASSKEY } from '../../constants/security';
 import { logger } from '../../utils/logger';
-import { toBase64Url, fromBase64Url } from './core';
+import { fromBase64Url,PRF_SALT,toBase64Url } from './core';
+const { getRandomValues } = require('react-native-quick-crypto');
 
 /**
  * Generate cryptographic challenge and user ID for FIDO2
@@ -54,22 +53,36 @@ export const buildRegistrationRequest = (
       residentKey: PASSKEY.RESIDENT_KEY,
     },
     attestation: PASSKEY.ATTESTATION,
+    extensions: {
+      prf: {
+        eval: { first: PRF_SALT },
+      },
+    },
   };
 };
 
+interface CreateCredentialResult {
+  credentialId: Uint8Array;
+  userHandle: Uint8Array;
+  userId: Uint8Array;
+  prfEnabled: boolean;
+  prfResult: Uint8Array | null;
+}
+
 /**
- * Create a passkey credential and extract identifiers
+ * Create a passkey credential and extract identifiers.
+ * Also requests PRF extension and returns the result if supported.
  */
 export const createPasskeyCredential = async (
   userName: string,
   userDisplayName: string
-): Promise<{ credentialId: Uint8Array; userHandle: Uint8Array; userId: Uint8Array }> => {
+): Promise<CreateCredentialResult> => {
   logger.debug('Creating passkey credential...');
 
   // Generate challenge and user ID
   const { challenge, userId } = generateCredentialIds();
 
-  // Build registration request
+  // Build registration request (includes PRF extension)
   const requestJson = buildRegistrationRequest(challenge, userId, userName, userDisplayName);
 
   // Create passkey credential
@@ -85,5 +98,19 @@ export const createPasskeyCredential = async (
     ? new Uint8Array(fromBase64Url(responseWithUserHandle.userHandle))
     : userId; // Fallback to userId if userHandle not provided
 
-  return { credentialId, userHandle, userId };
+  // Check PRF extension support and extract result
+  const prfEnabled =
+    result.extensions?.clientExtensionResults?.prf?.enabled === true;
+  const prfResultRaw =
+    result.extensions?.clientExtensionResults?.prf?.results?.first ?? null;
+  const prfResult = prfResultRaw
+    ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+    : null;
+
+  logger.debug('PRF extension result', {
+    prfEnabled,
+    hasPrfResult: !!prfResult,
+  });
+
+  return { credentialId, userHandle, userId, prfEnabled, prfResult };
 };

@@ -14,6 +14,7 @@ import {
   type HealthStatus,
 } from '../utils/vaultUtils';
 import {
+  commonInitialState,
   createCommonVaultSlice,
   computeVaultHealth,
   computeNewVaultHealth,
@@ -130,17 +131,8 @@ export const useDepositStore = create<DepositStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[DepositStore] reset');
       set({
+        ...commonInitialState,
         ...depositSpecificInitialState,
-        // Reset common state
-        selectedFeeRate: 1,
-        currentUnitBorrowed: 0,
-        currentBtcLocked: 0,
-        bitcoinPrice: null,
-        currentStep: 'input',
-        processingStep: 1,
-        loading: false,
-        error: null,
-        vaultTxid: null,
       });
     },
   };

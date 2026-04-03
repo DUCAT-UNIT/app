@@ -3,15 +3,15 @@
  * Extracts ecash threshold management logic from WalletPage
  */
 
-import { useState, useCallback, useEffect, Dispatch, SetStateAction } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { logger } from '../utils/logger';
-import { getRunesAmount } from '../utils/runesHelper';
-import { requestMint } from '../services/cashu/cashuWalletService';
-import { notify } from '../utils/notify';
-import { useEcashThresholdSheetStore, setThresholdSheetOnSelect } from '../stores/ecashThresholdSheetStore';
-import type { RuneBalance } from '../services/balanceService';
+import { Dispatch,SetStateAction,useCallback,useEffect,useState } from 'react';
 import type { ExtendedNavigation } from '../navigation/types';
+import type { RuneBalance } from '../services/balanceService';
+import { requestMint } from '../services/cashu/cashuWalletService';
+import { setThresholdSheetOnSelect,useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
+import { logger } from '../utils/logger';
+import { notify } from '../utils/notify';
+import { getRunesAmount } from '../utils/runesHelper';
 
 interface SettingsHandlers {
   ecashThreshold: number;
@@ -115,7 +115,7 @@ export function useEcashThresholdManager({
       // No conversion possible (no UNIT balance), just update threshold
       settingsHandlers.handleEcashThresholdChange(newThreshold);
     }
-  }, [cashuBalance, runesBalance, settingsHandlers]);
+  }, [cashuBalance, runesBalance, setShowThresholdSheet, settingsHandlers]);
 
   // Register handleThresholdSelect so the app-level sheet can use it
   useEffect(() => {
@@ -170,15 +170,11 @@ export function useEcashThresholdManager({
 
       // Use setTimeout to ensure settings close completes
       setTimeout(() => {
-        logger.debug('[useEcashThresholdManager] Attempting navigation now...');
-        logger.debug('[useEcashThresholdManager] conversionAmount:', conversionAmount, 'type:', typeof conversionAmount);
         const amountStr = conversionAmount?.toString() || '0';
-        logger.debug('[useEcashThresholdManager] amountStr:', amountStr);
 
         try {
           // Navigate from root navigator to ensure modal opens correctly
           const rootNav = getRootNavigator(navigation);
-          logger.debug('[useEcashThresholdManager] Using root navigator:', !!rootNav);
 
           rootNav.navigate('SendFlow', {
             screen: 'Processing',
@@ -203,7 +199,7 @@ export function useEcashThresholdManager({
       logger.error('[useEcashThresholdManager] Failed to initiate mint:', { error: error instanceof Error ? error.message : String(error) });
       notify.cashu.conversionStartFailed(error instanceof Error ? error.message : String(error));
     }
-  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation]);
+  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation, setShowThresholdSheet]);
 
   const handleLowBalanceTopUp = useCallback(async () => {
     logger.debug('[useEcashThresholdManager] handleLowBalanceTopUp called', {

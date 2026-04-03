@@ -124,7 +124,7 @@ describe('WalletDataContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet });
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({ getUnconfirmedBalance: jest.fn(), getUnconfirmedUTXOs: jest.fn() });
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({ getUnconfirmedBalance: jest.fn(), getUnconfirmedUTXOs: jest.fn() });
     (useBalanceData as jest.Mock).mockReturnValue(mockBalance);
     (useTransactionHistoryFetch as jest.Mock).mockReturnValue(mockHistory);
     (useVaultDataFetch as jest.Mock).mockReturnValue(mockVault);
@@ -222,7 +222,7 @@ describe('WalletDataContext', () => {
     it('should call useBalanceData with wallet and getUnconfirmedBalance', () => {
       const mockGetUnconfirmed = jest.fn();
       const mockGetUnconfirmedUTXOs = jest.fn();
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         getUnconfirmedBalance: mockGetUnconfirmed,
         getUnconfirmedUTXOs: mockGetUnconfirmedUTXOs,
       });

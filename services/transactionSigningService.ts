@@ -4,14 +4,20 @@
  * SECURITY-CRITICAL: Manages mnemonic exposure and key derivation
  */
 
+import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory, BIP32Interface } from 'bip32';
 import * as bip39 from 'bip39';
 import * as ecc from '@bitcoinerlab/secp256k1';
+import { getDerivationPathForType, type WalletDerivationMode } from '../constants/bitcoin';
 import { MUTINYNET_NETWORK } from '../utils/bitcoin';
 import { withMnemonic } from './secureStorageService';
+import { getWalletDerivationMode } from './walletDerivationService';
 import { ERRORS } from '../utils/messages';
 import { validateAndNormalizeAddress } from '../utils/bitcoin';
+import { validateSighashType } from './signing/cryptoUtils';
+import { RUNES_CONFIG } from '../utils/constants';
+import { decodeRunestone } from '../utils/runestoneEncoder';
 
 // Initialize BIP32 and ECC library
 const bip32 = BIP32Factory(ecc);
@@ -26,6 +32,10 @@ export interface TransactionIntent {
   psbt: string;
   assetType?: 'UNIT' | 'BTC';
   addressType?: 'taproot' | 'segwit';
+  recipient?: string;
+  amount?: number;
+  sourceAddress?: string;
+  feeAddress?: string;
   inputs?: Array<{
     txid: string;
     vout: number;
@@ -37,11 +47,68 @@ export interface SignedTransaction {
   txid: string;
 }
 
+interface DecodedRunestoneEdict {
+  id: {
+    block: bigint;
+    tx: bigint;
+  };
+  amount: bigint;
+  output: bigint;
+}
+
+interface DecodedRunestone {
+  edicts?: DecodedRunestoneEdict[];
+}
+
+function verifyUnitRunestone(
+  psbt: bitcoin.Psbt,
+  intent: TransactionIntent,
+  recipientOutputIndexes: number[]
+): void {
+  const opReturnIndexes: number[] = [];
+
+  psbt.txOutputs.forEach((output, index) => {
+    if (output.script[0] === 0x6a) {
+      opReturnIndexes.push(index);
+    }
+  });
+
+  if (opReturnIndexes.length !== 1) {
+    throw new Error('SECURITY: UNIT PSBT must contain exactly one runestone OP_RETURN output');
+  }
+
+  const runestoneOutput = psbt.txOutputs[opReturnIndexes[0]];
+  const decoded = decodeRunestone(Buffer.from(runestoneOutput.script)) as DecodedRunestone | null;
+
+  if (!decoded || !Array.isArray(decoded.edicts) || decoded.edicts.length !== 1) {
+    throw new Error('SECURITY: UNIT PSBT has an invalid or unexpected runestone payload');
+  }
+
+  const [edict] = decoded.edicts;
+  const expectedAmount = BigInt(intent.amount!);
+  const expectedRuneId = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
+
+  if (
+    edict.id.block !== expectedRuneId.block ||
+    edict.id.tx !== expectedRuneId.tx
+  ) {
+    throw new Error('SECURITY: UNIT PSBT runestone does not match the approved rune ID');
+  }
+
+  if (edict.amount !== expectedAmount) {
+    throw new Error('SECURITY: UNIT PSBT runestone amount does not match the approved amount');
+  }
+
+  if (!recipientOutputIndexes.includes(Number(edict.output))) {
+    throw new Error('SECURITY: UNIT PSBT runestone points to an unapproved recipient output');
+  }
+}
+
 function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt): void {
-  const recipient = (intent as any).recipient as string | undefined;
-  const expectedAmount = (intent as any).amount as number | undefined;
-  const sourceAddress = (intent as any).sourceAddress as string | undefined;
-  const feeAddress = (intent as any).feeAddress as string | undefined;
+  const recipient = intent.recipient;
+  const expectedAmount = intent.amount;
+  const sourceAddress = intent.sourceAddress;
+  const feeAddress = intent.feeAddress;
 
   if (!recipient || expectedAmount === undefined || !sourceAddress) {
     throw new Error('SECURITY: Missing intent fields for PSBT validation');
@@ -56,10 +123,13 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
   const normalizedFee = feeAddress ? validateAndNormalizeAddress(feeAddress) : null;
 
   let recipientValue = 0n;
+  const recipientOutputIndexes: number[] = [];
 
-  psbt.txOutputs.forEach((output) => {
-    // Allow OP_RETURN (runestone / metadata)
+  psbt.txOutputs.forEach((output, index) => {
     if (output.script[0] === 0x6a) {
+      if (intent.assetType !== 'UNIT') {
+        throw new Error('SECURITY: BTC PSBT contains unexpected OP_RETURN output');
+      }
       return;
     }
 
@@ -72,6 +142,7 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
     }
     if (addr === normalizedRecipient) {
       recipientValue += output.value;
+      recipientOutputIndexes.push(index);
       return;
     }
     if (addr === normalizedChange || (normalizedFee && addr === normalizedFee)) {
@@ -81,7 +152,16 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
     throw new Error('SECURITY: PSBT contains outputs not reviewed by user');
   });
 
-  if (intent.assetType === 'BTC' && recipientValue < BigInt(expectedAmount)) {
+  if (intent.assetType === 'UNIT') {
+    if (recipientOutputIndexes.length === 0) {
+      throw new Error('SECURITY: UNIT PSBT is missing the reviewed recipient output');
+    }
+
+    verifyUnitRunestone(psbt, intent, recipientOutputIndexes);
+    return;
+  }
+
+  if (recipientValue < BigInt(expectedAmount)) {
     throw new Error('SECURITY: Recipient amount in PSBT is less than approved amount');
   }
 }
@@ -93,14 +173,17 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
  * @param currentAccount - Account index
  * @returns Derived keys for signing
  */
-const deriveSigningKeys = (mnemonic: string, currentAccount: number): DerivedKeys => {
+const deriveSigningKeys = (
+  mnemonic: string,
+  currentAccount: number,
+  derivationMode: WalletDerivationMode
+): DerivedKeys => {
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-  // Pre-derive all keys we'll need (mnemonic only in memory for <50ms)
   return {
-    segwitChild: root.derivePath(`m/84'/1'/0'/0/${currentAccount}`),
-    taprootChild: root.derivePath(`m/86'/1'/0'/0/${currentAccount}`),
+    segwitChild: root.derivePath(getDerivationPathForType('segwit', currentAccount, derivationMode)),
+    taprootChild: root.derivePath(getDerivationPathForType('taproot', currentAccount, derivationMode)),
   };
   // Note: seed and root are destroyed when this function returns
 };
@@ -119,13 +202,14 @@ export const signIntent = async (
     throw new Error(ERRORS.TRANSACTION_CANCELLED);
   }
 
+  const derivationMode = await getWalletDerivationMode();
+
   // SECURITY: Use withMnemonic to minimize mnemonic exposure to <100ms
   // This automatically wipes the mnemonic from memory after deriveSigningKeys returns
   const { segwitChild, taprootChild } = await withMnemonic(async (mnemonic: string) =>
-    deriveSigningKeys(mnemonic, currentAccount)
+    deriveSigningKeys(mnemonic, currentAccount, derivationMode)
   );
 
-  // Load PSBT with correct network (testnet)
   const psbt = bitcoin.Psbt.fromBase64(intent.psbt, { network: MUTINYNET_NETWORK });
 
   // SECURITY: Validate PSBT matches the reviewed intent before signing
@@ -166,6 +250,14 @@ export const signIntent = async (
 
   // UNIFIED SIGNING: Both UNIT and BTC use the same safe signing logic
   // SECURITY: Use bitcoinjs-lib's built-in tweak method instead of manual crypto
+
+  // SECURITY: Validate sighash types on all inputs before signing
+  for (let i = 0; i < psbt.data.inputs.length; i++) {
+    const inp = psbt.data.inputs[i];
+    const scriptHex = Buffer.from(inp.witnessUtxo!.script).toString('hex');
+    const isTaproot = scriptHex.startsWith('5120');
+    validateSighashType(inp.sighashType, isTaproot ? 'taproot' : 'segwit');
+  }
 
   // Sign all inputs based on their type
   if (intent.assetType === 'UNIT') {

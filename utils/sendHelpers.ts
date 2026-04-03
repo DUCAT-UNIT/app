@@ -13,7 +13,9 @@ export const formatNumberWithCommas = (value: string | null | undefined): string
 
   // Split into integer and decimal parts
   const parts = value.split('.');
-  const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  // Remove leading zeros (but keep at least one digit)
+  const normalized = parts[0].replace(/^0+(?=\d)/, '');
+  const integerPart = normalized.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
   // Return with decimal part if it exists
   return parts.length > 1 ? `${integerPart}.${parts[1]}` : integerPart;

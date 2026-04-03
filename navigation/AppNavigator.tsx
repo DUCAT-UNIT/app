@@ -55,7 +55,7 @@ export default function AppNavigator(): React.JSX.Element {
   // Load notificationsEnabled early so we can pass to TransactionProvider
   const { notificationsEnabled } = useNotificationsPreference();
 
-  // Wrap with remaining providers (UIProvider and AuthProvider already provided by App.js)
+  // Wrap with remaining providers (AuthProvider already provided by App.js)
   return (
     <AppProvidersWrapper
       wallet={wallet}

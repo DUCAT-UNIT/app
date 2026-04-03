@@ -2,21 +2,19 @@
  * ErrorBoundary Component
  * Catches JavaScript errors anywhere in the component tree
  * Displays a fallback UI and logs errors for debugging
- * Integrates with Sentry for production error reporting
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import * as Sentry from '@sentry/react-native';
-import { logger } from '../utils/logger';
+import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { COLORS } from '../theme';
+import { logger } from '../utils/logger';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallbackMessage?: string;
   onReset?: () => void;
   boundaryName?: string;
-  extraContext?: Record<string, any>;
+  extraContext?: Record<string, unknown>;
 }
 
 interface ErrorBoundaryState {
@@ -45,18 +43,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     logger.error(error, {
       componentStack: errorInfo.componentStack,
       boundary: this.props.boundaryName || 'ErrorBoundary',
-    });
-
-    // Send error to Sentry in production
-    Sentry.withScope((scope) => {
-      scope.setContext('errorBoundary', {
-        boundaryName: this.props.boundaryName || 'Unknown',
-        componentStack: errorInfo.componentStack,
-      });
-      if (this.props.extraContext) {
-        scope.setContext('extra', this.props.extraContext);
-      }
-      Sentry.captureException(error);
+      ...(this.props.extraContext || {}),
     });
 
     // Update state with error details

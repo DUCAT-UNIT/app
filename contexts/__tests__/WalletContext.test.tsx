@@ -114,12 +114,11 @@ describe('WalletContext', () => {
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 
-    let loadResult;
-    await act(async () => {
-      loadResult = await result.current!.loadWallet();
-    });
-
-    expect(loadResult).toEqual({ exists: false });
+    await expect(
+      act(async () => {
+        await result.current!.loadWallet();
+      })
+    ).rejects.toThrow('Load error');
   });
 
   it('should set wallet addresses', () => {

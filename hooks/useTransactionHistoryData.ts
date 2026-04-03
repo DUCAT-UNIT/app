@@ -4,22 +4,22 @@
  * Uses pre-loaded ecash tokens from WalletDataContext for instant display
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Linking } from 'react-native';
 import * as bitcoin from 'bitcoinjs-lib';
-import { useTransactionHistory, useEcashTokens } from '../contexts/WalletDataContext';
-import { usePendingTxs } from '../stores/pendingTransactionsStore';
-import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
-import { getTxUrl, getOrdTxUrl } from '../utils/constants';
+import { useCallback,useEffect,useMemo,useRef } from 'react';
+import { Linking } from 'react-native';
 import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
+import { useEcashTokens,useTransactionHistory } from '../contexts/WalletDataContext';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { calculateTransactionAmount,Transaction } from '../services/transactionHistoryService';
+import { usePendingTxs } from '../stores/pendingTransactionsStore';
+import { getOrdTxUrl,getTxUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
 import {
-  processPendingTransactions,
-  findSelfClaimedTokenIds,
-  processEcashTokens,
-  mergeAndSortTransactions,
-  type PendingTx,
+findSelfClaimedTokenIds,
+mergeAndSortTransactions,
+processEcashTokens,
+processPendingTransactions,
+type PendingTx,
 } from '../utils/transactionMerging';
 
 /** Type alias for EcashToken - uses TokenWithStatus from the service */
@@ -73,7 +73,10 @@ export function useTransactionHistoryData(
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
   // Filter tokens by advanced mode - show ecash tokens only in advanced mode
-  const ecashTokens = advancedMode ? preloadedEcashTokens : [];
+  const ecashTokens = useMemo(
+    () => (advancedMode ? preloadedEcashTokens : []),
+    [advancedMode, preloadedEcashTokens]
+  );
 
   // Cache for parsed transaction data - keyed by txid, persists across renders
   // This prevents recalculating amounts when just confirmation status changes

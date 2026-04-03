@@ -3,13 +3,16 @@
  * Handles creation of UNIT (Runes) transaction intents with runestone encoding
  */
 
-import { validateAndNormalizeAddress } from '../../utils/bitcoin';
+import { MUTINYNET_NETWORK, validateAndNormalizeAddress } from '../../utils/bitcoin';
 import { ERRORS } from '../../utils/messages';
 import { BITCOIN_TX } from '../../utils/constants';
 import { findRuneUtxo, findSatUtxo, RuneUtxo, SatUtxo } from './runesUtxoSelection';
 import { buildRunesPsbt } from './runesPsbtBuilder';
 import { getRecommendedFeeRate } from '../feeEstimationService';
 import { createFeeCalculator } from './utxoSelection';
+import { logger } from '../../utils/logger';
+import * as Crypto from 'expo-crypto';
+import { Buffer } from 'buffer';
 
 export interface UnitTransactionIntent {
   id: string;
@@ -63,9 +66,11 @@ export async function createUnitIntent(
   try {
     // Validate recipient address (must be Taproot)
     const validatedRecipient = validateAndNormalizeAddress(recipient);
+    const bech32Hrp = typeof MUTINYNET_NETWORK.bech32 === 'string' ? MUTINYNET_NETWORK.bech32 : 'tb';
+    const expectedTaprootPrefix = `${bech32Hrp}1p`;
 
-    if (!validatedRecipient.startsWith('tb1p') && !validatedRecipient.startsWith('bc1p')) {
-      throw new Error('UNIT transfers require a Taproot address (starting with tb1p)');
+    if (!validatedRecipient.toLowerCase().startsWith(expectedTaprootPrefix)) {
+      throw new Error(`UNIT transfers require a Taproot address (starting with ${expectedTaprootPrefix})`);
     }
 
     // Parse amount and multiply by 100 for runestone encoding
@@ -95,17 +100,34 @@ export async function createUnitIntent(
     const runeReturnSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT;
     const dustLimit = BITCOIN_TX.DUST_LIMIT;
 
-    const feeRate = await getRecommendedFeeRate();
-    const outputCount = BITCOIN_TX.RUNE_OUTPUT_AMOUNT > dustLimit && change > dustLimit ? 4 : 3; // return, recipient, optional change, OP_RETURN
+    // H-06: Wrap fee rate in try-catch with fallback, matching BTC implementation
+    let feeRate: number;
+    try {
+      feeRate = await getRecommendedFeeRate();
+    } catch {
+      logger.warn('[Runes Intent] Fee rate estimation failed, using fallback rate of 1 sat/vB');
+      feeRate = 1;
+    }
+
     const inputCount = runeUtxos.length + 1; // rune inputs + sat input
     const feeCalculator = createFeeCalculator(feeRate);
-    const fee = feeCalculator(inputCount, outputCount);
 
     // Sum up all rune UTXO values
     const totalRuneUtxoValue = runeUtxos.reduce((sum, utxo) => sum + utxo.value, 0);
     const totalInput = satUtxo.value + totalRuneUtxoValue;
 
-    // Calculate total required (recipient + rune return + fee)
+    // H-07: Calculate initial fee estimate with conservative 4 outputs,
+    // then compute change to determine actual output count and recalculate
+    const initialFee = feeCalculator(inputCount, 4);
+    const initialTotalRequired = recipientSats + runeReturnSats + initialFee;
+    const initialChange = totalInput - initialTotalRequired;
+
+    // Now that change is known, determine actual output count:
+    // outputs = rune return + recipient + OP_RETURN + optional change
+    const outputCount = initialChange > dustLimit ? 4 : 3;
+    const fee = feeCalculator(inputCount, outputCount);
+
+    // Recalculate with final fee
     const totalRequired = recipientSats + runeReturnSats + fee;
     const change = totalInput - totalRequired;
 
@@ -129,7 +151,7 @@ export async function createUnitIntent(
 
     // Create intent object
     return {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Buffer.from(Crypto.getRandomBytes(8)).toString('hex')}`,
       type: 'send',
       assetType: 'UNIT',
       amount: amountInRunes,

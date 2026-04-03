@@ -1,14 +1,13 @@
 /**
- * Passkey Encryption - Cryptographic operations for mnemonic protection
+ * Mnemonic Encryption - AES-256-GCM encryption/decryption for seed phrase protection
  */
 
 import * as bip39 from 'bip39';
+import * as SecureStore from 'expo-secure-store';
+import type { AesGcmKey,EncryptedMnemonicData } from '../../types/crypto';
+import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { hashPinForEncryption } from '../pinService';
-import type { AesGcmKey, EncryptedMnemonicData } from '../../types/crypto';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../../utils/constants';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { subtle, getRandomValues, createHmac } = require('react-native-quick-crypto');
 
 /**
@@ -24,14 +23,26 @@ export const generateRandomMnemonic = (): string => {
 };
 
 /**
- * Derive encryption key from passkey + PIN using RFC 5869 compliant HKDF
- * Combines passkey credentials with user's PIN for Apple-proof encryption
+ * Derive encryption key via HKDF (RFC 5869) from credential identifiers, PIN, and device pepper.
  *
- * @param credentialId - WebAuthn credential ID
- * @param userHandle - User handle
+ * When `prfSecret` is provided (PRF-enabled passkeys), the IKM becomes:
+ *   prfSecret (32-byte HMAC output from authenticator)
+ *   + PBKDF2-stretched PIN (310k iterations)
+ *   + device-bound pepper (128-bit)
+ * and the HKDF salt is bumped to 'ducat-encryption-v5' to prevent key collision.
+ *
+ * When `prfSecret` is null (legacy / non-PRF passkeys), the IKM is:
+ *   credentialId + userHandle (static identifiers, not secrets)
+ *   + PBKDF2-stretched PIN (310k iterations -- the primary secret)
+ *   + device-bound pepper (128-bit, stored in SecureStore)
+ * with HKDF salt 'ducat-encryption-v4'.
+ *
+ * @param credentialId - WebAuthn credential ID (identifier, not a secret)
+ * @param userHandle - User handle (identifier, not a secret)
  * @param pinOrHash - User's 6-digit PIN or pre-hashed PIN (if isPreHashed=true)
  * @param pinSalt - PIN salt
  * @param isPreHashed - If true, pinOrHash is already PBKDF2-hashed (performance optimization)
+ * @param prfSecret - PRF extension output from authenticator, or null for legacy derivation
  * @returns 256-bit AES-GCM encryption key
  */
 export const deriveEncryptionKey = async (
@@ -39,7 +50,8 @@ export const deriveEncryptionKey = async (
   userHandle: Uint8Array,
   pinOrHash: string,
   pinSalt: string,
-  isPreHashed = false
+  isPreHashed = false,
+  prfSecret: Uint8Array | null = null
 ): Promise<AesGcmKey> => {
   try {
     // Device-bound pepper to raise brute force cost beyond 6-digit PIN space
@@ -48,7 +60,9 @@ export const deriveEncryptionKey = async (
       const bytes = new Uint8Array(16); // 128-bit pepper
       getRandomValues(bytes);
       pepper = Buffer.from(bytes).toString('hex');
-      await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, pepper);
+      await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, pepper, {
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+      });
     }
 
     // SECURITY: Apply same 310,000 iteration PBKDF2 hashing used for PIN verification
@@ -62,19 +76,36 @@ export const deriveEncryptionKey = async (
       derivedPin = await hashPinForEncryption(pinOrHash, pinSalt);
     }
 
-    // Combine passkey data + derived PIN for Apple-proof encryption
-    // Apple has passkey but NOT the PIN (and would need 28 hours to brute force)
     const derivedPinBytes = Buffer.from(derivedPin, 'hex');
     const pepperBytes = Buffer.from(pepper, 'hex');
-    const ikm = Buffer.concat([
-      Buffer.from(credentialId),
-      Buffer.from(userHandle),
-      derivedPinBytes,
-      pepperBytes,
-    ]);
+
+    let ikm: Buffer;
+    let hkdfSaltStr: string;
+
+    if (prfSecret) {
+      // PRF path: authenticator-derived secret replaces static credential identifiers.
+      // prfSecret = HMAC-SHA-256(passkey_private_key, PRF_SALT) -- deterministic,
+      // syncs cross-device via iCloud Keychain, and is a real cryptographic secret.
+      ikm = Buffer.concat([
+        Buffer.from(prfSecret),
+        derivedPinBytes,
+        pepperBytes,
+      ]);
+      // Bump HKDF salt to v5 to prevent key collision between PRF and non-PRF derivations
+      hkdfSaltStr = 'ducat-encryption-v5';
+    } else {
+      // Legacy path: credential IDs + PIN + pepper (backwards compatible).
+      ikm = Buffer.concat([
+        Buffer.from(credentialId),
+        Buffer.from(userHandle),
+        derivedPinBytes,
+        pepperBytes,
+      ]);
+      hkdfSaltStr = 'ducat-encryption-v4';
+    }
 
     // RFC 5869 compliant HKDF with SHA-256
-    const salt = Buffer.from('ducat-encryption-v4', 'utf8');
+    const salt = Buffer.from(hkdfSaltStr, 'utf8');
     const info = Buffer.from('aes-256-gcm-key', 'utf8');
 
     // HKDF-Extract: PRK = HMAC-SHA256(salt, IKM)

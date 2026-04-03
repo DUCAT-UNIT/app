@@ -102,7 +102,7 @@ describe('TransactionExecutionContext', () => {
     });
 
     (usePendingTxs as jest.Mock).mockReturnValue({});
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       addPendingTransaction: jest.fn(),
       confirmTransaction: jest.fn(),
       invalidateTransaction: jest.fn(),
@@ -173,6 +173,49 @@ describe('TransactionExecutionContext', () => {
     expect(TransactionService.signIntent).toHaveBeenCalledWith(mockIntent, 0);
     expect(mockSetSendIntent).toHaveBeenCalledWith(mockSignedIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('broadcasting');
+  });
+
+  it('should bypass signing and broadcasting for E2E mock PSBT intent', async () => {
+    const originalBypass = process.env.EXPO_PUBLIC_E2E_BYPASS;
+    process.env.EXPO_PUBLIC_E2E_BYPASS = 'true';
+
+    (useTransactionBuild as jest.Mock).mockReturnValue({
+      sendIntent: { psbt: 'e2e-mock-psbt' },
+      setSendIntent: mockSetSendIntent,
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    try {
+      let txid: string | null = null;
+      await act(async () => {
+        txid = await result.current!.signIntent();
+      });
+
+      expect(txid).toMatch(/^e2e-send-/);
+      expect(result.current!.broadcastedTxid).toBe(txid);
+      expect(mockSetIntentStep).toHaveBeenCalledWith('confirmed');
+      expect(TransactionSigningService.signIntent).not.toHaveBeenCalled();
+      expect(TransactionService.broadcastTransaction).not.toHaveBeenCalled();
+    } finally {
+      if (originalBypass === undefined) {
+        delete process.env.EXPO_PUBLIC_E2E_BYPASS;
+      } else {
+        process.env.EXPO_PUBLIC_E2E_BYPASS = originalBypass;
+      }
+    }
   });
 
   it('should handle missing intent when signing', async () => {
@@ -489,7 +532,7 @@ describe('TransactionExecutionContext', () => {
       sendAmount: '100',
     });
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -558,7 +601,7 @@ describe('TransactionExecutionContext', () => {
       sendAmount: '50',
     });
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -632,7 +675,7 @@ describe('TransactionExecutionContext', () => {
       sendAmount: 'invalid', // Invalid number
     });
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: mockAddPendingTransaction,
       confirmTransaction: jest.fn(),
@@ -782,7 +825,7 @@ describe('TransactionExecutionContext', () => {
   it('should invalidate transaction on broadcast error when intent has txid', async () => {
     const mockInvalidateTransaction = jest.fn();
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       pendingTransactions: {},
       addPendingTransaction: jest.fn(),
       confirmTransaction: jest.fn(),
@@ -1237,7 +1280,7 @@ describe('TransactionExecutionContext', () => {
     it('should extract BTC change outputs and track as pending', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1322,7 +1365,7 @@ describe('TransactionExecutionContext', () => {
         sendAmount: '100',
       });
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1418,7 +1461,7 @@ describe('TransactionExecutionContext', () => {
         sendAmount: '100',
       });
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1512,7 +1555,7 @@ describe('TransactionExecutionContext', () => {
         [pendingTxid1]: { status: 'pending', outputs: [] },
         [pendingTxid2]: { status: 'pending', outputs: [] },
       });
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
@@ -1580,7 +1623,7 @@ describe('TransactionExecutionContext', () => {
         sendAmount: '50',
       });
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1655,7 +1698,7 @@ describe('TransactionExecutionContext', () => {
           outputs: [{ address: 'tb1qtest', value: 50000, vout: 0 }],
         },
       });
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
         invalidateTransaction: jest.fn(),
@@ -1728,7 +1771,7 @@ describe('TransactionExecutionContext', () => {
     it('should not track outputs when there are no change outputs', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1793,7 +1836,7 @@ describe('TransactionExecutionContext', () => {
     it('should handle OP_RETURN outputs gracefully', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1872,7 +1915,7 @@ describe('TransactionExecutionContext', () => {
     it('should handle output extraction errors gracefully', async () => {
       const mockAddPendingTransaction = jest.fn();
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),
@@ -1930,7 +1973,7 @@ describe('TransactionExecutionContext', () => {
         sendAmount: '500', // Sending all runes
       });
 
-      (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
         pendingTransactions: {},
         addPendingTransaction: mockAddPendingTransaction,
         confirmTransaction: jest.fn(),

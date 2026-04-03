@@ -33,6 +33,9 @@ jest.mock('../../../utils/logger', () => ({
 const mockUnblindSignatures = jest.fn();
 const mockAddProofs = jest.fn();
 const mockLoadProofs = jest.fn();
+const mockSaveProofs = jest.fn();
+const mockWithProofLock = jest.fn(async (fn: () => Promise<unknown>) => fn());
+const mockGetCurrentCashuAccount = jest.fn(() => null);
 
 // Use jest.mock with factory - mock-prefixed variables are allowed
 jest.mock('../crypto', () => ({
@@ -44,6 +47,9 @@ jest.mock('../cashuProofManager', () => ({
   __esModule: true,
   addProofs: (...args: unknown[]) => mockAddProofs(...args),
   loadProofs: (...args: unknown[]) => mockLoadProofs(...args),
+  saveProofs: (...args: unknown[]) => mockSaveProofs(...args),
+  withProofLock: (fn: () => Promise<unknown>) => mockWithProofLock(fn),
+  getCurrentCashuAccount: () => mockGetCurrentCashuAccount(),
 }));
 
 describe('cashuSwapRecovery', () => {
@@ -86,7 +92,8 @@ describe('cashuSwapRecovery', () => {
       expect(id).toMatch(/^swap_\d+_/);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_pending_swap',
-        expect.stringContaining('"status":"pending"')
+        expect.stringContaining('"status":"pending"'),
+        expect.any(Object)
       );
     });
 

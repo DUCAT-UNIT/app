@@ -5,11 +5,11 @@
  * Uses responsive scaling with s() and sf() functions
  */
 
-import React, { memo, useMemo } from 'react';
-import { View, Text } from 'react-native';
-import { COLORS } from '../../theme';
-import { formatUnitAmount, formatFiat } from '../../utils/formatters/amounts';
+import React,{ memo,useMemo } from 'react';
+import { Text,View } from 'react-native';
 import { useResponsive } from '../../hooks/useResponsive';
+import { COLORS } from '../../theme';
+import { formatFiat,formatUnitAmount } from '../../utils/formatters/amounts';
 
 interface UnitBalanceBreakdownProps {
   ecashBalance: number;
@@ -20,7 +20,7 @@ const UnitBalanceBreakdown = memo(function UnitBalanceBreakdown({ ecashBalance, 
   const { s, sf } = useResponsive();
 
   // Memoize all calculations
-  const { ecashDisplayAmount, runesPercentage, formattedRunes, formattedEcash } = useMemo(() => {
+  const { runesPercentage, formattedRunes, formattedEcash } = useMemo(() => {
     // Ecash is in smallest units (needs /100), runes from ord is already in display units
     const ecashDisplay = ecashBalance / 100;
     const totalBalance = ecashDisplay + runesBalance;

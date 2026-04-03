@@ -44,10 +44,46 @@ export interface VaultStoreState {
   newHealthStatus: HealthStatus;
 
   // Actions
-  setSelectedFeeRate: (rate: number) => void;
-  setCurrentStep: (step: string) => void;
-  setProcessingStep: (step: number) => void;
-  reset: () => void;
+  setSelectedFeeRate(rate: number): void;
+  setCurrentStep(step: string): void;
+  setProcessingStep(step: number): void;
+  reset(): void;
+}
+
+export interface BorrowVaultStore extends VaultStoreState {
+  borrowAmount: number;
+  setBorrowAmount: (amount: number) => void;
+  maxBorrowable: number | null;
+}
+
+export interface DepositVaultStore extends VaultStoreState {
+  depositAmountBtc: number;
+  setDepositAmountBtc: (amount: number) => void;
+  availableBalanceBtc: number;
+  setAvailableBalance: (balance: number) => void;
+}
+
+export interface RepayVaultStore extends VaultStoreState {
+  repayAmountUnit: number;
+  setRepayAmountUnit: (amount: number) => void;
+  maxRepayable: number;
+  availableUnitBalance: number;
+  setAvailableUnitBalance: (balance: number) => void;
+}
+
+export interface WithdrawVaultStore extends VaultStoreState {
+  withdrawAmountBtc: number;
+  setWithdrawAmountBtc: (amount: number) => void;
+  maxWithdrawable: number;
+}
+
+export interface VaultOperationHookState {
+  isLoading: boolean;
+  borrowMore?: () => Promise<unknown>;
+  deposit?: () => Promise<unknown>;
+  repay?: () => Promise<unknown>;
+  withdraw?: () => Promise<unknown>;
+  execute?: () => Promise<unknown>;
 }
 
 /**
@@ -110,7 +146,10 @@ export interface VaultRoutes {
 /**
  * Input screen configuration
  */
-export interface VaultInputScreenConfig {
+export interface VaultInputScreenConfig<
+  TStore extends VaultStoreState = VaultStoreState,
+  TAdditionalData = unknown,
+> {
   /** Operation type */
   operationType: VaultOperationType;
 
@@ -124,7 +163,7 @@ export interface VaultInputScreenConfig {
   routes: VaultRoutes;
 
   /** Get amount configuration from store state */
-  getAmountConfig: (state: any) => AmountConfig;
+  getAmountConfig: (state: TStore) => AmountConfig;
 
   /** Compute preview values */
   computePreview: (
@@ -142,14 +181,14 @@ export interface VaultInputScreenConfig {
     effectiveUnitBorrowed: number,
     preview: VaultPreview,
     hasSufficientBtcForFees: boolean,
-    additionalData?: any
+    additionalData?: TAdditionalData
   ) => ValidationResult;
 
   /** Get empty state configuration */
   getEmptyState: (
     effectiveBtcLocked: number,
     effectiveUnitBorrowed: number,
-    additionalData?: any
+    additionalData?: TAdditionalData
   ) => EmptyStateConfig | null;
 
   /** Whether to check for min health violation */
@@ -162,7 +201,7 @@ export interface VaultInputScreenConfig {
 /**
  * Confirm screen configuration
  */
-export interface VaultConfirmScreenConfig {
+export interface VaultConfirmScreenConfig<TStore extends VaultStoreState = VaultStoreState> {
   /** Operation type */
   operationType: VaultOperationType;
 
@@ -176,13 +215,13 @@ export interface VaultConfirmScreenConfig {
   routes: VaultRoutes;
 
   /** Get primary amount from store */
-  getPrimaryAmount: (state: any) => { amount: number; unit: string };
+  getPrimaryAmount: (state: TStore) => { amount: number; unit: string };
 
   /** Execute the operation */
   executeOperation: () => Promise<{ txid: string } | null>;
 
   /** Get summary rows for the confirm card */
-  getSummaryRows: (state: any, btcPrice: number | null) => SummaryRow[];
+  getSummaryRows: (state: TStore, btcPrice: number | null) => SummaryRow[];
 }
 
 /**

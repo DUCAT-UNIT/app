@@ -4,17 +4,16 @@
  */
 
 import { logger } from '../../../utils/logger';
-import {
-  createMintQuote,
-  checkMintQuote,
-  mintTokens as mintTokensAPI,
-  MintQuote,
-} from '../cashuMintClient';
-import { createBlindedOutputs, unblindSignatures, splitAmount, BlindedOutput } from '../crypto';
 import { getOrFetchKeys } from '../cashuBalanceService';
+import {
+checkMintQuote,
+createMintQuote,
+MintQuote,
+mintTokens as mintTokensAPI,
+} from '../cashuMintClient';
+import { removeMintQuote,saveMintQuote,updateMintQuoteState } from '../cashuMintQuoteRecovery';
 import { addProofs } from '../cashuProofManager';
-import { CashuProof } from '../crypto';
-import { saveMintQuote, removeMintQuote, updateMintQuoteState } from '../cashuMintQuoteRecovery';
+import { CashuProof,createBlindedOutputs,splitAmount,unblindSignatures } from '../crypto';
 
 export interface MintQuoteResult {
   quoteId: string;
@@ -104,15 +103,19 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     // Mark quote as pending to prevent double-claim attempts
     await updateMintQuoteState(quoteId, 'PENDING');
 
-    const keyData = await getOrFetchKeys();
+    // Force fresh keys — stale cached keys from a previous mint instance cause unblinding failures
+    const keyData = await getOrFetchKeys(true);
 
-    // Extract keys from keyData
+    // Extract keys from keyData — must use a 'unit' keyset, not 'sat'
     let keys: Record<string, string>;
     let keysetId: string;
     if (keyData.keysets && keyData.keysets.length > 0) {
-      // New format with keyset array
-      keysetId = keyData.keysets[0].id;
-      keys = keyData.keysets[0].keys;
+      // Find an active 'unit' keyset (preferred), fall back to first keyset
+      const unitKeyset = keyData.keysets.find(
+        (ks: { unit?: string; active?: boolean }) => ks.unit === 'unit'
+      ) || keyData.keysets[0];
+      keysetId = unitKeyset.id;
+      keys = unitKeyset.keys;
     } else if (keyData.keys) {
       // Legacy format
       keys = keyData.keys;
@@ -145,12 +148,30 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
       signatureCount: response.signatures.length,
     });
 
+    // Determine which keyset the mint actually signed with
+    const signedKeysetId = response.signatures[0]?.id || keysetId;
+    let unblindKeys = keys;
+
+    // If the mint signed with a different keyset than we selected, look up the correct keys
+    if (signedKeysetId && signedKeysetId !== keysetId && keyData.keysets) {
+      const signedKeyset = keyData.keysets.find(
+        (ks: { id: string }) => ks.id === signedKeysetId
+      );
+      if (signedKeyset) {
+        logger.info('Mint signed with different keyset, switching keys', {
+          requested: keysetId,
+          signed: signedKeysetId,
+        });
+        unblindKeys = signedKeyset.keys;
+      }
+    }
+
     // Unblind signatures to create proofs
     const proofs = unblindSignatures(
       response.signatures,
       blindingData,
-      keys,
-      response.signatures[0]?.id || keysetId
+      unblindKeys,
+      signedKeysetId
     );
 
     // Add proofs to wallet

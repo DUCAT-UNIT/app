@@ -145,7 +145,7 @@ These flows are already instrumented with testIDs. The only work is writing the 
 **Note**: May need simulator biometric enrollment. Test the toggle UI, not actual Face ID.
 **New test**: `settings/09-toggle-biometric.yaml`
 
-#### P2-3: Delete Wallet - Full Flow
+#### P2-3: Delete Local Wallet - Full Flow
 **Why**: Current test only tests cancel. Need to verify the destructive path works.
 **Flow**: Settings -> security -> delete -> confirm -> verify returns to welcome screen
 **testIDs available**: `security-delete-btn`, `welcome-screen`

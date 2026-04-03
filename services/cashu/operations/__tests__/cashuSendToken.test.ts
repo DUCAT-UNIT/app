@@ -23,7 +23,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
-  checkProofsSpent: jest.fn(async () => ({ state: [] })),
+  checkProofsSpent: jest.fn(async () => ({ states: [] })),
 }));
 
 jest.mock('../../crypto', () => ({
@@ -44,6 +44,7 @@ jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   removeProofs: jest.fn(),
   addProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(() => null),
 }));
 
 import { sendToken } from '../cashuSendToken';

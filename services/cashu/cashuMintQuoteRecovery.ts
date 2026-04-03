@@ -13,6 +13,8 @@ import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { checkMintQuote } from './cashuMintClient';
 import { completeMint } from './operations/cashuMintOperations';
+import { DEVICE_ONLY } from '../storagePolicy';
+import { getCurrentCashuAccount } from './cashuProofManager';
 
 const PENDING_MINT_QUOTES_KEY = 'cashu_pending_mint_quotes';
 
@@ -28,6 +30,7 @@ export interface PersistedMintQuote {
   quoteId: string;
   amount: number;
   depositAddress: string;
+  taprootAddress?: string | null;
   createdAt: number;
   state: 'UNPAID' | 'PAID' | 'ISSUED' | 'PENDING';
   failCount?: number; // Track consecutive claim failures
@@ -37,7 +40,9 @@ export interface PersistedMintQuote {
 /**
  * Save a new mint quote to persistent storage
  */
-export const saveMintQuote = async (quote: Omit<PersistedMintQuote, 'createdAt' | 'state'>): Promise<void> => {
+export const saveMintQuote = async (
+  quote: Omit<PersistedMintQuote, 'createdAt' | 'state' | 'taprootAddress'>
+): Promise<void> => {
   try {
     const quotes = await loadMintQuotes();
 
@@ -49,12 +54,13 @@ export const saveMintQuote = async (quote: Omit<PersistedMintQuote, 'createdAt' 
 
     const newQuote: PersistedMintQuote = {
       ...quote,
+      taprootAddress: getCurrentCashuAccount(),
       createdAt: Date.now(),
       state: 'UNPAID',
     };
 
     quotes.push(newQuote);
-    await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes));
+    await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes), DEVICE_ONLY);
 
     logger.info('[MintQuoteRecovery] Saved mint quote', {
       quoteId: quote.quoteId.substring(0, 8),
@@ -76,7 +82,7 @@ export const removeMintQuote = async (quoteId: string): Promise<void> => {
     const filtered = quotes.filter(q => q.quoteId !== quoteId);
 
     if (filtered.length !== quotes.length) {
-      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(filtered));
+      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(filtered), DEVICE_ONLY);
       logger.info('[MintQuoteRecovery] Removed mint quote', { quoteId: quoteId.substring(0, 8) });
     }
   } catch (error) {
@@ -97,17 +103,21 @@ export const loadMintQuotes = async (): Promise<PersistedMintQuote[]> => {
     }
 
     const quotes: PersistedMintQuote[] = JSON.parse(stored);
+    const currentAccount = getCurrentCashuAccount();
 
     // Filter out expired quotes (older than 24 hours)
     const now = Date.now();
-    const validQuotes = quotes.filter(q => now - q.createdAt < QUOTE_EXPIRY_MS);
+    const nonExpiredQuotes = quotes.filter(q => now - q.createdAt < QUOTE_EXPIRY_MS);
+    const validQuotes = nonExpiredQuotes.filter(
+      (q) => !q.taprootAddress || !currentAccount || q.taprootAddress === currentAccount
+    );
 
-    // If we filtered any, save the cleaned list
-    if (validQuotes.length !== quotes.length) {
-      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(validQuotes));
+    // Only persist cleanup for expired quotes.
+    if (nonExpiredQuotes.length !== quotes.length) {
+      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(nonExpiredQuotes), DEVICE_ONLY);
       logger.info('[MintQuoteRecovery] Cleaned up expired quotes', {
-        removed: quotes.length - validQuotes.length,
-        remaining: validQuotes.length,
+        removed: quotes.length - nonExpiredQuotes.length,
+        remaining: nonExpiredQuotes.length,
       });
     }
 
@@ -133,7 +143,7 @@ export const updateMintQuoteState = async (
 
     if (quote) {
       quote.state = state;
-      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes));
+      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes), DEVICE_ONLY);
       logger.debug('[MintQuoteRecovery] Updated quote state', {
         quoteId: quoteId.substring(0, 8),
         state,
@@ -158,7 +168,7 @@ const incrementFailCount = async (quoteId: string, errorMsg: string): Promise<nu
     if (quote) {
       quote.failCount = (quote.failCount || 0) + 1;
       quote.lastError = errorMsg;
-      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes));
+      await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes), DEVICE_ONLY);
 
       logger.debug('[MintQuoteRecovery] Incremented fail count', {
         quoteId: quoteId.substring(0, 8),
@@ -183,7 +193,6 @@ const incrementFailCount = async (quoteId: string, errorMsg: string): Promise<nu
  */
 const isPermanentFailure = (errorMsg: string): boolean => {
   const permanentErrorPatterns = [
-    'Internal Server Error', // Mint's generic error for amount mismatch
     'amount mismatch',
     'deposit amount',
     'SECURITY',
@@ -226,6 +235,14 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
     for (const quote of quotes) {
       result.checked++;
 
+      // Skip quotes that are actively being processed by turbo flow
+      if (quote.state === 'PENDING') {
+        logger.debug('[MintQuoteRecovery] Skipping PENDING quote (active processing)', {
+          quoteId: quote.quoteId.substring(0, 8),
+        });
+        continue;
+      }
+
       try {
         // Check quote status with mint
         const mintQuote = await checkMintQuote(quote.quoteId);
@@ -238,27 +255,32 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
 
         if (mintQuote.state === 'PAID') {
           // Quote is paid but not yet claimed - recover it!
+          // Use the mint's reported amount (actual deposit), not the locally saved amount
+          const claimAmount = mintQuote.amount ?? quote.amount;
           logger.info('[MintQuoteRecovery] Found paid unclaimed quote, recovering...', {
             quoteId: quote.quoteId.substring(0, 8),
-            amount: quote.amount,
+            savedAmount: quote.amount,
+            mintAmount: mintQuote.amount,
+            claimAmount,
           });
 
           try {
             // Mark as pending to prevent double-claim attempts
             await updateMintQuoteState(quote.quoteId, 'PENDING');
 
-            // Complete the mint (claim tokens)
-            const proofs = await completeMint(quote.quoteId, quote.amount);
+            // Complete the mint (claim tokens) - use mint's amount to match deposit
+            const proofs = await completeMint(quote.quoteId, claimAmount);
 
             // Remove the quote after successful claim
             await removeMintQuote(quote.quoteId);
 
             result.recovered++;
-            result.totalAmountRecovered += quote.amount;
+            result.totalAmountRecovered += claimAmount;
 
             logger.info('[MintQuoteRecovery] Successfully recovered mint quote', {
               quoteId: quote.quoteId.substring(0, 8),
-              amount: quote.amount,
+              savedAmount: quote.amount,
+              claimedAmount: claimAmount,
               proofCount: proofs.length,
             });
           } catch (claimError) {

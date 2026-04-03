@@ -9,6 +9,7 @@ import {
   createBlindedOutputs,
   unblindSignatures,
   splitAmount,
+  sumProofs,
   decodeToken,
   CashuProof,
 } from '../crypto';
@@ -136,8 +137,11 @@ export const receiveP2PKToken = async (
     let keys: Record<string, string>;
     let keysetId: string;
     if (keyData.keysets && keyData.keysets.length > 0) {
-      keysetId = keyData.keysets[0].id;
-      keys = keyData.keysets[0].keys;
+      const unitKeyset = keyData.keysets.find(
+        (ks: { unit?: string }) => ks.unit === 'unit'
+      ) || keyData.keysets[0];
+      keysetId = unitKeyset.id;
+      keys = unitKeyset.keys;
     } else if (keyData.keys) {
       keys = keyData.keys;
       keysetId = '';
@@ -233,6 +237,20 @@ export const receiveP2PKToken = async (
       newProofCount: newProofs.length,
       totalAmount: newProofs.reduce((sum, p) => sum + p.amount, 0),
     });
+
+    // SECURITY: Verify the swap returned proofs matching the expected total amount.
+    // A malicious mint could return fewer/different proofs, causing silent fund loss.
+    const newProofsTotal = sumProofs(newProofs);
+    if (newProofsTotal !== totalSmallestUnits) {
+      logger.error('SECURITY: Swap proof amount mismatch', {
+        expected: totalSmallestUnits,
+        received: newProofsTotal,
+        proofsCount: newProofs.length,
+      });
+      throw new Error(
+        `Swap verification failed: expected ${totalSmallestUnits} but received ${newProofsTotal}`
+      );
+    }
 
     // Add to wallet
     await addProofs(newProofs, false); // skip strict verification; proofs already validated via mint

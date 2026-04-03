@@ -3,9 +3,9 @@
  * Provides encrypted backup storage to iCloud for wallet recovery across devices
  */
 
+import { Platform } from 'react-native';
 import iCloudStorage from 'react-native-icloudstore';
 import { logger } from '../utils/logger';
-import { Platform } from 'react-native';
 
 export interface ICloudAvailabilityResult {
   available: boolean;
@@ -19,6 +19,9 @@ export interface EncryptedBackupData {
   credentialId: string;
   userHandle: string;
   pinSalt: string;
+  pepper?: string;
+  prfEnabled?: boolean;
+  derivationVersion?: string;
 }
 
 export interface LoadedBackupData extends EncryptedBackupData {
@@ -86,7 +89,11 @@ const ICLOUD_KEYS = {
 } as const;
 
 // Backup version for atomic storage
-const BACKUP_VERSION = 2;
+// v2: Original atomic format
+// v3: Added pepper for cross-device recovery
+// v4: Added PRF flag for recovery path selection
+// v5: Added explicit derivationVersion metadata
+const BACKUP_VERSION = 5;
 
 interface AtomicBackupData {
   version: number;
@@ -96,6 +103,9 @@ interface AtomicBackupData {
   credentialId: string;
   userHandle: string;
   pinSalt: string;
+  pepper?: string;
+  prfEnabled?: boolean;
+  derivationVersion?: string;
   timestamp: number;
 }
 
@@ -116,9 +126,12 @@ export const saveToICloud = async ({
   tag,
   credentialId,
   userHandle,
-  pinSalt
+  pinSalt,
+  pepper,
+  prfEnabled,
+  derivationVersion,
 }: EncryptedBackupData): Promise<string> => {
-  let saveSteps = 'iCloud Save Debug (Atomic V2):\n';
+  let saveSteps = `iCloud Save Debug (Atomic V${BACKUP_VERSION}):\n`;
   try {
     saveSteps += `Input validation:\n`;
     saveSteps += `  - encrypted: ${!!encrypted} (length: ${encrypted?.length || 0})\n`;
@@ -127,6 +140,9 @@ export const saveToICloud = async ({
     saveSteps += `  - credentialId: ${!!credentialId} (length: ${credentialId?.length || 0})\n`;
     saveSteps += `  - userHandle: ${!!userHandle} (length: ${userHandle?.length || 0})\n`;
     saveSteps += `  - pinSalt: ${!!pinSalt} (length: ${pinSalt?.length || 0})\n`;
+    saveSteps += `  - pepper: ${!!pepper} (length: ${pepper?.length || 0})\n`;
+    saveSteps += `  - prfEnabled: ${!!prfEnabled}\n`;
+    saveSteps += `  - derivationVersion: ${derivationVersion || 'N/A'}\n`;
 
     logger.debug('Saving encrypted mnemonic to iCloud (atomic)', {
       hasEncrypted: !!encrypted,
@@ -137,6 +153,9 @@ export const saveToICloud = async ({
       hasUserHandle: !!userHandle,
       hasPinSalt: !!pinSalt,
       pinSaltLength: pinSalt?.length,
+      hasPepper: !!pepper,
+      prfEnabled: !!prfEnabled,
+      derivationVersion: derivationVersion || null,
       version: BACKUP_VERSION,
     });
 
@@ -149,6 +168,9 @@ export const saveToICloud = async ({
       credentialId,
       userHandle,
       pinSalt,
+      pepper,
+      prfEnabled,
+      derivationVersion,
       timestamp: Date.now(),
     };
 
@@ -247,7 +269,13 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
         logger.debug('Successfully loaded atomic backup from iCloud', {
           version: backupData.version,
           timestamp: backupData.timestamp,
+          hasPepper: !!backupData.pepper,
+          prfEnabled: !!backupData.prfEnabled,
+          derivationVersion: backupData.derivationVersion || null,
         });
+        loadSteps += `  - Has pepper: ${!!backupData.pepper}\n`;
+        loadSteps += `  - PRF enabled: ${!!backupData.prfEnabled}\n`;
+        loadSteps += `  - Derivation version: ${backupData.derivationVersion || 'N/A'}\n`;
         loadSteps += '\n✅ Atomic backup loaded successfully\n';
 
         return {
@@ -257,6 +285,9 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
           credentialId: backupData.credentialId,
           userHandle: backupData.userHandle,
           pinSalt: backupData.pinSalt,
+          pepper: backupData.pepper,
+          prfEnabled: backupData.prfEnabled,
+          derivationVersion: backupData.derivationVersion,
           _debugInfo: loadSteps,
         };
       } catch (parseError) {

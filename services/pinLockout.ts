@@ -25,7 +25,6 @@ const LEGACY_LOCKOUT_KEYS = {
 // across app reinstalls. This prevents brute-force bypass via reinstall.
 const LOCKOUT_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-  requireAuthentication: true,
 };
 const LEGACY_LOCKOUT_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
@@ -73,10 +72,13 @@ export const loadLockoutState = async (): Promise<LockoutState> => {
           : null,
     };
   } catch (error: unknown) {
-    // If we can't load state, return safe defaults
+    logger.error('CRITICAL: Failed to load lockout state', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Fail closed: if lockout state is unreadable, deny repeated attempts.
     return {
-      failedAttempts: 0,
-      lockoutUntil: null,
+      failedAttempts: MAX_PIN_ATTEMPTS,
+      lockoutUntil: Date.now() + LOCKOUT_DURATION,
     };
   }
 };

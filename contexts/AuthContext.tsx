@@ -5,11 +5,20 @@
  */
 
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback, ReactNode, MutableRefObject } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { useAuth as useAuthHook, UseAuthReturn } from '../hooks/useAuth';
-import { SECURE_KEYS } from '../utils/constants';
 import { resetOnboardingState } from '../utils/onboardingHelpers';
+import { logger } from '../utils/logger';
 import { TextInput } from 'react-native';
+import { deleteWalletData } from '../services/secureStorageService';
+
+// Rate limit: minimum interval between wallet resets (1 hour)
+const WALLET_RESET_COOLDOWN_MS = 60 * 60 * 1000;
+let lastWalletResetTimestamp = 0;
+
+// Reset function for testing only — gated behind __DEV__ to prevent production use
+export const _resetWalletRateLimitState: (() => void) | undefined = __DEV__
+  ? () => { lastWalletResetTimestamp = 0; }
+  : undefined;
 
 export interface OnboardingState {
   seedConfirmed: boolean;
@@ -23,13 +32,6 @@ export interface OnboardingState {
 
 export interface AuthContextValue extends UseAuthReturn {
   onboarding: OnboardingState;
-  seedConfirmed: boolean;
-  setSeedConfirmed: React.Dispatch<React.SetStateAction<boolean>>;
-  seedConfirmedRef: MutableRefObject<boolean>;
-  resetWalletAndState: () => Promise<void>;
-  resetInactivityTimer: () => void;
-  inactivityTimerRef: MutableRefObject<NodeJS.Timeout | null>;
-  amountInputRef: MutableRefObject<TextInput | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -71,18 +73,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
   }, [seedConfirmed]);
 
   // Reset wallet and all onboarding state - memoized to prevent recreation
-  // SECURITY: Requires authentication to prevent unauthorized wallet wipe
+  // SECURITY: Requires authentication and rate limiting to prevent unauthorized wallet wipe
   const resetWalletAndState = useCallback(async () => {
     if (!authState.isAuthenticated) {
       throw new Error('Authentication required to reset wallet');
     }
-    await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
-    await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
+
+    // SECURITY: Rate limit wallet resets to prevent rapid repeated deletion
+    const now = Date.now();
+    if (lastWalletResetTimestamp > 0 && now - lastWalletResetTimestamp < WALLET_RESET_COOLDOWN_MS) {
+      const remainingMin = Math.ceil(
+        (WALLET_RESET_COOLDOWN_MS - (now - lastWalletResetTimestamp)) / 60000
+      );
+      logger.warn('[AuthContext] Wallet reset rate-limited', {
+        lastResetAt: new Date(lastWalletResetTimestamp).toISOString(),
+        remainingMin,
+      });
+      throw new Error(
+        `Wallet was recently deleted. Please wait ${remainingMin} minute${remainingMin > 1 ? 's' : ''} before trying again.`
+      );
+    }
+
+    // SECURITY: Audit log before destructive operation
+    logger.warn('[AuthContext] Wallet reset initiated', {
+      timestamp: new Date(now).toISOString(),
+      action: 'resetWalletAndState',
+    });
+
+    await deleteWalletData();
     await resetOnboardingState();
     if (resetWallet) {
       resetWallet();
     }
     setSeedConfirmed(false);
+
+    lastWalletResetTimestamp = now;
+
+    logger.warn('[AuthContext] Wallet reset completed', {
+      timestamp: new Date(now).toISOString(),
+    });
   }, [resetWallet, authState.isAuthenticated]);
 
   // Reset inactivity timer - memoized to prevent recreation
@@ -108,22 +137,106 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
     [seedConfirmed, resetWalletAndState, resetInactivityTimer]
   );
 
+  // Destructure authState into individual stable values to avoid spread defeating memoization
+  const {
+    isAuthenticated,
+    isBiometricSupported,
+    biometricEnabled,
+    showBiometricPrompt,
+    showFaceIdButton,
+    isPasskeySupported,
+    passkeyEnabled,
+    showPasskeyPrompt,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    pin,
+    confirmPin,
+    pinError,
+    pinStep,
+    setIsAuthenticated,
+    setBiometricEnabled,
+    setShowBiometricPrompt,
+    setShowFaceIdButton,
+    setPasskeyEnabled,
+    setShowPasskeyPrompt,
+    setShowPinEntry,
+    setSettingUpPin,
+    setChangingPin,
+    setPin,
+    setConfirmPin,
+    setPinError,
+    setPinStep,
+    authenticateUser,
+    authenticateWithPasskey,
+    handlePinSetupComplete,
+    handlePinChangeComplete,
+    handleLockScreenAuthenticated,
+    loadBiometricPreference,
+    loadPasskeyPreference,
+    lock,
+    resetAuth,
+    startPinChange,
+  } = authState;
+
   const value = useMemo(
     () => ({
-      // Auth state and methods (from useAuth hook)
-      ...authState,
+      // Auth state (from useAuth hook)
+      isAuthenticated,
+      isBiometricSupported,
+      biometricEnabled,
+      showBiometricPrompt,
+      showFaceIdButton,
+      isPasskeySupported,
+      passkeyEnabled,
+      showPasskeyPrompt,
+      settingUpPin,
+      changingPin,
+      showPinEntry,
+      pin,
+      confirmPin,
+      pinError,
+      pinStep,
+      // Auth setters
+      setIsAuthenticated,
+      setBiometricEnabled,
+      setShowBiometricPrompt,
+      setShowFaceIdButton,
+      setPasskeyEnabled,
+      setShowPasskeyPrompt,
+      setShowPinEntry,
+      setSettingUpPin,
+      setChangingPin,
+      setPin,
+      setConfirmPin,
+      setPinError,
+      setPinStep,
+      // Auth functions
+      authenticateUser,
+      authenticateWithPasskey,
+      handlePinSetupComplete,
+      handlePinChangeComplete,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      loadPasskeyPreference,
+      lock,
+      resetAuth,
+      startPinChange,
       // Onboarding namespace
       onboarding,
-      // Direct exports for backwards compatibility
-      seedConfirmed,
-      setSeedConfirmed,
-      seedConfirmedRef,
-      resetWalletAndState,
-      resetInactivityTimer,
-      inactivityTimerRef,
-      amountInputRef,
     }),
-    [authState, onboarding, seedConfirmed, resetWalletAndState, resetInactivityTimer]
+    [
+      isAuthenticated, isBiometricSupported, biometricEnabled, showBiometricPrompt,
+      showFaceIdButton, isPasskeySupported, passkeyEnabled, showPasskeyPrompt,
+      settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
+      setIsAuthenticated, setBiometricEnabled, setShowBiometricPrompt, setShowFaceIdButton,
+      setPasskeyEnabled, setShowPasskeyPrompt, setShowPinEntry, setSettingUpPin,
+      setChangingPin, setPin, setConfirmPin, setPinError, setPinStep,
+      authenticateUser, authenticateWithPasskey, handlePinSetupComplete,
+      handlePinChangeComplete, handleLockScreenAuthenticated, loadBiometricPreference,
+      loadPasskeyPreference, lock, resetAuth, startPinChange,
+      onboarding,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

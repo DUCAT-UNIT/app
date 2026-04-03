@@ -34,6 +34,14 @@ jest.mock('../../services/passkey', () => ({
   isPasskeySupported: jest.fn(),
 }));
 
+// Mock biometricService
+const mockAuthenticateWithBiometrics = jest.fn();
+const mockIsBiometricEnabled = jest.fn();
+jest.mock('../../services/biometricService', () => ({
+  authenticateWithBiometrics: (...args: any[]) => mockAuthenticateWithBiometrics(...args),
+  isBiometricEnabled: () => mockIsBiometricEnabled(),
+}));
+
 // Helper to render hooks with props
 function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
   const result: { current: T | null } = { current: null };
@@ -64,6 +72,8 @@ describe('useAuth', () => {
     (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
     (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
     (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({ success: true });
+    mockAuthenticateWithBiometrics.mockResolvedValue({ success: true });
+    mockIsBiometricEnabled.mockResolvedValue(false);
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(false);
@@ -117,7 +127,7 @@ describe('useAuth', () => {
 
   describe('Load Biometric Preference', () => {
     it('should load biometric preference from storage', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('true');
+      mockIsBiometricEnabled.mockResolvedValue(true);
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -131,7 +141,7 @@ describe('useAuth', () => {
     });
 
     it('should default to false if no preference stored', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      mockIsBiometricEnabled.mockResolvedValue(false);
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -145,7 +155,7 @@ describe('useAuth', () => {
     });
 
     it('should handle storage errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
+      mockIsBiometricEnabled.mockRejectedValue(new Error('Storage error'));
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -159,7 +169,7 @@ describe('useAuth', () => {
     });
 
     it('should handle non-Error storage errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue('string error');
+      mockIsBiometricEnabled.mockRejectedValue('string error');
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -187,11 +197,10 @@ describe('useAuth', () => {
         await result.current!.authenticateUser();
       });
 
-      expect(LocalAuthentication.authenticateAsync).toHaveBeenCalledWith({
-        promptMessage: 'Authenticate to access your wallet',
-        fallbackLabel: 'Use PIN',
-        disableDeviceFallback: false,
-      });
+      expect(mockAuthenticateWithBiometrics).toHaveBeenCalledWith(
+        'Authenticate to access your wallet',
+        'Use PIN'
+      );
       expect(result.current!.isAuthenticated).toBe(true);
     });
 
@@ -208,7 +217,7 @@ describe('useAuth', () => {
     });
 
     it('should handle biometric authentication failure', async () => {
-      (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({ success: false });
+      mockAuthenticateWithBiometrics.mockResolvedValue({ success: false });
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -226,7 +235,7 @@ describe('useAuth', () => {
     });
 
     it('should handle authentication errors', async () => {
-      (LocalAuthentication.authenticateAsync as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      mockAuthenticateWithBiometrics.mockRejectedValue(new Error('Auth error'));
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -244,7 +253,7 @@ describe('useAuth', () => {
     });
 
     it('should handle non-Error authentication errors', async () => {
-      (LocalAuthentication.authenticateAsync as jest.Mock).mockRejectedValue('string auth error');
+      mockAuthenticateWithBiometrics.mockRejectedValue('string auth error');
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,
@@ -649,7 +658,7 @@ describe('useAuth', () => {
     });
 
     it('should handle biometric authentication cancellation', async () => {
-      (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({ success: false, error: 'user_cancel' });
+      mockAuthenticateWithBiometrics.mockResolvedValue({ success: false, error: 'user_cancel' });
 
       const { result } = renderHook(() => useAuth(mockProps), {
         initialProps: mockProps,

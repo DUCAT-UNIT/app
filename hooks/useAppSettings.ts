@@ -4,10 +4,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { clearWallet } from '../services/cashu/cashuWalletService';
-import logger from '../utils/logger';
+import {
+  getBoolean,
+  getNumber,
+  SettingKeys,
+  setBoolean,
+  setNumber,
+} from '../services/settingsService';
+import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 
 export interface UseAppSettingsParams {
@@ -44,25 +50,10 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const savedNotificationsEnabled = await SecureStore.getItemAsync('notificationsEnabled');
-        if (savedNotificationsEnabled !== null) {
-          setNotificationsEnabled(savedNotificationsEnabled === 'true');
-        }
-
-        const savedShowZeroAssets = await SecureStore.getItemAsync('showZeroAssets');
-        if (savedShowZeroAssets !== null) {
-          setShowZeroAssets(savedShowZeroAssets === 'true');
-        }
-
-        const savedAdvancedMode = await SecureStore.getItemAsync('advancedMode');
-        if (savedAdvancedMode !== null) {
-          setAdvancedMode(savedAdvancedMode === 'true');
-        }
-
-        const savedEcashThreshold = await SecureStore.getItemAsync('ecashThreshold');
-        if (savedEcashThreshold !== null) {
-          setEcashThreshold(parseInt(savedEcashThreshold, 10));
-        }
+        setNotificationsEnabled(await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false));
+        setShowZeroAssets(await getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false));
+        setAdvancedMode(await getBoolean(SettingKeys.ADVANCED_MODE, false));
+        setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 100));
       } catch (error: unknown) {
         logger.warn('Failed to load app settings', {
           error: error instanceof Error ? error.message : String(error)
@@ -72,29 +63,57 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     loadSettings();
   }, []);
 
-  const handleShowZeroAssetsToggle = useCallback(async () => {
-    let newValue: boolean;
-    setShowZeroAssets(prev => {
-      newValue = !prev;
-      return newValue;
-    });
-    await new Promise(resolve => setTimeout(resolve, 0));
-    await SecureStore.setItemAsync('showZeroAssets', newValue!.toString());
+  const persistBooleanOrThrow = useCallback(async (key: string, value: boolean, failureMessage: string) => {
+    if (!await setBoolean(key, value)) {
+      throw new Error(failureMessage);
+    }
   }, []);
 
-  const handleAdvancedModeToggle = useCallback(async () => {
-    // Use functional setState to get the latest value and avoid stale closure
-    let newValue: boolean;
-    setAdvancedMode(prev => {
-      newValue = !prev;
-      logger.debug('[useAppSettings] Advanced Mode toggle:', prev, '->', newValue);
-      return newValue;
-    });
-    // Small delay to ensure state is updated before persisting
-    await new Promise(resolve => setTimeout(resolve, 0));
-    await SecureStore.setItemAsync('advancedMode', newValue!.toString());
-    logger.debug('[useAppSettings] Advanced Mode toggle complete');
+  const persistNumberOrThrow = useCallback(async (key: string, value: number, failureMessage: string) => {
+    if (!await setNumber(key, value)) {
+      throw new Error(failureMessage);
+    }
   }, []);
+
+  const handleShowZeroAssetsToggle = useCallback(async () => {
+    const newValue = !showZeroAssets;
+    setShowZeroAssets(newValue);
+
+    try {
+      await persistBooleanOrThrow(
+        SettingKeys.SHOW_ZERO_ASSETS,
+        newValue,
+        'Failed to persist showZeroAssets preference'
+      );
+    } catch (error: unknown) {
+      setShowZeroAssets(!newValue);
+      logger.warn('Failed to save showZeroAssets preference', {
+        error: error instanceof Error ? error.message : String(error),
+        attemptedValue: newValue,
+      });
+    }
+  }, [persistBooleanOrThrow, showZeroAssets]);
+
+  const handleAdvancedModeToggle = useCallback(async () => {
+    const newValue = !advancedMode;
+    logger.debug('[useAppSettings] Advanced Mode toggle:', advancedMode, '->', newValue);
+    setAdvancedMode(newValue);
+
+    try {
+      await persistBooleanOrThrow(
+        SettingKeys.ADVANCED_MODE,
+        newValue,
+        'Failed to persist advanced mode preference'
+      );
+      logger.debug('[useAppSettings] Advanced Mode toggle complete');
+    } catch (error: unknown) {
+      setAdvancedMode(!newValue);
+      logger.warn('Failed to save advanced mode preference', {
+        error: error instanceof Error ? error.message : String(error),
+        attemptedValue: newValue,
+      });
+    }
+  }, [advancedMode, persistBooleanOrThrow]);
 
   const handleNotificationsToggle = useCallback(() => {
     const newValue = !notificationsEnabled;
@@ -116,23 +135,56 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
           );
 
           if (!result.success) {
-            await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
-            await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+            await persistBooleanOrThrow(
+              SettingKeys.PENDING_NOTIFICATIONS_ENABLE,
+              true,
+              'Failed to persist pending notifications flag'
+            );
+            await persistBooleanOrThrow(
+              SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
+              true,
+              'Failed to persist return-to-settings flag'
+            );
             setIsAuthenticated(false);
             return;
           }
 
-          await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+          await persistBooleanOrThrow(
+            SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
+            true,
+            'Failed to persist return-to-settings flag'
+          );
         } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
           logger.warn('Biometric auth failed for notifications toggle', {
-            error: error instanceof Error ? error.message : String(error)
+            error: message
           });
-          notify.auth.requiredForNotifications();
+          if (message.includes('persist')) {
+            notify.settings.notificationsFailed();
+          } else {
+            notify.auth.requiredForNotifications();
+          }
           return;
         }
       } else {
-        await SecureStore.setItemAsync('pendingNotificationsEnable', 'true');
-        await SecureStore.setItemAsync('returnToSettingsAfterAuth', 'true');
+        try {
+          await persistBooleanOrThrow(
+            SettingKeys.PENDING_NOTIFICATIONS_ENABLE,
+            true,
+            'Failed to persist pending notifications flag'
+          );
+          await persistBooleanOrThrow(
+            SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH,
+            true,
+            'Failed to persist return-to-settings flag'
+          );
+        } catch (error: unknown) {
+          logger.error('Failed to queue notifications enable flow', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          notify.settings.notificationsFailed();
+          return;
+        }
         setIsAuthenticated(false);
         return;
       }
@@ -141,20 +193,25 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     // Authentication successful or disabling, proceed with toggle
     setNotificationsEnabled(newValue);
     try {
-      await SecureStore.setItemAsync('notificationsEnabled', String(newValue));
+      await persistBooleanOrThrow(
+        SettingKeys.NOTIFICATIONS_ENABLED,
+        newValue,
+        'Failed to persist notifications setting'
+      );
       if (newValue) {
         notify.settings.notificationsEnabled();
       } else {
         notify.settings.notificationsDisabled();
       }
     } catch (error: unknown) {
+      setNotificationsEnabled(!newValue);
       logger.error('Failed to save notification setting', {
         error: error instanceof Error ? error.message : String(error),
         attemptedValue: newValue
       });
       notify.settings.notificationsFailed();
     }
-  }, [pendingNotificationsValue, biometricEnabled, setIsAuthenticated]);
+  }, [pendingNotificationsValue, biometricEnabled, persistBooleanOrThrow, setIsAuthenticated]);
 
   const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
@@ -202,7 +259,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
 
   const handleClearLockedTokens = useCallback(async (): Promise<void> => {
     try {
-      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService.js');
+      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService');
       await clearSentLockedTokens();
       notify.cashu.lockedTokensCleared();
     } catch (error) {
@@ -213,9 +270,22 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
 
   const handleEcashThresholdChange = useCallback(async (newThreshold: number): Promise<void> => {
     logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
+    const previousThreshold = ecashThreshold;
     setEcashThreshold(newThreshold);
-    await SecureStore.setItemAsync('ecashThreshold', newThreshold.toString());
-  }, []);
+    try {
+      await persistNumberOrThrow(
+        SettingKeys.ECASH_THRESHOLD,
+        newThreshold,
+        'Failed to persist ecash threshold'
+      );
+    } catch (error: unknown) {
+      setEcashThreshold(previousThreshold);
+      logger.warn('Failed to save ecash threshold', {
+        error: error instanceof Error ? error.message : String(error),
+        attemptedValue: newThreshold,
+      });
+    }
+  }, [ecashThreshold, persistNumberOrThrow]);
 
   return useMemo(
     () => ({

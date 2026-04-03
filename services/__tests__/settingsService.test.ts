@@ -29,10 +29,12 @@ import {
   getCurrentAccount,
   setCurrentAccount,
 } from '../settingsService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store');
+jest.mock('@react-native-async-storage/async-storage');
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -40,6 +42,21 @@ jest.mock('../../utils/logger', () => ({
     error: jest.fn(),
   },
 }));
+
+beforeEach(() => {
+  (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+  (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+  (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+  (AsyncStorage.getItem as jest.Mock).mockImplementation((key: string) =>
+    (SecureStore.getItemAsync as jest.Mock)(key)
+  );
+  (AsyncStorage.setItem as jest.Mock).mockImplementation((key: string, value: string) =>
+    (SecureStore.setItemAsync as jest.Mock)(key, value)
+  );
+  (AsyncStorage.removeItem as jest.Mock).mockImplementation((key: string) =>
+    (SecureStore.deleteItemAsync as jest.Mock)(key)
+  );
+});
 
 describe('SettingKeys', () => {
   it('should export all setting key constants', () => {
@@ -536,7 +553,7 @@ describe('getBiometricEnabled', () => {
 
     const result = await getBiometricEnabled();
 
-    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SettingKeys.BIOMETRIC_ENABLED);
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1');
     expect(result).toBe(true);
   });
 
@@ -559,7 +576,11 @@ describe('setBiometricEnabled', () => {
 
     const result = await setBiometricEnabled(true);
 
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SettingKeys.BIOMETRIC_ENABLED, 'true');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      'wallet_biometric_enabled_v1',
+      'true',
+      { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+    );
     expect(result).toBe(true);
   });
 });

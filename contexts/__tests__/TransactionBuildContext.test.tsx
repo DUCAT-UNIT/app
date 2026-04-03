@@ -70,7 +70,7 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
     });
@@ -352,7 +352,7 @@ describe('TransactionBuildContext', () => {
       { txid: 'unconfirmed2', vout: 1, value: 30000 },
     ];
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
       getSpentUtxos: jest.fn().mockReturnValue([]),
     });
@@ -368,7 +368,7 @@ describe('TransactionBuildContext', () => {
     (TransactionService.createBtcIntent as jest.Mock).mockResolvedValue(mockIntent);
 
     const mockMarkUtxosAsSpent = jest.fn();
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue(mockUnconfirmedUtxos),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       markUtxosAsSpent: mockMarkUtxosAsSpent,
@@ -433,7 +433,7 @@ describe('TransactionBuildContext', () => {
     } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
@@ -483,7 +483,7 @@ describe('TransactionBuildContext', () => {
     } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
@@ -526,7 +526,7 @@ describe('TransactionBuildContext', () => {
     } as any;
 
     const mockUnmarkUtxosAsSpent = jest.fn();
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
@@ -558,7 +558,7 @@ describe('TransactionBuildContext', () => {
 
   it('should handle cancelIntent when no intent exists', async () => {
     const mockUnmarkUtxosAsSpent = jest.fn();
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
@@ -607,7 +607,7 @@ describe('TransactionBuildContext', () => {
       setSendRecipient: mockSetSendRecipient,
     });
 
-    (usePendingTransactionsStore as jest.Mock).mockReturnValue({
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
       getUnconfirmedUTXOs: jest.fn().mockReturnValue([]),
       getSpentUtxos: jest.fn().mockReturnValue([]),
       markUtxosAsSpent: mockMarkUtxosAsSpent,

@@ -15,6 +15,12 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
+}));
+
+const mockPersistBiometricEnabled = jest.fn();
+jest.mock('../../services/biometricService', () => ({
+  setBiometricEnabled: (...args: any[]) => mockPersistBiometricEnabled(...args),
 }));
 
 // Mock secureStorageService
@@ -71,6 +77,7 @@ describe('usePostAuthHandler', () => {
       loadSeedPhrase: jest.fn(),
     };
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    mockPersistBiometricEnabled.mockResolvedValue(true);
   });
 
   describe('PIN Change Flow', () => {
@@ -124,7 +131,7 @@ describe('usePostAuthHandler', () => {
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pendingFaceIdEnable');
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(mockPersistBiometricEnabled).toHaveBeenCalledWith(true);
       expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
     });
 
@@ -371,8 +378,10 @@ describe('usePostAuthHandler', () => {
       });
 
       await act(async () => {
-        await expect(result.current!.handlePostAuth()).rejects.toThrow('SecureStore error');
+        await result.current!.handlePostAuth();
       });
+
+      expect(notify.wallet.deleteFailed).not.toHaveBeenCalled();
     });
   });
 });

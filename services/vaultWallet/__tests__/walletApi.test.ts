@@ -47,8 +47,15 @@ jest.mock('../../signing', () => ({
   psbtPostProcess: jest.fn(),
 }));
 
-jest.mock('../psbtBinaryUtils', () => ({
-  extractOpReturnFromPsbt: jest.fn(() => 'mock-op-return'),
+jest.mock('../signingContext', () => ({
+  getExpectedVaultPsbtTemplates: jest.fn(() => [
+    {
+      version: 2,
+      locktime: 0,
+      inputs: [],
+      outputs: [],
+    },
+  ]),
 }));
 
 jest.mock('../../../utils/logger', () => ({

@@ -66,6 +66,7 @@ jest.mock('expo-secure-store', () => ({
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),
   getItemAsync: jest.fn().mockResolvedValue(null),
   setItemAsync: jest.fn().mockResolvedValue(undefined),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 // Mock secureStorageService for findAccountForP2PKToken and getP2PKPrivateKey
@@ -141,6 +142,8 @@ import {
   getP2PKPrivateKey,
 } from '../p2pk';
 import * as SecureStore from 'expo-secure-store';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 describe('cashuP2PK', () => {
   beforeEach(() => {
@@ -576,10 +579,11 @@ describe('cashuP2PK', () => {
 
     it('should return false on verification error', async () => {
       const witness = JSON.stringify({ signatures: ['a'.repeat(128)] });
-      (crypto.digest as jest.Mock).mockRejectedValue(new Error('Digest failed'));
+      (schnorr.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('Verify crashed');
+      });
 
       const result = await verifyP2PKWitness('secret', witness, 'b'.repeat(64));
-
       expect(result).toBe(false);
     });
 
@@ -669,18 +673,11 @@ describe('cashuP2PK', () => {
       expect(typeof clearP2PKCache).toBe('function');
     });
 
-    it('should delete cache keys from SecureStore', async () => {
+    it('should clear in-memory cache without SecureStore interaction', async () => {
       await clearP2PKCache();
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
-    });
-
-    it('should handle delete error gracefully', async () => {
-      (SecureStore.deleteItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Delete failed'));
-
-      // Should not throw
-      await expect(clearP2PKCache()).resolves.toBeUndefined();
+      // Memory-only cache: no SecureStore deletes
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     });
   });
 
@@ -736,6 +733,11 @@ describe('cashuP2PK', () => {
         pubkey: Buffer.from(targetPubkey as string, 'hex'),
       });
 
+      // C-07: The verification check does Buffer.from(pointFromScalar(...)).slice(1).toString('hex')
+      // which must equal targetPubkey. Create a 33-byte buffer with prefix + targetPubkey.
+      const verifyPubkeyBuffer = Buffer.concat([Buffer.from([0x02]), Buffer.from(targetPubkey, 'hex')]);
+      (ecc.pointFromScalar as jest.Mock).mockReturnValue(verifyPubkeyBuffer);
+
       const result = await findAccountForP2PKToken(targetPubkey, 5);
 
       expect(result).not.toBeNull();
@@ -789,7 +791,9 @@ describe('cashuP2PK', () => {
     const { deriveAddressesFromMnemonic } = require('../../../utils/bitcoin');
     const { getPrivateKeyForAddress } = require('../../../utils/wallet');
 
-    beforeEach(() => {
+    beforeEach(async () => {
+      await clearP2PKCache(); // Reset in-memory cache between tests
+      jest.clearAllMocks();
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
       (deriveAddressesFromMnemonic as jest.Mock).mockResolvedValue({
         taprootAddress: 'tb1ptest123',
@@ -807,59 +811,25 @@ describe('cashuP2PK', () => {
       expect(typeof getP2PKPrivateKey).toBe('function');
     });
 
-    it('should return cached private key when cache is valid', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('tb1ptest123')  // cached address
-        .mockResolvedValueOnce('cached_private_key'); // cached private key
-
-      const result = await getP2PKPrivateKey();
-
-      expect(result).toBe('cached_private_key');
-      expect(getPrivateKeyForAddress).not.toHaveBeenCalled();
-    });
-
-    it('should derive and cache new key when cache is empty', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-
+    it('should derive key on first call', async () => {
       const result = await getP2PKPrivateKey();
 
       expect(result).toBe('derived_private_key_hex');
       expect(getPrivateKeyForAddress).toHaveBeenCalledWith('tb1ptest123', 0);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5', 'tb1ptest123');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5', 'derived_private_key_hex');
+      // Memory-only cache: no SecureStore writes
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     });
 
-    it('should clear cache and re-derive when address mismatch', async () => {
-      // Cache has different address (account changed)
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('tb1pold_address')  // cached address (different)
-        .mockResolvedValueOnce('old_cached_key'); // cached private key
+    it('should return cached key on second call', async () => {
+      // First call — derives
+      await getP2PKPrivateKey();
+      expect(getPrivateKeyForAddress).toHaveBeenCalledTimes(1);
 
+      // Second call — uses in-memory cache
+      (getPrivateKeyForAddress as jest.Mock).mockClear();
       const result = await getP2PKPrivateKey();
-
       expect(result).toBe('derived_private_key_hex');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v5');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('p2pk_private_key_v5');
-      expect(getPrivateKeyForAddress).toHaveBeenCalled();
-    });
-
-    it('should handle cache read error gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Read failed'));
-
-      const result = await getP2PKPrivateKey();
-
-      expect(result).toBe('derived_private_key_hex');
-      expect(getPrivateKeyForAddress).toHaveBeenCalled();
-    });
-
-    it('should handle cache write error gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Write failed'));
-
-      const result = await getP2PKPrivateKey();
-
-      // Should still return the derived key even if caching fails
-      expect(result).toBe('derived_private_key_hex');
+      expect(getPrivateKeyForAddress).not.toHaveBeenCalled();
     });
   });
 });

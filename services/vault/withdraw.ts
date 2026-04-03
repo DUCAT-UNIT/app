@@ -14,7 +14,12 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
+import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { withVaultOperationLock } from './utils';
+import {
+  clearPendingVaultSigningOperation,
+  setPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
 
 export interface CreateWithdrawReqOptions {
   feeRate: number;
@@ -63,6 +68,14 @@ export async function createVaultReqWithdraw(
   try {
     const { oracleQuote, vaultProfile } = options;
 
+    // SECURITY: Re-validate oracle price freshness before building transaction.
+    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+      throw new Error(
+        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+      );
+    }
+
     logger.debug('[VaultOps] Withdraw context inputs:', {
       oracleQuote: !!oracleQuote,
       vaultProfile: {
@@ -83,8 +96,16 @@ export async function createVaultReqWithdraw(
       withdrawConfig
     );
 
-    // Create the withdraw request (simpler than other ops - no UTXOs needed)
-    const withdrawReq = await wallet.vault.withdraw.req(vaultCtx);
+    let withdrawReq: WalletVaultWithdrawRequest;
+    setPendingVaultSigningOperation({
+      action: 'withdraw',
+      ctx: vaultCtx,
+    });
+    try {
+      withdrawReq = await wallet.vault.withdraw.req(vaultCtx);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     logger.debug('[VaultOps] Withdraw request created:', {
       vault_txid: withdrawReq.vault_txid,
@@ -95,7 +116,7 @@ export async function createVaultReqWithdraw(
     logger.error('[VaultOps] Failed to create withdraw request:', { error });
     throw error;
   }
-  }); // end withVaultOperationLock
+  }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
 /**

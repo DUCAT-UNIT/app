@@ -3,9 +3,9 @@
  * Handles persistent storage and deduplication of processed Cashu tokens
  */
 
-import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { logger } from '../../utils/logger';
+import { getPreferenceItem, setPreferenceItem } from '../storagePolicy';
 
 /**
  * Snackbar display params for turbo notifications
@@ -55,7 +55,7 @@ export const hashToken = async (token: string): Promise<string> => {
  */
 export const loadProcessedTokens = async (): Promise<Set<string>> => {
   try {
-    const stored = await SecureStore.getItemAsync(PROCESSED_TOKENS_KEY);
+    const stored = await getPreferenceItem(PROCESSED_TOKENS_KEY);
     if (stored) {
       const tokens = JSON.parse(stored) as string[];
       return new Set(tokens);
@@ -73,7 +73,7 @@ export const saveProcessedTokens = async (tokensSet: Set<string>): Promise<void>
   try {
     // Convert Set to Array and limit size
     const tokensArray = Array.from(tokensSet).slice(-MAX_STORED_TOKENS);
-    await SecureStore.setItemAsync(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
+    await setPreferenceItem(PROCESSED_TOKENS_KEY, JSON.stringify(tokensArray));
     logger.debug('[TURBO] Saved processed tokens to storage:', { count: tokensArray.length });
   } catch (error: unknown) {
     logger.error('[TURBO] Failed to save processed tokens:', { message: (error as Error).message });

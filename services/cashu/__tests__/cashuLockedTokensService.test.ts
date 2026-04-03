@@ -57,7 +57,8 @@ describe('cashuLockedTokensService', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'sent_turbo_tokens',
-        expect.any(String)
+        expect.any(String),
+        expect.any(Object)
       );
 
       // Verify the token was saved with correct structure
@@ -269,16 +270,16 @@ describe('cashuLockedTokensService', () => {
   });
 
   describe('clearSentLockedTokens', () => {
-    it('should delete all sent tokens', async () => {
+    it('should clear all sent tokens by writing empty array', async () => {
       await clearSentLockedTokens();
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('sent_turbo_tokens', '[]', expect.any(Object));
     });
 
     it('should throw on storage error', async () => {
-      (SecureStore.deleteItemAsync as jest.Mock).mockRejectedValue(new Error('Delete failed'));
+      (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Write failed'));
 
-      await expect(clearSentLockedTokens()).rejects.toThrow('Delete failed');
+      await expect(clearSentLockedTokens()).rejects.toThrow('Write failed');
     });
   });
 
@@ -315,7 +316,8 @@ describe('cashuLockedTokensService', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'received_turbo_tokens',
-        expect.any(String)
+        expect.any(String),
+        expect.any(Object)
       );
 
       const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);

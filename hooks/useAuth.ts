@@ -9,9 +9,12 @@
 
 import { useState, useEffect, useMemo, useCallback, Dispatch, SetStateAction } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../utils/constants';
 import * as PasskeyService from '../services/passkey';
+import {
+  authenticateWithBiometrics,
+  isBiometricEnabled,
+} from '../services/biometricService';
+import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsService';
 import { logger } from '../utils/logger';
 
 interface UseAuthParams {
@@ -105,8 +108,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   // Load biometric preference
   const loadBiometricPreference = useCallback(async () => {
     try {
-      const biometricPref = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
-      setBiometricEnabled(biometricPref === 'true');
+      setBiometricEnabled(await isBiometricEnabled());
     } catch (error) {
       logger.warn('Failed to load biometric preference', {
         operation: 'loadBiometricPreference',
@@ -131,9 +133,9 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   }, []);
 
   // Authenticate with passkey
-  const authenticateWithPasskey = useCallback(async (pin: string) => {
+  const authenticateWithPasskey = useCallback(async (pinInput: string) => {
     try {
-      const { mnemonic, addresses } = await PasskeyService.unlockWithPasskey(pin);
+      const { mnemonic, addresses } = await PasskeyService.unlockWithPasskey(pinInput);
       if (mnemonic && addresses) {
         setIsAuthenticated(true);
         return true;
@@ -154,11 +156,11 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
       // Check if user has already enabled biometric auth
       if (biometricEnabled) {
         // User has previously enabled biometrics, trigger it directly
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to access your wallet',
-          fallbackLabel: 'Use PIN',
-          disableDeviceFallback: false,
-        });
+        // Uses authenticateWithBiometrics to enforce lockout tracking
+        const result = await authenticateWithBiometrics(
+          'Authenticate to access your wallet',
+          'Use PIN'
+        );
 
         if (result.success) {
           if (changingPin) {
@@ -250,17 +252,20 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
     try {
       setChangingPin(true);
       // Save flag to return to settings after PIN change
-      await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
+      if (!await setBoolean(SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE, true)) {
+        throw new Error('Failed to persist return-to-settings flag for PIN change');
+      }
       // Don't set settingUpPin yet - wait until after authentication
       setIsAuthenticated(false); // Lock wallet to trigger authentication
     } catch (error) {
+      setChangingPin(false);
       logger.warn('Failed to start PIN change flow', {
         operation: 'startPinChange',
         error: error instanceof Error ? error.message : String(error)
       });
       // Clean up the flag on error
       try {
-        await SecureStore.deleteItemAsync('returnToSettingsAfterPinChange');
+        await deleteSetting(SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE);
       } catch (cleanupError) {
         logger.warn('Failed to cleanup PIN change flag', {
           operation: 'startPinChange_cleanup',

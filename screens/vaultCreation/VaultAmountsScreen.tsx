@@ -3,28 +3,29 @@
  * Features: Sliders for input, VaultActionGauge for health display
  */
 
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
-import {
-  Text,
-  View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
-import { NavigationProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import TouchableScale from '../../components/common/TouchableScale';
+import { NavigationProp } from '@react-navigation/native';
+import React,{ useCallback,useEffect,useMemo,useState } from 'react';
+import {
+KeyboardAvoidingView,
+Platform,
+ScrollView,
+StyleSheet,
+Text,
+TouchableOpacity,
+View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
-import { VaultActionGauge, AmountSlider } from '../../components/vaultAction';
+import TouchableScale from '../../components/common/TouchableScale';
+import { AmountSlider,VaultActionGauge } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
-import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
-import { getOpCostOpen, computeHealthFactor, computeLiquidationPrice } from '../../utils/vaultUtils';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import { useVaultCreation } from '../../stores/vaultCreationStore';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { logger } from '../../utils/logger';
+import { computeHealthFactor,computeLiquidationPrice,getOpCostOpen } from '../../utils/vaultUtils';
 
 // Health-based slider colors (matching VaultActionGauge)
 const getHealthSliderColor = (health: number): string => {
@@ -38,15 +39,12 @@ interface VaultAmountsScreenProps {
 }
 
 export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenProps) {
-  console.log('[VaultAmounts] RENDER');
   const {
     btcAmount,
     unitAmount,
     selectedFeeRate,
     setSelectedFeeRate,
     healthFactor,
-    liquidationPrice,
-    maxBorrowable,
     setBtcAmount,
     setUnitAmount,
     setBitcoinPrice,
@@ -63,7 +61,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   const { segwitBalance, utxos, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
-  console.log('[VaultAmounts] segwitBalance:', segwitBalance, 'loadingBalance:', loadingBalance, 'utxos:', utxos?.length, 'btcPrice:', btcPrice);
+  logger.debug('[VaultAmounts] segwitBalance:', { segwitBalance, loadingBalance, utxoCount: utxos?.length, btcPrice });
 
   // Calculate estimated fee based on selected rate and UTXOs
   const estimatedFeeSats = useMemo(() => {
@@ -92,11 +90,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   // Calculate available BTC (balance minus fees)
   const availableBtc = useMemo(() => {
-    console.log('[VaultAmounts] availableBtc calc: segwitBalance=', segwitBalance, 'selectedFeeRate=', selectedFeeRate);
     if (!segwitBalance) return 0;
     const feeCost = getOpCostOpen(selectedFeeRate) / 100_000_000;
     const result = Math.max(segwitBalance - feeCost - 0.00001, 0);
-    console.log('[VaultAmounts] availableBtc result:', result, 'feeCost:', feeCost);
     return result; // Leave small buffer
   }, [segwitBalance, selectedFeeRate]);
 
@@ -104,7 +100,8 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   const previewMaxBorrowable = useMemo(() => {
     if (!btcPrice || previewBtcAmount <= 0) return 0;
     // Max borrow = (collateral * price) / 1.6 (160% health factor)
-    return Math.floor((previewBtcAmount * btcPrice) / 1.6);
+    // Subtract 1 to ensure health rounds to >= 160% after Math.floor in computeHealthFactor
+    return Math.max(Math.floor((previewBtcAmount * btcPrice) / 1.6) - 1, 0);
   }, [previewBtcAmount, btcPrice]);
 
   // Preview health calculation

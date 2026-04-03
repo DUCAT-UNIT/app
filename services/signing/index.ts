@@ -44,6 +44,7 @@ export {
   getXOnlyPubkey,
   withSigningContext,
   witnessToScriptWitness,
+  validateSighashType,
 } from './cryptoUtils';
 
 // Types

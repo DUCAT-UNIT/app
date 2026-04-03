@@ -3,9 +3,9 @@
  * Manages native-driven animated scrubbing for ultra-smooth 60fps performance
  */
 
-import { useRef, useCallback, useMemo } from 'react';
-import { Animated, PanResponder, GestureResponderEvent } from 'react-native';
-import type { ReferenceLine, ScrubData } from '../vaultChart/types';
+import { useCallback,useMemo,useRef } from 'react';
+import { Animated,GestureResponderEvent,PanResponder } from 'react-native';
+import type { ReferenceLine,ScrubData } from '../vaultChart/types';
 
 interface UseScrubAnimationProps {
   chartWidth: number;
@@ -46,11 +46,11 @@ export function useScrubAnimation({
   const SCRUBBER_RADIUS = 6;
 
   // Clamp X to keep scrubber circle within chart bounds
-  const clampX = (rawX: number): number => {
+  const clampX = useCallback((rawX: number): number => {
     const minX = padding.left + SCRUBBER_RADIUS;
     const maxX = chartWidth - padding.right - SCRUBBER_RADIUS;
     return Math.max(minX, Math.min(rawX, maxX));
-  };
+  }, [chartWidth, padding.left, padding.right]);
   // Animated values for native-driven smooth scrubbing
   const scrubXAnim = useRef(new Animated.Value(0)).current;
   const scrubYAnim = useRef(new Animated.Value(0)).current;
@@ -135,7 +135,7 @@ export function useScrubAnimation({
       scrubDataRef.current = { health: null, x: null, timestamp: null };
       hoveredRefLineRef.current = null;
     },
-  }), [updateAnimatedScrub, referenceLines, xScale, scrubOpacity, onScrubDataChange, onHoveredRefLineChange, onLockRefLine]);
+  }), [clampX, updateAnimatedScrub, referenceLines, xScale, scrubOpacity, onScrubDataChange, onHoveredRefLineChange, onLockRefLine]);
 
   return {
     scrubXAnim,

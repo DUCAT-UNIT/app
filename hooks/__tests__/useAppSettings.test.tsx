@@ -53,10 +53,12 @@ jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
-  debug: jest.fn(),
-  error: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
+  logger: {
+    debug: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+  },
 }));
 
 describe('useAppSettings', () => {
@@ -155,6 +157,10 @@ describe('useAppSettings', () => {
       const { result } = renderHook(() => useAppSettings(mockProps));
 
       expect(result.current!.showZeroAssets).toBe(false);
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       await act(async () => {
         await result.current!.handleShowZeroAssetsToggle();
@@ -399,8 +405,8 @@ describe('useAppSettings', () => {
         await result.current!.confirmNotificationsToggle();
       });
 
-      // Should not throw
-      expect(result.current!.notificationsEnabled).toBe(false);
+      // Should not throw; local state should revert to the persisted value
+      expect(result.current!.notificationsEnabled).toBe(true);
     });
   });
 
@@ -459,6 +465,10 @@ describe('useAppSettings', () => {
       const { result } = renderHook(() => useAppSettings(mockProps));
 
       expect(result.current!.advancedMode).toBe(false);
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       await act(async () => {
         await result.current!.handleAdvancedModeToggle();
@@ -523,6 +533,10 @@ describe('useAppSettings', () => {
 
     it('should update ecashThreshold and save to SecureStore', async () => {
       const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       await act(async () => {
         await result.current!.handleEcashThresholdChange(250);

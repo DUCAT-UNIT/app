@@ -3,11 +3,11 @@
  * Computes chart series, paths, and scaling functions
  */
 
-import { useMemo, useCallback } from 'react';
+import { useCallback,useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import type { BitcoinData, SeriesItem, ReferenceLine, PriceTimeframe, ChartDimensions } from './types';
-import { createEventSeries, transformToEvents } from './utils';
+import type { BitcoinData,ChartDimensions,PriceTimeframe,ReferenceLine,SeriesItem } from './types';
+import { createEventSeries,transformToEvents } from './utils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -70,7 +70,6 @@ export function useChartData(
   const yDomain = useMemo<[number, number]>(() => {
     if (!lineData.length) return [125, 350];
     const values = lineData.map(d => d.healthValue);
-    const dataMin = Math.min(...values);
     const dataMax = Math.max(...values);
 
     // Always include 135 (liquidation threshold) and some room below it

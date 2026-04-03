@@ -4,9 +4,8 @@
  */
 
 import * as Crypto from 'expo-crypto';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { pbkdf2Sync, createHmac } = require('react-native-quick-crypto');
 import { CRYPTO } from '../constants/security';
+const { pbkdf2Sync, createHmac } = require('react-native-quick-crypto');
 
 /**
  * Constant-time buffer comparison to prevent timing attacks
@@ -31,7 +30,7 @@ export const timingSafeEqual = (a: Buffer, b: Buffer): boolean => {
 
   // Track length mismatch separately - will be non-zero if lengths differ
   // Using XOR ensures this is computed in constant time
-  let lengthMismatch = a.length ^ b.length;
+  const lengthMismatch = a.length ^ b.length;
 
   // Accumulate XOR differences across all bytes
   // Even if lengths differ, we iterate over maxLength to maintain constant time

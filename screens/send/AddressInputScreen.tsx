@@ -3,26 +3,24 @@
  * Features: paste button, QR scan, address validation, back navigation
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  TextInput,
-  Pressable,
-  Switch,
-} from 'react-native';
-import { NavigationProp, RouteProp } from '@react-navigation/native';
+import { NavigationProp,RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import { COLORS } from '../../theme';
+import React,{ useEffect,useRef,useState } from 'react';
+import {
+Pressable,
+Text,
+TextInput,
+TouchableOpacity,
+View
+} from 'react-native';
 import Icon from '../../components/icons';
 import QRScanner from '../../components/scanner/QRScanner';
-import { validateBitcoinAddress } from '../../utils/bitcoin';
-import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
 import { useKeyboard } from '../../hooks/useKeyboard';
-import { logger } from '../../utils/logger';
-import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useSendFlowStore,type AssetType } from '../../stores/sendFlowStore';
+import { COLORS } from '../../theme';
+import { MUTINYNET_NETWORK,validateBitcoinAddress } from '../../utils/bitcoin';
+import { logger } from '../../utils/logger';
 import styles from './AddressInputScreen.styles';
 
 /**
@@ -43,20 +41,20 @@ interface AddressInputScreenProps {
 }
 
 export default function AddressInputScreen({ navigation, route }: AddressInputScreenProps): React.JSX.Element {
+  const bech32Hrp = typeof MUTINYNET_NETWORK?.bech32 === 'string' ? MUTINYNET_NETWORK.bech32 : 'tb';
+  const taprootPrefix = `${bech32Hrp}1p`;
+  const segwitPrefix = `${bech32Hrp}1q`;
   // Use individual selectors to avoid re-rendering on unrelated state changes
   const sendAssetType = useSendFlowStore((state) => state.sendAssetType);
   const sendRecipient = useSendFlowStore((state) => state.sendRecipient);
-  const turboEnabled = useSendFlowStore((state) => state.turboEnabled);
 
   // Use stable store actions directly to avoid infinite loops
   const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
   const setSendAddressType = useSendFlowStore((state) => state.setSendAddressType);
   const setSendAssetType = useSendFlowStore((state) => state.setSendAssetType);
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
-  const { settingsHandlers } = useSettingsHandlers();
-  const advancedMode = settingsHandlers?.advancedMode || false;
   const { keyboardHeight } = useKeyboard();
-  const { s, sf, scale } = useResponsive();
+  const { s, sf } = useResponsive();
   const addressInputRef = useRef<TextInput>(null);
   const [addressError, setAddressError] = useState('');
   const [isValidAddress, setIsValidAddress] = useState(false);
@@ -142,7 +140,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
       if (!validation.valid) {
         setAddressError(validation.error || 'Invalid address');
       } else if (assetType === 'unit') {
-        const isTaproot = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p');
+        const isTaproot = cleanText.toLowerCase().startsWith(taprootPrefix);
         if (!isTaproot) {
           setAddressError('UNIT requires Taproot (bc1p/tb1p)');
         } else {
@@ -150,7 +148,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
           setIsValidAddress(true);
         }
       } else {
-        const addressType = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p') ? 'taproot' : 'segwit';
+        const addressType = cleanText.toLowerCase().startsWith(taprootPrefix) ? 'taproot' : 'segwit';
         setSendAddressType(addressType);
         setIsValidAddress(true);
       }
@@ -215,7 +213,7 @@ export default function AddressInputScreen({ navigation, route }: AddressInputSc
               style={[styles.input, { fontSize: sf(16), minHeight: s(52) }]}
               value={sendRecipient}
               onChangeText={handleRecipientChange}
-              placeholder={assetType === 'unit' ? 'tb1p... or bc1p...' : 'tb1q... or tb1p...'}
+              placeholder={assetType === 'unit' ? `${taprootPrefix}...` : `${segwitPrefix}... or ${taprootPrefix}...`}
               placeholderTextColor={COLORS.MEDIUM_GRAY}
               autoCapitalize="none"
               autoCorrect={false}

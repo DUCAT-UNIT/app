@@ -48,7 +48,8 @@ describe('cashuTurboRecovery', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_pending_turbo_send',
-        expect.stringContaining(mockQuoteId)
+        expect.stringContaining(mockQuoteId),
+        expect.any(Object)
       );
     });
 

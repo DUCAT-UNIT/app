@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.55% </span>
+                <span class="strong">91.66% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>28/29</span>
+                <span class='fraction'>33/36</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">83.33% </span>
+                <span class="strong">70% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>5/6</span>
+                <span class='fraction'>7/10</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">96.42% </span>
+                <span class="strong">91.42% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>27/28</span>
+                <span class='fraction'>32/35</span>
             </div>
         
             
@@ -219,7 +219,20 @@
 <a name='L154'></a><a href='#L154'>154</a>
 <a name='L155'></a><a href='#L155'>155</a>
 <a name='L156'></a><a href='#L156'>156</a>
-<a name='L157'></a><a href='#L157'>157</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L157'></a><a href='#L157'>157</a>
+<a name='L158'></a><a href='#L158'>158</a>
+<a name='L159'></a><a href='#L159'>159</a>
+<a name='L160'></a><a href='#L160'>160</a>
+<a name='L161'></a><a href='#L161'>161</a>
+<a name='L162'></a><a href='#L162'>162</a>
+<a name='L163'></a><a href='#L163'>163</a>
+<a name='L164'></a><a href='#L164'>164</a>
+<a name='L165'></a><a href='#L165'>165</a>
+<a name='L166'></a><a href='#L166'>166</a>
+<a name='L167'></a><a href='#L167'>167</a>
+<a name='L168'></a><a href='#L168'>168</a>
+<a name='L169'></a><a href='#L169'>169</a>
+<a name='L170'></a><a href='#L170'>170</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -293,6 +306,16 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
@@ -353,6 +376,9 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">11x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">11x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -446,6 +472,16 @@ export async function buildRunesPsbt(
   ]);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
 &nbsp;
+  // Validate addresses early to prevent malformed change/recipient outputs
+  <span class="missing-if-branch" title="else path not taken" >E</span>if (typeof bitcoin.address.toOutputScript === 'function') {
+    try {
+      bitcoin.address.toOutputScript(recipient, MUTINYNET_NETWORK);
+      bitcoin.address.toOutputScript(segwitAddress, MUTINYNET_NETWORK);
+    } catch (err) {
+<span class="cstat-no" title="statement not covered" >      throw new Error(`Invalid runes recipient or change address: ${(err as Error).message}`);</span>
+    }
+  }
+&nbsp;
   // Decode taproot address
   const { data: taprootData } = bitcoin.address.fromBech32(taprootAddress);
   const tapInternalKey = Buffer.from(taprootData);
@@ -510,6 +546,9 @@ export async function buildRunesPsbt(
   });
 &nbsp;
   // Output 1: Recipient (gets specified runes via edict)
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (recipientSats &lt; dustLimit) {
+<span class="cstat-no" title="statement not covered" >    throw new Error('Recipient output below dust limit');</span>
+  }
   psbt.addOutput({
     address: recipient,
     value: BigInt(recipientSats),
@@ -538,7 +577,7 @@ export async function buildRunesPsbt(
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-09T21:18:15.259Z
+                at 2026-03-28T06:52:23.783Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

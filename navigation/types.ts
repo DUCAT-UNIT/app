@@ -3,12 +3,12 @@
  * Defines the navigation structure and param lists for the entire app
  */
 
-import type { StackScreenProps } from '@react-navigation/stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps, NavigatorScreenParams, ParamListBase } from '@react-navigation/native';
+import type { CompositeScreenProps,NavigatorScreenParams } from '@react-navigation/native';
+import type { StackScreenProps } from '@react-navigation/stack';
 
 // Re-export types from types/assets.d.ts
-export type { AssetTypeParam, AddressTypeParam } from '../types/assets';
+export type { AddressTypeParam,AssetTypeParam } from '../types/assets';
 
 /**
  * Send Flow Navigator
@@ -192,7 +192,10 @@ export interface MinimalNavigation {
  * This enables typed navigation throughout the app
  */
 declare global {
+  // React Navigation uses a namespace augmentation for global route typing.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace ReactNavigation {
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface RootParamList extends RootNavigatorParamList {}
   }
 }

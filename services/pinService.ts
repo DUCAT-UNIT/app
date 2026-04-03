@@ -3,35 +3,37 @@
  * Handles PIN hashing, verification, and rate limiting
  */
 
+import { Buffer } from 'buffer';
+import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS, PIN_HASH_VERSION } from '../utils/constants';
 import { CRYPTO } from '../constants/security';
+import { PIN_HASH_VERSION,SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
-import {
-  loadLockoutState,
-  checkPinLockout,
-  resetPinAttempts,
-  getRemainingPinAttempts,
-  recordFailedAttempt,
-  getMaxPinAttempts,
-} from './pinLockout';
 import { resetBiometricAttempts } from './biometricService';
 import {
-  generateSalt,
-  hashPin,
-  verifyPinHash,
-  generateSaltHmac,
-  verifySaltHmac,
+generateSalt,
+generateSaltHmac,
+hashPin,
+verifyPinHash,
+verifySaltHmac,
 } from './pinHashing';
-import * as Crypto from 'expo-crypto';
-import { Buffer } from 'buffer';
+import {
+checkPinLockout,
+getMaxPinAttempts,
+getRemainingPinAttempts,
+loadLockoutState,
+recordFailedAttempt,
+resetPinAttempts,
+} from './pinLockout';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 const getOrCreateHmacKey = async (): Promise<string> => {
   let key = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
   if (!key) {
     const bytes = await Crypto.getRandomBytesAsync(32);
     key = Buffer.from(bytes).toString('hex');
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, key);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, key, DEVICE_ONLY);
   }
   return key;
 };
@@ -112,16 +114,15 @@ export const savePinWithHash = async (pin: string): Promise<SavePinResult> => {
     const saltHmac = generateSaltHmac(salt, hmacKey);
 
     // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K, DEVICE_ONLY);
 
     // CRITICAL: Read back all values to verify they were stored correctly
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
-    const verifiedHmacKey = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -194,17 +195,16 @@ export const savePin = async (pin: string): Promise<boolean> => {
     const saltHmac = generateSaltHmac(salt, hmacKey);
 
     // Store the hashed PIN, salt, HMAC, and version (using new 310K iteration standard)
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, salt, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K, DEVICE_ONLY);
 
     // CRITICAL: Read back all values to verify they were stored correctly
     // If salt is corrupted, the user will never be able to unlock their wallet
     const verifiedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const verifiedHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
-    const verifiedHmacKey = await SecureStore.getItemAsync(SECURE_KEYS.PIN_HMAC_KEY);
     const verifiedVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
 
     // Verify all critical values were stored correctly
@@ -275,9 +275,9 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
     const saltHmac = generateSaltHmac(existingSalt, hmacKey);
 
     // Store the hashed PIN, HMAC, and version (salt already exists, using new 310K iteration standard)
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN, hashedPin, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac, DEVICE_ONLY);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K, DEVICE_ONLY);
 
     // CRITICAL: Read back all values to verify they were stored correctly
     const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
@@ -328,7 +328,7 @@ export const savePinWithExistingSalt = async (pin: string, existingSalt: string)
 };
 
 // Re-export lockout management functions
-export { checkPinLockout, resetPinAttempts, getRemainingPinAttempts };
+export { checkPinLockout,getRemainingPinAttempts,resetPinAttempts };
 
 /**
  * Verify entered PIN against stored hashed PIN with rate limiting
@@ -381,7 +381,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
     if (!hmacKey) {
       // Generate and persist a new HMAC key if missing (legacy installs)
       hmacKey = Buffer.from(await Crypto.getRandomBytesAsync(32)).toString('hex');
-      await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, hmacKey);
+      await SecureStore.setItemAsync(SECURE_KEYS.PIN_HMAC_KEY, hmacKey, DEVICE_ONLY);
     }
 
     if (storedHmac) {
@@ -429,9 +429,9 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
           const saltHmac = generateSaltHmac(storedSalt, hmacKey);
 
           // Update stored hash, HMAC, and version
-          await SecureStore.setItemAsync(SECURE_KEYS.PIN, newHashedPin);
-          await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac);
-          await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN, newHashedPin, DEVICE_ONLY);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT_HMAC, saltHmac, DEVICE_ONLY);
+          await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, PIN_HASH_VERSION.PBKDF2_310K, DEVICE_ONLY);
 
           // Verify migration succeeded
           const verifiedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);

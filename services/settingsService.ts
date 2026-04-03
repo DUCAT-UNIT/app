@@ -1,11 +1,22 @@
 /**
  * Settings Service
- * Unified service for managing app settings stored in SecureStore
- * Provides type-safe getters and setters for all app settings
+ * Unified service for managing app preferences and flow flags.
+ *
+ * Preferences live in AsyncStorage with legacy SecureStore migration so low-sensitivity
+ * state does not share storage policy with secrets.
  */
 
-import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
+import {
+  deletePreferenceItem,
+  getPreferenceItem,
+  preferenceItemExists,
+  setPreferenceItem,
+} from './storagePolicy';
+import {
+  isBiometricEnabled as getBiometricPreference,
+  setBiometricEnabled as setBiometricPreference,
+} from './biometricService';
 
 // Setting keys (centralized to avoid typos)
 export const SettingKeys = {
@@ -17,12 +28,18 @@ export const SettingKeys = {
   // App preferences
   NOTIFICATIONS_ENABLED: 'notificationsEnabled',
   SHOW_ZERO_ASSETS: 'showZeroAssets',
+  ADVANCED_MODE: 'advancedMode',
+  ECASH_THRESHOLD: 'ecashThreshold',
   DISPLAY_CURRENCY: 'displayCurrency',
   PRICE_DISPLAY_MODE: 'priceDisplayMode',
 
   // Temporary/flow state
+  PENDING_FACE_ID_ENABLE: 'pendingFaceIdEnable',
   PENDING_NOTIFICATIONS_ENABLE: 'pendingNotificationsEnable',
   RETURN_TO_SETTINGS_AFTER_AUTH: 'returnToSettingsAfterAuth',
+  RETURN_TO_SETTINGS_AFTER_PIN_CHANGE: 'returnToSettingsAfterPinChange',
+  RETURN_TO_SETTINGS_AFTER_SEED_PHRASE: 'returnToSettingsAfterSeedPhrase',
+  PENDING_WALLET_DELETE: 'pendingWalletDelete',
   PENDING_BIOMETRIC_ENABLE: 'pendingBiometricEnable',
 
   // Wallet settings
@@ -70,7 +87,7 @@ export interface SettingItem<T extends keyof SettingTypeMap = keyof SettingTypeM
  */
 export async function getString(key: string, defaultValue = ''): Promise<string> {
   try {
-    const value = await SecureStore.getItemAsync(key);
+    const value = await getPreferenceItem(key);
     return value !== null ? value : defaultValue;
   } catch (error: unknown) {
     logger.error(`settingsService: Error getting string "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -86,7 +103,7 @@ export async function getString(key: string, defaultValue = ''): Promise<string>
  */
 export async function setString(key: string, value: string): Promise<boolean> {
   try {
-    await SecureStore.setItemAsync(key, String(value));
+    await setPreferenceItem(key, String(value));
     return true;
   } catch (error: unknown) {
     logger.error(`settingsService: Error setting string "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -102,7 +119,7 @@ export async function setString(key: string, value: string): Promise<boolean> {
  */
 export async function getBoolean(key: string, defaultValue = false): Promise<boolean> {
   try {
-    const value = await SecureStore.getItemAsync(key);
+    const value = await getPreferenceItem(key);
     if (value === null) {
       return defaultValue;
     }
@@ -121,7 +138,7 @@ export async function getBoolean(key: string, defaultValue = false): Promise<boo
  */
 export async function setBoolean(key: string, value: boolean): Promise<boolean> {
   try {
-    await SecureStore.setItemAsync(key, value ? 'true' : 'false');
+    await setPreferenceItem(key, value ? 'true' : 'false');
     return true;
   } catch (error: unknown) {
     logger.error(`settingsService: Error setting boolean "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -137,7 +154,7 @@ export async function setBoolean(key: string, value: boolean): Promise<boolean> 
  */
 export async function getNumber(key: string, defaultValue = 0): Promise<number> {
   try {
-    const value = await SecureStore.getItemAsync(key);
+    const value = await getPreferenceItem(key);
     if (value === null) {
       return defaultValue;
     }
@@ -157,7 +174,7 @@ export async function getNumber(key: string, defaultValue = 0): Promise<number> 
  */
 export async function setNumber(key: string, value: number): Promise<boolean> {
   try {
-    await SecureStore.setItemAsync(key, String(value));
+    await setPreferenceItem(key, String(value));
     return true;
   } catch (error: unknown) {
     logger.error(`settingsService: Error setting number "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -180,7 +197,7 @@ export async function getObject<T extends Record<string, unknown>>(
   defaultValue: T
 ): Promise<T> {
   try {
-    const value = await SecureStore.getItemAsync(key);
+    const value = await getPreferenceItem(key);
     if (value === null) {
       return defaultValue;
     }
@@ -206,7 +223,7 @@ export async function setObject<T extends Record<string, unknown>>(
   value: T
 ): Promise<boolean> {
   try {
-    await SecureStore.setItemAsync(key, JSON.stringify(value));
+    await setPreferenceItem(key, JSON.stringify(value));
     return true;
   } catch (error: unknown) {
     logger.error(`settingsService: Error setting object "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -221,7 +238,7 @@ export async function setObject<T extends Record<string, unknown>>(
  */
 export async function deleteSetting(key: string): Promise<boolean> {
   try {
-    await SecureStore.deleteItemAsync(key);
+    await deletePreferenceItem(key);
     return true;
   } catch (error: unknown) {
     logger.error(`settingsService: Error deleting "${key}":`, { error: error instanceof Error ? error.message : String(error) });
@@ -248,8 +265,7 @@ export async function toggle(key: string): Promise<boolean> {
  */
 export async function exists(key: string): Promise<boolean> {
   try {
-    const value = await SecureStore.getItemAsync(key);
-    return value !== null;
+    return await preferenceItemExists(key);
   } catch (error: unknown) {
     logger.error(`settingsService: Error checking existence of "${key}":`, { error: error instanceof Error ? error.message : String(error) });
     return false;
@@ -352,11 +368,11 @@ export async function setMultiple(settings: Record<string, SettingValue>): Promi
 
 // Authentication settings
 export async function getBiometricEnabled(): Promise<boolean> {
-  return getBoolean(SettingKeys.BIOMETRIC_ENABLED, false);
+  return getBiometricPreference();
 }
 
 export async function setBiometricEnabled(enabled: boolean): Promise<boolean> {
-  return setBoolean(SettingKeys.BIOMETRIC_ENABLED, enabled);
+  return setBiometricPreference(enabled);
 }
 
 // Notification settings

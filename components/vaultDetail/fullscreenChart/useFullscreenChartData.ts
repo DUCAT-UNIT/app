@@ -3,14 +3,14 @@
  * Fetches BTC prices and computes chart data for fullscreen view
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API, API_KEYS } from '../../../utils/constants';
-import { logger } from '../../../utils/logger';
+import { useCallback,useEffect,useMemo,useState } from 'react';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import type { BitcoinData, PriceTimeframe, SeriesItem, ReferenceLine } from '../vaultChart/types';
-import { transformToEvents, createEventSeries } from '../vaultChart/utils';
-import { CACHE_KEY_PREFIX, CACHE_EXPIRY_MS, LEFT_MARGIN, RIGHT_MARGIN, PORTRAIT_WIDTH, PORTRAIT_HEIGHT, CHART_PADDING } from './constants';
+import { API,API_KEYS } from '../../../utils/constants';
+import { logger } from '../../../utils/logger';
+import type { BitcoinData,PriceTimeframe,ReferenceLine,SeriesItem } from '../vaultChart/types';
+import { createEventSeries,transformToEvents } from '../vaultChart/utils';
+import { CACHE_EXPIRY_MS,CACHE_KEY_PREFIX,CHART_PADDING,PORTRAIT_HEIGHT,PORTRAIT_WIDTH } from './constants';
 
 interface UseFullscreenChartDataReturn {
   loading: boolean;

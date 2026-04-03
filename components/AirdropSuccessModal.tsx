@@ -3,12 +3,12 @@
  * Shows congratulations message with confetti animation when user receives airdrop
  */
 
-import React, { useEffect, useRef } from 'react';
-import { View, Text, Modal, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
+import React,{ useEffect,useRef } from 'react';
+import { Animated,Dimensions,Modal,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { useAirdrop } from '../contexts/AirdropContext';
 import { COLORS } from '../theme';
 import Icon from './icons';
-import { useAirdrop } from '../contexts/AirdropContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -21,7 +21,7 @@ interface AirdropSuccessModalProps {
 export default function AirdropSuccessModal({ visible, onClose }: AirdropSuccessModalProps) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-  const confettiRef = useRef<any>(null);
+  const confettiRef = useRef<InstanceType<typeof ConfettiCannon> | null>(null);
   const { triggerCelebration, audioReady } = useAirdrop();
   const hasTriggered = useRef(false);
   const celebrationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -180,4 +180,3 @@ const localStyles = StyleSheet.create({
     color: COLORS.WHITE,
   },
 });
-

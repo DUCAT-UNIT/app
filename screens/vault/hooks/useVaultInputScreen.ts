@@ -3,17 +3,26 @@
  * Shared logic for all vault input screens
  */
 
-import { useEffect, useMemo, useCallback, useState } from 'react';
+import { useCallback,useEffect,useMemo,useState } from 'react';
+import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
 import { usePriceStore } from '../../../stores/priceStore';
-import { useBalance, useVaultData } from '../../../contexts/WalletDataContext';
-import { computeHealthFactor, computeLiquidationPrice, getOpCostOpen } from '../../../utils/vaultUtils';
-import type { VaultInputScreenConfig, VaultPreview, ValidationResult, EmptyStateConfig } from '../types';
+import { computeHealthFactor,computeLiquidationPrice,getOpCostOpen } from '../../../utils/vaultUtils';
+import type {
+  AmountConfig,
+  DepositVaultStore,
+  EmptyStateConfig,
+  ValidationResult,
+  VaultInputScreenConfig,
+  VaultPreview,
+  VaultScreenNavigationProp,
+  VaultStoreState,
+} from '../types';
 
-interface UseVaultInputScreenOptions {
-  config: VaultInputScreenConfig;
-  store: any; // The operation-specific store hook result
+interface UseVaultInputScreenOptions<TStore extends VaultStoreState, TAdditionalData = unknown> {
+  config: VaultInputScreenConfig<TStore, TAdditionalData>;
+  store: TStore;
   loadVaultData: () => void;
-  additionalData?: any; // Operation-specific additional data (e.g., unitBalance for repay)
+  additionalData?: TAdditionalData;
 }
 
 interface UseVaultInputScreenResult {
@@ -25,7 +34,7 @@ interface UseVaultInputScreenResult {
   btcPrice: number | null;
 
   // Amount state
-  amountConfig: ReturnType<VaultInputScreenConfig['getAmountConfig']>;
+  amountConfig: AmountConfig;
   previewAmount: number;
   setPreviewAmount: (amount: number) => void;
 
@@ -64,9 +73,9 @@ const getHealthSliderColor = (health: number): string => {
   return '#59aa8a'; // green
 };
 
-export function useVaultInputScreen(
-  options: UseVaultInputScreenOptions,
-  navigation: any
+export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>(
+  options: UseVaultInputScreenOptions<TStore, TAdditionalData>,
+  navigation: VaultScreenNavigationProp
 ): UseVaultInputScreenResult {
   const { config, store, loadVaultData, additionalData } = options;
 
@@ -110,14 +119,15 @@ export function useVaultInputScreen(
       ? 'You need BTC in your wallet for transaction fees'
       : `Need ${(estimatedFeeSats / 100_000_000).toFixed(8)} BTC for fees, have ${(btcBalanceSats / 100_000_000).toFixed(8)} BTC`
     : null;
+  const setAvailableBalance = (store as Partial<DepositVaultStore>).setAvailableBalance;
 
   // Sync available balance into store for deposit/withdraw operations
   useEffect(() => {
-    if (store.setAvailableBalance && btcBalanceSats > 0) {
+    if (setAvailableBalance && btcBalanceSats > 0) {
       const availableSats = Math.max(0, btcBalanceSats - estimatedFeeSats);
-      store.setAvailableBalance(availableSats);
+      setAvailableBalance(availableSats);
     }
-  }, [btcBalanceSats, estimatedFeeSats, store.setAvailableBalance]);
+  }, [btcBalanceSats, estimatedFeeSats, setAvailableBalance]);
 
   // Fetch price and load vault data
   useEffect(() => {

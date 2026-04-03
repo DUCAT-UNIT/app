@@ -3,18 +3,18 @@
  * Wraps the app content with all necessary context providers
  */
 
-import React, { MutableRefObject } from 'react';
+import React,{ MutableRefObject } from 'react';
 
 // Contexts
 import { useOnboardingFlow } from '../contexts/AuthContext';
 // SendFlowProvider removed - using Zustand store directly
-import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
-import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
-import { SeedPhraseProvider } from '../contexts/SeedPhraseContext';
 import { AirdropProvider } from '../contexts/AirdropContext';
 import { NavigationHandlersProvider } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../stores/notificationStore';
+import { SeedPhraseProvider } from '../contexts/SeedPhraseContext';
+import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
+import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
 import type { WalletAddresses } from '../contexts/WalletContext';
+import { useNotifications } from '../stores/notificationStore';
 
 // Local components
 import AppNavigatorContent from './AppNavigatorContent';
@@ -64,7 +64,6 @@ export default function AppProvidersWrapper({
   setIsAuthenticated,
   loadWallet,
   loadBiometricPreference,
-  isBiometricSupported,
   walletExists,
 }: AppProvidersWrapperProps): React.JSX.Element {
   const { seedConfirmed } = useOnboardingFlow();

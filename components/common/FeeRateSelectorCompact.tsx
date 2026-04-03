@@ -5,10 +5,10 @@
  * Option 3: Compact horizontal buttons
  */
 
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import React,{ useState } from 'react';
+import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 
 export interface FeeRateOption {
   label: string;

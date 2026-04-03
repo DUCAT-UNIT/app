@@ -3,14 +3,14 @@
  * Features: 4-step progress tracker, animated indicators, background support
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { Text, View, StyleSheet, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { AppState,AppStateStatus,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { ProcessingStepsList } from '../../components/vaultCreation';
-import { useNotificationStore } from '../../stores/notificationStore';
 import { useAuth } from '../../contexts/AuthContext';
-import type { VaultProcessingScreenConfig, VaultScreenNavigationProp } from './types';
+import { useNotificationStore } from '../../stores/notificationStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
-import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
+import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
+import type { VaultProcessingScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
 
 const STEP_DURATION_MS = 1000; // Minimum 1 second per step
 const TOTAL_STEPS = 4;
@@ -18,7 +18,7 @@ const TOTAL_STEPS = 4;
 interface VaultProcessingScreenProps {
   navigation: VaultScreenNavigationProp;
   config: VaultProcessingScreenConfig;
-  store: any; // Operation-specific store hook result
+  store: VaultStoreState;
 }
 
 export default function VaultProcessingScreen({
@@ -63,15 +63,22 @@ export default function VaultProcessingScreen({
     return () => clearInterval(interval);
   }, [error, canAnimate]);
 
+  const hasNavigatedToSuccess = useRef(false);
+
+  const navigateToSuccess = useCallback(() => {
+    if (hasNavigatedToSuccess.current) return;
+    if (isAuthenticated && currentStep === 'success' && txid && visualStep > TOTAL_STEPS) {
+      hasNavigatedToSuccess.current = true;
+      navigation.navigate(config.routes.success, { vaultTxid: txid });
+    }
+  }, [isAuthenticated, currentStep, txid, visualStep, navigation, config.routes.success]);
+
   // Keep the operation running when app goes to background
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       // App is coming back to foreground
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // Check if operation completed while in background and user is authenticated
-        if (isAuthenticated && currentStep === 'success' && txid && visualStep > TOTAL_STEPS) {
-          navigation.navigate(config.routes.success, { vaultTxid: txid });
-        }
+        navigateToSuccess();
       }
       appState.current = nextAppState;
     });
@@ -79,17 +86,17 @@ export default function VaultProcessingScreen({
     return () => {
       subscription.remove();
     };
-  }, [currentStep, txid, navigation, isAuthenticated, visualStep, config.routes.success]);
+  }, [navigateToSuccess]);
 
   // Navigate to success screen when complete
   useEffect(() => {
     if (isAuthenticated && currentStep === 'success' && txid && visualStep > TOTAL_STEPS) {
       const timer = setTimeout(() => {
-        navigation.navigate(config.routes.success, { vaultTxid: txid });
+        navigateToSuccess();
       }, 500); // Small delay after showing all completed
       return () => clearTimeout(timer);
     }
-  }, [currentStep, txid, navigation, isAuthenticated, visualStep, config.routes.success]);
+  }, [currentStep, txid, isAuthenticated, visualStep, navigateToSuccess]);
 
   // Show error snackbar when error occurs
   useEffect(() => {

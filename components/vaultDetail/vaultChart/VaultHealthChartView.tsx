@@ -4,19 +4,18 @@
  * Refactored version using extracted hooks and components
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useRef, memo } from 'react';
-import { View, Text, TouchableOpacity, PanResponder, GestureResponderEvent, Animated } from 'react-native';
-import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, G } from 'react-native-svg';
-import { COLORS } from '../../../theme';
-import { VaultChartSkeleton } from '../VaultSkeleton';
+import React,{ memo,useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { Animated,GestureResponderEvent,PanResponder,Text,TouchableOpacity,View } from 'react-native';
+import Svg,{ Circle,Defs,G,Line,LinearGradient,Path,Stop } from 'react-native-svg';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import type { PriceTimeframe, ScrubData } from './types';
-import { TIMEFRAMES, INTERVAL_CONFIG, DRAWER_WIDTH } from './types';
-import { getHealthColor, getHealthChipBg } from './utils';
+import { VaultChartSkeleton } from '../VaultSkeleton';
+import { chartStyles as styles } from './styles';
+import type { PriceTimeframe,ScrubData } from './types';
+import { DRAWER_WIDTH,INTERVAL_CONFIG,TIMEFRAMES } from './types';
 import { useBtcPriceHistory } from './useBtcPriceHistory';
 import { useChartData } from './useChartData';
+import { getHealthChipBg,getHealthColor } from './utils';
 import { VaultChartDrawer } from './VaultChartDrawer';
-import { chartStyles as styles } from './styles';
 
 interface VaultHealthChartViewProps {
   transactions: VaultHistoryTransaction[];
@@ -216,9 +215,6 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
   const activeScrubHealth = scrubData.health ?? lockedScrubData.health;
   const activeScrubTimestamp = scrubData.timestamp ?? lockedScrubData.timestamp;
 
-  // DEBUG: Log scrub state
-  console.log('[VaultHealthChart] activeScrubTimestamp:', activeScrubTimestamp, 'lineData.length:', lineData.length);
-
   // Format timestamp for display (timestamp is in milliseconds from series data)
   const formatScrubDate = (timestamp: number | null): string | null => {
     if (timestamp === null) return null;
@@ -365,13 +361,13 @@ export const VaultHealthChartView = memo(function VaultHealthChartView({
       </View>
 
       {/* Date/time display */}
-      <View style={[styles.scrubDateContainer, { backgroundColor: 'rgba(255,0,0,0.1)' }]}>
+      <View style={styles.scrubDateContainer}>
         <Text style={[styles.scrubDateText, { color: '#FFFFFF' }]}>
           {activeScrubTimestamp !== null
             ? formatScrubDate(activeScrubTimestamp)
             : (lineData.length > 0
                 ? formatScrubDate(lineData[lineData.length - 1].date)
-                : 'TEST DATE')}
+                : '')}
         </Text>
       </View>
 

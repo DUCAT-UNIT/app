@@ -1,10 +1,10 @@
 /**
  * Airdrop Service
- * Handles requesting testnet coins from the faucet for new users
+ * Handles requesting faucet coins on supported test networks
  */
 
 import { postJSON } from '../utils/apiClient';
-import { API } from '../utils/constants';
+import { API, NETWORK_DISPLAY_NAME, NETWORK_CONFIG } from '../utils/constants';
 
 const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
 
@@ -22,16 +22,20 @@ interface AirdropApiResponse {
 
 /**
  * Request airdrop for a new wallet
- * @param segwitAddress - User's SegWit address (tb1q...)
+ * @param segwitAddress - User's SegWit address on the active network
  * @returns Transaction ID of the airdrop
  */
 export const requestAirdrop = async (segwitAddress: string): Promise<AirdropResponse> => {
+  if (!API.FAUCET || !NETWORK_CONFIG.api.faucetNetwork) {
+    throw new Error(`Airdrop is unavailable on ${NETWORK_DISPLAY_NAME}`);
+  }
+
   const data = await postJSON<AirdropApiResponse>(
     API.FAUCET,
     {
       address: segwitAddress,
       captchaToken: DUMMY_CAPTCHA,
-      network: 'mutinynet',
+      network: NETWORK_CONFIG.api.faucetNetwork,
     },
     { description: 'Request airdrop' }
   );

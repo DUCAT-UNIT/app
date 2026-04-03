@@ -8,13 +8,16 @@
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
-import * as SecureStore from 'expo-secure-store';
 import { BIP32Interface } from 'bip32';
 import { ECPairInterface } from 'ecpair';
 
-import { SECURE_KEYS } from '../../utils/constants';
+import {
+  getDerivationPathForType,
+  type WalletDerivationMode,
+} from '../../constants/bitcoin';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
-import { withMnemonic } from '../secureStorageService';
+import { getCurrentAccount, withMnemonic } from '../secureStorageService';
+import { getWalletDerivationMode } from '../walletDerivationService';
 import {
   bip32,
   ecc,
@@ -28,21 +31,56 @@ import type { PsbtCache, WitnessData, AddressTypeInfo, SignatureData } from './t
 // Secp256k1 curve order for key negation
 const CURVE_ORDER = BigInt('0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141');
 
+// Safe sighash types — anything else can allow output/input manipulation
+const SAFE_TAPROOT_SIGHASH_TYPES = new Set([0x00, 0x01]); // SIGHASH_DEFAULT, SIGHASH_ALL
+const SAFE_SEGWIT_SIGHASH_TYPES = new Set([0x01]); // SIGHASH_ALL
+
+/**
+ * Validate sighash type before signing to prevent output/input manipulation.
+ *
+ * SIGHASH_NONE (0x02) lets anyone change outputs after signing.
+ * SIGHASH_ANYONECANPAY (0x80) lets anyone add attacker inputs.
+ * Only safe types are whitelisted.
+ *
+ * @param sighashType - The sighash type from the PSBT input
+ * @param mode - 'taproot' or 'segwit'
+ * @throws Error if sighash type is not in the whitelist
+ */
+export function validateSighashType(
+  sighashType: number | undefined,
+  mode: 'taproot' | 'segwit'
+): void {
+  if (mode === 'taproot') {
+    const effective = sighashType ?? 0x00; // undefined defaults to SIGHASH_DEFAULT
+    if (!SAFE_TAPROOT_SIGHASH_TYPES.has(effective)) {
+      throw new Error(
+        `SECURITY: Unsafe sighash type 0x${effective.toString(16)} for Taproot input. ` +
+        'Only SIGHASH_DEFAULT (0x00) and SIGHASH_ALL (0x01) are allowed.'
+      );
+    }
+  } else {
+    const effective = sighashType ?? 0x01; // undefined defaults to SIGHASH_ALL
+    if (!SAFE_SEGWIT_SIGHASH_TYPES.has(effective)) {
+      throw new Error(
+        `SECURITY: Unsafe sighash type 0x${effective.toString(16)} for SegWit input. ` +
+        'Only SIGHASH_ALL (0x01) and undefined (defaults to SIGHASH_ALL) are allowed.'
+      );
+    }
+  }
+}
+
 /**
  * Get the current account index from SecureStore
  */
 export async function getAccountIndex(): Promise<number> {
   try {
-    const storedAccount = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
-    if (storedAccount) {
-      return parseInt(storedAccount, 10);
-    }
+    return await getCurrentAccount();
   } catch (error: unknown) {
     logger.debug('[cryptoUtils] SecureStore read failed, using default account 0', {
       error: error instanceof Error ? error.message : String(error),
     });
+    return 0;
   }
-  return 0;
 }
 
 /**
@@ -71,16 +109,20 @@ export function extractWitnessData(psbt: bitcoin.Psbt): WitnessData {
 export function getAddressTypeInfo(
   address: string,
   scriptHex: string,
-  accountIndex: number
+  accountIndex: number,
+  derivationMode: WalletDerivationMode
 ): AddressTypeInfo {
   const isSegwit = scriptHex.startsWith('0014'); // P2WPKH: OP_0 <20-byte-hash>
   const isTaproot = scriptHex.startsWith('5120'); // P2TR: OP_1 <32-byte-key>
+  const lowerAddress = address.toLowerCase();
+  const segwitPrefix = `${MUTINYNET_NETWORK.bech32}1q`;
+  const taprootPrefix = `${MUTINYNET_NETWORK.bech32}1p`;
 
   let derivationPath: string;
-  if (isSegwit || address.startsWith('tb1q')) {
-    derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
-  } else if (isTaproot || address.startsWith('tb1p')) {
-    derivationPath = `m/86'/1'/0'/0/${accountIndex}`;
+  if (isSegwit || lowerAddress.startsWith(segwitPrefix)) {
+    derivationPath = getDerivationPathForType('segwit', accountIndex, derivationMode);
+  } else if (isTaproot || lowerAddress.startsWith(taprootPrefix)) {
+    derivationPath = getDerivationPathForType('taproot', accountIndex, derivationMode);
   } else {
     throw new Error(`Unsupported address type: ${address}`);
   }
@@ -105,9 +147,10 @@ export function deriveKeyPair(
  */
 export function getSegwitKeyPair(
   mnemonic: string,
-  accountIndex: number
+  accountIndex: number,
+  derivationMode: WalletDerivationMode
 ): ECPairInterface {
-  const derivationPath = `m/84'/1'/0'/0/${accountIndex}`;
+  const derivationPath = getDerivationPathForType('segwit', accountIndex, derivationMode);
   const child = deriveKeyPair(mnemonic, derivationPath);
 
   if (!child.privateKey) {
@@ -144,8 +187,7 @@ export function getTaprootSighash(
   leafHash?: Buffer
 ): Buffer {
   // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const psbtCache = (psbt as any).__CACHE as PsbtCache;
+  const psbtCache = (psbt as unknown as { __CACHE: PsbtCache }).__CACHE;
   const hash = psbtCache.__TX.hashForWitnessV1(
     inputIndex,
     scripts,
@@ -232,6 +274,9 @@ export function signTaprootScriptPath(
 
   const { scripts, values } = extractWitnessData(psbt);
   const sighash = input.sighashType || 0x00;
+
+  validateSighashType(input.sighashType, 'taproot');
+
   const hash = getTaprootSighash(psbt, inputIndex, scripts, values, sighash, tapleafHash);
 
   const privateKey = ensurePrivateKeyBuffer(keyPair.privateKey);
@@ -263,6 +308,9 @@ export function signTaprootKeyPath(
 
   const { scripts, values } = extractWitnessData(psbt);
   const sighash = input.sighashType || 0x00;
+
+  validateSighashType(input.sighashType, 'taproot');
+
   const hash = getTaprootSighash(psbt, inputIndex, scripts, values, sighash);
 
   const xOnlyPubkey = getXOnlyPubkey(publicKeyBuffer);
@@ -284,6 +332,9 @@ export function signSegwitInput(
   inputIndex: number,
   keyPair: ECPairInterface
 ): SignatureData | null {
+  const input = psbt.data.inputs[inputIndex];
+  validateSighashType(input.sighashType, 'segwit');
+
   psbt.signInput(inputIndex, keyPair);
 
   const signedInput = psbt.data.inputs[inputIndex];
@@ -308,6 +359,9 @@ export function signAndFinalizeSegwitInput(
   inputIndex: number,
   keyPair: ECPairInterface
 ): void {
+  const input = psbt.data.inputs[inputIndex];
+  validateSighashType(input.sighashType, 'segwit');
+
   psbt.signInput(inputIndex, keyPair);
 
   try {
@@ -332,11 +386,18 @@ export function isScriptPathSpend(input: { tapLeafScript?: unknown[] }): boolean
  * Execute signing operation with mnemonic access
  */
 export async function withSigningContext<T>(
-  operation: (mnemonic: string, accountIndex: number) => Promise<T>
+  operation: (
+    mnemonic: string,
+    accountIndex: number,
+    derivationMode: WalletDerivationMode
+  ) => Promise<T>
 ): Promise<T> {
-  const accountIndex = await getAccountIndex();
+  const [accountIndex, derivationMode] = await Promise.all([
+    getAccountIndex(),
+    getWalletDerivationMode(),
+  ]);
   return withMnemonic(async (mnemonic: string) => {
-    return operation(mnemonic, accountIndex);
+    return operation(mnemonic, accountIndex, derivationMode);
   });
 }
 

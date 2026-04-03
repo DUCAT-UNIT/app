@@ -8,40 +8,46 @@
  * This service provides a single, unified interface for all PSBT signing operations.
  */
 
-import { Buffer } from 'buffer';
-import * as bitcoin from 'bitcoinjs-lib';
-import type { VaultWallet } from '@ducat-unit/client-sdk';
-import { TX, PSBT, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
 import { Buff } from '@cmdcode/buff';
+import type { Transaction as SdkTransaction,VaultWallet } from '@ducat-unit/client-sdk';
+import { PSBT,TX,hash160,taptweak_pubkey } from '@ducat-unit/client-sdk/util';
+import * as bitcoin from 'bitcoinjs-lib';
+import { Buffer } from 'buffer';
 
-import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
+import { MUTINYNET_NETWORK,MUTINYNET_NETWORK as NETWORK,validateAndNormalizeAddress } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import type { SignatureData, PsbtFieldData, PsbtSigningOptions } from './types';
 import {
-  withSigningContext,
-  getAddressTypeInfo,
-  deriveKeyPair,
-  getSegwitKeyPair,
-  extractWitnessData,
-  signSegwitInput,
-  signAndFinalizeSegwitInput,
-  signTaprootScriptPath,
-  signTaprootKeyPath,
-  isScriptPathSpend,
-  computeTapleafHash,
-  getTaprootSighash,
-  ensurePrivateKeyBuffer,
-  negatePrivateKeyIfNeeded,
-  tweakPrivateKey,
-  signSchnorr,
-  getXOnlyPubkey,
-} from './cryptoUtils';
-import {
-  patchPsbtSignatures,
-  patchPsbtInputFields,
-  encodeWitnessStack,
+encodeWitnessStack,
+patchPsbtInputFields,
+patchPsbtSignatures,
 } from '../vaultWallet/psbtBinaryUtils';
-import { validateAndNormalizeAddress, MUTINYNET_NETWORK as NETWORK } from '../../utils/bitcoin';
+import type { ExpectedPsbtTemplate } from '../vaultWallet/signingContext';
+import {
+deriveKeyPair,
+extractWitnessData,
+getAddressTypeInfo,
+getSegwitKeyPair,
+isScriptPathSpend,
+signAndFinalizeSegwitInput,
+signSchnorr,
+signSegwitInput,
+signTaprootKeyPath,
+signTaprootScriptPath,
+validateSighashType,
+withSigningContext
+} from './cryptoUtils';
+import type { PsbtCache,PsbtFieldData,SignatureData } from './types';
+
+interface PsbtSigningIntent {
+  recipient: string;
+  change?: string;
+  minAmountSats?: number;
+  allowOpReturn?: boolean;
+  expectedPsbtTemplates?: ExpectedPsbtTemplate[];
+}
+
+const TAPROOT_PREFIX = `${NETWORK.bech32}1p`;
+const SEGWIT_PREFIX = `${NETWORK.bech32}1q`;
 
 /**
  * Sign a PSBT with the mobile wallet (with finalization)
@@ -56,20 +62,20 @@ import { validateAndNormalizeAddress, MUTINYNET_NETWORK as NETWORK } from '../..
 export async function signPsbt(
   psbtBase64: string,
   signInputs: Record<string, number[]>,
-  intent: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
+  intent: PsbtSigningIntent
 ): Promise<string> {
-  return withSigningContext(async (mnemonic, accountIndex) => {
+  return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
     enforceIntentOutputs(psbt, intent);
 
     for (const [address, inputIndices] of Object.entries(signInputs)) {
       const scriptHex = ''; // Will be determined by address prefix
-      const { derivationPath } = getAddressTypeInfo(address, scriptHex, accountIndex);
+      const { derivationPath } = getAddressTypeInfo(address, scriptHex, accountIndex, derivationMode);
       const keyPair = deriveKeyPair(mnemonic, derivationPath);
 
       for (const inputIndex of inputIndices) {
-        if (address.startsWith('tb1p')) {
+        if (address.toLowerCase().startsWith(TAPROOT_PREFIX)) {
           // Taproot signing
           const input = psbt.data.inputs[inputIndex];
           if (isScriptPathSpend(input)) {
@@ -84,9 +90,9 @@ export async function signPsbt(
           } else {
             signKeyPathWithFallback(psbt, inputIndex, keyPair);
           }
-        } else if (address.startsWith('tb1q')) {
+        } else if (address.toLowerCase().startsWith(SEGWIT_PREFIX)) {
           // SegWit signing with finalization
-          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex);
+          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex, derivationMode);
           signAndFinalizeSegwitInput(psbt, inputIndex, ecKeyPair);
         } else {
           throw new Error(`Unsupported address type: ${address}`);
@@ -111,9 +117,9 @@ export async function signPsbt(
 export async function signPsbtRaw(
   psbtBase64: string,
   signInputs: Record<string, number[]>,
-  intent: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
+  intent: PsbtSigningIntent
 ): Promise<string> {
-  return withSigningContext(async (mnemonic, accountIndex) => {
+  return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
     enforceIntentOutputs(psbt, intent);
@@ -123,28 +129,29 @@ export async function signPsbtRaw(
       for (const inputIndex of inputIndices) {
         const input = psbt.data.inputs[inputIndex];
         if (!input.witnessUtxo) {
-          logger.warn(`[signPsbtRaw] No witnessUtxo for input ${inputIndex}`);
-          continue;
+          throw new Error(`SECURITY: Missing witnessUtxo for requested input ${inputIndex}`);
         }
 
         const scriptHex = Buffer.from(input.witnessUtxo.script).toString('hex');
         const { isSegwit, isTaproot, derivationPath } = getAddressTypeInfo(
           address,
           scriptHex,
-          accountIndex
+          accountIndex,
+          derivationMode
         );
 
         logger.debug(`[signPsbtRaw] Input ${inputIndex}: isSegwit=${isSegwit}, isTaproot=${isTaproot}`);
 
-        if (isSegwit || address.startsWith('tb1q')) {
+        if (isSegwit || address.toLowerCase().startsWith(SEGWIT_PREFIX)) {
           // SegWit signing without finalization
-          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex);
+          validateSighashType(input.sighashType, 'segwit');
+          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex, derivationMode);
           psbt.signInput(inputIndex, ecKeyPair);
 
           // Log signature info
           const signedInput = psbt.data.inputs[inputIndex];
           logger.debug(`[signPsbtRaw] After sign: partialSig exists: ${!!signedInput.partialSig}`);
-        } else if (isTaproot || address.startsWith('tb1p')) {
+        } else if (isTaproot || address.toLowerCase().startsWith(TAPROOT_PREFIX)) {
           // Taproot signing
           const keyPair = deriveKeyPair(mnemonic, derivationPath);
 
@@ -188,14 +195,13 @@ export async function signPsbtRaw(
  * @param originalPsbtBase64 - Optional original PSBT to preserve OP_RETURN
  * @returns Signed PSBT in base64 format
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function signPsbtWithSdkObject(
-  sdkPdata: any,
+  sdkPdata: SdkTransaction,
   signInputs: Record<string, number[]>,
   originalPsbtBase64?: string,
-  intent?: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
+  intent?: PsbtSigningIntent
 ): Promise<string> {
-  return withSigningContext(async (mnemonic, accountIndex) => {
+  return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     // Use original PSBT if provided, otherwise encode from SDK object
     const psbtBase64 = originalPsbtBase64 || PSBT.encode(sdkPdata);
 
@@ -221,20 +227,21 @@ export async function signPsbtWithSdkObject(
         const { isSegwit, isTaproot, derivationPath } = getAddressTypeInfo(
           address,
           scriptHex,
-          accountIndex
+          accountIndex,
+          derivationMode
         );
 
         logger.debug(`[signPsbtWithSdkObject] Input ${inputIndex}: isSegwit=${isSegwit}, isTaproot=${isTaproot}`);
 
-        if (isSegwit || address.startsWith('tb1q')) {
+        if (isSegwit || address.toLowerCase().startsWith(SEGWIT_PREFIX)) {
           // SegWit signing
-          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex);
+          const ecKeyPair = getSegwitKeyPair(mnemonic, accountIndex, derivationMode);
           const sigData = signSegwitInput(bjsPsbt, inputIndex, ecKeyPair);
           if (sigData) {
             signatures.push(sigData);
             logger.debug(`[signPsbtWithSdkObject] SegWit signature computed for input ${inputIndex}`);
           }
-        } else if (isTaproot || address.startsWith('tb1p')) {
+        } else if (isTaproot || address.toLowerCase().startsWith(TAPROOT_PREFIX)) {
           // Taproot signing
           const keyPair = deriveKeyPair(mnemonic, derivationPath);
 
@@ -273,8 +280,7 @@ export function patchPreProcessFields(
 
   const bjsPsbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
-  for (const [address, inputs] of Object.entries(manifest)) {
-    const addr_meta = TX.parse_address(address);
+  for (const [, inputs] of Object.entries(manifest)) {
     for (const idx of inputs) {
       const txinput = bjsPsbt.data.inputs[idx];
       const prevout = txinput.witnessUtxo;
@@ -403,10 +409,9 @@ export function patchPostProcessFields(
  * Pre-process PSBT before signing (add redeemScript, tapInternalKey)
  * Works with SDK PSBT data objects
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function psbtPreProcess(
   client: VaultWallet,
-  pdata: any,
+  pdata: SdkTransaction,
   manifest: Record<string, number[]>
 ): void {
   const sats_pkh = hash160(client.acct.sats.pubkey);
@@ -458,10 +463,9 @@ export function psbtPreProcess(
  * Post-process PSBT after signing (finalize witnesses)
  * Works with SDK PSBT data objects
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function psbtPostProcess(
   client: VaultWallet,
-  pdata: any,
+  pdata: SdkTransaction,
   manifest: Record<string, number[]>
 ): void {
   const vault_pk = client.acct.vault.pubkey;
@@ -524,6 +528,9 @@ function signKeyPathWithFallback(
   inputIndex: number,
   keyPair: { privateKey?: Uint8Array; publicKey: Uint8Array; tweak: (t: Buffer) => unknown }
 ): void {
+  const input = psbt.data.inputs[inputIndex];
+  validateSighashType(input.sighashType, 'taproot');
+
   const xOnlyPubkey = Buffer.from(keyPair.publicKey.slice(1, 33));
 
   try {
@@ -534,8 +541,7 @@ function signKeyPathWithFallback(
     // Fall back to manual signing
     const { scripts, values } = extractWitnessData(psbt);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const psbtCache = (psbt as any).__CACHE;
+    const psbtCache = (psbt as unknown as { __CACHE: PsbtCache }).__CACHE;
     const tx = psbtCache.__TX.clone();
     const sighash = Buffer.from(tx.hashForWitnessV1(
       inputIndex,
@@ -547,14 +553,101 @@ function signKeyPathWithFallback(
     const tweakHash = Buffer.from(bitcoin.crypto.taggedHash('TapTweak', xOnlyPubkey));
     const tweakedSigner = keyPair.tweak(tweakHash);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tweakedKeyPair = tweakedSigner as any;
+    const tweakedKeyPair = tweakedSigner as { privateKey?: Uint8Array };
     if (!tweakedKeyPair.privateKey) {
       throw new Error('Tweaked key pair is missing private key for signing');
     }
     const signature = signSchnorr(sighash, Buffer.from(tweakedKeyPair.privateKey));
     psbt.updateInput(inputIndex, { tapKeySig: signature });
   }
+}
+
+// Runestone protocol marker: OP_RETURN (0x6a) followed by OP_PUSHDATA with tag 0x5d
+const RUNESTONE_MARKER = '6a5d';
+// Standard relay limit for OP_RETURN payload (after the OP_RETURN opcode)
+const MAX_OP_RETURN_PAYLOAD_SIZE = 80;
+
+/**
+ * Validate OP_RETURN output conforms to expected Runestone format and size limits.
+ *
+ * @param script - The full output script starting with 0x6a (OP_RETURN)
+ * @throws Error if OP_RETURN does not start with Runestone marker or exceeds size limit
+ */
+function validateOpReturnOutput(script: Buffer | Uint8Array): void {
+  const scriptHex = Buffer.from(script).toString('hex');
+
+  // Must start with Runestone marker (OP_RETURN + OP_13 push tag 0x5d)
+  if (!scriptHex.startsWith(RUNESTONE_MARKER)) {
+    throw new Error(
+      'SECURITY: OP_RETURN output does not start with Runestone marker (6a5d). ' +
+      'Only Runestone OP_RETURN outputs are allowed.'
+    );
+  }
+
+  // Payload is everything after the OP_RETURN opcode (0x6a = 1 byte)
+  const payloadLength = script.length - 1;
+  if (payloadLength > MAX_OP_RETURN_PAYLOAD_SIZE) {
+    throw new Error(
+      `SECURITY: OP_RETURN payload size ${payloadLength} bytes exceeds maximum ` +
+      `${MAX_OP_RETURN_PAYLOAD_SIZE} bytes (standard relay limit).`
+    );
+  }
+}
+
+function matchesExpectedPsbtTemplate(
+  psbt: bitcoin.Psbt,
+  expected: ExpectedPsbtTemplate
+): boolean {
+  const unsignedTx = (psbt as unknown as {
+    __CACHE?: { __TX?: { version: number; locktime: number } };
+  }).__CACHE?.__TX;
+
+  if (!unsignedTx) {
+    return false;
+  }
+
+  if (unsignedTx.version !== expected.version || unsignedTx.locktime !== expected.locktime) {
+    return false;
+  }
+
+  if (psbt.txInputs.length !== expected.inputs.length || psbt.txOutputs.length !== expected.outputs.length) {
+    return false;
+  }
+
+  for (let i = 0; i < expected.inputs.length; i++) {
+    const actualInput = psbt.txInputs[i];
+    const expectedInput = expected.inputs[i];
+    const actualWitnessUtxo = psbt.data.inputs[i].witnessUtxo;
+    const actualHashHex = Buffer.from(actualInput.hash).toString('hex');
+    const actualScriptHex = actualWitnessUtxo
+      ? Buffer.from(actualWitnessUtxo.script).toString('hex')
+      : null;
+    const actualValue = actualWitnessUtxo ? actualWitnessUtxo.value.toString() : null;
+
+    if (
+      actualHashHex !== expectedInput.hashHex ||
+      actualInput.index !== expectedInput.index ||
+      (actualInput.sequence ?? 0xffffffff) !== expectedInput.sequence ||
+      actualScriptHex !== expectedInput.scriptHex ||
+      actualValue !== expectedInput.value
+    ) {
+      return false;
+    }
+  }
+
+  for (let i = 0; i < expected.outputs.length; i++) {
+    const actualOutput = psbt.txOutputs[i];
+    const expectedOutput = expected.outputs[i];
+
+    if (
+      Buffer.from(actualOutput.script).toString('hex') !== expectedOutput.scriptHex ||
+      actualOutput.value.toString() !== expectedOutput.value
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -564,10 +657,22 @@ function signKeyPathWithFallback(
  */
 function enforceIntentOutputs(
   psbt: bitcoin.Psbt,
-  intent?: { recipient: string; change?: string; minAmountSats?: number; allowOpReturn?: boolean }
+  intent?: PsbtSigningIntent
 ): void {
   if (!intent?.recipient) {
     throw new Error('SECURITY: Missing intent for PSBT signing');
+  }
+
+  if (intent.expectedPsbtTemplates && intent.expectedPsbtTemplates.length > 0) {
+    const matchedTemplate = intent.expectedPsbtTemplates.some((template) =>
+      matchesExpectedPsbtTemplate(psbt, template)
+    );
+
+    if (!matchedTemplate) {
+      throw new Error('SECURITY: Vault PSBT does not match the expected transaction template');
+    }
+
+    return;
   }
 
   if (!psbt.txOutputs || psbt.txOutputs.length === 0) {
@@ -577,13 +682,26 @@ function enforceIntentOutputs(
   const recipient = validateAndNormalizeAddress(intent.recipient);
   const change = intent.change ? validateAndNormalizeAddress(intent.change) : null;
   const minAmount = intent.minAmountSats ?? 0;
-  const allowOpReturn = intent.allowOpReturn ?? true;
+  const allowOpReturn = intent.allowOpReturn ?? false;
 
   let recipientValue = 0n;
 
   for (const out of psbt.txOutputs) {
-    // Allow OP_RETURN data (runestones etc.)
-    if (allowOpReturn && out.script[0] === 0x6a) {
+    // OP_RETURN output validation — always validate size even for vault PSBTs
+    if (out.script[0] === 0x6a) {
+      if (!allowOpReturn) {
+        throw new Error('SECURITY: PSBT contains OP_RETURN output but allowOpReturn is false');
+      }
+
+      // Always enforce size limit; only require Runestone marker for non-vault PSBTs
+      const payloadLength = out.script.length - 1;
+      if (payloadLength > MAX_OP_RETURN_PAYLOAD_SIZE) {
+        throw new Error(
+          `SECURITY: OP_RETURN payload size ${payloadLength} bytes exceeds maximum ` +
+          `${MAX_OP_RETURN_PAYLOAD_SIZE} bytes (standard relay limit).`
+        );
+      }
+      validateOpReturnOutput(out.script);
       continue;
     }
 

@@ -76,6 +76,7 @@ jest.mock('../../secureStorageService', () => ({
   withMnemonic: jest.fn((callback) =>
     callback('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about')
   ),
+  getCurrentAccount: jest.fn().mockResolvedValue(0),
 }));
 
 jest.mock('../../../utils/wallet/cryptoHelpers', () => {
@@ -199,9 +200,13 @@ import * as psbtBinaryUtils from '../../vaultWallet/psbtBinaryUtils';
 // Helper to create mock PSBT
 const mockHashForWitnessV1 = jest.fn().mockReturnValue(Buffer.alloc(32, 0x05));
 
-const createMockPsbt = (inputs: MockPsbtInput[] = [], outputs: Array<{ script: Buffer; value: bigint }> = [
-  { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
-]) => ({
+const createMockPsbt = (
+  inputs: MockPsbtInput[] = [],
+  outputs: Array<{ script: Buffer; value: bigint }> = [
+    { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
+  ],
+  txInputs?: Array<{ hash: Buffer; index: number; sequence: number }>
+) => ({
   data: {
     inputs,
   },
@@ -210,12 +215,24 @@ const createMockPsbt = (inputs: MockPsbtInput[] = [], outputs: Array<{ script: B
   finalizeInput: mockFinalizeInput,
   updateInput: mockUpdateInput,
   toBase64: mockToBase64,
-  txInputs: inputs,
+  extractTransaction: jest.fn(() => ({
+    version: 2,
+    locktime: 0,
+  })),
+  txInputs: txInputs ?? inputs.map((_, index) => ({
+    hash: Buffer.alloc(32, index),
+    index,
+    sequence: 0xfffffffd,
+  })),
   txOutputs: outputs,
   __CACHE: {
     __TX: {
+      version: 2,
+      locktime: 0,
       hashForWitnessV1: mockHashForWitnessV1,
       clone: jest.fn().mockReturnValue({
+        version: 2,
+        locktime: 0,
         hashForWitnessV1: mockHashForWitnessV1,
       }),
     },
@@ -376,15 +393,15 @@ describe('psbtService', () => {
       expect(result).toBe('signed_psbt_base64');
     });
 
-    it('should skip inputs without witnessUtxo', async () => {
+    it('should reject requested inputs without witnessUtxo', async () => {
       const mockInput = {};
       (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
 
-      const result = await signPsbtRaw('test_psbt_base64', {
+      await expect(signPsbtRaw('test_psbt_base64', {
         'tb1qtest': [0],
-      }, DEFAULT_INTENT);
-
-      expect(result).toBe('signed_psbt_base64');
+      }, DEFAULT_INTENT)).rejects.toThrow(
+        'SECURITY: Missing witnessUtxo for requested input 0'
+      );
       expect(mockSignInput).not.toHaveBeenCalled();
     });
 
@@ -493,11 +510,105 @@ describe('psbtService', () => {
       expect(mockSignInput).toHaveBeenCalled();
       expect(mockUpdateInput).toHaveBeenCalled();
     });
+
+    it('should reject vault PSBTs that do not match the expected template', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      const txInputs = [
+        {
+          hash: Buffer.alloc(32, 0x01),
+          index: 0,
+          sequence: 0xfffffffd,
+        },
+      ];
+      const mockPsbt = createMockPsbt(
+        [mockInput],
+        [{ script: RECIPIENT_SCRIPT, value: BigInt(10_000) }],
+        txInputs
+      );
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        expectedPsbtTemplates: [
+          {
+            version: 2,
+            locktime: 0,
+            inputs: [
+              {
+                hashHex: Buffer.alloc(32, 0x09).toString('hex'),
+                index: 0,
+                scriptHex: Buffer.from(mockInput.witnessUtxo.script).toString('hex'),
+                sequence: 0xfffffffd,
+                value: '10000',
+              },
+            ],
+            outputs: [
+              {
+                scriptHex: RECIPIENT_SCRIPT.toString('hex'),
+                value: '10000',
+              },
+            ],
+          },
+        ],
+      })).rejects.toThrow('does not match the expected transaction template');
+    });
+
+    it('should accept vault PSBTs that match the expected template exactly', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+      };
+      const txInputs = [
+        {
+          hash: Buffer.alloc(32, 0x01),
+          index: 0,
+          sequence: 0xfffffffd,
+        },
+      ];
+      const mockPsbt = createMockPsbt(
+        [mockInput],
+        [{ script: RECIPIENT_SCRIPT, value: BigInt(10_000) }],
+        txInputs
+      );
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        expectedPsbtTemplates: [
+          {
+            version: 2,
+            locktime: 0,
+            inputs: [
+              {
+                hashHex: Buffer.from(txInputs[0].hash).toString('hex'),
+                index: 0,
+                scriptHex: Buffer.from(mockInput.witnessUtxo.script).toString('hex'),
+                sequence: 0xfffffffd,
+                value: '10000',
+              },
+            ],
+            outputs: [
+              {
+                scriptHex: RECIPIENT_SCRIPT.toString('hex'),
+                value: '10000',
+              },
+            ],
+          },
+        ],
+      })).resolves.toBe('signed_psbt_base64');
+    });
   });
 
   describe('signPsbtWithSdkObject', () => {
     it('should sign PSBT with default account index', async () => {
-      const mockPdata = {};
+      const mockPdata = {} as any;
       const mockSignInputs = { 'tb1qtest': [0] };
 
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
@@ -531,7 +642,7 @@ describe('psbtService', () => {
     });
 
     it('should handle Taproot key-path signing', async () => {
-      const mockPdata = {};
+      const mockPdata = {} as any;
       const mockSignInputs = { 'tb1ptest': [0] };
 
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
@@ -564,7 +675,7 @@ describe('psbtService', () => {
     });
 
     it('should handle Taproot script-path signing', async () => {
-      const mockPdata = {};
+      const mockPdata = {} as any;
       const mockSignInputs = { 'tb1ptest': [0] };
 
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
@@ -603,7 +714,7 @@ describe('psbtService', () => {
     });
 
     it('should skip inputs without witnessUtxo', async () => {
-      const mockPdata = {};
+      const mockPdata = {} as any;
       const mockSignInputs = { 'tb1qtest': [0] };
 
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
@@ -624,7 +735,7 @@ describe('psbtService', () => {
     });
 
     it('should use original PSBT base64 when provided', async () => {
-      const mockPdata = {};
+      const mockPdata = {} as any;
       const mockSignInputs = { 'tb1qtest': [0] };
       const originalPsbt = 'original-psbt-base64';
 
@@ -865,7 +976,7 @@ describe('psbtService', () => {
           redeemScript: undefined,
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1qtest': [0] };
 
       (TX.parse_script_meta as jest.Mock).mockReturnValue({
@@ -886,7 +997,7 @@ describe('psbtService', () => {
           },
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1ptest': [0] };
 
       (TX.parse_script_meta as jest.Mock).mockReturnValue({
@@ -905,7 +1016,7 @@ describe('psbtService', () => {
           witnessUtxo: undefined,
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1qtest': [0] };
 
       psbtPreProcess(mockClient, mockPdata, manifest);
@@ -936,7 +1047,7 @@ describe('psbtService', () => {
           finalScriptWitness: undefined,
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1qtest': [0] };
 
       psbtPostProcess(mockClient, mockPdata, manifest);
@@ -954,7 +1065,7 @@ describe('psbtService', () => {
           finalScriptWitness: undefined,
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1ptest': [0] };
 
       psbtPostProcess(mockClient, mockPdata, manifest);
@@ -968,7 +1079,7 @@ describe('psbtService', () => {
           witnessUtxo: undefined,
         })),
         updateInput: jest.fn(),
-      };
+      } as any;
       const manifest = { 'tb1qtest': [0] };
 
       psbtPostProcess(mockClient, mockPdata, manifest);
@@ -993,28 +1104,29 @@ describe('psbtService', () => {
 
 describe('cryptoUtils', () => {
   const cryptoUtils = require('../cryptoUtils');
+  const secureStorageService = require('../../secureStorageService');
 
   describe('getAccountIndex', () => {
     it('should return stored account index', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce('5');
+      secureStorageService.getCurrentAccount.mockResolvedValueOnce(5);
       const result = await cryptoUtils.getAccountIndex();
       expect(result).toBe(5);
     });
 
     it('should return 0 when no account stored', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(null);
+      secureStorageService.getCurrentAccount.mockResolvedValueOnce(0);
       const result = await cryptoUtils.getAccountIndex();
       expect(result).toBe(0);
     });
 
     it('should return 0 on SecureStore error', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Storage error'));
+      secureStorageService.getCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
       const result = await cryptoUtils.getAccountIndex();
       expect(result).toBe(0);
     });
 
     it('should handle non-Error thrown from SecureStore', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce('string error');
+      secureStorageService.getCurrentAccount.mockRejectedValueOnce('string error');
       const result = await cryptoUtils.getAccountIndex();
       expect(result).toBe(0);
     });

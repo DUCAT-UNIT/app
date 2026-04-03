@@ -9,6 +9,7 @@ import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
+const OVERALL_FETCH_TIMEOUT = 30000; // 30 seconds - ceiling for entire fetchWalletBalances
 
 export interface RuneBalance {
   rune: string;
@@ -67,8 +68,10 @@ export const fetchWalletBalances = async (
     throw new Error('Both segwit and taproot addresses are required');
   }
 
-  // Use unified parallel fetch utility
-  const results = await fetchParallel<number | RuneBalance[]>([
+  // Use unified parallel fetch utility with an overall timeout ceiling.
+  // Individual fetches have BALANCE_FETCH_TIMEOUT, but Promise.allSettled (inside fetchParallel)
+  // could hang if something goes wrong. This outer timeout guarantees the caller is never stuck.
+  const fetchOperation = fetchParallel<number | RuneBalance[]>([
     {
       name: 'SegWit balance',
       fn: async () => {
@@ -142,6 +145,25 @@ export const fetchWalletBalances = async (
       defaultValue: [] as number | RuneBalance[],
     },
   ]);
+
+  let overallTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  const overallTimeout = new Promise<(number | RuneBalance[])[]>((_, reject) => {
+    overallTimeoutId = setTimeout(() => reject(new Error('Overall balance fetch timed out')), OVERALL_FETCH_TIMEOUT);
+  });
+
+  let results: (number | RuneBalance[])[];
+  try {
+    results = await Promise.race([fetchOperation, overallTimeout]);
+  } catch (error) {
+    logger.error('[balanceService] Overall balance fetch timed out after ' + OVERALL_FETCH_TIMEOUT + 'ms, returning default zeros', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { segwitBalance: 0, taprootBalance: 0, runesBalance: [] };
+  } finally {
+    if (overallTimeoutId) {
+      clearTimeout(overallTimeoutId);
+    }
+  }
 
   const segwitBalance = results[0] as number;
   const taprootBalance = results[1] as number;

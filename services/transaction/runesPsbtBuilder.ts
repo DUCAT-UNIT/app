@@ -68,6 +68,15 @@ export async function buildRunesPsbt(
     ...runeUtxoArray.map((utxo) => fetchTransactionHex(utxo.transaction)),
   ]);
   const satTx = bitcoin.Transaction.fromHex(satTxHex);
+  if (satTx.getId() !== satUtxo.txid) {
+    throw new Error(`Fetched fee input transaction does not match expected txid ${satUtxo.txid}`);
+  }
+  if (!satTx.outs[satUtxo.vout]) {
+    throw new Error(`Fee input output ${satUtxo.vout} not found in transaction ${satUtxo.txid}`);
+  }
+  if (BigInt(satTx.outs[satUtxo.vout].value) !== BigInt(satUtxo.value)) {
+    throw new Error(`Fee input value mismatch for ${satUtxo.txid}:${satUtxo.vout}`);
+  }
 
   // Validate addresses early to prevent malformed change/recipient outputs
   if (typeof bitcoin.address.toOutputScript === 'function') {
@@ -97,6 +106,15 @@ export async function buildRunesPsbt(
   for (let i = 0; i < runeUtxoArray.length; i++) {
     const runeUtxo = runeUtxoArray[i];
     const runeTx = bitcoin.Transaction.fromHex(runeTxHexes[i]);
+    if (runeTx.getId() !== runeUtxo.transaction) {
+      throw new Error(`Fetched rune input transaction does not match expected txid ${runeUtxo.transaction}`);
+    }
+    if (!runeTx.outs[runeUtxo.vout]) {
+      throw new Error(`Rune input output ${runeUtxo.vout} not found in transaction ${runeUtxo.transaction}`);
+    }
+    if (BigInt(runeTx.outs[runeUtxo.vout].value) !== BigInt(runeUtxo.value)) {
+      throw new Error(`Rune input value mismatch for ${runeUtxo.transaction}:${runeUtxo.vout}`);
+    }
 
     psbt.addInput({
       hash: runeUtxo.transaction,
@@ -152,7 +170,7 @@ export async function buildRunesPsbt(
   });
 
   // Output 2: Change (if above dust limit)
-  if (change > dustLimit) {
+  if (change >= dustLimit) {
     psbt.addOutput({
       address: segwitAddress,
       value: BigInt(change),

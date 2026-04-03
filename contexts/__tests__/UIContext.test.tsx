@@ -1,11 +1,12 @@
 /**
- * Tests for UIContext (migrated to new split contexts)
+ * Tests for display preferences and notifications (Zustand stores)
  * Note: Toasts have been consolidated into snackbars
  */
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { UIProvider, useDisplayPreferences, useNotifications } from '../UIContext';
+import { useDisplayPreferences } from '../../stores/displayPreferencesStore';
+import { useNotifications } from '../../stores/notificationStore';
 import { resetDisplayPreferencesStore, resetNotificationStore } from '../../stores';
 
 // Helper to render hooks
@@ -24,7 +25,7 @@ function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.Co
   return { result, rerender: component!.update, unmount: component!.unmount };
 }
 
-describe('UIContext', () => {
+describe('Display Preferences and Notification Stores', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -38,8 +39,7 @@ describe('UIContext', () => {
   });
 
   it('should provide initial display preferences state', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences());
 
     expect(result.current!.showTotalInBTC).toBe(false);
     expect(result.current!.showBTCInBTC).toBe(false);
@@ -47,8 +47,7 @@ describe('UIContext', () => {
   });
 
   it('should provide display preferences via useDisplayPreferences', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences());
 
     expect(result.current!.showTotalInBTC).toBe(false);
     expect(result.current!.showBTCInBTC).toBe(false);
@@ -56,8 +55,7 @@ describe('UIContext', () => {
   });
 
   it('should update showTotalInBTC', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences());
 
     act(() => {
       result.current!.setShowTotalInBTC(true);
@@ -67,8 +65,7 @@ describe('UIContext', () => {
   });
 
   it('should update showBTCInBTC', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences());
 
     act(() => {
       result.current!.setShowBTCInBTC(true);
@@ -78,8 +75,7 @@ describe('UIContext', () => {
   });
 
   it('should update showUnitInUnit', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useDisplayPreferences(), { wrapper });
+    const { result } = renderHook(() => useDisplayPreferences());
 
     act(() => {
       result.current!.setShowUnitInUnit(true);
@@ -89,16 +85,14 @@ describe('UIContext', () => {
   });
 
   it('should provide initial notification state', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     // Snackbar should be null initially
     expect(result.current!.snackbar).toBeNull();
   });
 
   it('should show snackbar via showToast (backwards compatible)', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Test message');
@@ -110,8 +104,7 @@ describe('UIContext', () => {
   });
 
   it('should show snackbar with error type via showToast', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Error message', 'error');
@@ -121,8 +114,7 @@ describe('UIContext', () => {
   });
 
   it('should auto-hide success snackbar after default duration', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Test message', 'success');
@@ -138,8 +130,7 @@ describe('UIContext', () => {
   });
 
   it('should auto-hide error snackbar after error duration', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Error message', 'error');
@@ -161,8 +152,7 @@ describe('UIContext', () => {
   });
 
   it('should replace existing snackbar when showing new one via showToast', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('First message');
@@ -178,8 +168,7 @@ describe('UIContext', () => {
   });
 
   it('should dismiss snackbar manually', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Test message');
@@ -195,8 +184,7 @@ describe('UIContext', () => {
   });
 
   it('should clear timeout when dismissing snackbar manually', () => {
-    const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-    const { result } = renderHook(() => useNotifications(), { wrapper });
+    const { result } = renderHook(() => useNotifications());
 
     act(() => {
       result.current!.showToast('Test message');
@@ -216,8 +204,7 @@ describe('UIContext', () => {
 
   describe('Snackbar priority logic', () => {
     it('should show snackbar', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'success', action: 'send' });
@@ -228,8 +215,7 @@ describe('UIContext', () => {
     });
 
     it('should dismiss snackbar', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'success', action: 'send' });
@@ -243,8 +229,7 @@ describe('UIContext', () => {
     });
 
     it('should not allow backward state transitions', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'submitted', action: 'send' });
@@ -262,8 +247,7 @@ describe('UIContext', () => {
     });
 
     it('should allow forward state transitions', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'pending', action: 'send' });
@@ -280,8 +264,7 @@ describe('UIContext', () => {
     });
 
     it('should always allow errors regardless of state', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'success', action: 'send' });
@@ -295,8 +278,7 @@ describe('UIContext', () => {
     });
 
     it('should block non-success snackbars during cooldown after dismiss (success snackbars are allowed)', () => {
-      const wrapper = ({ children }: { children: React.ReactNode }) => <UIProvider>{children}</UIProvider>;
-      const { result } = renderHook(() => useNotifications(), { wrapper });
+      const { result } = renderHook(() => useNotifications());
 
       act(() => {
         result.current!.showSnackbar({ type: 'success', action: 'send' });

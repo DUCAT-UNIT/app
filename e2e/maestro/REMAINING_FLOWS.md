@@ -23,7 +23,7 @@ This is a best-effort mapping between `e2e/FLOW_TEST_GUIDE.md` and existing Maes
 - 7.10 About Screen -> `settings/05-about.yaml`
 - 7.2 Preferences - Toggle Options -> `settings/07-toggle-preferences.yaml`
 - 7.11 Cashu Settings -> `settings/09-cashu-settings.yaml`
-- 7.6 Security - Delete Wallet -> `settings/11-delete-wallet-modal.yaml`
+- 7.6 Security - Delete Local Wallet -> `settings/11-delete-wallet-modal.yaml`
 
 ## Missing (No Current Maestro Coverage)
 - 1.3 Passkey Wallet Creation

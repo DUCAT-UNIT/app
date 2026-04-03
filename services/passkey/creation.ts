@@ -6,19 +6,25 @@ import * as bip39 from 'bip39';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_KEYS } from '../../utils/constants';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
+import { DEFAULT_WALLET_DERIVATION_MODE } from '../../constants/bitcoin';
 import { logger } from '../../utils/logger';
 import { checkICloudAvailability } from '../icloudStorage';
 import { savePinWithHash, savePin } from '../pinService';
+import { setWalletDerivationMode } from '../walletDerivationService';
 
-import { isPasskeySupported } from './core';
+import {
+  derivationVersionForPrf,
+  isPasskeySupported,
+  PASSKEY_KEYS,
+} from './core';
 import { generateRandomMnemonic, deriveEncryptionKey, encryptMnemonic } from './encryption';
 import { createPasskeyCredential } from './credentialCreation';
 import {
   storePasskeyData,
   backupToICloudWithVerification,
-  storeStandardMnemonic,
   setCurrentAccount,
 } from './passkeyStorage';
+import { cacheSessionMnemonic, saveCachedAddresses, saveToMultiAccountCache } from '../secureStorageService';
 
 interface CreateWalletOptions {
   userName: string;
@@ -35,7 +41,7 @@ interface CreateWalletResult {
 
 /**
  * Create a new wallet with passkey
- * Generates passkey → random mnemonic → encrypts with passkey+PIN → backs up to iCloud
+ * Generates passkey → random mnemonic → encrypts with PIN-derived key → backs up to iCloud
  */
 export const createWalletWithPasskey = async ({
   userName,
@@ -62,8 +68,9 @@ export const createWalletWithPasskey = async ({
     }
     createDebugLog += `✅ iCloud is available\n\n`;
 
-    // Create passkey credential
-    const { credentialId, userHandle } = await createPasskeyCredential(userName, userDisplayName);
+    // Create passkey credential (includes PRF extension request)
+    const { credentialId, userHandle, prfEnabled, prfResult } =
+      await createPasskeyCredential(userName, userDisplayName);
 
     logger.debug('Generating random mnemonic...');
 
@@ -73,7 +80,7 @@ export const createWalletWithPasskey = async ({
     logger.debug('Random mnemonic generated successfully');
 
     // Derive wallet addresses (account 0)
-    const addresses = deriveAddressesFromMnemonic(mnemonic, 0);
+    const addresses = deriveAddressesFromMnemonic(mnemonic, 0, DEFAULT_WALLET_DERIVATION_MODE);
 
     // Validate PIN
     if (!pin || pin.length !== 6) {
@@ -89,10 +96,20 @@ export const createWalletWithPasskey = async ({
       throw new Error('Invalid or missing PIN salt - wallet creation failed');
     }
 
-    // Derive encryption key from passkey + hashed PIN
+    // Determine PRF secret for key derivation
+    const prfSecret = (prfEnabled && prfResult) ? prfResult : null;
+    const derivationVersion = derivationVersionForPrf(!!prfSecret);
+    if (prfSecret) {
+      logger.debug('Using PRF secret for key derivation (v5 salt)');
+    } else {
+      logger.warn('PRF not supported by authenticator, using legacy key derivation (v4 salt)');
+    }
+
+    // Derive encryption key from PRF secret (or credential IDs) + hashed PIN + device pepper (HKDF).
     // OPTIMIZATION: Pass pre-hashed PIN to skip 310k PBKDF2 iterations (~500ms saved)
-    // Uses RFC 5869 compliant HKDF
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, hashedPin, pinSalt, true);
+    const encryptionKey = await deriveEncryptionKey(
+      credentialId, userHandle, hashedPin, pinSalt, true, prfSecret
+    );
 
     // Encrypt mnemonic for storage
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
@@ -107,16 +124,33 @@ export const createWalletWithPasskey = async ({
       creationMethod: 'passkey',
     });
 
-    // Also store mnemonic in standard location (for backward compatibility)
-    await storeStandardMnemonic(mnemonic);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.PRF_ENABLED, prfSecret ? 'true' : 'false', {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+    await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+    await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
+
+    cacheSessionMnemonic(mnemonic);
 
     // Save current account (always 0 for new wallets)
     await setCurrentAccount(0);
+    await Promise.all([
+      saveCachedAddresses(0, addresses),
+      saveToMultiAccountCache(0, addresses),
+    ]);
 
     logger.debug('Wallet created with passkey successfully (before iCloud backup)', {
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
     });
+
+    // Read pepper for inclusion in iCloud backup (critical for cross-device recovery)
+    const pepper = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PEPPER);
+    if (!pepper) {
+      logger.error('Pepper not found after key derivation - backup will lack pepper');
+    }
 
     // Return immediately with backup promise for async execution
     // This allows UI to proceed while backup happens in background
@@ -127,6 +161,9 @@ export const createWalletWithPasskey = async ({
       credentialId,
       userHandle,
       pinSalt,
+      pepper: pepper || undefined,
+      prfEnabled: !!prfSecret,
+      derivationVersion,
     }).then((backup) => {
       logger.debug('iCloud backup succeeded', backup);
       return { success: true, debugInfo: backup.debugInfo + backup.verificationLog };
@@ -155,7 +192,7 @@ export const createWalletWithPasskey = async ({
 
 /**
  * Add passkey to existing wallet (migration)
- * Encrypts existing mnemonic with passkey + PIN for future unlocks
+ * Encrypts existing mnemonic with PIN-derived key for future passkey-gated unlocks
  */
 export const addPasskeyToExistingWallet = async (
   mnemonic: string,
@@ -177,8 +214,9 @@ export const addPasskeyToExistingWallet = async (
       throw new Error('Passkeys are not supported on this device');
     }
 
-    // Create passkey credential
-    const { credentialId, userHandle } = await createPasskeyCredential(userName, userDisplayName);
+    // Create passkey credential (includes PRF extension request)
+    const { credentialId, userHandle, prfEnabled, prfResult } =
+      await createPasskeyCredential(userName, userDisplayName);
 
     // Validate PIN
     if (!pin || pin.length !== 6) {
@@ -198,8 +236,19 @@ export const addPasskeyToExistingWallet = async (
       throw new Error('Invalid or missing PIN salt - cannot add passkey to wallet');
     }
 
-    // Derive encryption key using passkey + PIN (with 10k iterations)
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+    // Determine PRF secret for key derivation
+    const prfSecret = (prfEnabled && prfResult) ? prfResult : null;
+    const derivationVersion = derivationVersionForPrf(!!prfSecret);
+    if (prfSecret) {
+      logger.debug('Using PRF secret for migration key derivation (v5 salt)');
+    } else {
+      logger.warn('PRF not supported by authenticator, using legacy key derivation (v4 salt)');
+    }
+
+    // Derive encryption key from PRF secret (or credential IDs) + PIN + device pepper (310k PBKDF2 iterations)
+    const encryptionKey = await deriveEncryptionKey(
+      credentialId, userHandle, pin, pinSalt, false, prfSecret
+    );
 
     // Encrypt existing mnemonic
     const { encrypted, iv, tag } = await encryptMnemonic(mnemonic, encryptionKey);
@@ -213,7 +262,24 @@ export const addPasskeyToExistingWallet = async (
       tag,
     });
 
-    // Backup to iCloud (including PIN salt)
+    await SecureStore.setItemAsync(PASSKEY_KEYS.PRF_ENABLED, prfSecret ? 'true' : 'false', {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+    await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, {
+      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    });
+
+    // Read pepper for inclusion in iCloud backup (critical for cross-device recovery)
+    const pepper = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PEPPER);
+    if (!pepper) {
+      logger.error('Pepper not found after key derivation - backup will lack pepper');
+    }
+
+    // Backup to iCloud (including PIN salt and pepper)
+    // NOTE: This intentionally blocks and re-throws on failure, unlike createWalletWithPasskey
+    // which fires the backup in the background. During migration the user already has a wallet,
+    // so we can afford to wait and surface the error immediately rather than letting them
+    // proceed with a false sense of backup security.
     try {
       await backupToICloudWithVerification({
         encrypted,
@@ -222,6 +288,9 @@ export const addPasskeyToExistingWallet = async (
         credentialId,
         userHandle,
         pinSalt,
+        pepper: pepper || undefined,
+        prfEnabled: !!prfSecret,
+        derivationVersion,
       });
       logger.debug('Passkey backup saved to iCloud');
     } catch (icloudError) {

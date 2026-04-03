@@ -4,15 +4,14 @@
  */
 
 import React from 'react';
-import { logger } from '../utils/logger';
 import { turboGlobal } from '../services/turbo/turboTokenStorage';
-import type { SnackbarParams, SnackbarType } from '../types/notification';
+import type { SnackbarParams,SnackbarType } from '../types/notification';
+import { logger } from '../utils/logger';
 
 interface UseTurboSnackbarQueueParams {
   isAuthenticated: boolean;
   shouldShowPinOverlay: boolean;
   showSnackbar: (params: SnackbarParams) => void;
-  dismissSnackbar: () => void;
 }
 
 interface UseTurboSnackbarQueueReturn {
@@ -27,7 +26,6 @@ export function useTurboSnackbarQueue({
   isAuthenticated,
   shouldShowPinOverlay,
   showSnackbar,
-  dismissSnackbar,
 }: UseTurboSnackbarQueueParams): UseTurboSnackbarQueueReturn {
   const lastShownSnackbarRef = React.useRef<SnackbarParams | null>(null);
   const lastShownTimeRef = React.useRef(0);

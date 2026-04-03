@@ -10,6 +10,7 @@ jest.mock('bitcoinjs-lib', () => {
     toBase64: jest.fn(() => 'base64_psbt_string'),
   };
   (global as Record<string, unknown>).__mockFromHexIdx = 0;
+  (global as Record<string, unknown>).__mockUtxoValues = {} as Record<string, number>;
   return {
     initEccLib: jest.fn(),
     Psbt: jest.fn(() => mockPsbt),
@@ -27,10 +28,14 @@ jest.mock('bitcoinjs-lib', () => {
         const match = callUrl.match(/\/tx\/([^/]+)\/hex/);
         const txid = match ? match[1] : 'tx1';
 
+        // C-02: UTXO value verification - output values must match UTXO values
+        const utxoValues = (global as Record<string, unknown>).__mockUtxoValues as Record<string, number>;
+        const utxoValue = utxoValues[txid] ?? 100000;
+
         return {
           getId: jest.fn(() => txid),
           outs: [
-            { script: Buffer.from('script1', 'hex'), value: 100000 },
+            { script: Buffer.from('script1', 'hex'), value: utxoValue },
             { script: Buffer.from('script2', 'hex'), value: 50000 },
           ],
         };
@@ -84,6 +89,7 @@ describe('btcTransaction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global as Record<string, unknown>).__mockFromHexIdx = 0;
+    (global as Record<string, unknown>).__mockUtxoValues = {};
 
     // Default mock for fetch - returns tx hex
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -92,15 +98,23 @@ describe('btcTransaction', () => {
     });
   });
 
+  // Helper to register UTXO values so the mock Transaction.fromHex returns matching output values
+  const registerUtxoValues = (utxos: Array<{ txid: string; value: number }>) => {
+    const values = (global as Record<string, unknown>).__mockUtxoValues as Record<string, number>;
+    for (const utxo of utxos) {
+      values[utxo.txid] = utxo.value;
+    }
+  };
+
   describe('createBtcIntent', () => {
     const segwitAddress = 'tb1qtest123';
     const recipient = 'tb1qrecipient';
     const amount = '0.001'; // 100,000 sats
 
     it('should create a valid BTC intent', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0);
 
@@ -118,9 +132,9 @@ describe('btcTransaction', () => {
     });
 
     it('should handle comma as decimal separator', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const result = await createBtcIntent(recipient, '0,001', segwitAddress, 0);
 
@@ -175,6 +189,7 @@ describe('btcTransaction', () => {
       const unconfirmedUtxos = [
         { txid: 'unconf_tx', vout: 0, value: 200000, status: { confirmed: false } },
       ];
+      registerUtxoValues(unconfirmedUtxos);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0, unconfirmedUtxos);
 
@@ -182,10 +197,12 @@ describe('btcTransaction', () => {
     });
 
     it('should filter out spent UTXOs', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
+      const utxos = [
         { txid: 'spent_tx', vout: 0, value: 200000, status: { confirmed: true } },
         { txid: 'available_tx', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
       const spentUtxos = new Set(['spent_tx:0']);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0, [], spentUtxos);
@@ -195,9 +212,9 @@ describe('btcTransaction', () => {
     });
 
     it('should include fee and change in result', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 500000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 500000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0);
 
@@ -207,9 +224,9 @@ describe('btcTransaction', () => {
     });
 
     it('should validate recipient address', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       await createBtcIntent(recipient, amount, segwitAddress, 0);
 
@@ -230,11 +247,13 @@ describe('btcTransaction', () => {
     });
 
     it('should use multiple UTXOs when needed', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
+      const utxos = [
         { txid: 'tx1', vout: 0, value: 50000, status: { confirmed: true } },
         { txid: 'tx2', vout: 0, value: 50000, status: { confirmed: true } },
         { txid: 'tx3', vout: 0, value: 50000, status: { confirmed: true } },
-      ]);
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0);
 
@@ -242,12 +261,14 @@ describe('btcTransaction', () => {
     });
 
     it('should prefer confirmed UTXOs over unconfirmed', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
+      const confirmedUtxos = [
         { txid: 'confirmed_tx', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(confirmedUtxos);
       const unconfirmedUtxos = [
         { txid: 'unconfirmed_tx', vout: 0, value: 200000, status: { confirmed: false } },
       ];
+      registerUtxoValues([...confirmedUtxos, ...unconfirmedUtxos]);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0, unconfirmedUtxos);
 
@@ -256,9 +277,9 @@ describe('btcTransaction', () => {
     });
 
     it('should include timestamp in result', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const before = Date.now();
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0);
@@ -269,9 +290,9 @@ describe('btcTransaction', () => {
     });
 
     it('should include id in result', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
-      ]);
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0);
 

@@ -29,7 +29,7 @@ export const generateSecret = async (): Promise<string> => {
  * @returns Random hex string (valid private key)
  */
 export const generateBlindingFactor = async (): Promise<string> => {
-  const maxAttempts = 10;
+  const maxAttempts = 256;
   for (let i = 0; i < maxAttempts; i++) {
     const bytes = await crypto.getRandomBytesAsync(32);
     if (isValidScalar(bytes)) {

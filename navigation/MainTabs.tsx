@@ -1,6 +1,8 @@
 /**
  * MainTabs - Bottom tab navigation for authenticated app
- * Tabs: Wallet, Vault
+ *
+ * Single-tab bottom navigator used for future multi-tab expansion (e.g. Vault tab).
+ * Tab bar is hidden for now — the app uses a custom BottomNavigationBar component instead.
  */
 
 import React from 'react';

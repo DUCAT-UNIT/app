@@ -7,12 +7,11 @@
  * @see https://github.com/cashubtc/nuts/blob/main/11.md - NUT-11: Pay to Public Key
  */
 
-import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { createHash } = require('react-native-quick-crypto');
+import { Buffer } from 'buffer';
 import { logger } from '../../../utils/logger';
-import { isP2PKLocked, CashuProof } from './p2pkVerification';
+import { CashuProof,isP2PKLocked } from './p2pkVerification';
+const { createHash } = require('react-native-quick-crypto');
 
 /**
  * Sign a P2PK secret to create a witness for token redemption

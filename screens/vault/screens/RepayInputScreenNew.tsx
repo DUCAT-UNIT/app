@@ -2,14 +2,14 @@
  * RepayInputScreenNew - Repay input screen using generic VaultInputScreen
  */
 
-import React, { useEffect, useMemo } from 'react';
 import { NavigationProp } from '@react-navigation/native';
+import React,{ useEffect,useMemo } from 'react';
+import { useBalance } from '../../../contexts/WalletDataContext';
+import { useRepayVault } from '../../../hooks/useRepayVault';
+import { useRepay } from '../../../stores/repayStore';
+import { getRunesAmount } from '../../../utils/runesHelper';
 import VaultInputScreen from '../VaultInputScreen';
 import { repayInputConfig } from '../configs';
-import { useRepay } from '../../../stores/repayStore';
-import { useRepayVault } from '../../../hooks/useRepayVault';
-import { useBalance } from '../../../contexts/WalletDataContext';
-import { getRunesAmount } from '../../../utils/runesHelper';
 
 interface RepayInputScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -17,6 +17,7 @@ interface RepayInputScreenNewProps {
 
 export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewProps) {
   const store = useRepay();
+  const { setAvailableUnitBalance } = store;
   const { loadVaultData } = useRepayVault();
   const { runesBalance } = useBalance();
 
@@ -33,8 +34,8 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
 
   // Sync UNIT balance to repay store for maxRepayable calculation
   useEffect(() => {
-    store.setAvailableUnitBalance(unitBalance);
-  }, [unitBalance, store.setAvailableUnitBalance]);
+    setAvailableUnitBalance(unitBalance);
+  }, [unitBalance, setAvailableUnitBalance]);
 
   return (
     <VaultInputScreen

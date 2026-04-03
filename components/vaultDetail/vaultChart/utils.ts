@@ -6,6 +6,7 @@
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import type { BitcoinData, VaultEvent, SeriesItem, ReferenceLine, PriceTimeframe } from './types';
 import { INTERVAL_CONFIG } from './types';
+import { getHealthColorFromValue } from '../../../utils/vaultUtils';
 
 /**
  * Transform transactions to vault events format
@@ -175,13 +176,13 @@ export function createEventSeries(
 }
 
 /**
- * Get health color based on value
+ * Get health color based on value.
+ * Delegates to the canonical getHealthColorFromValue from vaultUtils,
+ * with null handling for chart data that may lack a health value.
  */
 export function getHealthColor(health: number | null): string {
   if (!health) return '#808080'; // SECONDARY_TEXT gray
-  if (health <= 160) return '#d04c68';
-  if (health <= 200) return '#fde37b';
-  return '#59aa8a';
+  return getHealthColorFromValue(health);
 }
 
 /**

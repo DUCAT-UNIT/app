@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.61% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>48/48</span>
+                <span class='fraction'>57/59</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">96.47% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>74/74</span>
+                <span class='fraction'>82/85</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">98.24% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>48/48</span>
+                <span class='fraction'>56/57</span>
             </div>
         
             
@@ -232,7 +232,17 @@
 <a name='L167'></a><a href='#L167'>167</a>
 <a name='L168'></a><a href='#L168'>168</a>
 <a name='L169'></a><a href='#L169'>169</a>
-<a name='L170'></a><a href='#L170'>170</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L170'></a><a href='#L170'>170</a>
+<a name='L171'></a><a href='#L171'>171</a>
+<a name='L172'></a><a href='#L172'>172</a>
+<a name='L173'></a><a href='#L173'>173</a>
+<a name='L174'></a><a href='#L174'>174</a>
+<a name='L175'></a><a href='#L175'>175</a>
+<a name='L176'></a><a href='#L176'>176</a>
+<a name='L177'></a><a href='#L177'>177</a>
+<a name='L178'></a><a href='#L178'>178</a>
+<a name='L179'></a><a href='#L179'>179</a>
+<a name='L180'></a><a href='#L180'>180</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -245,17 +255,17 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">91x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">89x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">87x</span>
 <span class="cline-any cline-yes">85x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">83x</span>
-<span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">81x</span>
-<span class="cline-any cline-yes">79x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -370,14 +380,24 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">15x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">15x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -418,7 +438,7 @@ export function formatFiat(amount: number | null | undefined, decimals = 2, curr
     return '0.00';
   }
 &nbsp;
-  if (typeof amount !== 'number' || isNaN(amount)) {
+  if (typeof amount !== 'number' || isNaN(amount) || !isFinite(amount)) {
     return '0.00';
   }
 &nbsp;
@@ -539,14 +559,24 @@ export function parseUnitToSmallestUnits(displayAmount: string | number | null |
     return 0;
   }
 &nbsp;
-  const numValue = typeof displayAmount === 'string' ? parseFloat(displayAmount) : displayAmount;
-&nbsp;
-  if (isNaN(numValue)) {
-    return 0;
+  // Parse string inputs directly to avoid floating point multiplication errors
+  if (typeof displayAmount === 'string') {
+    const trimmed = displayAmount.trim().replace(',', '.');
+    const isNeg = trimmed.startsWith('-');
+    const abs = isNeg ? trimmed.slice(1) : trimmed;
+    if (!/^\d+\.?\d*$/.test(abs)) return 0;
+    const [whole = <span class="branch-0 cbranch-no" title="branch not covered" >'0',</span> frac = ''] = abs.split('.');
+    const cents = (frac + '00').slice(0, 2);
+    const result = parseInt(whole, 10) * 100 + parseInt(cents, 10);
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (isNaN(result)) <span class="cstat-no" title="statement not covered" >return 0;</span>
+    return isNeg ? -result : result;
   }
 &nbsp;
-  // Multiply by 100 and round to avoid floating point issues
-  return Math.round(numValue * 100);
+  <span class="missing-if-branch" title="if path not taken" >I</span>if (isNaN(displayAmount)) {
+<span class="cstat-no" title="statement not covered" >    return 0;</span>
+  }
+&nbsp;
+  return Math.round(displayAmount * 100);
 }
 &nbsp;
 /**
@@ -577,7 +607,7 @@ export function parseFormattedAmount(formattedAmount: string | null | undefined)
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-09T21:18:15.259Z
+                at 2026-03-28T06:52:23.783Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

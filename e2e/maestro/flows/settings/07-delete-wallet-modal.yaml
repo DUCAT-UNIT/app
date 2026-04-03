@@ -42,7 +42,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Verify delete confirmation modal appears
 - extendedWaitUntil:
     visible:
-      text: "Delete Wallet"
+      text: "Delete Local Wallet"
     timeout: 5000
 
 # Wait for modal animation

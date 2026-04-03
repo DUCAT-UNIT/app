@@ -8,6 +8,12 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { resetPinAttempts, loadLockoutState, recordFailedAttempt } from './pinLockout';
+import {
+  DEVICE_ONLY,
+  deletePreferenceItem,
+  getPreferenceItem,
+  setDeviceOnlyItem,
+} from './storagePolicy';
 
 // Rate limiting constants
 const BIOMETRIC_KEYS = {
@@ -16,7 +22,7 @@ const BIOMETRIC_KEYS = {
 } as const;
 
 const BIOMETRIC_MAX_ATTEMPTS = 5;
-const BIOMETRIC_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+const BIOMETRIC_LOCKOUT_MS = 30 * 60 * 1000; // 30 minutes (matches PIN lockout)
 
 export interface BiometricResult {
   success: boolean;
@@ -74,7 +80,7 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
   const attemptsStr = await SecureStore.getItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS);
   const attempts = attemptsStr ? parseInt(attemptsStr, 10) + 1 : 1;
 
-  await SecureStore.setItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS, attempts.toString());
+  await SecureStore.setItemAsync(BIOMETRIC_KEYS.FAILED_ATTEMPTS, attempts.toString(), DEVICE_ONLY);
 
   // SECURITY: Also increment unified PIN lockout counter so biometric failures
   // count toward the shared auth lockout (prevents lockout bypass via method switching)
@@ -85,7 +91,7 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
 
   if (attempts >= BIOMETRIC_MAX_ATTEMPTS) {
     const lockoutUntil = Date.now() + BIOMETRIC_LOCKOUT_MS;
-    await SecureStore.setItemAsync(BIOMETRIC_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString());
+    await SecureStore.setItemAsync(BIOMETRIC_KEYS.LOCKOUT_UNTIL, lockoutUntil.toString(), DEVICE_ONLY);
 
     logger.error('Biometric authentication locked out', {
       attempts,
@@ -94,7 +100,7 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
 
     throw new Error(
       `Too many failed biometric attempts (${attempts}/${BIOMETRIC_MAX_ATTEMPTS}). ` +
-        `Locked out for 15 minutes. Please use your PIN instead.`
+        `Locked out for 30 minutes. Please use your PIN instead.`
     );
   }
 };
@@ -142,7 +148,7 @@ export const authenticateWithBiometrics = async (
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage,
       fallbackLabel,
-      disableDeviceFallback: false,
+      disableDeviceFallback: true,
     });
 
     // SECURITY: Record attempt for rate limiting
@@ -177,7 +183,17 @@ export const authenticateWithBiometrics = async (
  */
 export const isBiometricEnabled = async (): Promise<boolean> => {
   try {
-    const enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
+    let enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
+
+    if (enabled === null) {
+      const legacyEnabled = await getPreferenceItem('biometricEnabled');
+      if (legacyEnabled !== null) {
+        await setDeviceOnlyItem(SECURE_KEYS.BIOMETRIC_ENABLED, legacyEnabled);
+        await deletePreferenceItem('biometricEnabled');
+        enabled = legacyEnabled;
+      }
+    }
+
     return enabled === 'true';
   } catch (error: unknown) {
     logger.debug('Failed to check biometric enabled status', {
@@ -194,9 +210,10 @@ export const isBiometricEnabled = async (): Promise<boolean> => {
  */
 export const setBiometricEnabled = async (enabled: boolean): Promise<boolean> => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
+    await setDeviceOnlyItem(SECURE_KEYS.BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
+    await deletePreferenceItem('biometricEnabled');
     return true;
-  } catch (error: unknown) {
+  } catch {
     return false;
   }
 };

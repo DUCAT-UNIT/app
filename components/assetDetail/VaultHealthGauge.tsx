@@ -4,26 +4,26 @@
  * Matches storybook design with centered gauge and stats below
  */
 
-import React, { useMemo, memo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path, Circle, Text as SvgText, TSpan } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { COLORS } from '../../theme';
-import Icon from '../icons';
-import { formatBalance, formatFiat } from '../../utils/formatters';
+import React,{ memo,useCallback,useMemo } from 'react';
+import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import Svg,{ Circle,Path,Text as SvgText,TSpan } from 'react-native-svg';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { COLORS } from '../../theme';
+import { formatBalance,formatFiat } from '../../utils/formatters';
+import Icon from '../icons';
 import {
-  LIQUIDATION_RATE,
-  SVG_SIZE,
-  MIN_WITHDRAW_COLLATERAL,
-  pathSettings,
-  mapValueToRange,
-  calculateDynamicRadius,
-  getActivePath,
-  getCurrentTitle,
-  getMarkerColor,
-  type PathSettings,
+calculateDynamicRadius,
+getActivePath,
+getCurrentTitle,
+getMarkerColor,
+LIQUIDATION_RATE,
+mapValueToRange,
+MIN_WITHDRAW_COLLATERAL,
+pathSettings,
+SVG_SIZE,
+type PathSettings,
 } from './vaultGaugeUtils';
 
 export interface VaultHealthGaugeProps {
@@ -45,7 +45,6 @@ export interface VaultHealthGaugeProps {
 export const VaultHealthGauge = memo(function VaultHealthGauge({
   totalDebt,
   totalCollateral,
-  currentPrice,
   healthPercentage,
   isPendingTransaction = false,
   walletBtcBalance = 0,

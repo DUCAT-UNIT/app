@@ -90,7 +90,7 @@ describe('runeValidationService', () => {
         'Rune validation API unavailable',
         expect.objectContaining({
           status: 404,
-          recommendation: 'Verify rune ID manually: https://ord-mutinynet.ducatprotocol.com',
+          recommendation: 'Verify rune ID manually: https://ord-test.com',
         })
       );
     });

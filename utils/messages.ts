@@ -76,7 +76,7 @@ export const SUCCESS = {
 export const WARNINGS = {
   // Wallet warnings
   WALLET_DELETE_WARNING:
-    'WARNING: This will permanently delete your wallet from this device. Make sure you have your recovery phrase backed up!',
+    'WARNING: This will permanently delete wallet data from this device. Your iCloud passkey backup is not deleted. Make sure you still have a recovery method.',
   WALLET_LOGOUT_WARNING: 'This will lock your wallet. You can unlock it again with Face ID or PIN.',
 } as const;
 
@@ -89,7 +89,7 @@ export const PROMPTS = {
 } as const;
 
 export const DIALOGS = {
-  DELETE_WALLET_TITLE: 'Delete Wallet',
+  DELETE_WALLET_TITLE: 'Delete Local Wallet',
   LOGOUT_TITLE: 'Logout',
   INVALID_ACCOUNT_TITLE: 'Invalid Account',
   AUTH_FAILED_TITLE: 'Authentication Failed',

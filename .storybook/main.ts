@@ -30,7 +30,6 @@ const config: StorybookConfig = {
       // Mock RN-only packages
       'react-native-safe-area-context': mockPath('safe-area-context'),
       'react-native-icloudstore': mockPath('icloudstore'),
-      '@sentry/react-native': mockPath('sentry'),
       'react-native-svg': mockPath('svg'),
       'react-native-reanimated': mockPath('reanimated'),
       'react-native-gesture-handler': mockPath('gesture-handler'),
@@ -65,7 +64,6 @@ const config: StorybookConfig = {
     config.optimizeDeps = config.optimizeDeps || {};
     config.optimizeDeps.exclude = [
       ...(config.optimizeDeps.exclude || []),
-      '@sentry/react-native',
       'react-native-svg',
       'react-native-reanimated',
       'react-native-gesture-handler',

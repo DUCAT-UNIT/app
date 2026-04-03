@@ -3,7 +3,7 @@
  * Handles finding appropriate UTXOs for Runes transactions
  */
 
-import logger from '../../utils/logger';
+import { logger } from '../../utils/logger';
 import {
   getOrdAddressUrl,
   getOrdOutputUrl,
@@ -81,7 +81,8 @@ export async function findRuneUtxo(
   spentUtxos: Set<string>
 ): Promise<RuneUtxo[] | null> {
   const selectedUtxos: RuneUtxo[] = [];
-  let totalRuneAmount = 0;
+  let totalRuneAmount = 0n;
+  const requiredRuneAmount = BigInt(amountInRunes);
 
   // Check unconfirmed UTXOs first
   for (const utxo of unconfirmedUtxos) {
@@ -99,10 +100,10 @@ export async function findRuneUtxo(
         runeAmount: utxo.runeAmount,
         status: { confirmed: false },
       });
-      totalRuneAmount += utxo.runeAmount;
+      totalRuneAmount += BigInt(utxo.runeAmount);
 
       // If we have enough, return early
-      if (totalRuneAmount >= amountInRunes) {
+      if (totalRuneAmount >= requiredRuneAmount) {
         logger.debug('[findRuneUtxo] ✅ Found sufficient runes in unconfirmed UTXOs:', { count: selectedUtxos.length });
         return selectedUtxos;
       }
@@ -163,8 +164,15 @@ export async function findRuneUtxo(
       logger.warn('[findRuneUtxo] Skipping UTXO with missing rune data:', { key });
       continue;
     }
-    const runeAmount = parseInt(runeData.amount, 10);
-    logger.debug('[findRuneUtxo] Found UTXO with rune amount:', { runeAmount, totalSoFar: totalRuneAmount + runeAmount });
+    const runeAmountBigInt = BigInt(runeData.amount);
+    if (runeAmountBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error(`Rune amount exceeds supported range for UTXO ${key}`);
+    }
+    const runeAmount = Number(runeAmountBigInt);
+    logger.debug('[findRuneUtxo] Found UTXO with rune amount:', {
+      runeAmount,
+      totalSoFar: Number(totalRuneAmount + runeAmountBigInt),
+    });
 
     selectedUtxos.push({
       transaction: data.transaction,
@@ -173,12 +181,15 @@ export async function findRuneUtxo(
       runeAmount: runeAmount,
       status: { confirmed: true },
     });
-    totalRuneAmount += runeAmount;
+    totalRuneAmount += runeAmountBigInt;
 
     // If we have enough, return
-    if (totalRuneAmount >= amountInRunes) {
+    if (totalRuneAmount >= requiredRuneAmount) {
       logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', { count: selectedUtxos.length });
-      logger.debug('[findRuneUtxo] Total rune amount:', { totalRuneAmount, unit: totalRuneAmount / 100 });
+      logger.debug('[findRuneUtxo] Total rune amount:', {
+        totalRuneAmount: Number(totalRuneAmount),
+        unit: Number(totalRuneAmount) / 100,
+      });
       return selectedUtxos;
     }
   }
@@ -187,7 +198,10 @@ export async function findRuneUtxo(
   if (selectedUtxos.length > 0) {
     logger.error('[findRuneUtxo] ❌ Insufficient runes across all UTXOs!');
     logger.error('[findRuneUtxo] Required:', { amountInRunes, unit: amountInRunes / 100 });
-    logger.error('[findRuneUtxo] Total available:', { totalRuneAmount, unit: totalRuneAmount / 100 });
+    logger.error('[findRuneUtxo] Total available:', {
+      totalRuneAmount: Number(totalRuneAmount),
+      unit: Number(totalRuneAmount) / 100,
+    });
     logger.error('[findRuneUtxo] Found', { count: selectedUtxos.length });
   }
 

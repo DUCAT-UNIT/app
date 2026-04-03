@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, MutableRefObject } from 'react';
 import { Animated, PanResponder, Dimensions, PanResponderInstance, GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import * as SecureStore from 'expo-secure-store';
+import { deleteSetting, getBoolean, SettingKeys } from '../services/settingsService';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -74,18 +74,20 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
   // Check flags before first render to prevent flicker
   useLayoutEffect(() => {
     const checkFlagsSync = async () => {
-      const shouldReturnAuth = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
-      const shouldReturnPinChange = await SecureStore.getItemAsync(
-        'returnToSettingsAfterPinChange'
+      const shouldReturnAuth = await getBoolean(SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH, false);
+      const shouldReturnPinChange = await getBoolean(
+        SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE,
+        false
       );
-      const shouldReturnSeedPhrase = await SecureStore.getItemAsync(
-        'returnToSettingsAfterSeedPhrase'
+      const shouldReturnSeedPhrase = await getBoolean(
+        SettingKeys.RETURN_TO_SETTINGS_AFTER_SEED_PHRASE,
+        false
       );
 
       if (
-        shouldReturnAuth === 'true' ||
-        shouldReturnPinChange === 'true' ||
-        shouldReturnSeedPhrase === 'true'
+        shouldReturnAuth ||
+        shouldReturnPinChange ||
+        shouldReturnSeedPhrase
       ) {
         // Set settings visible immediately without animation
         settingsOpacity.setValue(1);
@@ -109,26 +111,28 @@ export function useSettingsNavigation(): UseSettingsNavigationReturn {
 
         checkingFlags.current = true;
 
-        const shouldReturnSeedPhrase = await SecureStore.getItemAsync(
-          'returnToSettingsAfterSeedPhrase'
+        const shouldReturnSeedPhrase = await getBoolean(
+          SettingKeys.RETURN_TO_SETTINGS_AFTER_SEED_PHRASE,
+          false
         );
-        const shouldReturnPinChange = await SecureStore.getItemAsync(
-          'returnToSettingsAfterPinChange'
+        const shouldReturnPinChange = await getBoolean(
+          SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE,
+          false
         );
-        const shouldReturnAuth = await SecureStore.getItemAsync('returnToSettingsAfterAuth');
+        const shouldReturnAuth = await getBoolean(SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH, false);
 
         if (
-          shouldReturnSeedPhrase === 'true' ||
-          shouldReturnPinChange === 'true' ||
-          shouldReturnAuth === 'true'
+          shouldReturnSeedPhrase ||
+          shouldReturnPinChange ||
+          shouldReturnAuth
         ) {
           // Open settings
           settingsTranslateX.setValue(0);
           setShowSettings(true);
           // Clear the flags
-          await SecureStore.deleteItemAsync('returnToSettingsAfterSeedPhrase');
-          await SecureStore.deleteItemAsync('returnToSettingsAfterPinChange');
-          await SecureStore.deleteItemAsync('returnToSettingsAfterAuth');
+          await deleteSetting(SettingKeys.RETURN_TO_SETTINGS_AFTER_SEED_PHRASE);
+          await deleteSetting(SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE);
+          await deleteSetting(SettingKeys.RETURN_TO_SETTINGS_AFTER_AUTH);
           setReturnToSettings(false);
         }
 

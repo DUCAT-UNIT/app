@@ -19,7 +19,7 @@ import {
   psbtPreProcess,
   psbtPostProcess,
 } from '../signing';
-import { extractOpReturnFromPsbt } from './psbtBinaryUtils';
+import { getExpectedVaultPsbtTemplates } from './signingContext';
 
 /**
  * Creates a WalletConnectAPI for the mobile wallet
@@ -91,12 +91,15 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
         psbtPreProcess(client, pre_pdata, manifest);
 
+        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
         // Sign with the mobile wallet
         const prePsbt = PSBT.encode(pre_pdata);
         const intent = {
           recipient: client.acct.vault.address,
           change: client.acct.sats.address,
           minAmountSats: 0,
+          allowOpReturn: true,
+          expectedPsbtTemplates,
         };
         const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
 
@@ -145,12 +148,15 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         // Pre-process
         psbtPreProcess(client, pdata, manifest);
 
+        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
         // Sign
         const prePsbt = PSBT.encode(pdata);
         const intent = {
           recipient: client.acct.vault.address,
           change: client.acct.sats.address,
           minAmountSats: 0,
+          allowOpReturn: true,
+          expectedPsbtTemplates,
         };
         const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
 
@@ -175,45 +181,26 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           logger.debug(`[VaultWalletService] Processing PSBT ${psbtIndex + 1}/${psbts.length}`);
           logger.debug(`[VaultWalletService] Manifest: ${JSON.stringify(signInputs)}`);
 
-          // ===== DEBUG: Trace OP_RETURN through the signing process =====
-          const originalOpReturn = extractOpReturnFromPsbt(originalPsbt);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} ORIGINAL OP_RETURN: ${originalOpReturn}`);
-
           // Step 1: Pre-process to add fields needed for signing (redeemScript, tapInternalKey)
-          // We patch these into the original PSBT binary
           const preProcessedPsbt = patchPreProcessFields(originalPsbt, client, signInputs);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} pre-processed`);
-
-          const preProcessedOpReturn = extractOpReturnFromPsbt(preProcessedPsbt);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} AFTER PRE-PROCESS OP_RETURN: ${preProcessedOpReturn}`);
 
           // Step 2: Sign using binary patching (preserves OP_RETURN outputs)
           const pre_pdata = PSBT.decode(preProcessedPsbt);
+          const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
           const intent = {
             recipient: client.acct.vault.address,
             change: client.acct.sats.address,
             minAmountSats: 0,
+            allowOpReturn: true,
+            expectedPsbtTemplates,
           };
           const signedPsbt = await signPsbtWithSdkObject(pre_pdata, signInputs, preProcessedPsbt, intent);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} signed`);
-
-          const signedOpReturn = extractOpReturnFromPsbt(signedPsbt);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} AFTER SIGNING OP_RETURN: ${signedOpReturn}`);
 
           // Step 3: Post-process (finalize witnesses) - only first 2 PSBTs
           let finalPsbt = signedPsbt;
           if (psbtIndex < 2) {
             finalPsbt = patchPostProcessFields(signedPsbt, client, signInputs);
-            logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} post-processed`);
-
-            const postProcessedOpReturn = extractOpReturnFromPsbt(finalPsbt);
-            logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} AFTER POST-PROCESS OP_RETURN: ${postProcessedOpReturn}`);
           }
-
-          // Final check
-          const finalOpReturn = extractOpReturnFromPsbt(finalPsbt);
-          logger.debug(`[VaultWalletService] PSBT ${psbtIndex + 1} FINAL OP_RETURN: ${finalOpReturn}`);
-          // ===== END DEBUG =====
 
           signedPsbts.push(finalPsbt);
         }

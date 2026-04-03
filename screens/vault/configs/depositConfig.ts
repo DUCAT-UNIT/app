@@ -2,10 +2,10 @@
  * Deposit Operation Configuration
  */
 
-import { computeHealthFactor, computeLiquidationPrice } from '../../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
 import { colors } from '../../../styles/theme';
-import { getHealthColor } from '../../../utils/vaultHealthColor';
 import type {
+  DepositVaultStore,
   VaultInputScreenConfig,
   VaultConfirmScreenConfig,
   VaultProcessingScreenConfig,
@@ -22,7 +22,10 @@ export const depositRoutes = {
   success: 'DepositSuccess',
 };
 
-export const depositInputConfig: VaultInputScreenConfig = {
+export const depositInputConfig: VaultInputScreenConfig<
+  DepositVaultStore,
+  { availableBalanceBtc?: number }
+> = {
   operationType: 'deposit',
   title: 'Deposit BTC',
   asset: 'BTC',
@@ -125,7 +128,7 @@ export const depositInputConfig: VaultInputScreenConfig = {
   },
 };
 
-export const depositConfirmConfig: VaultConfirmScreenConfig = {
+export const depositConfirmConfig: VaultConfirmScreenConfig<DepositVaultStore> = {
   operationType: 'deposit',
   title: 'Confirm Deposit',
   authMessage: 'Authenticate to deposit BTC',
@@ -199,4 +202,3 @@ export const depositProcessingConfig: VaultProcessingScreenConfig = {
     }
   },
 };
-

@@ -3,9 +3,11 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store');
+jest.mock('@react-native-async-storage/async-storage');
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -29,6 +31,16 @@ import {
 
 const mockGetItemAsync = SecureStore.getItemAsync as jest.MockedFunction<typeof SecureStore.getItemAsync>;
 const mockSetItemAsync = SecureStore.setItemAsync as jest.MockedFunction<typeof SecureStore.setItemAsync>;
+const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
+
+beforeEach(() => {
+  mockGetItemAsync.mockResolvedValue(null);
+  mockSetItemAsync.mockResolvedValue(undefined);
+  mockDeleteItemAsync.mockResolvedValue(undefined);
+  (AsyncStorage.getItem as jest.Mock).mockImplementation((key: string) => mockGetItemAsync(key));
+  (AsyncStorage.setItem as jest.Mock).mockImplementation((key: string, value: string) => mockSetItemAsync(key, value));
+  (AsyncStorage.removeItem as jest.Mock).mockImplementation((key: string) => mockDeleteItemAsync(key));
+});
 
 describe('Biometric Settings', () => {
   beforeEach(() => {
@@ -40,7 +52,7 @@ describe('Biometric Settings', () => {
 
     const result = await getBiometricEnabled();
 
-    expect(mockGetItemAsync).toHaveBeenCalledWith('biometricEnabled');
+    expect(mockGetItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1');
     expect(result).toBe(true);
   });
 
@@ -57,7 +69,11 @@ describe('Biometric Settings', () => {
 
     const result = await setBiometricEnabled(true);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
+    expect(mockSetItemAsync).toHaveBeenCalledWith(
+      'wallet_biometric_enabled_v1',
+      'true',
+      { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+    );
     expect(result).toBe(true);
   });
 });

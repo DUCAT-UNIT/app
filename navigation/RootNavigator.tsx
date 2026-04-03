@@ -3,52 +3,53 @@
  * Switches between Auth flow and Main app based on authentication state
  */
 
-import React, { createRef, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Keyboard, Alert } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
-import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
-import { createStackNavigator, CardStyleInterpolators, StackNavigationOptions } from '@react-navigation/stack';
-import {
-  AuthStack,
-  MainTabs,
-  SendNavigator,
-  VaultCreateNavigator,
-  BorrowNavigator,
-  DepositNavigator,
-  RepayNavigator,
-  WithdrawNavigator,
-} from './navigators';
-import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
-import LockScreen from '../screens/auth/LockScreen';
-import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
+import { NavigationContainer,NavigationContainerRef,Route } from '@react-navigation/native';
+import { CardStyleInterpolators,createStackNavigator,StackNavigationOptions } from '@react-navigation/stack';
+import React,{ createRef,useCallback,useEffect,useRef } from 'react';
+import { ActivityIndicator,Alert,Keyboard,StyleSheet,Text,View } from 'react-native';
 import BiometricSetupModal from '../components/BiometricSetupModal';
 import MutinynetBanner from '../components/MutinynetBanner';
+import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import { withErrorBoundary } from '../components/withErrorBoundary';
+import LockScreen from '../screens/auth/LockScreen';
+import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
+import {
+authenticateWithBiometrics,
+setBiometricEnabled as persistBiometricEnabled,
+} from '../services/biometricService';
 import { COLORS } from '../theme';
+import {
+AuthStack,
+BorrowNavigator,
+DepositNavigator,
+MainTabs,
+RepayNavigator,
+SendNavigator,
+VaultCreateNavigator,
+WithdrawNavigator,
+} from './navigators';
 
 import {
-  useAuth,
-  useOnboardingFlow,
-  useWallet,
-  useBalance,
-  useAuthFlowHandlers,
-  useCashuOperations,
-  useAirdrop,
+useAirdrop,
+useAuth,
+useAuthFlowHandlers,
+useBalance,
+useCashuOperations,
+useOnboardingFlow,
+useWallet,
 } from '../contexts';
-import { useNotifications } from '../stores/notificationStore';
-import { useNavigationState } from '../hooks/useNavigationState';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
+import { useNavigationState } from '../hooks/useNavigationState';
+import { useNotifications } from '../stores/notificationStore';
 
-import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
-import { SECURE_KEYS } from '../utils/constants';
-import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
+import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
+import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
-import type { RootNavigatorParamList } from './types';
 import type { LogContext } from '../types';
+import type { RootNavigatorParamList } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = React.ComponentType<any>;
@@ -73,21 +74,22 @@ const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, 
 // Create linking config once
 const linking = createLinkingConfig();
 
-// Track navigation state changes
+// Navigation container ref (stable across renders)
 const navigationRef = createRef<NavigationContainerRef<RootNavigatorParamList>>();
-let currentRouteName = '';
-
-function onNavigationStateChange(): void {
-  const previousRouteName = currentRouteName;
-  const currentRoute = navigationRef.current?.getCurrentRoute() as Route<string> | undefined;
-  currentRouteName = currentRoute?.name || '';
-
-  if (previousRouteName !== currentRouteName && currentRouteName) {
-    logger.screen(currentRouteName, (currentRoute?.params || {}) as LogContext);
-  }
-}
 
 export default function RootNavigator(): React.JSX.Element {
+  // Track current route name for navigation state change logging
+  const currentRouteNameRef = useRef('');
+
+  const onNavigationStateChange = useCallback((): void => {
+    const previousRouteName = currentRouteNameRef.current;
+    const currentRoute = navigationRef.current?.getCurrentRoute() as Route<string> | undefined;
+    currentRouteNameRef.current = currentRoute?.name || '';
+
+    if (previousRouteName !== currentRouteNameRef.current && currentRouteNameRef.current) {
+      logger.screen(currentRouteNameRef.current, {} as LogContext);
+    }
+  }, []);
   const { shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay } = useNavigationState();
 
   const {
@@ -109,7 +111,6 @@ export default function RootNavigator(): React.JSX.Element {
     isAuthenticated,
     shouldShowPinOverlay,
     showSnackbar,
-    dismissSnackbar,
   });
 
   // Turbo token processing (single 500ms polling loop handles both tokens and snackbars)
@@ -141,6 +142,8 @@ export default function RootNavigator(): React.JSX.Element {
     if (pendingTurboChecked.current) return;
     if (!isAuthenticated || shouldShowAuth || shouldShowPinOverlay || shouldShowLockOverlay) return;
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     // Load persisted state first, then check if we need to resume
     const checkAndResume = async () => {
       // Load persisted state from AsyncStorage if not already loaded
@@ -157,7 +160,7 @@ export default function RootNavigator(): React.JSX.Element {
         sendStore.getState().setTurboEnabled(true);
 
         // Navigate to TurboProcessing after a short delay to ensure navigation is ready
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           logger.info('[RootNavigator] Resuming pending turbo transaction', {
             amount: persistedState.sendAmount,
             recipient: persistedState.sendRecipient,
@@ -171,6 +174,10 @@ export default function RootNavigator(): React.JSX.Element {
     };
 
     checkAndResume();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, loadPersistedState]);
 
   // Get handlers from context (needed for handleLock)
@@ -182,6 +189,7 @@ export default function RootNavigator(): React.JSX.Element {
     showPasskeyMigrationModal,
     passkeyMigrationData,
     hidePasskeyMigrationPrompt,
+    handlePasskeyUpgradeComplete,
     showBiometricSetupModal,
     showBiometricSetupPrompt,
     hideBiometricSetupPrompt,
@@ -216,17 +224,40 @@ export default function RootNavigator(): React.JSX.Element {
     setIsAuthenticated(false);
   }, [setIsAuthenticated, dismissSnackbar, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
 
+  const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
+    try {
+      const result = await authenticateWithBiometrics(
+        'Authenticate to enable Face ID',
+        'Cancel'
+      );
+
+      if (!result.success) {
+        return;
+      }
+
+      if (!await persistBiometricEnabled(true)) {
+        throw new Error('Failed to persist biometric preference');
+      }
+
+      setBiometricEnabled(true);
+      setIsAuthenticated(true);
+      handleLockScreenAuthenticatedWrapper();
+    } catch (error: unknown) {
+      logger.error('[RootNavigator] Failed to enable biometrics from lock screen', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [setBiometricEnabled, setIsAuthenticated, handleLockScreenAuthenticatedWrapper]);
+
   // Handle biometric authentication with proper post-auth flow
   const handleBiometricAuth = useCallback(async () => {
     logger.debug('[RootNavigator] handleBiometricAuth called', { biometricEnabled, isBiometricSupported });
     try {
       if (biometricEnabled) {
-        // Biometrics enabled - authenticate directly
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to unlock wallet',
-          fallbackLabel: 'Use PIN',
-          disableDeviceFallback: true,
-        });
+        const result = await authenticateWithBiometrics(
+          'Authenticate to unlock wallet',
+          'Use PIN'
+        );
 
         if (result.success) {
           setIsAuthenticated(true);
@@ -244,21 +275,8 @@ export default function RootNavigator(): React.JSX.Element {
             },
             {
               text: 'Enable',
-              onPress: async () => {
-                // Try to authenticate with biometrics
-                const result = await LocalAuthentication.authenticateAsync({
-                  promptMessage: 'Authenticate to enable Face ID',
-                  fallbackLabel: 'Cancel',
-                  disableDeviceFallback: true,
-                });
-
-                if (result.success) {
-                  // Save biometric preference and complete auth
-                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
-                  setBiometricEnabled(true);
-                  setIsAuthenticated(true);
-                  handleLockScreenAuthenticatedWrapper();
-                }
+              onPress: () => {
+                enableBiometricFromPrompt();
               },
             },
           ]
@@ -267,7 +285,7 @@ export default function RootNavigator(): React.JSX.Element {
     } catch (error) {
       logger.error('[RootNavigator] Biometric auth error:', { error: error instanceof Error ? error.message : String(error) });
     }
-  }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, setBiometricEnabled, handleLockScreenAuthenticatedWrapper]);
+  }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, enableBiometricFromPrompt, handleLockScreenAuthenticatedWrapper]);
 
   // Set up app lifecycle (inactivity timer, app state changes)
   const { resetInactivityTimer } = useAppLifecycle({
@@ -276,6 +294,7 @@ export default function RootNavigator(): React.JSX.Element {
     seedConfirmedRef,
     isBiometricSupported,
     biometricEnabled,
+    isProcessing: turboIsProcessing,
     onLock: handleLock,
     onAuthenticateUser: handleBiometricAuth,
   });
@@ -284,9 +303,9 @@ export default function RootNavigator(): React.JSX.Element {
   // Handle passkey enabled - show biometric setup prompt if supported
   const handlePasskeyEnabled = useCallback(async () => {
     // Check if biometrics are supported and enrolled
-    const LocalAuthentication = await import('expo-local-authentication');
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    const localAuthenticationModule = await import('expo-local-authentication');
+    const hasHardware = await localAuthenticationModule.hasHardwareAsync();
+    const isEnrolled = await localAuthenticationModule.isEnrolledAsync();
     if (hasHardware && isEnrolled) {
       showBiometricSetupPrompt();
     }
@@ -391,19 +410,25 @@ export default function RootNavigator(): React.JSX.Element {
           <PasskeyMigrationModal
             visible={showPasskeyMigrationModal}
             onClose={hidePasskeyMigrationPrompt}
-            onPasskeyEnabled={handlePasskeyEnabled}
-            mnemonic={passkeyMigrationData.mnemonic}
-            currentPin={passkeyMigrationData.pin}
+            onPasskeyEnabled={
+              passkeyMigrationData.mode === 'import'
+                ? handlePasskeyEnabled
+                : handlePasskeyUpgradeComplete
+            }
+            mode={passkeyMigrationData.mode}
+            currentPin={passkeyMigrationData.currentPin}
             showToast={showToast}
           />
         )}
 
         {/* Biometric Setup Modal (after passkey wallet creation or migration) */}
-        <BiometricSetupModal
-          visible={showBiometricSetupModal}
-          onEnable={handleBiometricSetupEnable}
-          onSkip={handleBiometricSetupSkip}
-        />
+        {showBiometricSetupModal && (
+          <BiometricSetupModal
+            visible={showBiometricSetupModal}
+            onEnable={handleBiometricSetupEnable}
+            onSkip={handleBiometricSetupSkip}
+          />
+        )}
 
         {/* Token Verification Loading Overlay */}
         {isVerifyingToken && (

@@ -4,39 +4,38 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Navigation
 import RootNavigator from './RootNavigator';
-import { checkPendingTurboTransaction } from '../stores/turboProcessingStore';
-import { useSendFlowStore } from '../stores/sendFlowStore';
-import { logger } from '../utils/logger';
 
 // Components
 import AccountSwitcherModal from '../components/AccountSwitcherModal';
+import AirdropSuccessModal from '../components/AirdropSuccessModal';
 import AppModals from '../components/AppModals';
 import SeedPhraseOverlay from '../components/SeedPhraseOverlay';
-import SplashScreen from '../screens/SplashScreen';
-import AirdropSuccessModal from '../components/AirdropSuccessModal';
 import Snackbar from '../components/Snackbar';
 import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
+import SplashScreen from '../screens/SplashScreen';
 
 // Stores
-import { useEcashThresholdSheetStore, getThresholdSheetOnSelect } from '../stores/ecashThresholdSheetStore';
+import { getThresholdSheetOnSelect,useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
 
 // Contexts
-import { useAuth, useOnboardingFlow } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 import { useAirdrop } from '../contexts/AirdropContext';
+import { useAuth,useOnboardingFlow } from '../contexts/AuthContext';
+import { useAccountSwitcherContext,useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
-import { useSettingsHandlers, useAccountSwitcherContext } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from '../stores/notificationStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
+import { useWallet } from '../contexts/WalletContext';
+import { useNotifications } from '../stores/notificationStore';
 
 // Hooks
 import { useWalletInitialization } from '../hooks/useWalletInitialization';
 
 // Styles
 import styles from '../styles';
+import { COLORS } from '../theme';
 
 /**
  * Global wrapper for EcashThresholdSheet that uses the global store
@@ -85,6 +84,11 @@ export default function AppNavigatorContent({
   // Auth contexts
   const { setIsAuthenticated } = useAuth();
   const { wallet } = useWallet();
+  const walletExistsRef = useRef(!!wallet);
+
+  useEffect(() => {
+    walletExistsRef.current = !!wallet;
+  }, [wallet]);
 
   // Settings handlers from context
   const {
@@ -135,12 +139,12 @@ export default function AppNavigatorContent({
   const { snackbar, dismissSnackbar } = useNotifications();
 
   // Wallet initialization
-  const { isLoading } = useWalletInitialization({
+  const { isLoading, initializationError, retryInitialization } = useWalletInitialization({
     loadWallet,
     loadBiometricPreference,
     setSeedConfirmed,
     setIsAuthenticated,
-    walletExistsRef: { current: !!wallet },
+    walletExistsRef,
   });
 
   // Check for pending turbo transaction on startup
@@ -149,6 +153,21 @@ export default function AppNavigatorContent({
   // Show loading splash (initial load only)
   if (isLoading) {
     return <SplashScreen />;
+  }
+
+  if (initializationError) {
+    return (
+      <View style={localStyles.errorContainer}>
+        <Text style={localStyles.errorTitle}>Unable To Access Wallet</Text>
+        <Text style={localStyles.errorMessage}>
+          The app could not read wallet data securely. Retry before creating or importing a new wallet.
+        </Text>
+        <Text style={localStyles.errorDetails}>{initializationError}</Text>
+        <TouchableOpacity style={localStyles.retryButton} onPress={() => { retryInitialization(); }}>
+          <Text style={localStyles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   // Main navigation
@@ -222,3 +241,46 @@ export default function AppNavigatorContent({
     </>
   );
 }
+
+const localStyles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  errorTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 12,
+  },
+  errorDetails: {
+    color: COLORS.DANGER_RED,
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  retryButtonText: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 16,
+    fontFamily: 'CabinetGrotesk-Bold',
+  },
+});

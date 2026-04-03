@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>36/36</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">91.66% </span>
+                <span class="strong">84.61% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>22/24</span>
+                <span class='fraction'>22/26</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.34% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>36/36</span>
+                <span class='fraction'>41/43</span>
             </div>
         
             
@@ -163,7 +163,20 @@
 <a name='L98'></a><a href='#L98'>98</a>
 <a name='L99'></a><a href='#L99'>99</a>
 <a name='L100'></a><a href='#L100'>100</a>
-<a name='L101'></a><a href='#L101'>101</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -177,6 +190,8 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-yes">13x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -222,6 +237,14 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">12x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">69x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">69x</span>
+<span class="cline-any cline-yes">69x</span>
 <span class="cline-any cline-yes">69x</span>
 <span class="cline-any cline-yes">69x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -233,8 +256,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4x</span>
-<span class="cline-any cline-yes">3x</span>
+<span class="cline-any cline-yes">4x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">69x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -270,6 +296,7 @@
 &nbsp;
 import { useEffect, useRef, useCallback } from 'react';
 import { getTxApiUrl } from '../utils/constants';
+import { logger } from '../utils/logger';
 &nbsp;
 interface UseTransactionPollingReturn {
   startPolling: (txid: string, onConfirmed: (confirmed: boolean) =&gt; void, onError?: (error: Error) =&gt; void) =&gt; void;
@@ -278,6 +305,7 @@ interface UseTransactionPollingReturn {
 &nbsp;
 export function useTransactionPolling(): UseTransactionPollingReturn {
   const pollIntervalRef = useRef&lt;ReturnType&lt;typeof setInterval&gt; | null&gt;(null);
+  const isPollingRef = useRef&lt;boolean&gt;(false);
 &nbsp;
   /**
    * Start polling for transaction confirmation
@@ -322,19 +350,30 @@ export function useTransactionPolling(): UseTransactionPollingReturn {
 &nbsp;
     // Start polling
     pollIntervalRef.current = setInterval(async () =&gt; {
-      attempts++;
-      const isConfirmed = await checkConfirmation();
+      // Guard against concurrent execution when network is slow
+      <span class="missing-if-branch" title="if path not taken" >I</span>if (isPollingRef.current) {
+<span class="cstat-no" title="statement not covered" >        logger.debug('[useTransactionPolling] Skipping tick — previous poll still in progress');</span>
+<span class="cstat-no" title="statement not covered" >        return;</span>
+      }
 &nbsp;
-      if (isConfirmed || attempts &gt;= maxAttempts) {
-        <span class="missing-if-branch" title="else path not taken" >E</span>if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-        pollIntervalRef.current = null;
+      isPollingRef.current = true;
+      try {
+        attempts++;
+        const isConfirmed = await checkConfirmation();
 &nbsp;
-        // Call confirmation callback
-        if (onConfirmed) {
-          onConfirmed(isConfirmed);
+        if (isConfirmed || attempts &gt;= maxAttempts) {
+          <span class="missing-if-branch" title="else path not taken" >E</span>if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          pollIntervalRef.current = null;
+&nbsp;
+          // Call confirmation callback
+          <span class="missing-if-branch" title="else path not taken" >E</span>if (onConfirmed) {
+            onConfirmed(isConfirmed);
+          }
         }
+      } finally {
+        isPollingRef.current = false;
       }
     }, 5000); // Check every 5 seconds
   }, []);
@@ -370,7 +409,7 @@ export function useTransactionPolling(): UseTransactionPollingReturn {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-09T21:18:15.259Z
+                at 2026-03-28T06:52:23.783Z
             </div>
         <script src="../prettify.js"></script>
         <script>

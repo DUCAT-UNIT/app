@@ -33,6 +33,8 @@ const mockCrypto = jest.requireMock('expo-crypto') as { getRandomBytesAsync: jes
 const mockBip39 = jest.requireMock('bip39') as { entropyToMnemonic: jest.Mock; validateMnemonic: jest.Mock };
 const mockBitcoin = jest.requireMock('../../utils/bitcoin') as { deriveAddressesFromMnemonic: jest.Mock };
 const mockSecureStorage = SecureStorageService as jest.Mocked<typeof SecureStorageService>;
+const NEW_MODE = 'bip44_account';
+const LEGACY_MODE = 'legacy_address_index';
 
 describe('walletService', () => {
   const mockAddresses = {
@@ -63,7 +65,7 @@ describe('walletService', () => {
       });
 
       expect(mockCrypto.getRandomBytesAsync).toHaveBeenCalledWith(16);
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 0);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 0, NEW_MODE);
     });
 
     it('should generate wallet with custom account index', async () => {
@@ -76,7 +78,7 @@ describe('walletService', () => {
 
       await generateWallet(5);
 
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 5);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 5, NEW_MODE);
     });
 
     it('should throw error if wallet generation fails', async () => {
@@ -100,7 +102,7 @@ describe('walletService', () => {
       });
 
       expect(mockBip39.validateMnemonic).toHaveBeenCalledWith(mnemonic);
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 0);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 0, NEW_MODE);
     });
 
     it('should normalize and trim mnemonic before validation', async () => {
@@ -113,7 +115,7 @@ describe('walletService', () => {
       await importWallet(mnemonic);
 
       expect(mockBip39.validateMnemonic).toHaveBeenCalledWith(normalized);
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(normalized, 0);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(normalized, 0, NEW_MODE);
     });
 
     it('should import wallet with custom account index', async () => {
@@ -124,7 +126,7 @@ describe('walletService', () => {
 
       await importWallet(mnemonic, 3);
 
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 3);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mnemonic, 3, NEW_MODE);
     });
 
     it('should throw error for invalid mnemonic', async () => {
@@ -275,17 +277,13 @@ describe('walletService', () => {
       expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
     });
 
-    it('should continue even if saveCurrentAccount fails when using cache (non-blocking)', async () => {
+    it('should throw if saveCurrentAccount fails when using cache', async () => {
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(mockAddresses);
-      // saveCurrentAccount fails but should not break the flow (non-blocking)
       mockSecureStorage.saveCurrentAccount.mockRejectedValueOnce(new Error('Account save error'));
 
-      const result = await switchToAccount(2);
-
-      // Should still return the cached addresses even if save fails
-      expect(result).toEqual({
-        addresses: mockAddresses,
-      });
+      await expect(switchToAccount(2)).rejects.toThrow(
+        'Failed to switch account: Account save error'
+      );
     });
 
     it('should derive addresses when cache misses (slow path)', async () => {
@@ -306,7 +304,7 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2, LEGACY_MODE);
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
       expect(mockSecureStorage.saveToMultiAccountCache).toHaveBeenCalledWith(2, mockAddresses);
     });

@@ -6,8 +6,10 @@ import { Buffer } from 'buffer';
 import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
+import { DEFAULT_WALLET_DERIVATION_MODE } from '../constants/bitcoin';
 import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
 import { logger } from '../utils/logger';
+import { getWalletDerivationMode, setWalletDerivationMode } from './walletDerivationService';
 
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -41,7 +43,11 @@ export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletRe
     const mnemonic = bip39.entropyToMnemonic(Buffer.from(randomBytes).toString('hex'));
 
     // Derive addresses from mnemonic
-    const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+    const addresses = deriveAddressesFromMnemonic(
+      mnemonic,
+      accountIndex,
+      DEFAULT_WALLET_DERIVATION_MODE
+    );
 
     return {
       mnemonic,
@@ -68,7 +74,11 @@ export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<
   }
 
   // Derive addresses from mnemonic
-  const addresses = deriveAddressesFromMnemonic(normalizedMnemonic, accountIndex);
+  const addresses = deriveAddressesFromMnemonic(
+    normalizedMnemonic,
+    accountIndex,
+    DEFAULT_WALLET_DERIVATION_MODE
+  );
 
   return {
     addresses,
@@ -83,6 +93,7 @@ export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<
 export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
   try {
     const accountIndex = await getCurrentAccount();
+    const derivationMode = await getWalletDerivationMode();
 
     // Try multi-account cache first (instant if in memory)
     const multiCached = await getMultiAccountCache(accountIndex);
@@ -95,18 +106,31 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
     if (cachedAddresses) {
       // Populate multi-account cache for future fast switching (non-blocking with error logging)
       saveToMultiAccountCache(accountIndex, cachedAddresses).catch((error) => {
-        logger.warn('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+        logger.error('[walletService] Failed to save to multi-account cache during wallet load', {
+          accountIndex,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
       return { addresses: cachedAddresses, accountIndex };
     }
 
     // Cache miss - derive addresses (slow path - ~200ms)
-    const addresses = await withMnemonic(async (mnemonic: string) => {
-      if (!mnemonic) {
-        return null;
+    let addresses;
+    try {
+      addresses = await withMnemonic(async (mnemonic: string) => {
+        if (!mnemonic) {
+          return null;
+        }
+        return deriveAddressesFromMnemonic(mnemonic, accountIndex, derivationMode);
+      });
+    } catch (error: unknown) {
+      // "Mnemonic not found" means no wallet exists yet — return null instead of throwing
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('Mnemonic not found')) {
+        return { addresses: null, accountIndex };
       }
-      return deriveAddressesFromMnemonic(mnemonic, accountIndex);
-    });
+      throw error;
+    }
 
     // Cache the derived addresses for next startup and fast switching (non-blocking with error logging)
     if (addresses) {
@@ -114,7 +138,10 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
         saveCachedAddresses(accountIndex, addresses),
         saveToMultiAccountCache(accountIndex, addresses),
       ]).catch((error) => {
-        logger.warn('Failed to cache derived addresses', { error: error instanceof Error ? error.message : String(error) });
+        logger.error('[walletService] Failed to cache derived addresses after derivation', {
+          accountIndex,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
     }
 
@@ -132,13 +159,13 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
  */
 export const switchToAccount = async (accountIndex: number): Promise<SwitchAccountResult> => {
   try {
+    const derivationMode = await getWalletDerivationMode();
+
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
     const cachedAddresses = await getMultiAccountCache(accountIndex);
     if (cachedAddresses) {
-      // Update current account index (non-blocking with error logging)
-      saveCurrentAccount(accountIndex).catch((error) => {
-        logger.warn('Failed to save current account index', { error: error instanceof Error ? error.message : String(error) });
-      });
+      // Persist current account before returning so storage-backed consumers stay in sync.
+      await saveCurrentAccount(accountIndex);
       return { addresses: cachedAddresses };
     }
 
@@ -147,7 +174,7 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
       if (!mnemonic) {
         throw new Error('Failed to retrieve wallet from secure storage');
       }
-      return deriveAddressesFromMnemonic(mnemonic, accountIndex);
+      return deriveAddressesFromMnemonic(mnemonic, accountIndex, derivationMode);
     });
 
     // Save the new account index and cache the addresses for future fast switching
@@ -171,5 +198,15 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
  */
 export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): Promise<void> => {
   await saveMnemonic(mnemonic);
+  await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
   await saveCurrentAccount(accountIndex);
+  const addresses = deriveAddressesFromMnemonic(
+    mnemonic,
+    accountIndex,
+    DEFAULT_WALLET_DERIVATION_MODE
+  );
+  await Promise.all([
+    saveCachedAddresses(accountIndex, addresses),
+    saveToMultiAccountCache(accountIndex, addresses),
+  ]);
 };

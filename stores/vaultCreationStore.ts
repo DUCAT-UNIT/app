@@ -4,6 +4,8 @@
  */
 
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
 import {
   computeHealthFactor,
@@ -42,6 +44,9 @@ interface VaultCreationState {
   loading: boolean;
   error: string | null;
   txid: string | null;
+
+  // Hydration tracking
+  _hasHydrated: boolean;
 }
 
 interface VaultCreationActions {
@@ -68,6 +73,9 @@ interface VaultCreationActions {
 
   // Reset
   reset: () => void;
+
+  // Persistence
+  clearPersistedState: () => Promise<void>;
 }
 
 type VaultCreationStore = VaultCreationState & VaultCreationActions;
@@ -82,85 +90,127 @@ const initialState: VaultCreationState = {
   loading: false,
   error: null,
   txid: null,
+  _hasHydrated: false,
 };
 
-export const useVaultCreationStore = create<VaultCreationStore>((set, get) => ({
-  // Initial state
-  ...initialState,
+export const useVaultCreationStore = create<VaultCreationStore>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      ...initialState,
 
-  // Form actions
-  setBtcAmount: (btcAmount) => {
-    logger.debug('[VaultCreationStore] setBtcAmount:', btcAmount);
-    set({ btcAmount, error: null });
-  },
+      // Form actions
+      setBtcAmount: (btcAmount) => {
+        logger.debug('[VaultCreationStore] setBtcAmount:', btcAmount);
+        set({ btcAmount, error: null });
+      },
 
-  setUnitAmount: (unitAmount) => {
-    logger.debug('[VaultCreationStore] setUnitAmount:', unitAmount);
-    set({ unitAmount, error: null });
-  },
+      setUnitAmount: (unitAmount) => {
+        logger.debug('[VaultCreationStore] setUnitAmount:', unitAmount);
+        set({ unitAmount, error: null });
+      },
 
-  setSelectedFeeRate: (selectedFeeRate) => {
-    logger.debug('[VaultCreationStore] setSelectedFeeRate:', selectedFeeRate);
-    set({ selectedFeeRate });
-  },
+      setSelectedFeeRate: (selectedFeeRate) => {
+        logger.debug('[VaultCreationStore] setSelectedFeeRate:', selectedFeeRate);
+        set({ selectedFeeRate });
+      },
 
-  setBitcoinPrice: (bitcoinPrice) => {
-    set({ bitcoinPrice });
-  },
+      setBitcoinPrice: (bitcoinPrice) => {
+        set({ bitcoinPrice });
+      },
 
-  // Navigation
-  setCurrentStep: (currentStep) => {
-    logger.debug('[VaultCreationStore] setCurrentStep:', currentStep);
-    set({ currentStep, error: null });
-  },
+      // Navigation
+      setCurrentStep: (currentStep) => {
+        logger.debug('[VaultCreationStore] setCurrentStep:', currentStep);
+        set({ currentStep, error: null });
+      },
 
-  setProcessingStep: (processingStep) => {
-    logger.debug('[VaultCreationStore] setProcessingStep:', processingStep);
-    set({ processingStep });
-  },
+      setProcessingStep: (processingStep) => {
+        logger.debug('[VaultCreationStore] setProcessingStep:', processingStep);
+        set({ processingStep });
+      },
 
-  // Process actions
-  setLoading: (loading) => set({ loading }),
+      // Process actions
+      setLoading: (loading) => set({ loading }),
 
-  setError: (error) => {
-    logger.debug('[VaultCreationStore] setError:', error);
-    set({ error, loading: false });
-  },
+      setError: (error) => {
+        logger.debug('[VaultCreationStore] setError:', error);
+        set({ error, loading: false });
+      },
 
-  setTxid: (txid) => {
-    logger.debug('[VaultCreationStore] setTxid:', txid);
-    set({ txid });
-  },
+      setTxid: (txid) => {
+        logger.debug('[VaultCreationStore] setTxid:', txid);
+        set({ txid });
+      },
 
-  // Computed getters
-  getHealthFactor: () => {
-    const { btcAmount, unitAmount, bitcoinPrice } = get();
-    if (!bitcoinPrice || btcAmount <= 0 || unitAmount <= 0) return 0;
-    return computeHealthFactor(btcAmount, bitcoinPrice, unitAmount);
-  },
+      // Computed getters
+      getHealthFactor: () => {
+        const { btcAmount, unitAmount, bitcoinPrice } = get();
+        if (!bitcoinPrice || btcAmount <= 0 || unitAmount <= 0) return 0;
+        return computeHealthFactor(btcAmount, bitcoinPrice, unitAmount);
+      },
 
-  getLiquidationPrice: () => {
-    const { btcAmount, unitAmount } = get();
-    if (btcAmount <= 0) return 0;
-    return computeLiquidationPrice(unitAmount, btcAmount);
-  },
+      getLiquidationPrice: () => {
+        const { btcAmount, unitAmount } = get();
+        if (btcAmount <= 0) return 0;
+        return computeLiquidationPrice(unitAmount, btcAmount);
+      },
 
-  getMaxBorrowable: () => {
-    const { btcAmount, bitcoinPrice } = get();
-    return getMaxUnit(btcAmount, bitcoinPrice ?? undefined);
-  },
+      getMaxBorrowable: () => {
+        const { btcAmount, bitcoinPrice } = get();
+        return getMaxUnit(btcAmount, bitcoinPrice ?? undefined);
+      },
 
-  getHealthStatus: () => {
-    const healthFactor = get().getHealthFactor();
-    return getHealthStatus(healthFactor);
-  },
+      getHealthStatus: () => {
+        const healthFactor = get().getHealthFactor();
+        return getHealthStatus(healthFactor);
+      },
 
-  // Reset
-  reset: () => {
-    logger.debug('[VaultCreationStore] reset');
-    set(initialState);
-  },
-}));
+      // Reset
+      reset: () => {
+        logger.debug('[VaultCreationStore] reset');
+        set(initialState);
+      },
+
+      // Persistence
+      clearPersistedState: async () => {
+        logger.debug('[VaultCreationStore] clearPersistedState');
+        try {
+          await AsyncStorage.removeItem('vault-creation');
+        } catch (error) {
+          logger.error('[VaultCreationStore] Failed to clear persisted state:', { error });
+        }
+        set(initialState);
+      },
+    }),
+    {
+      name: 'vault-creation',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only persist user-progress fields, NOT transient state (loading, error, txid, processingStep)
+      partialize: (state) => ({
+        btcAmount: state.btcAmount,
+        unitAmount: state.unitAmount,
+        selectedFeeRate: state.selectedFeeRate,
+        currentStep: state.currentStep,
+      }),
+      onRehydrateStorage: () => {
+        logger.debug('[VaultCreationStore] Hydration started');
+        return (state, error) => {
+          if (error) {
+            logger.error('[VaultCreationStore] Hydration failed:', { error });
+          } else {
+            logger.debug('[VaultCreationStore] Hydration complete:', {
+              btcAmount: state?.btcAmount,
+              unitAmount: state?.unitAmount,
+              currentStep: state?.currentStep,
+            });
+          }
+          useVaultCreationStore.setState({ _hasHydrated: true });
+        };
+      },
+    }
+  )
+);
 
 /**
  * Selector hooks for granular subscriptions
@@ -172,12 +222,14 @@ export const useProcessingStep = () => useVaultCreationStore((state) => state.pr
 export const useVaultCreationLoading = () => useVaultCreationStore((state) => state.loading);
 export const useVaultCreationError = () => useVaultCreationStore((state) => state.error);
 export const useVaultCreationTxid = () => useVaultCreationStore((state) => state.txid);
+export const useVaultCreationHasHydrated = () =>
+  useVaultCreationStore((state) => state._hasHydrated);
 
 /**
  * Reset store to initial state (useful for testing)
  */
 export const resetVaultCreationStore = () => {
-  useVaultCreationStore.setState(initialState);
+  useVaultCreationStore.setState({ ...initialState, _hasHydrated: true });
 };
 
 /**

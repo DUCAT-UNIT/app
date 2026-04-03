@@ -46,8 +46,9 @@ describe('satsToBTC', () => {
     expect(satsToBTC(NaN)).toBe(0);
   });
 
-  it('should handle negative values', () => {
-    expect(satsToBTC(-100000000)).toBe(-1);
+  it('should reject negative values', () => {
+    expect(satsToBTC(-100000000)).toBe(0);
+    expect(satsToBTC(-1)).toBe(0);
   });
 });
 

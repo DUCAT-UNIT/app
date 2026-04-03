@@ -3,53 +3,51 @@
  * Uses configuration pattern to handle borrow, deposit, repay, and withdraw
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-  Text,
-  View,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
+ActivityIndicator,
+KeyboardAvoidingView,
+Platform,
+ScrollView,
+StyleSheet,
+Text,
+TouchableOpacity,
+View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import TouchableScale from '../../components/common/TouchableScale';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
-import { VaultActionGauge, VaultChangesCard, AmountSlider } from '../../components/vaultAction';
+import TouchableScale from '../../components/common/TouchableScale';
+import { AmountSlider,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { useVaultInputScreen } from './hooks';
-import type { VaultInputScreenConfig, VaultScreenNavigationProp } from './types';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import type { VaultInputScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
 
-interface VaultInputScreenProps {
+interface VaultInputScreenProps<TStore extends VaultStoreState, TAdditionalData = unknown> {
   navigation: VaultScreenNavigationProp;
-  config: VaultInputScreenConfig;
-  store: any; // Operation-specific store hook result
+  config: VaultInputScreenConfig<TStore, TAdditionalData>;
+  store: TStore;
   loadVaultData: () => void;
-  additionalData?: any; // Operation-specific additional data (e.g., unitBalance for repay)
+  additionalData?: TAdditionalData;
 }
 
-export default function VaultInputScreen({
+export default function VaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>({
   navigation,
   config,
   store,
   loadVaultData,
   additionalData,
-}: VaultInputScreenProps) {
+}: VaultInputScreenProps<TStore, TAdditionalData>) {
   const {
     // Vault state
     effectiveBtcLocked,
     effectiveUnitBorrowed,
-    vaultLoaded,
     isInitializing,
     btcPrice,
 
     // Amount state
     amountConfig,
-    previewAmount,
 
     // Health calculations
     currentHealth,

@@ -1,8 +1,12 @@
 /**
- * E2E Vault State
- * Module-level state used by E2E bypasses to simulate vault operations
- * without hitting the Guardian WebSocket. Only active when
- * __DEV__ && EXPO_PUBLIC_E2E_BYPASS === 'true'.
+ * E2E test state for simulating vault operations without Guardian WebSocket.
+ *
+ * Safety: All consumers check `__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true'`.
+ * - `__DEV__` is false in production builds (Metro dead code elimination strips these blocks)
+ * - `app.config.ts` throws at build time if EXPO_PUBLIC_E2E_BYPASS is set with NODE_ENV=production
+ *
+ * This module is only referenced inside `if (__DEV__)` guards, so the entire import
+ * and all associated code paths are removed from production bundles.
  */
 
 export const e2eVaultState = {

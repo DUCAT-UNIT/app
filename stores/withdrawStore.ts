@@ -15,6 +15,7 @@ import {
 } from '../utils/vaultUtils';
 import { VAULT_CONFIG } from '../utils/constants';
 import {
+  commonInitialState,
   createCommonVaultSlice,
   computeVaultHealth,
   computeNewVaultHealth,
@@ -147,17 +148,8 @@ export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[WithdrawStore] reset');
       set({
+        ...commonInitialState,
         ...withdrawSpecificInitialState,
-        // Reset common state
-        selectedFeeRate: 1,
-        currentUnitBorrowed: 0,
-        currentBtcLocked: 0,
-        bitcoinPrice: null,
-        currentStep: 'input',
-        processingStep: 1,
-        loading: false,
-        error: null,
-        vaultTxid: null,
       });
     },
   };
@@ -227,20 +219,8 @@ export const useWithdraw = () => {
     bitcoinPrice
   );
 
-  // Calculate max withdrawable
-  let maxWithdrawable = 0;
-  if (currentBtcLocked > 0) {
-    if (currentUnitBorrowed > 0 && bitcoinPrice) {
-      // Has debt: constrain by health factor
-      const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
-      const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
-      const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-      maxWithdrawable = Math.floor(maxWithdrawableBtc * 100_000_000);
-    } else {
-      // No debt: can withdraw all collateral
-      maxWithdrawable = Math.floor(currentBtcLocked * 100_000_000);
-    }
-  }
+  // Calculate max withdrawable (delegates to store getter to avoid duplication)
+  const maxWithdrawable = useWithdrawStore.getState().getMaxWithdrawable();
 
   return {
     // State

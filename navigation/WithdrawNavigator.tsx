@@ -12,28 +12,34 @@ import {
   WithdrawSuccessScreen,
 } from '../screens/withdraw';
 import { COLORS } from '../theme';
+import NavigationErrorBoundary from '../components/NavigationErrorBoundary';
 import type { WithdrawStackParamList } from './types';
 
 const Stack = createStackNavigator<WithdrawStackParamList>();
 
 export default function WithdrawNavigator(): React.JSX.Element {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        cardStyle: { backgroundColor: COLORS.DARK_BG },
-        gestureEnabled: false,
-        cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-        transitionSpec: {
-          open: { animation: 'timing', config: { duration: 0 } },
-          close: { animation: 'timing', config: { duration: 0 } },
-        },
-      }}
+    <NavigationErrorBoundary
+      boundaryName="WithdrawNavigator"
+      fallbackMessage="Something went wrong with the withdraw flow. Please try again."
     >
-      <Stack.Screen name="WithdrawInput" component={WithdrawInputScreen} />
-      <Stack.Screen name="WithdrawConfirm" component={WithdrawConfirmScreen} />
-      <Stack.Screen name="WithdrawProcessing" component={WithdrawProcessingScreen} />
-      <Stack.Screen name="WithdrawSuccess" component={WithdrawSuccessScreen} />
-    </Stack.Navigator>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          cardStyle: { backgroundColor: COLORS.DARK_BG },
+          gestureEnabled: false,
+          cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+          transitionSpec: {
+            open: { animation: 'timing', config: { duration: 0 } },
+            close: { animation: 'timing', config: { duration: 0 } },
+          },
+        }}
+      >
+        <Stack.Screen name="WithdrawInput" component={WithdrawInputScreen} />
+        <Stack.Screen name="WithdrawConfirm" component={WithdrawConfirmScreen} />
+        <Stack.Screen name="WithdrawProcessing" component={WithdrawProcessingScreen} />
+        <Stack.Screen name="WithdrawSuccess" component={WithdrawSuccessScreen} />
+      </Stack.Navigator>
+    </NavigationErrorBoundary>
   );
 }

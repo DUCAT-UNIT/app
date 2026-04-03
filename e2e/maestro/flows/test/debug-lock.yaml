@@ -1,0 +1,88 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap restore
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
+# Restore choice
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+- assertVisible:
+    id: "import-wallet-screen"
+
+# Type seed
+- tapOn:
+    id: "seed-word-container-0"
+- inputText: "pool"
+- pressKey: Enter
+- inputText: "token"
+- pressKey: Enter
+- inputText: "pledge"
+- pressKey: Enter
+- inputText: "wagon"
+- pressKey: Enter
+- inputText: "rebuild"
+- pressKey: Enter
+- inputText: "vast"
+- pressKey: Enter
+- inputText: "bracket"
+- pressKey: Enter
+- inputText: "denial"
+- pressKey: Enter
+- inputText: "fashion"
+- pressKey: Enter
+- inputText: "cattle"
+- pressKey: Enter
+- inputText: "pave"
+- pressKey: Enter
+- inputText: "royal"
+- hideKeyboard
+- extendedWaitUntil:
+    visible:
+      text: "12/12"
+    timeout: 5000
+- tapOn:
+    id: "import-wallet-btn"
+
+# PIN setup
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# Skip biometric
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Wait for lock screen
+- extendedWaitUntil:
+    visible:
+      id: "lock-title"
+    timeout: 30000
+
+# NOW STOP - let me inspect hierarchy manually
+- extendedWaitUntil:
+    visible:
+      text: "IMPOSSIBLE_STRING_THAT_WILL_NEVER_MATCH"
+    timeout: 5000

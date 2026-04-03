@@ -8,9 +8,9 @@
 
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback, useEffect, ReactNode, MutableRefObject } from 'react';
 import { Animated, Dimensions, PanResponder, GestureResponderHandlers, AppState } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import { withMnemonic } from '../services/secureStorageService';
 import { authenticateWithBiometrics } from '../services/biometricService';
+import { setBoolean, SettingKeys } from '../services/settingsService';
 import { ERRORS } from '../utils/messages';
 import { useAuth } from './AuthContext';
 import { notify } from '../utils/notify';
@@ -122,7 +122,7 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
     setReturnToSettings(true); // Mark that we should return to settings after viewing
 
     // Persist the flag so it survives wallet lock/unlock
-    await SecureStore.setItemAsync('returnToSettingsAfterSeedPhrase', 'true');
+    await setBoolean(SettingKeys.RETURN_TO_SETTINGS_AFTER_SEED_PHRASE, true);
 
     // Only try biometric authentication if it's enabled in settings
     if (biometricEnabled) {

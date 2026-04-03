@@ -98,6 +98,7 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     mintAmount,
     fetchTransactionHistory,
     refreshCashuBalance,
+    navigation: cashuMint ? navigation : undefined,
   });
 
   // Use generated token/deeplink if available, otherwise use local state

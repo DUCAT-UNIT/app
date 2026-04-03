@@ -4,32 +4,31 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { getBalance,getOrFetchKeys } from '../cashuBalanceService';
+import { MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { addProofs,loadProofs,removeProofs } from '../cashuProofManager';
 import {
-  createBlindedMessage,
-  unblindSignatures,
-  splitAmount,
-  sumProofs,
-  selectProofsForAmount,
-  encodeToken,
-  generateSecret,
-  CashuProof,
-  BlindedMessage,
-  BlindingData,
-  BlindedOutput,
+clearPendingSwap,
+savePendingSwap,
+updateSwapWithResponse,
+} from '../cashuSwapRecovery';
+import {
+BlindedMessage,
+BlindedOutput,
+BlindingData,
+createBlindedMessage,
+encodeToken,
+generateSecret,
+selectProofsForAmount,
+splitAmount,
+sumProofs,
+unblindSignatures
 } from '../crypto';
 import {
-  createP2PKSecret,
-  isP2PKSecret,
-  P2PKOptions,
+createP2PKSecret,
+isP2PKSecret,
+P2PKOptions,
 } from '../p2pk';
-import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
-import {
-  savePendingSwap,
-  updateSwapWithResponse,
-  clearPendingSwap,
-} from '../cashuSwapRecovery';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -146,8 +145,11 @@ export const sendP2PKToken = async (
     let keys: Record<string, string>;
     let keysetId: string;
     if (keyData.keysets && keyData.keysets.length > 0) {
-      keysetId = keyData.keysets[0].id;
-      keys = keyData.keysets[0].keys;
+      const unitKeyset = keyData.keysets.find(
+        (ks: { unit?: string }) => ks.unit === 'unit'
+      ) || keyData.keysets[0];
+      keysetId = unitKeyset.id;
+      keys = unitKeyset.keys;
     } else if (keyData.keys) {
       keys = keyData.keys;
       keysetId = '';
@@ -159,7 +161,7 @@ export const sendP2PKToken = async (
     if (onProgress) onProgress(++currentStep, totalSteps, 'Creating P2PK secrets');
 
     // Create P2PK secrets for the send amount
-    let sendAmounts = splitAmount(amount);
+    const sendAmounts = splitAmount(amount);
     const p2pkSecrets: string[] = [];
 
     for (const _amt of sendAmounts) {
@@ -182,9 +184,9 @@ export const sendP2PKToken = async (
     }
 
     // CRITICAL: Verify amounts match before swap
-    let totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
-    let totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
-    let totalOutputAmount = totalSendAmount + totalChangeAmount;
+    const totalSendAmount = sendAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalChangeAmount = changeAmounts.reduce((sum, amt) => sum + amt, 0);
+    const totalOutputAmount = totalSendAmount + totalChangeAmount;
 
     logger.info('SWAP AMOUNT VERIFICATION', {
       selectedAmount,
@@ -258,6 +260,20 @@ export const sendP2PKToken = async (
       response.signatures[0]?.id || keysetId
     );
 
+    // SECURITY: Verify the swap returned proofs matching the expected total amount.
+    // A malicious mint could return fewer/different proofs, causing silent fund loss.
+    const newProofsTotal = sumProofs(allNewProofs);
+    if (newProofsTotal !== selectedAmount) {
+      logger.error('SECURITY: Swap proof amount mismatch', {
+        expected: selectedAmount,
+        received: newProofsTotal,
+        proofsCount: allNewProofs.length,
+      });
+      throw new Error(
+        `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+      );
+    }
+
     // Split into send and change using secret type instead of array slicing
     // This works correctly even after sorting because we identify by the secret itself
     const proofsToSend = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'p2pk');
@@ -295,17 +311,37 @@ export const sendP2PKToken = async (
     // If we crash after adding change but before removing spent, we might have
     // duplicates, but that's better than losing proofs (duplicates are cleaned
     // up by the mint on next spend attempt)
-    if (changeProofs.length > 0) {
-      await addProofs(changeProofs);
-      logger.info('Change proofs added back to wallet', {
-        count: changeProofs.length,
-        total: changeTotal,
-        secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
-      });
-    }
+    try {
+      if (changeProofs.length > 0) {
+        await addProofs(changeProofs);
+        logger.info('Change proofs added back to wallet', {
+          count: changeProofs.length,
+          total: changeTotal,
+          secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
+        });
+      }
 
-    // Now remove the spent proofs
-    await removeProofs(selectedProofs);
+      // Now remove the spent proofs
+      await removeProofs(selectedProofs);
+    } catch (proofError) {
+      // If we swapped and have change proofs, we MUST save them
+      if (changeProofs.length > 0) {
+        logger.warn('Error updating proofs after P2PK swap - attempting to save change proofs', {
+          error: (proofError as Error).message,
+        });
+        try {
+          await addProofs(changeProofs);
+          logger.info('Successfully saved change proofs after removeProofs failure');
+        } catch (saveError) {
+          logger.error('CRITICAL: Failed to save change proofs after P2PK swap!', {
+            error: (saveError as Error).message,
+            changeProofsCount: changeProofs.length,
+          });
+          throw saveError;
+        }
+      }
+      throw proofError;
+    }
 
     // CRITICAL: Clear the pending swap AFTER all proofs are saved
     await clearPendingSwap();
@@ -326,6 +362,14 @@ export const sendP2PKToken = async (
     };
   } catch (error: unknown) {
     logger.error('Failed to send P2PK token', { error: (error as Error).message });
+
+    // CRITICAL: Recovery — the swap may have already completed on the mint,
+    // meaning our selected proofs are spent. We must attempt to recover change
+    // proofs from the pending swap data to prevent fund loss.
+    // (The swap recovery service will handle this on next startup via savePendingSwap)
+    // Note: changeProofs/selectedProofs may not exist if error occurred before swap
+    logger.warn('[cashuSendP2PK] P2PK send failed — pending swap data preserved for recovery');
+
     throw error;
   }
 };

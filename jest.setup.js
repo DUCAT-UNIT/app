@@ -128,7 +128,7 @@ jest.mock('expo-application', () => ({
 jest.mock('expo-crypto', () => {
   const { webcrypto: nodeWebcrypto, createHash, randomBytes } = require('node:crypto');
   return {
-    // Synchronous version - used by secureStorageService, useSeedVerification, sentryService
+    // Synchronous version - used by secureStorageService and crypto-heavy hooks
     getRandomBytes: (size) => {
       return new Uint8Array(randomBytes(size));
     },
@@ -170,9 +170,27 @@ jest.mock('expo-crypto', () => {
 
 // Mock @react-native-async-storage/async-storage
 jest.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
+  getItem: jest.fn((key) => {
+    const SecureStore = require('expo-secure-store');
+    if (SecureStore?.getItemAsync?.mock) {
+      return SecureStore.getItemAsync(key);
+    }
+    return Promise.resolve(null);
+  }),
+  setItem: jest.fn((key, value) => {
+    const SecureStore = require('expo-secure-store');
+    if (SecureStore?.setItemAsync?.mock) {
+      return SecureStore.setItemAsync(key, value);
+    }
+    return Promise.resolve(undefined);
+  }),
+  removeItem: jest.fn((key) => {
+    const SecureStore = require('expo-secure-store');
+    if (SecureStore?.deleteItemAsync?.mock) {
+      return SecureStore.deleteItemAsync(key);
+    }
+    return Promise.resolve(undefined);
+  }),
   clear: jest.fn(),
   getAllKeys: jest.fn(),
   multiGet: jest.fn(),
@@ -229,17 +247,6 @@ jest.mock('expo-notifications', () => ({
     HIGH: 'high',
     DEFAULT: 'default',
   },
-}));
-
-// Mock Sentry
-jest.mock('@sentry/react-native', () => ({
-  init: jest.fn(),
-  captureException: jest.fn(),
-  captureMessage: jest.fn(),
-  addBreadcrumb: jest.fn(),
-  setUser: jest.fn(),
-  setContext: jest.fn(),
-  setTag: jest.fn(),
 }));
 
 // Mock logger - use factory function with shared object for both exports
@@ -363,42 +370,6 @@ jest.mock('./utils/notify', () => ({
       missingRecipientAmount: jest.fn(),
       assetRequired: jest.fn(),
     },
-  },
-}));
-
-// Mock sentryService
-jest.mock('./services/sentryService', () => ({
-  initializeSentrySession: jest.fn().mockResolvedValue('test-device-id'),
-  getDeviceId: jest.fn().mockResolvedValue('test-device-id'),
-  trackScreen: jest.fn(),
-  trackAction: jest.fn(),
-  trackTransactionFlow: jest.fn(),
-  trackWalletOperation: jest.fn(),
-  trackCashuOperation: jest.fn(),
-  trackAuth: jest.fn(),
-  trackApiCall: jest.fn(),
-  trackError: jest.fn(),
-  trackPerformance: jest.fn(),
-  setSessionContext: jest.fn(),
-  setTag: jest.fn(),
-  getSessionDuration: jest.fn().mockReturnValue(0),
-  endSession: jest.fn(),
-  default: {
-    initializeSentrySession: jest.fn().mockResolvedValue('test-device-id'),
-    getDeviceId: jest.fn().mockResolvedValue('test-device-id'),
-    trackScreen: jest.fn(),
-    trackAction: jest.fn(),
-    trackTransactionFlow: jest.fn(),
-    trackWalletOperation: jest.fn(),
-    trackCashuOperation: jest.fn(),
-    trackAuth: jest.fn(),
-    trackApiCall: jest.fn(),
-    trackError: jest.fn(),
-    trackPerformance: jest.fn(),
-    setSessionContext: jest.fn(),
-    setTag: jest.fn(),
-    getSessionDuration: jest.fn().mockReturnValue(0),
-    endSession: jest.fn(),
   },
 }));
 

@@ -2,21 +2,21 @@
  * P2PK Key Manager - Key caching and account lookup (NUT-11)
  */
 
-import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import * as SecureStore from 'expo-secure-store';
 import { BIP32Factory } from 'bip32';
 import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
+import { Buffer } from 'buffer';
+import { getDerivationPathForType } from '../../../constants/bitcoin';
+import { deriveAddressesFromMnemonic,MUTINYNET_NETWORK } from '../../../utils/bitcoin';
 import { logger } from '../../../utils/logger';
-import { withMnemonic, getCurrentAccount } from '../../secureStorageService';
-import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../../../utils/bitcoin';
 import { getPrivateKeyForAddress } from '../../../utils/wallet';
+import { getCurrentAccount,withMnemonic } from '../../secureStorageService';
+import { getWalletDerivationMode } from '../../walletDerivationService';
 
-// Cache keys for P2PK private key (cleared when account changes)
-// v5: Hardened account-level derivation + no key material logging
-const CACHE_KEY_ADDRESS = 'p2pk_taproot_address_v5';
-const CACHE_KEY_PRIVKEY = 'p2pk_private_key_v5';
+// In-memory cache for P2PK private key (never persisted to disk)
+let cachedAddress: string | null = null;
+let cachedPrivKey: string | null = null;
 
 export interface AccountMatch {
   accountIndex: number;
@@ -28,13 +28,9 @@ export interface AccountMatch {
  * Clear P2PK cache (call when switching accounts)
  */
 export const clearP2PKCache = async (): Promise<void> => {
-  try {
-    await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
-    await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
-    logger.debug('[clearP2PKCache] Cleared P2PK cache');
-  } catch (error: unknown) {
-    logger.warn('[clearP2PKCache] Failed to clear cache', { error: (error as Error).message });
-  }
+  cachedAddress = null;
+  cachedPrivKey = null;
+  logger.debug('[clearP2PKCache] Cleared P2PK cache');
 };
 
 /**
@@ -88,6 +84,7 @@ export const findAccountForP2PKToken = async (
   // Derive ALL keys in a single withMnemonic call for maximum performance
   const result = await withMnemonic<AccountMatch | null>(async (mnemonic) => {
     const startTime = Date.now();
+    const derivationMode = await getWalletDerivationMode();
 
     // Initialize BIP32 (use top-level ecc import)
     const bip32 = BIP32Factory(ecc);
@@ -109,12 +106,9 @@ export const findAccountForP2PKToken = async (
         if (onProgress) {
           onProgress(accountIndex, accountsToCheck.length);
         }
-
-        const checkStart = Date.now();
-
         // Derive taproot address for this account index
         // Using same derivation path as deriveAddressesFromMnemonic
-        const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
+        const taprootPath = getDerivationPathForType('taproot', accountIndex, derivationMode);
         const taprootChild = root.derivePath(taprootPath);
         const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
 
@@ -167,7 +161,18 @@ export const findAccountForP2PKToken = async (
 
           // Verify the tweaked private key derives back to the expected pubkey
           const verifyPubkey = ecc.pointFromScalar(tweakedPrivkey);
-          const verifyPubkeyXOnly = verifyPubkey ? Buffer.from(verifyPubkey).slice(1).toString('hex') : 'FAILED';
+          const verifyPubkeyXOnly = verifyPubkey
+            ? Buffer.from(verifyPubkey).slice(1).toString('hex')
+            : 'FAILED';
+
+          if (verifyPubkeyXOnly !== recipientPubkey) {
+            logger.error('[P2PK] Key derivation verification failed: pubkey mismatch', {
+              accountIndex,
+              expected: recipientPubkey,
+              derived: verifyPubkeyXOnly,
+            });
+            throw new Error('P2PK key derivation verification failed: pubkey mismatch');
+          }
 
           return {
             accountIndex,
@@ -229,23 +234,14 @@ export const getP2PKPrivateKey = async (): Promise<string> => {
   });
   const currentAddress = addresses.taprootAddress;
 
-  // Try to get both from cache
-  try {
-    const cachedAddress = await SecureStore.getItemAsync(CACHE_KEY_ADDRESS);
-    const cachedPrivKey = await SecureStore.getItemAsync(CACHE_KEY_PRIVKEY);
-
-    // Verify cached address matches current account before using cached key
-    if (cachedAddress && cachedPrivKey && cachedAddress === currentAddress) {
-      logger.debug('[getP2PKPrivateKey] Using cached key (verified for current account)');
-      return cachedPrivKey;
-    } else if (cachedAddress && cachedAddress !== currentAddress) {
-      logger.debug('[getP2PKPrivateKey] Cache invalid - address mismatch (account changed)');
-      // Clear stale cache
-      await SecureStore.deleteItemAsync(CACHE_KEY_ADDRESS);
-      await SecureStore.deleteItemAsync(CACHE_KEY_PRIVKEY);
-    }
-  } catch (error: unknown) {
-    logger.warn('[getP2PKPrivateKey] Cache read failed', { error: (error as Error).message });
+  // Check in-memory cache
+  if (cachedAddress && cachedPrivKey && cachedAddress === currentAddress) {
+    logger.debug('[getP2PKPrivateKey] Using cached key (verified for current account)');
+    return cachedPrivKey;
+  } else if (cachedAddress && cachedAddress !== currentAddress) {
+    logger.debug('[getP2PKPrivateKey] Cache invalid - address mismatch (account changed)');
+    cachedAddress = null;
+    cachedPrivKey = null;
   }
 
   logger.debug(`[getP2PKPrivateKey] Deriving private key for account ${accountIndex}...`);
@@ -253,14 +249,10 @@ export const getP2PKPrivateKey = async (): Promise<string> => {
   // Derive private key for current account - pass the account index to avoid searching
   const keyData = await getPrivateKeyForAddress(currentAddress, accountIndex);
 
-  // Cache both for next time
-  try {
-    await SecureStore.setItemAsync(CACHE_KEY_ADDRESS, addresses.taprootAddress);
-    await SecureStore.setItemAsync(CACHE_KEY_PRIVKEY, keyData.privateKey);
-    logger.debug('[getP2PKPrivateKey] Cached address and key');
-  } catch (error: unknown) {
-    logger.warn('[getP2PKPrivateKey] Cache write failed', { error: (error as Error).message });
-  }
+  // Cache in memory only — private keys never touch disk
+  cachedAddress = addresses.taprootAddress;
+  cachedPrivKey = keyData.privateKey;
+  logger.debug('[getP2PKPrivateKey] Cached address and key (memory only)');
 
   return keyData.privateKey;
 };

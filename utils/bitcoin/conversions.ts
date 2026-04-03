@@ -25,7 +25,12 @@ export function satsToBTC(satoshis: number | null | undefined): number {
     return 0;
   }
 
-  if (Math.abs(satoshis) > Number.MAX_SAFE_INTEGER) {
+  if (satoshis < 0) {
+    logger.warn('satsToBTC: Negative sats value');
+    return 0;
+  }
+
+  if (satoshis > Number.MAX_SAFE_INTEGER) {
     logger.warn('satsToBTC: Value exceeds MAX_SAFE_INTEGER');
     return 0;
   }
@@ -43,21 +48,30 @@ export function btcToSats(btc: number | string | null | undefined): number {
     return 0;
   }
 
-  // Handle string input (from user forms)
-  const normalized = typeof btc === 'string' ? btc.replace(',', '.') : btc;
-  const btcValue = parseFloat(normalized.toString());
+  let str: string;
+  if (typeof btc === 'string') {
+    str = btc.replace(',', '.');
+  } else {
+    str = btc.toFixed(8);
+  }
 
-  if (isNaN(btcValue)) {
+  if (isNaN(parseFloat(str))) {
     logger.warn('btcToSats: Invalid BTC value');
     return 0;
   }
 
-  if (btcValue < 0) {
+  if (parseFloat(str) < 0) {
     logger.warn('btcToSats: Negative BTC value');
     return 0;
   }
 
-  const satoshis = Math.round(btcValue * SATS_PER_BTC);
+  const parts = str.split('.');
+  const whole = parseInt(parts[0] || '0', 10);
+  const fracRaw = (parts[1] || '').slice(0, 8);
+  const fracPadded = fracRaw.padEnd(8, '0');
+  const fractional = parseInt(fracPadded, 10);
+
+  const satoshis = whole * SATS_PER_BTC + fractional;
 
   if (satoshis > Number.MAX_SAFE_INTEGER) {
     logger.warn('btcToSats: Result exceeds MAX_SAFE_INTEGER');

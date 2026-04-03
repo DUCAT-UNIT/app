@@ -3,11 +3,11 @@
  * Displays main vault statistics with semicircular gauge
  */
 
-import React, { memo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React,{ memo } from 'react';
+import { StyleSheet,View } from 'react-native';
+import { useResponsive } from '../../hooks/useResponsive';
 import { VaultHealthGauge } from '../assetDetail/VaultHealthGauge';
 import { VaultInfoSkeleton } from './VaultSkeleton';
-import { useResponsive } from '../../hooks/useResponsive';
 
 interface VaultInfoProps {
   totalDebt: number;
@@ -37,7 +37,7 @@ export const VaultInfo = memo(function VaultInfo({
   isPendingTransaction = false,
   walletBtcBalance = 0,
   walletUnitBalance = 0,
-  onChartPress,
+  onChartPress: _onChartPress,
   onBorrowPress,
   onRepayPress,
   onDepositPress,

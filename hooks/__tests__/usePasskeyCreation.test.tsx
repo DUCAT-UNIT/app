@@ -337,8 +337,14 @@ describe('usePasskeyCreation', () => {
         await backupPromise;
       });
 
-      // Then should show warning about backup failure
-      expect(notify.passkey.icloudFailed).toHaveBeenCalled();
+      // Then should show a blocking native alert about backup failure
+      const { Alert } = require('react-native');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Cloud Backup Failed',
+        expect.stringContaining('could not be backed up to iCloud'),
+        expect.arrayContaining([expect.objectContaining({ text: 'I Understand' })]),
+        { cancelable: false }
+      );
     });
 
     it('should set isCreating to true during creation', async () => {

@@ -2,32 +2,34 @@
  * OnboardingPage - Handles wallet creation, import, and authentication flows
  */
 
-import React, { useCallback } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../utils/constants';
+import React,{ useCallback } from 'react';
+import { Alert,StyleSheet,View } from 'react-native';
+import {
+  authenticateWithBiometrics,
+  setBiometricEnabled as persistBiometricEnabled,
+} from '../services/biometricService';
+import * as PasskeyService from '../services/passkey';
+import { hasSessionMnemonic } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 
 // Components
-import WelcomeScreen from '../screens/auth/WelcomeScreen';
-import PinSetupScreen from '../screens/auth/PinSetupScreen';
-import LockScreen from '../screens/auth/LockScreen';
 import MutinynetBanner from '../components/MutinynetBanner';
 import PasskeyPinInput from '../components/PasskeyPinInput';
+import LockScreen from '../screens/auth/LockScreen';
+import PinSetupScreen from '../screens/auth/PinSetupScreen';
+import WelcomeScreen from '../screens/auth/WelcomeScreen';
 
 // Contexts
 import { useAuth } from '../contexts/AuthContext';
-import { useWallet } from '../contexts/WalletContext';
 import { useAuthFlowHandlers } from '../contexts/NavigationHandlersContext';
+import { useWallet } from '../contexts/WalletContext';
 
 // Hooks
-import { useWalletCreation } from '../hooks/useWalletCreation';
-import { useWalletImport } from '../hooks/useWalletImport';
+import { useOnboardingHandlers } from '../hooks/useOnboardingHandlers';
 import { usePasskeyCreation } from '../hooks/usePasskeyCreation';
 import { usePasskeyRestore } from '../hooks/usePasskeyRestore';
-import { useOnboardingHandlers } from '../hooks/useOnboardingHandlers';
+import { useWalletImport } from '../hooks/useWalletImport';
 
 // Utils
 import { COLORS } from '../theme';
@@ -59,16 +61,11 @@ export default function OnboardingPage({
   const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
   const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal, showBiometricSetupPrompt } = useAuthFlowHandlers();
 
-  // Wallet creation hook
-  const {
-    saveWalletAfterPinSetup, resetCreationState,
-  } = useWalletCreation({ currentAccount, setIsAuthenticated, setSeedConfirmed, loadWallet });
-
   // Wallet import hook
   const {
     importingWallet, importSeedPhrase, isImportedWallet, isImporting, seedInputRefs,
     importedMnemonic, setImportingWallet, setImportSeedPhrase, setIsImportedWallet,
-    setImportedMnemonic, importWallet,
+    setImportedMnemonic, importWallet, persistImportedWallet,
   } = useWalletImport({ currentAccount, setSettingUpPin });
 
   // Passkey creation hook
@@ -84,9 +81,9 @@ export default function OnboardingPage({
   } = usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
 
   // Onboarding handlers
-  const { handlePinSetupComplete, handlePinChangeComplete, handleCancelOnboarding } = useOnboardingHandlers({
+  const { handlePinSetupComplete, handlePinChangeComplete } = useOnboardingHandlers({
     setIsImportedWallet, setImportedMnemonic, setImportingWallet,
-    setImportSeedPhrase, saveWalletAfterPinSetup, loadWallet,
+    setImportSeedPhrase, persistImportedWallet, loadWallet,
     handlePinSetupCompleteWrapper: handlePinSetupCompleteWrapper as (...args: unknown[]) => Promise<void>,
     handlePinChangeCompleteWrapper: handlePinChangeCompleteWrapper as (...args: unknown[]) => Promise<void>,
     resetWalletAndState,
@@ -94,19 +91,50 @@ export default function OnboardingPage({
     isImportedWallet, importedMnemonic,
   });
 
+  const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
+    try {
+      const result = await authenticateWithBiometrics(
+        'Authenticate to enable Face ID',
+        'Cancel'
+      );
+
+      if (!result.success) {
+        return;
+      }
+
+      if (!await persistBiometricEnabled(true)) {
+        throw new Error('Failed to persist biometric preference');
+      }
+
+      setBiometricEnabled(true);
+      setIsAuthenticated(true);
+      handleLockScreenAuthenticatedWrapper();
+    } catch (error: unknown) {
+      logger.error('[OnboardingPage] Failed to enable biometrics from lock screen', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [setBiometricEnabled, setIsAuthenticated, handleLockScreenAuthenticatedWrapper]);
+
   // Handle biometric authentication with proper post-auth flow
   const handleBiometricAuth = useCallback(async () => {
     logger.debug('[OnboardingPage] handleBiometricAuth called', { biometricEnabled, isBiometricSupported });
     try {
       if (biometricEnabled) {
-        // Biometrics enabled - authenticate directly
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to unlock wallet',
-          fallbackLabel: 'Use PIN',
-          disableDeviceFallback: true,
-        });
+        const result = await authenticateWithBiometrics(
+          'Authenticate to unlock wallet',
+          'Use PIN'
+        );
 
         if (result.success) {
+          const passkeyEnabled = await PasskeyService.isPasskeyEnabled();
+          if (passkeyEnabled && !hasSessionMnemonic()) {
+            Alert.alert(
+              'Use PIN To Unlock',
+              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'
+            );
+            return;
+          }
           setIsAuthenticated(true);
           handleLockScreenAuthenticatedWrapper();
         }
@@ -122,21 +150,8 @@ export default function OnboardingPage({
             },
             {
               text: 'Enable',
-              onPress: async () => {
-                // Try to authenticate with biometrics
-                const result = await LocalAuthentication.authenticateAsync({
-                  promptMessage: 'Authenticate to enable Face ID',
-                  fallbackLabel: 'Cancel',
-                  disableDeviceFallback: true,
-                });
-
-                if (result.success) {
-                  // Save biometric preference and complete auth
-                  await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
-                  setBiometricEnabled(true);
-                  setIsAuthenticated(true);
-                  handleLockScreenAuthenticatedWrapper();
-                }
+              onPress: () => {
+                enableBiometricFromPrompt();
               },
             },
           ]
@@ -145,7 +160,7 @@ export default function OnboardingPage({
     } catch (error) {
       logger.error('[OnboardingPage] Biometric auth error:', { error: error instanceof Error ? error.message : String(error) });
     }
-  }, [biometricEnabled, setIsAuthenticated, setBiometricEnabled, handleLockScreenAuthenticatedWrapper]);
+  }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, enableBiometricFromPrompt, handleLockScreenAuthenticatedWrapper]);
 
   // Common WelcomeScreen props
   const welcomeProps = {

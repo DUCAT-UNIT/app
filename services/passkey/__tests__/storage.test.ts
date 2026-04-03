@@ -27,6 +27,10 @@ jest.mock('../../icloudStorage', () => ({
 }));
 
 jest.mock('../core', () => ({
+  PASSKEY_DERIVATION_VERSION: {
+    LEGACY_V4: '4',
+    PRF_V5: '5',
+  },
   PASSKEY_KEYS: {
     ENABLED: 'passkey_enabled_v1',
     CREDENTIAL_ID: 'passkey_credential_id_v1',
@@ -35,7 +39,11 @@ jest.mock('../core', () => ({
     ENCRYPTED_MNEMONIC: 'passkey_encrypted_mnemonic_v1',
     ENCRYPTION_IV: 'passkey_encryption_iv_v1',
     ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
+    PRF_ENABLED: 'passkey_prf_enabled_v1',
+    DERIVATION_VERSION: 'passkey_derivation_version_v1',
   },
+  resolvePasskeyDerivationVersion: jest.fn((storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')),
+  isLegacyPasskeyDerivationVersion: jest.fn((version) => version === '4'),
 }));
 
 // Import after mocks
@@ -159,7 +167,9 @@ describe('Passkey Storage', () => {
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(6);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.PRF_ENABLED);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.DERIVATION_VERSION);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(8);
     });
 
     it('should not delete creation method', async () => {
@@ -211,7 +221,9 @@ describe('Passkey Storage', () => {
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(7);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.PRF_ENABLED);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.DERIVATION_VERSION);
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalledTimes(9);
     });
 
     it('should not clear iCloud by default', async () => {

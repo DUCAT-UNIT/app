@@ -135,7 +135,10 @@ describe('utxoSelection', () => {
       const calculateFee = createMockCalculateFee();
       const dustLimit = 546;
 
-      expect(() => selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit)).toThrow();
+      // C-10: Instead of throwing, dust change is added to fee and change is set to 0
+      const result = selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit);
+      expect(result.change).toBe(0);
+      expect(result.selectedUtxos).toHaveLength(1);
     });
 
     it('should set change to 0 if remaining amount is below dust', () => {
@@ -146,7 +149,11 @@ describe('utxoSelection', () => {
       const calculateFee = jest.fn(() => 100);
       const dustLimit = 546;
 
-      expect(() => selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit)).toThrow();
+      // C-10: Instead of throwing, dust change is added to fee and change is set to 0
+      const result = selectUtxosForTransaction(utxos, amountInSats, calculateFee, dustLimit);
+      expect(result.change).toBe(0);
+      // The dust amount (400 = 50000 - 49500 - 100) should be added to the fee
+      expect(result.fee).toBe(100 + (50000 - 49500 - 100));
     });
 
     it('should iterate until fee stabilizes', () => {

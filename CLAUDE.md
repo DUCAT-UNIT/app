@@ -20,7 +20,7 @@ jest                          # Run all unit tests
 jest --watch                  # Watch mode
 jest --coverage               # With coverage report
 jest path/to/file.test.tsx    # Run single test file
-jest --testPathPattern="useSeedVerification"  # Run by pattern
+jest --testPathPattern="useWalletImport"      # Run by pattern
 
 # E2E (Maestro - requires iOS simulator with app installed)
 maestro test e2e/maestro/flows/auth/       # Auth suite

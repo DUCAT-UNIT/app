@@ -4,25 +4,25 @@
  * Helps validate if users have sufficient BTC for transaction fees
  */
 
-import { BITCOIN_TX, VAULT_CONFIG } from '../utils/constants';
-import { MIN_FEE_RATE, DEFAULT_FEE_RATE_SAT_PER_VBYTE } from '../constants/bitcoin';
-import { fetchUtxosForAddress, calculateTransactionFee } from './transactionCalculationService';
+import { DEFAULT_FEE_RATE_SAT_PER_VBYTE,MAX_FEE_RATE,MIN_FEE_RATE } from '../constants/bitcoin';
 import { fetchWithTimeout } from '../utils/api';
+import { API,BITCOIN_TX,VAULT_CONFIG } from '../utils/constants';
 import {
-  TransactionType,
-  FeeEstimate,
-  BtcSufficiencyResult,
-  DEFAULT_FEE_RATE,
-  FEE_BUFFER_PERCENTAGE,
-  calculateDynamicVinAllowance,
-  getTransactionShape,
-  getVaultBaseCost,
-  generateFeeErrorMessage,
+BtcSufficiencyResult,
+DEFAULT_FEE_RATE,
+FEE_BUFFER_PERCENTAGE,
+FeeEstimate,
+TransactionType,
+calculateDynamicVinAllowance,
+generateFeeErrorMessage,
+getTransactionShape,
+getVaultBaseCost,
 } from './feeEstimationTypes';
+import { calculateTransactionFee,fetchUtxosForAddress } from './transactionCalculationService';
 
 // Re-export types for consumers
 export { TransactionType } from './feeEstimationTypes';
-export type { FeeEstimate, BtcSufficiencyResult } from './feeEstimationTypes';
+export type { BtcSufficiencyResult,FeeEstimate } from './feeEstimationTypes';
 
 /**
  * Estimate transaction fee based on transaction type and UTXOs
@@ -48,7 +48,7 @@ export async function estimateTransactionFee(
       const fetchedUtxos = await fetchUtxosForAddress(sourceAddress);
       if (fetchedUtxos.length > 0) {
         // Map UTXOs - they may not have script field, which calculateDynamicVinAllowance handles
-        utxos = fetchedUtxos.map(u => ({ script: undefined }));
+        utxos = fetchedUtxos.map(() => ({ script: undefined }));
         numInputs = fetchedUtxos.length;
       }
     } catch {
@@ -99,7 +99,7 @@ export async function estimateTransactionFee(
 }
 
 /**
- * Fetch recommended fee rate (sats/vbyte) from mempool.space testnet endpoint.
+ * Fetch recommended fee rate (sats/vbyte) from the active network endpoint.
  * Falls back to DEFAULT_FEE_RATE on error.
  */
 export async function getRecommendedFeeRate(): Promise<number> {
@@ -110,7 +110,7 @@ export async function getRecommendedFeeRate(): Promise<number> {
 
   let rate = BASE_FEE_RATE;
   try {
-    const res = await fetchWithTimeout('https://mempool.space/testnet/api/v1/fees/recommended', {}, 8000);
+    const res = await fetchWithTimeout(API.FEE_RECOMMENDATIONS, {}, 8000);
     if (res.ok) {
       const body = await res.json();
       const fast = Number(body.fastestFee);
@@ -123,7 +123,7 @@ export async function getRecommendedFeeRate(): Promise<number> {
   }
 
   // Enforce bounds
-  rate = Math.max(MIN_FEE, Math.min(rate, 50));
+  rate = Math.max(MIN_FEE, Math.min(rate, Number(MAX_FEE_RATE ?? 50)));
   feeCache = { rate, fetchedAt: now };
   return rate;
 }

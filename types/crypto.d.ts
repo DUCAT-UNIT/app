@@ -57,6 +57,12 @@ export interface PasskeyBackupData {
   encrypted: string;
   iv: string;
   tag?: string;
+  /** Hex-encoded pepper for key derivation (added in backup v3) */
+  pepper?: string;
+  /** Whether PRF extension was used for key derivation (added in backup v4) */
+  prfEnabled?: boolean;
+  /** Explicit derivation version metadata (added in backup v5) */
+  derivationVersion?: string;
 }
 
 /**

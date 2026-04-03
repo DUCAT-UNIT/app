@@ -3,30 +3,42 @@
  * Uses configuration pattern to handle borrow, deposit, repay, and withdraw
  */
 
-import React from 'react';
-import { Text, View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
-import { useVaultConfirmScreen } from './hooks/useVaultConfirmScreen';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
-import type { VaultConfirmScreenConfig, VaultScreenNavigationProp, SummaryRow } from './types';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import { useVaultConfirmScreen } from './hooks/useVaultConfirmScreen';
+import type {
+  SummaryRow,
+  VaultConfirmScreenConfig,
+  VaultOperationHookState,
+  VaultScreenNavigationProp,
+  VaultStoreState,
+} from './types';
 
-interface VaultConfirmScreenProps {
+interface VaultConfirmScreenProps<
+  TStore extends VaultStoreState,
+  THook extends VaultOperationHookState,
+> {
   navigation: VaultScreenNavigationProp;
-  config: VaultConfirmScreenConfig;
-  store: any; // Operation-specific store hook result
-  vaultHook: any; // Operation-specific vault hook result
+  config: VaultConfirmScreenConfig<TStore>;
+  store: TStore;
+  vaultHook: THook;
 }
 
-export default function VaultConfirmScreen({
+export default function VaultConfirmScreen<
+  TStore extends VaultStoreState,
+  THook extends VaultOperationHookState,
+>({
   navigation,
   config,
   store,
   vaultHook,
-}: VaultConfirmScreenProps) {
+}: VaultConfirmScreenProps<TStore, THook>) {
   const {
     primaryAmount,
     summaryRows,

@@ -4,20 +4,20 @@
  * Manages all wallet-related data fetching with unified auto-refresh logic
  */
 
-import React, { createContext, useContext, useEffect, useCallback, useMemo, useRef, useState, ReactNode } from 'react';
-import { useWallet } from './WalletContext';
-import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
-import { useCashuBalanceState } from './CashuContext';
+import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
+import { useBalanceData,UseBalanceDataReturn } from '../hooks/useBalanceData';
 import { usePolling } from '../hooks/usePolling';
-import { useBalanceData, UseBalanceDataReturn } from '../hooks/useBalanceData';
-import { useTransactionHistoryFetch, UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
-import { useVaultDataFetch, UseVaultDataFetchReturn } from '../hooks/useVaultDataFetch';
-import { getSentLockedTokens, getReceivedTokens, subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
-import { loadTokensWithStatus, TokenWithStatus } from '../services/cashu/tokenStatusService';
-import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
+import { useTransactionHistoryFetch,UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
+import { useVaultDataFetch,UseVaultDataFetchReturn } from '../hooks/useVaultDataFetch';
+import { getReceivedTokens,getSentLockedTokens,subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
+import { loadTokensWithStatus,TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { useNotificationStore } from '../stores/notificationStore';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
 import { useSendFlowStore } from '../stores/sendFlowStore';
 import { logger } from '../utils/logger';
+import { useCashuBalanceState } from './CashuContext';
+import { useWallet } from './WalletContext';
 
 // Polling intervals (in milliseconds)
 const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
@@ -146,7 +146,11 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
 
     const unsubscribe = subscribeToTokenChanges(() => {
       logger.debug('[WalletDataContext] Token change detected, refreshing ecash tokens');
-      void fetchEcashTokens();
+      fetchEcashTokens().catch((error: unknown) => {
+        logger.error('[WalletDataContext] Failed to refresh ecash tokens after token change', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
 
     return () => {
@@ -212,7 +216,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
   const initialBalancesLoadedRef = useRef(false);
 
   // Check if both balances have loaded at least once
-  const hasRunesData = balance.runesBalance && balance.runesBalance.length >= 0;
+  const hasRunesData = balance.runesBalance !== null && balance.runesBalance !== undefined && !balance.loadingBalance;
   const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
   const bothBalancesLoaded = hasRunesData && hasCashuData;
 
@@ -293,19 +297,10 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
   });
 
   // ============================================================
-  // PERFORMANCE OPTIMIZATION: 4 Separate Memoized Values
+  // PERFORMANCE OPTIMIZATION: Separate Memoized Values
   // ============================================================
-  // Each value is memoized independently - only changes when its own data changes
-  // This prevents cross-contamination of re-renders
-
-  // Balance context value - only updates when balance data changes
-  const balanceValue = useMemo(() => balance, [balance]);
-
-  // History context value - only updates when history data changes
-  const historyValue = useMemo(() => history, [history]);
-
-  // Vault context value - only updates when vault data changes
-  const vaultValue = useMemo(() => vault, [vault]);
+  // balance, history, and vault are hook return values with stable references —
+  // no wrapping needed. ecashValue constructs a new object and must be memoized.
 
   // Ecash tokens context value - only updates when ecash tokens change
   const ecashValue = useMemo((): EcashTokensValue => ({
@@ -316,9 +311,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
   }), [ecashTokens, loadingEcashTokens, fetchEcashTokens, resetEcashTokens]);
 
   return (
-    <BalanceContext.Provider value={balanceValue}>
-      <HistoryContext.Provider value={historyValue}>
-        <VaultDataContext.Provider value={vaultValue}>
+    <BalanceContext.Provider value={balance}>
+      <HistoryContext.Provider value={history}>
+        <VaultDataContext.Provider value={vault}>
           <EcashTokensContext.Provider value={ecashValue}>
             {children}
           </EcashTokensContext.Provider>

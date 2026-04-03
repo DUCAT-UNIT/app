@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { getNotificationsEnabled } from '../services/settingsService';
 
 interface UseNotificationsPreferenceReturn {
   notificationsEnabled: boolean;
@@ -23,8 +23,7 @@ export function useNotificationsPreference(): UseNotificationsPreferenceReturn {
   useEffect(() => {
     const loadNotificationsPreference = async () => {
       try {
-        const saved = await SecureStore.getItemAsync('notificationsEnabled');
-        setNotificationsEnabled(saved === 'true');
+        setNotificationsEnabled(await getNotificationsEnabled());
       } finally {
         setIsLoading(false);
       }

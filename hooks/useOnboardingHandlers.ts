@@ -5,7 +5,6 @@
 
 import { logger } from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import { notify } from '../utils/notify';
 
 interface LoadWalletResult {
   exists: boolean;
@@ -17,14 +16,14 @@ interface UseOnboardingHandlersParams {
   setImportedMnemonic: (value: string | null) => void;
   setImportingWallet: (value: boolean) => void;
   setImportSeedPhrase: (value: string[]) => void;
-  saveWalletAfterPinSetup: () => Promise<boolean>;
+  persistImportedWallet: () => Promise<void>;
   loadWallet: () => Promise<LoadWalletResult | undefined>;
   handlePinSetupCompleteWrapper: (...args: unknown[]) => Promise<void>;
   handlePinChangeCompleteWrapper: (...args: unknown[]) => Promise<void> | void;
   resetWalletAndState: () => Promise<void>;
   fetchBalance?: (...args: unknown[]) => Promise<unknown>;
   fetchTransactionHistory?: () => Promise<void>;
-  showPasskeyMigrationPromptGlobal: (mnemonic: string, pin: string) => void;
+  showPasskeyMigrationPromptGlobal: (pin: string) => void;
   isImportedWallet: boolean;
   importedMnemonic: string | null;
 }
@@ -40,7 +39,7 @@ export function useOnboardingHandlers({
   setImportedMnemonic,
   setImportingWallet,
   setImportSeedPhrase,
-  saveWalletAfterPinSetup,
+  persistImportedWallet,
   loadWallet,
   handlePinSetupCompleteWrapper,
   handlePinChangeCompleteWrapper,
@@ -59,20 +58,12 @@ export function useOnboardingHandlers({
       hasImportedMnemonic: !!importedMnemonic,
     });
 
-    // Save wallet to storage for new wallets (not imported)
-    if (!isImportedWallet) {
-      const saved = await saveWalletAfterPinSetup();
-      if (!saved) {
-        notify.wallet.saveFailed();
-        return;
-      }
-    }
-
     // For imported wallets, load wallet into context before completing setup
     if (importedMnemonic && pin) {
       logger.debug('[OnboardingHandlers] Loading imported wallet into context');
-      const capturedMnemonic = importedMnemonic;
       const capturedPin = pin;
+
+      await persistImportedWallet();
 
       // Clear import state
       setIsImportedWallet(false);
@@ -85,8 +76,14 @@ export function useOnboardingHandlers({
       });
 
       // Show passkey modal immediately after setup completes
-      logger.debug('[OnboardingHandlers] Showing passkey migration modal');
-      showPasskeyMigrationPromptGlobal(capturedMnemonic, capturedPin);
+      // Skip in __DEV__ mode — passkey requires native WebAuthn dialog
+      // which blocks Maestro/simulator automation
+      if (!__DEV__) {
+        logger.debug('[OnboardingHandlers] Showing passkey migration modal');
+        showPasskeyMigrationPromptGlobal(capturedPin);
+      } else {
+        logger.debug('[OnboardingHandlers] Skipping passkey migration modal in dev mode');
+      }
 
       // Complete setup
       await handlePinSetupCompleteWrapper();

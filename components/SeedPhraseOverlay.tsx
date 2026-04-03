@@ -1,14 +1,14 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import MutinynetBanner from './MutinynetBanner';
+import { Animated,GestureResponderHandlers,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle } from 'react-native';
 import { COLORS } from '../theme';
+import MutinynetBanner from './MutinynetBanner';
 
 interface SeedPhraseOverlayProps {
   visible: boolean;
   seedPhraseWords: string[];
   seedPhraseVisible: boolean;
   seedPhraseTranslateX: Animated.Value;
-  seedPhrasePanResponderRef: React.MutableRefObject<any>;
+  seedPhrasePanResponderRef: React.MutableRefObject<{ panHandlers: GestureResponderHandlers } | null>;
   setSeedPhraseVisible: (visible: boolean) => void;
   closeSeedPhrase: () => void;
   styles: {
@@ -48,7 +48,7 @@ export default function SeedPhraseOverlay({
         },
       ]}
     >
-      <MutinynetBanner panHandlers={seedPhrasePanResponderRef.current.panHandlers} />
+      <MutinynetBanner panHandlers={seedPhrasePanResponderRef.current?.panHandlers} />
       <View style={[styles.container, localStyles.contentContainer]}>
         <View style={styles.walletInfo}>
           <Text style={styles.seedPhraseWarning}>

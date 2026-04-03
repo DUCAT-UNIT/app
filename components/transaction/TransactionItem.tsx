@@ -3,14 +3,14 @@
  * Displays a single transaction in the history list
  */
 
-import React, { memo } from 'react';
-import { ViewStyle, TextStyle } from 'react-native';
-import VaultTransactionItem from './VaultTransactionItem';
+import React,{ memo } from 'react';
+import { TextStyle,ViewStyle } from 'react-native';
+import type { TransactionOutput } from '../../services/transactionHistoryService';
+import type { DisplayAssetType,VaultTransactionData } from '../../types/assets';
+import type { TransactionStatus } from '../../types/transaction';
 import EcashTransactionItem from './EcashTransactionItem';
 import RegularTransactionItem from './RegularTransactionItem';
-import type { DisplayAssetType, VaultAction, VaultTransactionData } from '../../types/assets';
-import type { TransactionStatus } from '../../types/transaction';
-import type { TransactionOutput } from '../../services/transactionHistoryService';
+import VaultTransactionItem from './VaultTransactionItem';
 
 export interface TransactionItemStyles {
   historyTxRow: ViewStyle;

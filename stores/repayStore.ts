@@ -8,21 +8,21 @@
 import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import {
-  computeHealthFactor,
-  computeLiquidationPrice,
-  getHealthStatus,
-  type HealthStatus,
+computeHealthFactor,
+computeLiquidationPrice,
+getHealthStatus,
+type HealthStatus,
 } from '../utils/vaultUtils';
-import {
-  createCommonVaultSlice,
-  computeVaultHealth,
-  computeNewVaultHealth,
-} from './vault';
 import type {
-  CommonVaultState,
-  CommonVaultActions,
-  VaultOperationStep,
-  ProcessingStep,
+CommonVaultActions,
+CommonVaultState,
+ProcessingStep,
+VaultOperationStep,
+} from './vault';
+import {
+commonInitialState,
+computeVaultHealth,
+createCommonVaultSlice
 } from './vault';
 
 // Re-export types for backwards compatibility
@@ -132,17 +132,8 @@ export const useRepayStore = create<RepayStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[RepayStore] reset');
       set({
+        ...commonInitialState,
         ...repaySpecificInitialState,
-        // Reset common state
-        selectedFeeRate: 1,
-        currentUnitBorrowed: 0,
-        currentBtcLocked: 0,
-        bitcoinPrice: null,
-        currentStep: 'input',
-        processingStep: 1,
-        loading: false,
-        error: null,
-        vaultTxid: null,
       });
     },
   };

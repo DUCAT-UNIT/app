@@ -84,8 +84,8 @@ export default function AppModals({
       {/* Delete Wallet Modal */}
       <ConfirmationModal
         visible={showDeleteModal}
-        title="Delete Wallet"
-        message="Are you sure you want to delete your wallet? This action cannot be undone. Make sure you have backed up your recovery phrase."
+        title="Delete Local Wallet"
+        message="This removes wallet data from this device and cannot be undone locally. Your iCloud passkey backup is not deleted. Make sure you still have a recovery method before continuing."
         confirmText="Delete"
         confirmStyle="destructive"
         iconName="delete_wallet"

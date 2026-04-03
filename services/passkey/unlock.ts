@@ -3,21 +3,38 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { Passkey } from 'react-native-passkey';
 import type { PasskeyGetRequest } from 'react-native-passkey';
-import { SECURE_KEYS } from '../../utils/constants';
+import { Passkey } from 'react-native-passkey';
+import { DEFAULT_WALLET_DERIVATION_MODE } from '../../constants/bitcoin';
 import { PASSKEY } from '../../constants/security';
+import type { AesGcmKey,PasskeyBackupData } from '../../types/crypto';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
+import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
-import { loadFromICloud, checkICloudAvailability } from '../icloudStorage';
-import type { AesGcmKey, PasskeyBackupData } from '../../types/crypto';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+import { checkICloudAvailability,loadFromICloud } from '../icloudStorage';
 const { getRandomValues } = require('react-native-quick-crypto');
 
 import { savePinWithExistingSalt } from '../pinService';
+import {
+cacheSessionMnemonic,
+saveCachedAddresses,
+saveCurrentAccount,
+saveToMultiAccountCache,
+} from '../secureStorageService';
+import { getWalletDerivationMode,setWalletDerivationMode } from '../walletDerivationService';
 
-import { PASSKEY_KEYS, toBase64Url, isPasskeySupported } from './core';
-import { deriveEncryptionKey, decryptMnemonic } from './encryption';
+import {
+isLegacyPasskeyDerivationVersion,
+isPasskeySupported,
+PASSKEY_DERIVATION_VERSION,
+PASSKEY_KEYS,
+PRF_SALT,
+resolvePasskeyDerivationVersion,
+toBase64Url
+} from './core';
+import { decryptMnemonic,deriveEncryptionKey } from './encryption';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 interface UnlockResult {
   mnemonic: string;
@@ -49,6 +66,15 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       throw new Error('Passkey data not found in storage');
     }
 
+    // Check if PRF was enabled for this wallet
+    const prfEnabledFlag = await SecureStore.getItemAsync(PASSKEY_KEYS.PRF_ENABLED);
+    const storedDerivationVersion = await SecureStore.getItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
+    const derivationVersion = resolvePasskeyDerivationVersion(
+      storedDerivationVersion,
+      prfEnabledFlag === 'true'
+    );
+    const usePrf = derivationVersion === PASSKEY_DERIVATION_VERSION.PRF_V5;
+
     // Generate challenge for authentication
     const challenge = new Uint8Array(32);
     getRandomValues(challenge);
@@ -65,9 +91,16 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       ],
       timeout: PASSKEY.TIMEOUT_MS,
       rpId: PASSKEY.RP_ID,
+      ...(usePrf && {
+        extensions: {
+          prf: {
+            eval: { first: PRF_SALT },
+          },
+        },
+      }),
     };
 
-    logger.debug('Authenticating with passkey...');
+    logger.debug('Authenticating with passkey...', { usePrf, derivationVersion });
 
     // Authenticate with passkey
     const authResult = await Passkey.get(requestJson);
@@ -77,6 +110,19 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     // Verify the credential ID matches
     if (authResult.id !== credentialIdBase64) {
       throw new Error('Credential ID mismatch');
+    }
+
+    // Extract PRF result if PRF was requested
+    let prfSecret: Uint8Array | null = null;
+    if (usePrf) {
+      const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
+      prfSecret = prfResultRaw
+        ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+        : null;
+      if (!prfSecret) {
+        logger.error('PRF was enabled but authenticator returned no PRF result');
+        throw new Error('PRF result missing from authenticator - cannot derive key');
+      }
     }
 
     const credentialId = new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
@@ -94,8 +140,15 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       throw new Error('Invalid or corrupted PIN salt - wallet may need to be reset');
     }
 
-    // Derive encryption key using passkey + PIN (with 310k PBKDF2 iterations)
-    const encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+    // Derive encryption key. If PRF is enabled, uses authenticator-derived secret;
+    // otherwise falls back to credential IDs (legacy path).
+    const encryptionKey = await deriveEncryptionKey(
+      credentialId, userHandle, pin, pinSalt, false, prfSecret
+    );
+
+    if (isLegacyPasskeyDerivationVersion(derivationVersion)) {
+      logger.warn('Unlock used legacy passkey derivation; passkey upgrade is recommended');
+    }
 
     // Decrypt mnemonic
     const mnemonic = await decryptMnemonic(
@@ -104,6 +157,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       tagBase64 || '',
       encryptionKey
     );
+    cacheSessionMnemonic(mnemonic);
 
     // Get current account index
     const accountIndex = parseInt(
@@ -112,7 +166,8 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     );
 
     // Derive addresses
-    const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex);
+    const derivationMode = await getWalletDerivationMode();
+    const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex, derivationMode);
 
     logger.debug('Wallet unlocked with passkey successfully');
 
@@ -127,8 +182,8 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
 };
 
 /**
- * Recover wallet on new device with passkey
- * Loads encrypted backup from iCloud and decrypts with passkey + PIN
+ * Recover wallet on new device using passkey authentication + PIN decryption.
+ * Passkey authenticates the user; PIN + credential IDs + pepper derive the decryption key.
  */
 export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => {
   let debugSteps = 'Starting recovery...\n';
@@ -168,6 +223,15 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     // Load encrypted backup from iCloud
     logger.debug('Loading encrypted backup from iCloud...');
 
+    // Check if backup was created with PRF enabled
+    const derivationVersion = resolvePasskeyDerivationVersion(
+      backup.derivationVersion,
+      backup.prfEnabled === true
+    );
+    const usePrf = derivationVersion === PASSKEY_DERIVATION_VERSION.PRF_V5;
+    debugSteps += `  Derivation version in backup: ${derivationVersion}\n`;
+    debugSteps += `  PRF enabled in backup: ${usePrf}\n`;
+
     // Generate challenge
     debugSteps += '4. Authenticating with passkey...\n';
     const challenge = new Uint8Array(32);
@@ -179,6 +243,13 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       userVerification: PASSKEY.USER_VERIFICATION,
       timeout: PASSKEY.TIMEOUT_MS,
       rpId: PASSKEY.RP_ID,
+      ...(usePrf && {
+        extensions: {
+          prf: {
+            eval: { first: PRF_SALT },
+          },
+        },
+      }),
     };
 
     // Log rpId status
@@ -188,19 +259,33 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       debugSteps += '  No rpId (local mode)\n';
     }
 
-    logger.debug('Authenticating with synced passkey...');
+    logger.debug('Authenticating with synced passkey...', { usePrf });
 
     // Authenticate with synced passkey
+    let prfSecret: Uint8Array | null = null;
     try {
-      await Passkey.get(requestJson);
+      const authResult = await Passkey.get(requestJson);
       debugSteps += '✅ Passkey authentication successful\n';
+
+      // Extract PRF result if PRF was requested
+      if (usePrf) {
+        const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
+        prfSecret = prfResultRaw
+          ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+          : null;
+        if (!prfSecret) {
+          throw new Error('PRF result missing from authenticator during recovery');
+        }
+        debugSteps += '✅ PRF secret extracted from authenticator\n';
+      }
     } catch (passkeyError) {
       throw new Error(`${debugSteps}❌ Passkey auth failed: ${(passkeyError as Error).message}`);
     }
 
     logger.debug('Passkey authentication successful');
 
-    // Extract credential info from backup (more reliable than assertion)
+    // Extract credential identifiers from backup (more reliable than assertion).
+    // These are static IDs used as HKDF inputs, not cryptographic secrets from the passkey.
     debugSteps += '5. Extracting credentials from backup...\n';
     const credentialId = new Uint8Array(Buffer.from(backup.credentialId, 'base64'));
     const userHandle = new Uint8Array(Buffer.from(backup.userHandle, 'base64'));
@@ -223,13 +308,39 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     }
     debugSteps += '✅ PIN salt valid\n';
 
-    // Derive encryption key using passkey + PIN (with 310k PBKDF2 iterations)
+    // Restore pepper from backup before key derivation (critical for cross-device recovery)
+    // Save existing pepper so we can restore it if decryption fails
+    debugSteps += '7b. Checking pepper...\n';
+    let previousPepper: string | null = null;
+    if (backup.pepper) {
+      previousPepper = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PEPPER);
+      await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, backup.pepper, DEVICE_ONLY);
+      debugSteps += `✅ Pepper restored from backup (length: ${backup.pepper.length})\n`;
+      logger.debug('Pepper restored from iCloud backup for key derivation');
+    } else {
+      logger.warn('No pepper in iCloud backup (v2 format) - key derivation will generate a new one, decryption will likely fail');
+      debugSteps += '⚠️ No pepper in backup (v2 format) - recovery may fail\n';
+    }
+
+    // Derive encryption key. If PRF is enabled, uses authenticator-derived secret;
+    // otherwise falls back to credential IDs (legacy path).
     debugSteps += '8. Deriving encryption key...\n';
+    if (prfSecret) {
+      debugSteps += '  Using PRF secret (v5 salt)\n';
+    } else {
+      debugSteps += '  Using legacy credential IDs (v4 salt)\n';
+    }
     let encryptionKey: AesGcmKey;
     try {
-      encryptionKey = await deriveEncryptionKey(credentialId, userHandle, pin, pinSalt);
+      encryptionKey = await deriveEncryptionKey(
+        credentialId, userHandle, pin, pinSalt, false, prfSecret
+      );
       debugSteps += '✅ Encryption key derived\n';
     } catch (keyError: unknown) {
+      // Restore previous pepper if key derivation failed
+      if (previousPepper !== null) {
+        await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, previousPepper, DEVICE_ONLY);
+      }
       throw new Error(`${debugSteps}❌ Key derivation failed: ${(keyError as Error).message}`);
     }
 
@@ -246,37 +357,58 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       );
       debugSteps += '✅ Mnemonic decrypted successfully\n';
     } catch (decryptError) {
+      // Restore previous pepper since decryption failed
+      if (previousPepper !== null) {
+        await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, previousPepper, DEVICE_ONLY);
+      }
+      // Provide a more specific error if pepper was missing from backup
+      if (!backup.pepper) {
+        throw new Error(
+          `${debugSteps}❌ Decryption failed (backup missing pepper).\n\n` +
+          'This backup was created before the pepper fix (v2 format). ' +
+          'The device-bound pepper used during encryption was not included in the backup, ' +
+          'so cross-device recovery is not possible. ' +
+          'Please restore from the original device where the wallet was created.'
+        );
+      }
       throw new Error(`${debugSteps}❌ Decryption failed: ${(decryptError as Error).message}\n\nThis usually means wrong PIN.`);
     }
 
     logger.debug('Mnemonic decrypted successfully');
 
     // Derive addresses (account 0 by default)
-    const addresses = deriveAddressesFromMnemonic(mnemonic, 0);
+    const addresses = deriveAddressesFromMnemonic(mnemonic, 0, DEFAULT_WALLET_DERIVATION_MODE);
 
     // Store on new device
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
-    await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, 'passkey');
-    await SecureStore.setItemAsync(PASSKEY_KEYS.CREDENTIAL_ID, backup.credentialId);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.USER_HANDLE, backup.userHandle);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, backup.encrypted);
-    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, backup.iv);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true', DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, 'passkey', DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.CREDENTIAL_ID, backup.credentialId, DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.USER_HANDLE, backup.userHandle, DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, backup.encrypted, DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, backup.iv, DEVICE_ONLY);
     if (backup.tag) {
-      await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, backup.tag);
+      await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, backup.tag, DEVICE_ONLY);
+    }
+    await SecureStore.setItemAsync(PASSKEY_KEYS.PRF_ENABLED, usePrf ? 'true' : 'false', DEVICE_ONLY);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, DEVICE_ONLY);
+    await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
+
+    cacheSessionMnemonic(mnemonic);
+    const savedAccount = await saveCurrentAccount(0);
+    if (!savedAccount) {
+      throw new Error('Failed to save current account securely');
     }
 
-    // Store in standard location
-    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-    await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, '0');
-
     // Store the PIN salt from backup and save the PIN hash for daily unlock
-    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt);
+    await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt, DEVICE_ONLY);
     await savePinWithExistingSalt(pin, pinSalt);
 
-    logger.debug('Wallet recovered successfully from iCloud', {
-      segwitAddress: addresses.segwitAddress,
-      taprootAddress: addresses.taprootAddress,
-    });
+    await Promise.all([
+      saveCachedAddresses(0, addresses),
+      saveToMultiAccountCache(0, addresses),
+    ]);
+
+    logger.debug('Wallet recovered successfully from iCloud');
 
     return {
       mnemonic,

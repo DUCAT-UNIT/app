@@ -5,8 +5,6 @@
 
 import { useState, Dispatch, SetStateAction } from 'react';
 import * as PasskeyService from '../services/passkey';
-import { savePin } from '../services/pinService';
-import { saveMnemonic, saveCurrentAccount } from '../services/secureStorageService';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { notify } from '../utils/notify';
 
@@ -79,12 +77,7 @@ export function usePasskeyRestore({
       }
 
       // Recover with passkey + PIN (this retrieves from iCloud)
-      const { mnemonic, addresses } = await PasskeyService.recoverWithPasskey(pin);
-
-      // Store mnemonic in SecureStore for daily unlock
-      await saveMnemonic(mnemonic);
-      await saveCurrentAccount(0);
-      await savePin(pin);
+      const { addresses } = await PasskeyService.recoverWithPasskey(pin);
 
       // INSTANT NAVIGATION: Set wallet addresses immediately in React context
       // This ensures useNavigationState sees wallet as existing (no onboarding screen)

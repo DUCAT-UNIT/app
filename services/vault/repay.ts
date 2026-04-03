@@ -16,8 +16,12 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
-import { withVaultOperationLock } from './utils';
-import { checkBatchAllowed, Utxo } from './utils';
+import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
+import { withVaultOperationLock, checkBatchAllowed, Utxo } from './utils';
+import {
+  clearPendingVaultSigningOperation,
+  setPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
 
 export interface CreateRepayReqOptions {
   feeRate: number;
@@ -102,7 +106,7 @@ export async function createVaultReqRepay(
 
     // SECURITY: Re-validate oracle price freshness before building transaction.
     const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > 300) {
+    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
       throw new Error(
         `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
       );
@@ -148,6 +152,11 @@ export async function createVaultReqRepay(
     }
 
     // Get UNIT UTXOs for burning (required for repay)
+    // NOTE: rune_utxos may include UTXOs that are in pending transactions.
+    // The Guardian will reject double-spend attempts, but the error message may be confusing.
+    logger.debug('[VaultOps] Fetching UNIT UTXOs for repay (no spent-filter available via SDK)', {
+      requiredAmount: vaultCtx.repay_amount,
+    });
     const unitUtxos = await wallet.fetch.rune_utxos(
       VAULT_CONFIG.RUNE_LABEL,
       vaultCtx.repay_amount
@@ -165,8 +174,18 @@ export async function createVaultReqRepay(
     // Check if batch signing is allowed
     const isBatch = checkBatchAllowed(wallet);
 
-    // Create the repay request
-    const repayReq = await wallet.vault.repay.req(vaultCtx, satsUtxos, unitUtxos, isBatch);
+    let repayReq: WalletVaultRepayRequest;
+    setPendingVaultSigningOperation({
+      action: 'repay',
+      ctx: vaultCtx,
+      satsUtxos,
+      unitUtxos,
+    });
+    try {
+      repayReq = await wallet.vault.repay.req(vaultCtx, satsUtxos, unitUtxos, isBatch);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     logger.debug('[VaultOps] Repay request created:', {
       sats_inputs_count: repayReq.sats_inputs?.length,
@@ -177,7 +196,7 @@ export async function createVaultReqRepay(
     logger.error('[VaultOps] Failed to create repay request:', { error });
     throw error;
   }
-  }); // end withVaultOperationLock
+  }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
 /**

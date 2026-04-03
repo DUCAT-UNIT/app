@@ -64,6 +64,7 @@ describe('useWalletInitialization', () => {
       });
 
       expect(result.current!.isLoading).toBe(true);
+      expect(result.current!.initializationError).toBeNull();
     });
 
     it('should call loadBiometricPreference on mount', async () => {
@@ -148,7 +149,7 @@ describe('useWalletInitialization', () => {
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
     });
 
-    it('should not call setSeedConfirmed when no wallet exists', async () => {
+    it('should clear seed confirmation when no wallet exists', async () => {
       mockProps.loadWallet.mockResolvedValue({ exists: false });
       mockProps.loadBiometricPreference.mockResolvedValue(undefined);
 
@@ -160,7 +161,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      expect(mockProps.setSeedConfirmed).not.toHaveBeenCalled();
+      expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(false);
     });
   });
 
@@ -232,6 +233,8 @@ describe('useWalletInitialization', () => {
 
       // Should set isLoading to false immediately even on error
       expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.initializationError).toBe('Load wallet error');
+      expect(mockProps.setIsAuthenticated).not.toHaveBeenCalledWith(true);
     });
 
     it('should handle loadBiometricPreference errors gracefully', async () => {
@@ -248,6 +251,8 @@ describe('useWalletInitialization', () => {
 
       // Should set isLoading to false immediately even on error
       expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.initializationError).toBe('Biometric error');
+      expect(mockProps.setIsAuthenticated).not.toHaveBeenCalledWith(true);
     });
 
     it('should always hide loading screen immediately even on errors', async () => {
@@ -264,6 +269,7 @@ describe('useWalletInitialization', () => {
 
       // No artificial delay - loading is false immediately after errors
       expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.initializationError).toBe('Error');
     });
   });
 
@@ -298,9 +304,8 @@ describe('useWalletInitialization', () => {
       expect(mockProps.walletExistsRef.current).toBe(false);
     });
 
-    it('should not modify walletExistsRef on error', async () => {
-      // Use type assertion to test edge case with undefined
-      const testRef = { current: undefined } as unknown as MutableRefObject<boolean>;
+    it('should clear walletExistsRef on error', async () => {
+      const testRef = { current: true } as MutableRefObject<boolean>;
       const testProps = { ...mockProps, walletExistsRef: testRef };
       testProps.loadWallet.mockRejectedValue(new Error('Error'));
       testProps.loadBiometricPreference.mockResolvedValue(undefined);
@@ -313,7 +318,7 @@ describe('useWalletInitialization', () => {
         await Promise.resolve();
       });
 
-      expect(testRef.current).toBeUndefined();
+      expect(testRef.current).toBe(false);
     });
   });
 
@@ -336,6 +341,8 @@ describe('useWalletInitialization', () => {
       });
 
       expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.initializationError).toBe('Wallet initialization returned an invalid result');
+      expect(mockProps.setIsAuthenticated).not.toHaveBeenCalledWith(true);
     });
 
     it('should handle loadWallet returning undefined', async () => {
@@ -356,6 +363,8 @@ describe('useWalletInitialization', () => {
       });
 
       expect(result.current!.isLoading).toBe(false);
+      expect(result.current!.initializationError).toBe('Wallet initialization returned an invalid result');
+      expect(mockProps.setIsAuthenticated).not.toHaveBeenCalledWith(true);
     });
 
     it('should only initialize once on mount', async () => {

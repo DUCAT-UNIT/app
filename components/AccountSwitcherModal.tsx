@@ -8,6 +8,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ViewStyle, 
 import { StatusBar } from 'expo-status-bar';
 import { ERRORS, DIALOGS } from '../utils/messages';
 import { COLORS } from '../theme';
+import { NETWORK_EDITION_LABEL } from '../utils/constants';
 
 interface AccountSwitcherModalProps {
   visible: boolean;
@@ -60,7 +61,7 @@ export default function AccountSwitcherModal({
   return (
     <View style={localStyles.modalContainer}>
       <View style={styles.mutinynetBanner}>
-        <Text style={styles.mutinynetBannerText}>Mutinynet Edition</Text>
+        <Text style={styles.mutinynetBannerText}>{NETWORK_EDITION_LABEL}</Text>
       </View>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
@@ -114,4 +115,3 @@ const localStyles = StyleSheet.create({
     zIndex: 1000,
   },
 });
-

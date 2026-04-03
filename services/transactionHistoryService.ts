@@ -3,11 +3,11 @@
  * Handles fetching and processing transaction history from blockchain APIs
  */
 
-import { retrySilently } from '../utils/retry';
 import { decodeRunestone } from '../utils/runestoneEncoder';
 import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { getWithRetry } from '../utils/apiClient';
 
 // UNIT•RUNE identifier
 const UNIT_RUNE_BLOCK = 1527352n;
@@ -105,7 +105,7 @@ export const fetchAddressTransactions = async (address: string): Promise<Transac
     while (hasMore && pageCount < maxPages) {
       const url = getAddressTxsUrl(address, lastSeenTxid);
 
-      const response = await retrySilently(() => fetch(url));
+      const response = await getWithRetry(url);
 
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
@@ -310,80 +310,93 @@ export const fetchAllTransactionHistory = async (
   taprootAddress: string,
   vaultPubkey: string
 ): Promise<Transaction[]> => {
-  try {
-    logger.debug('🌐 Making fresh API calls to blockchain explorer and vault...');
-    // Fetch transactions for both addresses and vault history
-    const [segwitTxs, taprootTxs, vaultHistory] = await Promise.all([
-      fetchAddressTransactions(segwitAddress),
-      fetchAddressTransactions(taprootAddress),
-      fetchVaultHistory(vaultPubkey) as Promise<VaultTransaction[]>,
-    ]);
-    logger.debug('📊 API responses received:');
-    logger.debug('  - Segwit transactions:', { count: segwitTxs.length });
-    logger.debug('  - Taproot transactions:', { count: taprootTxs.length });
-    logger.debug('  - Vault transactions:', { count: vaultHistory.length });
+  logger.debug('[TransactionHistory] Fetching from blockchain explorer and vault...');
+  // Fetch transactions for both addresses and vault history — use allSettled so
+  // a single source failure (e.g. vault API) doesn't lose on-chain history
+  const results = await Promise.allSettled([
+    fetchAddressTransactions(segwitAddress),
+    fetchAddressTransactions(taprootAddress),
+    fetchVaultHistory(vaultPubkey) as Promise<VaultTransaction[]>,
+  ]);
 
-    // First, collect all vault transaction IDs
-    const vaultTxIds = new Set<string>();
-    vaultHistory.forEach((vaultTx) => {
-      if (vaultTx.transaction_id) {
-        vaultTxIds.add(vaultTx.transaction_id);
-      }
-    });
+  const segwitTxs = results[0].status === 'fulfilled' ? results[0].value : [];
+  const taprootTxs = results[1].status === 'fulfilled' ? results[1].value : [];
+  const vaultHistory = results[2].status === 'fulfilled' ? results[2].value : [];
 
-    // Combine and deduplicate by txid, but exclude any that are vault transactions
-    const txMap = new Map<string, Transaction>();
-    [...segwitTxs, ...taprootTxs].forEach((tx) => {
-      // Skip if this txid is a vault transaction
-      if (!vaultTxIds.has(tx.txid) && !txMap.has(tx.txid)) {
-        txMap.set(tx.txid, tx);
-      }
-    });
+  // Log any failures
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      const sources = ['segwit', 'taproot', 'vault'];
+      logger.warn(`[TransactionHistory] Failed to fetch ${sources[index]} transactions`, {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+    }
+  });
 
-    // Add vault transactions
-    vaultHistory.forEach((vaultTx: VaultTransaction) => {
-      // Normalize action to capitalized form (API returns lowercase)
-      const normalizeAction = (action: string): string => {
-        const actionMap: Record<string, string> = {
-          open: 'Open',
-          borrow: 'Borrow',
-          repay: 'Repay',
-          deposit: 'Deposit',
-          withdraw: 'Withdraw',
-          liquidate: 'Repossess',
-          repossess: 'Repossess',
-        };
-        return actionMap[action.toLowerCase()] || action;
+  logger.debug('[TransactionHistory] API responses received:', {
+    segwit: segwitTxs.length,
+    taproot: taprootTxs.length,
+    vault: vaultHistory.length,
+  });
+
+  // First, collect all vault transaction IDs
+  const vaultTxIds = new Set<string>();
+  vaultHistory.forEach((vaultTx) => {
+    if (vaultTx.transaction_id) {
+      vaultTxIds.add(vaultTx.transaction_id);
+    }
+  });
+
+  // Combine and deduplicate by txid, but exclude any that are vault transactions
+  const txMap = new Map<string, Transaction>();
+  [...segwitTxs, ...taprootTxs].forEach((tx) => {
+    // Skip if this txid is a vault transaction
+    if (!vaultTxIds.has(tx.txid) && !txMap.has(tx.txid)) {
+      txMap.set(tx.txid, tx);
+    }
+  });
+
+  // Add vault transactions
+  vaultHistory.forEach((vaultTx: VaultTransaction) => {
+    // Normalize action to capitalized form (API returns lowercase)
+    const normalizeAction = (action: string): string => {
+      const actionMap: Record<string, string> = {
+        open: 'Open',
+        borrow: 'Borrow',
+        repay: 'Repay',
+        deposit: 'Deposit',
+        withdraw: 'Withdraw',
+        liquidate: 'Repossess',
+        repossess: 'Repossess',
       };
+      return actionMap[action.toLowerCase()] || action;
+    };
 
-      // Create a synthetic transaction object for vault transactions
-      const syntheticTx: Transaction = {
-        txid: vaultTx.transaction_id || `vault-${vaultTx.timestamp}`,
-        status: {
-          confirmed: true,
-          block_time: vaultTx.timestamp,
-        },
-        vaultTransaction: true,
-        vaultData: {
-          action: normalizeAction(vaultTx.action),
-          amountBorrowed: vaultTx.amount_borrowed,
-          vaultAmount: vaultTx.vault_amount,
-          btcAmount: vaultTx.btc_amt,
-          unitAmount: vaultTx.unit_amt,
-          oraclePrice: vaultTx.oracle_price,
-        },
-      };
+    // Create a synthetic transaction object for vault transactions
+    const syntheticTx: Transaction = {
+      txid: vaultTx.transaction_id || `vault-${vaultTx.timestamp}`,
+      status: {
+        confirmed: true,
+        block_time: vaultTx.timestamp,
+      },
+      vaultTransaction: true,
+      vaultData: {
+        action: normalizeAction(vaultTx.action),
+        amountBorrowed: vaultTx.amount_borrowed,
+        vaultAmount: vaultTx.vault_amount,
+        btcAmount: vaultTx.btc_amt,
+        unitAmount: vaultTx.unit_amt,
+        oraclePrice: vaultTx.oracle_price,
+      },
+    };
 
-      txMap.set(syntheticTx.txid, syntheticTx);
-    });
+    txMap.set(syntheticTx.txid, syntheticTx);
+  });
 
-    // Convert back to array and sort by timestamp (most recent first)
-    const allTxs = Array.from(txMap.values()).sort(
-      (a, b) => b.status.block_time - a.status.block_time
-    );
+  // Convert back to array and sort by timestamp (most recent first)
+  const allTxs = Array.from(txMap.values()).sort(
+    (a, b) => b.status.block_time - a.status.block_time
+  );
 
-    return allTxs;
-  } catch (error: unknown) {
-    throw error;
-  }
+  return allTxs;
 };

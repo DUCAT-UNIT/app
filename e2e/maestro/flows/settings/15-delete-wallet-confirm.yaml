@@ -52,7 +52,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Verify modal shows delete wallet text
 - assertVisible:
-    text: "Delete Wallet"
+    text: "Delete Local Wallet"
 
 # Verify both buttons are present
 - assertVisible:

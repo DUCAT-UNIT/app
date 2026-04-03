@@ -3,17 +3,16 @@
  * Extracts the complex QR handling logic from WalletPage
  */
 
+import { NavigationProp,ParamListBase,useNavigation } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
-import { useNavigation, NavigationProp, ParamListBase } from '@react-navigation/native';
-import { logger } from '../utils/logger';
-import { hasP2PKProofs } from '../services/cashu/p2pk';
-import { decodeToken, encodeToken } from '../services/cashu/crypto';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
-import { notify } from '../utils/notify';
-import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
-import { useSendFlowStore } from '../stores/sendFlowStore';
+import { decodeToken,encodeToken } from '../services/cashu/crypto';
+import { hasP2PKProofs } from '../services/cashu/p2pk';
 import type { SnackbarParams } from '../stores/notificationStore';
+import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
+import { logger } from '../utils/logger';
+import { notify } from '../utils/notify';
 
 interface ReceiveTokenResult {
   amount: number;

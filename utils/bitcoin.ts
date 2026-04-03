@@ -7,68 +7,77 @@ import type { Network } from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from '@bitcoinerlab/secp256k1';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getDerivationPathSet,
+  type WalletDerivationMode,
+} from '../constants/bitcoin';
+import { APP_NETWORK_CONFIG } from './networkConfig';
 
 // Initialize BIP32
 const bip32 = BIP32Factory(ecc);
 
-// Mutinynet signet network configuration
-export const MUTINYNET_NETWORK: Network = {
-  messagePrefix: '\x18Bitcoin Signed Message:\n',
-  bech32: 'tb',
-  bip32: {
-    public: 0x043587cf,
-    private: 0x04358394,
-  },
-  pubKeyHash: 0x6f,
-  scriptHash: 0xc4,
-  wif: 0xef,
-};
+export const BITCOIN_NETWORK: Network = APP_NETWORK_CONFIG.bitcoinjs;
+// Backward-compatible alias while the codebase finishes migrating to generic naming.
+export const MUTINYNET_NETWORK: Network = BITCOIN_NETWORK;
 
-// Expected network configuration for validation
 const EXPECTED_NETWORK_CONFIG = {
-  name: 'mutinynet',
-  bech32Prefix: 'tb',
-  pubKeyHash: 0x6f,
-  scriptHash: 0xc4,
+  name: APP_NETWORK_CONFIG.id,
+  bech32Prefix: APP_NETWORK_CONFIG.bitcoinjs.bech32,
+  pubKeyHash: APP_NETWORK_CONFIG.bitcoinjs.pubKeyHash,
+  scriptHash: APP_NETWORK_CONFIG.bitcoinjs.scriptHash,
 } as const;
 
+export const SEGWIT_ADDRESS_PREFIX = APP_NETWORK_CONFIG.addressPrefixes.segwit;
+export const TAPROOT_ADDRESS_PREFIX = APP_NETWORK_CONFIG.addressPrefixes.taproot;
+export const NETWORK_ADDRESS_PREFIXES = APP_NETWORK_CONFIG.addressPrefixes.all;
+
+function getOppositeNetworkError(): string {
+  const currentName = APP_NETWORK_CONFIG.isTestNetwork
+    ? `${APP_NETWORK_CONFIG.displayName.toLowerCase()} testnet`
+    : APP_NETWORK_CONFIG.displayName.toLowerCase();
+  const expectedPrefixes = NETWORK_ADDRESS_PREFIXES.join(', ');
+  const oppositeName = APP_NETWORK_CONFIG.addressPrefixes.oppositeDisplayName;
+  return (
+    `${oppositeName[0].toUpperCase()}${oppositeName.slice(1)} address detected. ` +
+    `Please use a ${currentName} address (starting with ${expectedPrefixes})`
+  );
+}
+
+function matchesPrefix(address: string, prefixes: string[]): boolean {
+  const lower = address.toLowerCase();
+  return prefixes.some(prefix => lower.startsWith(prefix.toLowerCase()));
+}
+
 /**
- * Validate that the app is configured for testnet only
- * CRITICAL: This prevents accidental use of mainnet and potential fund loss
- * @throws Error if network configuration doesn't match expected testnet config
+ * Validate that the app is configured for the selected Bitcoin network.
+ * @throws Error if runtime network configuration is inconsistent
  */
 export const validateNetworkConfig = (): boolean => {
-  // Verify bech32 prefix is testnet
-  if (MUTINYNET_NETWORK.bech32 !== EXPECTED_NETWORK_CONFIG.bech32Prefix) {
+  if (BITCOIN_NETWORK.bech32 !== EXPECTED_NETWORK_CONFIG.bech32Prefix) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected testnet (bech32: ${EXPECTED_NETWORK_CONFIG.bech32Prefix}), ` +
-      `but found: ${MUTINYNET_NETWORK.bech32}. ` +
-      `This app is testnet-only and cannot use mainnet.`
+      `Expected ${EXPECTED_NETWORK_CONFIG.name} bech32 prefix ${EXPECTED_NETWORK_CONFIG.bech32Prefix}, ` +
+      `but found: ${BITCOIN_NETWORK.bech32}.`
     );
   }
 
-  // Verify pubKeyHash is testnet
-  if (MUTINYNET_NETWORK.pubKeyHash !== EXPECTED_NETWORK_CONFIG.pubKeyHash) {
+  if (BITCOIN_NETWORK.pubKeyHash !== EXPECTED_NETWORK_CONFIG.pubKeyHash) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected testnet pubKeyHash (0x${EXPECTED_NETWORK_CONFIG.pubKeyHash.toString(16)}), ` +
-      `but found: 0x${MUTINYNET_NETWORK.pubKeyHash.toString(16)}. ` +
-      `This app is testnet-only and cannot use mainnet.`
+      `Expected ${EXPECTED_NETWORK_CONFIG.name} pubKeyHash (0x${EXPECTED_NETWORK_CONFIG.pubKeyHash.toString(16)}), ` +
+      `but found: 0x${BITCOIN_NETWORK.pubKeyHash.toString(16)}.`
     );
   }
 
-  // Verify scriptHash is testnet
-  if (MUTINYNET_NETWORK.scriptHash !== EXPECTED_NETWORK_CONFIG.scriptHash) {
+  if (BITCOIN_NETWORK.scriptHash !== EXPECTED_NETWORK_CONFIG.scriptHash) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected testnet scriptHash (0x${EXPECTED_NETWORK_CONFIG.scriptHash.toString(16)}), ` +
-      `but found: 0x${MUTINYNET_NETWORK.scriptHash.toString(16)}. ` +
-      `This app is testnet-only and cannot use mainnet.`
+      `Expected ${EXPECTED_NETWORK_CONFIG.name} scriptHash (0x${EXPECTED_NETWORK_CONFIG.scriptHash.toString(16)}), ` +
+      `but found: 0x${BITCOIN_NETWORK.scriptHash.toString(16)}.`
     );
   }
 
-  // All checks passed
   return true;
 };
 
@@ -83,36 +92,34 @@ export interface DerivedAddresses {
  * Derive SegWit and Taproot addresses from a BIP39 mnemonic
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index for derivation (default: 0)
+ * @param derivationMode - Wallet derivation mode (defaults to BIP44/BIP84/BIP86 account isolation)
  * @returns Object containing segwitAddress, taprootAddress, segwitPubkey, taprootPubkey
  */
-export const deriveAddressesFromMnemonic = (mnemonic: string, accountIndex = 0): DerivedAddresses => {
-  // CRITICAL: Validate network configuration before deriving addresses
+export const deriveAddressesFromMnemonic = (
+  mnemonic: string,
+  accountIndex = 0,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): DerivedAddresses => {
   validateNetworkConfig();
 
-  // Convert mnemonic to seed
   const seed = bip39.mnemonicToSeedSync(mnemonic);
-
-  // Create HD wallet root
-  const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
-
-  // BIP84 - Native SegWit
-  const segwitPath = `m/84'/1'/0'/0/${accountIndex}`;
+  const root = bip32.fromSeed(seed, BITCOIN_NETWORK);
+  const derivationPaths = getDerivationPathSet(derivationMode);
+  const segwitPath = derivationPaths.SEGWIT(accountIndex);
   const segwitChild = root.derivePath(segwitPath);
   const segwitPayment = bitcoin.payments.p2wpkh({
     pubkey: segwitChild.publicKey,
-    network: MUTINYNET_NETWORK,
+    network: BITCOIN_NETWORK,
   });
 
-  // BIP86 - Taproot
-  const taprootPath = `m/86'/1'/0'/0/${accountIndex}`;
+  const taprootPath = derivationPaths.TAPROOT(accountIndex);
   const taprootChild = root.derivePath(taprootPath);
   const xOnlyPubkey = taprootChild.publicKey.slice(1, 33);
   const taprootPayment = bitcoin.payments.p2tr({
     internalPubkey: xOnlyPubkey,
-    network: MUTINYNET_NETWORK,
+    network: BITCOIN_NETWORK,
   });
 
-  // Validate addresses exist before returning
   if (!segwitPayment.address) {
     throw new Error('Failed to generate SegWit address from public key');
   }
@@ -155,21 +162,16 @@ export const validateBitcoinAddress = (address: string | null | undefined): Addr
   }
 
   try {
-    // Try to decode the address using bitcoinjs-lib to validate it
-    bitcoin.address.toOutputScript(trimmedAddress, MUTINYNET_NETWORK);
+    bitcoin.address.toOutputScript(trimmedAddress, BITCOIN_NETWORK);
 
-    // Determine address type based on prefix
     let addressType: AddressType = 'unknown';
-    if (trimmedAddress.startsWith('tb1p')) {
-      addressType = 'taproot'; // Bech32m (P2TR)
-    } else if (trimmedAddress.startsWith('tb1q')) {
-      addressType = 'segwit'; // Bech32 (P2WPKH)
-    } else if (
-      trimmedAddress.startsWith('2') ||
-      trimmedAddress.startsWith('m') ||
-      trimmedAddress.startsWith('n')
-    ) {
-      addressType = 'legacy'; // P2SH or P2PKH
+    const lowerAddress = trimmedAddress.toLowerCase();
+    if (lowerAddress.startsWith(TAPROOT_ADDRESS_PREFIX)) {
+      addressType = 'taproot';
+    } else if (lowerAddress.startsWith(SEGWIT_ADDRESS_PREFIX)) {
+      addressType = 'segwit';
+    } else if (matchesPrefix(lowerAddress, APP_NETWORK_CONFIG.addressPrefixes.legacy)) {
+      addressType = 'legacy';
     }
 
     return {
@@ -177,12 +179,10 @@ export const validateBitcoinAddress = (address: string | null | undefined): Addr
       type: addressType,
     };
   } catch (error: unknown) {
-    // Check if it might be a mainnet address
-    if (address.startsWith('bc1') || address.startsWith('1') || address.startsWith('3')) {
+    if (matchesPrefix(trimmedAddress, APP_NETWORK_CONFIG.addressPrefixes.oppositeAll)) {
       return {
         valid: false,
-        error:
-          'Mainnet address detected. Please use a testnet address (starting with tb1, 2, m, or n)',
+        error: getOppositeNetworkError(),
       };
     }
 
@@ -212,15 +212,15 @@ export const validateAndNormalizeAddress = (address: string): string => {
 /**
  * Extract public key from a Taproot address
  * For Taproot (P2TR) addresses, the address encodes the x-only pubkey (32 bytes)
- * @param address - Taproot Bitcoin address (tb1p... or bc1p...)
+ * @param address - Taproot Bitcoin address
  * @returns Hex-encoded public key (64 characters for x-only pubkey)
  * @throws Error if address is not a valid Taproot address
  */
 export const extractPubkeyFromTaprootAddress = (address: string): string => {
   const trimmedAddress = address.trim();
 
-  // Validate it's a Taproot address
-  if (!trimmedAddress.startsWith('tb1p') && !trimmedAddress.startsWith('bc1p')) {
+  const lowerAddress = trimmedAddress.toLowerCase();
+  if (!lowerAddress.startsWith('tb1p') && !lowerAddress.startsWith('bc1p')) {
     throw new Error('Address must be a Taproot address (tb1p... or bc1p...)');
   }
 

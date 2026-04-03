@@ -12,6 +12,7 @@ import { logger } from '../../../utils/logger';
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 jest.mock('react-native-passkey', () => ({
@@ -23,6 +24,7 @@ jest.mock('react-native-passkey', () => ({
 jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
   },
 }));
@@ -40,6 +42,10 @@ jest.mock('../../icloudStorage', () => ({
 }));
 
 jest.mock('../core', () => ({
+  PASSKEY_DERIVATION_VERSION: {
+    LEGACY_V4: '4',
+    PRF_V5: '5',
+  },
   PASSKEY_KEYS: {
     ENABLED: 'passkey_enabled_v1',
     CREDENTIAL_ID: 'passkey_credential_id_v1',
@@ -48,7 +54,13 @@ jest.mock('../core', () => ({
     ENCRYPTION_IV: 'passkey_encryption_iv_v1',
     ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
     CREATION_METHOD: 'wallet_creation_method_v1',
+    PRF_ENABLED: 'passkey_prf_enabled_v1',
+    DERIVATION_VERSION: 'passkey_derivation_version_v1',
   },
+  PRF_SALT: new Uint8Array(Buffer.from('ducat-wallet-prf-v1', 'utf8')),
+  derivationVersionForPrf: jest.fn((prfEnabled: boolean) => (prfEnabled ? '5' : '4')),
+  resolvePasskeyDerivationVersion: jest.fn((storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')),
+  isLegacyPasskeyDerivationVersion: jest.fn((version) => version === '4'),
   toBase64Url: jest.fn((buffer) => Buffer.from(buffer).toString('base64')),
   isPasskeySupported: jest.fn(),
 }));
@@ -65,15 +77,34 @@ jest.mock('../../pinService', () => ({
   savePinWithExistingSalt: jest.fn(),
 }));
 
+jest.mock('../../secureStorageService', () => ({
+  cacheSessionMnemonic: jest.fn(),
+  saveCachedAddresses: jest.fn(),
+  saveCurrentAccount: jest.fn(),
+  saveToMultiAccountCache: jest.fn(),
+}));
+
 // Import mock reference
 import { savePinWithExistingSalt } from '../../pinService';
+import {
+  cacheSessionMnemonic,
+  saveCachedAddresses,
+  saveCurrentAccount,
+  saveToMultiAccountCache,
+} from '../../secureStorageService';
 const mockSavePinWithExistingSalt = savePinWithExistingSalt as jest.Mock;
+const mockCacheSessionMnemonic = cacheSessionMnemonic as jest.Mock;
+const mockSaveCachedAddresses = saveCachedAddresses as jest.Mock;
+const mockSaveCurrentAccount = saveCurrentAccount as jest.Mock;
+const mockSaveToMultiAccountCache = saveToMultiAccountCache as jest.Mock;
 
 // Import after mocks
 import { loadFromICloud, checkICloudAvailability } from '../../icloudStorage';
 import { isPasskeySupported, PASSKEY_KEYS } from '../core';
 import { deriveEncryptionKey, decryptMnemonic } from '../encryption';
 import { unlockWithPasskey, recoverWithPasskey } from '../unlock';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 describe('Passkey Unlock', () => {
   const mockCredentialId = 'credential-id-base64';
@@ -100,6 +131,10 @@ describe('Passkey Unlock', () => {
     (checkICloudAvailability as jest.Mock).mockResolvedValue({ available: true });
     // Note: getRandomValues is provided by the global mock in jest.setup.js
     mockSavePinWithExistingSalt.mockResolvedValue(undefined);
+    mockCacheSessionMnemonic.mockImplementation(() => undefined);
+    mockSaveCachedAddresses.mockResolvedValue(true);
+    mockSaveCurrentAccount.mockResolvedValue(true);
+    mockSaveToMultiAccountCache.mockResolvedValue(true);
   });
 
   describe('unlockWithPasskey', () => {
@@ -323,22 +358,30 @@ describe('Passkey Unlock', () => {
     it('should store recovered data in SecureStore', async () => {
       await recoverWithPasskey(mockPin);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENABLED, 'true');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREATION_METHOD, 'passkey');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREDENTIAL_ID, mockCredentialId);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.USER_HANDLE, mockUserHandle);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, mockEncrypted);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV, mockIv);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG, mockTag);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.MNEMONIC, mockMnemonic);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.CURRENT_ACCOUNT, '0');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockPinSalt);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENABLED, 'true', DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREATION_METHOD, 'passkey', DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREDENTIAL_ID, mockCredentialId, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.USER_HANDLE, mockUserHandle, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, mockEncrypted, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV, mockIv, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG, mockTag, DEVICE_ONLY);
+      expect(mockCacheSessionMnemonic).toHaveBeenCalledWith(mockMnemonic);
+      expect(mockSaveCachedAddresses).toHaveBeenCalled();
+      expect(mockSaveCurrentAccount).toHaveBeenCalledWith(0);
+      expect(mockSaveToMultiAccountCache).toHaveBeenCalled();
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockPinSalt, DEVICE_ONLY);
     });
 
     it('should save PIN with existing salt', async () => {
       await recoverWithPasskey(mockPin);
 
       expect(mockSavePinWithExistingSalt).toHaveBeenCalledWith(mockPin, mockPinSalt);
+    });
+
+    it('should fail recovery if hardened current-account storage fails', async () => {
+      mockSaveCurrentAccount.mockResolvedValue(false);
+
+      await expect(recoverWithPasskey(mockPin)).rejects.toThrow('Failed to save current account securely');
     });
 
     it('should use discovery mode (no allowCredentials)', async () => {
@@ -398,7 +441,8 @@ describe('Passkey Unlock', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTION_TAG,
-        mockTag
+        mockTag,
+        DEVICE_ONLY
       );
     });
 

@@ -5,17 +5,16 @@
 import type { WalletConfig } from '@ducat-unit/client-sdk';
 import * as bitcoin from 'bitcoinjs-lib';
 import { API, VAULT_CONFIG } from '../../utils/constants';
+import { APP_NETWORK_CONFIG } from '../../utils/networkConfig';
 
-// Mutinynet master contract ID
-export const MASTER_CONTRACT_ID = '02837661131516ad503dbe0bcf73964244d5f02bc577678ffd3fcbb54f493f36i0';
+export const MASTER_CONTRACT_ID = APP_NETWORK_CONFIG.protocol.masterContractId;
 
-// Wallet configuration for mutinynet
 export const WALLET_CFG: WalletConfig = {
   indexer: {
     esp: API.ESPLORA_URL,
     ord: API.ORD_URL,
   },
-  network: 'mutiny',
+  network: APP_NETWORK_CONFIG.vaultSdkNetwork,
   postage: {
     unit: VAULT_CONFIG.UNIT_POSTAGE,
     vault: VAULT_CONFIG.TOKEN_POSTAGE,
