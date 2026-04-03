@@ -10,6 +10,7 @@ jest.mock('expo-secure-store', () => ({
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getAllKeys: jest.fn(),
   multiRemove: jest.fn(),
+  removeItem: jest.fn(),
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -42,6 +43,7 @@ import { clearAppCache, clearP2PKCache, clearCashuCache } from '../cacheService'
 const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
 const mockGetAllKeys = AsyncStorage.getAllKeys as jest.MockedFunction<typeof AsyncStorage.getAllKeys>;
 const mockMultiRemove = AsyncStorage.multiRemove as jest.MockedFunction<typeof AsyncStorage.multiRemove>;
+const mockRemoveItem = AsyncStorage.removeItem as jest.MockedFunction<typeof AsyncStorage.removeItem>;
 
 describe('cacheService', () => {
   beforeEach(() => {
@@ -49,6 +51,7 @@ describe('cacheService', () => {
     mockDeleteItemAsync.mockResolvedValue();
     mockGetAllKeys.mockResolvedValue([]);
     mockMultiRemove.mockResolvedValue();
+    mockRemoveItem.mockResolvedValue();
   });
 
   describe('clearAppCache', () => {
@@ -157,7 +160,8 @@ describe('cacheService', () => {
     it('should clear Cashu cache keys', async () => {
       await clearCashuCache();
 
-      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
+      expect(mockRemoveItem).toHaveBeenCalledWith('cashu_keysets');
+      expect(mockRemoveItem).toHaveBeenCalledWith('processed_cashu_tokens');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('received_turbo_tokens');
     });

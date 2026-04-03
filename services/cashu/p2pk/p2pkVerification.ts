@@ -130,11 +130,10 @@ export const verifyP2PKWitness = async (
       try {
         verifyResult = await schnorr.verify(signatureBytes, messageHash, pubkeyBytes);
       } catch {
-        // Both paths failed — log but don't crash the app
-        logger.warn('[P2PK] schnorr.verify crashed in native layer, treating as valid', {
+        logger.warn('[P2PK] schnorr.verify crashed in native layer, treating as invalid', {
           error: (nativeErr as Error).message,
         });
-        return true; // Assume valid — the mint will reject if actually invalid
+        return false;
       }
     }
     return Boolean(verifyResult);
@@ -143,8 +142,7 @@ export const verifyP2PKWitness = async (
     logger.error('[P2PK] Witness verification error', {
       error: err.message,
     });
-    // Don't crash the app — return true and let the mint reject if invalid
-    return true;
+    return false;
   }
 };
 

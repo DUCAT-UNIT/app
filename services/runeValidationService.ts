@@ -27,6 +27,7 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
   try {
     const { block, tx } = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
     const expectedLabel = RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL;
+    const ordBaseUrl = API.ORD_URL || API.ORD_MUTINYNET_BASE;
 
     logger.security('Validating Rune configuration', {
       configuredBlock: block.toString(),
@@ -38,7 +39,7 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
     // Note: This assumes ord API has a runes/{id} endpoint
     // Adjust URL based on actual API structure
     const runeIdStr = `${block}:${tx}`;
-    const url = `${API.ORD_MUTINYNET_BASE}/rune/${runeIdStr}`;
+    const url = `${ordBaseUrl}/rune/${runeIdStr}`;
 
     const response = await fetch(url, {
       headers: {
@@ -51,7 +52,7 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
       logger.warn('Rune validation API unavailable', {
         status: response.status,
         url,
-        recommendation: 'Verify rune ID manually: https://ord-mutinynet.ducatprotocol.com',
+        recommendation: `Verify rune ID manually: ${ordBaseUrl}`,
       });
 
       // Return true to not block app startup, but log the concern

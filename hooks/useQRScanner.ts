@@ -3,8 +3,8 @@
  * Handles QR code scanning logic including BC-UR and NUT-16 animated QR support
  */
 
-import { useState, useRef, useCallback, useEffect } from 'react';
 import { URDecoder } from '@ngraveio/bc-ur';
+import { useCallback,useEffect,useRef,useState } from 'react';
 import { logger } from '../utils/logger';
 
 interface BarCodeScanEvent {
@@ -50,35 +50,6 @@ export function useQRScanner({ visible, onScan }: UseQRScannerParams): UseQRScan
       }
     }
   }, [visible]);
-
-  const handleBarCodeScanned = useCallback(({ data }: BarCodeScanEvent) => {
-    if (!data || hasScanned) return;
-
-    // Validate readable data
-    const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
-    const dataLower = data.toLowerCase();
-    if (!isPrintable && !data.match(/^\d+\/\d+:/) && !dataLower.startsWith('ur:')) {
-      logger.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
-      return;
-    }
-
-    // BC-UR format handling
-    if (dataLower.startsWith('ur:')) {
-      handleBcurScan(data);
-      return;
-    }
-
-    // NUT-16 animated QR code
-    const nut16Match = data.match(/^(\d+)\/(\d+):(.+)$/);
-    if (nut16Match) {
-      handleNut16Scan(nut16Match);
-      return;
-    }
-
-    // Static QR code
-    setHasScanned(true);
-    onScan(data);
-  }, [hasScanned, bcurDecoder, bcurExpectedParts, onScan]);
 
   const handleBcurScan = useCallback((data: string) => {
     logger.debug('[QRScanner] BC-UR format detected');
@@ -174,6 +145,35 @@ export function useQRScanner({ visible, onScan }: UseQRScannerParams): UseQRScan
       return newChunks;
     });
   }, [onScan]);
+
+  const handleBarCodeScanned = useCallback(({ data }: BarCodeScanEvent) => {
+    if (!data || hasScanned) return;
+
+    // Validate readable data
+    const isPrintable = /^[\x20-\x7E\n\r\t]*$/.test(data.substring(0, 100));
+    const dataLower = data.toLowerCase();
+    if (!isPrintable && !data.match(/^\d+\/\d+:/) && !dataLower.startsWith('ur:')) {
+      logger.warn('[QRScanner] Detected binary/corrupted QR data, ignoring');
+      return;
+    }
+
+    // BC-UR format handling
+    if (dataLower.startsWith('ur:')) {
+      handleBcurScan(data);
+      return;
+    }
+
+    // NUT-16 animated QR code
+    const nut16Match = data.match(/^(\d+)\/(\d+):(.+)$/);
+    if (nut16Match) {
+      handleNut16Scan(nut16Match);
+      return;
+    }
+
+    // Static QR code
+    setHasScanned(true);
+    onScan(data);
+  }, [handleBcurScan, handleNut16Scan, hasScanned, onScan]);
 
   const progress = totalChunks ? (scannedChunks.size / totalChunks) * 100 : bcurProgress;
   const isScanning = totalChunks || bcurProgress > 0;

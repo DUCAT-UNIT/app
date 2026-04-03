@@ -4,7 +4,7 @@
  */
 
 import { useNotificationStore } from '../stores/notificationStore';
-import type { SnackbarType, SnackbarParams } from '../types/notification';
+import type { SnackbarParams } from '../types/notification';
 import { NOTIFICATIONS } from './messages';
 
 type TransactionAction = 'send' | 'claim' | 'convert' | 'deposit' | 'withdraw' | 'borrow' | 'repay' | 'create' | 'faucet' | 'swap' | 'liquidation' | 'repossess' | 'conversion_turbo' | 'btc_send' | 'unit_send';

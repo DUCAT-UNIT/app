@@ -3,36 +3,37 @@
  * Features: MAX button, USD conversion, dynamic font sizing, fee estimation
  */
 
-import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import { NavigationProp,RouteProp } from '@react-navigation/native';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import {
-  Text,
-  View,
-  TextInput,
-  ActivityIndicator,
-  Pressable,
-  InputAccessoryView,
-  Platform,
+ActivityIndicator,
+InputAccessoryView,
+Platform,
+Pressable,
+Text,
+TextInput,
+View,
 } from 'react-native';
-import { NavigationProp, RouteProp } from '@react-navigation/native';
-import { COLORS } from '../../theme';
-import TouchableScale from '../../components/common/TouchableScale';
-import { formatNumberWithCommas } from '../../utils/sendHelpers';
-import { formatFiat } from '../../utils/formatters';
-import { useSendFlowStore } from '../../stores/sendFlowStore';
-import { useBalance } from '../../contexts/WalletDataContext';
-import { usePrice } from '../../stores/priceStore';
-import { useWallet } from '../../contexts/WalletContext';
-import { useKeyboard } from '../../hooks/useKeyboard';
-import { useAmountInput } from '../../hooks/useAmountInput';
-import { useTurboReview } from '../../hooks/useTurboReview';
-import { useFeeEstimate } from '../../hooks/useFeeEstimate';
-import { TransactionType } from '../../services/feeEstimationService';
 import { RecipientHeader } from '../../components/amountInput';
+import TouchableScale from '../../components/common/TouchableScale';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
 import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useBalance } from '../../contexts/WalletDataContext';
+import { useAmountInput } from '../../hooks/useAmountInput';
+import { useFeeEstimate } from '../../hooks/useFeeEstimate';
+import { useKeyboard } from '../../hooks/useKeyboard';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useTurboReview } from '../../hooks/useTurboReview';
+import { TransactionType } from '../../services/feeEstimationService';
+import { usePrice } from '../../stores/priceStore';
+import { useSendFlowStore } from '../../stores/sendFlowStore';
+import { COLORS } from '../../theme';
+import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
+import { formatFiat } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
+import { formatNumberWithCommas } from '../../utils/sendHelpers';
 import styles from './AmountInputScreen.styles';
 
 /**
@@ -137,8 +138,9 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   });
 
   // Address type from recipient
+  const bech32Hrp = typeof MUTINYNET_NETWORK?.bech32 === 'string' ? MUTINYNET_NETWORK.bech32 : 'tb';
   const addressType =
-    sendRecipient.startsWith('tb1p') || sendRecipient.startsWith('bc1p')
+    sendRecipient.toLowerCase().startsWith(`${bech32Hrp}1p`)
       ? 'Taproot'
       : 'Native SegWit';
 
@@ -174,13 +176,14 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
       setSendAmount(prefillAmount.toString());
 
       if (autoAdvance) {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           amountInputRef.current?.blur();
           navigation.navigate('Processing', {
             fromScreen: 'AmountInput',
             action: 'create_intent',
           });
         }, 500);
+        return () => clearTimeout(timer);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,7 +223,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   }, [sendAmount, sendAssetType, ecashThreshold, turboEnabled, setTurboEnabled]);
 
   // State for checking ecash balance
-  const [isCheckingEcash, setIsCheckingEcash] = useState(false);
+  const [, setIsCheckingEcash] = useState(false);
 
   // Local state for toggle-triggered insufficient sheet
   const [toggleInsufficientAmount, setToggleInsufficientAmount] = useState(0);

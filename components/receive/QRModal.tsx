@@ -8,6 +8,7 @@ import { View, Text, TouchableOpacity, Animated, ScrollView, StyleSheet, Dimensi
 import QRCode from 'react-native-qrcode-svg';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { NETWORK_EDITION_LABEL } from '../../utils/constants';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -91,7 +92,7 @@ export default function QRModal({
       >
       {/* Network header bar */}
       <View style={styles.qrModalNetworkBar}>
-        <Text style={styles.qrModalNetworkText}>Mutinynet Edition</Text>
+        <Text style={styles.qrModalNetworkText}>{NETWORK_EDITION_LABEL}</Text>
       </View>
 
       <ScrollView
@@ -205,4 +206,3 @@ const localStyles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Medium',
   },
 });
-

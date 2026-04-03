@@ -4,6 +4,13 @@
  *
  * MIGRATION: Replaces SendFlowContext
  * Benefits: No provider needed, simpler state machine, selective re-renders
+ *
+ * NOTE: This store is intentionally NOT persisted. All fields are transient UI state:
+ * - intentStep tracks the current position in a short-lived state machine
+ * - sendAmount/sendRecipient are text inputs the user can quickly re-enter
+ * - turboEnabled/selectedFeeRate have sensible defaults that reset correctly
+ * Persisting this state would risk resuming a stale transaction with outdated UTXO
+ * data or fee rates, which is worse than requiring the user to re-enter a few fields.
  */
 
 import { create } from 'zustand';

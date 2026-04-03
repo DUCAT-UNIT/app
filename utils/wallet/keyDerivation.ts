@@ -1,29 +1,36 @@
 /**
  * Key derivation utilities for P2PK Cashu tokens
+ *
+ * Private keys are cached in-memory only (never persisted to disk).
+ * Cache is cleared on app background, lock timeout, or explicit clear.
  */
 
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Interface } from 'bip32';
 import * as bip39 from 'bip39';
-import * as SecureStore from 'expo-secure-store';
+import { AppState, AppStateStatus } from 'react-native';
 import { MUTINYNET_NETWORK } from '../bitcoin';
 import { withMnemonic } from '../../services/secureStorageService';
+import { getWalletDerivationMode } from '../../services/walletDerivationService';
 import { logger } from '../logger';
 import { bip32, ecc, getECPair, getDerivationPath } from './cryptoHelpers';
 
-// SecureStore key prefix for derived keys
-// v5: Fixed BIP-341 parity handling for odd Y coordinate pubkeys
-const DERIVED_KEY_VERSION = 'v5_';
-const DERIVED_KEY_PREFIX = 'derived_key_' + DERIVED_KEY_VERSION;
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
-const CACHE_SCHEMA_VERSION = 1;
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds — matches inactivity lock timeout
 
 export interface DerivedKeyData {
   privateKey: string;
   xOnlyPubkey: string;
   accountIndex: number;
 }
+
+interface CacheEntry {
+  data: DerivedKeyData;
+  expires: number;
+}
+
+// In-memory cache — private keys never touch disk
+const memoryCache = new Map<string, CacheEntry>();
 
 /**
  * Get private key and x-only pubkey for an address (for P2PK Cashu tokens)
@@ -36,50 +43,32 @@ export async function getPrivateKeyForAddress(
   address: string,
   knownAccountIndex?: number
 ): Promise<DerivedKeyData> {
-  const cacheKey = `${DERIVED_KEY_PREFIX}${address}`;
+  const taprootPrefix = `${MUTINYNET_NETWORK.bech32}1p`;
 
-  // Check cache first
-  try {
-    const cached = await SecureStore.getItemAsync(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached) as
-        | DerivedKeyData
-        | { data: DerivedKeyData; expires: number; version: number };
-
-      const entry =
-        'data' in parsed && 'expires' in parsed
-          ? parsed
-          : { data: parsed as DerivedKeyData, expires: Date.now() + CACHE_TTL_MS, version: 0 };
-
-      if (entry.expires > Date.now()) {
-        logger.debug('[getPrivateKeyForAddress] Using cached key');
-        // Refresh to latest schema asynchronously (best effort)
-        if (entry.version !== CACHE_SCHEMA_VERSION) {
-          const envelope = { data: entry.data, expires: Date.now() + CACHE_TTL_MS, version: CACHE_SCHEMA_VERSION };
-          SecureStore.setItemAsync(cacheKey, JSON.stringify(envelope)).catch(() => undefined);
-        }
-        return entry.data;
-      }
-
-      await SecureStore.deleteItemAsync(cacheKey);
-    }
-  } catch (error: unknown) {
-    logger.warn('[getPrivateKeyForAddress] Failed to read cache:', { error: (error as Error).message });
+  // Check in-memory cache
+  const cached = memoryCache.get(address);
+  if (cached && cached.expires > Date.now()) {
+    logger.debug('[getPrivateKeyForAddress] Using cached key');
+    return cached.data;
+  }
+  if (cached) {
+    memoryCache.delete(address);
   }
 
   logger.debug('[getPrivateKeyForAddress] Cache miss, searching for account');
 
   const result = await withMnemonic(async (mnemonic: string) => {
+    const derivationMode = await getWalletDerivationMode();
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
     // If we know the account index, try it directly first
     if (knownAccountIndex !== undefined) {
       logger.info(`[getPrivateKeyForAddress] Trying known account index: ${knownAccountIndex}`);
-      const derivationPath = getDerivationPath(address, knownAccountIndex);
+      const derivationPath = getDerivationPath(address, knownAccountIndex, derivationMode);
       const child = root.derivePath(derivationPath);
 
-      if (address.startsWith('tb1p')) {
+      if (address.toLowerCase().startsWith(taprootPrefix)) {
         const taprootResult = findTaprootAccount(child, address, knownAccountIndex, derivationPath);
         if (taprootResult) return taprootResult;
       } else {
@@ -99,10 +88,10 @@ export async function getPrivateKeyForAddress(
         continue;
       }
 
-      const derivationPath = getDerivationPath(address, accountIndex);
+      const derivationPath = getDerivationPath(address, accountIndex, derivationMode);
       const child = root.derivePath(derivationPath);
 
-      if (address.startsWith('tb1p')) {
+      if (address.toLowerCase().startsWith(taprootPrefix)) {
         const taprootResult = findTaprootAccount(child, address, accountIndex, derivationPath);
         if (taprootResult) return taprootResult;
       } else {
@@ -114,18 +103,12 @@ export async function getPrivateKeyForAddress(
     throw new Error(`Address ${address} not found in first ${maxAccounts} accounts`);
   });
 
-  // Cache the result
-  try {
-    const envelope = {
-      data: result,
-      expires: Date.now() + CACHE_TTL_MS,
-      version: CACHE_SCHEMA_VERSION,
-    };
-    await SecureStore.setItemAsync(cacheKey, JSON.stringify(envelope));
-    logger.debug('[getPrivateKeyForAddress] Cached key');
-  } catch (error: unknown) {
-    logger.warn('[getPrivateKeyForAddress] Failed to cache:', { error: (error as Error).message });
-  }
+  // Cache in memory only — never persisted to disk
+  memoryCache.set(address, {
+    data: result,
+    expires: Date.now() + CACHE_TTL_MS,
+  });
+  logger.debug('[getPrivateKeyForAddress] Cached key (memory only)');
 
   return result;
 }
@@ -173,7 +156,10 @@ function findTaprootAccount(
   }
 
   const tweakedPrivkey = ecc.privateAdd(internalPrivkey, tweak);
-  const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey!).toString('hex');
+  if (!tweakedPrivkey) {
+    throw new Error('Failed to compute tweaked Taproot private key');
+  }
+  const tweakedPrivkeyHex = Buffer.from(tweakedPrivkey).toString('hex');
 
   logger.debug('[getPrivateKeyForAddress] Found Taproot account:', {
     accountIndex,
@@ -222,4 +208,58 @@ function findSegwitAccount(
     xOnlyPubkey: pubkeyHex,
     accountIndex,
   };
+}
+
+/**
+ * Purge expired entries from the in-memory cache
+ */
+export async function purgeExpiredKeys(): Promise<void> {
+  const now = Date.now();
+  let removed = 0;
+  for (const [key, entry] of memoryCache) {
+    if (entry.expires <= now) {
+      memoryCache.delete(key);
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    logger.debug('[purgeExpiredKeys] Purge complete', {
+      removed,
+      remaining: memoryCache.size,
+    });
+  }
+}
+
+/**
+ * Clear all cached derived keys from memory
+ */
+export async function clearAllDerivedKeys(): Promise<void> {
+  const count = memoryCache.size;
+  memoryCache.clear();
+  logger.info('[clearAllDerivedKeys] Cleared all derived keys', { count });
+}
+
+let appStateSubscription: { remove: () => void } | null = null;
+
+const handleAppStateChange = (state: AppStateStatus): void => {
+  if (state === 'active') {
+    purgeExpiredKeys().catch((error: unknown) => {
+      logger.warn('Failed to purge expired derived keys on app active', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+};
+
+export function startDerivedKeyCacheLifecycle(): void {
+  if (appStateSubscription) {
+    return;
+  }
+
+  appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+}
+
+export function stopDerivedKeyCacheLifecycle(): void {
+  appStateSubscription?.remove();
+  appStateSubscription = null;
 }

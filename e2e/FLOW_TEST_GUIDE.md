@@ -779,21 +779,21 @@ This document provides step-by-step instructions for manually testing all applic
 
 ---
 
-### 7.6 Security - Delete Wallet
+### 7.6 Security - Delete Local Wallet
 
 **Preconditions:** In Settings
 
 **Steps:**
 1. Tap "Security"
-2. Tap "Delete Wallet"
+2. Tap "Delete Local Wallet"
 3. Read warning
 4. Confirm deletion
 5. Enter PIN to confirm
 
 **Expected Results:**
-- Warning explains data loss
+- Warning explains local data loss and preserved backup behavior
 - PIN required to confirm
-- All wallet data deleted
+- Local wallet data deleted
 - Returns to WelcomeScreen
 
 ---

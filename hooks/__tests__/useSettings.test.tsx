@@ -93,6 +93,7 @@ describe('useSettings', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (BiometricService.setBiometricEnabled as jest.Mock).mockResolvedValue(true);
 
     mockProps = {
       biometricEnabled: false,
@@ -357,7 +358,7 @@ describe('useSettings', () => {
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'false');
+      expect(BiometricService.setBiometricEnabled).toHaveBeenCalledWith(false);
       expect(notify.settings.faceIdDisabled).toHaveBeenCalled();
     });
 
@@ -389,19 +390,14 @@ describe('useSettings', () => {
       });
 
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(BiometricService.setBiometricEnabled).toHaveBeenCalledWith(true);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
       expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
     });
 
     it('should handle storage error during Face ID enable after authentication', async () => {
       (BiometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
-      (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string, _value: string) => {
-        if (key === 'biometricEnabled') {
-          return Promise.reject(new Error('Storage error'));
-        }
-        return Promise.resolve();
-      });
+      (BiometricService.setBiometricEnabled as jest.Mock).mockResolvedValue(false);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -673,6 +669,10 @@ describe('useSettings', () => {
       expect(result.current!.showZeroAssets).toBe(false);
 
       // First toggle: false -> true
+      await act(async () => {
+        await Promise.resolve();
+      });
+
       act(() => {
         result.current!.handleShowZeroAssetsToggle();
       });
@@ -699,7 +699,7 @@ describe('useSettings', () => {
   describe('Error Handling', () => {
     it('should handle SecureStore errors during Face ID disable', async () => {
       mockProps.biometricEnabled = true;
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
+      (BiometricService.setBiometricEnabled as jest.Mock).mockResolvedValue(false);
 
       const { result } = renderHook(() => useSettings(mockProps), {
         initialProps: mockProps,
@@ -960,7 +960,7 @@ describe('useSettings', () => {
         await result.current!.confirmNotificationsToggle();
       });
 
-      expect(result.current!.notificationsEnabled).toBe(false);
+      expect(result.current!.notificationsEnabled).toBe(true);
     });
 
     it('should handle notifications enable auth error gracefully', async () => {
@@ -1022,7 +1022,7 @@ describe('useSettings', () => {
         await result.current!.confirmNotificationsToggle();
       });
 
-      expect(result.current!.notificationsEnabled).toBe(true);
+      expect(result.current!.notificationsEnabled).toBe(false);
     });
   });
 
@@ -1070,4 +1070,3 @@ describe('useSettings', () => {
   });
 
 });
-

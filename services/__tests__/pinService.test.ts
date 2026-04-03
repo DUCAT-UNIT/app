@@ -65,6 +65,8 @@ const mockGetItemAsync = SecureStore.getItemAsync as jest.MockedFunction<typeof 
 const mockSetItemAsync = SecureStore.setItemAsync as jest.MockedFunction<typeof SecureStore.setItemAsync>;
 const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
 
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+
 describe('PinService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -101,9 +103,9 @@ describe('PinService', () => {
         hashedPin: 'hashed-pin-hex',
         salt: 'test-salt-hex',
       });
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_salt_v1', 'test-salt-hex');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex', DEVICE_ONLY);
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_salt_v1', 'test-salt-hex', DEVICE_ONLY);
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2', DEVICE_ONLY);
     });
 
     it('should throw CRITICAL error when salt verification fails', async () => {
@@ -186,9 +188,9 @@ describe('PinService', () => {
       const result = await savePin('123456');
 
       expect(result).toBe(true);
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_salt_v1', 'test-salt-hex');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex', DEVICE_ONLY);
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_salt_v1', 'test-salt-hex', DEVICE_ONLY);
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2', DEVICE_ONLY);
     });
 
     it('should throw CRITICAL error when salt verification fails', async () => {
@@ -272,8 +274,8 @@ describe('PinService', () => {
 
       expect(result).toBe(true);
       expect(mockHashPin).toHaveBeenCalledWith('123456', 'existing-salt');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex');
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_v1', 'hashed-pin-hex', DEVICE_ONLY);
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1', '2', DEVICE_ONLY);
     });
 
     it('should throw CRITICAL error when hash verification fails', async () => {

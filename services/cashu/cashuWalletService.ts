@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { deletePreferenceItem } from '../storagePolicy';
 
 /**
  * Cashu Wallet Service - Main Public API
@@ -88,7 +89,7 @@ const KEYSETS_KEY = 'cashu_keysets';
 export const clearWallet = async (): Promise<void> => {
   const STORAGE_KEY = _getStorageKey();
   await SecureStore.deleteItemAsync(STORAGE_KEY);
-  await SecureStore.deleteItemAsync(KEYSETS_KEY);
+  await deletePreferenceItem(KEYSETS_KEY);
   logger.info('Wallet cleared', { storageKey: STORAGE_KEY });
 };
 

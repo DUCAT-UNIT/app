@@ -4,9 +4,9 @@
  * Extracted from AssetDetailScreen for better separation of concerns
  */
 
-import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API, API_KEYS } from '../utils/constants';
+import { Dispatch,SetStateAction,useEffect,useState } from 'react';
+import { API,API_KEYS } from '../utils/constants';
 import { formatFiat } from '../utils/formatters';
 
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
@@ -71,6 +71,9 @@ const sampleData = (data: PricePoint[] | null, targetPoints = 60): PricePoint[] 
  * Calculate price direction and change
  */
 const calculatePriceDirection = (prices: PricePoint[]): PriceDirection => {
+  if (!prices || prices.length === 0) {
+    return { isPositive: true, percentChange: '0', dollarChange: '0' };
+  }
   const firstPrice = prices[0][1];
   const lastPrice = prices[prices.length - 1][1];
   const priceChange = lastPrice - firstPrice;

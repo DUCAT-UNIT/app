@@ -3,7 +3,11 @@
  * Manages airdrop request locks and timing to prevent duplicate requests
  */
 
-import * as SecureStore from 'expo-secure-store';
+import {
+  deletePreferenceItem,
+  getPreferenceItem,
+  setPreferenceItem,
+} from '../services/storagePolicy';
 
 const LOCK_TIMEOUT = 60 * 1000; // 60 seconds
 const AIRDROP_COOLDOWN = 24 * 60 * 60 * 1000; // 24 hours
@@ -45,7 +49,7 @@ export function getPendingKey(address: string, account: number): string {
  */
 export async function isLockActive(lockKey: string): Promise<boolean> {
   try {
-    const existingLock = await SecureStore.getItemAsync(lockKey);
+    const existingLock = await getPreferenceItem(lockKey);
     if (!existingLock) {
       return false;
     }
@@ -55,7 +59,7 @@ export async function isLockActive(lockKey: string): Promise<boolean> {
 
     // Lock is active if less than timeout period old
     return now - lockTime < LOCK_TIMEOUT;
-  } catch (error: unknown) {
+  } catch {
     return false;
   }
 }
@@ -67,7 +71,7 @@ export async function isLockActive(lockKey: string): Promise<boolean> {
  */
 export async function acquireLock(lockKey: string): Promise<void> {
   const now = Date.now();
-  await SecureStore.setItemAsync(lockKey, now.toString());
+  await setPreferenceItem(lockKey, now.toString());
 }
 
 /**
@@ -77,8 +81,8 @@ export async function acquireLock(lockKey: string): Promise<void> {
  */
 export async function releaseLock(lockKey: string): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(lockKey);
-  } catch (error: unknown) {
+    await deletePreferenceItem(lockKey);
+  } catch {
     // Ignore errors during cleanup
   }
 }
@@ -90,17 +94,17 @@ export async function releaseLock(lockKey: string): Promise<void> {
  */
 export async function cleanupExpiredLock(lockKey: string): Promise<void> {
   try {
-    const existingLock = await SecureStore.getItemAsync(lockKey);
+    const existingLock = await getPreferenceItem(lockKey);
     if (existingLock) {
       const lockTime = parseInt(existingLock, 10);
       const now = Date.now();
 
       // If lock is expired (older than timeout), clean it up
       if (now - lockTime >= LOCK_TIMEOUT) {
-        await SecureStore.deleteItemAsync(lockKey);
+        await deletePreferenceItem(lockKey);
       }
     }
-  } catch (error: unknown) {
+  } catch {
     // Ignore errors during cleanup
   }
 }
@@ -112,7 +116,7 @@ export async function cleanupExpiredLock(lockKey: string): Promise<void> {
  */
 export async function isCooldownExpired(airdropKey: string): Promise<boolean> {
   try {
-    const lastAirdropTime = await SecureStore.getItemAsync(airdropKey);
+    const lastAirdropTime = await getPreferenceItem(airdropKey);
     if (!lastAirdropTime) {
       return true; // No previous airdrop
     }
@@ -121,7 +125,7 @@ export async function isCooldownExpired(airdropKey: string): Promise<boolean> {
     const timeSinceLastAirdrop = now - parseInt(lastAirdropTime, 10);
 
     return timeSinceLastAirdrop >= AIRDROP_COOLDOWN;
-  } catch (error: unknown) {
+  } catch {
     return true; // On error, allow airdrop attempt
   }
 }
@@ -133,7 +137,7 @@ export async function isCooldownExpired(airdropKey: string): Promise<boolean> {
  */
 export async function recordAirdropTime(airdropKey: string): Promise<void> {
   const now = Date.now();
-  await SecureStore.setItemAsync(airdropKey, now.toString());
+  await setPreferenceItem(airdropKey, now.toString());
 }
 
 /**
@@ -143,7 +147,7 @@ export async function recordAirdropTime(airdropKey: string): Promise<void> {
  * @returns Promise<void>
  */
 export async function storePendingAirdrop(pendingKey: string, txId: string): Promise<void> {
-  await SecureStore.setItemAsync(pendingKey, txId);
+  await setPreferenceItem(pendingKey, txId);
 }
 
 /**
@@ -153,8 +157,8 @@ export async function storePendingAirdrop(pendingKey: string, txId: string): Pro
  */
 export async function getPendingAirdrop(pendingKey: string): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(pendingKey);
-  } catch (error: unknown) {
+    return await getPreferenceItem(pendingKey);
+  } catch {
     return null;
   }
 }
@@ -166,8 +170,8 @@ export async function getPendingAirdrop(pendingKey: string): Promise<string | nu
  */
 export async function clearPendingAirdrop(pendingKey: string): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(pendingKey);
-  } catch (error: unknown) {
+    await deletePreferenceItem(pendingKey);
+  } catch {
     // Ignore errors
   }
 }

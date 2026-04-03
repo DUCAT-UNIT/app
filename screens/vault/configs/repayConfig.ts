@@ -2,10 +2,10 @@
  * Repay Operation Configuration
  */
 
-import { computeHealthFactor, computeLiquidationPrice } from '../../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
 import { colors } from '../../../styles/theme';
-import { getHealthColor } from '../../../utils/vaultHealthColor';
 import type {
+  RepayVaultStore,
   VaultInputScreenConfig,
   VaultConfirmScreenConfig,
   VaultProcessingScreenConfig,
@@ -22,7 +22,10 @@ export const repayRoutes = {
   success: 'RepaySuccess',
 };
 
-export const repayInputConfig: VaultInputScreenConfig = {
+export const repayInputConfig: VaultInputScreenConfig<
+  RepayVaultStore,
+  { unitBalance?: number }
+> = {
   operationType: 'repay',
   title: 'Repay UNIT',
   asset: 'UNIT',
@@ -137,7 +140,7 @@ export const repayInputConfig: VaultInputScreenConfig = {
   },
 };
 
-export const repayConfirmConfig: VaultConfirmScreenConfig = {
+export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
   operationType: 'repay',
   title: 'Confirm Repay',
   authMessage: 'Authenticate to repay UNIT',
@@ -211,4 +214,3 @@ export const repayProcessingConfig: VaultProcessingScreenConfig = {
     }
   },
 };
-

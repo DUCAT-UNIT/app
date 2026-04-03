@@ -2,9 +2,9 @@
  * P2PK Secrets - Key generation and secret creation (NUT-11)
  */
 
-import * as crypto from 'expo-crypto';
-import { Buffer } from 'buffer';
 import { schnorr } from '@noble/secp256k1';
+import { Buffer } from 'buffer';
+import * as crypto from 'expo-crypto';
 import { logger } from '../../../utils/logger';
 
 export interface P2PKKeyPair {
@@ -19,6 +19,12 @@ export interface P2PKOptions {
   locktime?: number;
   refund?: string[];
   n_sigs_refund?: number;
+}
+
+interface P2PKSecretData {
+  nonce: string;
+  data: string;
+  tags?: Array<[string, ...string[]]>;
 }
 
 /**
@@ -85,7 +91,7 @@ export const createP2PKSecret = async (
   }
 
   // Build P2PK secret structure
-  const p2pkSecret: ['P2PK', any] = [
+  const p2pkSecret: ['P2PK', P2PKSecretData] = [
     'P2PK',
     {
       nonce,

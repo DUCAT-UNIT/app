@@ -19,11 +19,13 @@ interface ErrorWithCode extends Error {
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
   },
 }));
@@ -33,6 +35,10 @@ jest.mock('../../icloudStorage', () => ({
 }));
 
 jest.mock('../core', () => ({
+  PASSKEY_DERIVATION_VERSION: {
+    LEGACY_V4: '4',
+    PRF_V5: '5',
+  },
   PASSKEY_KEYS: {
     ENABLED: 'passkey_enabled_v1',
     CREDENTIAL_ID: 'passkey_credential_id_v1',
@@ -40,7 +46,12 @@ jest.mock('../core', () => ({
     ENCRYPTED_MNEMONIC: 'passkey_encrypted_mnemonic_v1',
     ENCRYPTION_IV: 'passkey_encryption_iv_v1',
     ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
+    PRF_ENABLED: 'passkey_prf_enabled_v1',
+    DERIVATION_VERSION: 'passkey_derivation_version_v1',
   },
+  PRF_SALT: new Uint8Array(Buffer.from('ducat-wallet-prf-v1', 'utf8')),
+  resolvePasskeyDerivationVersion: jest.fn((storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')),
+  toBase64Url: (buf: Uint8Array) => Buffer.from(buf).toString('base64'),
 }));
 
 jest.mock('../encryption', () => ({
@@ -50,6 +61,10 @@ jest.mock('../encryption', () => ({
 
 jest.mock('../storage', () => ({
   isPasskeyEnabled: jest.fn(),
+}));
+
+jest.mock('../../secureStorageService', () => ({
+  withMnemonic: jest.fn(),
 }));
 
 // Mock pinService
@@ -62,9 +77,11 @@ jest.mock('../../pinService', () => ({
 import { savePin } from '../../pinService';
 import { saveToICloud } from '../../icloudStorage';
 import { PASSKEY_KEYS } from '../core';
+import { withMnemonic } from '../../secureStorageService';
 
 // Get mock reference
 const mockSavePin = savePin as jest.Mock;
+const mockWithMnemonic = withMnemonic as jest.Mock;
 import { deriveEncryptionKey, encryptMnemonic } from '../encryption';
 import { isPasskeyEnabled } from '../storage';
 import {
@@ -72,6 +89,8 @@ import {
   reencryptPasskeyMnemonicAfterPinChange,
   _resetPinChangeState,
 } from '../pinChange';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 describe('Passkey PIN Change', () => {
   const mockNewPin = '654321';
@@ -89,6 +108,7 @@ describe('Passkey PIN Change', () => {
   const mockCredentialId = Buffer.from('credential-id-123').toString('base64');
   const mockUserHandle = Buffer.from('user-handle-456').toString('base64');
   const mockEncryptionKey = { type: 'secret' };
+  const mockPepper = 'c'.repeat(32);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -104,6 +124,7 @@ describe('Passkey PIN Change', () => {
       iv: mockNewIv,
       tag: mockNewTag,
     });
+    mockWithMnemonic.mockImplementation(async (callback: (mnemonic: string) => Promise<string>) => callback(mockMnemonic));
     (saveToICloud as jest.Mock).mockResolvedValue('Success');
 
     (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
@@ -115,7 +136,7 @@ describe('Passkey PIN Change', () => {
       if (key === PASSKEY_KEYS.ENCRYPTION_TAG) return Promise.resolve(mockOldTag);
       if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
       if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-      if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(mockMnemonic);
+      if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
       return Promise.resolve(null);
     });
   });
@@ -130,12 +151,13 @@ describe('Passkey PIN Change', () => {
 
       expect(result.success).toBe(true);
       expect(mockSavePin).toHaveBeenCalledWith(mockNewPin);
-      expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SECURE_KEYS.MNEMONIC);
+      expect(mockWithMnemonic).toHaveBeenCalled();
       expect(deriveEncryptionKey).toHaveBeenCalled();
       expect(encryptMnemonic).toHaveBeenCalledWith(mockMnemonic, mockEncryptionKey);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
-        mockNewEncrypted
+        mockNewEncrypted,
+        DEVICE_ONLY
       );
     });
 
@@ -194,15 +216,15 @@ describe('Passkey PIN Change', () => {
         if (key === PASSKEY_KEYS.ENCRYPTION_TAG) return Promise.resolve(mockOldTag);
         if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
         if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-        if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(mockMnemonic);
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
         return Promise.resolve(null);
       });
 
       const result = await atomicPinChangeWithPasskey(mockNewPin);
 
       expect(result.success).toBe(false);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN, mockOldPinHash);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockOldPinSalt);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN, mockOldPinHash, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockOldPinSalt, DEVICE_ONLY);
       expect(logger.debug).toHaveBeenCalledWith('Successfully rolled back to old PIN');
     });
 
@@ -292,7 +314,7 @@ describe('Passkey PIN Change', () => {
         if (key === PASSKEY_KEYS.ENCRYPTION_TAG) return Promise.resolve(mockOldTag);
         if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
         if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-        if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(mockMnemonic);
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
         return Promise.resolve(null);
       });
 
@@ -329,7 +351,7 @@ describe('Passkey PIN Change', () => {
         if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockNewPinSalt);
         if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
         if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-        if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(mockMnemonic);
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
         return Promise.resolve(null);
       });
     });
@@ -340,7 +362,7 @@ describe('Passkey PIN Change', () => {
       expect(isPasskeyEnabled).toHaveBeenCalled();
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREDENTIAL_ID);
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.USER_HANDLE);
-      expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SECURE_KEYS.MNEMONIC);
+      expect(mockWithMnemonic).toHaveBeenCalled();
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT);
       expect(deriveEncryptionKey).toHaveBeenCalled();
       expect(encryptMnemonic).toHaveBeenCalledWith(mockMnemonic, mockEncryptionKey);
@@ -374,9 +396,10 @@ describe('Passkey PIN Change', () => {
       (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
         if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-        if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(null);
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
         return Promise.resolve(null);
       });
+      mockWithMnemonic.mockRejectedValueOnce(new Error('Mnemonic not found'));
 
       await expect(reencryptPasskeyMnemonicAfterPinChange(mockNewPin)).rejects.toThrow(
         'Failed to update passkey encryption with new PIN'
@@ -391,8 +414,8 @@ describe('Passkey PIN Change', () => {
       (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === PASSKEY_KEYS.CREDENTIAL_ID) return Promise.resolve(mockCredentialId);
         if (key === PASSKEY_KEYS.USER_HANDLE) return Promise.resolve(mockUserHandle);
-        if (key === SECURE_KEYS.MNEMONIC) return Promise.resolve(mockMnemonic);
         if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve('invalid');
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
         return Promise.resolve(null);
       });
 
@@ -410,15 +433,18 @@ describe('Passkey PIN Change', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
-        mockNewEncrypted
+        mockNewEncrypted,
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTION_IV,
-        mockNewIv
+        mockNewIv,
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTION_TAG,
-        mockNewTag
+        mockNewTag,
+        DEVICE_ONLY
       );
     });
 
@@ -432,6 +458,9 @@ describe('Passkey PIN Change', () => {
         credentialId: mockCredentialId,
         userHandle: mockUserHandle,
         pinSalt: mockNewPinSalt,
+        pepper: mockPepper,
+        prfEnabled: false,
+        derivationVersion: '4',
       });
     });
 

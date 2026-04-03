@@ -9,11 +9,13 @@
  * calling the mint. On recovery, we can restore the change proofs.
  */
 
+import { Buffer } from 'buffer';
+import * as crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
-import { CashuProof, BlindingData } from './crypto';
-import * as crypto from 'expo-crypto';
-import { Buffer } from 'buffer';
+import { DEVICE_ONLY } from '../storagePolicy';
+import { getCurrentCashuAccount,withProofLock } from './cashuProofManager';
+import { BlindingData,CashuProof } from './crypto';
 
 const PENDING_SWAP_KEY = 'cashu_pending_swap';
 
@@ -45,12 +47,15 @@ export interface PendingSwapTransaction {
 
   // Status tracking
   status: 'pending' | 'swapped' | 'completed' | 'failed';
+  taprootAddress?: string | null;
 }
 
 /**
  * Save a pending swap transaction before calling the mint
  */
-export const savePendingSwap = async (txn: Omit<PendingSwapTransaction, 'id' | 'timestamp' | 'status'>): Promise<string> => {
+export const savePendingSwap = async (
+  txn: Omit<PendingSwapTransaction, 'id' | 'timestamp' | 'status' | 'taprootAddress'>
+): Promise<string> => {
   const random = Buffer.from(crypto.getRandomBytes(8)).toString('hex');
   const id = `swap_${Date.now()}_${random}`;
   const pendingTxn: PendingSwapTransaction = {
@@ -58,10 +63,11 @@ export const savePendingSwap = async (txn: Omit<PendingSwapTransaction, 'id' | '
     id,
     timestamp: Date.now(),
     status: 'pending',
+    taprootAddress: getCurrentCashuAccount(),
   };
 
   try {
-    await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(pendingTxn));
+    await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(pendingTxn), DEVICE_ONLY);
     logger.info('[SwapRecovery] Saved pending swap transaction', {
       id,
       inputCount: txn.inputProofs.length,
@@ -90,10 +96,19 @@ export const updateSwapWithResponse = async (
     }
 
     const txn: PendingSwapTransaction = JSON.parse(stored);
+    const currentAccount = getCurrentCashuAccount();
+
+    if (txn.taprootAddress && currentAccount && txn.taprootAddress !== currentAccount) {
+      logger.info('[SwapRecovery] Pending swap belongs to a different account, ignoring', {
+        pendingAccount: txn.taprootAddress,
+        currentAccount,
+      });
+      return;
+    }
     txn.swapResponse = swapResponse;
     txn.status = 'swapped';
 
-    await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(txn));
+    await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(txn), DEVICE_ONLY);
     logger.info('[SwapRecovery] Updated swap with mint response', {
       id: txn.id,
       signatureCount: swapResponse?.signatures?.length,
@@ -245,25 +260,32 @@ export const checkAndRecoverSwaps = async (): Promise<void> => {
 
     if (recovery && recovery.recovered) {
       // Import proof manager to save recovered proofs
-      const { addProofs, loadProofs } = await import('./cashuProofManager');
+      const { loadProofs } = await import('./cashuProofManager');
 
-      // Check if change proofs already exist (avoid duplicates)
-      const existingProofs = await loadProofs();
-      const existingSecrets = new Set(existingProofs.map(p => p.secret));
+      // Wrap the entire read-check-write in the proof lock to prevent race conditions
+      // with concurrent proof operations (e.g., a send or receive in progress)
+      await withProofLock(async () => {
+        // Check if change proofs already exist (avoid duplicates)
+        const existingProofs = await loadProofs();
+        const existingSecrets = new Set(existingProofs.map(p => p.secret));
 
-      const newChangeProofs = recovery.changeProofs.filter(
-        p => !existingSecrets.has(p.secret)
-      );
+        const newChangeProofs = recovery.changeProofs.filter(
+          p => !existingSecrets.has(p.secret)
+        );
 
-      if (newChangeProofs.length > 0) {
-        await addProofs(newChangeProofs);
-        logger.info('[SwapRecovery] Added recovered change proofs to wallet', {
-          count: newChangeProofs.length,
-          totalAmount: newChangeProofs.reduce((sum, p) => sum + p.amount, 0),
-        });
-      } else {
-        logger.info('[SwapRecovery] Change proofs already in wallet, skipping');
-      }
+        if (newChangeProofs.length > 0) {
+          // Use saveProofs directly to avoid double-locking through addProofs
+          const { saveProofs } = await import('./cashuProofManager');
+          const combined = [...existingProofs, ...newChangeProofs];
+          await saveProofs(combined);
+          logger.info('[SwapRecovery] Added recovered change proofs to wallet', {
+            count: newChangeProofs.length,
+            totalAmount: newChangeProofs.reduce((sum, p) => sum + p.amount, 0),
+          });
+        } else {
+          logger.info('[SwapRecovery] Change proofs already in wallet, skipping');
+        }
+      });
 
       // Clear the pending swap now that recovery is complete
       await clearPendingSwap();

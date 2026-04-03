@@ -235,6 +235,14 @@ async function fetchInputTransactions(selectedUtxos: UTXO[]): Promise<UtxoWithTx
         );
       }
 
+      const actualValue = Number(tx.outs[utxo.vout].value);
+      if (actualValue !== utxo.value) {
+        throw new Error(
+          `SECURITY: UTXO value mismatch for ${utxo.txid}:${utxo.vout} - ` +
+            `expected ${utxo.value} sats but transaction has ${actualValue} sats`
+        );
+      }
+
       return {
         ...utxo,
         txHex,

@@ -3,22 +3,20 @@
  * Shows recipient, amount, UTXOs, change, network, and fees
  */
 
-import React, { useEffect } from 'react';
-import { Text, View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { NavigationProp, RouteProp, CommonActions, useIsFocused } from '@react-navigation/native';
-import { COLORS } from '../../theme';
-import Icon from '../../components/icons';
+import { CommonActions,NavigationProp,RouteProp,useIsFocused } from '@react-navigation/native';
+import React,{ useEffect } from 'react';
+import { ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
-import { useReviewScreenData } from '../../hooks/useReviewScreenData';
-import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
-import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
-import { useSendFlowStore } from '../../stores/sendFlowStore';
-import TransactionSummary from '../../components/review/TransactionSummary';
+import Icon from '../../components/icons';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import { InputOutputList } from '../../components/review/InputOutputList';
+import TransactionSummary from '../../components/review/TransactionSummary';
 import UnconfirmedWarning from '../../components/review/UnconfirmedWarning';
-import TurboWarning from '../../components/review/TurboWarning';
+import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useResponsive } from '../../hooks/useResponsive';
+import { useReviewScreenData } from '../../hooks/useReviewScreenData';
+import { useSendFlowStore } from '../../stores/sendFlowStore';
+import { COLORS } from '../../theme';
 
 /**
  * Route parameters for ReviewScreen
@@ -43,8 +41,6 @@ interface ReviewScreenProps {
 export default function ReviewScreen({ navigation, route }: ReviewScreenProps): React.JSX.Element | null {
   const { s, sf } = useResponsive();
   const isTurbo = route?.params?.isTurbo === true;
-  const { settingsHandlers } = useSettingsHandlers();
-  const advancedMode = settingsHandlers?.advancedMode || false;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
   const turboRecipient = route?.params?.turboRecipient;

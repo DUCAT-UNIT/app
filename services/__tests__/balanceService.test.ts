@@ -109,6 +109,27 @@ describe('balanceService', () => {
       });
     });
 
+    it('should return default zeros if the overall fetch times out', async () => {
+      jest.useFakeTimers();
+      const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
+      const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
+
+      fetchParallel.mockReturnValueOnce(new Promise(() => {}));
+
+      const resultPromise = fetchWalletBalances(segwitAddress, taprootAddress);
+
+      jest.advanceTimersByTime(30000);
+      await Promise.resolve();
+
+      await expect(resultPromise).resolves.toEqual({
+        segwitBalance: 0,
+        taprootBalance: 0,
+        runesBalance: [],
+      });
+
+      jest.useRealTimers();
+    });
+
     it('should convert satoshis to BTC correctly', async () => {
       const segwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
       const taprootAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';

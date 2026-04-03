@@ -16,6 +16,10 @@ import { fetchPriceQuote } from '../oracleService';
 import { withGuardianTimeout } from '../guardianService';
 import { generateVaultName } from '../../utils/vaultUtils';
 import { checkBatchAllowed, extractOpReturnFromTxHex, Utxo } from './utils';
+import {
+  clearPendingVaultSigningOperation,
+  setPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
 
 export interface CreateVaultReqOptions {
   feeRate: number;
@@ -124,8 +128,17 @@ export async function createVaultReqOpen(
     // Check if batch signing is allowed (native segwit addresses)
     const isBatch = checkBatchAllowed(wallet);
 
-    // Create the vault request
-    const vaultReq = await wallet.vault.open.req(vaultCtx, utxos, isBatch);
+    let vaultReq: WalletVaultOpenRequest;
+    setPendingVaultSigningOperation({
+      action: 'open',
+      ctx: vaultCtx,
+      satsUtxos: utxos,
+    });
+    try {
+      vaultReq = await wallet.vault.open.req(vaultCtx, utxos, isBatch);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     // Log the vault request details for debugging
     logger.debug('[VaultOps] Vault request created');
@@ -246,24 +259,9 @@ export async function guardianSendReqOpen(
 ): Promise<string> {
   logger.debug('[VaultOps] Submitting vault request to guardian...');
 
-  // Log the full request being sent (as JSON for easy copy-paste)
-  logger.debug('[VaultOps] === FULL VAULT REQUEST (JSON) ===');
-  try {
-    // Log full request as JSON (may be large)
-    const requestJson = JSON.stringify(vaultReq, null, 2);
-    // Split into chunks if too large for single log
-    const chunkSize = 4000;
-    for (let i = 0; i < requestJson.length; i += chunkSize) {
-      logger.debug(`[VaultOps] Request JSON chunk ${Math.floor(i / chunkSize) + 1}:`, requestJson.substring(i, i + chunkSize));
-    }
-  } catch (e) {
-    logger.debug('[VaultOps] Could not stringify full request');
-  }
-  logger.debug('[VaultOps] === KEY FIELDS ===');
   logger.debug('[VaultOps] issue_txid:', vaultReq.issue_txid);
   logger.debug('[VaultOps] vault_txid:', vaultReq.vault_txid);
   logger.debug('[VaultOps] sats_inputs count:', vaultReq.sats_inputs?.length);
-  logger.debug('[VaultOps] === END VAULT REQUEST ===');
 
   try {
     const guardSub = await gclient.req.vault.open(vaultReq);

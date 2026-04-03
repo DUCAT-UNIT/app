@@ -112,10 +112,16 @@ export function encodeRunestone(config) {
   // Build the complete script:
   // OP_RETURN (0x6a) + OP_13 (0x5d) + push payload with correct opcode
   let pushOpcode;
-  if (payloadBuffer.length <= 75) {
-    pushOpcode = Buffer.from([payloadBuffer.length]);
-  } else if (payloadBuffer.length <= 0xff) {
-    pushOpcode = Buffer.from([0x4c, payloadBuffer.length]); // OP_PUSHDATA1
+  const payloadLength = payloadBuffer.length;
+  if (payloadLength <= 75) {
+    pushOpcode = Buffer.from([payloadLength]);
+  } else if (payloadLength <= 0xff) {
+    pushOpcode = Buffer.from([0x4c, payloadLength]); // OP_PUSHDATA1
+  } else if (payloadLength <= 0xffff) {
+    // OP_PUSHDATA2 (0x4d) + 2-byte little-endian length
+    pushOpcode = Buffer.alloc(3);
+    pushOpcode[0] = 0x4d;
+    pushOpcode.writeUInt16LE(payloadLength, 1);
   } else {
     throw new Error('Runestone payload too large');
   }

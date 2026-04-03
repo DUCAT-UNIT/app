@@ -5,29 +5,29 @@
  * Uses the unified base hook with deposit-specific configuration.
  */
 
+import type {
+GuardianSocket,
+WalletVaultDepositConfig,
+WalletVaultDepositRequest,
+} from '@ducat-unit/client-sdk';
 import { useMemo } from 'react';
-import { useDepositStore } from '../../stores/depositStore';
 import {
-  createDepositConfig,
-  createVaultReqDeposit,
-  guardianSendReqDeposit,
+createDepositConfig,
+createVaultReqDeposit,
+guardianSendReqDeposit,
 } from '../../services/vaultOperationsService';
+import type { DepositProcessingStep,DepositStep } from '../../stores/depositStore';
+import { useDepositStore } from '../../stores/depositStore';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { useVaultOperation } from './useVaultOperation';
 import type {
-  VaultOperationConfig,
-  VaultStore,
-  VaultValidationParams,
-  VaultRequestParams,
-  LiquidationPriceParams,
-  PendingTransactionParams,
+LiquidationPriceParams,
+PendingTransactionParams,
+VaultOperationConfig,
+VaultRequestParams,
+VaultStore,
+VaultValidationParams,
 } from './vaultOperationTypes';
-import type {
-  GuardianSocket,
-  WalletVaultDepositConfig,
-  WalletVaultDepositRequest,
-} from '@ducat-unit/client-sdk';
-import type { DepositStep, DepositProcessingStep } from '../../stores/depositStore';
 
 // Type aliases for readability
 type DepositConfig = WalletVaultDepositConfig;
@@ -88,7 +88,7 @@ function useDepositStoreAdapter(): VaultStore {
  * Validate deposit operation
  */
 function validateDeposit(params: VaultValidationParams): string | null {
-  const { wallet, btcPrice, amount, currentBtcLocked } = params;
+  const { wallet, btcPrice, amount } = params;
 
   if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return 'Wallet not connected';

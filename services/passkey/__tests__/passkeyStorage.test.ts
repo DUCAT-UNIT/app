@@ -3,9 +3,9 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../../../utils/constants';
 import { logger } from '../../../utils/logger';
 import { saveToICloud, loadFromICloud } from '../../icloudStorage';
+import { saveCurrentAccount, saveMnemonic } from '../../secureStorageService';
 
 /**
  * Interface for error objects with optional code and name
@@ -20,12 +20,18 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
   getItemAsync: jest.fn(),
   deleteItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 // Mock icloudStorage
 jest.mock('../../icloudStorage', () => ({
   saveToICloud: jest.fn(),
   loadFromICloud: jest.fn(),
+}));
+
+jest.mock('../../secureStorageService', () => ({
+  saveMnemonic: jest.fn(),
+  saveCurrentAccount: jest.fn(),
 }));
 
 // Mock logger
@@ -46,9 +52,13 @@ import {
   setCurrentAccount,
 } from '../passkeyStorage';
 
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+
 describe('Passkey Storage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (saveMnemonic as jest.Mock).mockResolvedValue(undefined);
+    (saveCurrentAccount as jest.Mock).mockResolvedValue(true);
   });
 
   describe('storePasskeyData', () => {
@@ -69,27 +79,33 @@ describe('Passkey Storage', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENABLED,
-        'true'
+        'true',
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.CREDENTIAL_ID,
-        Buffer.from(mockCredentialId).toString('base64')
+        Buffer.from(mockCredentialId).toString('base64'),
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.USER_HANDLE,
-        Buffer.from(mockUserHandle).toString('base64')
+        Buffer.from(mockUserHandle).toString('base64'),
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
-        mockEncrypted
+        mockEncrypted,
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTION_IV,
-        mockIv
+        mockIv,
+        DEVICE_ONLY
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.ENCRYPTION_TAG,
-        mockTag
+        mockTag,
+        DEVICE_ONLY
       );
     });
 
@@ -105,7 +121,8 @@ describe('Passkey Storage', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         PASSKEY_KEYS.CREATION_METHOD,
-        'passkey'
+        'passkey',
+        DEVICE_ONLY
       );
     });
 
@@ -238,10 +255,7 @@ describe('Passkey Storage', () => {
 
       await storeStandardMnemonic(mnemonic);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        SECURE_KEYS.MNEMONIC,
-        mnemonic
-      );
+      expect(saveMnemonic).toHaveBeenCalledWith(mnemonic);
     });
   });
 
@@ -249,28 +263,25 @@ describe('Passkey Storage', () => {
     it('should store account index as string', async () => {
       await setCurrentAccount(5);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        SECURE_KEYS.CURRENT_ACCOUNT,
-        '5'
-      );
+      expect(saveCurrentAccount).toHaveBeenCalledWith(5);
     });
 
     it('should default to account 0', async () => {
       await setCurrentAccount();
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        SECURE_KEYS.CURRENT_ACCOUNT,
-        '0'
-      );
+      expect(saveCurrentAccount).toHaveBeenCalledWith(0);
     });
 
     it('should handle account index 0 explicitly', async () => {
       await setCurrentAccount(0);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        SECURE_KEYS.CURRENT_ACCOUNT,
-        '0'
-      );
+      expect(saveCurrentAccount).toHaveBeenCalledWith(0);
+    });
+
+    it('should throw when secure account storage fails', async () => {
+      (saveCurrentAccount as jest.Mock).mockResolvedValue(false);
+
+      await expect(setCurrentAccount(1)).rejects.toThrow('Failed to save current account securely');
     });
   });
 });

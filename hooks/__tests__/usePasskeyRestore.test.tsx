@@ -6,8 +6,6 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import * as PasskeyService from '../../services/passkey';
 import { usePasskeyRestore } from '../usePasskeyRestore';
-import { savePin } from '../../services/pinService';
-import { saveMnemonic, saveCurrentAccount } from '../../services/secureStorageService';
 import { notify } from '../../utils/notify';
 import type { WalletAddresses } from '../../contexts/WalletContext';
 
@@ -34,16 +32,6 @@ function renderHook<T>(hook: () => T) {
 // Mock PasskeyService
 jest.mock('../../services/passkey');
 
-// Mock pinService and secureStorageService
-jest.mock('../../services/pinService', () => ({
-  savePin: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.mock('../../services/secureStorageService', () => ({
-  saveMnemonic: jest.fn().mockResolvedValue(undefined),
-  saveCurrentAccount: jest.fn().mockResolvedValue(undefined),
-}));
-
 describe('usePasskeyRestore', () => {
   let mockProps: {
     setIsAuthenticated: jest.Mock;
@@ -67,9 +55,6 @@ describe('usePasskeyRestore', () => {
       mnemonic: 'test mnemonic phrase',
       addresses: { segwit: 'bc1q...', taproot: 'bc1p...' },
     });
-    (savePin as jest.Mock).mockResolvedValue(undefined);
-    (saveMnemonic as jest.Mock).mockResolvedValue(undefined);
-    (saveCurrentAccount as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('Initialization', () => {
@@ -349,14 +334,12 @@ describe('usePasskeyRestore', () => {
 
   describe('restoreWalletWithPasskey - Success Path', () => {
     it('should successfully restore wallet with passkey and valid PIN', async () => {
-      const mockMnemonic = 'test mnemonic phrase with twelve words for wallet recovery success';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 
@@ -368,15 +351,6 @@ describe('usePasskeyRestore', () => {
 
       // Should call recovery service
       expect(PasskeyService.recoverWithPasskey).toHaveBeenCalledWith('123456');
-
-      // Should save mnemonic
-      expect(saveMnemonic).toHaveBeenCalledWith(mockMnemonic);
-
-      // Should save account
-      expect(saveCurrentAccount).toHaveBeenCalledWith(0);
-
-      // Should save PIN
-      expect(savePin).toHaveBeenCalledWith('123456');
 
       // Should set wallet addresses
       expect(mockProps.setWalletAddresses).toHaveBeenCalledWith(mockAddresses, 0);
@@ -396,14 +370,12 @@ describe('usePasskeyRestore', () => {
     });
 
     it('should set isRestoring to false after successful restoration', async () => {
-      const mockMnemonic = 'test mnemonic phrase';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 
@@ -417,14 +389,12 @@ describe('usePasskeyRestore', () => {
     });
 
     it('should handle restoration with different PIN formats', async () => {
-      const mockMnemonic = 'test mnemonic phrase';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 
@@ -435,20 +405,18 @@ describe('usePasskeyRestore', () => {
         await result.current!.restoreWalletWithPasskey('000000');
       });
 
-      expect(savePin).toHaveBeenCalledWith('000000');
+      expect(PasskeyService.recoverWithPasskey).toHaveBeenCalledWith('000000');
     });
   });
 
   describe('restoreWalletWithPasskey - State Management', () => {
     it('should hide PIN input immediately after successful restore', async () => {
-      const mockMnemonic = 'test mnemonic phrase';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 
@@ -470,14 +438,12 @@ describe('usePasskeyRestore', () => {
     });
 
     it('should clear restore PIN after successful restore', async () => {
-      const mockMnemonic = 'test mnemonic phrase';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 
@@ -499,14 +465,12 @@ describe('usePasskeyRestore', () => {
     });
 
     it('should set restoringWithPasskey to false after successful restore', async () => {
-      const mockMnemonic = 'test mnemonic phrase';
       const mockAddresses = {
         segwitAddress: 'bc1qtest',
         taprootAddress: 'bc1ptest',
       };
 
       (PasskeyService.recoverWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: mockMnemonic,
         addresses: mockAddresses,
       });
 

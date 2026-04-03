@@ -3,21 +3,21 @@
  * Features: Summary display, biometric authentication before signing
  */
 
-import React, { useCallback, useState, useMemo } from 'react';
-import { Text, View, ScrollView, StyleSheet, Alert, TouchableOpacity } from 'react-native';
-import { NavigationProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { Ionicons } from '@expo/vector-icons';
+import { NavigationProp } from '@react-navigation/native';
+import * as LocalAuthentication from 'expo-local-authentication';
+import React,{ useCallback,useMemo,useState } from 'react';
+import { Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
-import { useVaultCreationStore } from '../../stores/vaultCreationStore';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { useCreateVault } from '../../hooks/useCreateVault';
 import { usePrice } from '../../stores/priceStore';
-import { useBalance } from '../../contexts/WalletDataContext';
+import { useVaultCreationStore } from '../../stores/vaultCreationStore';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
 import { getOpCostOpen } from '../../utils/vaultUtils';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 interface VaultConfirmScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -90,9 +90,15 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       if (txid) {
         setCurrentStep('success');
         navigation.navigate('VaultSuccess', { txid });
+      } else {
+        setCurrentStep('confirm');
+        navigation.goBack();
+        Alert.alert('Error', 'Failed to create vault. Please try again.');
       }
     } catch (err) {
       setIsAuthenticating(false);
+      setCurrentStep('confirm');
+      if (navigation.canGoBack()) navigation.goBack();
       Alert.alert('Error', 'Failed to create vault. Please try again.');
     }
   }, [createVault, setCurrentStep, navigation]);
@@ -291,11 +297,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
-  },
-  value: {
-    fontSize: fontSizes.md,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
   },
   valueHighlight: {
     fontSize: fontSizes.md,

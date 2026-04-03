@@ -372,6 +372,38 @@ describe('useTransactionBuilder', () => {
       mockProps.sendAssetType = 'unit';
     });
 
+    it('should create a fake UNIT intent in E2E bypass mode', async () => {
+      const originalBypass = process.env.EXPO_PUBLIC_E2E_BYPASS;
+      process.env.EXPO_PUBLIC_E2E_BYPASS = 'true';
+
+      try {
+        const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
+
+        await act(async () => {
+          await result.current!.createSendIntent();
+        });
+
+        expect(createUnitIntent).not.toHaveBeenCalled();
+        expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
+        expect(mockProps.markUtxosAsSpent).not.toHaveBeenCalled();
+        expect(mockProps.setSendIntent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            assetType: 'UNIT',
+            psbt: 'e2e-mock-psbt',
+            recipient: mockProps.sendRecipient,
+            sourceAddress: mockProps.wallet!.taprootAddress,
+            feeAddress: mockProps.wallet!.segwitAddress,
+          })
+        );
+      } finally {
+        if (originalBypass === undefined) {
+          delete process.env.EXPO_PUBLIC_E2E_BYPASS;
+        } else {
+          process.env.EXPO_PUBLIC_E2E_BYPASS = originalBypass;
+        }
+      }
+    });
+
     it('should create UNIT intent and set reviewing step', async () => {
       const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 

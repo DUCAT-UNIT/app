@@ -14,11 +14,15 @@ const mockSettingsHandlers = {
   handleDeleteWallet: jest.fn(),
 };
 
+const mockSettingsContext = {
+  settingsHandlers: mockSettingsHandlers,
+  biometricEnabled: true,
+  passkeyUpgradeRecommended: false,
+  triggerPasskeyUpgrade: jest.fn(),
+};
+
 jest.mock('../../../contexts/NavigationHandlersContext', () => ({
-  useSettingsHandlers: () => ({
-    settingsHandlers: mockSettingsHandlers,
-    biometricEnabled: true,
-  }),
+  useSettingsHandlers: () => mockSettingsContext,
 }));
 
 // Mock Icon component
@@ -52,6 +56,8 @@ describe('SecurityScreen', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSettingsContext.biometricEnabled = true;
+    mockSettingsContext.passkeyUpgradeRecommended = false;
   });
 
   describe('rendering', () => {
@@ -76,6 +82,7 @@ describe('SecurityScreen', () => {
       expect(getByTestId('security-biometric-btn')).toBeTruthy();
       expect(getByTestId('security-change-pin-btn')).toBeTruthy();
       expect(getByTestId('security-backup-btn')).toBeTruthy();
+      expect(() => getByTestId('security-passkey-upgrade-btn')).toThrow();
     });
 
     it('should render danger zone with delete wallet option', () => {
@@ -119,12 +126,21 @@ describe('SecurityScreen', () => {
       expect(mockSettingsHandlers.handleViewSeedPhrase).toHaveBeenCalledTimes(1);
     });
 
-    it('should call handleDeleteWallet when Delete Wallet is pressed', () => {
+    it('should call handleDeleteWallet when Delete Local Wallet is pressed', () => {
       const { getByTestId } = render(<SecurityScreen {...defaultProps} />);
 
       fireEvent.press(getByTestId('security-delete-btn'));
 
       expect(mockSettingsHandlers.handleDeleteWallet).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call triggerPasskeyUpgrade when upgrade option is pressed', () => {
+      mockSettingsContext.passkeyUpgradeRecommended = true;
+      const { getByTestId } = render(<SecurityScreen {...defaultProps} />);
+
+      fireEvent.press(getByTestId('security-passkey-upgrade-btn'));
+
+      expect(mockSettingsContext.triggerPasskeyUpgrade).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -165,7 +181,9 @@ describe('SecurityScreen', () => {
       const deleteBtn = getByTestId('security-delete-btn');
 
       expect(deleteBtn.props.accessibilityRole).toBe('button');
-      expect(deleteBtn.props.accessibilityHint).toBe('Warning: This is a destructive action');
+      expect(deleteBtn.props.accessibilityHint).toBe(
+        'Warning: Deletes wallet data from this device. Passkey backup is not removed.'
+      );
     });
   });
 
@@ -177,7 +195,16 @@ describe('SecurityScreen', () => {
       expect(getByTestId('security-biometric-btn').props.accessibilityLabel).toContain('Biometric Authentication');
       expect(getByTestId('security-change-pin-btn').props.accessibilityLabel).toBe('Change PIN');
       expect(getByTestId('security-backup-btn').props.accessibilityLabel).toBe('Backup Wallet');
-      expect(getByTestId('security-delete-btn').props.accessibilityLabel).toBe('Delete Wallet');
+      expect(getByTestId('security-delete-btn').props.accessibilityLabel).toBe('Delete Local Wallet');
+    });
+
+    it('should render the passkey upgrade option when recommended', () => {
+      mockSettingsContext.passkeyUpgradeRecommended = true;
+
+      const { getByTestId } = render(<SecurityScreen {...defaultProps} />);
+
+      expect(getByTestId('security-passkey-upgrade-btn').props.accessibilityLabel)
+        .toBe('Upgrade Passkey Security, currently RECOMMENDED');
     });
   });
 });

@@ -12,11 +12,8 @@
  * brittle and not valuable. This should be tested via integration/E2E tests.
  */
 
-import React, { createContext, useContext, useCallback, useMemo, useState, ReactNode, MutableRefObject } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useState, ReactNode, MutableRefObject } from 'react';
 import { Keyboard } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../utils/constants';
-import { resetOnboardingState } from '../utils/onboardingHelpers';
 import { useAuth } from './AuthContext';
 import { useWallet } from './WalletContext';
 import { useBalance, useTransactionHistory, useVaultData } from './WalletDataContext';
@@ -27,6 +24,10 @@ import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
+import { setBiometricEnabled as persistBiometricEnabled } from '../services/biometricService';
+import { isPasskeyUpgradeRecommended } from '../services/passkey';
+import { setBoolean, SettingKeys } from '../services/settingsService';
+import { logger } from '../utils/logger';
 
 interface SettingsHandlers {
   notificationsEnabled: boolean;
@@ -48,8 +49,8 @@ interface SettingsHandlers {
 }
 
 interface PasskeyMigrationData {
-  mnemonic: string;
-  pin: string;
+  currentPin?: string | null;
+  mode: 'import' | 'upgrade';
 }
 
 // --- Sub-context value interfaces ---
@@ -57,6 +58,8 @@ interface PasskeyMigrationData {
 export interface SettingsContextValue {
   settingsHandlers: SettingsHandlers;
   biometricEnabled: boolean;
+  passkeyUpgradeRecommended: boolean;
+  triggerPasskeyUpgrade: () => void;
   showLogoutModal: boolean;
   showDeleteModal: boolean;
   showFaceIdModal: boolean;
@@ -88,8 +91,10 @@ export interface AuthFlowContextValue {
   resetWalletAndState: () => Promise<void>;
   showPasskeyMigrationModal: boolean;
   passkeyMigrationData: PasskeyMigrationData | null;
-  showPasskeyMigrationPrompt: (mnemonic: string, pin: string) => void;
+  showPasskeyMigrationPrompt: (currentPin: string) => void;
+  showPasskeyUpgradePrompt: () => void;
   hidePasskeyMigrationPrompt: () => void;
+  handlePasskeyUpgradeComplete: () => void;
   showBiometricSetupModal: boolean;
   showBiometricSetupPrompt: () => void;
   hideBiometricSetupPrompt: () => void;
@@ -116,6 +121,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setIsAuthenticated,
     setBiometricEnabled,
     biometricEnabled,
+    passkeyEnabled,
     setSettingUpPin,
     setChangingPin,
     changingPin,
@@ -130,7 +136,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const { fetchTransactionHistory, resetTransactionHistory } = useTransactionHistory();
   const { fetchVault, resetVaultData } = useVaultData();
   const { resetAndRefresh: resetAndRefreshCashu } = useCashuOperations();
-  const { setSeedConfirmed } = useOnboardingFlow();
+  const { setSeedConfirmed, resetWalletAndState: onboardingResetWalletAndState } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
   const { showSnackbar } = useNotifications();
 
@@ -151,6 +157,40 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
   const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(null);
   const [showBiometricSetupModal, setShowBiometricSetupModal] = useState(false);
+  const [passkeyUpgradeRecommended, setPasskeyUpgradeRecommended] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!passkeyEnabled) {
+      setPasskeyUpgradeRecommended(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadPasskeyUpgradeRecommendation = async () => {
+      try {
+        const recommended = await isPasskeyUpgradeRecommended();
+        if (!cancelled) {
+          setPasskeyUpgradeRecommended(recommended);
+        }
+      } catch (error: unknown) {
+        logger.warn('[NavigationHandlersContext] Failed to check passkey upgrade recommendation', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!cancelled) {
+          setPasskeyUpgradeRecommended(false);
+        }
+      }
+    };
+
+    loadPasskeyUpgradeRecommendation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [passkeyEnabled]);
 
   // Lock app handler - dismisses modals, keyboard, and locks the app
   const handleLockApp = useCallback(() => {
@@ -231,15 +271,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     showToast: (message: string, type: 'success' | 'error') => showSnackbar({ title: message, type }),
   });
 
-  // Reset wallet and state
-  const resetWalletAndState = useCallback(async () => {
-    await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
-    await SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
-    await resetOnboardingState();
-    resetWallet();
-    setSeedConfirmed(false);
-  }, [resetWallet, setSeedConfirmed]);
-
   // PIN setup complete wrapper
   const handlePinSetupCompleteWrapper = useCallback(async () => {
     await handlePinSetupComplete();
@@ -261,19 +292,28 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const handleCancelPinChange = useCallback(async () => {
     setSettingUpPin(false);
     setChangingPin(false);
-    await SecureStore.setItemAsync('returnToSettingsAfterPinChange', 'true');
+    await setBoolean(SettingKeys.RETURN_TO_SETTINGS_AFTER_PIN_CHANGE, true);
     setIsAuthenticated(true);
   }, [setSettingUpPin, setChangingPin, setIsAuthenticated]);
 
   // Passkey migration handlers
-  const showPasskeyMigrationPrompt = useCallback((mnemonic: string, pin: string) => {
-    setPasskeyMigrationData({ mnemonic, pin });
+  const showPasskeyMigrationPrompt = useCallback((currentPin: string) => {
+    setPasskeyMigrationData({ currentPin, mode: 'import' });
+    setShowPasskeyMigrationModal(true);
+  }, []);
+
+  const showPasskeyUpgradePrompt = useCallback(() => {
+    setPasskeyMigrationData({ mode: 'upgrade' });
     setShowPasskeyMigrationModal(true);
   }, []);
 
   const hidePasskeyMigrationPrompt = useCallback(() => {
     setShowPasskeyMigrationModal(false);
     setPasskeyMigrationData(null);
+  }, []);
+
+  const handlePasskeyUpgradeComplete = useCallback(() => {
+    setPasskeyUpgradeRecommended(false);
   }, []);
 
   // Biometric setup handlers (for passkey wallet creation)
@@ -287,8 +327,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
 
   const handleBiometricSetupEnable = useCallback(async () => {
     try {
-      // Save the preference to SecureStore
-      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+      await persistBiometricEnabled(true);
       // Update auth context state
       setBiometricEnabled(true);
 
@@ -312,8 +351,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setShowBiometricSetupModal(false);
     // Update auth context state
     setBiometricEnabled(false);
-    // Save the preference to SecureStore
-    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    await persistBiometricEnabled(false);
   }, [setBiometricEnabled]);
 
   // Settings handlers object - memoized to prevent recreation on every render
@@ -362,6 +400,8 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     (): SettingsContextValue => ({
       settingsHandlers: settingsHandlersObj,
       biometricEnabled,
+      passkeyUpgradeRecommended,
+      triggerPasskeyUpgrade: showPasskeyUpgradePrompt,
       showLogoutModal,
       showDeleteModal,
       showFaceIdModal,
@@ -378,6 +418,8 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     [
       settingsHandlersObj,
       biometricEnabled,
+      passkeyUpgradeRecommended,
+      showPasskeyUpgradePrompt,
       showLogoutModal,
       showDeleteModal,
       showFaceIdModal,
@@ -418,11 +460,13 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       handlePinChangeCompleteWrapper,
       handleCancelPinChange,
       handleLockScreenAuthenticatedWrapper: handlePostAuth,
-      resetWalletAndState,
+      resetWalletAndState: onboardingResetWalletAndState,
       showPasskeyMigrationModal,
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
+      showPasskeyUpgradePrompt,
       hidePasskeyMigrationPrompt,
+      handlePasskeyUpgradeComplete,
       showBiometricSetupModal,
       showBiometricSetupPrompt,
       hideBiometricSetupPrompt,
@@ -434,11 +478,13 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       handlePinChangeCompleteWrapper,
       handleCancelPinChange,
       handlePostAuth,
-      resetWalletAndState,
+      onboardingResetWalletAndState,
       showPasskeyMigrationModal,
       passkeyMigrationData,
       showPasskeyMigrationPrompt,
+      showPasskeyUpgradePrompt,
       hidePasskeyMigrationPrompt,
+      handlePasskeyUpgradeComplete,
       showBiometricSetupModal,
       showBiometricSetupPrompt,
       hideBiometricSetupPrompt,

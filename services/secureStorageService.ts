@@ -4,85 +4,22 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { DEVICE_ONLY, clearPreferenceItems } from './storagePolicy';
+import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
 
-/**
- * Attempt to securely clear a string from memory (BEST EFFORT ONLY)
- *
- * SECURITY NOTE: This function provides LIMITED security guarantees
- * ============================================================
- *
- * JavaScript's memory model does NOT support secure memory wiping:
- *
- * 1. STRING IMMUTABILITY: JavaScript strings are immutable. Any operation
- *    creates NEW string objects in memory, leaving the original intact until
- *    garbage collected. This function cannot overwrite the original string.
- *
- * 2. GARBAGE COLLECTOR: JavaScript's GC is non-deterministic. Old string
- *    references may persist in memory for seconds, minutes, or longer.
- *    We have no control over when (or if) memory is actually freed.
- *
- * 3. JIT COMPILER: V8/Hermes JIT may create multiple copies of strings
- *    during optimization. These copies are invisible to JavaScript and
- *    cannot be wiped by this function.
- *
- * 4. MEMORY FRAGMENTATION: Even after GC, sensitive data may remain in
- *    freed memory pages until overwritten by other allocations.
- *
- * 5. SWAP/HIBERNATION: On mobile devices, memory may be paged to disk
- *    during low memory conditions, persisting sensitive data to storage.
- *
- * 6. CRASH DUMPS: Core dumps or crash reports may capture memory contents
- *    including sensitive data, even after this "wiping" attempt.
- *
- * ACTUAL SECURITY MEASURES:
- * ========================
- *
- * PRIMARY DEFENSE: **Minimize mnemonic lifetime** using the withMnemonic()
- * pattern. Keep sensitive data in memory for <100ms instead of seconds/minutes.
- *
- * SECONDARY DEFENSE: This function attempts to create garbage to increase
- * likelihood of memory overwriting, but provides NO GUARANTEES.
- *
- * TERTIARY DEFENSE: Device-level encryption (iOS/Android full-disk encryption)
- * protects memory dumps and swap files at rest.
- *
- * RECOMMENDATION FOR MAINNET: Consider implementing a native module using:
- * - iOS: SecureEnclave + sodium_memzero() from libsodium
- * - Android: KeyStore + sodium_memzero() from libsodium
- *
- * These provide hardware-backed secure memory with guaranteed wiping.
- *
- * @param str - String to attempt wiping (will NOT be modified due to immutability)
- * @returns A new string filled with random data (original string persists in memory)
- */
-const securelyWipeString = (str: string | null): string => {
-  if (!str || typeof str !== 'string') return '';
+let sessionMnemonic: string | null = null;
 
-  // Create a new string filled with zeros
-  let cleared = '';
-  for (let i = 0; i < str.length; i++) {
-    cleared += '\0';
-  }
-
-  // Generate cryptographically secure random bytes for overwriting
-  // Using expo-crypto for secure random generation
-  const randomBytes = Crypto.getRandomBytes(str.length * 3);
-
-  // Overwrite multiple times with secure random data
-  for (let pass = 0; pass < 3; pass++) {
-    for (let i = 0; i < str.length; i++) {
-      cleared =
-        cleared.substring(0, i) +
-        String.fromCharCode(randomBytes[pass * str.length + i]) +
-        cleared.substring(i + 1);
-    }
-  }
-
-  return cleared;
+export const cacheSessionMnemonic = (mnemonic: string): void => {
+  sessionMnemonic = mnemonic;
 };
+
+export const clearSessionMnemonic = (): void => {
+  sessionMnemonic = null;
+};
+
+export const hasSessionMnemonic = (): boolean => sessionMnemonic !== null;
 
 /**
  * Save mnemonic to secure storage
@@ -91,9 +28,8 @@ const securelyWipeString = (str: string | null): string => {
  */
 export const saveMnemonic = async (mnemonic: string): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic, {
-      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-    });
+    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic, DEVICE_ONLY);
+    cacheSessionMnemonic(mnemonic);
   } catch (error: unknown) {
     logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to save wallet securely');
@@ -107,6 +43,9 @@ export const saveMnemonic = async (mnemonic: string): Promise<void> => {
  */
 export const getMnemonic = async (): Promise<string | null> => {
   try {
+    if (sessionMnemonic) {
+      return sessionMnemonic;
+    }
     return await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
   } catch (error: unknown) {
     logger.error('Failed to get mnemonic', { error: error instanceof Error ? error.message : String(error) });
@@ -125,15 +64,21 @@ export const withMnemonic = async <T>(callback: (mnemonic: string) => Promise<T>
   try {
     mnemonic = await getMnemonic();
     if (!mnemonic) {
+      const [creationMethod, passkeyEnabled] = await Promise.all([
+        SecureStore.getItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
+        SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
+      ]);
+      if (creationMethod === 'passkey' && passkeyEnabled === 'true') {
+        throw new Error('Passkey wallet is locked. Unlock with your PIN to re-establish the secure session.');
+      }
       throw new Error('Mnemonic not found');
     }
     return await callback(mnemonic);
   } finally {
-    // Best effort to clear from memory
-    if (mnemonic) {
-      mnemonic = securelyWipeString(mnemonic);
-      mnemonic = null;
-    }
+    // Nulling a local variable doesn't wipe the string the caller received --
+    // JS strings are immutable and GC-managed. This just drops *our* reference
+    // to minimize the number of live references to the mnemonic.
+    mnemonic = null;
   }
 };
 
@@ -144,6 +89,7 @@ export const withMnemonic = async <T>(callback: (mnemonic: string) => Promise<T>
 export const deleteMnemonic = async (): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
+    clearSessionMnemonic();
   } catch (error: unknown) {
     logger.error('Failed to delete mnemonic', { error: error instanceof Error ? error.message : String(error) });
     throw new Error('Failed to delete wallet securely');
@@ -157,7 +103,7 @@ export const deleteMnemonic = async (): Promise<void> => {
  */
 export const saveCurrentAccount = async (accountIndex: number): Promise<boolean> => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
+    await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString(), DEVICE_ONLY);
     return true;
   } catch (error: unknown) {
     logger.error('Failed to save current account', { error: error instanceof Error ? error.message : String(error) });
@@ -205,7 +151,7 @@ export const saveCachedAddresses = async (
 ): Promise<boolean> => {
   try {
     const cached: CachedAddresses = { version: 2, accountIndex, addresses };
-    await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached));
+    await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached), DEVICE_ONLY);
     return true;
   } catch (error: unknown) {
     logger.error('Failed to save cached addresses', { error: error instanceof Error ? error.message : String(error) });
@@ -279,14 +225,16 @@ export const deleteCachedAddresses = async (): Promise<boolean> => {
  * Multi-account cache format
  * Stores addresses for multiple accounts to enable fast account switching
  */
+interface AccountAddresses {
+  segwitAddress: string;
+  taprootAddress: string;
+  segwitPubkey: string;
+  taprootPubkey: string;
+}
+
 interface MultiAccountCache {
   __version?: number;
-  [accountIndex: string]: {
-    segwitAddress: string;
-    taprootAddress: string;
-    segwitPubkey: string;
-    taprootPubkey: string;
-  };
+  [accountIndex: string]: AccountAddresses | number | undefined;
 }
 
 // In-memory cache for even faster lookups (avoids async storage read)
@@ -307,7 +255,7 @@ export const getMultiAccountCache = async (
   try {
     // Check in-memory cache first (instant)
     if (memoryCache && memoryCache[accountIndex.toString()]) {
-      return memoryCache[accountIndex.toString()];
+      return memoryCache[accountIndex.toString()] as AccountAddresses;
     }
 
     // Fall back to secure storage
@@ -339,7 +287,7 @@ export const getMultiAccountCache = async (
     // Populate memory cache
     memoryCache = parsed;
 
-    return parsed[accountIndex.toString()] || null;
+    return (parsed[accountIndex.toString()] as AccountAddresses) || null;
   } catch (error: unknown) {
     logger.error('Failed to get multi-account cache', { error: error instanceof Error ? error.message : String(error) });
     return null;
@@ -395,7 +343,7 @@ export const saveToMultiAccountCache = async (
     memoryCache = cache;
 
     // Persist to secure storage
-    await SecureStore.setItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE, JSON.stringify(cache));
+    await SecureStore.setItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE, JSON.stringify(cache), DEVICE_ONLY);
     return true;
   } catch (error: unknown) {
     logger.error('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
@@ -430,6 +378,9 @@ export const clearMultiAccountCache = async (): Promise<boolean> => {
  */
 export const deleteWalletData = async (clearICloudBackup = false): Promise<void> => {
   try {
+    memoryCache = null;
+    clearSessionMnemonic();
+
     // Clear passkey data if it exists (iCloud backup preserved by default for recovery)
     try {
       const { clearPasskeyData } = await import('./passkey');
@@ -439,8 +390,94 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       logger.warn('Failed to clear passkey data', { error: (passkeyError as Error).message });
     }
 
+    // Clear derived key cache and its index
+    try {
+      const { clearAllDerivedKeys } = await import('../utils/wallet/keyDerivation');
+      await clearAllDerivedKeys();
+    } catch (derivedKeyError) {
+      logger.warn('Failed to clear derived keys', { error: (derivedKeyError as Error).message });
+    }
+
+    const [multiAccountCacheRaw, sentLockedTokensRaw, receivedLockedTokensRaw] = await Promise.all([
+      SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
+      SecureStore.getItemAsync('sent_turbo_tokens'),
+      SecureStore.getItemAsync('received_turbo_tokens'),
+    ]);
+
+    const proofKeys = new Set<string>(['cashu_proofs']);
+    try {
+      if (multiAccountCacheRaw) {
+        const parsed = JSON.parse(multiAccountCacheRaw) as Record<string, unknown>;
+        Object.values(parsed).forEach((value) => {
+          if (
+            value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            typeof (value as { taprootAddress?: unknown }).taprootAddress === 'string'
+          ) {
+            proofKeys.add(`cashu_proofs_${(value as { taprootAddress: string }).taprootAddress}`);
+          }
+        });
+      }
+    } catch (error: unknown) {
+      logger.warn('Failed to parse multi-account cache while deleting wallet data', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const collectTokenProofKeys = (raw: string | null): void => {
+      if (!raw) return;
+      try {
+        const records = JSON.parse(raw) as Array<{ taprootAddress?: string | null }>;
+        records.forEach((record) => {
+          if (record?.taprootAddress) {
+            proofKeys.add(`cashu_proofs_${record.taprootAddress}`);
+          }
+        });
+      } catch (error: unknown) {
+        logger.warn('Failed to parse Cashu token history while deleting wallet data', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    collectTokenProofKeys(sentLockedTokensRaw);
+    collectTokenProofKeys(receivedLockedTokensRaw);
+
+    try {
+      const { getAllProofStorageKeys } = await import('./cashu/cashuProofManager');
+      const registeredKeys = await getAllProofStorageKeys();
+      registeredKeys.forEach((key) => proofKeys.add(key));
+    } catch (proofRegistryError) {
+      logger.warn('Failed to load Cashu proof registry during wallet deletion', {
+        error: (proofRegistryError as Error).message,
+      });
+    }
+
+    await clearPreferenceItems([
+      'pendingFaceIdEnable',
+      'pendingNotificationsEnable',
+      'returnToSettingsAfterAuth',
+      'returnToSettingsAfterPinChange',
+      'returnToSettingsAfterSeedPhrase',
+      'pendingWalletDelete',
+      'notificationsEnabled',
+      'showZeroAssets',
+      'advancedMode',
+      'ecashThreshold',
+    ]);
+
     // Clear all wallet-related secure storage keys
     await Promise.all([
+      ...Array.from(proofKeys).map((key) => SecureStore.deleteItemAsync(key)),
+      SecureStore.deleteItemAsync('cashu_pending_swap'),
+      SecureStore.deleteItemAsync('cashu_pending_mint_quotes'),
+      SecureStore.deleteItemAsync('cashu_pending_turbo_send'),
+      SecureStore.deleteItemAsync('sent_turbo_tokens'),
+      SecureStore.deleteItemAsync('received_turbo_tokens'),
+      SecureStore.deleteItemAsync('cashu_proof_keys_v1'),
+      SecureStore.deleteItemAsync('cashu_failed_proof_recovery_keys_v1'),
+
       // Wallet data
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
@@ -450,32 +487,26 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       // PIN and authentication
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT_HMAC),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_HMAC_KEY),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN_VERSION),
       SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
 
-      // PIN lockout state (from pinService.js LOCKOUT_KEYS)
+      // Unified auth lockout state
       SecureStore.deleteItemAsync('pin_failed_attempts'),
       SecureStore.deleteItemAsync('pin_lockout_until'),
-
-      // Pending operations (from useWalletActions.js, usePostAuthHandler.js)
-      SecureStore.deleteItemAsync('pendingWalletDelete'),
-      SecureStore.deleteItemAsync('pendingFaceIdEnable'),
-      SecureStore.deleteItemAsync('pendingNotificationsEnable'),
-
-      // Settings navigation state (from useSettingsNavigation.js)
-      SecureStore.deleteItemAsync('returnToSettingsAfterAuth'),
-      SecureStore.deleteItemAsync('returnToSettingsAfterPinChange'),
-      SecureStore.deleteItemAsync('returnToSettingsAfterSeedPhrase'),
-
-      // User preferences (optional - you might want to keep these)
-      SecureStore.deleteItemAsync('notificationsEnabled'),
-      SecureStore.deleteItemAsync('showZeroAssets'),
+      SecureStore.deleteItemAsync('pin_failed_attempts_v2'),
+      SecureStore.deleteItemAsync('pin_lockout_until_v2'),
+      SecureStore.deleteItemAsync('biometric_failed_attempts_v1'),
+      SecureStore.deleteItemAsync('biometric_lockout_until_v1'),
 
       // Passkey-related keys (belt and suspenders - clearPasskeyData should handle these)
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_CREDENTIAL_ID),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_USER_HANDLE),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PEPPER),
       SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
+      SecureStore.deleteItemAsync(WALLET_DERIVATION_MODE_KEY),
     ]);
   } catch (error: unknown) {
     logger.error(error as Error, { context: 'deleteWalletData' });

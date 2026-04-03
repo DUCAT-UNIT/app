@@ -3,23 +3,23 @@
  * Real-time updates using Reanimated on UI thread for UNIT amounts
  */
 
-import React, { memo, useCallback, useEffect, useState, useRef } from 'react';
+import React,{ memo,useCallback,useEffect,useRef,useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  LayoutChangeEvent,
-  TextInput,
-  TouchableOpacity,
-  Keyboard,
+Keyboard,
+LayoutChangeEvent,
+StyleSheet,
+Text,
+TextInput,
+TouchableOpacity,
+View,
 } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedProps,
-  runOnJS,
+import { Gesture,GestureDetector } from 'react-native-gesture-handler';
+import Animated,{
+runOnJS,
+useAnimatedProps,
+useAnimatedStyle,
+useSharedValue,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { COLORS } from '../../theme';
 import TouchableScale from '../common/TouchableScale';
 
@@ -59,7 +59,6 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
   attachedBottom = false,
   attachedTop = false,
   sliderColor = COLORS.PRIMARY_BLUE,
-  hideAvailable = false,
 }: UnitAmountSliderProps): React.JSX.Element {
   const [width, setWidth] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -84,6 +83,8 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
       if (width > 0 && maxValue > 0) {
         const pos = (value / maxValue) * (width - THUMB_SIZE);
         thumbX.value = Math.max(0, Math.min(pos, width - THUMB_SIZE));
+      } else {
+        thumbX.value = 0;
       }
     }
   }, [value, maxValue, width, thumbX, currentValue, isDragging]);

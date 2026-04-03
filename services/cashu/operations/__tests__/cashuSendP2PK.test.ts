@@ -19,7 +19,7 @@ jest.mock('../../crypto', () => ({
   createBlindedMessage: jest.fn(),
   unblindSignatures: jest.fn(),
   splitAmount: jest.fn(),
-  sumProofs: jest.fn(),
+  sumProofs: jest.fn((proofs: any[]) => proofs.reduce((sum: number, p: any) => sum + p.amount, 0)),
   selectProofsForAmount: jest.fn(),
   encodeToken: jest.fn(),
   generateSecret: jest.fn(),
@@ -39,6 +39,7 @@ jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   removeProofs: jest.fn(),
   addProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(() => null),
 }));
 
 import { sendP2PKToken } from '../cashuSendP2PK';
@@ -78,10 +79,10 @@ describe('cashuSendP2PK', () => {
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
         { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
+        { amount: 64, secret: 'change_secret', C: 'C', id: 'id' },
       ]);
       (encodeToken as jest.Mock).mockReturnValue('cashuAtoken...');
       (getBalance as jest.Mock).mockResolvedValue(64);
-      (sumProofs as jest.Mock).mockReturnValue(64);
     });
 
     it('should send P2PK token successfully', async () => {
@@ -146,6 +147,10 @@ describe('cashuSendP2PK', () => {
       (loadProofs as jest.Mock).mockResolvedValue(mixedProofs);
       (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
       (selectProofsForAmount as jest.Mock).mockReturnValue([mixedProofs[1]]); // Only unlocked
+      // selectedAmount=64, send=64, no change => unblind must return proofs summing to 64
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
+      ]);
 
       await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
 

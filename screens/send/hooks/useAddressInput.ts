@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { validateBitcoinAddress } from '../../../utils/bitcoin';
+import { MUTINYNET_NETWORK, validateBitcoinAddress } from '../../../utils/bitcoin';
 import type { AssetType } from '../../../stores/sendFlowStore';
 
 export interface UseAddressInputOptions {
@@ -38,6 +38,8 @@ export function useAddressInput({
   onRecipientChange,
   onAddressTypeChange,
 }: UseAddressInputOptions): UseAddressInputResult {
+  const bech32Hrp = typeof MUTINYNET_NETWORK?.bech32 === 'string' ? MUTINYNET_NETWORK.bech32 : 'tb';
+  const taprootPrefix = `${bech32Hrp}1p`;
   const [addressError, setAddressError] = useState('');
   const [isValidAddress, setIsValidAddress] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -53,7 +55,7 @@ export function useAddressInput({
       if (!validation.valid) {
         setAddressError(validation.error || 'Invalid address');
       } else if (assetType === 'unit') {
-        const isTaproot = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p');
+        const isTaproot = cleanText.toLowerCase().startsWith(taprootPrefix);
         if (!isTaproot) {
           setAddressError('UNIT requires Taproot (bc1p/tb1p)');
         } else {
@@ -61,12 +63,12 @@ export function useAddressInput({
           setIsValidAddress(true);
         }
       } else {
-        const addressType = cleanText.startsWith('tb1p') || cleanText.startsWith('bc1p') ? 'taproot' : 'segwit';
+        const addressType = cleanText.toLowerCase().startsWith(taprootPrefix) ? 'taproot' : 'segwit';
         onAddressTypeChange(addressType);
         setIsValidAddress(true);
       }
     }
-  }, [assetType, onRecipientChange, onAddressTypeChange]);
+  }, [assetType, onRecipientChange, onAddressTypeChange, taprootPrefix]);
 
   const handlePaste = useCallback(async () => {
     const text = await Clipboard.getStringAsync();

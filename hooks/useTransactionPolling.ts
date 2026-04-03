@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { getTxApiUrl } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 interface UseTransactionPollingReturn {
   startPolling: (txid: string, onConfirmed: (confirmed: boolean) => void, onError?: (error: Error) => void) => void;
@@ -13,6 +14,7 @@ interface UseTransactionPollingReturn {
 
 export function useTransactionPolling(): UseTransactionPollingReturn {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isPollingRef = useRef<boolean>(false);
 
   /**
    * Start polling for transaction confirmation
@@ -57,19 +59,30 @@ export function useTransactionPolling(): UseTransactionPollingReturn {
 
     // Start polling
     pollIntervalRef.current = setInterval(async () => {
-      attempts++;
-      const isConfirmed = await checkConfirmation();
+      // Guard against concurrent execution when network is slow
+      if (isPollingRef.current) {
+        logger.debug('[useTransactionPolling] Skipping tick — previous poll still in progress');
+        return;
+      }
 
-      if (isConfirmed || attempts >= maxAttempts) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-        }
-        pollIntervalRef.current = null;
+      isPollingRef.current = true;
+      try {
+        attempts++;
+        const isConfirmed = await checkConfirmation();
 
-        // Call confirmation callback
-        if (onConfirmed) {
-          onConfirmed(isConfirmed);
+        if (isConfirmed || attempts >= maxAttempts) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          pollIntervalRef.current = null;
+
+          // Call confirmation callback
+          if (onConfirmed) {
+            onConfirmed(isConfirmed);
+          }
         }
+      } finally {
+        isPollingRef.current = false;
       }
     }, 5000); // Check every 5 seconds
   }, []);

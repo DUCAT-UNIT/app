@@ -10,13 +10,8 @@ import { useState, useRef, MutableRefObject } from 'react';
 import { TextInput } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { ERRORS } from '../utils/messages';
-import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../utils/constants';
-import { usePersistedObject } from './usePersistedState';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
-
-const IMPORT_STATE_KEY = 'wallet_import_state';
 
 interface UseWalletImportParams {
   currentAccount: number;
@@ -35,35 +30,14 @@ interface UseWalletImportReturn {
   setIsImportedWallet: (value: boolean) => void;
   setImportedMnemonic: (value: string | null) => void;
   importWallet: () => Promise<void>;
+  persistImportedWallet: () => Promise<void>;
   resetImportState: () => Promise<void>;
 }
 
-interface ImportState extends Record<string, unknown> {
-  importingWallet: boolean;
-  importSeedPhrase: string[];
-  isImportedWallet: boolean;
-}
-
 export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletImportParams): UseWalletImportReturn {
-
-  // Persisted import state - automatically loads/saves
-  const [importState, updateImportState, clearPersistedState] = usePersistedObject<ImportState>(
-    IMPORT_STATE_KEY,
-    {
-      importingWallet: false,
-      importSeedPhrase: Array(12).fill(''),
-      isImportedWallet: false,
-    },
-    { silent: true } // Silently fail on errors
-  );
-
-  // Extract state for backwards compatibility
-  const { importingWallet, importSeedPhrase, isImportedWallet } = importState;
-
-  // Helper setters for individual fields (backwards compatibility)
-  const setImportingWallet = (value: boolean) => updateImportState({ importingWallet: value });
-  const setImportSeedPhrase = (value: string[]) => updateImportState({ importSeedPhrase: value });
-  const setIsImportedWallet = (value: boolean) => updateImportState({ isImportedWallet: value });
+  const [importingWallet, setImportingWallet] = useState(false);
+  const [importSeedPhrase, setImportSeedPhrase] = useState<string[]>(Array(12).fill(''));
+  const [isImportedWallet, setIsImportedWallet] = useState(false);
 
   // Non-persisted state
   const [isImporting, setIsImporting] = useState(false); // Loading state
@@ -95,26 +69,20 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     try {
       // E2E bypass: use test seed phrase in dev builds with explicit env var
       const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
-      const e2eSeed = 'nation address battle bonus dignity wave bulb crouch enter night leader north';
-      const seedWords = isE2E && importSeedPhrase.every(w => !w.trim())
+      const e2eSeed = __DEV__ ? process.env.EXPO_PUBLIC_E2E_TEST_SEED : undefined;
+      const seedWords = isE2E && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
         ? e2eSeed.split(' ')
         : importSeedPhrase;
 
       // Join the array of words and trim/normalize
       const mnemonic = seedWords
-        .map((word) => word.trim().toLowerCase())
+        .map((word: string) => word.trim().toLowerCase())
         .join(' ')
         .trim();
 
       // Import wallet using WalletService (validates and derives addresses)
       // This is CPU-intensive (BIP32 key derivation) - may take 1-2 seconds
       await WalletService.importWallet(mnemonic, currentAccount);
-
-      // Store wallet in secure storage
-      await WalletService.saveWalletToStorage(mnemonic, currentAccount);
-
-      // CRITICAL: Save the current account index so loadWallet() loads the correct account
-      await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, currentAccount.toString());
 
       // CRITICAL: Don't load the wallet yet - wait until after PIN setup and passkey migration
       // The wallet will be loaded in OnboardingPage after the passkey migration modal closes
@@ -137,9 +105,6 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
       setImportingWallet(false);
       setImportSeedPhrase(Array(12).fill(''));
 
-      // Clear persisted state since import is complete
-      await clearPersistedState();
-
       // Set imported wallet flag AFTER clearing form data
       // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
       setIsImportedWallet(true);
@@ -160,6 +125,14 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     }
   };
 
+  const persistImportedWallet = async (): Promise<void> => {
+    const mnemonic = importedMnemonicRef.current;
+    if (!mnemonic) {
+      throw new Error('Imported mnemonic not available');
+    }
+    await WalletService.saveWalletToStorage(mnemonic, currentAccount);
+  };
+
   /**
    * Reset import state
    */
@@ -168,7 +141,6 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     setImportSeedPhrase(Array(12).fill(''));
     setIsImportedWallet(false);
     setImportedMnemonic(null);
-    await clearPersistedState();
   };
 
   return {
@@ -188,6 +160,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
 
     // Functions
     importWallet,
+    persistImportedWallet,
     resetImportState,
   };
 }

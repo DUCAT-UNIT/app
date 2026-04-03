@@ -40,7 +40,7 @@ interface WithdrawResult {
 }
 
 // Store the validation context for health ratio check
-let validationContext: {
+const validationContext: {
   btcPrice: number | null;
 } = { btcPrice: null };
 

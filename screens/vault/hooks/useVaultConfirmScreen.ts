@@ -3,18 +3,27 @@
  * Shared logic for all vault confirm screens
  */
 
-import { useState, useMemo, useCallback } from 'react';
-import { Alert } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { usePrice } from '../../../stores/priceStore';
+import { useCallback,useMemo,useState } from 'react';
+import { Alert } from 'react-native';
 import { useBalance } from '../../../contexts/WalletDataContext';
+import { usePrice } from '../../../stores/priceStore';
 import { getOpCostOpen } from '../../../utils/vaultUtils';
-import type { VaultConfirmScreenConfig, SummaryRow } from '../types';
+import type {
+  SummaryRow,
+  VaultConfirmScreenConfig,
+  VaultOperationHookState,
+  VaultScreenNavigationProp,
+  VaultStoreState,
+} from '../types';
 
-interface UseVaultConfirmScreenOptions {
-  config: VaultConfirmScreenConfig;
-  store: any; // Operation-specific store hook result
-  vaultHook: any; // Operation-specific vault hook result (e.g., useBorrowVault)
+interface UseVaultConfirmScreenOptions<
+  TStore extends VaultStoreState,
+  THook extends VaultOperationHookState,
+> {
+  config: VaultConfirmScreenConfig<TStore>;
+  store: TStore;
+  vaultHook: THook;
 }
 
 interface UseVaultConfirmScreenResult {
@@ -39,9 +48,9 @@ interface UseVaultConfirmScreenResult {
   handleBack: () => void;
 }
 
-export function useVaultConfirmScreen(
-  options: UseVaultConfirmScreenOptions,
-  navigation: any
+export function useVaultConfirmScreen<TStore extends VaultStoreState, THook extends VaultOperationHookState>(
+  options: UseVaultConfirmScreenOptions<TStore, THook>,
+  navigation: VaultScreenNavigationProp
 ): UseVaultConfirmScreenResult {
   const { config, store, vaultHook } = options;
 
@@ -96,8 +105,9 @@ export function useVaultConfirmScreen(
 
       // Execute the operation - the hook internally sets store.vaultTxid and store.currentStep
       // The VaultProcessingScreen watches these store values and navigates to success
-      const executeOp = vaultHook[getOperationFunction(config.operationType)];
-      if (executeOp) {
+      const operationName = getOperationFunction(config.operationType) as keyof VaultOperationHookState;
+      const executeOp = vaultHook[operationName];
+      if (typeof executeOp === 'function') {
         await executeOp();
       }
     } catch (err) {

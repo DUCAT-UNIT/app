@@ -50,6 +50,14 @@ jest.mock('../NavigationHandlersContext', () => ({
   }),
 }));
 jest.mock('expo-secure-store');
+jest.mock('../../services/storagePolicy', () => {
+  const SecureStore = require('expo-secure-store');
+  return {
+    getPreferenceItem: (key: string) => SecureStore.getItemAsync(key),
+    setPreferenceItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
+    deletePreferenceItem: (key: string) => SecureStore.deleteItemAsync(key),
+  };
+});
 jest.mock('../../services/airdropService');
 
 // Mock audio celebration utilities

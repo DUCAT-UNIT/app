@@ -14,11 +14,24 @@ jest.mock('bitcoinjs-lib', () => ({
     toBase64: jest.fn(() => 'base64_psbt'),
   })),
   Transaction: {
-    fromHex: jest.fn(() => ({
-      outs: [
-        { script: Buffer.from('script0', 'hex'), value: 100000 },
-        { script: Buffer.from('script1', 'hex'), value: 50000 },
-      ],
+    fromHex: jest.fn((hex: string) => ({
+      getId: () => {
+        if (hex === '0100000001abcd...') return 'abc123';
+        if (hex === 'hex_sat_tx_456') return 'sat_tx_456';
+        if (hex === 'hex_rune_tx_1') return 'rune_tx_1';
+        if (hex === 'hex_rune_tx_2') return 'rune_tx_2';
+        if (hex === 'hex_rune_tx_123') return 'rune_tx_123';
+        return 'unknown_txid';
+      },
+      outs: hex === 'hex_sat_tx_456'
+        ? [
+            { script: Buffer.from('0014abcd', 'hex'), value: 50000 },
+            { script: Buffer.from('5120abcd', 'hex'), value: 546 },
+          ]
+        : [
+            { script: Buffer.from('5120abcd', 'hex'), value: 546 },
+            { script: Buffer.from('0014abcd', 'hex'), value: 50000 },
+          ],
     })),
   },
   address: {
@@ -70,9 +83,19 @@ describe('runesPsbtBuilder', () => {
     mockAddInput.mockClear();
     mockAddOutput.mockClear();
 
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      text: jest.fn().mockResolvedValue('0100000001abcd...'),
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url.includes('/abc123/hex')) {
+        return Promise.resolve({
+          ok: true,
+          text: jest.fn().mockResolvedValue('0100000001abcd...'),
+        });
+      }
+
+      const txid = url.match(/\/tx\/([^/]+)\/hex$/)?.[1] || 'unknown';
+      return Promise.resolve({
+        ok: true,
+        text: jest.fn().mockResolvedValue(`hex_${txid}`),
+      });
     });
   });
 

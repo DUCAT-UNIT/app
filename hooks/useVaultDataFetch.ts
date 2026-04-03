@@ -7,7 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
 import { e2eVaultState } from '../utils/e2eVaultState';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 export interface UseVaultDataFetchReturn {

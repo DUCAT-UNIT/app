@@ -15,7 +15,12 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
+import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { checkBatchAllowed, Utxo, withVaultOperationLock } from './utils';
+import {
+  clearPendingVaultSigningOperation,
+  setPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
 
 export interface CreateBorrowReqOptions {
   feeRate: number;
@@ -101,7 +106,7 @@ export async function createVaultReqBorrow(
     // SECURITY: Re-validate oracle price freshness before building transaction.
     // User may have been on the confirmation screen for several minutes.
     const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > 300) {
+    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
       throw new Error(
         `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
       );
@@ -148,8 +153,17 @@ export async function createVaultReqBorrow(
     // Check if batch signing is allowed
     const isBatch = checkBatchAllowed(wallet);
 
-    // Create the borrow request
-    const borrowReq = await wallet.vault.borrow.req(vaultCtx, utxos, isBatch);
+    let borrowReq: WalletVaultBorrowRequest;
+    setPendingVaultSigningOperation({
+      action: 'borrow',
+      ctx: vaultCtx,
+      satsUtxos: utxos,
+    });
+    try {
+      borrowReq = await wallet.vault.borrow.req(vaultCtx, utxos, isBatch);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     logger.debug('[VaultOps] Borrow request created:', {
       issue_txid: borrowReq.issue_txid,
@@ -162,7 +176,7 @@ export async function createVaultReqBorrow(
     logger.error('[VaultOps] Failed to create borrow request:', { error });
     throw error;
   }
-  }); // end withVaultOperationLock
+  }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
 /**

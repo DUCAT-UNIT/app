@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { ResponsiveContext, ResponsiveContextValue } from '../contexts/ResponsiveContext';
+import { ResponsiveContext } from '../contexts/ResponsiveContext';
 import { ScreenSize } from '../styles/responsive';
 
 export interface UseResponsiveReturn {

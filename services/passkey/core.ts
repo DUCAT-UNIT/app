@@ -14,10 +14,47 @@ export const PASSKEY_KEYS = {
   ENCRYPTED_MNEMONIC: 'passkey_encrypted_mnemonic_v1',
   ENCRYPTION_IV: 'passkey_encryption_iv_v1',
   ENCRYPTION_TAG: 'passkey_encryption_tag_v1',
+  PRF_ENABLED: 'passkey_prf_enabled_v1',
+  DERIVATION_VERSION: 'passkey_derivation_version_v1',
 };
+
+export const PASSKEY_DERIVATION_VERSION = {
+  LEGACY_V4: '4',
+  PRF_V5: '5',
+} as const;
+
+export type PasskeyDerivationVersion =
+  typeof PASSKEY_DERIVATION_VERSION[keyof typeof PASSKEY_DERIVATION_VERSION];
+
+// Fixed, application-specific salt for the WebAuthn PRF extension.
+// The authenticator returns HMAC-SHA-256(passkey_private_key, PRF_SALT),
+// giving us deterministic cryptographic output that syncs via iCloud Keychain.
+export const PRF_SALT = new Uint8Array(Buffer.from('ducat-wallet-prf-v1', 'utf8'));
 
 // Export for backward compatibility
 export const PASSKEY_STORAGE_KEYS = PASSKEY_KEYS;
+
+export const derivationVersionForPrf = (prfEnabled: boolean): PasskeyDerivationVersion => (
+  prfEnabled ? PASSKEY_DERIVATION_VERSION.PRF_V5 : PASSKEY_DERIVATION_VERSION.LEGACY_V4
+);
+
+export const resolvePasskeyDerivationVersion = (
+  storedVersion: string | null | undefined,
+  prfEnabled: boolean
+): PasskeyDerivationVersion => {
+  if (
+    storedVersion === PASSKEY_DERIVATION_VERSION.LEGACY_V4 ||
+    storedVersion === PASSKEY_DERIVATION_VERSION.PRF_V5
+  ) {
+    return storedVersion;
+  }
+
+  return derivationVersionForPrf(prfEnabled);
+};
+
+export const isLegacyPasskeyDerivationVersion = (
+  version: PasskeyDerivationVersion
+): boolean => version === PASSKEY_DERIVATION_VERSION.LEGACY_V4;
 
 /**
  * Check if WebAuthn/Passkeys are supported on this device

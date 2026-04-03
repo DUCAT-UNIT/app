@@ -72,10 +72,13 @@ export const loadLockoutState = async (): Promise<LockoutState> => {
           : null,
     };
   } catch (error: unknown) {
-    // If we can't load state, return safe defaults
+    logger.error('CRITICAL: Failed to load lockout state', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Fail closed: if lockout state is unreadable, deny repeated attempts.
     return {
-      failedAttempts: 0,
-      lockoutUntil: null,
+      failedAttempts: MAX_PIN_ATTEMPTS,
+      lockoutUntil: Date.now() + LOCKOUT_DURATION,
     };
   }
 };

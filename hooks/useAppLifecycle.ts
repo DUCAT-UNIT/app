@@ -11,6 +11,10 @@ import { useEffect, useRef, useCallback, MutableRefObject } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
 import { logger } from '../utils/logger';
+import {
+  startDerivedKeyCacheLifecycle,
+  stopDerivedKeyCacheLifecycle,
+} from '../utils/wallet/keyDerivation';
 
 const IS_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 const INACTIVITY_TIMEOUT = __DEV__ ? 600 * 1000 : 30 * 1000; // 10 min dev, 30s prod
@@ -62,11 +66,11 @@ export function useAppLifecycle({
     isProcessingRef.current = isProcessing;
   }, [isProcessing]);
 
-  // Allow screenshots by default
+  // Prevent screenshots while the wallet UI is mounted
   useEffect(() => {
     const manageScreenCapture = async () => {
       try {
-        await ScreenCapture.allowScreenCaptureAsync();
+        await ScreenCapture.preventScreenCaptureAsync();
       } catch (error: unknown) {
         // Non-critical: screen capture permissions may not be available on all devices
         logger.debug('[useAppLifecycle] Screen capture setup skipped', {
@@ -77,9 +81,9 @@ export function useAppLifecycle({
 
     manageScreenCapture();
 
-    // Cleanup: ensure screen capture is allowed when component unmounts
+    // Cleanup: restore the platform default when the hook unmounts
     return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch((error) => {
+      Promise.resolve(ScreenCapture.allowScreenCaptureAsync()).catch((error) => {
         // Cleanup errors are expected and non-critical, but log for debugging
         logger.debug('[useAppLifecycle] Screen capture cleanup failed (non-critical)', {
           error: error instanceof Error ? error.message : String(error)
@@ -95,6 +99,7 @@ export function useAppLifecycle({
 
     // Initialize appState ref with current state
     appState.current = AppState.currentState;
+    startDerivedKeyCacheLifecycle();
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       const prevState = appState.current;
@@ -132,6 +137,7 @@ export function useAppLifecycle({
 
     return () => {
       subscription.remove();
+      stopDerivedKeyCacheLifecycle();
     };
   }, [
     isBiometricSupported,
@@ -152,6 +158,7 @@ export function useAppLifecycle({
       // Don't lock during active transaction processing
       if (isProcessingRef.current) {
         logger.debug('[useAppLifecycle] ⏱️ Inactivity timeout reached but processing active - deferring lock');
+        startInactivityTimer();
         return;
       }
       // Lock the wallet after inactivity timeout

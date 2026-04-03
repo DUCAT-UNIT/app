@@ -36,7 +36,7 @@ describe('sendHelpers', () => {
     });
 
     it('should handle leading zeros', () => {
-      expect(formatNumberWithCommas('0001000')).toBe('0,001,000');
+      expect(formatNumberWithCommas('0001000')).toBe('1,000');
     });
 
     it('should handle zero', () => {

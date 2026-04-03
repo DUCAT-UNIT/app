@@ -3,7 +3,7 @@
  * Functions for selecting and filtering UTXOs for transaction creation
  */
 
-import logger from '../../utils/logger';
+import { logger } from '../../utils/logger';
 import { BITCOIN_TX } from '../../utils/constants';
 import { ERRORS } from '../../utils/messages';
 
@@ -169,16 +169,14 @@ export function selectUtxosForTransaction(
   let change = totalInput - amountInSats - estimatedFee;
   let finalFee = estimatedFee;
 
-  // If change is below dust, it goes entirely to miners
+  // If change is below dust, add it to the fee instead of creating a dust output
   if (change > 0 && change < dustLimit) {
-    logger.warn('[selectUtxos] Change below dust; aborting to avoid silent fee burn', {
-      change,
+    logger.warn('[selectUtxos] Change below dust; adding to fee', {
+      dustChange: change,
       dustLimit,
-      totalInput,
-      amountInSats,
-      estimatedFee,
     });
-    throw new Error(ERRORS.FEE_TOO_LOW);
+    finalFee += change;
+    change = 0;
   }
 
   return {

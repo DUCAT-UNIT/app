@@ -37,6 +37,10 @@ jest.mock('../operations/cashuMintOperations', () => ({
   completeMint: jest.fn(),
 }));
 
+jest.mock('../cashuProofManager', () => ({
+  getCurrentCashuAccount: jest.fn(() => null),
+}));
+
 import { checkMintQuote } from '../cashuMintClient';
 import { completeMint } from '../operations/cashuMintOperations';
 
@@ -60,7 +64,8 @@ describe('cashuMintQuoteRecovery', () => {
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_pending_mint_quotes',
-        expect.stringContaining('quote123')
+        expect.stringContaining('quote123'),
+        expect.any(Object)
       );
     });
 
@@ -419,7 +424,7 @@ describe('cashuMintQuoteRecovery', () => {
       ];
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
       (checkMintQuote as jest.Mock).mockResolvedValue({ state: 'PAID' });
-      (completeMint as jest.Mock).mockRejectedValue(new Error('Internal Server Error'));
+      (completeMint as jest.Mock).mockRejectedValue(new Error('Amount mismatch from mint'));
 
       const result = await recoverUnclaimedMintQuotes();
 

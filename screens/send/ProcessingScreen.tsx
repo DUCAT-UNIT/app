@@ -4,14 +4,14 @@
  * Features: cycling loading messages, automatic navigation on success/error
  */
 
-import React, { useEffect, useState, useRef } from 'react';
-import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationProp, RouteProp, StackActions } from '@react-navigation/native';
-import { COLORS } from '../../theme';
-import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
+import { NavigationProp,RouteProp,StackActions } from '@react-navigation/native';
+import React,{ useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,StyleSheet,Text,View } from 'react-native';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { useNotifications } from "../../stores/notificationStore";
+import { useSendFlow,type AssetType } from '../../stores/sendFlowStore';
+import { COLORS } from '../../theme';
 import { logger } from '../../utils/logger';
 
 /**
@@ -40,7 +40,7 @@ interface ProcessingScreenProps {
 }
 
 export default function ProcessingScreen({ navigation, route }: ProcessingScreenProps): React.JSX.Element {
-  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient, setIntentStep } = useSendFlow();
+  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
   const { showSnackbar } = useNotifications();
@@ -151,18 +151,21 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
 
       hasStarted.current = true;
       // Small delay to allow screen to render before starting heavy operations
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         logger.debug('Creating send intent for asset type:', sendAssetType);
         createSendIntent();
       }, 100);
+      return () => clearTimeout(timer);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
       hasStarted.current = true;
       // Small delay before signing
-      setTimeout(async () => {
+      let cancelled = false;
+      const timer = setTimeout(async () => {
         try {
           // Sign and broadcast transaction
           const txid = await signIntent();
 
+          if (cancelled) return;
           if (txid) {
             navigation.dispatch(
               StackActions.replace('Confirmation', {
@@ -180,11 +183,13 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
             handleNavigationError('Failed to sign and broadcast transaction');
           }
         } catch (error: unknown) {
+          if (cancelled) return;
           const errorMessage = error instanceof Error ? error.message : String(error) || 'Transaction failed';
           logger.error('Signing error:', { error: errorMessage });
           handleNavigationError(errorMessage);
         }
       }, 100);
+      return () => { cancelled = true; clearTimeout(timer); };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action, sendAssetType, sendAmount, sendRecipient, isCashuMint, isTurbo, mintQuoteId, cashuQuoteId]);

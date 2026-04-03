@@ -3,19 +3,18 @@
  * Uses responsive scaling with s() and sf() functions
  */
 
-import React, { memo, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import Icon from '../icons';
-import { COLORS } from '../../theme';
-import { formatTransactionDate } from '../../utils/formatters/dates';
-import { formatUnitAmount } from '../../utils/formatters/amounts';
-import { formatBalance } from '../../utils/formatters';
+import React,{ memo,useMemo } from 'react';
+import { Text,TextStyle,TouchableOpacity,View,ViewStyle } from 'react-native';
 import { useResponsive } from '../../hooks/useResponsive';
-import localStyles from './TransactionItem.styles';
-import type { DisplayAssetType } from '../../types/assets';
 import type { TransactionOutput } from '../../services/transactionHistoryService';
-
-const TURBO_MINT_ADDRESS = 'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em';
+import { COLORS } from '../../theme';
+import type { DisplayAssetType } from '../../types/assets';
+import { TURBO_MINT_ADDRESS } from '../../utils/constants';
+import { formatBalance } from '../../utils/formatters';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatTransactionDate } from '../../utils/formatters/dates';
+import Icon from '../icons';
+import localStyles from './TransactionItem.styles';
 
 interface RegularTransactionStyles {
   historyTxRow: ViewStyle;
@@ -57,16 +56,19 @@ interface RegularTransactionItemProps {
   advancedMode?: boolean;
 }
 
-export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode = false }: RegularTransactionItemProps) {
+export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode: _advancedMode = false }: RegularTransactionItemProps) {
   const { s, sf } = useResponsive();
   const { amount, assetType, isSent, isReceived } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
 
   // Memoize expensive calculations
-  const { isEcashSwapTransaction, showTurboUI, actionLabel, statusConfig, formattedAmount, formattedDate } = useMemo(() => {
+  const { showTurboUI, actionLabel, statusConfig, formattedAmount, formattedDate } = useMemo(() => {
     // Check for tUNIT Swap transaction (sending UNIT to mint)
-    const isEcashSwap = assetType === 'UNIT' && isSent && tx.vout?.some((output: TransactionOutput) =>
-      output.scriptpubkey_address === TURBO_MINT_ADDRESS
+    const isEcashSwap = !!(
+      TURBO_MINT_ADDRESS &&
+      assetType === 'UNIT' &&
+      isSent &&
+      tx.vout?.some((output: TransactionOutput) => output.scriptpubkey_address === TURBO_MINT_ADDRESS)
     );
     const showTurbo = false; // Turbo UI disabled
 
@@ -92,14 +94,13 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     const date = formatTransactionDate(tx.status.block_time);
 
     return {
-      isEcashSwapTransaction: isEcashSwap,
       showTurboUI: showTurbo,
       actionLabel: label,
       statusConfig: status,
       formattedAmount: formatted,
       formattedDate: date,
     };
-  }, [assetType, isSent, isReceived, tx.vout, tx.status.confirmed, tx.status.block_time, advancedMode, numericAmount]);
+  }, [assetType, isSent, isReceived, tx.vout, tx.status.confirmed, tx.status.block_time, numericAmount]);
 
   const amountColor = isReceived ? COLORS.GREEN : COLORS.RED;
 

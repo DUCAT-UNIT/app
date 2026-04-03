@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { DEVICE_ONLY } from '../storagePolicy';
 
 const SENT_TOKENS_KEY = 'sent_turbo_tokens';
 const RECEIVED_TOKENS_KEY = 'received_turbo_tokens';
@@ -98,7 +99,7 @@ export const saveSentLockedToken = async (
     // Keep only last MAX_STORED_TOKENS to prevent storage bloat
     const tokensToStore = existingTokens.slice(-MAX_STORED_TOKENS);
 
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(tokensToStore));
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
 
     logger.info('Sent locked token saved', { totalStored: tokensToStore.length });
 
@@ -158,7 +159,7 @@ export const deleteSentLockedToken = async (tokenId: string): Promise<void> => {
     const tokens = await getSentLockedTokens();
     const filteredTokens = tokens.filter(t => t.id !== tokenId);
 
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(filteredTokens));
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(filteredTokens), DEVICE_ONLY);
 
     logger.info('Sent locked token deleted', { remaining: filteredTokens.length });
   } catch (error: unknown) {
@@ -182,7 +183,7 @@ export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean
       return t;
     });
 
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(updatedTokens));
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(updatedTokens), DEVICE_ONLY);
 
     logger.info('Token claimed status updated', { tokenId, claimed });
   } catch (error: unknown) {
@@ -198,7 +199,7 @@ export const clearSentLockedTokens = async (): Promise<void> => {
   try {
     logger.info('Clearing all sent locked tokens');
     // Set to empty array instead of deleting — avoids errors if key doesn't exist
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, '[]');
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, '[]', DEVICE_ONLY);
     logger.info('All sent locked tokens cleared');
   } catch (error: unknown) {
     logger.error('Failed to clear sent locked tokens', { error: (error as Error).message });
@@ -273,7 +274,7 @@ export const saveReceivedToken = async (
     // Keep only last MAX_STORED_TOKENS to prevent storage bloat
     const tokensToStore = existingTokens.slice(-MAX_STORED_TOKENS);
 
-    await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore));
+    await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
 
     logger.info('Received token saved', { totalStored: tokensToStore.length });
 

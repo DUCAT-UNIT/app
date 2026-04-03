@@ -27,11 +27,6 @@ jest.mock('expo-secure-store', () => ({
   }),
 }));
 
-jest.mock('expo-crypto', () => ({
-  digest: jest.fn().mockResolvedValue(new ArrayBuffer(32)),
-  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
-}));
-
 import * as SecureStore from 'expo-secure-store';
 import {
   setCurrentAccount,
@@ -187,12 +182,15 @@ describe('cashuProofManager', () => {
 
       await saveProofs(proofs);
 
-      // Note: deleteItemAsync is no longer called - atomic write removes the race condition
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_proofs_test_save_account',
-        JSON.stringify(proofs)
+        expect.any(String),
+        expect.any(Object)
       );
-      expect(JSON.parse(mockStorage['cashu_proofs_test_save_account'])).toEqual(proofs);
+      const storedEnvelope = JSON.parse(mockStorage['cashu_proofs_test_save_account']);
+      expect(storedEnvelope.proofs).toEqual(proofs);
+      expect(storedEnvelope.version).toBe(1);
+      expect(typeof storedEnvelope.integrityHash).toBe('string');
     });
 
     it('should throw on verification failure (line 127-132)', async () => {
@@ -201,8 +199,9 @@ describe('cashuProofManager', () => {
         { amount: 32, secret: 's2', C: 'C', id: 'id' },
       ];
 
-      // Make setItemAsync not actually store the data (simulating write failure)
-      (SecureStore.setItemAsync as jest.Mock).mockImplementationOnce(() => Promise.resolve());
+      (SecureStore.getItemAsync as jest.Mock)
+        .mockImplementationOnce((key) => Promise.resolve(mockStorage[key] || null))
+        .mockImplementationOnce(() => Promise.resolve(null));
 
       await expect(saveProofs(proofs)).rejects.toThrow(
         'Failed to save proofs - verification returned null'
@@ -226,7 +225,7 @@ describe('cashuProofManager', () => {
       const newProofs = [{ amount: 32, secret: 's2', C: 'C', id: 'id' }];
       await addProofs(newProofs);
 
-      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_add_account']);
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_add_account']).proofs;
       expect(savedProofs).toHaveLength(2);
       expect(savedProofs.find((p: any) => p.secret === 's1')).toBeDefined();
       expect(savedProofs.find((p: any) => p.secret === 's2')).toBeDefined();
@@ -236,7 +235,7 @@ describe('cashuProofManager', () => {
       const newProofs = [{ amount: 32, secret: 's2', C: 'C', id: 'id' }];
       await addProofs(newProofs);
 
-      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_add_account']);
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_add_account']).proofs;
       expect(savedProofs).toHaveLength(1);
       expect(savedProofs[0].secret).toBe('s2');
     });
@@ -258,7 +257,7 @@ describe('cashuProofManager', () => {
       const proofsToRemove = [{ amount: 32, secret: 's2', C: 'C', id: 'id' }];
       await removeProofs(proofsToRemove);
 
-      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_remove_account']);
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_remove_account']).proofs;
       expect(savedProofs).toHaveLength(2);
       expect(savedProofs.find((p: any) => p.secret === 's1')).toBeDefined();
       expect(savedProofs.find((p: any) => p.secret === 's2')).toBeUndefined();
@@ -272,7 +271,7 @@ describe('cashuProofManager', () => {
       const proofsToRemove = [{ amount: 32, secret: 'nonexistent', C: 'C', id: 'id' }];
       await removeProofs(proofsToRemove);
 
-      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_remove_account']);
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_remove_account']).proofs;
       expect(savedProofs).toHaveLength(1);
       expect(savedProofs[0].secret).toBe('s1');
     });

@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import Icon from '../icons';
+import { TextStyle,TouchableOpacity,View,ViewStyle } from 'react-native';
 import { COLORS } from '../../theme';
+import Icon from '../icons';
 
 const HEADER_ICON_SIZE = 22;
 

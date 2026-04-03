@@ -10,6 +10,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
+import { DEVICE_ONLY } from '../services/storagePolicy';
 import {
   buildExclusionSet,
   getUnconfirmedUTXOsFromPending,
@@ -104,7 +105,7 @@ const savePendingTransactions = async (
   accountIndex: number
 ): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'txs'), JSON.stringify(txs));
+    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'txs'), JSON.stringify(txs), DEVICE_ONLY);
   } catch (error: unknown) {
     logger.error('Error saving pending transactions:', {
       error: error instanceof Error ? error.message : String(error),
@@ -114,7 +115,11 @@ const savePendingTransactions = async (
 
 const saveSpentUtxos = async (spent: Set<string>, accountIndex: number): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'spent'), JSON.stringify(Array.from(spent)));
+    await SecureStore.setItemAsync(
+      getStorageKey(accountIndex, 'spent'),
+      JSON.stringify(Array.from(spent)),
+      DEVICE_ONLY
+    );
   } catch (error: unknown) {
     logger.error('Error saving spent UTXOs:', {
       error: error instanceof Error ? error.message : String(error),
@@ -313,7 +318,8 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
     const result = getUnconfirmedUTXOsFromPending(
       pendingTransactions as Record<string, UtilsPendingTransaction>,
       addressType,
-      excludedKeys
+      excludedKeys,
+      spentUtxos
     );
 
     logger.debug('[getUnconfirmedUTXOs] Returning UTXOs:', { count: result.length });

@@ -3,42 +3,42 @@
  * Features: address input, amount slider with fee selector footer
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  Text,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  ActivityIndicator,
-  Keyboard,
-} from 'react-native';
-import { NavigationProp, RouteProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
-import { usePrice } from '../../stores/priceStore';
-import { useWallet } from '../../contexts/WalletContext';
-import { useKeyboard } from '../../hooks/useKeyboard';
-import { useFeeEstimate } from '../../hooks/useFeeEstimate';
-import { TransactionType } from '../../services/feeEstimationService';
-import { useTurboReview } from '../../hooks/useTurboReview';
-import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { NavigationProp,RouteProp } from '@react-navigation/native';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import {
+ActivityIndicator,
+Keyboard,
+KeyboardAvoidingView,
+Platform,
+ScrollView,
+StyleSheet,
+Text,
+TouchableOpacity,
+View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import TouchableScale from '../../components/common/TouchableScale';
 import QRScanner from '../../components/scanner/QRScanner';
 import InsufficientTurboSheet from '../../components/send/InsufficientTurboSheet';
-import TouchableScale from '../../components/common/TouchableScale';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useFeeEstimate } from '../../hooks/useFeeEstimate';
+import { useKeyboard } from '../../hooks/useKeyboard';
+import { useTurboReview } from '../../hooks/useTurboReview';
+import { TransactionType } from '../../services/feeEstimationService';
+import { usePrice } from '../../stores/priceStore';
+import { useSendFlowStore,type AssetType } from '../../stores/sendFlowStore';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 
 // Local hooks and components
-import { useAddressInput, useSendValidation, useSendBalances } from './hooks';
 import {
-  AddressInputSection,
-  AmountSection,
-  TurboToggle,
-  SendWarnings,
+AddressInputSection,
+AmountSection,
+SendWarnings,
+TurboToggle,
 } from './components';
+import { useAddressInput,useSendBalances,useSendValidation } from './hooks';
 
 interface SendInputRouteParams {
   assetType?: AssetType;
@@ -75,11 +75,12 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
 
   // Local state
-  const [previewAmount, setPreviewAmount] = useState(0);
   const prevMaxRef = useRef<number>(0);
   const [isInitializing, setIsInitializing] = useState(true);
 
   const assetType = route.params?.assetType || sendAssetType;
+  const prefillAddress = route.params?.prefillAddress;
+  const prefillAmount = route.params?.prefillAmount;
   const assetSymbol = assetType === 'btc' ? 'BTC' : 'UNIT';
   const isBtc = assetType === 'btc';
 
@@ -186,11 +187,9 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     if (wasAtMax && maxSendableBtc > 0) {
       // User was at max - follow the new max (up or down)
       setSendAmount(maxSendableBtc.toString());
-      setPreviewAmount(maxSendableBtc);
     } else if (currentAmount > maxSendableBtc && maxSendableBtc > 0) {
       // User exceeded new max - clamp down
       setSendAmount(maxSendableBtc.toString());
-      setPreviewAmount(maxSendableBtc);
     }
 
     prevMaxRef.current = maxSendableBtc;
@@ -198,24 +197,20 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   // Handle prefilled data
   useEffect(() => {
-    const { prefillAddress, prefillAmount } = route.params || {};
     if (prefillAddress) {
       handleRecipientChange(prefillAddress);
     }
     if (prefillAmount) {
       setSendAmount(prefillAmount);
-      setPreviewAmount(parseFloat(prefillAmount) || 0);
     }
-  }, [route.params?.prefillAddress, route.params?.prefillAmount, handleRecipientChange, setSendAmount]);
+  }, [prefillAddress, prefillAmount, handleRecipientChange, setSendAmount]);
 
   const handleAmountChange = useCallback((value: number) => {
     setSendAmount(value.toString());
-    setPreviewAmount(value);
   }, [setSendAmount]);
 
-  const handleLiveAmountChange = useCallback((value: number) => {
+  const handleLiveAmountChange = useCallback((_value: number) => {
     Keyboard.dismiss();
-    setPreviewAmount(value);
   }, []);
 
   const handleClose = useCallback(() => {

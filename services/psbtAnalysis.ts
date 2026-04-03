@@ -4,6 +4,7 @@
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
+import { BITCOIN_NETWORK } from '../utils/bitcoin';
 import { logger } from '../utils/logger';
 import type { BtcTransactionIntent, UnitTransactionIntent } from './transaction';
 
@@ -136,7 +137,7 @@ function parseOutputs(psbt: bitcoin.Psbt, sendIntent: SendIntent): PSBTOutput[] 
     try {
       address = bitcoin.address.fromOutputScript(
         output.script,
-        bitcoin.networks.testnet
+        BITCOIN_NETWORK
       );
     } catch (e: unknown) {
       // Failed to decode address - keep as 'Unknown'

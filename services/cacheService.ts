@@ -7,6 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
 import { SECURE_KEYS } from '../utils/constants';
+import { deletePreferenceItem } from './storagePolicy';
 
 export interface CacheClearSummary {
   secureStoreCleared: number;
@@ -41,6 +42,7 @@ const CLEARABLE_SECURE_STORE_KEYS = [
   // Cashu keysets
   'cashu_keysets',
   'cashu_proofs', // Old global key
+  'processed_cashu_tokens',
 
   // Turbo tokens
   'sent_turbo_tokens',
@@ -156,7 +158,8 @@ export const clearCashuCache = async (): Promise<void> => {
   try {
     logger.info('[CacheService] Clearing Cashu cache...');
 
-    await SecureStore.deleteItemAsync('cashu_keysets');
+    await deletePreferenceItem('cashu_keysets');
+    await deletePreferenceItem('processed_cashu_tokens');
     await SecureStore.deleteItemAsync('sent_turbo_tokens');
     await SecureStore.deleteItemAsync('received_turbo_tokens');
 

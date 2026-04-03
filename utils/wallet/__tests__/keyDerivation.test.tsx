@@ -16,6 +16,7 @@ jest.mock('bitcoinjs-lib', () => ({
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 jest.mock('../../bitcoin', () => ({
@@ -59,6 +60,8 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { withMnemonic } from '../../../services/secureStorageService';
 import { getPrivateKeyForAddress } from '../keyDerivation';
 
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+
 describe('keyDerivation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -67,18 +70,33 @@ describe('keyDerivation', () => {
   });
 
   describe('getPrivateKeyForAddress', () => {
-    it('should return cached key if available', async () => {
-      const cachedData = {
-        privateKey: 'cached_privkey',
-        xOnlyPubkey: 'cached_pubkey',
-        accountIndex: 5,
+    it('should return cached key on second call', async () => {
+      const mockChild = {
+        publicKey: Buffer.alloc(33),
+        privateKey: Buffer.alloc(32),
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
+      const mockRoot = { derivePath: jest.fn(() => mockChild) };
+      const { bip32 } = require('../cryptoHelpers');
+      bip32.fromSeed.mockReturnValue(mockRoot);
 
-      const result = await getPrivateKeyForAddress('tb1ptest123');
+      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
+        address: 'tb1pcached',
+        pubkey: Buffer.alloc(32),
+      });
 
-      expect(result).toEqual(cachedData);
+      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
+        return callback('test mnemonic');
+      });
+
+      // First call — derives from mnemonic
+      const result1 = await getPrivateKeyForAddress('tb1pcached');
+      expect(withMnemonic).toHaveBeenCalledTimes(1);
+
+      // Second call — should use in-memory cache
+      (withMnemonic as jest.Mock).mockClear();
+      const result2 = await getPrivateKeyForAddress('tb1pcached');
       expect(withMnemonic).not.toHaveBeenCalled();
+      expect(result2).toEqual(result1);
     });
 
     it('should search for account if not cached', async () => {
@@ -139,16 +157,12 @@ describe('keyDerivation', () => {
       );
     });
 
-    it('should cache result after finding account', async () => {
+    it('should cache result in memory after finding account', async () => {
       const mockChild = {
         publicKey: Buffer.alloc(33),
         privateKey: Buffer.alloc(32),
       };
-
-      const mockRoot = {
-        derivePath: jest.fn(() => mockChild),
-      };
-
+      const mockRoot = { derivePath: jest.fn(() => mockChild) };
       const { bip32 } = require('../cryptoHelpers');
       bip32.fromSeed.mockReturnValue(mockRoot);
 
@@ -161,70 +175,11 @@ describe('keyDerivation', () => {
         return callback('test mnemonic');
       });
 
-      await getPrivateKeyForAddress('tb1ptest456');
+      const result = await getPrivateKeyForAddress('tb1ptest456');
+      expect(result).toHaveProperty('privateKey');
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        expect.stringContaining('derived_key_'),
-        expect.any(String)
-      );
-    });
-
-    it('should handle cache read errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Cache read error'));
-
-      const mockChild = {
-        publicKey: Buffer.alloc(33),
-        privateKey: Buffer.alloc(32),
-      };
-
-      const mockRoot = {
-        derivePath: jest.fn(() => mockChild),
-      };
-
-      const { bip32 } = require('../cryptoHelpers');
-      bip32.fromSeed.mockReturnValue(mockRoot);
-
-      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
-        address: 'tb1perror',
-        pubkey: Buffer.alloc(32),
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
-        return callback('test mnemonic');
-      });
-
-      // Should not throw
-      const result = await getPrivateKeyForAddress('tb1perror');
-      expect(result).toBeDefined();
-    });
-
-    it('should handle cache write errors gracefully', async () => {
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Cache write error'));
-
-      const mockChild = {
-        publicKey: Buffer.alloc(33),
-        privateKey: Buffer.alloc(32),
-      };
-
-      const mockRoot = {
-        derivePath: jest.fn(() => mockChild),
-      };
-
-      const { bip32 } = require('../cryptoHelpers');
-      bip32.fromSeed.mockReturnValue(mockRoot);
-
-      (bitcoin.payments.p2tr as jest.Mock).mockReturnValue({
-        address: 'tb1pwrite',
-        pubkey: Buffer.alloc(32),
-      });
-
-      (withMnemonic as jest.Mock).mockImplementation(async (callback: (m: string) => Promise<unknown>) => {
-        return callback('test mnemonic');
-      });
-
-      // Should not throw
-      const result = await getPrivateKeyForAddress('tb1pwrite');
-      expect(result).toBeDefined();
+      // Verify no SecureStore writes (memory-only cache)
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     });
 
     it('should handle SegWit addresses (tb1q)', async () => {

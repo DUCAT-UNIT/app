@@ -6,7 +6,6 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useWalletImport } from '../useWalletImport';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WalletService from '../../services/walletService';
 import { notify } from '../../utils/notify';
 
@@ -70,9 +69,6 @@ describe('useWalletImport', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
-    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
-    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
     (WalletService.importWallet as jest.Mock).mockResolvedValue({ addresses: mockAddresses });
     (WalletService.saveWalletToStorage as jest.Mock).mockResolvedValue(undefined);
 
@@ -107,14 +103,7 @@ describe('useWalletImport', () => {
       expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
     });
 
-    it('should load persisted state on mount', async () => {
-      const savedState = {
-        importingWallet: true,
-        importSeedPhrase: ['abandon', 'ability', 'able', '', '', '', '', '', '', '', '', ''],
-        isImportedWallet: false,
-      };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
-
+    it('should not restore import state from AsyncStorage on mount', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
       });
@@ -123,76 +112,12 @@ describe('useWalletImport', () => {
         await Promise.resolve();
       });
 
-      expect(result.current!.importingWallet).toBe(true);
-      expect(result.current!.importSeedPhrase[0]).toBe('abandon');
-    });
-
-    it('should handle AsyncStorage errors gracefully', async () => {
-      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
-
-      const { result } = renderHook(() => useWalletImport(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(result.current!.importingWallet).toBe(false);
-    });
-
-    it('should load partial persisted state', async () => {
-      // Only importingWallet is present, other fields missing
-      const savedState = {
-        importingWallet: true,
-      };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
-
-      const { result } = renderHook(() => useWalletImport(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(result.current!.importingWallet).toBe(true);
-      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
-      expect(result.current!.isImportedWallet).toBe(false);
-    });
-
-    it('should handle persisted state with undefined values', async () => {
-      // State with undefined values
-      const savedState = {
-        importingWallet: undefined,
-        importSeedPhrase: null,
-        isImportedWallet: undefined,
-      };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
-
-      const { result } = renderHook(() => useWalletImport(mockProps), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      // Should not set values when they are null/undefined
       expect(result.current!.importingWallet).toBe(false);
       expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
       expect(result.current!.isImportedWallet).toBe(false);
     });
 
-    it('should handle persisted state with false values', async () => {
-      // State with explicit false values (should be loaded)
-      const savedState = {
-        importingWallet: false,
-        importSeedPhrase: ['test', 'words', '', '', '', '', '', '', '', '', '', ''],
-        isImportedWallet: false,
-      };
-      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(savedState));
-
+    it('should start from clean defaults without persisted state hydration', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
       });
@@ -202,8 +127,28 @@ describe('useWalletImport', () => {
       });
 
       expect(result.current!.importingWallet).toBe(false);
-      expect(result.current!.importSeedPhrase).toEqual(savedState.importSeedPhrase);
+      expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
       expect(result.current!.isImportedWallet).toBe(false);
+    });
+
+    it('should expose importedMnemonic only after successful import', async () => {
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      expect(result.current!.importedMnemonic).toBeNull();
+
+      const seedPhrase = Array(12).fill('abandon');
+
+      act(() => {
+        result.current!.setImportSeedPhrase(seedPhrase);
+      });
+
+      await act(async () => {
+        await result.current!.importWallet();
+      });
+
+      expect(result.current!.importedMnemonic).toBe(seedPhrase.join(' '));
     });
   });
 
@@ -242,10 +187,7 @@ describe('useWalletImport', () => {
         seedPhrase.join(' '),
         mockProps.currentAccount
       );
-      expect(WalletService.saveWalletToStorage).toHaveBeenCalledWith(
-        seedPhrase.join(' '),
-        mockProps.currentAccount
-      );
+      expect(WalletService.saveWalletToStorage).not.toHaveBeenCalled();
       // loadWallet is intentionally not called during import - it's called after PIN setup
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
     });
@@ -322,7 +264,7 @@ describe('useWalletImport', () => {
       expect(result.current!.importSeedPhrase).toEqual(Array(12).fill(''));
     });
 
-    it('should clear persisted state on success', async () => {
+    it('should keep imported mnemonic in memory until PIN setup completes', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
       });
@@ -337,7 +279,7 @@ describe('useWalletImport', () => {
         await result.current!.importWallet();
       });
 
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
+      expect(result.current!.importedMnemonic).toBe(seedPhrase.join(' '));
     });
 
     it('should handle import errors', async () => {
@@ -491,40 +433,71 @@ describe('useWalletImport', () => {
       expect(result.current!.isImportedWallet).toBe(false);
     });
 
-    it('should clear persisted state', async () => {
+    it('should clear imported mnemonic', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current!.setImportedMnemonic('abandon '.repeat(11) + 'about');
       });
 
       await act(async () => {
         await result.current!.resetImportState();
       });
 
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
+      expect(result.current!.importedMnemonic).toBeNull();
     });
   });
 
-  describe('State Persistence', () => {
-    it('should persist state changes to AsyncStorage', async () => {
+  describe('Persist Imported Wallet', () => {
+    it('should save the imported wallet only after PIN setup completes', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      const seedPhrase = [
+        'abandon',
+        'ability',
+        'able',
+        'about',
+        'above',
+        'absent',
+        'absorb',
+        'abstract',
+        'absurd',
+        'abuse',
+        'access',
+        'accident',
+      ];
 
       act(() => {
-        result.current!.setImportingWallet(true);
+        result.current!.setImportSeedPhrase(seedPhrase);
       });
 
       await act(async () => {
-        await Promise.resolve();
+        await result.current!.importWallet();
       });
 
-      expect(AsyncStorage.setItem).toHaveBeenCalledWith('wallet_import_state', expect.any(String));
+      await act(async () => {
+        await result.current!.persistImportedWallet();
+      });
+
+      expect(WalletService.saveWalletToStorage).toHaveBeenCalledWith(
+        seedPhrase.join(' '),
+        mockProps.currentAccount
+      );
     });
 
+    it('should throw if persistImportedWallet is called before import completes', async () => {
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      await expect(result.current!.persistImportedWallet()).rejects.toThrow(
+        'Imported mnemonic not available'
+      );
+    });
   });
 
   describe('Seed Input Refs', () => {

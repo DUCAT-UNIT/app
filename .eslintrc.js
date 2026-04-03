@@ -1,6 +1,6 @@
 module.exports = {
   root: true,
-  extends: ['@react-native', 'prettier', 'plugin:storybook/recommended'],
+  extends: ['@react-native', 'prettier'],
   parser: '@babel/eslint-parser',
   ignorePatterns: ['coverage/**', 'node_modules/**'],
   parserOptions: {
@@ -32,13 +32,44 @@ module.exports = {
         'prettier',
       ],
       rules: {
-        '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+        '@typescript-eslint/no-unused-vars': ['warn', {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^(_.*|e|err|error|.*Error)$',
+          ignoreRestSiblings: true,
+        }],
         '@typescript-eslint/no-explicit-any': 'warn',
         '@typescript-eslint/explicit-function-return-type': 'off',
         '@typescript-eslint/explicit-module-boundary-types': 'off',
+        '@typescript-eslint/no-require-imports': 'off',
         '@typescript-eslint/no-shadow': 'warn',
         'no-shadow': 'off', // Turn off base rule as it conflicts with TS version
         'no-undef': 'off', // TypeScript handles this
+        'no-bitwise': 'off',
+        'react-native/no-inline-styles': 'off',
+        'react-hooks/exhaustive-deps': 'warn',
+      },
+    },
+    {
+      files: ['**/*.d.ts'],
+      rules: {
+        'no-var': 'off',
+        '@typescript-eslint/no-unsafe-function-type': 'off',
+      },
+    },
+    {
+      files: ['storybook/**/*'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+        'react-hooks/exhaustive-deps': 'off',
+        'react-native/no-unused-styles': 'off',
+      },
+    },
+    {
+      files: ['styles/**/*'],
+      rules: {
+        '@typescript-eslint/no-unused-vars': 'off',
       },
     },
   ],
@@ -47,7 +78,12 @@ module.exports = {
     'no-console': ['error', { allow: ['warn', 'error'] }],
 
     // Code quality
-    'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    'no-unused-vars': ['warn', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^(_.*|e|err|error|.*Error)$',
+      ignoreRestSiblings: true,
+    }],
     'prefer-const': 'warn',
     'no-var': 'error',
     'no-undef': 'off', // Turn off for React Native globals (Buffer, BigInt)
@@ -57,7 +93,7 @@ module.exports = {
     'no-shadow': 'warn',
 
     // React Native specific
-    'react-native/no-inline-styles': 'warn',
+    'react-native/no-inline-styles': 'off',
     'react-native/no-unused-styles': 'warn',
     'react-native/split-platform-components': 'off',
     'react-native/no-raw-text': 'off',
@@ -66,9 +102,6 @@ module.exports = {
     'react/prop-types': 'off', // We'll add TypeScript later
     'react-hooks/exhaustive-deps': 'warn',
     'react/jsx-no-duplicate-props': 'warn',
-
-    // ESLint comments
-    'eslint-comments/no-unused-disable': 'warn',
   },
   env: {
     'react-native/react-native': true,

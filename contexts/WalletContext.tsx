@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import * as WalletService from '../services/walletService';
-import { useNotifications } from '../stores/notificationStore';
+import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 import { clearP2PKCache } from '../services/cashu/p2pk';
+import { resetE2eVaultState } from '../utils/e2eVaultState';
 
 export interface WalletAddresses {
   segwitAddress: string;
@@ -35,8 +36,6 @@ interface WalletProviderProps {
 }
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-  // Get toast notifications
-  const { showToast } = useNotifications();
 
   // Wallet state
   const [wallet, setWallet] = useState<WalletAddresses | null>(null);
@@ -61,7 +60,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       return { exists: false };
     } catch (error: unknown) {
-      return { exists: false };
+      logger.error('[WalletContext] Failed to load wallet into context', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
     }
   }, []);
 
@@ -74,12 +76,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       taprootPubkey: addresses.taprootPubkey,
     });
     setCurrentAccount(accountIndex);
+
+    Promise.all([
+      saveCachedAddresses(accountIndex, addresses),
+      saveToMultiAccountCache(accountIndex, addresses),
+    ]).catch((error: unknown) => {
+      logger.warn('[WalletContext] Failed to cache wallet addresses', {
+        accountIndex,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   }, []);
 
   // Reset wallet (for logout/delete)
   const resetWallet = useCallback(async () => {
     setWallet(null);
     setCurrentAccount(0);
+    resetE2eVaultState();
 
     // Clear P2PK cache on wallet reset
     try {

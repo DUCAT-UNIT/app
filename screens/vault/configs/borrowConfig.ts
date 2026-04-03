@@ -2,10 +2,10 @@
  * Borrow Operation Configuration
  */
 
-import { computeHealthFactor, computeLiquidationPrice } from '../../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
 import { colors } from '../../../styles/theme';
-import { getHealthColor } from '../../../utils/vaultHealthColor';
 import type {
+  BorrowVaultStore,
   VaultInputScreenConfig,
   VaultConfirmScreenConfig,
   VaultProcessingScreenConfig,
@@ -22,7 +22,7 @@ export const borrowRoutes = {
   success: 'BorrowSuccess',
 };
 
-export const borrowInputConfig: VaultInputScreenConfig = {
+export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
   operationType: 'borrow',
   title: 'Borrow UNIT',
   asset: 'UNIT',
@@ -107,7 +107,7 @@ export const borrowInputConfig: VaultInputScreenConfig = {
   },
 };
 
-export const borrowConfirmConfig: VaultConfirmScreenConfig = {
+export const borrowConfirmConfig: VaultConfirmScreenConfig<BorrowVaultStore> = {
   operationType: 'borrow',
   title: 'Confirm Borrow',
   authMessage: 'Authenticate to borrow UNIT',
@@ -182,4 +182,3 @@ export const borrowProcessingConfig: VaultProcessingScreenConfig = {
     }
   },
 };
-

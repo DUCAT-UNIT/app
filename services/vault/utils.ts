@@ -17,19 +17,24 @@ import { varIntSize } from '../../utils/wallet/cryptoHelpers';
  * Vault operation mutex — serializes vault operations to prevent concurrent
  * UTXO usage that could cause double-spend rejections from Guardian.
  * Without this, simultaneous deposit + borrow could select the same UTXOs.
+ *
+ * Uses a Map keyed by vault pubkey so that operations on different accounts
+ * (different vault pubkeys) can proceed independently, while operations on
+ * the same vault are properly serialized.
  */
-let _vaultOpLock: Promise<void> = Promise.resolve();
+const _vaultOpLocks: Map<string, Promise<void>> = new Map();
 
-export function withVaultOperationLock<T>(fn: () => Promise<T>): Promise<T> {
+export function withVaultOperationLock<T>(fn: () => Promise<T>, key = '__default__'): Promise<T> {
   let release: () => void;
-  const next = new Promise<void>((resolve) => {
+  const _next = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const result = _vaultOpLock.then(fn);
-  _vaultOpLock = result.then(
+  const existing = _vaultOpLocks.get(key) || Promise.resolve();
+  const result = existing.then(fn);
+  _vaultOpLocks.set(key, result.then(
     () => { release(); },
     () => { release(); }
-  );
+  ));
   return result;
 }
 
@@ -107,13 +112,13 @@ export function extractOpReturnFromTxHex(txHex: string | undefined): string | nu
 
 /**
  * Checks if batch signing is allowed based on wallet address type
- * Batch signing is only allowed for native segwit (tb1q...) addresses
+ * Batch signing is only allowed for native SegWit addresses
  */
 export function checkBatchAllowed(wallet: VaultWallet): boolean {
   try {
     const satsAddress = wallet.acct?.sats?.address || '';
-    // Native segwit addresses start with tb1q (testnet) or bc1q (mainnet)
-    return satsAddress.startsWith('tb1q') || satsAddress.startsWith('bc1q');
+    const lowerAddress = satsAddress.toLowerCase();
+    return lowerAddress.startsWith('tb1q') || lowerAddress.startsWith('bc1q');
   } catch (error: unknown) {
     logger.warn('[VaultOps] Failed to check batch allowed', { error: error instanceof Error ? error.message : String(error) });
     return false;

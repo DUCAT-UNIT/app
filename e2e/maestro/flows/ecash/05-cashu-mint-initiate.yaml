@@ -1,9 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Cashu Mint Initiation - Navigate full mint path, enter amount, initiate mint, verify error handling
-# The Mutinynet Cashu mint currently returns "Unsupported unit: unit" — test verifies the full
-# user journey through to mint initiation and proper error dialog handling.
-# Create wallet with vault (has UNIT Runes) → settings → cashu → mint → enter amount → tap mint → handle error
+# Cashu Mint Initiation - Navigate full mint path, enter amount, initiate mint, verify quote created
+# Create wallet with vault (has UNIT Runes) → settings → cashu → mint → enter amount → tap mint → verify quote
 
 - runFlow: ../helpers/create-wallet-with-vault.yaml
 
@@ -68,31 +66,38 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "cashu-mint-amount-input"
 - inputText: "100"
 
-# Tap mint button to initiate auto-mint flow
+# Tap mint button to initiate mint flow
 - tapOn:
     id: "cashu-mint-btn"
 
-# Mint server currently returns "Unsupported unit: unit" error
-# Verify the error dialog appears and can be dismissed
+# Mint quote should be created successfully - app shows "You will send" confirmation screen
 - extendedWaitUntil:
     visible:
-      text: "Error"
+      text: "You will send"
     timeout: 30000
 
-# Verify the error message content
+# Verify the deposit details show UNIT amount
 - assertVisible:
-    text: "Unsupported unit: unit"
+    text: "100.00 UNIT"
 
-# Dismiss error dialog
+# Tap Confirm and Sign to broadcast the UNIT deposit to the mint
 - tapOn:
-    text: "OK"
+    text: "Confirm and Sign"
 
-# Verify we return to the mint screen (app handles error gracefully)
+# Wait for transaction to be signed and broadcast (ProcessingScreen is transient)
+# Then ConfirmationScreen shows "Transaction Sent!"
 - extendedWaitUntil:
     visible:
-      id: "cashu-mint-screen"
-    timeout: 5000
+      text: "Transaction Sent!"
+    timeout: 60000
 
-# Verify mint screen is still functional after error
+# Verify we're on the confirmation screen
 - assertVisible:
-    text: "Mint Turbo UNIT"
+    id: "confirmation-screen"
+
+# Full mint flow verified:
+# 1. Mint quote created successfully (no "Unsupported unit: unit" error)
+# 2. UNIT Runes signed and broadcast to mint deposit address
+# 3. Transaction confirmed on-chain (Transaction Sent!)
+# Background CashuContext polling (every 5s) will complete the mint
+# and issue Cashu tokens once the deposit confirms on Mutinynet (~30s).

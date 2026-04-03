@@ -13,7 +13,6 @@ export const resetOnboardingState = async (): Promise<void> => {
   try {
     // Clear all onboarding-related AsyncStorage keys
     await Promise.all([
-      AsyncStorage.removeItem('wallet_creation_state'),
       AsyncStorage.removeItem('wallet_import_state'),
       AsyncStorage.removeItem('seed_verification_state'),
       AsyncStorage.removeItem('onboarding_state'), // Legacy key from old useOnboarding

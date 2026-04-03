@@ -10,7 +10,7 @@ interface WithErrorBoundaryOptions {
   boundaryName?: string;
   fallbackMessage?: string;
   onReset?: () => void;
-  extraContext?: Record<string, any>;
+  extraContext?: Record<string, unknown>;
 }
 
 /**

@@ -196,9 +196,19 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     return () => { cancelled = true; };
   }, [wallet, currentAccount, segwitBalance, taprootBalance, showBiometricSetupModal]);
 
-  // Auto-request airdrop when BTC balance is 0 (check once per day)
+  // Store wallet address in ref so the async closure always reads the fresh value
+  // without needing the entire wallet object in the dependency array.
+  const walletAddressRef = useRef(wallet?.segwitAddress);
   useEffect(() => {
-    if (!wallet?.segwitAddress) {
+    walletAddressRef.current = wallet?.segwitAddress;
+  }, [wallet?.segwitAddress]);
+
+  // Auto-request airdrop when BTC balance is 0 (check once per day)
+  // Deps use wallet?.segwitAddress (a stable string) instead of the wallet object
+  // to prevent the 24-hour interval from resetting on every wallet state change.
+  useEffect(() => {
+    const segwitAddress = wallet?.segwitAddress;
+    if (!segwitAddress) {
       logger.debug('[Airdrop] Skipping: no wallet address');
       return;
     }
@@ -214,7 +224,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     let cancelled = false;
 
     logger.debug('[Airdrop] All conditions met, scheduling check in 3s', {
-      address: wallet.segwitAddress.slice(0, 12) + '...',
+      address: segwitAddress.slice(0, 12) + '...',
       currentAccount,
     });
 
@@ -225,9 +235,13 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
         return;
       }
 
-      const airdropKey = getAirdropKey(wallet.segwitAddress, currentAccount);
-      const lockKey = getLockKey(wallet.segwitAddress, currentAccount);
-      const pendingKey = getPendingKey(wallet.segwitAddress, currentAccount);
+      // Read fresh address from ref in case it changed between interval ticks
+      const address = walletAddressRef.current;
+      if (!address) return;
+
+      const airdropKey = getAirdropKey(address, currentAccount);
+      const lockKey = getLockKey(address, currentAccount);
+      const pendingKey = getPendingKey(address, currentAccount);
 
       try {
         // Check for existing lock (prevents race conditions across mounts)
@@ -257,8 +271,8 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             await recordAirdropTime(airdropKey);
 
             // Request airdrop
-            logger.debug('[Airdrop] Requesting airdrop for', { address: wallet.segwitAddress.slice(0, 12) + '...' });
-            const result = await AirdropService.requestAirdrop(wallet.segwitAddress);
+            logger.debug('[Airdrop] Requesting airdrop for', { address: address.slice(0, 12) + '...' });
+            const result = await AirdropService.requestAirdrop(address);
 
             logger.debug('[Airdrop] Airdrop received!', { txId: result.txId });
 
@@ -314,7 +328,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet, currentAccount, isAuthenticated, seedConfirmed]);
+  }, [wallet?.segwitAddress, currentAccount, isAuthenticated, seedConfirmed]);
 
   const value = useMemo(() => ({
     // Airdrop modal state

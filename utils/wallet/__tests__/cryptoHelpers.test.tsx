@@ -155,12 +155,12 @@ describe('cryptoHelpers', () => {
   describe('getDerivationPath', () => {
     it('should return BIP84 path for SegWit addresses (tb1q)', () => {
       const path = getDerivationPath('tb1qtest123', 5);
-      expect(path).toBe("m/84'/1'/0'/0/5");
+      expect(path).toBe("m/84'/1'/5'/0/0");
     });
 
     it('should return BIP86 path for Taproot addresses (tb1p)', () => {
       const path = getDerivationPath('tb1ptest123', 10);
-      expect(path).toBe("m/86'/1'/0'/0/10");
+      expect(path).toBe("m/86'/1'/10'/0/0");
     });
 
     it('should return path for account index 0', () => {

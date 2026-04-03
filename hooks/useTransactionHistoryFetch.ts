@@ -5,9 +5,9 @@
  * Note: Different from useTransactionHistoryData which is for UI consumption
  */
 
-import { useState, useCallback, useRef } from 'react';
-import { fetchAllTransactionHistory, Transaction } from '../services/transactionHistoryService';
+import { useCallback,useRef,useState } from 'react';
 import type { WalletAddresses } from '../contexts/WalletContext';
+import { fetchAllTransactionHistory,Transaction } from '../services/transactionHistoryService';
 
 export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
@@ -61,7 +61,7 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
     } finally {
       setLoadingTransactionHistory(false);
     }
-  }, [wallet]);
+  }, [transactionHistory.length, wallet]);
 
   /**
    * Reset transaction history (called when wallet is reset)

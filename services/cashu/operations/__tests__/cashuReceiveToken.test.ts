@@ -36,7 +36,7 @@ jest.mock('../../crypto', () => ({
   createBlindedOutputs: jest.fn(),
   unblindSignatures: jest.fn(),
   splitAmount: jest.fn(),
-  sumProofs: jest.fn(),
+  sumProofs: jest.fn((proofs: any[]) => proofs.reduce((sum: number, p: any) => sum + p.amount, 0)),
   decodeToken: jest.fn(),
 }));
 
@@ -63,7 +63,7 @@ jest.mock('../../cashuProofManager', () => ({
 }));
 
 import { receiveToken } from '../cashuReceiveToken';
-import { MINT_URL, swapTokens } from '../../cashuMintClient';
+import { MINT_URL, swapTokens, checkProofsSpent } from '../../cashuMintClient';
 import { createBlindedOutputs, unblindSignatures, splitAmount, sumProofs, decodeToken } from '../../crypto';
 import { isP2PKLocked, getP2PKRecipient, findAccountForP2PKToken, getP2PKPrivateKey, signP2PKProofs } from '../../p2pk';
 import { getCurrentAccount } from '../../../secureStorageService';
@@ -73,6 +73,9 @@ import { loadProofs, addProofs } from '../../cashuProofManager';
 describe('cashuReceiveToken', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (checkProofsSpent as jest.Mock).mockImplementation(async (proofs: Array<unknown>) => ({
+      states: proofs.map(() => ({ state: 'UNSPENT' })),
+    }));
   });
 
   describe('receiveToken', () => {
@@ -371,7 +374,8 @@ describe('cashuReceiveToken', () => {
       );
       expect(mockSetItemAsync).toHaveBeenCalledWith(
         expect.stringContaining('cashu_failed_proofs_'),
-        expect.stringContaining('new1')
+        expect.stringContaining('new1'),
+        expect.any(Object)
       );
     });
 

@@ -3,16 +3,17 @@
  * Matches the design of the QRModal component but as a navigation screen
  */
 
-import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Share } from 'react-native';
-import { NavigationProp, RouteProp } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import QRCode from 'react-native-qrcode-svg';
+import { NavigationProp,RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
+import React,{ useMemo,useState } from 'react';
+import { ScrollView,Share,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/icons';
-import { COLORS } from '../../theme';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useNotifications } from '../../stores/notificationStore';
+import { COLORS } from '../../theme';
+import { NETWORK_EDITION_LABEL } from '../../utils/constants';
 
 /**
  * Route parameters for ReceiveQRScreen
@@ -33,7 +34,7 @@ interface ReceiveQRScreenProps {
 export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenProps): React.JSX.Element {
   const { address, addressType = 'Native SegWit' } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
-  const { width, s, sf, screenSize } = useResponsive();
+  const { width, s, screenSize } = useResponsive();
   const { showSnackbar } = useNotifications();
 
   // Calculate responsive values
@@ -87,7 +88,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
     <SafeAreaView style={styles.container} edges={['top']} testID="receive-qr-screen">
       {/* Network header bar */}
       <View style={[styles.networkBar, { paddingVertical: responsiveValues.networkBarPadding }]}>
-        <Text style={styles.networkText}>Mutinynet Edition</Text>
+        <Text style={styles.networkText}>{NETWORK_EDITION_LABEL}</Text>
       </View>
 
       <ScrollView

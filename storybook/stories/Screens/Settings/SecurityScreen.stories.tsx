@@ -93,7 +93,7 @@ const SecurityScreenMock = ({ biometricEnabled, autoLockEnabled }: { biometricEn
             rightText={autoLockEnabled ? 'ON' : 'OFF'}
           />
           <SettingsOption iconName="recovery_phrase" title="Backup Wallet" />
-          <SettingsOption iconName="delete_wallet" title="Delete Wallet" isDanger />
+          <SettingsOption iconName="delete_wallet" title="Delete Local Wallet" isDanger />
         </View>
       </View>
     </ScrollView>

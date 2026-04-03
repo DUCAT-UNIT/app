@@ -11,6 +11,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { DEVICE_ONLY } from '../storagePolicy';
 
 const PENDING_TURBO_SEND_KEY = 'cashu_pending_turbo_send';
 
@@ -53,7 +54,7 @@ export const savePendingTurboSend = async (
       stage: 'waiting_for_mint',
     };
 
-    await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pendingSend));
+    await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pendingSend), DEVICE_ONLY);
 
     logger.info('[TurboRecovery] Saved pending turbo send', {
       quoteId: quoteId.substring(0, 8),
@@ -82,7 +83,7 @@ export const updateTurboSendStage = async (
       pending.stage = stage;
       if (data?.token) pending.token = data.token;
       if (data?.shortUrl) pending.shortUrl = data.shortUrl;
-      await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pending));
+      await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pending), DEVICE_ONLY);
       logger.debug('[TurboRecovery] Updated turbo send stage', { stage, hasToken: !!data?.token });
     }
   } catch (error) {

@@ -5,25 +5,27 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
-import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
+import { getCurrentAccount } from '../../secureStorageService';
+import { DEVICE_ONLY } from '../../storagePolicy';
+import { getOrFetchKeys } from '../cashuBalanceService';
+import { checkProofsSpent,MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { addProofs,loadProofs } from '../cashuProofManager';
 import {
-  createBlindedOutputs,
-  unblindSignatures,
-  splitAmount,
-  sumProofs,
-  decodeToken,
-  CashuProof,
+createBlindedOutputs,
+decodeToken,
+splitAmount,
+sumProofs,
+unblindSignatures
 } from '../crypto';
 import {
-  isP2PKLocked,
-  getP2PKRecipient,
-  findAccountForP2PKToken,
-  signP2PKProofs,
-  verifyP2PKWitness,
+findAccountForP2PKToken,
+getP2PKRecipient,
+isP2PKLocked,
+signP2PKProofs,
+verifyP2PKWitness,
 } from '../p2pk';
-import { getCurrentAccount } from '../../secureStorageService';
-import { getOrFetchKeys } from '../cashuBalanceService';
-import { loadProofs, addProofs } from '../cashuProofManager';
+
+const FAILED_PROOF_RECOVERY_KEYS = 'cashu_failed_proof_recovery_keys_v1';
 
 export interface ReceiveTokenResult {
   amount: number;
@@ -102,10 +104,13 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
     // Mint-side double-spend check before any processing
     const spendCheck = await checkProofsSpent(proofs);
-    const spendStates = Array.isArray(spendCheck?.states)
-      ? spendCheck.states
-      : proofs.map(() => ({ state: false }));
-    if (spendStates.some((s) => s.state === 'spent' || s.state === true)) {
+    if (!Array.isArray(spendCheck?.states) || spendCheck.states.length !== proofs.length) {
+      throw new Error('Unable to verify token spend state with mint');
+    }
+    if (spendCheck.states.some((s) => {
+      const state = (s as { state: unknown }).state;
+      return state === true || String(state).toUpperCase() === 'SPENT';
+    })) {
       throw new Error('Token proofs already spent');
     }
 
@@ -296,26 +301,27 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
     // CRITICAL: If all retries failed, log proofs for manual recovery
     if (!saveSuccess) {
-      // Log critical error with full proof data for recovery
       logger.error('CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK', {
         error: lastError?.message,
         proofCount: newProofs.length,
         amount,
-        proofSecrets: newProofs.map(p => p.secret),
-        proofData: JSON.stringify(newProofs),
         timestamp: new Date().toISOString(),
-        recoveryNote: 'These proofs were successfully received from mint but failed to persist locally',
+        recoveryNote: 'Proofs were received from the mint but could not be persisted locally',
       });
 
       // Attempt to store in a recovery queue
       try {
         const recoveryKey = `cashu_failed_proofs_${Date.now()}`;
+        const existingRegistryRaw = await SecureStore.getItemAsync(FAILED_PROOF_RECOVERY_KEYS);
+        const existingRegistry = existingRegistryRaw ? JSON.parse(existingRegistryRaw) as string[] : [];
+        const updatedRegistry = Array.from(new Set([...existingRegistry, recoveryKey]));
         await SecureStore.setItemAsync(recoveryKey, JSON.stringify({
           proofs: newProofs,
           amount,
           timestamp: new Date().toISOString(),
           error: lastError?.message,
-        }));
+        }), DEVICE_ONLY);
+        await SecureStore.setItemAsync(FAILED_PROOF_RECOVERY_KEYS, JSON.stringify(updatedRegistry), DEVICE_ONLY);
         logger.info('Stored failed proofs in recovery queue', { recoveryKey });
       } catch (recoveryError) {
         logger.error('Failed to store proofs in recovery queue', {

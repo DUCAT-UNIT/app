@@ -33,11 +33,14 @@ function renderHook<T>(hook: () => T) {
 jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn(),
   getItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
 // Mock biometricService
+const mockPersistBiometricEnabled = jest.fn();
 jest.mock('../../services/biometricService', () => ({
   authenticateWithBiometrics: jest.fn(),
+  setBiometricEnabled: (...args: any[]) => mockPersistBiometricEnabled(...args),
 }));
 
 describe('useAuthSettings', () => {
@@ -58,6 +61,7 @@ describe('useAuthSettings', () => {
     jest.clearAllMocks();
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(null);
     (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+    mockPersistBiometricEnabled.mockResolvedValue(true);
   });
 
   it('should initialize with modal hidden', () => {
@@ -129,7 +133,7 @@ describe('useAuthSettings', () => {
         'Use PIN'
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('returnToSettingsAfterAuth', 'true');
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'true');
+      expect(mockPersistBiometricEnabled).toHaveBeenCalledWith(true);
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(true);
       expect(notify.settings.faceIdEnabled).toHaveBeenCalled();
       expect(result.current!.showFaceIdModal).toBe(false);
@@ -189,15 +193,9 @@ describe('useAuthSettings', () => {
       expect(mockProps.setBiometricEnabled).not.toHaveBeenCalled();
     });
 
-    it('should handle SecureStore errors when saving', async () => {
+    it('should handle biometric persistence errors when saving', async () => {
       (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
-      // Make setItemAsync fail only on the final biometricEnabled save
-      (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string) => {
-        if (key === 'biometricEnabled') {
-          return Promise.reject(new Error('Storage error'));
-        }
-        return Promise.resolve(null);
-      });
+      mockPersistBiometricEnabled.mockResolvedValue(false);
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
@@ -252,12 +250,12 @@ describe('useAuthSettings', () => {
       // Should NOT prompt for biometric authentication when disabling
       expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
       expect(mockProps.setBiometricEnabled).toHaveBeenCalledWith(false);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('biometricEnabled', 'false');
+      expect(mockPersistBiometricEnabled).toHaveBeenCalledWith(false);
       expect(notify.settings.faceIdDisabled).toHaveBeenCalled();
     });
 
-    it('should handle SecureStore errors when disabling', async () => {
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
+    it('should handle biometric persistence errors when disabling', async () => {
+      mockPersistBiometricEnabled.mockResolvedValue(false);
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 
@@ -272,8 +270,8 @@ describe('useAuthSettings', () => {
       expect(notify.settings.faceIdFailed).toHaveBeenCalled();
     });
 
-    it('should handle non-Error SecureStore errors when disabling', async () => {
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue('non-error storage failure');
+    it('should handle non-Error biometric persistence errors when disabling', async () => {
+      mockPersistBiometricEnabled.mockRejectedValue('non-error storage failure');
 
       const { result } = renderHook(() => useAuthSettings(mockProps));
 

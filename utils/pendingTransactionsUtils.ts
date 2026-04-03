@@ -126,7 +126,8 @@ export function matchesAddressType(address: string, addressType: AddressType): b
 export function getUnconfirmedUTXOsFromPending(
   pendingTransactions: Record<string, PendingTransaction>,
   addressType: AddressType,
-  excludedKeys: Set<string>
+  excludedKeys: Set<string>,
+  spentUtxos: Set<string> = new Set()
 ): UnconfirmedUTXO[] {
   const utxos: UnconfirmedUTXO[] = [];
 
@@ -139,6 +140,10 @@ export function getUnconfirmedUTXOsFromPending(
         if (excludedKeys.has(key)) {
           logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (in exclusion set):', { key });
           return; // Skip this UTXO
+        }
+        if (spentUtxos.has(key)) {
+          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (already spent):', { key });
+          return;
         }
 
         // Filter by address type if specified
@@ -333,10 +338,14 @@ export function convertSpentKeysToUtxos(
   spentUtxoKeys: Set<string> | string[]
 ): Array<{ txid: string; vout: number }> {
   const keys = spentUtxoKeys instanceof Set ? Array.from(spentUtxoKeys) : spentUtxoKeys;
-  return keys.map(key => {
-    const [txid, vout] = key.split(':');
-    return { txid, vout: parseInt(vout, 10) };
-  });
+  return keys
+    .filter(key => key.includes(':'))
+    .map(key => {
+      const colonIdx = key.lastIndexOf(':');
+      const txid = key.substring(0, colonIdx);
+      const vout = parseInt(key.substring(colonIdx + 1), 10);
+      return { txid, vout: Number.isNaN(vout) ? 0 : vout };
+    });
 }
 
 /**

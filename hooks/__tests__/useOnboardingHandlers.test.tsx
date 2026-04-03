@@ -5,7 +5,6 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useOnboardingHandlers } from '../useOnboardingHandlers';
-import { notify } from '../../utils/notify';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -50,7 +49,7 @@ describe('useOnboardingHandlers', () => {
       setImportedMnemonic: jest.fn(),
       setImportingWallet: jest.fn(),
       setImportSeedPhrase: jest.fn(),
-      saveWalletAfterPinSetup: jest.fn().mockResolvedValue(true),
+      persistImportedWallet: jest.fn().mockResolvedValue(undefined),
       loadWallet: jest.fn().mockResolvedValue({
         exists: true,
         addresses: {
@@ -78,7 +77,7 @@ describe('useOnboardingHandlers', () => {
   });
 
   describe('handlePinSetupComplete', () => {
-    it('should save wallet for new wallet creation', async () => {
+    it('should complete normal onboarding flow without legacy wallet creation state', async () => {
       const { result } = renderHookWithProps({
         ...mockProps,
         isImportedWallet: false,
@@ -88,24 +87,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
-      expect(mockProps.saveWalletAfterPinSetup).toHaveBeenCalled();
       expect(mockProps.handlePinSetupCompleteWrapper).toHaveBeenCalled();
-    });
-
-    it('should show toast if save fails', async () => {
-      (mockProps.saveWalletAfterPinSetup as jest.Mock).mockResolvedValue(false);
-
-      const { result } = renderHookWithProps({
-        ...mockProps,
-        isImportedWallet: false,
-      });
-
-      await act(async () => {
-        await result.current!.handlePinSetupComplete('1234');
-      });
-
-      expect(notify.wallet.saveFailed).toHaveBeenCalled();
-      expect(mockProps.handlePinSetupCompleteWrapper).not.toHaveBeenCalled();
     });
 
     it('should handle imported wallet flow', async () => {
@@ -121,6 +103,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
+      expect(mockProps.persistImportedWallet).toHaveBeenCalled();
       expect(mockProps.setIsImportedWallet).toHaveBeenCalledWith(false);
       expect(mockProps.loadWallet).toHaveBeenCalled();
       expect(mockProps.handlePinSetupCompleteWrapper).toHaveBeenCalled();
@@ -128,17 +111,14 @@ describe('useOnboardingHandlers', () => {
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
       expect(mockProps.setImportedMnemonic).toHaveBeenCalledWith(null);
 
-      // Check passkey migration prompt is scheduled
-      await act(async () => {
-        jest.advanceTimersByTime(2500);
-      });
-
-      expect(mockProps.showPasskeyMigrationPromptGlobal).toHaveBeenCalled();
+      // Passkey migration prompt is skipped in __DEV__ mode (line 90 of hook)
+      // In production, it would be called immediately after setup
+      expect(mockProps.showPasskeyMigrationPromptGlobal).not.toHaveBeenCalled();
 
       jest.useRealTimers();
     });
 
-    it('should not save wallet for imported wallet', async () => {
+    it('should not use legacy wallet creation state for imported wallet', async () => {
       const { result } = renderHookWithProps({
         ...mockProps,
         isImportedWallet: true,
@@ -149,7 +129,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
-      expect(mockProps.saveWalletAfterPinSetup).not.toHaveBeenCalled();
+      expect(mockProps.persistImportedWallet).toHaveBeenCalled();
     });
 
     it('should handle missing fetchBalance gracefully', async () => {
@@ -164,6 +144,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
+      expect(mockProps.persistImportedWallet).toHaveBeenCalled();
       // Should not throw
       expect(mockProps.handlePinSetupCompleteWrapper).toHaveBeenCalled();
     });
@@ -180,6 +161,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
+      expect(mockProps.persistImportedWallet).toHaveBeenCalled();
       // Should not throw
       expect(mockProps.handlePinSetupCompleteWrapper).toHaveBeenCalled();
     });
@@ -200,6 +182,7 @@ describe('useOnboardingHandlers', () => {
         await result.current!.handlePinSetupComplete('1234');
       });
 
+      expect(mockProps.persistImportedWallet).toHaveBeenCalled();
       expect(mockProps.fetchBalance).not.toHaveBeenCalled();
       expect(mockProps.fetchTransactionHistory).not.toHaveBeenCalled();
     });

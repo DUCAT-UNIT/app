@@ -4,26 +4,26 @@
  * Uses responsive scaling with s() and sf() functions
  */
 
-import React, { useState, useEffect, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Share, StyleSheet as RNStyleSheet } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import React,{ memo,useCallback,useEffect,useState } from 'react';
+import { ActivityIndicator,Modal,StyleSheet as RNStyleSheet,Share,Text,TouchableOpacity,View } from 'react-native';
 
-import { COLORS } from '../../theme';
-import Icon from '../icons';
-import { formatTransactionDate } from '../../utils/formatters/dates';
-import { formatUnitAmount } from '../../utils/formatters/amounts';
-import { truncateAddress } from '../../utils/formatters/addresses';
-import globalStyles from '../../styles';
+import { useWallet } from '../../contexts/WalletContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
-  getSentLockedTokens,
+getSentLockedTokens,
 } from '../../services/cashu/cashuLockedTokensService';
-import { decodeToken } from '../../services/cashu/crypto';
 import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
+import { decodeToken } from '../../services/cashu/crypto';
 import { useNotifications } from '../../stores/notificationStore';
-import { useWallet } from '../../contexts/WalletContext';
+import globalStyles from '../../styles';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { COLORS } from '../../theme';
+import { truncateAddress } from '../../utils/formatters/addresses';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatTransactionDate } from '../../utils/formatters/dates';
 import { logger } from '../../utils/logger';
-import { colors, spacing, fonts, fontSizes, radii } from '../../styles/theme';
+import Icon from '../icons';
 
 interface TokenRecord {
   id: string;
@@ -44,7 +44,7 @@ interface TurboTokenItemProps {
 
 // Memoized token item component to prevent unnecessary re-renders
 const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfClaim, onCopy }: TurboTokenItemProps) {
-  const { s, sf } = useResponsive();
+  const { s } = useResponsive();
 
   // Determine status and styling based on claim state
   const getStatusConfig = () => {

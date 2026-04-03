@@ -30,6 +30,14 @@ const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<t
 
 // SecureStore options used by pinLockout (AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY)
 const LOCKOUT_OPTS = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+const LOCKOUT_KEYS = {
+  FAILED_ATTEMPTS: 'pin_failed_attempts_v2',
+  LOCKOUT_UNTIL: 'pin_lockout_until_v2',
+};
+const LEGACY_LOCKOUT_KEYS = {
+  FAILED_ATTEMPTS: 'pin_failed_attempts',
+  LOCKOUT_UNTIL: 'pin_lockout_until',
+};
 
 describe('loadLockoutState', () => {
   beforeEach(() => {
@@ -38,8 +46,8 @@ describe('loadLockoutState', () => {
 
   it('should load lockout state from secure storage', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_failed_attempts') return Promise.resolve('3');
-      if (key === 'pin_lockout_until') return Promise.resolve('1234567890');
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve('3');
+      if (key === LOCKOUT_KEYS.LOCKOUT_UNTIL) return Promise.resolve('1234567890');
       return Promise.resolve(null);
     });
 
@@ -67,15 +75,14 @@ describe('loadLockoutState', () => {
 
     const state = await loadLockoutState();
 
-    expect(state).toEqual({
-      failedAttempts: 0,
-      lockoutUntil: null,
-    });
+    expect(state.failedAttempts).toBe(getMaxPinAttempts());
+    expect(typeof state.lockoutUntil).toBe('number');
+    expect(state.lockoutUntil!).toBeGreaterThan(Date.now() - 1000);
   });
 
   it('should parse failed attempts as integer', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_failed_attempts') return Promise.resolve('5');
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve('5');
       return Promise.resolve(null);
     });
 
@@ -86,7 +93,7 @@ describe('loadLockoutState', () => {
 
   it('should parse lockout time as integer', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_lockout_until') return Promise.resolve('9876543210');
+      if (key === LOCKOUT_KEYS.LOCKOUT_UNTIL) return Promise.resolve('9876543210');
       return Promise.resolve(null);
     });
 
@@ -107,8 +114,10 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(5, 1234567890);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '5', LOCKOUT_OPTS);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_lockout_until', '1234567890', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '5', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '5', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.LOCKOUT_UNTIL, '1234567890', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, '1234567890', LOCKOUT_OPTS);
   });
 
   it('should delete lockout time when null', async () => {
@@ -117,8 +126,10 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(2, null);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '2', LOCKOUT_OPTS);
-    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '2', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '2', LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_OPTS);
   });
 
   it('should throw error when storage fails (security critical)', async () => {
@@ -135,7 +146,8 @@ describe('saveLockoutState', () => {
 
     await saveLockoutState(0, null);
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
   });
 });
 
@@ -151,7 +163,7 @@ describe('checkPinLockout', () => {
 
   it('should return locked status when lockout is active', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_lockout_until') return Promise.resolve('2000000'); // Future time
+      if (key === LOCKOUT_KEYS.LOCKOUT_UNTIL) return Promise.resolve('2000000'); // Future time
       return Promise.resolve(null);
     });
 
@@ -172,7 +184,7 @@ describe('checkPinLockout', () => {
 
   it('should clear expired lockout', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_lockout_until') return Promise.resolve('500000'); // Past time
+      if (key === LOCKOUT_KEYS.LOCKOUT_UNTIL) return Promise.resolve('500000'); // Past time
       return Promise.resolve(null);
     });
     mockSetItemAsync.mockResolvedValue();
@@ -181,13 +193,14 @@ describe('checkPinLockout', () => {
     const result = await checkPinLockout();
 
     expect(result.isLocked).toBe(false);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
   });
 
   it('should calculate remaining time in minutes', async () => {
     const lockoutUntil = 1000000 + (15 * 60 * 1000); // 15 minutes from now
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_lockout_until') return Promise.resolve(lockoutUntil.toString());
+      if (key === LOCKOUT_KEYS.LOCKOUT_UNTIL) return Promise.resolve(lockoutUntil.toString());
       return Promise.resolve(null);
     });
 
@@ -209,8 +222,10 @@ describe('resetPinAttempts', () => {
 
     await resetPinAttempts();
 
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '0', LOCKOUT_OPTS);
-    expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '0', LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_OPTS);
+    expect(mockDeleteItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL, LOCKOUT_OPTS);
   });
 });
 
@@ -221,14 +236,13 @@ describe('getRemainingPinAttempts', () => {
 
   it('should return remaining attempts', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_failed_attempts') return Promise.resolve('3');
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve('3');
       return Promise.resolve(null);
     });
 
     const remaining = await getRemainingPinAttempts();
 
-    // Assuming MAX_PIN_ATTEMPTS is 10
-    expect(remaining).toBe(7);
+    expect(remaining).toBe(getMaxPinAttempts() - 3);
   });
 
   it('should return full attempts when no failures', async () => {
@@ -236,13 +250,12 @@ describe('getRemainingPinAttempts', () => {
 
     const remaining = await getRemainingPinAttempts();
 
-    // Assuming MAX_PIN_ATTEMPTS is 10
-    expect(remaining).toBe(10);
+    expect(remaining).toBe(getMaxPinAttempts());
   });
 
   it('should return 0 when attempts exhausted', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_failed_attempts') return Promise.resolve('10');
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve(getMaxPinAttempts().toString());
       return Promise.resolve(null);
     });
 
@@ -253,7 +266,7 @@ describe('getRemainingPinAttempts', () => {
 
   it('should not return negative attempts', async () => {
     mockGetItemAsync.mockImplementation((key: string) => {
-      if (key === 'pin_failed_attempts') return Promise.resolve('15');
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve((getMaxPinAttempts() + 5).toString());
       return Promise.resolve(null);
     });
 
@@ -281,20 +294,27 @@ describe('recordFailedAttempt', () => {
 
     expect(result.newFailedAttempts).toBe(4);
     expect(result.shouldLockout).toBe(false);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '4', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, '4', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, '4', LOCKOUT_OPTS);
   });
 
   it('should trigger lockout when max attempts reached', async () => {
     mockSetItemAsync.mockResolvedValue();
 
-    const result = await recordFailedAttempt(9); // 10th attempt
+    const result = await recordFailedAttempt(getMaxPinAttempts() - 1);
 
-    expect(result.newFailedAttempts).toBe(10);
+    expect(result.newFailedAttempts).toBe(getMaxPinAttempts());
     expect(result.shouldLockout).toBe(true);
     expect(result.lockoutUntil).toBeGreaterThan(1000000);
-    expect(mockSetItemAsync).toHaveBeenCalledWith('pin_failed_attempts', '10', LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LOCKOUT_KEYS.FAILED_ATTEMPTS, getMaxPinAttempts().toString(), LOCKOUT_OPTS);
+    expect(mockSetItemAsync).toHaveBeenCalledWith(LEGACY_LOCKOUT_KEYS.FAILED_ATTEMPTS, getMaxPinAttempts().toString(), LOCKOUT_OPTS);
     expect(mockSetItemAsync).toHaveBeenCalledWith(
-      'pin_lockout_until',
+      LOCKOUT_KEYS.LOCKOUT_UNTIL,
+      expect.any(String),
+      LOCKOUT_OPTS
+    );
+    expect(mockSetItemAsync).toHaveBeenCalledWith(
+      LEGACY_LOCKOUT_KEYS.LOCKOUT_UNTIL,
       expect.any(String),
       LOCKOUT_OPTS
     );
@@ -315,7 +335,7 @@ describe('recordFailedAttempt', () => {
     const currentTime = 1000000;
     (Date.now as jest.Mock).mockReturnValue(currentTime);
 
-    const result = await recordFailedAttempt(9);
+    const result = await recordFailedAttempt(getMaxPinAttempts() - 1);
 
     // Lockout duration is 30 minutes = 1800000ms
     expect(result.lockoutUntil).toBe(currentTime + 1800000);

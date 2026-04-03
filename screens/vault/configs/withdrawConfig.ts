@@ -2,11 +2,11 @@
  * Withdraw Operation Configuration
  */
 
-import { computeHealthFactor, computeLiquidationPrice } from '../../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
 import { VAULT_CONFIG } from '../../../utils/constants';
 import { colors } from '../../../styles/theme';
-import { getHealthColor } from '../../../utils/vaultHealthColor';
 import type {
+  WithdrawVaultStore,
   VaultInputScreenConfig,
   VaultConfirmScreenConfig,
   VaultProcessingScreenConfig,
@@ -23,7 +23,7 @@ export const withdrawRoutes = {
   success: 'WithdrawSuccess',
 };
 
-export const withdrawInputConfig: VaultInputScreenConfig = {
+export const withdrawInputConfig: VaultInputScreenConfig<WithdrawVaultStore> = {
   operationType: 'withdraw',
   title: 'Withdraw BTC',
   asset: 'BTC',
@@ -119,7 +119,7 @@ export const withdrawInputConfig: VaultInputScreenConfig = {
   },
 };
 
-export const withdrawConfirmConfig: VaultConfirmScreenConfig = {
+export const withdrawConfirmConfig: VaultConfirmScreenConfig<WithdrawVaultStore> = {
   operationType: 'withdraw',
   title: 'Confirm Withdraw',
   authMessage: 'Authenticate to withdraw BTC',
@@ -193,4 +193,3 @@ export const withdrawProcessingConfig: VaultProcessingScreenConfig = {
     }
   },
 };
-

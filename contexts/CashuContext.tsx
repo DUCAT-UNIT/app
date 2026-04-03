@@ -5,26 +5,26 @@
  * - CashuOperationsContext: operations (stable references)
  */
 
-import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
-import { logger } from '../utils/logger';
-import { clearWallet, setCurrentAccount } from '../services/cashu/cashuWalletService';
-import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
-import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
-import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
-import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
-import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
-import { shortenCashuToken } from '../services/urlShortener';
-import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
-import { useWallet } from './WalletContext';
+import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
 import { useCashuBalance } from '../hooks/useCashuBalance';
-import { useCashuMint } from '../hooks/useCashuMint';
 import { useCashuMelt } from '../hooks/useCashuMelt';
+import { useCashuMint } from '../hooks/useCashuMint';
 import { useCashuSendReceive } from '../hooks/useCashuSendReceive';
-import { notify } from '../utils/notify';
+import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
+import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
+import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
+import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
+import { clearWallet,setCurrentAccount } from '../services/cashu/cashuWalletService';
+import type { MeltQuoteResult,MeltResult } from '../services/cashu/operations/cashuMeltOperations';
 import type { MintQuoteResult } from '../services/cashu/operations/cashuMintOperations';
-import type { MeltQuoteResult, MeltResult } from '../services/cashu/operations/cashuMeltOperations';
-import type { SendTokenResult } from '../services/cashu/operations/cashuSendToken';
 import type { ReceiveTokenResult } from '../services/cashu/operations/cashuReceiveToken';
+import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
+import type { SendTokenResult } from '../services/cashu/operations/cashuSendToken';
+import { shortenCashuToken } from '../services/urlShortener';
+import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
+import { logger } from '../utils/logger';
+import { notify } from '../utils/notify';
+import { useWallet } from './WalletContext';
 
 export interface PendingMint {
   quoteId: string;
@@ -227,10 +227,10 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
         // Refresh balance after potential recovery
         await fetchBalance();
-      } catch (error) {
+      } catch (recoveryError) {
         if (cancelled) return;
         logger.error('[CashuContext] Recovery check failed', {
-          error: error instanceof Error ? error.message : String(error),
+          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
         });
       }
     };
@@ -272,18 +272,18 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
           totalAmount: recoveryResult.totalAmountRecovered,
         });
       }
-    } catch (error) {
+    } catch (mintQuoteRecoveryError) {
       logger.error('[CashuContext] Mint quote recovery failed', {
-        error: error instanceof Error ? error.message : String(error),
+        error: mintQuoteRecoveryError instanceof Error ? mintQuoteRecoveryError.message : String(mintQuoteRecoveryError),
       });
     }
 
     // Also check for swap recovery
     try {
       await checkAndRecoverSwaps();
-    } catch (error) {
+    } catch (swapRecoveryError) {
       logger.error('[CashuContext] Swap recovery failed during refresh', {
-        error: error instanceof Error ? error.message : String(error),
+        error: swapRecoveryError instanceof Error ? swapRecoveryError.message : String(swapRecoveryError),
       });
     }
 

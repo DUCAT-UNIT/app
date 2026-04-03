@@ -6,7 +6,12 @@ import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { clearICloud } from '../icloudStorage';
 
-import { PASSKEY_KEYS } from './core';
+import {
+  isLegacyPasskeyDerivationVersion,
+  type PasskeyDerivationVersion,
+  PASSKEY_KEYS,
+  resolvePasskeyDerivationVersion,
+} from './core';
 
 /**
  * Check if passkey is enabled for current wallet
@@ -32,6 +37,24 @@ export const getWalletCreationMethod = async (): Promise<'passkey' | 'pin' | nul
   }
 };
 
+export const getPasskeyDerivationVersion = async (): Promise<PasskeyDerivationVersion | null> => {
+  try {
+    const storedVersion = await SecureStore.getItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
+    const prfEnabled = await SecureStore.getItemAsync(PASSKEY_KEYS.PRF_ENABLED);
+    return resolvePasskeyDerivationVersion(storedVersion, prfEnabled === 'true');
+  } catch (error: unknown) {
+    logger.warn('Failed to read passkey derivation version', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+};
+
+export const isPasskeyUpgradeRecommended = async (): Promise<boolean> => {
+  const derivationVersion = await getPasskeyDerivationVersion();
+  return derivationVersion ? isLegacyPasskeyDerivationVersion(derivationVersion) : false;
+};
+
 /**
  * Remove passkey from wallet (keep PIN/biometric)
  */
@@ -45,6 +68,8 @@ export const removePasskey = async (): Promise<void> => {
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.PRF_ENABLED);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
 
     // Don't delete CREATION_METHOD or main mnemonic - wallet still exists
 
@@ -70,6 +95,8 @@ export const clearPasskeyData = async (clearICloudBackup = false): Promise<void>
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
     await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.PRF_ENABLED);
+    await SecureStore.deleteItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
 
     logger.debug('Local passkey data cleared');
 

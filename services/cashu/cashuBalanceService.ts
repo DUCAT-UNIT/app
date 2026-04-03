@@ -1,5 +1,5 @@
-import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { getPreferenceItem, setPreferenceItem } from '../storagePolicy';
 import { getKeys, MintKeys } from './cashuMintClient';
 import { sumProofs } from './crypto';
 import { isP2PKSecret } from './p2pk';
@@ -26,7 +26,7 @@ export const getOrFetchKeys = async (forceRefresh = false): Promise<MintKeys> =>
   try {
     // Try to load from cache (skip if force refresh)
     if (!forceRefresh) {
-      const cached = await SecureStore.getItemAsync(KEYSETS_KEY);
+      const cached = await getPreferenceItem(KEYSETS_KEY);
       if (cached) {
         try {
           const parsed: CachedKeysets = JSON.parse(cached);
@@ -48,7 +48,7 @@ export const getOrFetchKeys = async (forceRefresh = false): Promise<MintKeys> =>
     const keysetData = await getKeys();
 
     // Cache for next time
-    await SecureStore.setItemAsync(
+    await setPreferenceItem(
       KEYSETS_KEY,
       JSON.stringify({ keysetData, timestamp: Date.now() })
     );

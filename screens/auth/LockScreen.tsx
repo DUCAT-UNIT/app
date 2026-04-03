@@ -4,20 +4,21 @@
  * Displayed when app is locked and user needs to authenticate
  */
 
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
-import { Text, View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
-import { verifyPin, checkPinLockout } from '../../services/pinService';
-import { loadLockoutState, recordFailedAttempt } from '../../services/pinLockout';
-import * as PasskeyService from '../../services/passkey';
-import { ERRORS } from '../../utils/messages';
-import { COLORS } from '../../theme';
-import { colors, spacing, fonts, fontSizes } from '../../styles/theme';
-import Icon from '../../components/icons';
+import { StatusBar } from 'expo-status-bar';
+import React,{ memo,useCallback,useEffect,useRef,useState } from 'react';
+import { Animated,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
+import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
-import logger from '../../utils/logger';
+import * as PasskeyService from '../../services/passkey';
+import { loadLockoutState,recordFailedAttempt } from '../../services/pinLockout';
+import { checkPinLockout,verifyPin } from '../../services/pinService';
+import { hasSessionMnemonic } from '../../services/secureStorageService';
+import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
+import { COLORS } from '../../theme';
+import { logger } from '../../utils/logger';
+import { ERRORS } from '../../utils/messages';
 
 /**
  * Props for the KeypadButton component
@@ -82,19 +83,42 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     ]).start();
   }, [shakeAnimation]);
 
+  const verifyingRef = useRef(false);
+
   const handlePinDigit = useCallback((digit: string): void => {
     setPin(currentPin => {
-      if (currentPin.length < 6) {
-        const newPin = currentPin + digit;
-        if (newPin.length === 6) {
-          // Verify PIN with rate limiting
-          verifyPin(newPin).then((result) => {
+      if (currentPin.length >= 6) return currentPin;
+      const newPin = currentPin + digit;
+      if (newPin.length === 6 && !verifyingRef.current) {
+        verifyingRef.current = true;
+        // Move async work outside setState callback
+        (async () => {
+          try {
+            const result = await verifyPin(newPin);
             if (result.success) {
               logger.auth('pin_verified_success');
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              setPin('');
-              setPinError('');
-              onAuthenticated();
+              try {
+                const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
+                if (isPasskeyEnabled && !hasSessionMnemonic()) {
+                  await PasskeyService.unlockWithPasskey(newPin);
+                }
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setPin('');
+                setPinError('');
+                onAuthenticated();
+              } catch (error: unknown) {
+                logger.auth('passkey_session_unlock_failed', {
+                  error: error instanceof Error ? error.message : String(error),
+                });
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                shakeError();
+                setPinError(
+                  error instanceof Error
+                    ? error.message
+                    : 'Passkey authentication failed. Please try again.'
+                );
+                setPin('');
+              }
             } else {
               logger.auth('pin_verified_failed', {
                 remainingAttempts: result.remainingAttempts,
@@ -105,11 +129,12 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
               setPinError(result.error || ERRORS.INCORRECT_PIN);
               setPin('');
             }
-          });
-        }
-        return newPin;
+          } finally {
+            verifyingRef.current = false;
+          }
+        })();
       }
-      return currentPin;
+      return newPin;
     });
   }, [onAuthenticated, shakeError]);
 

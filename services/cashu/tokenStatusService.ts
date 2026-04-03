@@ -4,11 +4,11 @@
  * Eliminates duplicate validation logic across hooks
  */
 
+import type { ProofState } from '../../types/cashu';
 import { logger } from '../../utils/logger';
-import { decodeToken } from './crypto';
+import { EcashTokenRecord,updateTokenClaimedStatus } from './cashuLockedTokensService';
 import { checkProofsSpent } from './cashuMintClient';
-import { updateTokenClaimedStatus, EcashTokenRecord } from './cashuLockedTokensService';
-import type { Proof, ProofState } from '../../types/cashu';
+import { decodeToken } from './crypto';
 
 interface CheckProofsResult {
   states?: ProofState[];

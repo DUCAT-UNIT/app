@@ -9,6 +9,7 @@ jest.mock('../passkey', () => ({
 }));
 
 import {
+  clearSessionMnemonic,
   saveMnemonic,
   getMnemonic,
   withMnemonic,
@@ -40,6 +41,7 @@ const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<t
 describe('SecureStorageService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearSessionMnemonic();
   });
 
   describe('saveMnemonic', () => {
@@ -159,7 +161,11 @@ describe('SecureStorageService', () => {
       const result = await saveCurrentAccount(0);
 
       expect(result).toBe(true);
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_current_account_v1', '0');
+      expect(mockSetItemAsync).toHaveBeenCalledWith(
+        'wallet_current_account_v1',
+        '0',
+        { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+      );
     });
 
     it('should handle non-zero account index', async () => {
@@ -168,7 +174,11 @@ describe('SecureStorageService', () => {
       const result = await saveCurrentAccount(5);
 
       expect(result).toBe(true);
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_current_account_v1', '5');
+      expect(mockSetItemAsync).toHaveBeenCalledWith(
+        'wallet_current_account_v1',
+        '5',
+        { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+      );
     });
 
     it('should return false on storage error', async () => {
@@ -226,10 +236,16 @@ describe('SecureStorageService', () => {
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_current_account_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_pin_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_pin_salt_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_pin_salt_hmac_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_pin_hmac_key_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_pin_version_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_failed_attempts');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_failed_attempts_v2');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('pin_lockout_until_v2');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('biometric_lockout_until_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('pendingWalletDelete');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('pendingFaceIdEnable');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('pendingNotificationsEnable');
@@ -241,6 +257,7 @@ describe('SecureStorageService', () => {
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_enabled_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_credential_id_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_user_handle_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_pepper_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_creation_method_v1');
     });
 

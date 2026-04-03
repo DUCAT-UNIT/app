@@ -4,9 +4,9 @@
  * Supports interactive scrubbing to show price at any point
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Dimensions, PanResponder, GestureResponderEvent } from 'react-native';
-import Svg, { Path, Defs, LinearGradient, Stop, G, Line, Circle } from 'react-native-svg';
+import React,{ useCallback,useMemo,useState } from 'react';
+import { Dimensions,GestureResponderEvent,PanResponder,StyleSheet,Text,View } from 'react-native';
+import Svg,{ Circle,Defs,G,Line,LinearGradient,Path,Stop } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -134,7 +134,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
   const getPriceAtX = useCallback((x: number) => {
     if (!chartPaths || !data || data.length === 0) return { price: null, y: null, timestamp: null };
 
-    const { padding, drawWidth, prices, minPrice, maxPrice, priceRange, drawHeight } = chartPaths;
+    const { padding, drawWidth, prices, maxPrice, priceRange, drawHeight } = chartPaths;
 
     // Clamp x to chart bounds
     const clampedX = Math.max(padding.left, Math.min(x, padding.left + drawWidth));

@@ -4,7 +4,7 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { AuthProvider, useAuth } from '../AuthContext';
+import { AuthProvider, useAuth, _resetWalletRateLimitState } from '../AuthContext';
 
 // Helper to render hooks with react-test-renderer
 function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}) {
@@ -25,27 +25,66 @@ function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.Co
   return { result, rerender: component!.update, unmount: component!.unmount };
 }
 import { useAuth as useAuthHook } from '../../hooks/useAuth';
-import * as SecureStore from 'expo-secure-store';
 import { resetOnboardingState } from '../../utils/onboardingHelpers';
-import { SECURE_KEYS } from '../../utils/constants';
+import { deleteWalletData } from '../../services/secureStorageService';
 
 // Mock the useAuth hook
 jest.mock('../../hooks/useAuth');
-jest.mock('expo-secure-store');
 jest.mock('../../utils/onboardingHelpers');
+jest.mock('../../services/secureStorageService', () => ({
+  deleteWalletData: jest.fn(),
+}));
 
 describe('AuthContext', () => {
   const mockAuthState = {
+    // State
     isAuthenticated: true,
-    isLoading: false,
-    login: jest.fn(),
-    logout: jest.fn(),
+    isBiometricSupported: false,
+    biometricEnabled: false,
+    showBiometricPrompt: false,
+    showFaceIdButton: true,
+    isPasskeySupported: false,
+    passkeyEnabled: false,
+    showPasskeyPrompt: false,
+    settingUpPin: false,
+    changingPin: false,
+    showPinEntry: false,
+    pin: '',
+    confirmPin: '',
+    pinError: '',
+    pinStep: 'enter' as const,
+    // Setters
+    setIsAuthenticated: jest.fn(),
+    setBiometricEnabled: jest.fn(),
+    setShowBiometricPrompt: jest.fn(),
+    setShowFaceIdButton: jest.fn(),
+    setPasskeyEnabled: jest.fn(),
+    setShowPasskeyPrompt: jest.fn(),
+    setShowPinEntry: jest.fn(),
+    setSettingUpPin: jest.fn(),
+    setChangingPin: jest.fn(),
+    setPin: jest.fn(),
+    setConfirmPin: jest.fn(),
+    setPinError: jest.fn(),
+    setPinStep: jest.fn(),
+    // Functions
+    authenticateUser: jest.fn(),
+    authenticateWithPasskey: jest.fn(),
+    handlePinSetupComplete: jest.fn(),
+    handlePinChangeComplete: jest.fn(),
+    handleLockScreenAuthenticated: jest.fn(),
+    loadBiometricPreference: jest.fn(),
+    loadPasskeyPreference: jest.fn(),
+    lock: jest.fn(),
+    resetAuth: jest.fn(),
+    startPinChange: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    _resetWalletRateLimitState?.();
     (useAuthHook as jest.Mock).mockReturnValue(mockAuthState);
-    (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (deleteWalletData as jest.Mock).mockResolvedValue(undefined);
     (resetOnboardingState as jest.Mock).mockResolvedValue(undefined);
   });
 
@@ -65,9 +104,9 @@ describe('AuthContext', () => {
 
     // Should include all auth state from the hook
     expect(result.current).toMatchObject(mockAuthState);
-    // Should also include onboarding state
-    expect(result.current).toHaveProperty('seedConfirmed');
+    // Should also include onboarding namespace
     expect(result.current).toHaveProperty('onboarding');
+    expect(result.current!.onboarding).toHaveProperty('seedConfirmed');
   });
 
   it('should pass onSeedConfirmed to hook', () => {
@@ -83,12 +122,10 @@ describe('AuthContext', () => {
 
   it('should provide all hook methods and state', () => {
     const fullAuthState = {
+      ...mockAuthState,
       isAuthenticated: true,
-      isLoading: false,
-      user: { id: '123' },
-      login: jest.fn(),
-      logout: jest.fn(),
-      refreshAuth: jest.fn(),
+      isBiometricSupported: true,
+      biometricEnabled: true,
     };
 
     (useAuthHook as jest.Mock).mockReturnValue(fullAuthState);
@@ -97,8 +134,8 @@ describe('AuthContext', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
     expect(result.current!.isAuthenticated).toBe(true);
-    expect((result.current as any).isLoading).toBe(false);
-    expect((result.current as any).user).toEqual({ id: '123' });
+    expect(result.current!.isBiometricSupported).toBe(true);
+    expect(result.current!.biometricEnabled).toBe(true);
   });
 
   describe('Onboarding State', () => {
@@ -106,7 +143,6 @@ describe('AuthContext', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current!.seedConfirmed).toBe(false);
       expect(result.current!.onboarding.seedConfirmed).toBe(false);
     });
 
@@ -115,10 +151,9 @@ describe('AuthContext', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       act(() => {
-        result.current!.setSeedConfirmed(true);
+        result.current!.onboarding.setSeedConfirmed(true);
       });
 
-      expect(result.current!.seedConfirmed).toBe(true);
       expect(result.current!.onboarding.seedConfirmed).toBe(true);
     });
 
@@ -126,44 +161,43 @@ describe('AuthContext', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current!.seedConfirmedRef.current).toBe(false);
+      expect(result.current!.onboarding.seedConfirmedRef.current).toBe(false);
 
       act(() => {
-        result.current!.setSeedConfirmed(true);
+        result.current!.onboarding.setSeedConfirmed(true);
       });
 
-      expect(result.current!.seedConfirmedRef.current).toBe(true);
+      expect(result.current!.onboarding.seedConfirmedRef.current).toBe(true);
     });
 
     it('should provide refs for inactivityTimer and amountInput', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current!.inactivityTimerRef).toBeDefined();
-      expect(result.current!.inactivityTimerRef.current).toBeNull();
-      expect(result.current!.amountInputRef).toBeDefined();
-      expect(result.current!.amountInputRef.current).toBeNull();
+      expect(result.current!.onboarding.inactivityTimerRef).toBeDefined();
+      expect(result.current!.onboarding.inactivityTimerRef.current).toBeNull();
+      expect(result.current!.onboarding.amountInputRef).toBeDefined();
+      expect(result.current!.onboarding.amountInputRef.current).toBeNull();
     });
   });
 
   describe('resetWalletAndState', () => {
-    it('should delete secure store items and reset state', async () => {
+    it('should delete wallet data and reset state', async () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <AuthProvider>{children}</AuthProvider>;
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       // Set seedConfirmed to true first
       act(() => {
-        result.current!.setSeedConfirmed(true);
+        result.current!.onboarding.setSeedConfirmed(true);
       });
 
       await act(async () => {
-        await result.current!.resetWalletAndState();
+        await result.current!.onboarding.resetWalletAndState();
       });
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(SECURE_KEYS.MNEMONIC);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(SECURE_KEYS.CURRENT_ACCOUNT);
+      expect(deleteWalletData).toHaveBeenCalledTimes(1);
       expect(resetOnboardingState).toHaveBeenCalled();
-      expect(result.current!.seedConfirmed).toBe(false);
+      expect(result.current!.onboarding.seedConfirmed).toBe(false);
     });
 
     it('should call resetWallet callback if provided', async () => {
@@ -174,7 +208,7 @@ describe('AuthContext', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await act(async () => {
-        await result.current!.resetWalletAndState();
+        await result.current!.onboarding.resetWalletAndState();
       });
 
       expect(resetWallet).toHaveBeenCalled();
@@ -185,10 +219,10 @@ describe('AuthContext', () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await act(async () => {
-        await result.current!.resetWalletAndState();
+        await result.current!.onboarding.resetWalletAndState();
       });
 
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
+      expect(deleteWalletData).toHaveBeenCalledTimes(1);
       expect(resetOnboardingState).toHaveBeenCalled();
     });
   });
@@ -201,14 +235,14 @@ describe('AuthContext', () => {
 
       // Set a timer
       const timerId = setTimeout(() => {}, 5000);
-      result.current!.inactivityTimerRef.current = timerId;
+      result.current!.onboarding.inactivityTimerRef.current = timerId;
 
       act(() => {
-        result.current!.resetInactivityTimer();
+        result.current!.onboarding.resetInactivityTimer();
       });
 
       // Timer should be cleared (we can't directly test clearTimeout, but we can verify it was called)
-      expect(result.current!.inactivityTimerRef.current).toBe(timerId);
+      expect(result.current!.onboarding.inactivityTimerRef.current).toBe(timerId);
 
       jest.useRealTimers();
     });
@@ -235,6 +269,9 @@ describe('AuthContext', () => {
       expect(result.current).toHaveProperty('seedConfirmed');
       expect(result.current).toHaveProperty('setSeedConfirmed');
       expect(result.current).toHaveProperty('resetWalletAndState');
+      expect(result.current).toHaveProperty('resetInactivityTimer');
+      expect(result.current).toHaveProperty('inactivityTimerRef');
+      expect(result.current).toHaveProperty('amountInputRef');
     });
   });
 

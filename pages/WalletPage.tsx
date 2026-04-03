@@ -3,47 +3,47 @@
  * Contains wallet screen, settings, and transaction flows
  */
 
-import React, { useState, useEffect } from 'react';
-import { View, Animated, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { COLORS } from '../theme';
 import { useNavigation } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
+import React,{ useEffect,useState } from 'react';
+import { ActivityIndicator,Animated,StyleSheet,Text,View } from 'react-native';
+import { COLORS } from '../theme';
 
 // Components
-import WalletScreen from '../screens/wallet/WalletScreen';
+import MutinynetBanner from '../components/MutinynetBanner';
+import SettingsScreen from '../screens/settings/SettingsScreen';
+import SplashScreen from '../screens/SplashScreen';
 import ReceiveScreen from '../screens/wallet/ReceiveScreen';
 import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen';
-import SettingsScreen from '../screens/settings/SettingsScreen';
-import MutinynetBanner from '../components/MutinynetBanner';
-import SplashScreen from '../screens/SplashScreen';
+import WalletScreen from '../screens/wallet/WalletScreen';
 // EcashThresholdSheet is now rendered at app level in AppNavigatorContent
-import EcashConversionModal from '../components/settings/EcashConversionModal';
 import LowEcashBalanceModal from '../components/ecash/LowEcashBalanceModal';
 import QRScanner from '../components/scanner/QRScanner';
-import { WithdrawSheet, DepositSheet } from '../components/transfer/TransferSheet';
+import EcashConversionModal from '../components/settings/EcashConversionModal';
+import { DepositSheet,WithdrawSheet } from '../components/transfer/TransferSheet';
 
 // Contexts
-import { useWallet } from '../contexts/WalletContext';
-import { useSendFlow } from '../stores/sendFlowStore';
-import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useOnboardingFlow } from '../contexts/AuthContext';
-import { useSettingsHandlers, useAccountSwitcherContext } from '../contexts/NavigationHandlersContext';
-import { useNotifications } from "../stores/notificationStore";
-import { useBalance, useVaultData } from '../contexts/WalletDataContext';
-import { usePrice } from '../stores/priceStore';
 import { useCashu } from '../contexts/CashuContext';
+import { useAccountSwitcherContext,useSettingsHandlers } from '../contexts/NavigationHandlersContext';
+import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
+import { useWallet } from '../contexts/WalletContext';
+import { useBalance,useVaultData } from '../contexts/WalletDataContext';
+import { useNotifications } from "../stores/notificationStore";
+import { usePrice } from '../stores/priceStore';
+import { useSendFlow } from '../stores/sendFlowStore';
 
 // Hooks
-import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
-import { useSheetNavigation } from '../hooks/useSheetNavigation';
-import { useEcashBalanceCheck } from '../hooks/useEcashBalanceCheck';
-import { useQRCodeHandler } from '../hooks/useQRCodeHandler';
 import { useClaimNotifications } from '../hooks/useClaimNotifications';
-import { useTransactionNotifications } from '../hooks/useTransactionNotifications';
+import { useEcashBalanceCheck } from '../hooks/useEcashBalanceCheck';
 import { useEcashThresholdManager } from '../hooks/useEcashThresholdManager';
+import { useQRCodeHandler } from '../hooks/useQRCodeHandler';
+import { useSettingsNavigation } from '../hooks/useSettingsNavigation';
 import { useSettingsScreenCallbacks } from '../hooks/useSettingsScreenCallbacks';
-import { getRunesAmount } from '../utils/runesHelper';
+import { useSheetNavigation } from '../hooks/useSheetNavigation';
+import { useTransactionNotifications } from '../hooks/useTransactionNotifications';
 import { useHasPendingVaultTx } from '../stores/pendingVaultTransactionStore';
+import { getRunesAmount } from '../utils/runesHelper';
 
 // Styles
 import localStyles from './WalletPage.styles';
@@ -119,9 +119,9 @@ export default function WalletPage({ route }: WalletPageProps) {
 
   // Ecash threshold manager
   const {
-    showThresholdSheet, showConversionModal, conversionAmount, savedUnitBalance, pendingThreshold,
-    setShowThresholdSheet, setShowConversionModal, handleEcashThresholdPress,
-    handleThresholdSelect, handleConfirmConversion, handleLowBalanceTopUp,
+    showConversionModal, conversionAmount, savedUnitBalance, pendingThreshold,
+    setShowConversionModal, handleEcashThresholdPress,
+    handleConfirmConversion, handleLowBalanceTopUp,
   } = useEcashThresholdManager({
     cashuBalance, runesBalance, settingsHandlers,
     showSettings, closeSettings, lowBalanceAmountNeeded, closeLowBalanceModal,

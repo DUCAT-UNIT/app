@@ -5,16 +5,8 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import { Text } from 'react-native';
-import * as Sentry from '@sentry/react-native';
 import { logger } from '../../utils/logger';
 import ErrorBoundary from '../ErrorBoundary';
-
-/**
- * Sentry scope interface for testing
- */
-interface SentryScope {
-  setContext: jest.Mock;
-}
 
 /**
  * Global type extension for __DEV__ flag
@@ -22,14 +14,6 @@ interface SentryScope {
 interface GlobalWithDev {
   __DEV__: boolean | undefined;
 }
-
-// Mock Sentry
-jest.mock('@sentry/react-native', () => ({
-  withScope: jest.fn((callback: (scope: SentryScope) => void) => callback({
-    setContext: jest.fn(),
-  })),
-  captureException: jest.fn(),
-}));
 
 // Mock logger
 jest.mock('../../utils/logger', () => ({
@@ -118,24 +102,7 @@ describe('ErrorBoundary', () => {
     );
   });
 
-  it('should send error to Sentry with boundary name', () => {
-    render(
-      <ErrorBoundary boundaryName="WalletScreen">
-        <ThrowError shouldThrow={true} />
-      </ErrorBoundary>
-    );
-
-    expect(Sentry.withScope).toHaveBeenCalledTimes(1);
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
-    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error));
-  });
-
-  it('should include extra context in Sentry report', () => {
-    const mockSetContext = jest.fn();
-    (Sentry.withScope as jest.Mock).mockImplementationOnce((callback: (scope: SentryScope) => void) => callback({
-      setContext: mockSetContext,
-    }));
-
+  it('should include extra context in logger error', () => {
     const extraContext = { screen: 'WalletScreen', userId: '12345' };
     render(
       <ErrorBoundary extraContext={extraContext}>
@@ -143,7 +110,13 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(mockSetContext).toHaveBeenCalledWith('extra', extraContext);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        screen: 'WalletScreen',
+        userId: '12345',
+      })
+    );
   });
 
   it('should call onReset callback when Try Again is pressed', () => {

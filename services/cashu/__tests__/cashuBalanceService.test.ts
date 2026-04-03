@@ -11,9 +11,15 @@ jest.mock('../../../utils/logger', () => ({
   },
 }));
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+}));
+
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
 }));
 
 jest.mock('../cashuMintClient', () => ({
@@ -33,7 +39,7 @@ jest.mock('../crypto', () => ({
   sumProofs: jest.fn(),
 }));
 
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { getKeys } from '../cashuMintClient';
 import { loadProofs, loadProofsPartial } from '../cashuProofManager';
@@ -43,8 +49,8 @@ import { sumProofs } from '../crypto';
 describe('cashuBalanceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-    (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('getOrFetchKeys', () => {
@@ -58,7 +64,7 @@ describe('cashuBalanceService', () => {
 
       expect(getKeys).toHaveBeenCalled();
       expect(result).toEqual(mockKeysetData);
-      expect(SecureStore.setItemAsync).toHaveBeenCalled();
+      expect(AsyncStorage.setItem).toHaveBeenCalled();
     });
 
     it('should return cached keys when valid and not expired', async () => {
@@ -69,7 +75,7 @@ describe('cashuBalanceService', () => {
         keysetData: mockKeysetData,
         timestamp: Date.now() - 1000, // 1 second ago (not expired)
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
 
       const result = await getOrFetchKeys();
 
@@ -85,7 +91,7 @@ describe('cashuBalanceService', () => {
         keysetData: { keysets: [{ id: 'old' }] },
         timestamp: Date.now() - (2 * 60 * 60 * 1000), // 2 hours ago (expired)
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
       (getKeys as jest.Mock).mockResolvedValue(mockKeysetData);
 
       const result = await getOrFetchKeys();
@@ -97,7 +103,7 @@ describe('cashuBalanceService', () => {
     it('should handle old cache format without timestamp (line 34)', async () => {
       // Old format without keysetData wrapper
       const oldFormatCache = { keysets: [{ id: 'old' }] };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(oldFormatCache));
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(oldFormatCache));
 
       const mockKeysetData = {
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
@@ -111,7 +117,7 @@ describe('cashuBalanceService', () => {
     });
 
     it('should handle JSON parse error gracefully (line 35-36)', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('invalid json {{{');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue('invalid json {{{');
 
       const mockKeysetData = {
         keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],

@@ -7,6 +7,8 @@
  */
 
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DisplayPreferencesState {
   showTotalInBTC: boolean;
@@ -25,22 +27,35 @@ interface DisplayPreferencesActions {
 
 type DisplayPreferencesStore = DisplayPreferencesState & DisplayPreferencesActions;
 
-export const useDisplayPreferencesStore = create<DisplayPreferencesStore>((set) => ({
-  // State
-  showTotalInBTC: false,
-  showBTCInBTC: false,
-  showUnitInUnit: false,
+export const useDisplayPreferencesStore = create<DisplayPreferencesStore>()(
+  persist(
+    (set) => ({
+      // State
+      showTotalInBTC: false,
+      showBTCInBTC: false,
+      showUnitInUnit: false,
 
-  // Setters
-  setShowTotalInBTC: (value) => set({ showTotalInBTC: value }),
-  setShowBTCInBTC: (value) => set({ showBTCInBTC: value }),
-  setShowUnitInUnit: (value) => set({ showUnitInUnit: value }),
+      // Setters
+      setShowTotalInBTC: (value) => set({ showTotalInBTC: value }),
+      setShowBTCInBTC: (value) => set({ showBTCInBTC: value }),
+      setShowUnitInUnit: (value) => set({ showUnitInUnit: value }),
 
-  // Toggles (convenience methods)
-  toggleShowTotalInBTC: () => set((state) => ({ showTotalInBTC: !state.showTotalInBTC })),
-  toggleShowBTCInBTC: () => set((state) => ({ showBTCInBTC: !state.showBTCInBTC })),
-  toggleShowUnitInUnit: () => set((state) => ({ showUnitInUnit: !state.showUnitInUnit })),
-}));
+      // Toggles (convenience methods)
+      toggleShowTotalInBTC: () => set((state) => ({ showTotalInBTC: !state.showTotalInBTC })),
+      toggleShowBTCInBTC: () => set((state) => ({ showBTCInBTC: !state.showBTCInBTC })),
+      toggleShowUnitInUnit: () => set((state) => ({ showUnitInUnit: !state.showUnitInUnit })),
+    }),
+    {
+      name: 'display-preferences',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        showTotalInBTC: state.showTotalInBTC,
+        showBTCInBTC: state.showBTCInBTC,
+        showUnitInUnit: state.showUnitInUnit,
+      }),
+    }
+  )
+);
 
 /**
  * Selector hooks for granular subscriptions

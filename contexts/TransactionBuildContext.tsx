@@ -4,14 +4,14 @@
  * Depends on SendFlowContext for form data
  */
 
-import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
-import { useSendFlow } from '../stores/sendFlowStore';
-import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
-import { useBalance } from './WalletDataContext';
+import React,{ createContext,ReactNode,useContext,useEffect,useMemo,useRef,useState } from 'react';
+import type { SendIntent } from '../hooks/useTransactionBuilder';
 import { useTransactionBuilder } from '../hooks/useTransactionBuilder';
-import type { SendIntent, RuneBalanceItem } from '../hooks/useTransactionBuilder';
-import type { WalletAddresses } from './WalletContext';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { useSendFlow } from '../stores/sendFlowStore';
 import type { TransactionIntent } from '../utils/pendingTransactionsUtils';
+import type { WalletAddresses } from './WalletContext';
+import { useBalance } from './WalletDataContext';
 
 // Re-export SendIntent from the hook for consumers
 export type { SendIntent } from '../hooks/useTransactionBuilder';
@@ -94,7 +94,7 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
   // Release locked UTXOs on unmount to prevent orphaned locks
   useEffect(() => {
     return () => {
-      void cancelIntentRef.current();
+      cancelIntentRef.current().catch(() => undefined);
     };
   }, []);
 

@@ -17,20 +17,19 @@ describe('onboardingHelpers', () => {
 
   describe('resetOnboardingState', () => {
     it('should remove all onboarding-related keys', async () => {
-      await resetOnboardingState();
+    await resetOnboardingState();
 
-      expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_creation_state');
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('wallet_import_state');
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('seed_verification_state');
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith('onboarding_state');
-      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(3);
     });
 
     it('should use Promise.all for parallel removal', async () => {
       await resetOnboardingState();
 
       // All removeItem calls should be made
-      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(3);
     });
 
     it('should not throw if removal fails', async () => {
@@ -46,19 +45,18 @@ describe('onboardingHelpers', () => {
       await resetOnboardingState();
 
       // Should complete without throwing
-      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(3);
     });
 
     it('should handle partial failures gracefully', async () => {
       (AsyncStorage.removeItem as jest.Mock)
-        .mockResolvedValueOnce(undefined) // wallet_creation_state succeeds
-        .mockRejectedValueOnce(new Error('Fail')) // wallet_import_state fails
-        .mockResolvedValueOnce(undefined) // seed_verification_state succeeds
+        .mockResolvedValueOnce(undefined) // wallet_import_state succeeds
+        .mockRejectedValueOnce(new Error('Fail')) // seed_verification_state fails
         .mockResolvedValueOnce(undefined); // onboarding_state succeeds
 
       await resetOnboardingState();
 
-      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(4);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -96,8 +94,8 @@ describe('onboardingHelpers', () => {
 
       await Promise.all(promises);
 
-      // Each call should trigger 4 removeItem calls
-      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(12);
+      // Each call should trigger 3 removeItem calls
+      expect(AsyncStorage.removeItem).toHaveBeenCalledTimes(9);
     });
   });
 });

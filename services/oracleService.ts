@@ -8,7 +8,7 @@ import { API } from '../utils/constants';
 import { logger } from '../utils/logger';
 
 // Maximum age for oracle price quotes (5 minutes in seconds)
-const MAX_QUOTE_AGE_SECONDS = 300;
+export const MAX_QUOTE_AGE_SECONDS = 300;
 
 /**
  * Fetches a price quote from the Oracle API
@@ -38,7 +38,7 @@ export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQu
     // Stale prices can enable over-borrowing or manipulation of vault operations
     const nowSeconds = Math.floor(Date.now() / 1000);
     const quoteAge = nowSeconds - quote.latest_stamp;
-    if (quote.latest_stamp > nowSeconds + 60) {
+    if (quote.latest_stamp > nowSeconds + 10) {
       throw new Error('Oracle price timestamp is in the future. Rejecting quote.');
     }
     if (quoteAge > MAX_QUOTE_AGE_SECONDS) {
@@ -71,7 +71,11 @@ export async function fetchCurrentPrice(): Promise<number> {
       throw new Error(`Price API returned status ${response.status}`);
     }
     const data = await response.json();
-    return data.price || data.curr_price;
+    const price = data.price || data.curr_price;
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > 10_000_000) {
+      throw new Error(`Invalid oracle price: ${price}`);
+    }
+    return price;
   } catch (error) {
     logger.error('[OracleService] Failed to fetch current price:', { error });
     throw new Error('Failed to fetch current Bitcoin price');

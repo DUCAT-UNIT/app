@@ -6,7 +6,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { retrySilently } from '../utils/retry';
 import { getBroadcastUrl } from '../utils/constants';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 /**
  * Broadcast a signed transaction to the Bitcoin network
@@ -43,6 +43,18 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
 
     if (!response.ok) {
       const errorText = await response.text();
+      const normalizedError = (errorText || '').trim().toLowerCase();
+      if (
+        normalizedError.includes('already in mempool') ||
+        normalizedError.includes('txn-already-known')
+      ) {
+        logger.transaction('broadcast_already_known', {
+          txid: expectedTxid.substring(0, 8) + '...',
+          error: errorText?.substring(0, 100),
+        });
+        txn.finish('ok');
+        return expectedTxid;
+      }
       logger.transaction('broadcast_failed', {
         status: response.status,
         error: errorText?.substring(0, 100)

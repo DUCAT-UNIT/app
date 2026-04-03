@@ -2,6 +2,8 @@
  * Application constants
  */
 
+import { APP_NETWORK_CONFIG } from './networkConfig';
+
 // Secure storage keys
 export const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
@@ -30,19 +32,22 @@ export const PIN_HASH_VERSION = {
 
 // API endpoints
 export const API = {
-  MUTINYNET_BASE: 'https://mutinynet.com/api',
-  ORD_MUTINYNET_BASE: 'https://ord-mutinynet.ducatprotocol.com',
-  FAUCET: 'https://faucet.ducatprotocol.com/btc/faucet',
-  VAULT: 'https://validator.ducatprotocol.com/api',
-  PHONE: 'https://phone.ducatprotocol.com',
-  COINGECKO: 'https://api.coingecko.com/api/v3',
-  // Vault creation endpoints
-  GUARDIAN_WS: 'wss://guardian-mutinynet-1.ducatprotocol.com',
-  QUOTE_SERVER: 'https://quote.ducatprotocol.com',
-  PRICE_SERVER: 'https://price.ducatprotocol.com',
-  // Aliases for SDK compatibility
-  ESPLORA_URL: 'https://mutinynet.com/api',
-  ORD_URL: 'https://ord-mutinynet.ducatprotocol.com',
+  BASE: APP_NETWORK_CONFIG.api.esploraApiUrl,
+  ORD_BASE: APP_NETWORK_CONFIG.api.ordUrl,
+  EXPLORER: APP_NETWORK_CONFIG.api.explorerBaseUrl,
+  FAUCET: APP_NETWORK_CONFIG.api.faucetUrl ?? '',
+  VAULT: APP_NETWORK_CONFIG.api.vaultUrl,
+  PHONE: APP_NETWORK_CONFIG.api.phoneUrl,
+  COINGECKO: APP_NETWORK_CONFIG.api.coingeckoUrl,
+  GUARDIAN_WS: APP_NETWORK_CONFIG.api.guardianWs,
+  QUOTE_SERVER: APP_NETWORK_CONFIG.api.quoteServer,
+  PRICE_SERVER: APP_NETWORK_CONFIG.api.priceServer,
+  FEE_RECOMMENDATIONS: APP_NETWORK_CONFIG.api.feeRecommendationsUrl,
+  ESPLORA_URL: APP_NETWORK_CONFIG.api.esploraApiUrl,
+  ORD_URL: APP_NETWORK_CONFIG.api.ordUrl,
+  // Backward-compatible aliases while downstream consumers migrate.
+  MUTINYNET_BASE: APP_NETWORK_CONFIG.api.esploraApiUrl,
+  ORD_MUTINYNET_BASE: APP_NETWORK_CONFIG.api.ordUrl,
 } as const;
 
 // Bitcoin transaction constants
@@ -67,15 +72,14 @@ export const VAULT_CONFIG = {
 
 // Runes configuration
 export const RUNES_CONFIG = {
-  // DUCAT•UNIT•RUNE ID (block 1527352, tx 1)
-  // CRITICAL: This ID must match the actual rune on the network
-  // Incorrect ID will cause loss of funds
-  DUCAT_UNIT_RUNE_ID: {
-    block: 1527352n,
-    tx: 1n,
-  },
-  DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•RUNE',
+  DUCAT_UNIT_RUNE_ID: APP_NETWORK_CONFIG.runes.unitId,
+  DUCAT_UNIT_RUNE_LABEL: APP_NETWORK_CONFIG.runes.unitLabel,
 } as const;
+
+export const NETWORK_CONFIG = APP_NETWORK_CONFIG;
+export const NETWORK_DISPLAY_NAME = APP_NETWORK_CONFIG.displayName;
+export const NETWORK_EDITION_LABEL = APP_NETWORK_CONFIG.editionLabel;
+export const TURBO_MINT_ADDRESS = APP_NETWORK_CONFIG.protocol.turboMintAddress;
 
 // API Keys (for services that require authentication)
 // Note: CoinGecko API key is optional - increases rate limits but not required
@@ -84,29 +88,29 @@ export const API_KEYS = {
 } as const;
 
 // Helper functions to build API URLs
-export const getAddressUrl = (address: string): string => `${API.MUTINYNET_BASE}/address/${address}`;
+export const getAddressUrl = (address: string): string => `${API.BASE}/address/${address}`;
 
-export const getAddressUtxoUrl = (address: string): string => `${API.MUTINYNET_BASE}/address/${address}/utxo`;
+export const getAddressUtxoUrl = (address: string): string => `${API.BASE}/address/${address}/utxo`;
 
 export const getAddressTxsUrl = (address: string, lastSeenTxid: string | null = null): string => {
   return lastSeenTxid
-    ? `${API.MUTINYNET_BASE}/address/${address}/txs/chain/${lastSeenTxid}`
-    : `${API.MUTINYNET_BASE}/address/${address}/txs`;
+    ? `${API.BASE}/address/${address}/txs/chain/${lastSeenTxid}`
+    : `${API.BASE}/address/${address}/txs`;
 };
 
-export const getTxUrl = (txid: string): string => `https://mutinynet.com/tx/${txid}`;
+export const getTxUrl = (txid: string): string => `${API.EXPLORER}/tx/${txid}`;
 
-export const getTxApiUrl = (txid: string): string => `${API.MUTINYNET_BASE}/tx/${txid}`;
+export const getTxApiUrl = (txid: string): string => `${API.BASE}/tx/${txid}`;
 
-export const getTxHexUrl = (txid: string): string => `${API.MUTINYNET_BASE}/tx/${txid}/hex`;
+export const getTxHexUrl = (txid: string): string => `${API.BASE}/tx/${txid}/hex`;
 
 export const getTxOutspendUrl = (txid: string, vout: number): string =>
-  `${API.MUTINYNET_BASE}/tx/${txid}/outspend/${vout}`;
+  `${API.BASE}/tx/${txid}/outspend/${vout}`;
 
-export const getBroadcastUrl = (): string => `${API.MUTINYNET_BASE}/tx`;
+export const getBroadcastUrl = (): string => `${API.BASE}/tx`;
 
-export const getOrdAddressUrl = (address: string): string => `${API.ORD_MUTINYNET_BASE}/address/${address}`;
+export const getOrdAddressUrl = (address: string): string => `${API.ORD_BASE}/address/${address}`;
 
-export const getOrdOutputUrl = (output: string): string => `${API.ORD_MUTINYNET_BASE}/output/${output}`;
+export const getOrdOutputUrl = (output: string): string => `${API.ORD_BASE}/output/${output}`;
 
-export const getOrdTxUrl = (txid: string): string => `${API.ORD_MUTINYNET_BASE}/tx/${txid}`;
+export const getOrdTxUrl = (txid: string): string => `${API.ORD_BASE}/tx/${txid}`;

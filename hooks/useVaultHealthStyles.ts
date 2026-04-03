@@ -41,7 +41,7 @@ const VAULT_HEALTH_SIZES: Record<ScreenSize, VaultHealthSizeConfig> = {
   },
 };
 
-export interface VaultHealthStyles extends VaultHealthSizeConfig {}
+export type VaultHealthStyles = VaultHealthSizeConfig;
 
 export function useVaultHealthStyles(): VaultHealthStyles {
   const { screenSize } = useResponsive();

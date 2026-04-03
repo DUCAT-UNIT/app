@@ -4,11 +4,9 @@
  * Shows current health with optional preview of new health after action
  */
 
-import React, { useMemo, memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path, Circle, Text as SvgText, TSpan } from 'react-native-svg';
-import { COLORS } from '../../theme';
-import { useResponsive } from '../../hooks/useResponsive';
+import React,{ memo,useMemo } from 'react';
+import { StyleSheet,View } from 'react-native';
+import Svg,{ Circle,Path,Text as SvgText,TSpan } from 'react-native-svg';
 
 const SVG_SIZE = 200;
 
@@ -86,8 +84,6 @@ export const VaultActionGauge = memo(function VaultActionGauge({
   showTransition = false,
   hasNoDebt = false,
 }: VaultActionGaugeProps): React.JSX.Element {
-  const { s, sf } = useResponsive();
-
   const displayHealth = showTransition && newHealth !== undefined ? newHealth : currentHealth;
   const hasNoData = displayHealth <= 0 && !hasNoDebt;
 

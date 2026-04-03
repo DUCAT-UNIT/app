@@ -3,20 +3,20 @@
  * Bottom sheet showing ecash token details with copy and share options
  */
 
+import * as Clipboard from 'expo-clipboard';
 import React from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Linking,
-  Share,
+Linking,
+Share,
+StyleSheet,
+Text,
+TouchableOpacity,
+View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { COLORS } from '../../theme';
-import Icon from '../icons';
-import BottomSheet from '../common/BottomSheet';
 import { truncateAddress } from '../../utils/formatters/addresses';
+import BottomSheet from '../common/BottomSheet';
+import Icon from '../icons';
 
 interface TokenDetailsSheetProps {
   visible: boolean;
@@ -35,9 +35,7 @@ export default function TokenDetailsSheet({
   onClose,
   recipientAddress,
   shortUrl,
-  cashuToken,
   onCopy,
-  advancedMode = false,
   claimed = false,
   isSelfClaim = false,
 }: TokenDetailsSheetProps) {

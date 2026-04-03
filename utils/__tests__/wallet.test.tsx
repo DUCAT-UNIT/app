@@ -13,10 +13,15 @@ bitcoin.initEccLib(ecc);
 
 // Mock authService
 jest.mock('../../services/secureStorageService', () => ({
+  getCurrentAccount: jest.fn().mockResolvedValue(0),
   withMnemonic: jest.fn((callback) => {
     const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
     return callback(testMnemonic);
   }),
+}));
+
+jest.mock('../../services/walletDerivationService', () => ({
+  getWalletDerivationMode: jest.fn().mockResolvedValue('bip44_account'),
 }));
 
 // Mock SecureStore

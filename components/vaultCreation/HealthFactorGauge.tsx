@@ -4,9 +4,9 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
-import { getHealthStatus, getHealthColor, type HealthStatus } from '../../utils/vaultUtils';
+import { StyleSheet,Text,View } from 'react-native';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { getHealthColor,getHealthStatus,type HealthStatus } from '../../utils/vaultUtils';
 
 interface HealthFactorGaugeProps {
   healthFactor: number;
@@ -39,9 +39,6 @@ export function HealthFactorGauge({
     md: fontSizes.sm,
     lg: fontSizes.md,
   }[size];
-
-  // Calculate fill percentage (clamp between 0 and 100)
-  const fillPercentage = Math.min(Math.max((healthFactor / 300) * 100, 0), 100);
 
   return (
     <View style={styles.container}>

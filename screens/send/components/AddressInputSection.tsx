@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, spacing, radii } from '../../../styles/theme';
 import type { AssetType } from '../../../stores/sendFlowStore';
+import { MUTINYNET_NETWORK } from '../../../utils/bitcoin';
 
 interface AddressInputSectionProps {
   /** Current recipient address */
@@ -42,10 +43,13 @@ export function AddressInputSection({
   onScanQR,
 }: AddressInputSectionProps): React.JSX.Element {
   const addressInputRef = useRef<TextInput>(null);
+  const bech32Hrp = typeof MUTINYNET_NETWORK?.bech32 === 'string' ? MUTINYNET_NETWORK.bech32 : 'tb';
+  const taprootPrefix = `${bech32Hrp}1p`;
+  const segwitPrefix = `${bech32Hrp}1q`;
 
   const placeholder = assetType === 'unit'
-    ? 'tb1p... or bc1p...'
-    : 'tb1q... or tb1p...';
+    ? `${taprootPrefix}...`
+    : `${segwitPrefix}... or ${taprootPrefix}...`;
 
   return (
     <View style={styles.section}>

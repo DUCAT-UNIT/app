@@ -4,21 +4,20 @@
  * Uses pre-loaded ecash tokens from WalletDataContext for instant display
  */
 
-import { useEffect, useRef, useMemo } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
-import { calculateTransactionAmount, Transaction } from '../services/transactionHistoryService';
-import { EcashTokenRecord } from '../services/cashu/cashuLockedTokensService';
-import { TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { useEffect,useMemo,useRef } from 'react';
 import { useEcashTokens } from '../contexts/WalletDataContext';
+import { TokenWithStatus } from '../services/cashu/tokenStatusService';
+import { calculateTransactionAmount,Transaction } from '../services/transactionHistoryService';
 import { usePendingTxs } from '../stores/pendingTransactionsStore';
-import { logger } from '../utils/logger';
 import type { DisplayAssetType } from '../types/assets';
+import { logger } from '../utils/logger';
 import {
-  processPendingTransactions,
-  findSelfClaimedTokenIds,
-  processEcashTokens,
-  mergeAndSortTransactions,
-  type PendingTx,
+findSelfClaimedTokenIds,
+mergeAndSortTransactions,
+processEcashTokens,
+processPendingTransactions,
+type PendingTx,
 } from '../utils/transactionMerging';
 
 interface TxData {
@@ -84,7 +83,10 @@ export function useAssetTransactions(
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
   // Filter tokens: only use for UNIT in advanced mode
-  const ecashTokens = (assetType === 'UNIT' && advancedMode) ? preloadedEcashTokens : [];
+  const ecashTokens = useMemo(
+    () => ((assetType === 'UNIT' && advancedMode) ? preloadedEcashTokens : []),
+    [assetType, advancedMode, preloadedEcashTokens]
+  );
 
   // Ecash is ready if: not UNIT, or not advanced mode (doesn't need ecash), or tokens have loaded
   const ecashReady = assetType !== 'UNIT' || !advancedMode || !loadingEcashTokens || preloadedEcashTokens.length > 0;

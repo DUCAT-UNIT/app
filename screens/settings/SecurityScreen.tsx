@@ -58,7 +58,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   const { onClose } = route.params;
 
   // Get live state from context instead of stale route params
-  const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
+  const { settingsHandlers, biometricEnabled, passkeyUpgradeRecommended, triggerPasskeyUpgrade } = useSettingsHandlers();
   const {
     handleFaceIdToggle: onFaceIdToggle,
     handleChangePin: onChangePin,
@@ -103,6 +103,15 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
               onPress={onViewSeedPhrase}
               testID="security-backup-btn"
             />
+            {passkeyUpgradeRecommended && (
+              <SettingsOption
+                iconName="recovery_phrase"
+                title="Upgrade Passkey Security"
+                onPress={triggerPasskeyUpgrade}
+                rightText="RECOMMENDED"
+                testID="security-passkey-upgrade-btn"
+              />
+            )}
           </View>
 
           {/* Danger Zone */}
@@ -110,7 +119,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
           <View style={localStyles.dangerSection}>
             <SettingsOption
               iconName="delete_wallet"
-              title="Delete Wallet"
+              title="Delete Local Wallet"
               onPress={onDeleteWallet}
               isDanger
               testID="security-delete-btn"
@@ -143,7 +152,11 @@ const SettingsOption = React.memo(function SettingsOption({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityHint={isDanger ? "Warning: This is a destructive action" : undefined}
+      accessibilityHint={
+        isDanger
+          ? 'Warning: Deletes wallet data from this device. Passkey backup is not removed.'
+          : undefined
+      }
     >
       <View style={localStyles.optionLeft} accessibilityElementsHidden>
         <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />

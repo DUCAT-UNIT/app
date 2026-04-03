@@ -4,10 +4,12 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
-import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
-import { saveToICloud, loadFromICloud } from '../icloudStorage';
+import { loadFromICloud,saveToICloud } from '../icloudStorage';
+import { saveCurrentAccount,saveMnemonic } from '../secureStorageService';
 import { PASSKEY_KEYS } from './core';
+
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 interface StorePasskeyDataParams {
   credentialId: Uint8Array;
@@ -25,6 +27,9 @@ interface BackupData {
   credentialId: Uint8Array;
   userHandle: Uint8Array;
   pinSalt: string;
+  pepper?: string;
+  prfEnabled?: boolean;
+  derivationVersion?: string;
 }
 
 interface BackupResult {
@@ -43,23 +48,25 @@ export const storePasskeyData = async ({
   tag,
   creationMethod,
 }: StorePasskeyDataParams): Promise<void> => {
-  await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true');
+  await SecureStore.setItemAsync(PASSKEY_KEYS.ENABLED, 'true', DEVICE_ONLY);
 
   if (creationMethod) {
-    await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, creationMethod);
+    await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, creationMethod, DEVICE_ONLY);
   }
 
   await SecureStore.setItemAsync(
     PASSKEY_KEYS.CREDENTIAL_ID,
-    Buffer.from(credentialId).toString('base64')
+    Buffer.from(credentialId).toString('base64'),
+    DEVICE_ONLY
   );
   await SecureStore.setItemAsync(
     PASSKEY_KEYS.USER_HANDLE,
-    Buffer.from(userHandle).toString('base64')
+    Buffer.from(userHandle).toString('base64'),
+    DEVICE_ONLY
   );
-  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted);
-  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv);
-  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag);
+  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, encrypted, DEVICE_ONLY);
+  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, iv, DEVICE_ONLY);
+  await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, tag, DEVICE_ONLY);
 };
 
 /**
@@ -73,6 +80,9 @@ export const backupToICloudWithVerification = async ({
   credentialId,
   userHandle,
   pinSalt,
+  pepper,
+  prfEnabled,
+  derivationVersion,
 }: BackupData): Promise<BackupResult> => {
   let icloudDebugInfo = '';
   let verificationLog = '';
@@ -85,6 +95,9 @@ export const backupToICloudWithVerification = async ({
       credentialId: Buffer.from(credentialId).toString('base64'),
       userHandle: Buffer.from(userHandle).toString('base64'),
       pinSalt, // CRITICAL: needed for PBKDF2 hashing on recovery
+      pepper, // CRITICAL: needed for key derivation on recovery (added in v3)
+      prfEnabled, // PRF extension flag for key derivation path (added in v4)
+      derivationVersion, // Explicit key derivation version metadata (added in v5)
     });
     logger.debug('Encrypted backup saved to iCloud');
 
@@ -135,12 +148,15 @@ export const backupToICloudWithVerification = async ({
  * Store mnemonic in standard location for backward compatibility
  */
 export const storeStandardMnemonic = async (mnemonic: string): Promise<void> => {
-  await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+  await saveMnemonic(mnemonic);
 };
 
 /**
  * Set current account (always 0 for new wallets)
  */
 export const setCurrentAccount = async (accountIndex = 0): Promise<void> => {
-  await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString());
+  const saved = await saveCurrentAccount(accountIndex);
+  if (!saved) {
+    throw new Error('Failed to save current account securely');
+  }
 };

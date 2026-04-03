@@ -72,7 +72,6 @@ try {
     };
   }
 
-  console.log('[crypto-polyfill] Configured @noble/secp256k1 with pure JS hashing');
 } catch (_e) {
   console.warn('[crypto-polyfill] Failed to configure noble hashing:', _e?.message);
 }

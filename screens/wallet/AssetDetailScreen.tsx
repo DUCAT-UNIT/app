@@ -3,41 +3,41 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React,{ useCallback,useMemo,useRef,useState } from 'react';
 import {
-  StyleSheet,
-  Animated,
+Animated,
+StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '../../theme';
-import { useBalance, useTransactionHistory, useVaultData } from '../../contexts/WalletDataContext';
-import { usePrice } from '../../stores/priceStore';
-import { useWallet } from '../../contexts/WalletContext';
-import { useCashuBalanceState } from '../../contexts/CashuContext';
-import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
-import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import {
-  AssetHeader,
-  AssetInfo,
-  AssetActionButtons,
-  AssetPriceChart,
-  AssetTabs,
-  AssetAbout,
-  AssetActivityList,
-  AssetTurboList
+AssetAbout,
+AssetActionButtons,
+AssetActivityList,
+AssetHeader,
+AssetInfo,
+AssetPriceChart,
+AssetTabs,
+AssetTurboList
 } from '../../components/assetDetail';
-import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
-import { usePriceChart } from '../../hooks/usePriceChart';
-import { useAssetTransactions } from '../../hooks/useAssetTransactions';
-import { useFuseEcash } from '../../hooks/useFuseEcash';
-import { useTurboConvert } from '../../hooks/useTurboConvert';
-import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
-import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import TransactionDetailsSheet from '../../components/transaction/TransactionDetailsSheet';
+import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
+import { useWallet } from '../../contexts/WalletContext';
+import { useBalance,useTransactionHistory,useVaultData } from '../../contexts/WalletDataContext';
+import { useAssetTransactions } from '../../hooks/useAssetTransactions';
+import { useFuseEcash } from '../../hooks/useFuseEcash';
+import { usePriceChart } from '../../hooks/usePriceChart';
+import { useRedeemCashuToken } from '../../hooks/useRedeemCashuToken';
+import { useTurboConvert } from '../../hooks/useTurboConvert';
+import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useNotifications } from '../../stores/notificationStore';
-import { getRunesAmount } from '../../utils/runesHelper';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
+import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
+import { usePrice } from '../../stores/priceStore';
+import { COLORS } from '../../theme';
 import type { DisplayAssetType } from '../../types/assets';
+import { getRunesAmount } from '../../utils/runesHelper';
 
 /**
  * Props for AssetDetailScreen component
@@ -85,7 +85,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
   const { balance: cashuBalance, isLoading: loadingCashu } = useCashuBalanceState();
-  const { transactionHistory, loadingTransactionHistory, fetchTransactionHistory } = useTransactionHistory();
+  const { transactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
 
   // Vault data from shared context (participates in 10s polling)
@@ -212,12 +212,15 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
           params: { assetType: assetType.toLowerCase() }
         });
         break;
-      case 'receive':
+      case 'receive': {
+        const address = assetType === 'BTC' ? segwitAddress : taprootAddress;
+        if (!address) return;
         navigation.navigate('ReceiveQR', {
-          address: assetType === 'BTC' ? segwitAddress : taprootAddress,
+          address,
           addressType: assetType === 'BTC' ? 'Native SegWit' : 'Taproot',
         });
         break;
+      }
       case 'consolidate':
         handleFusePress();
         break;

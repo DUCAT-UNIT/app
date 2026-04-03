@@ -4,10 +4,9 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { CashuProof } from '../crypto';
-import { isP2PKSecret } from '../p2pk';
 import { getSentLockedTokens } from '../cashuLockedTokensService';
-import { loadProofs, addProofs } from '../cashuProofManager';
+import { addProofs,loadProofs } from '../cashuProofManager';
+import { CashuProof } from '../crypto';
 
 export interface RecoverLockedChangeResult {
   recovered: number;

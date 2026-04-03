@@ -3,15 +3,15 @@
  * Used for both passkey creation and restoration flows
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import MutinynetBanner from './MutinynetBanner';
-import Icon from './icons';
-import { COLORS } from '../theme';
-import { colors, fonts, fontSizes, spacing } from '../styles/theme';
+import React from 'react';
+import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { useResponsive } from '../hooks/useResponsive';
 import styles from '../styles';
+import { colors,fonts,fontSizes } from '../styles/theme';
+import { COLORS } from '../theme';
+import MutinynetBanner from './MutinynetBanner';
+import Icon from './icons';
 
 interface PasskeyPinInputProps {
   title: string;

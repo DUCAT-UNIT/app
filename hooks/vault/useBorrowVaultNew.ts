@@ -5,32 +5,31 @@
  * Uses the unified base hook with borrow-specific configuration.
  */
 
+import type {
+GuardianSocket,
+UnitAccountResponse,
+WalletVaultBorrowConfig,
+WalletVaultBorrowRequest,
+} from '@ducat-unit/client-sdk';
 import { useMemo } from 'react';
-import { useBorrowStore } from '../../stores/borrowStore';
 import {
-  createBorrowConfig,
-  createVaultReqBorrow,
-  guardianBorrowReserve,
-  guardianSendReqBorrow,
+createBorrowConfig,
+createVaultReqBorrow,
+guardianBorrowReserve,
+guardianSendReqBorrow,
 } from '../../services/vaultOperationsService';
+import type { BorrowProcessingStep,BorrowStep } from '../../stores/borrowStore';
+import { useBorrowStore } from '../../stores/borrowStore';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { useVaultOperation } from './useVaultOperation';
 import type {
-  VaultOperationConfig,
-  VaultStore,
-  VaultValidationParams,
-  VaultRequestParams,
-  LiquidationPriceParams,
-  PendingTransactionParams,
-  UseVaultOperationResult,
+LiquidationPriceParams,
+PendingTransactionParams,
+VaultOperationConfig,
+VaultRequestParams,
+VaultStore,
+VaultValidationParams
 } from './vaultOperationTypes';
-import type {
-  GuardianSocket,
-  WalletVaultBorrowConfig,
-  WalletVaultBorrowRequest,
-  UnitAccountResponse,
-} from '@ducat-unit/client-sdk';
-import type { BorrowStep, BorrowProcessingStep } from '../../stores/borrowStore';
 
 // Type aliases for readability
 type BorrowConfig = WalletVaultBorrowConfig;
@@ -59,6 +58,7 @@ function useBorrowStoreAdapter(): VaultStore {
   // Action selectors
   const setLoading = useBorrowStore((s) => s.setLoading);
   const setError = useBorrowStore((s) => s.setError);
+  const setVaultTxid = useBorrowStore((s) => s.setVaultTxid);
   const setTxid = useBorrowStore((s) => s.setTxid);
   const setCurrentStep = useBorrowStore((s) => s.setCurrentStep);
   const setProcessingStep = useBorrowStore((s) => s.setProcessingStep);
@@ -80,8 +80,8 @@ function useBorrowStoreAdapter(): VaultStore {
     actions: {
       setLoading,
       setError,
-      setVaultTxid: (vt: string | null) => setTxid(txid, vt),
-      setIssueTxid: (t: string | null) => setTxid(t, vaultTxid),
+      setVaultTxid,
+      setIssueTxid: (t: string | null) => setTxid(t),
       setCurrentStep: (step: string) => setCurrentStep(step as BorrowStep),
       setProcessingStep: (step: 1 | 2 | 3 | 4) => setProcessingStep(step as BorrowProcessingStep),
       setCurrentVaultData,
@@ -95,7 +95,7 @@ function useBorrowStoreAdapter(): VaultStore {
  * Validate borrow operation
  */
 function validateBorrow(params: VaultValidationParams): string | null {
-  const { wallet, btcPrice, amount, currentUnitBorrowed, currentBtcLocked } = params;
+  const { wallet, btcPrice, amount, currentBtcLocked } = params;
 
   if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return 'Wallet not connected';

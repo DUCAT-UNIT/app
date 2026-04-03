@@ -18,6 +18,7 @@ import {
   createCommonVaultSlice,
   computeVaultHealth,
   computeNewVaultHealth,
+  commonInitialState,
 } from './vault';
 import type {
   CommonVaultState,
@@ -130,18 +131,8 @@ export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[BorrowStore] reset');
       set({
-        ...commonSlice,
+        ...commonInitialState,
         ...borrowSpecificInitialState,
-        // Reset common state
-        selectedFeeRate: 1,
-        currentUnitBorrowed: 0,
-        currentBtcLocked: 0,
-        bitcoinPrice: null,
-        currentStep: 'input',
-        processingStep: 1,
-        loading: false,
-        error: null,
-        vaultTxid: null,
       });
     },
   };

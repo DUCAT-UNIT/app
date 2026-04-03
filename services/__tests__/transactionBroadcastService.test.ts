@@ -178,7 +178,7 @@ describe('transactionBroadcastService', () => {
           createMockTextResponse(apiError, { ok: false, status: 400, statusText: 'Bad Request' })
         );
 
-        await expect(broadcastTransaction(mockSignedTxHex)).rejects.toThrow(apiError);
+        await expect(broadcastTransaction(mockSignedTxHex)).resolves.toBe(mockTxid);
       });
 
       it('should handle empty error responses', async () => {

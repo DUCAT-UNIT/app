@@ -4,9 +4,9 @@
  */
 
 import { useState, useCallback, useMemo, MutableRefObject } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { deleteWalletData } from '../services/secureStorageService';
+import { setBoolean, SettingKeys } from '../services/settingsService';
 import { notify } from '../utils/notify';
 import { logger } from '../utils/logger';
 
@@ -69,7 +69,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
       );
 
       if (!result.success) {
-        await SecureStore.setItemAsync('pendingWalletDelete', 'true');
+        await setBoolean(SettingKeys.PENDING_WALLET_DELETE, true);
         setIsAuthenticated(false);
         return;
       }

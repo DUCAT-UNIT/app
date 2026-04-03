@@ -11,6 +11,10 @@ global.Buffer = Buffer;
 
 import { LogBox } from 'react-native';
 
+if (!__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+  throw new Error('EXPO_PUBLIC_E2E_BYPASS must never be enabled outside development builds');
+}
+
 // Suppress all log notifications in E2E mode to prevent overlay interference
 if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
   LogBox.ignoreAllLogs(true);
@@ -42,6 +46,7 @@ import SplashScreen from './screens/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import { validateNetworkConfig } from './utils/bitcoin';
+import { NETWORK_DISPLAY_NAME } from './utils/constants';
 import { logger } from './utils/logger';
 
 // Initialize BIP32 and ECC for bitcoinjs-lib — wrapped to prevent app crash
@@ -57,7 +62,7 @@ try {
 // CRITICAL: Validate network configuration at startup
 try {
   validateNetworkConfig();
-  logger.info('Network validation passed: App is correctly configured for testnet');
+  logger.info(`Network validation passed: App is correctly configured for ${NETWORK_DISPLAY_NAME}`);
 } catch (error: unknown) {
   logger.error('CRITICAL NETWORK ERROR', { error: error instanceof Error ? error.message : String(error) });
   throw error; // Fail fast - do not allow app to start with wrong network

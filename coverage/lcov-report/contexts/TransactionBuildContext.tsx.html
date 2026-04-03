@@ -23,9 +23,9 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.45% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>16/16</span>
+                <span class='fraction'>21/22</span>
             </div>
         
             
@@ -37,16 +37,16 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">85.71% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>4/4</span>
+                <span class='fraction'>6/7</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">95.45% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>16/16</span>
+                <span class='fraction'>21/22</span>
             </div>
         
             
@@ -164,7 +164,20 @@
 <a name='L99'></a><a href='#L99'>99</a>
 <a name='L100'></a><a href='#L100'>100</a>
 <a name='L101'></a><a href='#L101'>101</a>
-<a name='L102'></a><a href='#L102'>102</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -251,6 +264,19 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29x</span>
+<span class="cline-any cline-yes">29x</span>
+<span class="cline-any cline-yes">29x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">29x</span>
+<span class="cline-any cline-yes">17x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">29x</span>
 <span class="cline-any cline-yes">29x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -271,9 +297,9 @@
  * Depends on SendFlowContext for form data
  */
 &nbsp;
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { useSendFlow } from '../stores/sendFlowStore';
-import { usePendingTransactions } from './PendingTransactionsContext';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 import { useBalance } from './WalletDataContext';
 import { useTransactionBuilder } from '../hooks/useTransactionBuilder';
 import type { SendIntent, RuneBalanceItem } from '../hooks/useTransactionBuilder';
@@ -325,7 +351,7 @@ export const TransactionBuildProvider: React.FC&lt;TransactionBuildProviderProps
     getSpentUtxos,
     unmarkUtxosAsSpent,
     markUtxosAsSpent,
-  } = usePendingTransactions();
+  } = usePendingTransactionsStore();
 &nbsp;
   const { runesBalance } = useBalance();
 &nbsp;
@@ -352,6 +378,19 @@ export const TransactionBuildProvider: React.FC&lt;TransactionBuildProviderProps
     setSendRecipient,
   });
 &nbsp;
+  // Keep ref to latest cancelIntent for unmount cleanup
+  const cancelIntentRef = useRef(cancelIntent);
+  useEffect(() =&gt; {
+    cancelIntentRef.current = cancelIntent;
+  }, [cancelIntent]);
+&nbsp;
+  // Release locked UTXOs on unmount to prevent orphaned locks
+  useEffect(() =&gt; {
+    return <span class="fstat-no" title="function not covered" >()</span> =&gt; {
+<span class="cstat-no" title="statement not covered" >      void cancelIntentRef.current();</span>
+    };
+  }, []);
+&nbsp;
   const value = useMemo(
     () =&gt; ({
       sendIntent,
@@ -373,7 +412,7 @@ export const TransactionBuildProvider: React.FC&lt;TransactionBuildProviderProps
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-09T21:18:15.259Z
+                at 2026-03-28T06:52:23.783Z
             </div>
         <script src="../prettify.js"></script>
         <script>

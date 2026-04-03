@@ -1,0 +1,320 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Setup Apple Reviewer Wallet
+# Imports a pre-funded wallet and creates a real vault via Guardian
+# Run WITHOUT EXPO_PUBLIC_E2E_BYPASS so vault creation goes through real Guardian protocol
+
+- runFlow: ../helpers/clear-and-launch.yaml
+
+# Tap restore button — first tap may dismiss Expo Dev Client overlay
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+
+# If overlay intercepted first tap, we're still on welcome screen — retry
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
+# Restore choice screen
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+# Import wallet screen
+- assertVisible:
+    id: "import-wallet-screen"
+
+# Type seed phrase: pool token pledge wagon rebuild vast bracket denial fashion cattle pave royal
+- tapOn:
+    id: "seed-word-container-0"
+- inputText: "pool"
+- pressKey: Enter
+- inputText: "token"
+- pressKey: Enter
+- inputText: "pledge"
+- pressKey: Enter
+- inputText: "wagon"
+- pressKey: Enter
+- inputText: "rebuild"
+- pressKey: Enter
+- inputText: "vast"
+- pressKey: Enter
+- inputText: "bracket"
+- pressKey: Enter
+- inputText: "denial"
+- pressKey: Enter
+- inputText: "fashion"
+- pressKey: Enter
+- inputText: "cattle"
+- pressKey: Enter
+- inputText: "pave"
+- pressKey: Enter
+- inputText: "royal"
+
+# Hide keyboard
+- hideKeyboard
+
+# Verify all 12 words populated
+- extendedWaitUntil:
+    visible:
+      text: "12/12"
+    timeout: 5000
+
+# Tap import button
+- tapOn:
+    id: "import-wallet-btn"
+
+# PIN setup (123456)
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/enter-pin-setup.yaml
+
+# In __DEV__ mode, passkey migration modal is skipped automatically
+# Biometric prompt may still appear
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+# Lock screen may appear for PIN re-verification after setup (conditional)
+- runFlow:
+    when:
+      visible:
+        id: "lock-title"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "lock-keypad-1"
+      - tapOn:
+          id: "lock-keypad-2"
+      - tapOn:
+          id: "lock-keypad-3"
+      - tapOn:
+          id: "lock-keypad-4"
+      - tapOn:
+          id: "lock-keypad-5"
+      - tapOn:
+          id: "lock-keypad-6"
+# If PIN was rejected (tapped too fast), wait and retry
+- runFlow:
+    when:
+      visible:
+        id: "lock-title"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "lock-keypad-1"
+      - tapOn:
+          id: "lock-keypad-2"
+      - tapOn:
+          id: "lock-keypad-3"
+      - tapOn:
+          id: "lock-keypad-4"
+      - tapOn:
+          id: "lock-keypad-5"
+      - tapOn:
+          id: "lock-keypad-6"
+
+# Dismiss airdrop modal if it appears
+- runFlow: ../helpers/dismiss-airdrop.yaml
+
+# Dismiss low ecash modal if it appears
+- runFlow: ../helpers/dismiss-low-ecash.yaml
+
+# Verify wallet screen loads with funded balance
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000
+
+# Wait for BTC balance to load — vault amounts screen has its own wait
+# Just give wallet some time to start fetching UTXOs
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# --- Vault Creation (real Guardian flow) ---
+
+# Scroll to vault card
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 5000
+- tapOn:
+    id: "create-vault-btn"
+
+# Vault amounts screen — wait for balance to load into the vault context
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+# Wait for BTC balance to load — MAX button becomes enabled when availableBtc > 0
+# The slider always shows "0.00000000" initially (it's the input value, not available balance)
+# Just wait for the MAX button to appear and tap it
+- extendedWaitUntil:
+    visible:
+      id: "btc-slider-max-btn"
+    timeout: 120000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Tap MAX BTC deposit (deposits full available balance)
+- tapOn:
+    id: "btc-slider-max-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Verify BTC amount changed — if still 0, balance hasn't loaded, retry after wait
+- runFlow:
+    when:
+      visible:
+        text: "0.00000000"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "btc-slider-max-btn"
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+# Second retry if still stuck
+- runFlow:
+    when:
+      visible:
+        text: "0.00000000"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "btc-slider-max-btn"
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+
+# Scroll down to find UNIT slider and MAX button
+- scrollUntilVisible:
+    element:
+      id: "unit-slider-max-btn"
+    direction: DOWN
+    timeout: 10000
+
+# Tap MAX UNIT borrow (at 160% minimum health)
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+
+# Tap Continue — use point tap to avoid LogBox banner overlap
+# Continue button bounds: [16,815][386,866], tap at bottom-center below LogBox
+- tapOn:
+    point: "201, 855"
+
+# Wait for confirm screen to fully render and be interactive
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 10000
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Confirm & Sign (real Guardian WebSocket)
+# Scroll to make sure button is visible and use point tap to avoid LogBox overlap
+- scrollUntilVisible:
+    element:
+      id: "vault-create-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+- waitForAnimationToEnd
+- tapOn:
+    point: "290, 825"
+# Retry if first tap didn't register (LogBox or animation interference)
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-confirm-screen"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "vault-create-confirm-btn"
+
+# Wait for success — real vault creation takes longer than E2E bypass
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-success-screen"
+    timeout: 180000
+- assertVisible:
+    text: "Vault Created!"
+
+# Tap Done to return to wallet
+- tapOn:
+    id: "vault-success-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
+
+# Wait for vault creation tx to confirm on Mutinynet
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-overlay"
+    timeout: 180000
+
+# Wait for UNIT balance to appear
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 80%"
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element:
+      id: "asset-card-unit"
+    direction: DOWN
+    timeout: 10000
+# UNIT balance may have comma separators (e.g., "4,625.00")
+- extendedWaitUntil:
+    visible:
+      text: "^[1-9][\\d,]*\\.\\d{2}$"
+    timeout: 180000
+
+# Scroll back to top
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 80%"
+- waitForAnimationToEnd
+- waitForAnimationToEnd

@@ -14,9 +14,16 @@ interface TurboTokenStorageGlobal {
 const testGlobal = global as typeof global & TurboTokenStorageGlobal;
 
 // Mock dependencies BEFORE imports
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(),
+  setItem: jest.fn(),
+  removeItem: jest.fn(),
+}));
+
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
 }));
 
 jest.mock('expo-crypto', () => ({
@@ -36,6 +43,7 @@ jest.mock('../../../utils/logger', () => ({
 }));
 
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import {
   hashToken,
@@ -53,6 +61,9 @@ describe('turboTokenStorage', () => {
     delete testGlobal.processedCashuTokens;
     delete testGlobal.processedCashuTokensLoading;
     (Crypto.digestStringAsync as jest.Mock).mockResolvedValue('mockedHashValue');
+    (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (AsyncStorage.removeItem as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
   });
@@ -80,11 +91,11 @@ describe('turboTokenStorage', () => {
 
   describe('loadProcessedTokens', () => {
     it('should load tokens from storage', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('["hash1","hash2","hash3"]');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue('["hash1","hash2","hash3"]');
 
       const result = await loadProcessedTokens();
 
-      expect(SecureStore.getItemAsync).toHaveBeenCalledWith('processed_cashu_tokens');
+      expect(AsyncStorage.getItem).toHaveBeenCalledWith('processed_cashu_tokens');
       expect(result).toBeInstanceOf(Set);
       expect(result.size).toBe(3);
       expect(result.has('hash1')).toBe(true);
@@ -93,7 +104,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return empty set when storage is empty', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
 
       const result = await loadProcessedTokens();
 
@@ -102,7 +113,7 @@ describe('turboTokenStorage', () => {
     });
 
     it('should return empty set on error', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       const result = await loadProcessedTokens();
 
@@ -117,11 +128,11 @@ describe('turboTokenStorage', () => {
 
       await saveProcessedTokens(tokens);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      expect(AsyncStorage.setItem).toHaveBeenCalledWith(
         'processed_cashu_tokens',
         expect.any(String)
       );
-      const savedValue = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      const savedValue = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedValue).toContain('hash1');
       expect(savedValue).toContain('hash2');
     });
@@ -134,12 +145,12 @@ describe('turboTokenStorage', () => {
 
       await saveProcessedTokens(tokens);
 
-      const savedValue = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      const savedValue = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
       expect(savedValue.length).toBe(500);
     });
 
     it('should handle save errors gracefully', async () => {
-      (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Save failed'));
+      (AsyncStorage.setItem as jest.Mock).mockRejectedValue(new Error('Save failed'));
 
       // Should not throw
       await expect(saveProcessedTokens(new Set(['hash1']))).resolves.not.toThrow();
@@ -153,7 +164,7 @@ describe('turboTokenStorage', () => {
       await markTokenAsProcessed('cashuAtoken');
 
       expect(testGlobal.processedCashuTokens.has('mockedHashValue')).toBe(true);
-      expect(SecureStore.setItemAsync).toHaveBeenCalled();
+      expect(AsyncStorage.setItem).toHaveBeenCalled();
     });
 
     it('should not throw when global set does not exist', async () => {
@@ -244,7 +255,7 @@ describe('turboTokenStorage', () => {
 
   describe('initializeTokenStorage', () => {
     it('should initialize empty set and load from storage', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('["hash1","hash2"]');
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue('["hash1","hash2"]');
 
       await initializeTokenStorage();
 
@@ -258,12 +269,12 @@ describe('turboTokenStorage', () => {
 
       await initializeTokenStorage();
 
-      expect(SecureStore.getItemAsync as jest.Mock).not.toHaveBeenCalled();
+      expect(AsyncStorage.getItem as jest.Mock).not.toHaveBeenCalled();
       expect(testGlobal.processedCashuTokens.has('existingHash')).toBe(true);
     });
 
     it('should handle load errors and create empty set', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Load failed'));
+      (AsyncStorage.getItem as jest.Mock).mockRejectedValue(new Error('Load failed'));
 
       await initializeTokenStorage();
 
@@ -295,7 +306,7 @@ describe('turboTokenStorage', () => {
     it('should set loading flag during initialization', async () => {
       let loadingDuringInit = null;
 
-      (SecureStore.getItemAsync as jest.Mock).mockImplementation(() => {
+      (AsyncStorage.getItem as jest.Mock).mockImplementation(() => {
         loadingDuringInit = testGlobal.processedCashuTokensLoading;
         return Promise.resolve(null);
       });

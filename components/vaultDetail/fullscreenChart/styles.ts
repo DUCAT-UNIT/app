@@ -5,7 +5,6 @@
 
 import { StyleSheet } from 'react-native';
 import { COLORS } from '../../../theme';
-import { LEFT_MARGIN, RIGHT_MARGIN } from './constants';
 
 export const fullscreenStyles = StyleSheet.create({
   modalContainer: {

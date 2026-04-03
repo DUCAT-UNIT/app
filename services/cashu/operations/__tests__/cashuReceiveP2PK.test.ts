@@ -42,6 +42,7 @@ jest.mock('../../crypto', () => ({
   createBlindedOutputs: jest.fn(),
   unblindSignatures: jest.fn(),
   splitAmount: jest.fn(),
+  sumProofs: jest.fn((proofs: any[]) => proofs.reduce((sum: number, p: any) => sum + p.amount, 0)),
   decodeToken: jest.fn(),
 }));
 

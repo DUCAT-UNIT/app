@@ -30,6 +30,7 @@ jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
     info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
   },
 }));
@@ -41,6 +42,15 @@ jest.mock('../../icloudStorage', () => ({
 }));
 
 jest.mock('../core', () => ({
+  PASSKEY_KEYS: {
+    PRF_ENABLED: 'passkey_prf_enabled_v1',
+    DERIVATION_VERSION: 'passkey_derivation_version_v1',
+  },
+  PASSKEY_DERIVATION_VERSION: {
+    LEGACY_V4: '4',
+    PRF_V5: '5',
+  },
+  derivationVersionForPrf: jest.fn((prfEnabled: boolean) => (prfEnabled ? '5' : '4')),
   isPasskeySupported: jest.fn(),
 }));
 
@@ -57,7 +67,6 @@ jest.mock('../credentialCreation', () => ({
 jest.mock('../passkeyStorage', () => ({
   storePasskeyData: jest.fn(),
   backupToICloudWithVerification: jest.fn(),
-  storeStandardMnemonic: jest.fn(),
   setCurrentAccount: jest.fn(),
 }));
 
@@ -69,7 +78,6 @@ import { createPasskeyCredential } from '../credentialCreation';
 import {
   storePasskeyData,
   backupToICloudWithVerification,
-  storeStandardMnemonic,
   setCurrentAccount,
 } from '../passkeyStorage';
 import { createWalletWithPasskey, addPasskeyToExistingWallet } from '../creation';
@@ -96,6 +104,7 @@ describe('Passkey Creation', () => {
   const mockEncryptionKey = { type: 'secret', extractable: false };
   const mockHashedPin = 'a'.repeat(64);
   const mockPinSalt = 'b'.repeat(64);
+  const mockPepper = 'c'.repeat(32);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -106,6 +115,8 @@ describe('Passkey Creation', () => {
     (createPasskeyCredential as jest.Mock).mockResolvedValue({
       credentialId: mockCredentialId,
       userHandle: mockUserHandle,
+      prfEnabled: false,
+      prfResult: null,
     });
     (generateRandomMnemonic as jest.Mock).mockReturnValue(mockMnemonic);
     (bip39.generateMnemonic as jest.Mock).mockReturnValue(mockMnemonic);
@@ -121,12 +132,17 @@ describe('Passkey Creation', () => {
       tag: mockTag,
     });
     (storePasskeyData as jest.Mock).mockResolvedValue(undefined);
-    (storeStandardMnemonic as jest.Mock).mockResolvedValue(undefined);
     (setCurrentAccount as jest.Mock).mockResolvedValue(undefined);
     (backupToICloudWithVerification as jest.Mock).mockResolvedValue({
       success: true,
       debugInfo: 'Backup successful',
       verificationLog: 'Verified',
+    });
+    // Default: return pepper when asked, pinSalt for addPasskeyToExistingWallet
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+      if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
+      if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockPinSalt);
+      return Promise.resolve(null);
     });
   });
 
@@ -154,7 +170,8 @@ describe('Passkey Creation', () => {
         mockUserHandle,
         mockHashedPin,
         mockPinSalt,
-        true
+        true,
+        null
       );
       expect(encryptMnemonic).toHaveBeenCalledWith(mockMnemonic, mockEncryptionKey);
       expect(storePasskeyData).toHaveBeenCalledWith({
@@ -165,7 +182,6 @@ describe('Passkey Creation', () => {
         tag: mockTag,
         creationMethod: 'passkey',
       });
-      expect(storeStandardMnemonic).toHaveBeenCalledWith(mockMnemonic);
       expect(setCurrentAccount).toHaveBeenCalledWith(0);
     });
 
@@ -306,6 +322,9 @@ describe('Passkey Creation', () => {
         credentialId: mockCredentialId,
         userHandle: mockUserHandle,
         pinSalt: mockPinSalt,
+        pepper: mockPepper,
+        prfEnabled: false,
+        derivationVersion: '4',
       });
     });
 
@@ -328,7 +347,11 @@ describe('Passkey Creation', () => {
   describe('addPasskeyToExistingWallet', () => {
     beforeEach(() => {
       mockSavePin.mockResolvedValue(true);
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(mockPinSalt);
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
+        if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockPinSalt);
+        return Promise.resolve(mockPinSalt);
+      });
       (backupToICloudWithVerification as jest.Mock).mockResolvedValue({ debugInfo: '', verificationLog: '' });
     });
 
@@ -382,9 +405,19 @@ describe('Passkey Creation', () => {
     });
 
     it('should create new PIN salt if not exists', async () => {
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce(null) // First call returns null
-        .mockResolvedValueOnce(mockPinSalt); // Second call returns salt
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
+        return Promise.resolve(null);
+      });
+      // After savePin is called, return the salt on subsequent calls
+      mockSavePin.mockImplementation(async () => {
+        (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+          if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
+          if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockPinSalt);
+          return Promise.resolve(null);
+        });
+        return true;
+      });
 
       await addPasskeyToExistingWallet(
         mockMnemonic,
@@ -410,12 +443,17 @@ describe('Passkey Creation', () => {
         mockCredentialId,
         mockUserHandle,
         '123456',
-        mockPinSalt
+        mockPinSalt,
+        false,
+        null
       );
     });
 
     it('should throw error if PIN salt is invalid format', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('invalid-salt');
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === SECURE_KEYS.PASSKEY_PEPPER) return Promise.resolve(mockPepper);
+        return Promise.resolve('invalid-salt');
+      });
 
       await expect(addPasskeyToExistingWallet(
         mockMnemonic,
@@ -457,6 +495,9 @@ describe('Passkey Creation', () => {
         credentialId: mockCredentialId,
         userHandle: mockUserHandle,
         pinSalt: mockPinSalt,
+        pepper: mockPepper,
+        prfEnabled: false,
+        derivationVersion: '4',
       });
     });
 

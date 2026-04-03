@@ -43,6 +43,7 @@ const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<t
 const mockHasHardwareAsync = LocalAuthentication.hasHardwareAsync as jest.MockedFunction<typeof LocalAuthentication.hasHardwareAsync>;
 const mockIsEnrolledAsync = LocalAuthentication.isEnrolledAsync as jest.MockedFunction<typeof LocalAuthentication.isEnrolledAsync>;
 const mockAuthenticateAsync = LocalAuthentication.authenticateAsync as jest.MockedFunction<typeof LocalAuthentication.authenticateAsync>;
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 describe('BiometricService', () => {
   beforeEach(() => {
@@ -132,7 +133,7 @@ describe('BiometricService', () => {
 
       await recordBiometricAttempt(false);
 
-      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '3');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '3', DEVICE_ONLY);
     });
 
     it('should start from 1 when no previous attempts', async () => {
@@ -141,7 +142,7 @@ describe('BiometricService', () => {
 
       await recordBiometricAttempt(false);
 
-      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '1');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '1', DEVICE_ONLY);
     });
 
     it('should trigger lockout after max attempts', async () => {
@@ -153,24 +154,26 @@ describe('BiometricService', () => {
         'Too many failed biometric attempts (5/5)'
       );
 
-      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '5');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '5', DEVICE_ONLY);
       expect(mockSetItemAsync).toHaveBeenCalledWith(
         'biometric_lockout_until_v1',
-        expect.any(String)
+        expect.any(String),
+        DEVICE_ONLY
       );
     });
 
-    it('should set 15 minute lockout duration', async () => {
+    it('should set 30 minute lockout duration', async () => {
       const currentTime = 1000000;
       mockGetItemAsync.mockResolvedValue('4');
       mockSetItemAsync.mockResolvedValue();
 
       await expect(recordBiometricAttempt(false)).rejects.toThrow();
 
-      // 15 minutes = 15 * 60 * 1000 = 900000
+      // 30 minutes = 30 * 60 * 1000 = 1800000
       expect(mockSetItemAsync).toHaveBeenCalledWith(
         'biometric_lockout_until_v1',
-        (currentTime + 900000).toString()
+        (currentTime + 1800000).toString(),
+        DEVICE_ONLY
       );
     });
 
@@ -181,7 +184,7 @@ describe('BiometricService', () => {
       // 4th attempt - still below max (5)
       await expect(recordBiometricAttempt(false)).resolves.not.toThrow();
 
-      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '4');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('biometric_failed_attempts_v1', '4', DEVICE_ONLY);
       expect(mockSetItemAsync).not.toHaveBeenCalledWith('biometric_lockout_until_v1', expect.any(String));
     });
   });
@@ -272,7 +275,7 @@ describe('BiometricService', () => {
       expect(mockAuthenticateAsync).toHaveBeenCalledWith({
         promptMessage: 'Custom prompt',
         fallbackLabel: 'Custom fallback',
-        disableDeviceFallback: false,
+        disableDeviceFallback: true,
       });
     });
 
@@ -286,7 +289,7 @@ describe('BiometricService', () => {
       expect(mockAuthenticateAsync).toHaveBeenCalledWith({
         promptMessage: 'Authenticate to access your wallet',
         fallbackLabel: 'Use PIN',
-        disableDeviceFallback: false,
+        disableDeviceFallback: true,
       });
     });
 
@@ -387,7 +390,7 @@ describe('BiometricService', () => {
       const result = await setBiometricEnabled(true);
 
       expect(result).toBe(true);
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1', 'true');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1', 'true', DEVICE_ONLY);
     });
 
     it('should save false when disabling', async () => {
@@ -396,7 +399,7 @@ describe('BiometricService', () => {
       const result = await setBiometricEnabled(false);
 
       expect(result).toBe(true);
-      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1', 'false');
+      expect(mockSetItemAsync).toHaveBeenCalledWith('wallet_biometric_enabled_v1', 'false', DEVICE_ONLY);
     });
 
     it('should return false on error', async () => {

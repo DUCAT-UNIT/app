@@ -202,7 +202,8 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, currentStep, currentMessage, startProcessing, updateProgress, completeProcessing, failProcessing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, startProcessing, updateProgress, completeProcessing, failProcessing]);
 
   return (
     <View style={localStyles.container} testID="turbo-processing-screen">

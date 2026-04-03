@@ -4,12 +4,12 @@
  * Adapted from frontend-app toast design
  */
 
-import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Linking } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import React,{ useCallback,useEffect } from 'react';
+import { Animated,Linking,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import Svg,{ Circle,Path } from 'react-native-svg';
 import { COLORS } from '../theme';
+import type { SnackbarParams,SnackbarType } from '../types/notification';
 import { logger } from '../utils/logger';
-import type { SnackbarParams, SnackbarType } from '../types/notification';
 
 /**
  * Action labels for transaction types
@@ -188,11 +188,9 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
     title: titleOverride,
     message: messageOverride,
     description,
-    txid,
     onPress,
     actionButtons,
     actionLinks,
-    duration = 5000,
   } = params;
 
   const isSpinning = type === 'progress' || type === 'pending';

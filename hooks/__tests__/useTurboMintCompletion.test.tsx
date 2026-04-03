@@ -50,6 +50,12 @@ jest.mock('../../services/urlShortener', () => ({
   shortenCashuToken: (...args: any[]) => mockShortenCashuToken(...args),
 }));
 
+jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
+  savePendingTurboSend: jest.fn().mockResolvedValue(undefined),
+  updateTurboSendStage: jest.fn().mockResolvedValue(undefined),
+  clearPendingTurboSend: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Helper to render hooks with props
 function renderHookWithProps(props: any) {
   const result: { current: ReturnType<typeof useTurboMintCompletion> | null } = { current: null };
@@ -73,11 +79,30 @@ function renderHookWithProps(props: any) {
   };
 }
 
-// Helper to flush promises and timers
-const flushPromisesAndTimers = async () => {
+// Helper: advance through the async polling loop.
+// jest.advanceTimersByTimeAsync resolves setTimeout AND flushes the microtask queue.
+const advanceThroughPolling = async () => {
   await act(async () => {
-    await new Promise(resolve => setTimeout(resolve, 0));
-    jest.runAllTimers();
+    // Flush pending microtasks from effect + savePendingTurboSend
+    await jest.advanceTimersByTimeAsync(0);
+    // Advance past the 2000ms setTimeout in the polling loop
+    await jest.advanceTimersByTimeAsync(2100);
+    // Flush downstream awaits (completeMint, updateTurboSendStage, etc.)
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
+  });
+};
+
+// Helper: exhaust the full 120-iteration polling loop.
+const exhaustPollingLoop = async () => {
+  await act(async () => {
+    for (let i = 0; i < 125; i++) {
+      await jest.advanceTimersByTimeAsync(2100);
+    }
+    // Final flushes for post-loop code
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
   });
 };
 
@@ -234,22 +259,13 @@ describe('useTurboMintCompletion', () => {
     it('should poll for payment and complete mint on PAID state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
       });
 
-      // Run effect and initial timer
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      // Fast forward timer for polling
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(mockCheckMintQuote).toHaveBeenCalledWith('quote123');
       expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
@@ -258,20 +274,13 @@ describe('useTurboMintCompletion', () => {
     it('should poll for payment and complete mint on ISSUED state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote456',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(mockCompleteMint).toHaveBeenCalledWith('quote456', 200);
     });
@@ -279,7 +288,7 @@ describe('useTurboMintCompletion', () => {
     it('should create P2PK token when turboRecipient is provided', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -287,20 +296,7 @@ describe('useTurboMintCompletion', () => {
         mintAmount: 100,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      // Wait for all async operations
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(mockExtractPubkeyFromTaprootAddress).toHaveBeenCalledWith('tb1precipient789');
       expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
@@ -311,23 +307,14 @@ describe('useTurboMintCompletion', () => {
     it('should show send notification when turboRecipient is provided', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
         turboRecipient: 'tb1precipient789',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(notify.transaction.success).toHaveBeenCalledWith('send');
     });
@@ -335,22 +322,14 @@ describe('useTurboMintCompletion', () => {
     it('should show convert notification when no turboRecipient', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
         turboRecipient: null,
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(notify.transaction.success).toHaveBeenCalledWith('convert');
     });
@@ -359,47 +338,32 @@ describe('useTurboMintCompletion', () => {
       // Always return pending state
       mockCheckMintQuote.mockResolvedValue({ state: 'PENDING', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      // Fast forward all 30 polling attempts
-      for (let i = 0; i < 35; i++) {
-        await act(async () => {
-          jest.advanceTimersByTime(1000);
-          await Promise.resolve();
-        });
-      }
+      await exhaustPollingLoop();
 
       expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
-    });
+    }, 30000);
 
     it('should handle error during mint completion', async () => {
       mockCheckMintQuote.mockRejectedValue(new Error('Network error'));
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      // Poll errors are caught and retried; after maxAttempts the flow times out
+      await exhaustPollingLoop();
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
-    });
+      // After 120 failed polls, paidQuote is null → paymentSentAwaiting
+      expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
+    }, 30000);
 
     it('should handle error when pubkey extraction fails', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
@@ -412,15 +376,7 @@ describe('useTurboMintCompletion', () => {
         turboRecipient: 'tb1precipient789',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       // Should still transition to ready on error
       expect(result.current!.processingStage).toBe('ready');
@@ -437,15 +393,7 @@ describe('useTurboMintCompletion', () => {
         turboRecipient: 'tb1precipient789',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       // Should still transition to ready on error
       expect(result.current!.processingStage).toBe('ready');
@@ -454,21 +402,13 @@ describe('useTurboMintCompletion', () => {
     it('should refresh transaction history after successful mint', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
       expect(mockProps.refreshCashuBalance).toHaveBeenCalled();
@@ -483,14 +423,7 @@ describe('useTurboMintCompletion', () => {
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       const callCount = mockCheckMintQuote.mock.calls.length;
 
@@ -501,10 +434,7 @@ describe('useTurboMintCompletion', () => {
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       // Should not have called again due to hasMintCompleted ref
       expect(mockCheckMintQuote.mock.calls.length).toBe(callCount);
@@ -513,23 +443,17 @@ describe('useTurboMintCompletion', () => {
     it('should handle non-Error exception during completion', async () => {
       mockCheckMintQuote.mockRejectedValue('String error');
 
-      const { result } = renderHookWithProps({
+      renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
+      // Poll errors are caught and retried; after maxAttempts the flow times out
+      await exhaustPollingLoop();
 
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-      });
-
-      expect(notify.cashu.conversionFailed).toHaveBeenCalled();
-    });
+      expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
+    }, 30000);
 
     it('should handle non-Error exception in storage error path', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
@@ -542,15 +466,7 @@ describe('useTurboMintCompletion', () => {
         turboRecipient: 'tb1precipient789',
       });
 
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(1000);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
+      await advanceThroughPolling();
 
       // Should still transition to ready on error
       expect(result.current!.processingStage).toBe('ready');

@@ -14,7 +14,12 @@ import type {
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
+import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { Utxo, withVaultOperationLock } from './utils';
+import {
+  clearPendingVaultSigningOperation,
+  setPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
 
 export interface CreateDepositReqOptions {
   feeRate: number;
@@ -65,6 +70,14 @@ export async function createVaultReqDeposit(
   try {
     const { feeRate, oracleQuote, vaultProfile, isMaxAmount } = options;
 
+    // SECURITY: Re-validate oracle price freshness before building transaction.
+    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+      throw new Error(
+        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+      );
+    }
+
     logger.debug('[VaultOps] Deposit context inputs:', {
       oracleQuote: !!oracleQuote,
       vaultProfile: {
@@ -97,8 +110,17 @@ export async function createVaultReqDeposit(
       throw new Error('No UTXOs available for deposit transaction');
     }
 
-    // Create the deposit request (deposit.req does not take isBatch parameter)
-    const depositReq = await wallet.vault.deposit.req(vaultCtx, utxos);
+    let depositReq: WalletVaultDepositRequest;
+    setPendingVaultSigningOperation({
+      action: 'deposit',
+      ctx: vaultCtx,
+      satsUtxos: utxos,
+    });
+    try {
+      depositReq = await wallet.vault.deposit.req(vaultCtx, utxos);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     logger.debug('[VaultOps] Deposit request created:', {
       vault_txid: depositReq.vault_txid,
@@ -110,7 +132,7 @@ export async function createVaultReqDeposit(
     logger.error('[VaultOps] Failed to create deposit request:', { error });
     throw error;
   }
-  }); // end withVaultOperationLock
+  }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
 /**

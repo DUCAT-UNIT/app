@@ -1,26 +1,25 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ViewStyle, TextStyle, RefreshControl } from 'react-native';
-import { useWallet } from '../../contexts/WalletContext';
-import { useBalance } from '../../contexts/WalletDataContext';
-import { usePrice } from '../../stores/priceStore';
-import { useVaultData } from '../../contexts/WalletDataContext';
+import React,{ useCallback,useState } from 'react';
+import { RefreshControl,ScrollView,StyleSheet,TextStyle,View,ViewStyle } from 'react-native';
+import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
+import ErrorBanner from '../../components/wallet/ErrorBanner';
+import TotalBalanceSection,{ TotalBalanceSectionStyles } from '../../components/wallet/TotalBalanceSection';
+import VaultCard,{ VaultCardStyles } from '../../components/wallet/VaultCard';
+import WalletActions from '../../components/wallet/WalletActions';
+import WalletHeader,{ WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import { useCashu } from '../../contexts/CashuContext';
-import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
-import { useWalletCalculations } from '../../hooks/useWalletCalculations';
+import { useWallet } from '../../contexts/WalletContext';
+import { useBalance,useVaultData } from '../../contexts/WalletDataContext';
+import { useAssetCardStyles } from '../../hooks/useAssetCardStyles';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
-import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
-import { useAssetCardStyles } from '../../hooks/useAssetCardStyles';
 import { useTotalBalanceStyles } from '../../hooks/useTotalBalanceStyles';
+import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
+import { useWalletCalculations } from '../../hooks/useWalletCalculations';
+import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
+import { usePrice } from '../../stores/priceStore';
 import { COLORS } from '../../theme';
-import TotalBalanceSection, { TotalBalanceSectionStyles } from '../../components/wallet/TotalBalanceSection';
-import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
-import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
-import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
-import WalletActions from '../../components/wallet/WalletActions';
-import ErrorBanner from '../../components/wallet/ErrorBanner';
+import { formatBalance,formatFiat } from '../../utils/formatters';
 import { getRunesAmount } from '../../utils/runesHelper';
-import { formatFiat, formatBalance } from '../../utils/formatters';
 
 // Constants
 const VAULT_CREATION_RETRY_TIMEOUT = 2000;
@@ -101,7 +100,7 @@ const WalletScreen = React.memo(function WalletScreen({
   });
 
   // Responsive scaling (needs totalBalanceUSD)
-  const { s, sf } = useResponsive();
+  const { s } = useResponsive();
   const vaultCardStyles = useVaultCardStyles();
   const assetCardStyles = useAssetCardStyles();
   const { styles: totalBalanceStyles, largeBalanceStyle: responsiveLargeBalanceStyle } = useTotalBalanceStyles({ totalBalanceUSD });
@@ -113,12 +112,15 @@ const WalletScreen = React.memo(function WalletScreen({
     const runesAmount = getRunesAmount(runesBalance);
     const cashuDisplayAmount = (cashuBalance || 0) / 100;
     const totalUnit = runesAmount + cashuDisplayAmount;
+    // UNIT is pegged ~$1 USD, so usdValue ≈ totalUnit
+    // btcValue = USD value / BTC price to get BTC equivalent
+    const btcEquivalent = btcPrice ? totalUnit / btcPrice : 0;
     return {
       formatted: formatFiat(totalUnit),
-      btcValue: formatBalance(totalUnit / 100_000_000),
+      btcValue: formatBalance(btcEquivalent),
       usdValue: totalUnit,
     };
-  }, [runesBalance, cashuBalance]);
+  }, [runesBalance, cashuBalance, btcPrice]);
 
   // Memoize formatted balances to avoid repeated toLocaleString() calls
   const formatted = useFormattedBalances({

@@ -16,6 +16,7 @@ interface UseAppLifecycleParams {
   seedConfirmedRef: MutableRefObject<boolean>;
   isBiometricSupported: boolean;
   biometricEnabled: boolean;
+  isProcessing?: boolean;
   onLock: jest.Mock;
   onAuthenticateUser: jest.Mock;
 }
@@ -79,14 +80,15 @@ describe('useAppLifecycle', () => {
       seedConfirmedRef: { current: false },
       isBiometricSupported: false,
       biometricEnabled: false,
+      isProcessing: false,
       onLock: jest.fn(),
       onAuthenticateUser: jest.fn(),
     };
   });
 
   describe('Screen Capture Management', () => {
-    it('should allow screen capture on mount', async () => {
-      (ScreenCapture.allowScreenCaptureAsync as jest.Mock).mockResolvedValue(undefined);
+    it('should prevent screen capture on mount', async () => {
+      (ScreenCapture.preventScreenCaptureAsync as jest.Mock).mockResolvedValue(undefined);
 
       renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
@@ -96,7 +98,7 @@ describe('useAppLifecycle', () => {
         await Promise.resolve();
       });
 
-      expect(ScreenCapture.allowScreenCaptureAsync).toHaveBeenCalled();
+      expect(ScreenCapture.preventScreenCaptureAsync).toHaveBeenCalled();
     });
 
 
@@ -291,7 +293,7 @@ describe('useAppLifecycle', () => {
       expect(jest.getTimerCount()).toBeGreaterThan(0);
     });
 
-    it('should lock wallet after 2 minutes of inactivity', () => {
+    it('should lock wallet after inactivity timeout', () => {
       mockProps.isAuthenticated = true;
       mockProps.walletExists.current = true;
       mockProps.seedConfirmedRef.current = true;
@@ -303,9 +305,9 @@ describe('useAppLifecycle', () => {
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
 
-      // Fast forward 2 minutes (120000ms)
+      // Fast forward past inactivity timeout (10 min in dev, 30s in prod)
       act(() => {
-        jest.advanceTimersByTime(120000);
+        jest.advanceTimersByTime(600_000);
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
@@ -379,9 +381,9 @@ describe('useAppLifecycle', () => {
         initialProps: mockProps,
       });
 
-      // Advance time almost to timeout (30 seconds inactivity)
+      // Advance time almost to timeout (10 min = 600s in dev)
       act(() => {
-        jest.advanceTimersByTime(25000); // 25 seconds (5 seconds before 30s timeout)
+        jest.advanceTimersByTime(595_000); // 5 seconds before timeout
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
@@ -391,19 +393,48 @@ describe('useAppLifecycle', () => {
         result.current!.resetInactivityTimer();
       });
 
-      // Advance another 25 seconds (should not lock yet because timer was reset)
+      // Advance another 595 seconds (should not lock yet because timer was reset)
       act(() => {
-        jest.advanceTimersByTime(25000);
+        jest.advanceTimersByTime(595_000);
       });
 
       expect(mockProps.onLock).not.toHaveBeenCalled();
 
-      // Advance remaining 5 seconds to complete the 30 seconds from reset
+      // Advance remaining 5 seconds to complete the timeout from reset
       act(() => {
         jest.advanceTimersByTime(5000);
       });
 
       expect(mockProps.onLock).toHaveBeenCalled();
+    });
+
+    it('should re-arm the timer when inactivity expires during processing', () => {
+      mockProps.isAuthenticated = true;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isProcessing = true;
+
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(600_000);
+      });
+
+      expect(mockProps.onLock).not.toHaveBeenCalled();
+      expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+      mockProps.isProcessing = false;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(600_000);
+      });
+
+      expect(mockProps.onLock).toHaveBeenCalledTimes(1);
     });
 
 

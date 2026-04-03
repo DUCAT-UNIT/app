@@ -5,9 +5,8 @@
 
 import React from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { SECURE_KEYS } from '../utils/constants';
+import { setBiometricEnabled as persistBiometricEnabled } from '../services/biometricService';
 import { logger } from '../utils/logger';
 
 interface BiometricPromptModalProps {
@@ -50,8 +49,7 @@ export default function BiometricPromptModal({
   const handleEnable = async () => {
     onClose();
     try {
-      // Save the preference
-      await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'true');
+      await persistBiometricEnabled(true);
       onBiometricEnabled(true);
 
       // Trigger biometric authentication
@@ -70,8 +68,7 @@ export default function BiometricPromptModal({
 
   const handleSkip = async () => {
     onClose();
-    // Save the preference as disabled
-    await SecureStore.setItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED, 'false');
+    await persistBiometricEnabled(false);
     onBiometricDisabled();
 
     // If not authenticated yet and callback provided, show PIN entry
@@ -105,4 +102,3 @@ export default function BiometricPromptModal({
     </View>
   );
 }
-

@@ -1,9 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
+import { sha256 } from '@noble/hashes/sha256';
 import { logger } from '../../utils/logger';
 import { checkProofsSpent, CheckStateResponse } from './cashuMintClient';
 import { CashuProof } from './crypto';
+import { DEVICE_ONLY } from '../storagePolicy';
 
 /**
  * Cashu Proof Manager
@@ -13,6 +14,7 @@ import { CashuProof } from './crypto';
 
 // Current account address for account-specific storage
 let currentAccount: string | null = null;
+const PROOF_REGISTRY_KEY = 'cashu_proof_keys_v1';
 
 // Account-scoped mutex locks for proof operations to prevent concurrent read-modify-write races
 // Each account gets its own lock chain so operations on different accounts don't serialize
@@ -34,16 +36,15 @@ export function withProofLock<T>(fn: () => Promise<T>): Promise<T> {
  * Compute SHA-256 integrity hash for proof data
  */
 const computeProofHash = async (serialized: string): Promise<string> => {
-  try {
-    const bytes = new Uint8Array(Buffer.from(serialized, 'utf-8'));
-    const hashBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes);
-    return Buffer.from(hashBuffer).toString('hex');
-  } catch {
-    // Fallback: simple length-based hash if native crypto fails
-    // This preserves basic integrity checking without blocking proof storage
-    return `fallback_${serialized.length}_${Date.now()}`;
-  }
+  const hashBytes = sha256(new Uint8Array(Buffer.from(serialized, 'utf-8')));
+  return Buffer.from(hashBytes).toString('hex');
 };
+
+interface StoredProofEnvelope {
+  version: 1;
+  proofs: CashuProof[];
+  integrityHash: string;
+}
 
 // Simple event emitter for proof changes (balance updates)
 type ProofChangeListener = () => void;
@@ -95,7 +96,7 @@ const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
     }
 
     // Migrate: copy old proofs to new account-specific key
-    await SecureStore.setItemAsync(newKey, oldProofs);
+    await SecureStore.setItemAsync(newKey, oldProofs, DEVICE_ONLY);
 
     // Parse proof count safely for logging
     let proofCount = 0;
@@ -127,7 +128,10 @@ export const setCurrentAccount = async (taprootAddress: string): Promise<void> =
 
   // Migrate old global proofs if this is the first time
   await migrateGlobalProofs(taprootAddress);
+  await registerProofStorageKey(getStorageKey());
 };
+
+export const getCurrentCashuAccount = (): string | null => currentAccount;
 
 /**
  * Get account-specific storage key
@@ -138,6 +142,32 @@ export const getStorageKey = (): string => {
     return 'cashu_proofs';
   }
   return `cashu_proofs_${currentAccount}`;
+};
+
+const registerProofStorageKey = async (storageKey: string): Promise<void> => {
+  try {
+    const existing = await SecureStore.getItemAsync(PROOF_REGISTRY_KEY);
+    const keys = new Set<string>(existing ? JSON.parse(existing) as string[] : []);
+    keys.add(storageKey);
+    await SecureStore.setItemAsync(PROOF_REGISTRY_KEY, JSON.stringify(Array.from(keys)), DEVICE_ONLY);
+  } catch (error: unknown) {
+    logger.warn('Failed to register Cashu proof storage key', {
+      storageKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const getAllProofStorageKeys = async (): Promise<string[]> => {
+  try {
+    const stored = await SecureStore.getItemAsync(PROOF_REGISTRY_KEY);
+    return stored ? JSON.parse(stored) as string[] : [];
+  } catch (error: unknown) {
+    logger.warn('Failed to load Cashu proof storage registry', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
 };
 
 const readProofsUnsafe = async (): Promise<CashuProof[]> => {
@@ -151,7 +181,29 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
 
     let proofs: CashuProof[];
     try {
-      proofs = JSON.parse(stored);
+      const parsed = JSON.parse(stored) as CashuProof[] | StoredProofEnvelope;
+      if (Array.isArray(parsed)) {
+        proofs = parsed;
+      } else if (
+        parsed &&
+        typeof parsed === 'object' &&
+        parsed.version === 1 &&
+        Array.isArray(parsed.proofs) &&
+        typeof parsed.integrityHash === 'string'
+      ) {
+        const serialized = JSON.stringify(parsed.proofs);
+        const actualHash = await computeProofHash(serialized);
+        if (actualHash !== parsed.integrityHash) {
+          logger.error('Cashu proof integrity check failed', {
+            storageKey: STORAGE_KEY,
+          });
+          return [];
+        }
+        proofs = parsed.proofs;
+      } else {
+        logger.error('Invalid stored Cashu proof envelope', { storageKey: STORAGE_KEY });
+        return [];
+      }
     } catch (parseError) {
       logger.error('Failed to parse stored proofs', { error: (parseError as Error).message });
       return [];
@@ -159,10 +211,6 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
 
     // Log stack trace to see who's calling this
     const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
-
-    // Integrity hash validation removed — Crypto.digest crashes native layer
-    // on some devices (unordered_map::at: key not found in react-native-quick-crypto)
-
     logger.info('Loaded proofs from storage', {
       count: proofs.length,
       caller: caller.substring(0, 100), // Truncate to avoid huge logs
@@ -188,10 +236,17 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
 export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<void> => {
   try {
     const STORAGE_KEY = getStorageKey();
-    const serialized = JSON.stringify(proofs);
+    const serializedProofs = JSON.stringify(proofs);
+    const integrityHash = await computeProofHash(serializedProofs);
+    const serialized = JSON.stringify({
+      version: 1,
+      proofs,
+      integrityHash,
+    } satisfies StoredProofEnvelope);
+    await registerProofStorageKey(STORAGE_KEY);
 
     // Atomic write operation - SecureStore.setItemAsync overwrites existing data
-    await SecureStore.setItemAsync(STORAGE_KEY, serialized);
+    await SecureStore.setItemAsync(STORAGE_KEY, serialized, DEVICE_ONLY);
 
     if (verify) {
       const verification = await SecureStore.getItemAsync(STORAGE_KEY);
@@ -200,11 +255,25 @@ export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<v
         throw new Error('Failed to save proofs - verification returned null');
       }
 
-      const verified = JSON.parse(verification);
-      if (!Array.isArray(verified) || verified.length !== proofs.length) {
+      const verified = JSON.parse(verification) as StoredProofEnvelope;
+      if (
+        !verified ||
+        verified.version !== 1 ||
+        !Array.isArray(verified.proofs) ||
+        typeof verified.integrityHash !== 'string'
+      ) {
         logger.error('SecureStore write verification failed!', {
           expected: proofs.length,
-          actual: Array.isArray(verified) ? verified.length : 'non-array',
+          actual: 'invalid-envelope',
+        });
+        throw new Error('Failed to save proofs - verification failed');
+      }
+
+      const verifiedHash = await computeProofHash(JSON.stringify(verified.proofs));
+      if (verifiedHash !== verified.integrityHash || verified.proofs.length !== proofs.length) {
+        logger.error('SecureStore write verification failed!', {
+          expected: proofs.length,
+          actual: verified.proofs.length,
         });
         throw new Error('Failed to save proofs - verification failed');
       }

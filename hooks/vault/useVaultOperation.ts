@@ -15,27 +15,27 @@
  * into a single ~200 line base hook with ~50 line config wrappers.
  */
 
-import { useCallback, useRef, useEffect, useState } from 'react';
-import { useWallet } from '../../contexts/WalletContext';
-import { usePrice } from '../../stores/priceStore';
-import { useVaultData } from '../../contexts/WalletDataContext';
-import { getGuardianClient, disconnectGuardian } from '../../services/guardianService';
-import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
-import { useNotificationStore } from '../../stores/notificationStore';
-import {
-  computeVaultPrevoutFromTx,
-  buildVaultProfile,
-} from '../../services/vaultOperationsService';
-import { fetchPriceQuote } from '../../services/oracleService';
-import { createVaultWallet } from '../../services/vaultWalletService';
-import { fetchVaultData, fetchVaultHistory } from '../../services/vaultService';
-import { logger } from '../../utils/logger';
 import type { VaultProfile } from '@ducat-unit/client-sdk';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { useWallet } from '../../contexts/WalletContext';
+import { useVaultData } from '../../contexts/WalletDataContext';
+import { disconnectGuardian,getGuardianClient } from '../../services/guardianService';
+import { fetchPriceQuote } from '../../services/oracleService';
+import {
+buildVaultProfile,
+computeVaultPrevoutFromTx,
+} from '../../services/vaultOperationsService';
+import { fetchVaultData,fetchVaultHistory } from '../../services/vaultService';
+import { createVaultWallet } from '../../services/vaultWalletService';
+import { useNotificationStore } from '../../stores/notificationStore';
+import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
+import { usePrice } from '../../stores/priceStore';
+import { logger } from '../../utils/logger';
 import type {
-  VaultOperationConfig,
-  UseVaultOperationResult,
-  VaultWalletData,
-  ProcessingStep,
+ProcessingStep,
+UseVaultOperationResult,
+VaultOperationConfig,
+VaultWalletData,
 } from './vaultOperationTypes';
 
 /**
@@ -277,7 +277,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
       const gclient = await getGuardianClient(wallet!.taprootPubkey || '');
 
-      let reservationResult: unknown = undefined;
+      let reservationResult: unknown;
       if (needsReservation && performReservation) {
         reservationResult = await performReservation(
           gclient,

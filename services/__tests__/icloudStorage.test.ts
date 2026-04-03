@@ -171,7 +171,7 @@ describe('iCloudStorage', () => {
       expect(result).toContain('Backup saved successfully with atomic write protection');
 
       // Verify atomic backup was saved with correct key
-      expect(mockSetItem).toHaveBeenCalledWith('ducat_backup_v2', expect.stringContaining('"version":2'));
+      expect(mockSetItem).toHaveBeenCalledWith('ducat_backup_v2', expect.stringContaining('"version":5'));
       expect(mockSetItem).toHaveBeenCalledWith('ducat_backup_v2', expect.stringContaining('"encrypted":"encrypted-data"'));
     });
 

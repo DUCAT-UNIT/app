@@ -3,12 +3,12 @@
  * Extracts change outputs from signed transactions for pending tracking
  */
 
-import { useCallback } from 'react';
 import * as bitcoin from 'bitcoinjs-lib';
+import { useCallback } from 'react';
+import type { SendIntent } from '../../contexts/TransactionBuildContext';
+import type { PendingTransactionOutput } from '../../stores/pendingTransactionsStore';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import type { PendingTransactionOutput } from '../../stores/pendingTransactionsStore';
-import type { SendIntent } from '../../contexts/TransactionBuildContext';
 
 /**
  * Safe BTC to satoshi conversion avoiding floating point errors
@@ -55,7 +55,7 @@ export function useOutputExtraction({
     async (
       intent: SendIntent,
       sendAssetType: string,
-      sendAmount: string
+      _sendAmount: string
     ): Promise<OutputExtractionResult> => {
       const tx = bitcoin.Transaction.fromHex(intent.signedTxHex!);
       const outputs: PendingTransactionOutput[] = [];

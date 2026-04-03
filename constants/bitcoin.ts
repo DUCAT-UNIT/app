@@ -2,6 +2,8 @@
  * Bitcoin-related constants
  */
 
+import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
+
 /**
  * Bitcoin dust limit in satoshis
  * Outputs below this amount are considered "dust" and may not be relayed by nodes
@@ -9,8 +11,7 @@
 export const DUST_LIMIT_SATS = 546 as const;
 
 /**
- * Default fee rate for testnet transactions (sats per virtual byte)
- * Lower than mainnet since testnet has less congestion
+ * Default fee rate for wallet transactions (sats per virtual byte)
  */
 export const DEFAULT_FEE_RATE_SAT_PER_VBYTE = 1 as const;
 
@@ -41,16 +42,50 @@ export const TX_SIZE = {
 /**
  * BIP44 derivation path constants
  */
-export const DERIVATION_PATHS = {
+const COIN_TYPE = APP_NETWORK_CONFIG.coinType;
+
+export type WalletDerivationMode = 'legacy_address_index' | 'bip44_account';
+
+export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
+
+export const LEGACY_DERIVATION_PATHS = {
   // BIP44: Legacy P2PKH
-  LEGACY: (account = 0): string => `m/44'/1'/0'/0/${account}`,
+  LEGACY: (account = 0): string => `m/44'/${COIN_TYPE}'/0'/0/${account}`,
 
   // BIP84: Native SegWit P2WPKH
-  SEGWIT: (account = 0): string => `m/84'/1'/0'/0/${account}`,
+  SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/0'/0/${account}`,
 
   // BIP86: Taproot P2TR
-  TAPROOT: (account = 0): string => `m/86'/1'/0'/0/${account}`,
+  TAPROOT: (account = 0): string => `m/86'/${COIN_TYPE}'/0'/0/${account}`,
 } as const;
+
+export const DERIVATION_PATHS = {
+  // BIP44: Legacy P2PKH
+  LEGACY: (account = 0): string => `m/44'/${COIN_TYPE}'/${account}'/0/0`,
+
+  // BIP84: Native SegWit P2WPKH
+  SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/${account}'/0/0`,
+
+  // BIP86: Taproot P2TR
+  TAPROOT: (account = 0): string => `m/86'/${COIN_TYPE}'/${account}'/0/0`,
+} as const;
+
+export function getDerivationPathSet(
+  mode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): typeof DERIVATION_PATHS {
+  return mode === 'legacy_address_index' ? LEGACY_DERIVATION_PATHS : DERIVATION_PATHS;
+}
+
+export function getDerivationPathForType(
+  type: 'legacy' | 'segwit' | 'taproot',
+  accountIndex = 0,
+  mode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): string {
+  const paths = getDerivationPathSet(mode);
+  if (type === 'legacy') return paths.LEGACY(accountIndex);
+  if (type === 'segwit') return paths.SEGWIT(accountIndex);
+  return paths.TAPROOT(accountIndex);
+}
 
 /**
  * Bitcoin network magic numbers

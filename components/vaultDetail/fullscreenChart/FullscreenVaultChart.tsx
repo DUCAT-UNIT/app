@@ -3,18 +3,17 @@
  * Fullscreen modal with chart on top 60% and activity list below
  */
 
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { View, Text, TouchableOpacity, Modal, ScrollView, Dimensions, Animated } from 'react-native';
-import Svg, { Path, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
+import React,{ memo,useCallback,useEffect,useMemo,useState } from 'react';
+import { Animated,Dimensions,Modal,ScrollView,Text,TouchableOpacity,View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg,{ Defs,Line,LinearGradient,Path,Stop } from 'react-native-svg';
+import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import { COLORS } from '../../../theme';
 import Icon from '../../icons';
 import { VaultActivityList } from '../VaultActivityList';
+import type { PriceTimeframe,ScrubData } from '../vaultChart/types';
+import { INTERVAL_CONFIG,TIMEFRAMES } from '../vaultChart/types';
 import VaultTransactionDetailsSheet from '../VaultTransactionDetailsSheet';
-import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import type { PriceTimeframe, ScrubData } from '../vaultChart/types';
-import { TIMEFRAMES, INTERVAL_CONFIG } from '../vaultChart/types';
-import { getHealthColor, getHealthChipBg } from '../vaultChart/utils';
 import { fullscreenStyles as styles } from './styles';
 import { useFullscreenChartData } from './useFullscreenChartData';
 import { useScrubAnimation } from './useScrubAnimation';
@@ -82,7 +81,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     findNearbyRefLine,
     onScrubDataChange: setScrubData,
     onHoveredRefLineChange: setHoveredRefLineIndex,
-    onLockRefLine: (index, data) => {
+    onLockRefLine: (index) => {
       if (index !== null && referenceLines[index]) {
         // Lock to this event
         setLockedEventDate(referenceLines[index].date);
@@ -116,11 +115,6 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     return filtered;
   }, [transactions, selectedTimeframe, lockedEventDate]);
 
-  // Display values
-  const displayHealth = scrubData.health ?? (lineData.length > 0 ? lineData[lineData.length - 1].healthValue : null);
-  const healthColor = getHealthColor(displayHealth);
-  const healthChipBg = getHealthChipBg(displayHealth);
-
   // Format timestamp for display
   const formatScrubDate = (timestamp: number | null): string | null => {
     if (timestamp === null) return null;
@@ -136,8 +130,6 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   };
 
   // Active timestamp for display
-  const activeScrubTimestamp = scrubData.timestamp;
-
   // Reset state when modal closes
   useEffect(() => {
     if (!visible) {

@@ -5,7 +5,6 @@
 set +e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FLOWS_DIR="$SCRIPT_DIR/flows"
-HELPERS_DIR="$SCRIPT_DIR/helpers"
 PASSED=0
 FAILED=0
 FAILURES=""
@@ -20,29 +19,14 @@ if [ -z "$DEVICE_ID" ]; then
 fi
 echo "Using simulator: $DEVICE_ID"
 
-# Find the installed app bundle and copy it to a stable location
-# (uninstall deletes the bundle from the sim, so we need an external copy)
-STABLE_APP="/tmp/ducat-e2e-app/DucatWallet.app"
-mkdir -p /tmp/ducat-e2e-app
-
-if [ ! -d "$STABLE_APP" ]; then
-  # Find app from the current sim or any other sim
-  SIM_APP=$(find ~/Library/Developer/CoreSimulator/Devices/"$DEVICE_ID" -maxdepth 8 -name "*.app" -path "*${APP_BUNDLE_ID}*" 2>/dev/null | head -1)
-  if [ -z "$SIM_APP" ]; then
-    SIM_APP=$(find ~/Library/Developer/CoreSimulator/Devices -maxdepth 8 -name "*.app" -path "*${APP_BUNDLE_ID}*" 2>/dev/null | head -1)
-  fi
-  if [ -z "$SIM_APP" ] || [ ! -d "$SIM_APP" ]; then
-    echo "ERROR: Could not find app bundle. Build the app first."
-    echo "  Run: npx expo run:ios --device \"iPhone 16 Pro - Maestro\""
-    exit 1
-  fi
-  cp -R "$SIM_APP" "$STABLE_APP"
-  echo "Copied app to stable location: $STABLE_APP"
-else
-  echo "Using cached app: $STABLE_APP"
+# Flows reset app state themselves via Maestro helpers (clearKeychain + clearState).
+# Do not manually uninstall/reinstall or delete the simulator keychain DB here,
+# because that can corrupt the simulator and cause clearKeychain to fail globally.
+if ! xcrun simctl get_app_container "$DEVICE_ID" "$APP_BUNDLE_ID" app > /dev/null 2>&1; then
+  echo "ERROR: App is not installed on the booted simulator."
+  echo "  Run: npx expo run:ios --device \"iPhone 16 Pro - Maestro\""
+  exit 1
 fi
-
-APP_PATH="$STABLE_APP"
 echo ""
 
 run_test() {
@@ -51,27 +35,7 @@ run_test() {
   local suite=$(basename "$(dirname "$file")")
   printf "  %-40s " "[$suite] $name"
 
-  sleep 1
-
-  # Clean app state: uninstall + wipe keychain + reinstall
-  xcrun simctl terminate "$DEVICE_ID" "$APP_BUNDLE_ID" > /dev/null 2>&1 || true
-  xcrun simctl uninstall "$DEVICE_ID" "$APP_BUNDLE_ID" > /dev/null 2>&1 || true
-
-  # Clear keychain (iOS persists keychain across uninstall/reinstall)
-  local keychain_dir="$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE_ID/data/Library/Keychains"
-  rm -f "$keychain_dir"/keychain-2-debug.db* 2>/dev/null || true
-
-  xcrun simctl install "$DEVICE_ID" "$APP_PATH" > /dev/null 2>&1 || true
-
-  # Re-grant permissions after reinstall
-  bash "$HELPERS_DIR/grant-permissions.sh" "$DEVICE_ID" > /dev/null 2>&1 || true
-
-  # Set clipboard for paste-based wallet import
-  bash "$HELPERS_DIR/set-clipboard.sh" "$DEVICE_ID" > /dev/null 2>&1
-
-  sleep 0.5
-
-  if maestro test "$file" > /dev/null 2>&1; then
+  if maestro test --device "$DEVICE_ID" "$file" > /dev/null 2>&1; then
     echo "✓ PASSED"
     PASSED=$((PASSED + 1))
   else

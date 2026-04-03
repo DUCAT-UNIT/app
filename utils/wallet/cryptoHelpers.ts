@@ -7,6 +7,11 @@ import * as bip39 from 'bip39';
 import { BIP32Factory, BIP32Interface } from 'bip32';
 import ECPairFactory, { ECPairAPI } from 'ecpair';
 import * as ecc from '@bitcoinerlab/secp256k1';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getDerivationPathForType,
+  type WalletDerivationMode,
+} from '../../constants/bitcoin';
 import { MUTINYNET_NETWORK } from '../bitcoin';
 
 // Initialize BIP32
@@ -71,16 +76,19 @@ export function deriveKeyFromMnemonic(mnemonic: string, derivationPath: string):
   return root.derivePath(derivationPath);
 }
 
-/**
- * Get derivation path for address type
- */
-export function getDerivationPath(address: string, accountIndex: number): string {
-  if (address.startsWith('tb1q')) {
-    // P2WPKH (SegWit) - BIP84
-    return `m/84'/1'/0'/0/${accountIndex}`;
-  } else if (address.startsWith('tb1p')) {
-    // P2TR (Taproot) - BIP86
-    return `m/86'/1'/0'/0/${accountIndex}`;
+export function getDerivationPath(
+  address: string,
+  accountIndex: number,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): string {
+  const lowerAddress = address.toLowerCase();
+  const segwitPrefix = `${MUTINYNET_NETWORK.bech32}1q`;
+  const taprootPrefix = `${MUTINYNET_NETWORK.bech32}1p`;
+
+  if (lowerAddress.startsWith(segwitPrefix)) {
+    return getDerivationPathForType('segwit', accountIndex, derivationMode);
+  } else if (lowerAddress.startsWith(taprootPrefix)) {
+    return getDerivationPathForType('taproot', accountIndex, derivationMode);
   } else {
     throw new Error(`Unsupported address type: ${address}`);
   }
