@@ -124,7 +124,6 @@ export type WalletStackParamList = {
   About: undefined;
   TermsOfService: { onClose: () => void };
   PrivacyPolicy: { onClose: () => void };
-  FeeRateDemo: undefined;
 };
 
 /**

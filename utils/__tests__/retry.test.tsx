@@ -2,7 +2,7 @@
  * Tests for Retry utility
  */
 
-import { retryWithBackoff, fetchWithRetry, retrySilently, RetryOptions } from '../retry';
+import { retryWithBackoff, retrySilently, RetryOptions } from '../retry';
 
 // Mock global fetch
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
@@ -166,63 +166,6 @@ describe('retry utilities', () => {
 
       expect(result).toBe('success');
       expect(mockFn).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('fetchWithRetry', () => {
-    it('should retry fetch requests', async () => {
-      const mockResponse = { ok: true, json: async () => ({ data: 'test' }) } as Response;
-
-      mockFetch
-        .mockRejectedValueOnce(new Error('fetch failed'))
-        .mockResolvedValueOnce(mockResponse);
-
-      const result = await fetchWithRetry('https://api.example.com/test');
-
-      expect(result).toBe(mockResponse);
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-
-    it('should use default retry options for fetch', async () => {
-      const mockResponse = { ok: true } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
-
-      await fetchWithRetry('https://api.example.com/test');
-
-      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test', {});
-    });
-
-    it('should pass custom retry options', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error('ETIMEDOUT'))
-        .mockRejectedValueOnce(new Error('ETIMEDOUT'))
-        .mockRejectedValueOnce(new Error('ETIMEDOUT'))
-        .mockRejectedValueOnce(new Error('ETIMEDOUT'))
-        .mockResolvedValueOnce({ ok: true } as Response);
-
-      await fetchWithRetry('https://api.example.com/test', {}, {
-        maxRetries: 4,
-      });
-
-      expect(mockFetch).toHaveBeenCalledTimes(5);
-    }, 10000); // 10 second timeout
-
-    it('should pass fetch options', async () => {
-      const mockResponse = { ok: true } as Response;
-      mockFetch.mockResolvedValueOnce(mockResponse);
-
-      await fetchWithRetry('https://api.example.com/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/test',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        })
-      );
     });
   });
 

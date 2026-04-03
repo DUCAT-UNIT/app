@@ -83,26 +83,6 @@ export async function retryWithBackoff<T>(
 }
 
 /**
- * Wraps a fetch call with automatic retry logic
- * @param url - URL to fetch
- * @param options - Fetch options
- * @param retryOptions - Retry options (see retryWithBackoff)
- * @returns Fetch response
- */
-export async function fetchWithRetry(
-  url: string,
-  options: RequestInit = {},
-  retryOptions: RetryOptions = {}
-): Promise<Response> {
-  return retryWithBackoff(() => fetch(url, options), {
-    maxRetries: 2, // Fewer retries for fetches
-    initialDelay: 500,
-    maxDelay: 3000,
-    ...retryOptions,
-  });
-}
-
-/**
  * Wraps an async operation with silent retry logic
  * @param fn - Async function to retry
  * @param retryOptions - Retry options

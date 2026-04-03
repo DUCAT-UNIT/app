@@ -1,15 +1,9 @@
 /**
  * Vault Hooks Module
  *
- * Unified vault operation hooks that consolidate the common patterns
- * from borrow, deposit, repay, and withdraw operations.
- *
- * This module reduces ~1,400 lines of duplicated code across 4 hooks
- * into a single ~200 line base hook with ~50 line config wrappers.
+ * Types for vault operations.
+ * Active vault hooks are in hooks/useBorrowVault.ts, useDepositVault.ts, etc.
  */
-
-// Base hook
-export { useVaultOperation } from './useVaultOperation';
 
 // Types
 export type {
@@ -28,16 +22,3 @@ export type {
   PendingVaultTransaction,
   UseVaultOperationResult,
 } from './vaultOperationTypes';
-
-// Operation-specific hooks (new implementations)
-export { useBorrowVaultNew, useBorrow } from './useBorrowVaultNew';
-export type { UseBorrowVaultResult } from './useBorrowVaultNew';
-
-export { useDepositVaultNew, useDeposit } from './useDepositVaultNew';
-export type { UseDepositVaultResult } from './useDepositVaultNew';
-
-export { useRepayVaultNew, useRepay } from './useRepayVaultNew';
-export type { UseRepayVaultResult } from './useRepayVaultNew';
-
-export { useWithdrawVaultNew, useWithdraw } from './useWithdrawVaultNew';
-export type { UseWithdrawVaultResult } from './useWithdrawVaultNew';

@@ -19,7 +19,6 @@ import PrivacyPolicyScreenComponent from '../screens/settings/PrivacyPolicyScree
 import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
 import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
-import FeeRateDemoComponent from '../screens/dev/FeeRateDemo';
 import { COLORS } from '../theme';
 
 import type { WalletStackParamList } from './types';
@@ -94,10 +93,6 @@ const AdvancedScreen: AnyComponent = withErrorBoundary(AdvancedScreenComponent, 
   fallbackMessage: 'Unable to load advanced settings. Please try again.',
 });
 
-const FeeRateDemo: AnyComponent = withErrorBoundary(FeeRateDemoComponent, {
-  boundaryName: 'FeeRateDemo',
-  fallbackMessage: 'Unable to load fee rate demo. Please try again.',
-});
 
 const Stack = createStackNavigator<WalletStackParamList>();
 
@@ -265,11 +260,6 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="PrivacyPolicy"
         component={PrivacyPolicyScreen}
-        options={settingsScreenOptions}
-      />
-      <Stack.Screen
-        name="FeeRateDemo"
-        component={FeeRateDemo}
         options={settingsScreenOptions}
       />
     </Stack.Navigator>
