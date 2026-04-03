@@ -262,7 +262,7 @@ export interface UseWithdrawVaultResult {
  *
  * Orchestrates the full withdraw flow using the unified vault operation hook.
  */
-export function useWithdrawVaultNew(): UseWithdrawVaultResult {
+export function useWithdrawVault(): UseWithdrawVaultResult {
   const result = useVaultOperation(withdrawConfig);
 
   // Map to original interface

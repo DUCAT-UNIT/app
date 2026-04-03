@@ -1,11 +1,7 @@
 /**
  * Vault Hooks Module
  *
- * Unified vault operation hooks that consolidate the common patterns
- * from borrow, deposit, repay, and withdraw operations.
- *
- * This module reduces ~1,400 lines of duplicated code across 4 hooks
- * into a single ~200 line base hook with ~50 line config wrappers.
+ * Unified vault operation hooks built on a shared base hook.
  */
 
 // Base hook
@@ -29,15 +25,15 @@ export type {
   UseVaultOperationResult,
 } from './vaultOperationTypes';
 
-// Operation-specific hooks (new implementations)
-export { useBorrowVaultNew, useBorrow } from './useBorrowVaultNew';
-export type { UseBorrowVaultResult } from './useBorrowVaultNew';
+// Operation hooks
+export { useBorrowVault, useBorrow } from './useBorrowVault';
+export type { UseBorrowVaultResult } from './useBorrowVault';
 
-export { useDepositVaultNew, useDeposit } from './useDepositVaultNew';
-export type { UseDepositVaultResult } from './useDepositVaultNew';
+export { useDepositVault, useDeposit } from './useDepositVault';
+export type { UseDepositVaultResult } from './useDepositVault';
 
-export { useRepayVaultNew, useRepay } from './useRepayVaultNew';
-export type { UseRepayVaultResult } from './useRepayVaultNew';
+export { useRepayVault, useRepay } from './useRepayVault';
+export type { UseRepayVaultResult } from './useRepayVault';
 
-export { useWithdrawVaultNew, useWithdraw } from './useWithdrawVaultNew';
-export type { UseWithdrawVaultResult } from './useWithdrawVaultNew';
+export { useWithdrawVault, useWithdraw } from './useWithdrawVault';
+export type { UseWithdrawVaultResult } from './useWithdrawVault';

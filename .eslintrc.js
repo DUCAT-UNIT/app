@@ -58,15 +58,6 @@ module.exports = {
       },
     },
     {
-      files: ['storybook/**/*'],
-      rules: {
-        '@typescript-eslint/no-explicit-any': 'off',
-        '@typescript-eslint/no-unused-vars': 'off',
-        'react-hooks/exhaustive-deps': 'off',
-        'react-native/no-unused-styles': 'off',
-      },
-    },
-    {
       files: ['styles/**/*'],
       rules: {
         '@typescript-eslint/no-unused-vars': 'off',

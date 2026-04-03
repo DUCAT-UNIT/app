@@ -7,7 +7,7 @@ import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from './VaultConfirmScreen';
 import { repayConfirmConfig } from './configs';
 import { useRepay } from '../../stores/repayStore';
-import { useRepayVaultNew as useRepayVault } from '../../hooks/vault';
+import { useRepayVault } from '../../hooks/vault';
 
 interface RepayConfirmScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

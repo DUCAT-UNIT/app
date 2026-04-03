@@ -241,7 +241,7 @@ export interface UseBorrowVaultResult {
  *
  * Orchestrates the full borrow flow using the unified vault operation hook.
  */
-export function useBorrowVaultNew(): UseBorrowVaultResult {
+export function useBorrowVault(): UseBorrowVaultResult {
   const result = useVaultOperation(borrowConfig);
 
   // Map to original interface

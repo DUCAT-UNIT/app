@@ -176,6 +176,8 @@ export interface ExtendedNavigation {
   navigate: (screen: string, params?: Record<string, unknown>) => void;
   goBack: () => void;
   getParent?: () => ExtendedNavigation | undefined;
+  getState?: () => { routeNames?: string[]; routes?: Array<{ name: string }> };
+  reset?: (state: { index: number; routes: Array<{ name: string }> }) => void;
 }
 
 /**
