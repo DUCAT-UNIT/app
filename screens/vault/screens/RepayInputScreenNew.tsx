@@ -5,7 +5,7 @@
 import { NavigationProp } from '@react-navigation/native';
 import React,{ useEffect,useMemo } from 'react';
 import { useBalance } from '../../../contexts/WalletDataContext';
-import { useRepayVault } from '../../../hooks/useRepayVault';
+import { useRepayVaultNew as useRepayVault } from '../../../hooks/vault';
 import { useRepay } from '../../../stores/repayStore';
 import { getRunesAmount } from '../../../utils/runesHelper';
 import VaultInputScreen from '../VaultInputScreen';

@@ -7,7 +7,7 @@ import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from '../VaultConfirmScreen';
 import { depositConfirmConfig } from '../configs';
 import { useDeposit } from '../../../stores/depositStore';
-import { useDepositVault } from '../../../hooks/useDepositVault';
+import { useDepositVaultNew as useDepositVault } from '../../../hooks/vault';
 
 interface DepositConfirmScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;

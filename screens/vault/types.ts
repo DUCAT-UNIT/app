@@ -79,7 +79,7 @@ export interface WithdrawVaultStore extends VaultStoreState {
 
 export interface VaultOperationHookState {
   isLoading: boolean;
-  borrowMore?: () => Promise<unknown>;
+  borrow?: () => Promise<unknown>;
   deposit?: () => Promise<unknown>;
   repay?: () => Promise<unknown>;
   withdraw?: () => Promise<unknown>;
