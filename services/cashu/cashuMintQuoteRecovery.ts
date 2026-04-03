@@ -12,7 +12,12 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { checkMintQuote } from './cashuMintClient';
-import { completeMint } from './operations/cashuMintOperations';
+// Lazy import to break circular dependency:
+// cashuMintOperations → cashuMintQuoteRecovery → cashuMintOperations
+const lazyCompleteMint = async (...args: Parameters<typeof import('./operations/cashuMintOperations').completeMint>) => {
+  const { completeMint } = await import('./operations/cashuMintOperations');
+  return completeMint(...args);
+};
 import { DEVICE_ONLY } from '../storagePolicy';
 import { getCurrentCashuAccount } from './cashuProofManager';
 
@@ -269,7 +274,7 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
             await updateMintQuoteState(quote.quoteId, 'PENDING');
 
             // Complete the mint (claim tokens) - use mint's amount to match deposit
-            const proofs = await completeMint(quote.quoteId, claimAmount);
+            const proofs = await lazyCompleteMint(quote.quoteId, claimAmount);
 
             // Remove the quote after successful claim
             await removeMintQuote(quote.quoteId);

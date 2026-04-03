@@ -11,7 +11,7 @@ import { formatBalance, formatFiat } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
 
 // E2E bypass: disable accessibilityElementsHidden so Maestro can see inner text
-const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+import { isE2E } from '../../utils/e2e';
 
 // Constants
 const CURRENCY_ICON_SIZE = 10;

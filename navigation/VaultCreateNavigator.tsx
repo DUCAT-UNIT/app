@@ -5,47 +5,38 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { COLORS } from '../theme';
-import NavigationErrorBoundary from '../components/NavigationErrorBoundary';
+import { withErrorBoundary } from '../components/withErrorBoundary';
 import {
-  VaultAmountsScreen,
-  VaultConfirmScreen,
-  VaultProcessingScreen,
-  VaultSuccessScreen,
+  VaultAmountsScreen as VaultAmountsScreenComponent,
+  VaultConfirmScreen as VaultConfirmScreenComponent,
+  VaultProcessingScreen as VaultProcessingScreenComponent,
+  VaultSuccessScreen as VaultSuccessScreenComponent,
 } from '../screens/vaultCreation';
 import type { VaultCreateStackParamList } from './types';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyComponent = React.ComponentType<any>;
+
+const VaultAmountsScreen: AnyComponent = withErrorBoundary(VaultAmountsScreenComponent, { boundaryName: 'VaultAmounts', fallbackMessage: 'Unable to load vault amounts. Please try again.' });
+const VaultConfirmScreen: AnyComponent = withErrorBoundary(VaultConfirmScreenComponent, { boundaryName: 'VaultConfirm', fallbackMessage: 'Unable to load vault confirmation. Please try again.' });
+const VaultProcessingScreen: AnyComponent = withErrorBoundary(VaultProcessingScreenComponent, { boundaryName: 'VaultProcessing', fallbackMessage: 'Unable to load vault processing. Please try again.' });
+const VaultSuccessScreen: AnyComponent = withErrorBoundary(VaultSuccessScreenComponent, { boundaryName: 'VaultSuccess', fallbackMessage: 'Unable to load vault success. Please try again.' });
 
 const Stack = createStackNavigator<VaultCreateStackParamList>();
 
 export default function VaultCreateNavigator(): React.JSX.Element {
   return (
-    <NavigationErrorBoundary
-      boundaryName="VaultCreateNavigator"
-      fallbackMessage="Something went wrong with vault creation. Please try again."
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: COLORS.DARK_BG },
+        gestureEnabled: false,
+      }}
     >
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: COLORS.DARK_BG },
-          gestureEnabled: false, // Disable gestures during vault creation
-        }}
-      >
-        <Stack.Screen name="VaultAmounts" component={VaultAmountsScreen} />
-        <Stack.Screen name="VaultConfirm" component={VaultConfirmScreen} />
-        <Stack.Screen
-          name="VaultProcessing"
-          component={VaultProcessingScreen}
-          options={{
-            gestureEnabled: false, // Prevent back navigation during processing
-          }}
-        />
-        <Stack.Screen
-          name="VaultSuccess"
-          component={VaultSuccessScreen}
-          options={{
-            gestureEnabled: false, // Prevent back navigation on success
-          }}
-        />
-      </Stack.Navigator>
-    </NavigationErrorBoundary>
+      <Stack.Screen name="VaultAmounts" component={VaultAmountsScreen} />
+      <Stack.Screen name="VaultConfirm" component={VaultConfirmScreen} />
+      <Stack.Screen name="VaultProcessing" component={VaultProcessingScreen} options={{ gestureEnabled: false }} />
+      <Stack.Screen name="VaultSuccess" component={VaultSuccessScreen} options={{ gestureEnabled: false }} />
+    </Stack.Navigator>
   );
 }

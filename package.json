@@ -32,7 +32,9 @@
     "e2e:reset": "xcrun simctl uninstall booted com.ducatprotocol.DucatProtocolWallet",
     "e2e:iphone16pro": "e2e/maestro/scripts/run-iphone16pro.sh",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "bundle:analyze": "EXPO_PUBLIC_BUNDLE_ANALYZE=1 npx expo export --platform ios 2>&1 | tail -20",
+    "bundle:stats": "npx react-native-bundle-visualizer"
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",

@@ -103,11 +103,9 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
       store.setCurrentStep('processing');
       navigation.navigate(config.routes.processing);
 
-      // Execute the operation - the hook internally sets store.vaultTxid and store.currentStep
-      // The VaultProcessingScreen watches these store values and navigates to success
-      const operationName = getOperationFunction(config.operationType) as keyof VaultOperationHookState;
-      const executeOp = vaultHook[operationName];
-      if (typeof executeOp === 'function') {
+      // Execute the vault operation
+      const executeOp = getOperationExecutor(vaultHook, config.operationType);
+      if (executeOp) {
         await executeOp();
       }
     } catch (err) {
@@ -144,18 +142,21 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   };
 }
 
-// Map operation type to the correct hook function name
-function getOperationFunction(operationType: string): string {
+// Get the typed operation executor from the hook state
+function getOperationExecutor(
+  hook: VaultOperationHookState,
+  operationType: string
+): (() => Promise<unknown>) | undefined {
   switch (operationType) {
     case 'borrow':
-      return 'borrow';
+      return hook.borrow;
     case 'deposit':
-      return 'deposit';
+      return hook.deposit;
     case 'repay':
-      return 'repay';
+      return hook.repay;
     case 'withdraw':
-      return 'withdraw';
+      return hook.withdraw;
     default:
-      return 'execute';
+      return hook.execute;
   }
 }

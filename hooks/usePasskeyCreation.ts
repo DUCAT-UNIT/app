@@ -15,7 +15,7 @@ import type { WalletAddresses } from '../contexts/WalletContext';
 import { notify } from '../utils/notify';
 import { logger } from '../utils/logger';
 
-const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
+import { isE2E } from '../utils/e2e';
 
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
