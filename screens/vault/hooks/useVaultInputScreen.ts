@@ -195,7 +195,12 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   // Actions
   const handleClose = useCallback(() => {
     store.reset();
-    navigation.getParent()?.goBack();
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.goBack();
+    } else {
+      navigation.goBack();
+    }
   }, [store, navigation]);
 
   const handleContinue = useCallback(() => {
