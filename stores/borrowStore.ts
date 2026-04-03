@@ -139,13 +139,6 @@ export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
 });
 
 /**
- * Reset store to initial state (useful for testing)
- */
-export const resetBorrowStore = () => {
-  useBorrowStore.getState().reset();
-};
-
-/**
  * useBorrow - Hook that returns commonly used state and actions
  * Uses individual selectors for reactive computed values
  */

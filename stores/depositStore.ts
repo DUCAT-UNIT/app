@@ -139,13 +139,6 @@ export const useDepositStore = create<DepositStore>()((set, get, store) => {
 });
 
 /**
- * Reset store to initial state (useful for testing)
- */
-export const resetDepositStore = () => {
-  useDepositStore.getState().reset();
-};
-
-/**
  * useDeposit - Hook that returns commonly used state and actions
  * Uses individual selectors for reactive computed values
  */

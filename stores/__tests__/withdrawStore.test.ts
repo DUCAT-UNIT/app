@@ -5,7 +5,9 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { act } from '@testing-library/react-native';
-import { useWithdraw, useWithdrawStore, resetWithdrawStore } from '../withdrawStore';
+import { useWithdraw, useWithdrawStore } from '../withdrawStore';
+
+const resetWithdrawStore = () => useWithdrawStore.getState().reset();
 
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
