@@ -154,9 +154,3 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
   },
 }));
 
-/**
- * Check for pending turbo transaction on app start
- */
-export const checkPendingTurboTransaction = async (): Promise<TurboProcessingState | null> => {
-  return useTurboProcessingStore.getState().loadPersistedState();
-};

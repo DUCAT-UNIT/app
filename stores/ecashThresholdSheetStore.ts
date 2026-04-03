@@ -29,12 +29,3 @@ export const getThresholdSheetOnSelect = (): ((value: number) => void) | null =>
   return useEcashThresholdSheetStore.getState().onSelectHandler;
 };
 
-// Convenience hooks
-export const useEcashThresholdSheetVisible = () =>
-  useEcashThresholdSheetStore((state) => state.visible);
-
-export const useShowEcashThresholdSheet = () =>
-  useEcashThresholdSheetStore((state) => state.show);
-
-export const useHideEcashThresholdSheet = () =>
-  useEcashThresholdSheetStore((state) => state.hide);

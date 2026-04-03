@@ -81,26 +81,3 @@ export async function removePendingTransaction(txid: string): Promise<void> {
   }
 }
 
-/**
- * Get all pending transactions
- */
-export async function getPendingTransactions(): Promise<PendingTransaction[]> {
-  try {
-    const pendingTxsJson = await SecureStore.getItemAsync(PENDING_TX_KEY);
-    if (!pendingTxsJson) return [];
-
-    let pendingTxs: PendingTransaction[] = [];
-    try {
-      pendingTxs = JSON.parse(pendingTxsJson) as PendingTransaction[];
-    } catch (parseError) {
-      logger.error('Failed to parse pending transactions JSON', {
-        error: parseError instanceof Error ? parseError.message : String(parseError)
-      });
-      return [];
-    }
-    return pendingTxs;
-  } catch (error: unknown) {
-    logger.warn('[BackgroundTask] Failed to get pending transactions', { error: error instanceof Error ? error.message : String(error) });
-    return [];
-  }
-}
