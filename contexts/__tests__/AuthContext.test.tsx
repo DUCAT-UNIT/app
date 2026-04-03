@@ -45,7 +45,6 @@ describe('AuthContext', () => {
     showFaceIdButton: true,
     isPasskeySupported: false,
     passkeyEnabled: false,
-    showPasskeyPrompt: false,
     settingUpPin: false,
     changingPin: false,
     showPinEntry: false,

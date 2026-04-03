@@ -139,16 +139,6 @@ export const useDepositStore = create<DepositStore>()((set, get, store) => {
 });
 
 /**
- * Selector hooks for granular subscriptions
- */
-export const useDepositAmountSats = () => useDepositStore((state) => state.depositAmountSats);
-export const useDepositCurrentStep = () => useDepositStore((state) => state.currentStep);
-export const useDepositProcessingStep = () => useDepositStore((state) => state.processingStep);
-export const useDepositLoading = () => useDepositStore((state) => state.loading);
-export const useDepositError = () => useDepositStore((state) => state.error);
-export const useDepositVaultTxid = () => useDepositStore((state) => state.vaultTxid);
-
-/**
  * Reset store to initial state (useful for testing)
  */
 export const resetDepositStore = () => {

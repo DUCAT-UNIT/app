@@ -139,16 +139,6 @@ export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
 });
 
 /**
- * Selector hooks for granular subscriptions
- */
-export const useBorrowAmount = () => useBorrowStore((state) => state.borrowAmount);
-export const useCurrentStep = () => useBorrowStore((state) => state.currentStep);
-export const useProcessingStep = () => useBorrowStore((state) => state.processingStep);
-export const useBorrowLoading = () => useBorrowStore((state) => state.loading);
-export const useBorrowError = () => useBorrowStore((state) => state.error);
-export const useBorrowTxid = () => useBorrowStore((state) => state.txid);
-
-/**
  * Reset store to initial state (useful for testing)
  */
 export const resetBorrowStore = () => {

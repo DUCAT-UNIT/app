@@ -213,19 +213,6 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
 );
 
 /**
- * Selector hooks for granular subscriptions
- */
-export const useBtcAmount = () => useVaultCreationStore((state) => state.btcAmount);
-export const useUnitAmount = () => useVaultCreationStore((state) => state.unitAmount);
-export const useCurrentStep = () => useVaultCreationStore((state) => state.currentStep);
-export const useProcessingStep = () => useVaultCreationStore((state) => state.processingStep);
-export const useVaultCreationLoading = () => useVaultCreationStore((state) => state.loading);
-export const useVaultCreationError = () => useVaultCreationStore((state) => state.error);
-export const useVaultCreationTxid = () => useVaultCreationStore((state) => state.txid);
-export const useVaultCreationHasHydrated = () =>
-  useVaultCreationStore((state) => state._hasHydrated);
-
-/**
  * Reset store to initial state (useful for testing)
  */
 export const resetVaultCreationStore = () => {

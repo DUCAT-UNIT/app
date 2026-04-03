@@ -45,11 +45,3 @@ export const setWalletDerivationMode = async (
   cachedMode = mode;
 };
 
-export const clearWalletDerivationMode = async (): Promise<void> => {
-  cachedMode = null;
-  await SecureStore.deleteItemAsync(WALLET_DERIVATION_MODE_KEY);
-};
-
-export const resetWalletDerivationModeCache = (): void => {
-  cachedMode = null;
-};

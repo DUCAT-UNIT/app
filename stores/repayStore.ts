@@ -140,17 +140,6 @@ export const useRepayStore = create<RepayStore>()((set, get, store) => {
 });
 
 /**
- * Selector hooks for granular subscriptions
- */
-export const useRepayAmountUnit = () => useRepayStore((state) => state.repayAmountUnit);
-export const useRepayCurrentStep = () => useRepayStore((state) => state.currentStep);
-export const useRepayProcessingStep = () => useRepayStore((state) => state.processingStep);
-export const useRepayLoading = () => useRepayStore((state) => state.loading);
-export const useRepayError = () => useRepayStore((state) => state.error);
-export const useRepayIssueTxid = () => useRepayStore((state) => state.issueTxid);
-export const useRepayVaultTxid = () => useRepayStore((state) => state.vaultTxid);
-
-/**
  * Reset store to initial state (useful for testing)
  */
 export const resetRepayStore = () => {
