@@ -72,7 +72,7 @@ export default function OnboardingPage({
   const {
     startPasskeyCreation, handlePinEntry, showPinInput, passkeyPin, confirmingPin,
     passkeyPinConfirm, setPasskeyPin, setPasskeyPinConfirm, setShowPinInput, resetPasskeyCreation,
-  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses, showBiometricSetupPrompt });
+  } = usePasskeyCreation({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses, showBiometricSetupPrompt, showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal });
 
   // Passkey restore hook
   const {
@@ -178,7 +178,7 @@ export default function OnboardingPage({
     return (
       <PasskeyPinInput
         title={confirmingPin ? 'Confirm your PIN' : 'Create a 6-digit PIN'}
-        subtitle={confirmingPin ? 'Enter your PIN again to confirm' : 'This PIN will be used with your passkey to encrypt your wallet'}
+        subtitle={confirmingPin ? 'Enter your PIN again to confirm' : 'This PIN secures your wallet'}
         pin={currentPin} setPin={setCurrentPin} onPinComplete={handlePinEntry}
         onCancel={() => { setShowPinInput(false); setPasskeyPin(''); resetPasskeyCreation(); }}
       />

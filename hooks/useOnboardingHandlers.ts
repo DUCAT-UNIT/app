@@ -4,6 +4,7 @@
  */
 
 import { logger } from '../utils/logger';
+import { isE2E } from '../utils/e2e';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 interface LoadWalletResult {
@@ -78,11 +79,11 @@ export function useOnboardingHandlers({
       // Show passkey modal immediately after setup completes
       // Skip in __DEV__ mode — passkey requires native WebAuthn dialog
       // which blocks Maestro/simulator automation
-      if (!__DEV__) {
+      if (!isE2E) {
         logger.debug('[OnboardingHandlers] Showing passkey migration modal');
         showPasskeyMigrationPromptGlobal(capturedPin);
       } else {
-        logger.debug('[OnboardingHandlers] Skipping passkey migration modal in dev mode');
+        logger.debug('[OnboardingHandlers] Skipping passkey migration modal in E2E mode');
       }
 
       // Complete setup

@@ -98,16 +98,26 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             if (result.success) {
               logger.auth('pin_verified_success');
               try {
-                const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
-                if (isPasskeyEnabled && !hasSessionMnemonic()) {
-                  await PasskeyService.unlockWithPasskey(newPin);
+                if (!hasSessionMnemonic()) {
+                  // Try loading mnemonic from SecureStore first (plain wallet)
+                  const { getMnemonic, cacheSessionMnemonic } = await import('../../services/secureStorageService');
+                  const storedMnemonic = await getMnemonic();
+                  if (storedMnemonic) {
+                    cacheSessionMnemonic(storedMnemonic);
+                  } else {
+                    // No mnemonic in SecureStore — must be passkey-only recovery wallet
+                    const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
+                    if (isPasskeyEnabled) {
+                      await PasskeyService.unlockWithPasskey(newPin);
+                    }
+                  }
                 }
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 setPin('');
                 setPinError('');
                 onAuthenticated();
               } catch (error: unknown) {
-                logger.auth('passkey_session_unlock_failed', {
+                logger.auth('session_unlock_failed', {
                   error: error instanceof Error ? error.message : String(error),
                 });
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -115,7 +125,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
                 setPinError(
                   error instanceof Error
                     ? error.message
-                    : 'Passkey authentication failed. Please try again.'
+                    : 'Failed to unlock wallet. Please try again.'
                 );
                 setPin('');
               }
