@@ -2,10 +2,7 @@ import React,{ useCallback,useRef,useState } from 'react';
 import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle,Dimensions } from 'react-native';
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
-import {
-  useLiqVaults, useLiqTotalProfitBtc, useLiqFetchVaults,
-  useLiqSetInvestAmount, useLiqSetUserVaultContext,
-} from '../../stores/liquidationStore';
+import { useLiquidationStore } from '../../stores/liquidationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
@@ -147,16 +144,12 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liqStep, setLiqStep] = useState<'input' | 'review'>('input');
   const [liqReviewTab, setLiqReviewTab] = useState<'overview' | 'howItWorks'>('overview');
 
-  // Liquidation store (individual selectors — stable references)
-  const liqVaults = useLiqVaults();
-  const liqTotalProfitBtc = useLiqTotalProfitBtc();
-  const liqFetchVaults = useLiqFetchVaults();
-  const liqSetInvestAmount = useLiqSetInvestAmount();
-  const liqSetUserVaultContext = useLiqSetUserVaultContext();
-  // Max investable — computed from vault data without store function calls during render
+  // Liquidation: local state synced from store only when screen is open
+  const [liqVaults, setLiqVaultsLocal] = useState<Array<{ vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number; profitPercentPrecised: number }>>([]);
+  const [liqTotalProfitBtc, setLiqTotalProfitBtcLocal] = useState(0);
   const maxInvestable = React.useMemo(() => {
     if (liqVaults.length > 0) {
-      return liqVaults.reduce((acc: number, v: { claimAmountBtc: number }) => acc + v.claimAmountBtc, 0);
+      return liqVaults.reduce((acc, v) => acc + v.claimAmountBtc, 0);
     }
     return vaultCollateral || 0;
   }, [liqVaults, vaultCollateral]);
@@ -179,8 +172,12 @@ const WalletScreen = React.memo(function WalletScreen({
       setShowLiquidations(true);
       // Fetch liquidatable vaults
       if (btcPrice) {
-        liqFetchVaults(btcPrice);
-        liqSetUserVaultContext(vaultCollateral || 0, vaultDebt || 0);
+        const store = useLiquidationStore.getState();
+        store.setUserVaultContext(vaultCollateral || 0, vaultDebt || 0);
+        store.fetchVaults(btcPrice).then(() => {
+          const s = useLiquidationStore.getState();
+          setLiqVaultsLocal(s.vaults);
+        });
       }
       Animated.spring(expandAnim, {
         toValue: 1,
@@ -583,7 +580,10 @@ const WalletScreen = React.memo(function WalletScreen({
               maxValue={maxInvestable}
               onValueChange={(val: number) => {
                 setLiqInvestAmount(val);
-                if (btcPrice) liqSetInvestAmount(val, btcPrice);
+                if (btcPrice) {
+                  useLiquidationStore.getState().setInvestAmount(val, btcPrice);
+                  setLiqTotalProfitBtcLocal(useLiquidationStore.getState().totalProfitBtc);
+                }
               }}
               label="Amount to Invest"
               btcPrice={btcPrice ?? undefined}
