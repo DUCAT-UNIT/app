@@ -76,7 +76,11 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         await setCurrentAccount(wallet.taprootAddress);
         fetchBalance(false);
       };
-      initAccount();
+      initAccount().catch((error: unknown) => {
+        logger.error('[useCashuBalance] Failed to initialize Cashu account', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     }
   }, [wallet?.taprootAddress, fetchBalance]);
 
