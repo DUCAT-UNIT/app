@@ -237,25 +237,16 @@ export const useLiquidationStore = create<LiquidationStore>()((set, get) => ({
   reset: () => set(initialState),
 }));
 
-// Convenience hooks
-export const useLiquidation = () => useLiquidationStore((s) => ({
-  vaults: s.vaults,
-  selectedVaults: s.selectedVaults,
-  investAmount: s.investAmount,
-  totalClaimBtc: s.totalClaimBtc,
-  totalProfitBtc: s.totalProfitBtc,
-  avgProfitPercent: s.avgProfitPercent,
-  claimedDebtUnits: s.claimedDebtUnits,
-  depositBtc: s.depositBtc,
-  swapBtc: s.swapBtc,
-  loading: s.loading,
-  error: s.error,
-}));
+// Individual selectors (stable references, no infinite re-renders)
+export const useLiqVaults = () => useLiquidationStore((s) => s.vaults);
+export const useLiqTotalProfitBtc = () => useLiquidationStore((s) => s.totalProfitBtc);
+export const useLiqAvgProfitPercent = () => useLiquidationStore((s) => s.avgProfitPercent);
+export const useLiqLoading = () => useLiquidationStore((s) => s.loading);
+export const useLiqError = () => useLiquidationStore((s) => s.error);
 
-export const useLiquidationActions = () => useLiquidationStore((s) => ({
-  fetchVaults: s.fetchVaults,
-  setInvestAmount: s.setInvestAmount,
-  setUserVaultContext: s.setUserVaultContext,
-  getMaxInvestable: s.getMaxInvestable,
-  reset: s.reset,
-}));
+// Action selectors (functions are stable references)
+export const useLiqFetchVaults = () => useLiquidationStore((s) => s.fetchVaults);
+export const useLiqSetInvestAmount = () => useLiquidationStore((s) => s.setInvestAmount);
+export const useLiqSetUserVaultContext = () => useLiquidationStore((s) => s.setUserVaultContext);
+export const useLiqGetMaxInvestable = () => useLiquidationStore((s) => s.getMaxInvestable);
+export const useLiqReset = () => useLiquidationStore((s) => s.reset);

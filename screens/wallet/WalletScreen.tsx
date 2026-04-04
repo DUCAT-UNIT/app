@@ -2,7 +2,10 @@ import React,{ useCallback,useRef,useState } from 'react';
 import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle,Dimensions } from 'react-native';
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
-import { useLiquidation, useLiquidationActions } from '../../stores/liquidationStore';
+import {
+  useLiqVaults, useLiqTotalProfitBtc, useLiqFetchVaults,
+  useLiqSetInvestAmount, useLiqSetUserVaultContext, useLiqGetMaxInvestable,
+} from '../../stores/liquidationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
@@ -144,13 +147,17 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liqStep, setLiqStep] = useState<'input' | 'review'>('input');
   const [liqReviewTab, setLiqReviewTab] = useState<'overview' | 'howItWorks'>('overview');
 
-  // Liquidation store
-  const liqData = useLiquidation();
-  const liqActions = useLiquidationActions();
+  // Liquidation store (individual selectors — stable references)
+  const liqVaults = useLiqVaults();
+  const liqTotalProfitBtc = useLiqTotalProfitBtc();
+  const liqFetchVaults = useLiqFetchVaults();
+  const liqSetInvestAmount = useLiqSetInvestAmount();
+  const liqSetUserVaultContext = useLiqSetUserVaultContext();
+  const liqGetMaxInvestable = useLiqGetMaxInvestable();
 
   // Max investable from available collateral or total claimable
-  const maxInvestable = liqData.vaults.length > 0
-    ? liqActions.getMaxInvestable(btcPrice ?? 0) || liqData.vaults.reduce((acc, v) => acc + v.claimAmountBtc, 0)
+  const maxInvestable = liqVaults.length > 0
+    ? liqGetMaxInvestable(btcPrice ?? 0) || liqVaults.reduce((acc: number, v: { claimAmountBtc: number }) => acc + v.claimAmountBtc, 0)
     : vaultCollateral || 0;
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
@@ -171,8 +178,8 @@ const WalletScreen = React.memo(function WalletScreen({
       setShowLiquidations(true);
       // Fetch liquidatable vaults
       if (btcPrice) {
-        liqActions.fetchVaults(btcPrice);
-        liqActions.setUserVaultContext(vaultCollateral || 0, vaultDebt || 0);
+        liqFetchVaults(btcPrice);
+        liqSetUserVaultContext(vaultCollateral || 0, vaultDebt || 0);
       }
       Animated.spring(expandAnim, {
         toValue: 1,
@@ -575,13 +582,13 @@ const WalletScreen = React.memo(function WalletScreen({
               maxValue={maxInvestable}
               onValueChange={(val: number) => {
                 setLiqInvestAmount(val);
-                if (btcPrice) liqActions.setInvestAmount(val, btcPrice);
+                if (btcPrice) liqSetInvestAmount(val, btcPrice);
               }}
               label="Amount to Invest"
               btcPrice={btcPrice ?? undefined}
               attachedBottom
               renderFooter={() => {
-                const profitBtc = liqData.totalProfitBtc || liqInvestAmount * 0.15;
+                const profitBtc = liqTotalProfitBtc || liqInvestAmount * 0.15;
                 const returnBtc = liqInvestAmount + profitBtc;
                 const price = btcPrice ?? 0;
                 return (
@@ -634,7 +641,7 @@ const WalletScreen = React.memo(function WalletScreen({
                     <Text style={localStyles.liqVaultColHeader}>Collateral</Text>
                     <Text style={localStyles.liqVaultColHeader}>Claim</Text>
                   </View>
-                  {(liqData.vaults.length > 0 ? liqData.vaults : [
+                  {(liqVaults.length > 0 ? liqVaults : [
                     { unit: 3689.90, btcInVault: 0.06182657, claimAmountBtc: 0.01744, vaultId: 'mock-1', postTaxBtcInVault: 0.058, unitSwapBtc: 0.045, profitBtc: 0.004, profitPercent: 15, profitPercentPrecised: 15 },
                   ]).map((vault, i, arr) => (
                     <TouchableOpacity
