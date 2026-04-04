@@ -85,7 +85,9 @@ export default function PasskeyMigrationModal({
         action: 'completePasskeyEnable',
       });
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : (typeof error === 'string' ? error : 'Passkey setup failed. Please try again.');
       const wasCancelled = /cancel|abort/i.test(errorMessage);
       showToast(wasCancelled ? 'Passkey setup cancelled' : errorMessage, 'error');
       onClose();

@@ -86,7 +86,17 @@ export const createPasskeyCredential = async (
   const requestJson = buildRegistrationRequest(challenge, userId, userName, userDisplayName);
 
   // Create passkey credential
-  const result = await Passkey.create(requestJson);
+  let result;
+  try {
+    result = await Passkey.create(requestJson);
+  } catch (nativeError: unknown) {
+    // react-native-passkey throws raw objects, not Error instances
+    if (nativeError instanceof Error) throw nativeError;
+    const msg = typeof nativeError === 'object' && nativeError !== null
+      ? (nativeError as { message?: string }).message || JSON.stringify(nativeError)
+      : String(nativeError);
+    throw new Error(msg);
+  }
 
   logger.debug('Passkey credential created', { credentialId: result.id });
 
