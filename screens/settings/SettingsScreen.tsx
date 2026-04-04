@@ -56,9 +56,11 @@ interface SettingsOptionProps {
   /** Title text for the option */
   title: string;
   /** Callback when option is pressed */
-  onPress: () => void;
+  onPress?: () => void;
   /** Optional text to display on the right */
   rightText?: string;
+  /** Optional style override for right text */
+  rightTextStyle?: { color?: string };
   /** Whether this is a dangerous/destructive action */
   isDanger?: boolean;
   /** Optional test ID for testing */
@@ -214,9 +216,27 @@ const SettingsOption = React.memo(function SettingsOption({
   title,
   onPress,
   rightText,
+  rightTextStyle,
   isDanger,
   testID
 }: SettingsOptionProps): React.ReactElement {
+  const content = (
+    <>
+      <View style={localStyles.optionLeft} accessibilityElementsHidden>
+        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
+        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
+      </View>
+      <View style={localStyles.optionRight} accessibilityElementsHidden>
+        {rightText && <Text style={[localStyles.optionRightText, rightTextStyle]}>{rightText}</Text>}
+        {onPress && <Text style={localStyles.optionArrow}>›</Text>}
+      </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={localStyles.option} testID={testID}>{content}</View>;
+  }
+
   return (
     <TouchableOpacity
       style={localStyles.option}
@@ -226,14 +246,7 @@ const SettingsOption = React.memo(function SettingsOption({
       accessibilityLabel={title}
       accessibilityHint={`Open ${title} settings`}
     >
-      <View style={localStyles.optionLeft} accessibilityElementsHidden>
-        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
-        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
-      </View>
-      <View style={localStyles.optionRight} accessibilityElementsHidden>
-        {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
-        <Text style={localStyles.optionArrow}>›</Text>
-      </View>
+      {content}
     </TouchableOpacity>
   );
 });

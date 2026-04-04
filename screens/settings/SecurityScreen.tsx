@@ -14,7 +14,7 @@ import {
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
-import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useSettingsHandlers, useAuthFlowHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -40,17 +40,12 @@ interface SecurityScreenProps {
  * Props for individual settings option component
  */
 interface SettingsOptionProps {
-  /** Icon name to display */
   iconName: string;
-  /** Title text for the option */
   title: string;
-  /** Callback when option is pressed */
-  onPress: () => void;
-  /** Optional text to display on the right (e.g., ON/OFF) */
+  onPress?: () => void;
   rightText?: string;
-  /** Whether this is a dangerous/destructive action */
+  rightTextStyle?: { color?: string };
   isDanger?: boolean;
-  /** Optional test ID for testing */
   testID?: string;
 }
 
@@ -59,6 +54,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
 
   // Get live state from context instead of stale route params
   const { settingsHandlers, biometricEnabled, passkeyUpgradeRecommended, triggerPasskeyUpgrade } = useSettingsHandlers();
+  const { showPasskeyMigrationPrompt } = useAuthFlowHandlers();
   const {
     handleFaceIdToggle: onFaceIdToggle,
     handleChangePin: onChangePin,
@@ -67,6 +63,16 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   } = settingsHandlers;
 
   const faceIdEnabled = biometricEnabled;
+
+  // Check passkey status
+  const [passkeyEnabled, setPasskeyEnabled] = React.useState(false);
+  React.useEffect(() => {
+    const check = async () => {
+      const { isPasskeyEnabled } = await import('../../services/passkey');
+      setPasskeyEnabled(await isPasskeyEnabled());
+    };
+    check();
+  }, []);
 
   return (
     <View style={localStyles.container} testID="security-screen">
@@ -103,7 +109,23 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
               onPress={onViewSeedPhrase}
               testID="security-backup-btn"
             />
-            {passkeyUpgradeRecommended && (
+            {!passkeyEnabled ? (
+              <SettingsOption
+                iconName="recovery_phrase"
+                title="Enable Passkey Recovery"
+                onPress={() => showPasskeyMigrationPrompt('')}
+                testID="security-enable-passkey-btn"
+              />
+            ) : (
+              <SettingsOption
+                iconName="recovery_phrase"
+                title="Passkey Recovery"
+                rightText="✓ Backup Complete"
+                rightTextStyle={{ color: '#59AA8A' }}
+                testID="security-passkey-status"
+              />
+            )}
+            {passkeyUpgradeRecommended && passkeyEnabled && (
               <SettingsOption
                 iconName="recovery_phrase"
                 title="Upgrade Passkey Security"
@@ -137,13 +159,30 @@ const SettingsOption = React.memo(function SettingsOption({
   title,
   onPress,
   rightText,
+  rightTextStyle,
   isDanger,
   testID
 }: SettingsOptionProps): React.ReactElement {
-  // Build accessibility label with status if available
   const accessibilityLabel = rightText
     ? `${title}, currently ${rightText}`
     : title;
+
+  const content = (
+    <>
+      <View style={localStyles.optionLeft} accessibilityElementsHidden>
+        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
+        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
+      </View>
+      <View style={localStyles.optionRight} accessibilityElementsHidden>
+        {rightText && <Text style={[localStyles.optionRightText, rightTextStyle]}>{rightText}</Text>}
+        {onPress && <Text style={localStyles.optionArrow}>›</Text>}
+      </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={localStyles.option} testID={testID} accessibilityLabel={accessibilityLabel}>{content}</View>;
+  }
 
   return (
     <TouchableOpacity
@@ -152,20 +191,9 @@ const SettingsOption = React.memo(function SettingsOption({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityHint={
-        isDanger
-          ? 'Warning: Deletes wallet data from this device. Passkey backup is not removed.'
-          : undefined
-      }
+      accessibilityHint={isDanger ? 'Warning: Deletes wallet data from this device.' : undefined}
     >
-      <View style={localStyles.optionLeft} accessibilityElementsHidden>
-        <Icon name={iconName} size={24} color={isDanger ? COLORS.DANGER_RED : '#DDDDDD'} />
-        <Text style={[localStyles.optionTitle, isDanger && localStyles.dangerText]}>{title}</Text>
-      </View>
-      <View style={localStyles.optionRight} accessibilityElementsHidden>
-        {rightText && <Text style={localStyles.optionRightText}>{rightText}</Text>}
-        <Text style={localStyles.optionArrow}>›</Text>
-      </View>
+      {content}
     </TouchableOpacity>
   );
 });

@@ -300,16 +300,16 @@ export default function RootNavigator(): React.JSX.Element {
   });
 
 
-  // Handle passkey enabled - show biometric setup prompt if supported
+  // Handle passkey enabled - show biometric setup prompt only if not already enabled
   const handlePasskeyEnabled = useCallback(async () => {
-    // Check if biometrics are supported and enrolled
+    if (biometricEnabled) return; // Already set up, don't ask again
     const localAuthenticationModule = await import('expo-local-authentication');
     const hasHardware = await localAuthenticationModule.hasHardwareAsync();
     const isEnrolled = await localAuthenticationModule.isEnrolledAsync();
     if (hasHardware && isEnrolled) {
       showBiometricSetupPrompt();
     }
-  }, [showBiometricSetupPrompt]);
+  }, [showBiometricSetupPrompt, biometricEnabled]);
 
   return (
     <View
