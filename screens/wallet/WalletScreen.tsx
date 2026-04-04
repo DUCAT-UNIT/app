@@ -140,7 +140,10 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liquidationsShowBTC, setLiquidationsShowBTC] = useState(false);
   const [liqInvestAmount, setLiqInvestAmount] = useState(0);
   const [liqVaultExpanded, setLiqVaultExpanded] = useState(false);
-  const maxInvestable = vaultCollateral || 0;
+  const [liqStep, setLiqStep] = useState<'input' | 'review'>('input');
+  const [liqReviewTab, setLiqReviewTab] = useState<'overview' | 'howItWorks'>('overview');
+  // Use vault collateral if available, otherwise use selected liquidation vault's collateral
+  const maxInvestable = vaultCollateral || 0.06182657;
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
@@ -151,7 +154,10 @@ const WalletScreen = React.memo(function WalletScreen({
         toValue: 0,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => setShowLiquidations(false));
+      }).start(() => {
+        setShowLiquidations(false);
+        setLiqStep('input');
+      });
     } else {
       // Expand from bottom-left (spring for natural feel)
       setShowLiquidations(true);
@@ -405,6 +411,150 @@ const WalletScreen = React.memo(function WalletScreen({
               </View>
             </TouchableOpacity>
           </View>
+          {liqStep === 'review' ? (
+          <>
+          {/* Tab Bar */}
+          <View style={localStyles.liqTabBar}>
+            <TouchableOpacity
+              style={[localStyles.liqTab, liqReviewTab === 'overview' && localStyles.liqTabActive]}
+              onPress={() => setLiqReviewTab('overview')}
+            >
+              <Text style={[localStyles.liqTabText, liqReviewTab === 'overview' && localStyles.liqTabTextActive]}>⚡ Quick Overview</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[localStyles.liqTab, liqReviewTab === 'howItWorks' && localStyles.liqTabActive]}
+              onPress={() => setLiqReviewTab('howItWorks')}
+            >
+              <Text style={[localStyles.liqTabText, liqReviewTab === 'howItWorks' && localStyles.liqTabTextActive]}>ⓘ How it works</Text>
+            </TouchableOpacity>
+          </View>
+
+          {liqReviewTab === 'overview' ? (
+          <ScrollView style={localStyles.liquidationsBody} contentContainerStyle={{ paddingBottom: s(120) }} showsVerticalScrollIndicator={false}>
+            {/* Profit (upper) + Breakdown (lower) — two-tone card */}
+            <View style={[localStyles.liqVaultOuter, { marginTop: 0 }]}>
+              {/* Upper: Profit */}
+              <View style={localStyles.liqReviewUpper}>
+                <View style={localStyles.liqReviewProfitHeader}>
+                  <Text style={localStyles.liqReviewProfitTitle}>Total profit</Text>
+                  <View style={localStyles.liqReviewProfitBadge}>
+                    <Text style={localStyles.liqReviewProfitBadgeText}>+15%</Text>
+                  </View>
+                </View>
+                <Text style={localStyles.liqReviewProfitAmount}>
+                  {liquidationsShowBTC
+                    ? `+${(liqInvestAmount * 0.15).toFixed(8)} BTC`
+                    : `+$${((liqInvestAmount * 0.15) * (btcPrice ?? 0)).toFixed(2)}`}
+                </Text>
+                <Text style={localStyles.liqReviewProfitSub}>
+                  {liquidationsShowBTC
+                    ? `$ ${((liqInvestAmount * 0.15) * (btcPrice ?? 0)).toFixed(2)}`
+                    : `₿ ${(liqInvestAmount * 0.15).toFixed(8)}`}
+                </Text>
+              </View>
+
+              {/* Lower: Breakdown */}
+              <View style={localStyles.liqReviewLower}>
+                <View style={localStyles.liqReviewRow}>
+                  <Text style={localStyles.liqReviewRowLabel}>Your deposit</Text>
+                  <View>
+                    <Text style={localStyles.liqReviewRowValue}>{(liqInvestAmount * 0.32).toFixed(8)} BTC</Text>
+                    <Text style={localStyles.liqReviewRowSub}>$ {((liqInvestAmount * 0.32) * (btcPrice ?? 0)).toFixed(2)}</Text>
+                  </View>
+                </View>
+                <View style={localStyles.liqReviewDivider} />
+                <View style={localStyles.liqReviewRow}>
+                  <Text style={[localStyles.liqReviewRowLabel, { color: colors.brand.primary }]}>You swap to UNIT</Text>
+                  <View>
+                    <Text style={localStyles.liqReviewRowValue}>{(liqInvestAmount * 0.68).toFixed(8)} BTC</Text>
+                    <Text style={localStyles.liqReviewRowSub}>$ {((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)}</Text>
+                  </View>
+                </View>
+                <View style={localStyles.liqReviewDivider} />
+                <View style={localStyles.liqReviewRow}>
+                  <View>
+                    <Text style={localStyles.liqReviewRowLabel}>Total BTC required</Text>
+                    <Text style={[localStyles.liqReviewRowSub, { textAlign: 'left' }]}>from your vault</Text>
+                  </View>
+                  <View>
+                    <Text style={[localStyles.liqReviewRowValue, { fontFamily: fonts.bold }]}>{liqInvestAmount.toFixed(8)} BTC</Text>
+                    <Text style={localStyles.liqReviewRowSub}>$ {(liqInvestAmount * (btcPrice ?? 0)).toFixed(2)}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* You get in your vault */}
+            <View style={localStyles.liqReviewCard}>
+              <View style={localStyles.liqReviewGetHeader}>
+                <Icon name="vault_logo" size={s(20)} color={colors.text.secondary} />
+                <Text style={localStyles.liqReviewGetTitle}>You get in your vault</Text>
+              </View>
+              <View style={localStyles.liqReviewGetGrid}>
+                <View style={localStyles.liqReviewGetBox}>
+                  <Text style={localStyles.liqReviewGetBoxValue}>{(liqInvestAmount * 1.08).toFixed(6)} BTC</Text>
+                  <Text style={localStyles.liqReviewGetBoxSub}>{(liqInvestAmount * 0.76).toFixed(6)} collateral</Text>
+                  <Text style={localStyles.liqReviewGetBoxSub}>{(liqInvestAmount * 0.32).toFixed(6)} deposit</Text>
+                </View>
+                <Text style={localStyles.liqReviewGetPlus}>+</Text>
+                <View style={[localStyles.liqReviewGetBox, { borderColor: colors.brand.primary }]}>
+                  <Text style={localStyles.liqReviewGetBoxValue}>{((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT</Text>
+                  <Text style={localStyles.liqReviewGetBoxSub}>repayable debt</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* You get in your wallet */}
+            <View style={localStyles.liqReviewCard}>
+              <View style={localStyles.liqReviewGetHeader}>
+                <Icon name="wallet" size={s(20)} color={colors.text.secondary} />
+                <Text style={localStyles.liqReviewGetTitle}>You get in your wallet</Text>
+              </View>
+              <View style={[localStyles.liqReviewGetBox, { borderColor: colors.brand.primary, alignSelf: 'center', width: '60%' }]}>
+                <Text style={localStyles.liqReviewGetBoxValue}>{((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT</Text>
+                <Text style={localStyles.liqReviewGetBoxSub}>to pay the vault debt</Text>
+              </View>
+            </View>
+          </ScrollView>
+          ) : (
+          /* How it works tab */
+          <ScrollView style={localStyles.liquidationsBody} contentContainerStyle={{ paddingBottom: s(120) }} showsVerticalScrollIndicator={false}>
+            {/* Description */}
+            <View style={localStyles.liqReviewCard}>
+              <Text style={localStyles.liqHowDesc}>
+                You deposit BTC to restore an unhealthy vault to health. In return, you receive the liquidated vault's collateral and debt to your vault, including a{' '}
+                <Text style={{ color: '#59AA8A', fontFamily: fonts.bold }}>15% profit</Text>
+                {' '}for taking on the liquidation.
+              </Text>
+            </View>
+
+            {/* What happens next */}
+            <View style={localStyles.liqReviewCard}>
+              <Text style={localStyles.liqHowSectionTitle}>What happens next?</Text>
+              {[
+                { num: '1', title: 'Your vault gets updated', desc: `Added to your vault: ${(liqInvestAmount * 1.08).toFixed(6)} BTC + ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT debt.`, auto: true },
+                { num: '2', title: 'Receive UNIT in wallet', desc: `You receive ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT in your wallet to repay the debt.`, auto: true },
+                { num: '3', title: 'Repay your vault debt', desc: `Use the ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT in your wallet to clear the debt in your vault.`, auto: false },
+                { num: '4', title: 'Withdraw your profit', desc: `After clearing the debt, withdraw your ${(liqInvestAmount * 1.08).toFixed(6)} BTC (includes the ${(liqInvestAmount * 0.15).toFixed(6)} BTC profit).`, auto: false },
+              ].map((step) => (
+                <View key={step.num} style={localStyles.liqHowStep}>
+                  <View style={localStyles.liqHowStepNum}>
+                    <Text style={localStyles.liqHowStepNumText}>{step.num}</Text>
+                  </View>
+                  <View style={localStyles.liqHowStepContent}>
+                    <Text style={localStyles.liqHowStepTitle}>{step.title}</Text>
+                    <Text style={localStyles.liqHowStepDesc}>{step.desc}</Text>
+                  </View>
+                  <Text style={[localStyles.liqHowStepBadge, step.auto ? { color: '#59AA8A' } : { color: colors.text.secondary }]}>
+                    {step.auto ? 'Automatic ⚡' : 'Manual\n(Optional)'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          )}
+          </>
+          ) : (
           <ScrollView style={localStyles.liquidationsBody} contentContainerStyle={{ paddingBottom: s(80) }} showsVerticalScrollIndicator={false}>
             {/* Investment Amount - uses existing AmountSlider component */}
             <AmountSlider
@@ -501,16 +651,22 @@ const WalletScreen = React.memo(function WalletScreen({
             </View>
 
           </ScrollView>
+          )}
 
-          {/* Continue Button — fixed at bottom */}
+          {/* Bottom Button — fixed */}
           <View style={localStyles.liqContinueWrap}>
             <TouchableOpacity
-              style={[localStyles.liqContinueBtn, liqInvestAmount <= 0 && { opacity: 0.4 }]}
-              onPress={() => {/* TODO */}}
+              style={[localStyles.liqContinueBtn, liqStep === 'input' && liqInvestAmount <= 0 && { opacity: 0.5 }]}
+              onPress={() => {
+                if (liqStep === 'input') setLiqStep('review');
+                else {/* TODO: claim liquidation */}
+              }}
               testID="liquidation-continue-btn"
-              disabled={liqInvestAmount <= 0}
+              disabled={liqStep === 'input' && liqInvestAmount <= 0}
             >
-              <Text style={localStyles.liqContinueBtnText}>Continue</Text>
+              <Text style={localStyles.liqContinueBtnText}>
+                {liqStep === 'review' ? 'Claim Liquidation' : 'Continue'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -565,9 +721,9 @@ const localStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   liquidationsHeader: {
-    paddingTop: 16,
+    paddingTop: 8,
     paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -733,11 +889,267 @@ const localStyles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: '#59AA8A',
   },
+  liqReviewCard: {
+    backgroundColor: '#1D1C21',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#28272C',
+    padding: 14,
+    marginBottom: 8,
+    marginTop: 0,
+  },
+  liqReviewProfitHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  liqReviewProfitTitle: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  liqReviewProfitBadge: {
+    backgroundColor: '#59AA8A',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  liqReviewProfitBadgeText: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: '#FFFFFF',
+  },
+  liqReviewProfitAmount: {
+    fontSize: 28,
+    fontFamily: fonts.bold,
+    color: '#59AA8A',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  liqReviewProfitSub: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  liqTabBar: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#1D1C21',
+    borderRadius: 12,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#28272C',
+    alignItems: 'stretch',
+  },
+  liqTab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  liqTabActive: {
+    backgroundColor: '#28272C',
+    borderWidth: 1,
+    borderColor: '#3A3A3C',
+  },
+  liqTabText: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.text.secondary,
+  },
+  liqTabTextActive: {
+    color: colors.text.primary,
+  },
+  liqHowFlowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  liqHowFlowItem: {
+    backgroundColor: '#28272C',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    minWidth: 120,
+  },
+  liqHowFlowPlus: {
+    color: colors.text.secondary,
+    fontSize: 18,
+    marginHorizontal: 8,
+  },
+  liqHowFlowTitle: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+    marginTop: 4,
+  },
+  liqHowFlowSub: {
+    fontSize: 10,
+    fontFamily: fonts.regular,
+    color: '#D04C68',
+    marginTop: 2,
+  },
+  liqHowArrow: {
+    textAlign: 'center',
+    color: colors.text.secondary,
+    fontSize: 16,
+    marginVertical: 6,
+  },
+  liqHowDesc: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    lineHeight: 20,
+  },
+  liqHowSectionTitle: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+    marginBottom: 12,
+  },
+  liqHowStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#28272C',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  liqHowStepNum: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#1D1C21',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  liqHowStepNumText: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.brand.primary,
+  },
+  liqHowStepContent: {
+    flex: 1,
+  },
+  liqHowStepTitle: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  liqHowStepDesc: {
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    marginTop: 2,
+    marginRight: 50,
+  },
+  liqHowStepBadge: {
+    fontSize: 10,
+    fontFamily: fonts.medium,
+    textAlign: 'right',
+    width: 65,
+  },
+  liqReviewUpper: {
+    backgroundColor: '#1D1C21',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#28272C',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    zIndex: 2,
+    elevation: 3,
+  },
+  liqReviewLower: {
+    backgroundColor: '#28272C',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    marginTop: -16,
+    paddingTop: 22,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    zIndex: 1,
+  },
+  liqReviewDivider: {
+    height: 1,
+    backgroundColor: '#333',
+    marginVertical: 10,
+  },
+  liqReviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  liqReviewRowLabel: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+  },
+  liqReviewRowValue: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+    textAlign: 'right',
+  },
+  liqReviewRowSub: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    textAlign: 'right',
+    marginTop: 2,
+  },
+  liqReviewGetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  liqReviewGetTitle: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+  },
+  liqReviewGetGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  liqReviewGetBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#28272C',
+    borderRadius: 10,
+    padding: 10,
+    alignItems: 'center',
+  },
+  liqReviewGetPlus: {
+    color: colors.text.secondary,
+    fontSize: 18,
+    marginHorizontal: 6,
+  },
+  liqReviewGetBoxValue: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  liqReviewGetBoxSub: {
+    fontSize: 10,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
   liqContinueWrap: {
     position: 'absolute',
-    bottom: 32,
+    bottom: 38,
     left: 80,
     right: 16,
+    zIndex: 100,
   },
   liqContinueBtn: {
     backgroundColor: colors.brand.primary,
