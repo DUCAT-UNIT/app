@@ -2,6 +2,7 @@ import React,{ useCallback,useRef,useState } from 'react';
 import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle,Dimensions } from 'react-native';
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
+import { useLiquidation, useLiquidationActions } from '../../stores/liquidationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
@@ -142,8 +143,15 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liqVaultExpanded, setLiqVaultExpanded] = useState(false);
   const [liqStep, setLiqStep] = useState<'input' | 'review'>('input');
   const [liqReviewTab, setLiqReviewTab] = useState<'overview' | 'howItWorks'>('overview');
-  // Use vault collateral if available, otherwise use selected liquidation vault's collateral
-  const maxInvestable = vaultCollateral || 0.06182657;
+
+  // Liquidation store
+  const liqData = useLiquidation();
+  const liqActions = useLiquidationActions();
+
+  // Max investable from available collateral or total claimable
+  const maxInvestable = liqData.vaults.length > 0
+    ? liqActions.getMaxInvestable(btcPrice ?? 0) || liqData.vaults.reduce((acc, v) => acc + v.claimAmountBtc, 0)
+    : vaultCollateral || 0;
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
@@ -161,6 +169,11 @@ const WalletScreen = React.memo(function WalletScreen({
     } else {
       // Expand from bottom-left (spring for natural feel)
       setShowLiquidations(true);
+      // Fetch liquidatable vaults
+      if (btcPrice) {
+        liqActions.fetchVaults(btcPrice);
+        liqActions.setUserVaultContext(vaultCollateral || 0, vaultDebt || 0);
+      }
       Animated.spring(expandAnim, {
         toValue: 1,
         tension: 50,
@@ -560,38 +573,40 @@ const WalletScreen = React.memo(function WalletScreen({
             <AmountSlider
               value={liqInvestAmount}
               maxValue={maxInvestable}
-              onValueChange={setLiqInvestAmount}
+              onValueChange={(val: number) => {
+                setLiqInvestAmount(val);
+                if (btcPrice) liqActions.setInvestAmount(val, btcPrice);
+              }}
               label="Amount to Invest"
               btcPrice={btcPrice ?? undefined}
               attachedBottom
-              renderFooter={() => (
+              renderFooter={() => {
+                const profitBtc = liqData.totalProfitBtc || liqInvestAmount * 0.15;
+                const returnBtc = liqInvestAmount + profitBtc;
+                const price = btcPrice ?? 0;
+                return (
                 <View style={localStyles.liqFooter}>
                   <View style={localStyles.liqInfoRow}>
                     <Text style={localStyles.liqInfoLabel}>You invest</Text>
                     <Text style={localStyles.liqInfoValue}>
-                      {liquidationsShowBTC
-                        ? `${liqInvestAmount.toFixed(8)} BTC`
-                        : `$${((liqInvestAmount) * (btcPrice ?? 0)).toFixed(2)}`}
+                      {liquidationsShowBTC ? `${liqInvestAmount.toFixed(8)} BTC` : `$${(liqInvestAmount * price).toFixed(2)}`}
                     </Text>
                   </View>
                   <View style={localStyles.liqInfoRow}>
                     <Text style={localStyles.liqInfoLabel}>You get back</Text>
                     <Text style={localStyles.liqInfoValue}>
-                      {liquidationsShowBTC
-                        ? `${(liqInvestAmount * 1.15).toFixed(8)} BTC`
-                        : `$${((liqInvestAmount * 1.15) * (btcPrice ?? 0)).toFixed(2)}`}
+                      {liquidationsShowBTC ? `${returnBtc.toFixed(8)} BTC` : `$${(returnBtc * price).toFixed(2)}`}
                     </Text>
                   </View>
                   <View style={[localStyles.liqInfoRow, { borderBottomWidth: 0 }]}>
                     <Text style={localStyles.liqProfitLabel}>Total profit</Text>
                     <Text style={localStyles.liqProfitValue}>
-                      {liquidationsShowBTC
-                        ? `+${(liqInvestAmount * 0.15).toFixed(8)} BTC`
-                        : `+$${((liqInvestAmount * 0.15) * (btcPrice ?? 0)).toFixed(2)}`}
+                      {liquidationsShowBTC ? `+${profitBtc.toFixed(8)} BTC` : `+$${(profitBtc * price).toFixed(2)}`}
                     </Text>
                   </View>
                 </View>
-              )}
+                );
+              }}
             />
 
             {/* Vault Selector — upper card + lower table */}
@@ -619,15 +634,11 @@ const WalletScreen = React.memo(function WalletScreen({
                     <Text style={localStyles.liqVaultColHeader}>Collateral</Text>
                     <Text style={localStyles.liqVaultColHeader}>Claim</Text>
                   </View>
-                  {[
-                    { debt: 3689.90, collateral: 0.06182657, claim: 1744.88 },
-                    { debt: 4554.82, collateral: 0.07631896, claim: 2153.88 },
-                    { debt: 4914.93, collateral: 0.08235282, claim: 2324.17 },
-                    { debt: 5064.74, collateral: 0.08450776, claim: 2419.50 },
-                    { debt: 4872.92, collateral: 0.07862603, claim: 2508.15 },
-                  ].map((vault, i, arr) => (
+                  {(liqData.vaults.length > 0 ? liqData.vaults : [
+                    { unit: 3689.90, btcInVault: 0.06182657, claimAmountBtc: 0.01744, vaultId: 'mock-1', postTaxBtcInVault: 0.058, unitSwapBtc: 0.045, profitBtc: 0.004, profitPercent: 15, profitPercentPrecised: 15 },
+                  ]).map((vault, i, arr) => (
                     <TouchableOpacity
-                      key={`vault-${i}`}
+                      key={vault.vaultId || `vault-${i}`}
                       style={[localStyles.liqVaultRow, i === arr.length - 1 && { borderBottomWidth: 0, paddingBottom: 16 }]}
                       onPress={() => setLiqVaultExpanded(false)}
                     >
@@ -636,13 +647,13 @@ const WalletScreen = React.memo(function WalletScreen({
                       </View>
                       <View style={localStyles.liqVaultRowValue}>
                         <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
-                        <Text style={localStyles.liqVaultRowText}>{formatFiat(vault.debt, 2)}</Text>
+                        <Text style={localStyles.liqVaultRowText}>{formatFiat(vault.unit, 2)}</Text>
                       </View>
                       <View style={localStyles.liqVaultRowValue}>
                         <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
-                        <Text style={localStyles.liqVaultRowText}>{vault.collateral.toFixed(6)}</Text>
+                        <Text style={localStyles.liqVaultRowText}>{vault.btcInVault.toFixed(6)}</Text>
                       </View>
-                      <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>${formatFiat(vault.claim, 2)}</Text>
+                      <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
