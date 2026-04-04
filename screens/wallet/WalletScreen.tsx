@@ -429,8 +429,25 @@ const WalletScreen = React.memo(function WalletScreen({
               </View>
             </TouchableOpacity>
           </View>
-          {liqStep === 'review' ? (
-          <>
+          {liqStep === 'review' ? (() => {
+          // Compute review values from investment amount
+          const price = btcPrice ?? 0;
+          const profitRate = 0.15; // TODO: from SDK liquid_quote.profit_margin
+          const depositRate = 0.32;
+          const swapRate = 0.68;
+          const liqProfitBtc = liqInvestAmount * profitRate;
+          const liqDepositBtc = liqInvestAmount * depositRate;
+          const liqSwapBtc = liqInvestAmount * swapRate;
+          const liqTotalBtc = liqInvestAmount;
+          const liqReturnBtc = liqInvestAmount + liqProfitBtc;
+          const liqCollateralBtc = liqInvestAmount * 0.76;
+          const liqSwapUnit = liqSwapBtc * price;
+          const liqProfitPct = Math.round(profitRate * 100);
+          const fmt = (v: number, d = 8) => v.toFixed(d);
+          const fmtUsd = (v: number) => `$${(v * price).toFixed(2)}`;
+          const fmtBtcOrUsd = (v: number) => liquidationsShowBTC ? `${fmt(v)} BTC` : fmtUsd(v);
+
+          return (<>
           {/* Tab Bar */}
           <View style={localStyles.liqTabBar}>
             <TouchableOpacity
@@ -461,13 +478,13 @@ const WalletScreen = React.memo(function WalletScreen({
                 </View>
                 <Text style={localStyles.liqReviewProfitAmount}>
                   {liquidationsShowBTC
-                    ? `+${(liqInvestAmount * 0.15).toFixed(8)} BTC`
-                    : `+$${((liqInvestAmount * 0.15) * (btcPrice ?? 0)).toFixed(2)}`}
+                    ? `+${fmt(liqProfitBtc)} BTC`
+                    : `+$${(liqProfitBtc * price).toFixed(2)}`}
                 </Text>
                 <Text style={localStyles.liqReviewProfitSub}>
                   {liquidationsShowBTC
-                    ? `$ ${((liqInvestAmount * 0.15) * (btcPrice ?? 0)).toFixed(2)}`
-                    : `₿ ${(liqInvestAmount * 0.15).toFixed(8)}`}
+                    ? `$ ${(liqProfitBtc * price).toFixed(2)}`
+                    : `₿ ${fmt(liqProfitBtc)}`}
                 </Text>
               </View>
 
@@ -476,16 +493,16 @@ const WalletScreen = React.memo(function WalletScreen({
                 <View style={localStyles.liqReviewRow}>
                   <Text style={localStyles.liqReviewRowLabel}>Your deposit</Text>
                   <View>
-                    <Text style={localStyles.liqReviewRowValue}>{(liqInvestAmount * 0.32).toFixed(8)} BTC</Text>
-                    <Text style={localStyles.liqReviewRowSub}>$ {((liqInvestAmount * 0.32) * (btcPrice ?? 0)).toFixed(2)}</Text>
+                    <Text style={localStyles.liqReviewRowValue}>{fmt(liqDepositBtc)} BTC</Text>
+                    <Text style={localStyles.liqReviewRowSub}>$ {(liqDepositBtc * price).toFixed(2)}</Text>
                   </View>
                 </View>
                 <View style={localStyles.liqReviewDivider} />
                 <View style={localStyles.liqReviewRow}>
                   <Text style={[localStyles.liqReviewRowLabel, { color: colors.brand.primary }]}>You swap to UNIT</Text>
                   <View>
-                    <Text style={localStyles.liqReviewRowValue}>{(liqInvestAmount * 0.68).toFixed(8)} BTC</Text>
-                    <Text style={localStyles.liqReviewRowSub}>$ {((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)}</Text>
+                    <Text style={localStyles.liqReviewRowValue}>{fmt(liqSwapBtc)} BTC</Text>
+                    <Text style={localStyles.liqReviewRowSub}>$ {liqSwapUnit.toFixed(2)}</Text>
                   </View>
                 </View>
                 <View style={localStyles.liqReviewDivider} />
@@ -510,13 +527,13 @@ const WalletScreen = React.memo(function WalletScreen({
               </View>
               <View style={localStyles.liqReviewGetGrid}>
                 <View style={localStyles.liqReviewGetBox}>
-                  <Text style={localStyles.liqReviewGetBoxValue}>{(liqInvestAmount * 1.08).toFixed(6)} BTC</Text>
-                  <Text style={localStyles.liqReviewGetBoxSub}>{(liqInvestAmount * 0.76).toFixed(6)} collateral</Text>
+                  <Text style={localStyles.liqReviewGetBoxValue}>{fmt(liqReturnBtc, 6)} BTC</Text>
+                  <Text style={localStyles.liqReviewGetBoxSub}>{fmt(liqCollateralBtc, 6)} collateral</Text>
                   <Text style={localStyles.liqReviewGetBoxSub}>{(liqInvestAmount * 0.32).toFixed(6)} deposit</Text>
                 </View>
                 <Text style={localStyles.liqReviewGetPlus}>+</Text>
                 <View style={[localStyles.liqReviewGetBox, { borderColor: colors.brand.primary }]}>
-                  <Text style={localStyles.liqReviewGetBoxValue}>{((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT</Text>
+                  <Text style={localStyles.liqReviewGetBoxValue}>{liqSwapUnit.toFixed(2)} UNIT</Text>
                   <Text style={localStyles.liqReviewGetBoxSub}>repayable debt</Text>
                 </View>
               </View>
@@ -529,7 +546,7 @@ const WalletScreen = React.memo(function WalletScreen({
                 <Text style={localStyles.liqReviewGetTitle}>You get in your wallet</Text>
               </View>
               <View style={[localStyles.liqReviewGetBox, { borderColor: colors.brand.primary, alignSelf: 'center', width: '60%' }]}>
-                <Text style={localStyles.liqReviewGetBoxValue}>{((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT</Text>
+                <Text style={localStyles.liqReviewGetBoxValue}>{liqSwapUnit.toFixed(2)} UNIT</Text>
                 <Text style={localStyles.liqReviewGetBoxSub}>to pay the vault debt</Text>
               </View>
             </View>
@@ -550,10 +567,10 @@ const WalletScreen = React.memo(function WalletScreen({
             <View style={localStyles.liqReviewCard}>
               <Text style={localStyles.liqHowSectionTitle}>What happens next?</Text>
               {[
-                { num: '1', title: 'Your vault gets updated', desc: `Added to your vault: ${(liqInvestAmount * 1.08).toFixed(6)} BTC + ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT debt.`, auto: true },
-                { num: '2', title: 'Receive UNIT in wallet', desc: `You receive ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT in your wallet to repay the debt.`, auto: true },
-                { num: '3', title: 'Repay your vault debt', desc: `Use the ${((liqInvestAmount * 0.68) * (btcPrice ?? 0)).toFixed(2)} UNIT in your wallet to clear the debt in your vault.`, auto: false },
-                { num: '4', title: 'Withdraw your profit', desc: `After clearing the debt, withdraw your ${(liqInvestAmount * 1.08).toFixed(6)} BTC (includes the ${(liqInvestAmount * 0.15).toFixed(6)} BTC profit).`, auto: false },
+                { num: '1', title: 'Your vault gets updated', desc: `Added to your vault: ${fmt(liqReturnBtc, 6)} BTC + ${liqSwapUnit.toFixed(2)} UNIT debt.`, auto: true },
+                { num: '2', title: 'Receive UNIT in wallet', desc: `You receive ${liqSwapUnit.toFixed(2)} UNIT in your wallet to repay the debt.`, auto: true },
+                { num: '3', title: 'Repay your vault debt', desc: `Use the ${liqSwapUnit.toFixed(2)} UNIT in your wallet to clear the debt in your vault.`, auto: false },
+                { num: '4', title: 'Withdraw your profit', desc: `After clearing the debt, withdraw your ${fmt(liqReturnBtc, 6)} BTC (includes the ${fmt(liqProfitBtc, 6)} BTC profit).`, auto: false },
               ].map((step) => (
                 <View key={step.num} style={localStyles.liqHowStep}>
                   <View style={localStyles.liqHowStepNum}>
@@ -571,8 +588,8 @@ const WalletScreen = React.memo(function WalletScreen({
             </View>
           </ScrollView>
           )}
-          </>
-          ) : (
+          </>);
+          })() : (
           <ScrollView style={localStyles.liquidationsBody} contentContainerStyle={{ paddingBottom: s(80) }} showsVerticalScrollIndicator={false}>
             {/* Investment Amount - uses existing AmountSlider component */}
             <AmountSlider
