@@ -206,6 +206,10 @@ export function usePasskeyCreation({
               { cancelable: false }
             );
           }
+        }).catch((error: unknown) => {
+          logger.warn('[usePasskeyCreation] iCloud backup promise rejected', {
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
       }
     } catch (error: unknown) {

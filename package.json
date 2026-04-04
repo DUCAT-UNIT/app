@@ -32,7 +32,9 @@
     "e2e:reset": "xcrun simctl uninstall booted com.ducatprotocol.DucatProtocolWallet",
     "e2e:iphone16pro": "e2e/maestro/scripts/run-iphone16pro.sh",
     "bundle:analyze": "EXPO_PUBLIC_BUNDLE_ANALYZE=1 npx expo export --platform ios 2>&1 | tail -20",
-    "bundle:stats": "npx react-native-bundle-visualizer"
+    "bundle:stats": "npx react-native-bundle-visualizer",
+    "deadcode": "npx knip",
+    "deadcode:fix": "npx knip --fix"
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
@@ -107,13 +109,14 @@
     "expect-type": "^1.2.2",
     "jest": "^30.2.0",
     "jest-expo": "^54.0.13",
+    "knip": "^5.88.1",
     "patch-package": "^8.0.1",
     "playwright": "^1.57.0",
     "prettier": "^3.6.2",
+    "react-dom": "^19.1.0",
     "react-refresh": "^0.18.0",
     "sharp": "^0.34.4",
     "typescript": "^5.9.3",
-    "react-dom": "^19.1.0",
     "universal-test-renderer": "^0.6.0",
     "vitest": "^4.0.14"
   }

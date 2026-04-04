@@ -30,15 +30,25 @@ export const usePolling = ({ onPoll, interval, enabled = true, immediate = true 
   const startPolling = useCallback(() => {
     if (!enabled) return;
 
+    const safeInvoke = () => {
+      try {
+        const result = savedCallback.current();
+        // Catch unhandled promise rejections from async callbacks
+        if (result && typeof (result as Promise<unknown>).catch === 'function') {
+          (result as Promise<unknown>).catch(() => {});
+        }
+      } catch (_) {
+        // Swallow sync errors from polling callbacks
+      }
+    };
+
     // Execute immediately if requested
     if (immediate) {
-      savedCallback.current();
+      safeInvoke();
     }
 
     // Start interval
-    intervalRef.current = setInterval(() => {
-      savedCallback.current();
-    }, interval);
+    intervalRef.current = setInterval(safeInvoke, interval);
   }, [interval, enabled, immediate]);
 
   const stopPolling = useCallback(() => {
