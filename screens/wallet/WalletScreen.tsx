@@ -4,7 +4,7 @@ import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import {
   useLiqVaults, useLiqTotalProfitBtc, useLiqFetchVaults,
-  useLiqSetInvestAmount, useLiqSetUserVaultContext, useLiqGetMaxInvestable,
+  useLiqSetInvestAmount, useLiqSetUserVaultContext,
 } from '../../stores/liquidationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
@@ -153,12 +153,13 @@ const WalletScreen = React.memo(function WalletScreen({
   const liqFetchVaults = useLiqFetchVaults();
   const liqSetInvestAmount = useLiqSetInvestAmount();
   const liqSetUserVaultContext = useLiqSetUserVaultContext();
-  const liqGetMaxInvestable = useLiqGetMaxInvestable();
-
-  // Max investable from available collateral or total claimable
-  const maxInvestable = liqVaults.length > 0
-    ? liqGetMaxInvestable(btcPrice ?? 0) || liqVaults.reduce((acc: number, v: { claimAmountBtc: number }) => acc + v.claimAmountBtc, 0)
-    : vaultCollateral || 0;
+  // Max investable — computed from vault data without store function calls during render
+  const maxInvestable = React.useMemo(() => {
+    if (liqVaults.length > 0) {
+      return liqVaults.reduce((acc: number, v: { claimAmountBtc: number }) => acc + v.claimAmountBtc, 0);
+    }
+    return vaultCollateral || 0;
+  }, [liqVaults, vaultCollateral]);
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
 
