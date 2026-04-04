@@ -1,0 +1,20 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["App.tsx"],
+  "project": ["**/*.{ts,tsx}"],
+  "ignore": ["**/__tests__/**", "**/*.test.*"],
+  "ignoreDependencies": [
+    "@types/*",
+    "@jest/globals",
+    "jest",
+    "jest-expo",
+    "@testing-library/*",
+    "@vitest/*",
+    "vitest",
+    "playwright",
+    "expect-type",
+    "universal-test-renderer",
+    "sharp"
+  ],
+  "ignoreExportsUsedInFile": true
+}
