@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, G } from 'react-native-svg';
 
 export const WalletIcons = {
   wallet: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
@@ -297,6 +297,39 @@ export const WalletIcons = {
         strokeLinejoin="round"
         d="M9.19995 8.24374c0.20711 0 0.375 -0.16789 0.375 -0.375 0 -0.2071 -0.16789 -0.375 -0.375 -0.375"
         strokeWidth="1"
+      />
+    </Svg>
+  ),
+
+  liquidations: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
+    <Svg width={width || 24} height={height || 25} viewBox="0 0 24 25" fill="none">
+      <Path
+        d="M12.5822 9.2157L9.67835 9.2157C7.98495 9.2157 6.36091 9.89864 5.16349 11.1143C3.96608 12.3299 3.29338 13.9787 3.29338 15.6978C3.29338 17.417 3.96608 19.0658 5.16349 20.2814C6.36091 21.497 7.98495 22.18 9.67835 22.18L20.7085 22.18"
+        stroke={color || 'currentColor'}
+        strokeWidth="1.83333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M10.2602 11.5727L12.582 9.2156L10.2602 6.85846"
+        stroke={color || 'currentColor'}
+        strokeWidth="1.83333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M11.4178 15.8943H14.3216C16.015 15.8943 17.6391 15.2114 18.8365 13.9957C20.0339 12.7801 20.7066 11.1313 20.7066 9.41218C20.7066 7.69304 20.0339 6.04424 18.8365 4.82863C17.6391 3.61302 16.015 2.93008 14.3216 2.93008L3.29153 2.93008"
+        stroke={color || 'currentColor'}
+        strokeWidth="1.83333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M13.7398 13.5373L11.418 15.8944L13.7398 18.2516"
+        stroke={color || 'currentColor'}
+        strokeWidth="1.83333"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   ),
