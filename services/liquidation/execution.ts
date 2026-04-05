@@ -30,7 +30,6 @@ import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
-import { createMobileWalletAPI } from '../vaultWallet/walletApi';
 import {
   setPendingVaultSigningOperation,
   clearPendingVaultSigningOperation,
@@ -172,14 +171,12 @@ export async function executeLiquidation(
     progress('Preparing transaction...');
 
     const repoConfig = {
-      sats_address: walletInfo.segwitAddress,
       deposit_amount: 0,
       tx_feerate: feeRate,
     };
 
-    const vaultCtx = VaultAPI.repo.create_ctx(
+    const vaultCtx = wallet.vault.repo.ctx(
       oracleQuote,
-      contract,
       userVaultProfile,
       repoConfig
     );
@@ -187,7 +184,10 @@ export async function executeLiquidation(
     // ── Step 6: Fetch UTXOs ──
     progress('Fetching available funds...');
 
-    const txQuote = VaultAPI.repo.get_tx_quote(repoConfig, liquidVaults.length);
+    const txQuote = VaultAPI.repo.get_tx_quote(
+      { ...repoConfig, sats_address: walletInfo.segwitAddress },
+      liquidVaults.length
+    );
     const fundingRequired = txQuote.total_cost + 350 * feeRate;
     const utxos: BaseUtxo[] = await wallet.fetch.sats_utxos(fundingRequired);
 
@@ -195,13 +195,7 @@ export async function executeLiquidation(
       throw new Error('Insufficient funds for liquidation');
     }
 
-    // ── Step 7: Create PSBTs ──
-    progress('Creating transaction...');
-
-    const psbt1Raw = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
-    const psbt2Raw = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1Raw);
-
-    // ── Step 7b: Sign PSBTs ──
+    // ── Step 7: Create, Sign PSBTs & Build Request ──
     progress('Signing transaction...');
 
     setPendingVaultSigningOperation({
@@ -211,28 +205,12 @@ export async function executeLiquidation(
       satsUtxos: utxos,
     });
 
-    let psbt1: string;
-    let psbt2: string;
+    let request;
     try {
-      const walletAPI = createMobileWalletAPI(walletInfo.segwitAddress);
-      const signUtxos = walletAPI.sign.utxos(wallet);
-      psbt1 = await signUtxos(psbt1Raw);
-      psbt2 = await signUtxos(psbt2Raw);
+      request = await wallet.vault.repo.req(liquidCtx, vaultCtx, utxos);
     } finally {
       clearPendingVaultSigningOperation();
     }
-
-    // ── Step 8: Build Request ──
-    progress('Building request...');
-
-    const rawRequest = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
-
-    // Add wallet metadata required by Guardian
-    const request = {
-      ...rawRequest,
-      contract_id: wallet.contract_id,
-      network: wallet.network,
-    };
 
     // ── Step 9: Submit to Guardian ──
     progress('Submitting to network...');
