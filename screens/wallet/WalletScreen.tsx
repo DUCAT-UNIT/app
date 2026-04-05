@@ -2,9 +2,12 @@ import React,{ useCallback,useRef,useState } from 'react';
 import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle,Dimensions } from 'react-native';
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
-import { fetchLiquidatableVaults } from '../../services/liquidation/fetchVaults';
+import { fetchLiquidatableVaults, formatValidatorResponse } from '../../services/liquidation/fetchVaults';
+import { computeLiqMeta, getHealthValue } from '../../services/liquidation/calculations';
 import { executeLiquidation } from '../../services/liquidation/execution';
 import { COIN_SIZE } from '../../services/liquidation/constants';
+import { fetchProtocolContract } from '../../services/vaultWallet';
+import { VaultAPI } from '@ducat-unit/client-sdk';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
@@ -150,8 +153,9 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liqError, setLiqError] = useState<string | null>(null);
 
   // Liquidation: use refs to avoid render loops in React.memo
-  const liqVaultsRef = useRef<Array<{ vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number }>>([]);
+  const liqVaultsRef = useRef<Array<{ vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number }>>([]);
   const [liqVaultsLoaded, setLiqVaultsLoaded] = useState(false);
+  const liqProfitRateRef = useRef(0.15); // Updated from SDK
   const maxInvestable = vaultCollateral || (liqVaultsRef.current.length > 0 ? liqVaultsRef.current.reduce((acc, v) => acc + v.claimAmountBtc, 0) : 0.06);
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
@@ -172,22 +176,55 @@ const WalletScreen = React.memo(function WalletScreen({
       setShowLiquidations(true);
       // Fetch liquidatable vaults
       if (btcPrice) {
-        fetchLiquidatableVaults().then(raw => {
-          const currentPrice = btcPrice || 67000;
-          const mapped = raw.map(v => {
-            const unit = v.stone.balance / 100;
-            const btcInVault = v.output.amount / COIN_SIZE;
-            // Deficit: how much BTC is needed to restore health to 1.6
-            // deficit = (1.6 * unit / price) - btcInVault
-            const minCollateral = (1.6 * unit) / currentPrice;
-            const deficit = Math.max(0, minCollateral - btcInVault);
-            // Claim amount = deficit (what liquidator deposits)
-            const claimAmountBtc = deficit > 0 ? deficit : btcInVault * 0.1;
-            return { vaultId: v.vault_id, unit, btcInVault, claimAmountBtc };
-          });
-          liqVaultsRef.current = mapped;
-          setLiqVaultsLoaded(true);
-        }).catch(() => {});
+        (async () => {
+          try {
+            const [raw, contract] = await Promise.all([
+              fetchLiquidatableVaults(),
+              fetchProtocolContract(),
+            ]);
+            const currentPrice = btcPrice || 67000;
+            const extended = formatValidatorResponse(raw);
+
+            const mapped = extended.map(v => {
+              try {
+                const profile = VaultAPI.repo.liquidation.get_profile(
+                  contract, v as any, v.thold_key, currentPrice
+                );
+                const meta = computeLiqMeta(profile);
+                return {
+                  vaultId: v.vaultId,
+                  unit: v.unit,
+                  btcInVault: v.btcInVault,
+                  claimAmountBtc: meta.claimAmountBtc,
+                  profitBtc: meta.profitBtc,
+                  profitPercent: meta.profitPercent,
+                  postTaxBtcInVault: meta.postTaxBtcInVault,
+                  unitSwapBtc: v.unit / currentPrice,
+                };
+              } catch {
+                // Fallback if SDK fails for this vault
+                const deficit = Math.max(0, (1.6 * v.unit / currentPrice) - v.btcInVault);
+                return {
+                  vaultId: v.vaultId, unit: v.unit, btcInVault: v.btcInVault,
+                  claimAmountBtc: deficit || v.btcInVault * 0.1,
+                  profitBtc: deficit * 0.15, profitPercent: 15,
+                  postTaxBtcInVault: v.btcInVault * 0.95,
+                  unitSwapBtc: v.unit / currentPrice,
+                };
+              }
+            }).filter(v => v.profitBtc > 0 && v.claimAmountBtc > 0)
+              .sort((a, b) => b.profitPercent - a.profitPercent);
+
+            if (mapped.length > 0) {
+              liqProfitRateRef.current = mapped[0].profitPercent / 100;
+            }
+            liqVaultsRef.current = mapped;
+            setLiqVaultsLoaded(true);
+          } catch {
+            // Fallback: just show basic data
+            setLiqVaultsLoaded(true);
+          }
+        })();
       }
       Animated.spring(expandAnim, {
         toValue: 1,
@@ -479,7 +516,7 @@ const WalletScreen = React.memo(function WalletScreen({
           ) : liqStep === 'review' ? (() => {
           // Compute review values from investment amount
           const price = btcPrice ?? 0;
-          const profitRate = 0.15; // TODO: from SDK liquid_quote.profit_margin
+          const profitRate = liqProfitRateRef.current; // From SDK liquid_quote.profit_margin
           const depositRate = 0.32;
           const swapRate = 0.68;
           const liqProfitBtc = liqInvestAmount * profitRate;
@@ -649,7 +686,7 @@ const WalletScreen = React.memo(function WalletScreen({
               btcPrice={btcPrice ?? undefined}
               attachedBottom
               renderFooter={() => {
-                const profitBtc = liqInvestAmount * 0.15 || liqInvestAmount * 0.15;
+                const profitBtc = liqInvestAmount * liqProfitRateRef.current;
                 const returnBtc = liqInvestAmount + profitBtc;
                 const price = btcPrice ?? 0;
                 return (
