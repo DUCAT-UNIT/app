@@ -61,6 +61,14 @@ export interface BTCTransactionAmount {
 
 export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
 
+// Registry of known liquidation (repo) txids — used to tag on-chain TXs
+// as vault operations when the vault history API doesn't include them
+const knownLiquidationTxids = new Set<string>();
+
+export function registerLiquidationTxid(txid: string): void {
+  knownLiquidationTxids.add(txid);
+}
+
 export interface VaultTransaction {
   transaction_id?: string;
   timestamp: number;
@@ -337,6 +345,7 @@ export const fetchAllTransactionHistory = async (
     segwit: segwitTxs.length,
     taproot: taprootTxs.length,
     vault: vaultHistory.length,
+    vaultActions: vaultHistory.map((vt: VaultTransaction) => `${vt.action}:${vt.transaction_id?.substring(0, 8)}`),
   });
 
   // First, collect all vault transaction IDs
@@ -393,6 +402,22 @@ export const fetchAllTransactionHistory = async (
 
     txMap.set(syntheticTx.txid, syntheticTx);
   });
+
+  // Tag known liquidation txids as vault transactions if not already
+  for (const txid of knownLiquidationTxids) {
+    const existing = txMap.get(txid);
+    if (existing && !existing.vaultTransaction) {
+      txMap.set(txid, {
+        ...existing,
+        vaultTransaction: true,
+        vaultData: {
+          action: 'Repossess',
+          btcAmount: 0,
+          unitAmount: 0,
+        },
+      });
+    }
+  }
 
   // Convert back to array and sort by timestamp (most recent first)
   const allTxs = Array.from(txMap.values()).sort(

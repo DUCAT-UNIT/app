@@ -29,6 +29,7 @@ import type {
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
+import { registerLiquidationTxid } from '../transactionHistoryService';
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
 import {
   setPendingVaultSigningOperation,
@@ -215,6 +216,9 @@ export async function executeLiquidation(
     ) as { vault_txid: string };
 
     const txid = guardRes.vault_txid;
+    if (txid) {
+      registerLiquidationTxid(txid);
+    }
     logger.info('[Liquidation] Guardian response received', {
       vault_txid: txid,
       fullResponse: JSON.stringify(guardRes),
