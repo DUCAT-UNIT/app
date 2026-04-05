@@ -368,6 +368,7 @@ export const fetchAllTransactionHistory = async (
         withdraw: 'Withdraw',
         liquidate: 'Repossess',
         repossess: 'Repossess',
+        repo: 'Repossess',
       };
       return actionMap[action.toLowerCase()] || action;
     };
