@@ -173,12 +173,18 @@ const WalletScreen = React.memo(function WalletScreen({
       // Fetch liquidatable vaults
       if (btcPrice) {
         fetchLiquidatableVaults().then(raw => {
-          const mapped = raw.map(v => ({
-            vaultId: v.vault_id,
-            unit: v.stone.balance / 100,
-            btcInVault: v.output.amount / COIN_SIZE,
-            claimAmountBtc: v.output.amount / COIN_SIZE * 0.15,
-          }));
+          const currentPrice = btcPrice || 67000;
+          const mapped = raw.map(v => {
+            const unit = v.stone.balance / 100;
+            const btcInVault = v.output.amount / COIN_SIZE;
+            // Deficit: how much BTC is needed to restore health to 1.6
+            // deficit = (1.6 * unit / price) - btcInVault
+            const minCollateral = (1.6 * unit) / currentPrice;
+            const deficit = Math.max(0, minCollateral - btcInVault);
+            // Claim amount = deficit (what liquidator deposits)
+            const claimAmountBtc = deficit > 0 ? deficit : btcInVault * 0.1;
+            return { vaultId: v.vault_id, unit, btcInVault, claimAmountBtc };
+          });
           liqVaultsRef.current = mapped;
           setLiqVaultsLoaded(true);
         }).catch(() => {});
