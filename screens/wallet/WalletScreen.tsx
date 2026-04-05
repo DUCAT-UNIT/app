@@ -607,7 +607,7 @@ const WalletScreen = React.memo(function WalletScreen({
                 <View style={localStyles.liqReviewProfitHeader}>
                   <Text style={localStyles.liqReviewProfitTitle}>Total profit</Text>
                   <View style={localStyles.liqReviewProfitBadge}>
-                    <Text style={localStyles.liqReviewProfitBadgeText}>+15%</Text>
+                    <Text style={localStyles.liqReviewProfitBadgeText}>+{Math.round(profitRate * 100)}%</Text>
                   </View>
                 </View>
                 <Text style={localStyles.liqReviewProfitAmount}>
@@ -692,7 +692,7 @@ const WalletScreen = React.memo(function WalletScreen({
             <View style={localStyles.liqReviewCard}>
               <Text style={localStyles.liqHowDesc}>
                 You deposit BTC to restore an unhealthy vault to health. In return, you receive the liquidated vault's collateral and debt to your vault, including a{' '}
-                <Text style={{ color: '#59AA8A', fontFamily: fonts.bold }}>15% profit</Text>
+                <Text style={{ color: '#59AA8A', fontFamily: fonts.bold }}>{Math.round(liqProfitRateRef.current * 100)}% profit</Text>
                 {' '}for taking on the liquidation.
               </Text>
             </View>
@@ -856,7 +856,11 @@ const WalletScreen = React.memo(function WalletScreen({
                           <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
                           <Text style={localStyles.liqVaultRowText}>{vault.btcInVault.toFixed(6)}</Text>
                         </View>
-                        <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}</Text>
+                        <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>
+                          {liquidationsShowBTC
+                            ? `${vault.claimAmountBtc.toFixed(6)} ₿`
+                            : `$${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}`}
+                        </Text>
                       </TouchableOpacity>
                     ));
                   })()}
