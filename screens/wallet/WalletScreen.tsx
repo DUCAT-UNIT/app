@@ -1,4 +1,4 @@
-import React,{ useCallback,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle,Dimensions } from 'react-native';
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
@@ -165,6 +165,99 @@ const WalletScreen = React.memo(function WalletScreen({
   const maxInvestable = vaultCollateral || (liqVaultsRef.current.length > 0 ? liqVaultsRef.current.reduce((acc, v) => acc + v.claimAmountBtc, 0) : 0.06);
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
+  const liqPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const liqFetchInFlightRef = useRef(false);
+
+  // Extracted vault fetch logic — reusable by toggle + polling
+  const refreshLiqVaults = useCallback(async () => {
+    if (!btcPrice || liqFetchInFlightRef.current) return;
+    liqFetchInFlightRef.current = true;
+    try {
+      const [raw, contract] = await Promise.all([
+        fetchLiquidatableVaults(),
+        fetchProtocolContract(),
+      ]);
+      const currentPrice = btcPrice || 67000;
+      const extended = formatValidatorResponse(raw);
+
+      const fullProfiles: LiquidVaultProfile[] = [];
+      const displayProfiles: LiqVaultDisplay[] = [];
+
+      for (const v of extended) {
+        try {
+          const sdkVault = v as unknown as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1];
+          const profile = VaultAPI.repo.liquidation.get_profile(
+            contract, sdkVault, v.thold_key, currentPrice
+          );
+          const meta = computeLiqMeta(profile);
+
+          if (meta.profitBtc > 0 && meta.claimAmountBtc > 0) {
+            fullProfiles.push(profile);
+            displayProfiles.push({
+              vaultId: v.vaultId,
+              unit: v.unit,
+              btcInVault: v.btcInVault,
+              claimAmountBtc: meta.claimAmountBtc,
+              profitBtc: meta.profitBtc,
+              profitPercent: meta.profitPercent,
+              postTaxBtcInVault: meta.postTaxBtcInVault,
+              unitSwapBtc: v.unit / currentPrice,
+            });
+          }
+        } catch (sdkErr: unknown) {
+          logger.debug('[Liquidation] SDK profile failed for vault', {
+            vaultId: v.vaultId,
+            error: sdkErr instanceof Error ? sdkErr.message : String(sdkErr),
+          });
+        }
+      }
+
+      // Sort by profit descending
+      const indices = displayProfiles.map((_, i) => i);
+      indices.sort((a, b) => displayProfiles[b].profitPercent - displayProfiles[a].profitPercent);
+      const sortedDisplay = indices.map(i => displayProfiles[i]);
+      const sortedFull = indices.map(i => fullProfiles[i]);
+
+      // Compute real ratios from first vault
+      if (sortedDisplay.length > 0) {
+        const first = sortedDisplay[0];
+        liqProfitRateRef.current = first.profitPercent / 100;
+        const totalRequired = first.claimAmountBtc + first.unitSwapBtc;
+        if (totalRequired > 0) {
+          liqDepositRateRef.current = first.claimAmountBtc / totalRequired;
+          liqSwapRateRef.current = first.unitSwapBtc / totalRequired;
+        }
+      }
+
+      liqVaultsRef.current = sortedDisplay;
+      liqVaultsFullRef.current = sortedFull;
+      setLiqVaultsLoaded(true);
+    } catch (fetchErr: unknown) {
+      logger.warn('[Liquidation] Fetch failed', {
+        error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
+      });
+      setLiqVaultsLoaded(true);
+    } finally {
+      liqFetchInFlightRef.current = false;
+    }
+  }, [btcPrice]);
+
+  // Poll liquidatable vaults every 30s while on input screen
+  useEffect(() => {
+    if (showLiquidations && liqStep === 'input') {
+      liqPollingRef.current = setInterval(() => {
+        void refreshLiqVaults();
+      }, 30_000);
+      logger.debug('[Liquidation] Polling started (30s interval)');
+    }
+    return () => {
+      if (liqPollingRef.current) {
+        clearInterval(liqPollingRef.current);
+        liqPollingRef.current = null;
+        logger.debug('[Liquidation] Polling stopped');
+      }
+    };
+  }, [showLiquidations, liqStep, refreshLiqVaults]);
 
   const toggleLiquidations = useCallback(() => {
     if (showLiquidations) {
@@ -180,78 +273,8 @@ const WalletScreen = React.memo(function WalletScreen({
     } else {
       // Expand from bottom-left (spring for natural feel)
       setShowLiquidations(true);
-      // Fetch liquidatable vaults
-      if (btcPrice) {
-        (async () => {
-          try {
-            const [raw, contract] = await Promise.all([
-              fetchLiquidatableVaults(),
-              fetchProtocolContract(),
-            ]);
-            const currentPrice = btcPrice || 67000;
-            const extended = formatValidatorResponse(raw);
-
-            const fullProfiles: LiquidVaultProfile[] = [];
-            const displayProfiles: LiqVaultDisplay[] = [];
-
-            for (const v of extended) {
-              try {
-                // Cast extended profile to SDK VaultProfile shape
-                const sdkVault = v as unknown as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1];
-                const profile = VaultAPI.repo.liquidation.get_profile(
-                  contract, sdkVault, v.thold_key, currentPrice
-                );
-                const meta = computeLiqMeta(profile);
-
-                if (meta.profitBtc > 0 && meta.claimAmountBtc > 0) {
-                  fullProfiles.push(profile);
-                  displayProfiles.push({
-                    vaultId: v.vaultId,
-                    unit: v.unit,
-                    btcInVault: v.btcInVault,
-                    claimAmountBtc: meta.claimAmountBtc,
-                    profitBtc: meta.profitBtc,
-                    profitPercent: meta.profitPercent,
-                    postTaxBtcInVault: meta.postTaxBtcInVault,
-                    unitSwapBtc: v.unit / currentPrice,
-                  });
-                }
-              } catch (sdkErr: unknown) {
-                logger.debug('[Liquidation] SDK profile failed for vault', {
-                  vaultId: v.vaultId,
-                  error: sdkErr instanceof Error ? sdkErr.message : String(sdkErr),
-                });
-              }
-            }
-
-            // Sort by profit descending
-            const indices = displayProfiles.map((_, i) => i);
-            indices.sort((a, b) => displayProfiles[b].profitPercent - displayProfiles[a].profitPercent);
-            const sortedDisplay = indices.map(i => displayProfiles[i]);
-            const sortedFull = indices.map(i => fullProfiles[i]);
-
-            // Compute real ratios from first vault
-            if (sortedDisplay.length > 0) {
-              const first = sortedDisplay[0];
-              liqProfitRateRef.current = first.profitPercent / 100;
-              const totalRequired = first.claimAmountBtc + first.unitSwapBtc;
-              if (totalRequired > 0) {
-                liqDepositRateRef.current = first.claimAmountBtc / totalRequired;
-                liqSwapRateRef.current = first.unitSwapBtc / totalRequired;
-              }
-            }
-
-            liqVaultsRef.current = sortedDisplay;
-            liqVaultsFullRef.current = sortedFull;
-            setLiqVaultsLoaded(true);
-          } catch (fetchErr: unknown) {
-            logger.warn('[Liquidation] Fetch failed', {
-              error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
-            });
-            setLiqVaultsLoaded(true);
-          }
-        })();
-      }
+      // Initial fetch
+      void refreshLiqVaults();
       Animated.spring(expandAnim, {
         toValue: 1,
         tension: 50,
@@ -259,7 +282,7 @@ const WalletScreen = React.memo(function WalletScreen({
         useNativeDriver: true,
       }).start();
     }
-  }, [showLiquidations, expandAnim]);
+  }, [showLiquidations, expandAnim, refreshLiqVaults]);
 
   // Pull-to-refresh state
   const [refreshing, setRefreshing] = useState(false);
