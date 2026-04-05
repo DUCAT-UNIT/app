@@ -146,8 +146,14 @@ export async function executeLiquidation(
     // ── Step 4: Build Liquidation Context ──
     progress('Building liquidation context...');
 
+    // Mark vaults as locked for execution (get_profile needs false, get_ctx needs true)
+    const lockedVaults = liquidVaults.map(v => ({
+      ...v,
+      rdata: { ...v.rdata, is_locked: true },
+    }));
+
     const liquidCtx = VaultAPI.repo.liquidation.get_ctx(
-      liquidVaults,
+      lockedVaults as LiquidVaultProfile[],
       contract
     );
 
