@@ -23,9 +23,10 @@ export async function fetchLiquidatableVaults(): Promise<ValidatorLiquidatedVaul
       throw new Error(`Liquidation API error: ${response.status}`);
     }
 
-    const data = await response.json() as ValidatorLiquidatedVault[];
-    logger.debug('[Liquidation] Fetched vaults', { count: data.length });
-    return data;
+    const data = await response.json() as ValidatorLiquidatedVault[] | null;
+    const vaults = data ?? [];
+    logger.debug('[Liquidation] Fetched vaults', { count: vaults.length });
+    return vaults;
   } catch (error: unknown) {
     logger.warn('[Liquidation] Failed to fetch liquidatable vaults', {
       error: error instanceof Error ? error.message : String(error),

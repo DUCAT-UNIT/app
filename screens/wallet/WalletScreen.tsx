@@ -206,6 +206,7 @@ const WalletScreen = React.memo(function WalletScreen({
         fetchProtocolContract(),
       ]);
       const currentPrice = btcPrice || 67000;
+      logger.debug('[Liquidation] Fetch result', { rawCount: raw.length, price: currentPrice });
       const extended = formatValidatorResponse(raw);
 
       const fullProfiles: LiquidVaultProfileWithMeta[] = [];
@@ -265,6 +266,11 @@ const WalletScreen = React.memo(function WalletScreen({
 
       liqVaultsRef.current = sortedDisplay;
       liqVaultsFullRef.current = sortedFull;
+      logger.debug('[Liquidation] Vaults ready', {
+        display: sortedDisplay.length,
+        full: sortedFull.length,
+        filtered: extended.length - sortedDisplay.length,
+      });
       setLiqVaultsLoaded(prev => prev + 1);
     } catch (fetchErr: unknown) {
       logger.warn('[Liquidation] Fetch failed', {
