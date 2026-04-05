@@ -214,10 +214,14 @@ export async function executeLiquidation(
       60000 + 10000
     ) as { vault_txid: string };
 
+    const txid = guardRes.vault_txid;
+    logger.info('[Liquidation] Guardian response received', {
+      vault_txid: txid,
+      fullResponse: JSON.stringify(guardRes),
+    });
+
     progress('Liquidation complete!');
     await disconnectGuardian();
-
-    const txid = guardRes.vault_txid;
 
     return { success: true, txid, vaultTxid: txid };
   } catch (error: unknown) {
