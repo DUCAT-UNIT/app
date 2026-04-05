@@ -729,9 +729,8 @@ const WalletScreen = React.memo(function WalletScreen({
             <AmountSlider
               value={liqInvestAmount}
               maxValue={maxInvestable}
-              onValueChange={(val: number) => {
-                setLiqInvestAmount(val);
-              }}
+              onValueChange={setLiqInvestAmount}
+              onLiveValueChange={setLiqInvestAmount}
               label="Amount to Invest"
               btcPrice={btcPrice ?? undefined}
               attachedBottom
