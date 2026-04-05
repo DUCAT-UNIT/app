@@ -166,11 +166,11 @@ const WalletScreen = React.memo(function WalletScreen({
   const maxInvestable = React.useMemo(() => {
     if (!btcPrice || liqVaultsFullRef.current.length === 0) return 0;
     const walletSats = (segwitBalance || 0) + (taprootBalance || 0);
-    const availableCollateral = getAvailableCollateralBtc(
-      btcPrice,
-      vaultCollateral || 0,
-      vaultDebt || 0
-    );
+    // If user has a vault, available collateral is constrained by MIN_COL_RATE.
+    // If no vault, collateral is unconstrained — wallet BTC is the only limit.
+    const availableCollateral = hasVault
+      ? getAvailableCollateralBtc(btcPrice, vaultCollateral || 0, vaultDebt || 0)
+      : Infinity;
     const stats = getMaxInvest(
       true, // isAutoSwap — always swap UNIT for the user
       availableCollateral,
@@ -180,8 +180,17 @@ const WalletScreen = React.memo(function WalletScreen({
       liqVaultsFullRef.current,
       LIQ_MAX_CLAIM_AMOUNT_BTC
     );
+    logger.debug('[Liquidation] maxInvest calc', {
+      walletSats,
+      availableCollateral: availableCollateral === Infinity ? 'Infinity' : availableCollateral,
+      hasVault,
+      vaultCount: liqVaultsFullRef.current.length,
+      result: stats.maxInvestBtc,
+      maxClaim: stats.maxClaimAmountBtc,
+      maxSwap: stats.maxSwapBtc,
+    });
     return stats.maxInvestBtc;
-  }, [btcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, liqVaultsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [btcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, hasVault, liqVaultsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
   const liqPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
