@@ -84,7 +84,7 @@ export function formatValidatorResponse(
       script: item.output_script,
     },
     rdata: {
-      is_locked: false,
+      is_locked: true,
       thold_hash: item.quote.thold_hash,
       thold_price: item.quote.thold_price,
       unit_balance: item.stone.balance,
