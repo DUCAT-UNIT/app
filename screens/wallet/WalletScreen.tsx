@@ -165,7 +165,8 @@ const WalletScreen = React.memo(function WalletScreen({
   const liqSwapRateRef = useRef(0.68);
   const maxInvestable = React.useMemo(() => {
     if (!btcPrice || liqVaultsFullRef.current.length === 0) return 0;
-    const walletSats = (segwitBalance || 0) + (taprootBalance || 0);
+    // segwitBalance and taprootBalance are in BTC, convert to sats for getMaxInvest
+    const walletSats = Math.round(((segwitBalance || 0) + (taprootBalance || 0)) * 100_000_000);
     // If user has a vault, available collateral is constrained by MIN_COL_RATE.
     // If no vault, collateral is unconstrained — wallet BTC is the only limit.
     const availableCollateral = hasVault
