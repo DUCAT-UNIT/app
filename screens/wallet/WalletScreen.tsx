@@ -3,6 +3,7 @@ import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableO
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import { fetchLiquidatableVaults } from '../../services/liquidation/fetchVaults';
+import { executeLiquidation } from '../../services/liquidation/execution';
 import { COIN_SIZE } from '../../services/liquidation/constants';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
@@ -142,8 +143,11 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liquidationsShowBTC, setLiquidationsShowBTC] = useState(false);
   const [liqInvestAmount, setLiqInvestAmount] = useState(0);
   const [liqVaultExpanded, setLiqVaultExpanded] = useState(false);
-  const [liqStep, setLiqStep] = useState<'input' | 'review'>('input');
+  const [liqStep, setLiqStep] = useState<'input' | 'review' | 'processing' | 'success' | 'error'>('input');
   const [liqReviewTab, setLiqReviewTab] = useState<'overview' | 'howItWorks'>('overview');
+  const [liqProcessingMsg, setLiqProcessingMsg] = useState('Preparing liquidation...');
+  const [liqResultTxid, setLiqResultTxid] = useState<string | null>(null);
+  const [liqError, setLiqError] = useState<string | null>(null);
 
   // Liquidation: use refs to avoid render loops in React.memo
   const liqVaultsRef = useRef<Array<{ vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number }>>([]);
@@ -429,7 +433,44 @@ const WalletScreen = React.memo(function WalletScreen({
               </View>
             </TouchableOpacity>
           </View>
-          {liqStep === 'review' ? (() => {
+          {(liqStep === 'processing' || liqStep === 'success' || liqStep === 'error') ? (
+          <View style={localStyles.liqStatusScreen}>
+            {liqStep === 'processing' && (
+              <>
+                <View style={localStyles.liqStatusIcon}>
+                  <Icon name="liquidations" size={s(48)} color={colors.brand.primary} />
+                </View>
+                <Text style={localStyles.liqStatusTitle}>Processing Liquidation</Text>
+                <Text style={localStyles.liqStatusSub}>{liqProcessingMsg}</Text>
+              </>
+            )}
+            {liqStep === 'success' && (
+              <>
+                <View style={[localStyles.liqStatusIcon, { backgroundColor: '#1a3a2a' }]}>
+                  <Text style={{ fontSize: 32 }}>✓</Text>
+                </View>
+                <Text style={localStyles.liqStatusTitle}>Liquidation Claimed</Text>
+                <Text style={localStyles.liqStatusSub}>
+                  Your vault has been updated with the liquidated collateral and debt.
+                </Text>
+                {liqResultTxid && (
+                  <Text style={[localStyles.liqStatusSub, { fontSize: 11, marginTop: 8 }]}>
+                    TX: {liqResultTxid.substring(0, 16)}...
+                  </Text>
+                )}
+              </>
+            )}
+            {liqStep === 'error' && (
+              <>
+                <View style={[localStyles.liqStatusIcon, { backgroundColor: '#3a1a1a' }]}>
+                  <Text style={{ fontSize: 32 }}>✕</Text>
+                </View>
+                <Text style={localStyles.liqStatusTitle}>Liquidation Failed</Text>
+                <Text style={localStyles.liqStatusSub}>{liqError || 'An error occurred'}</Text>
+              </>
+            )}
+          </View>
+          ) : liqStep === 'review' ? (() => {
           // Compute review values from investment amount
           const price = btcPrice ?? 0;
           const profitRate = 0.15; // TODO: from SDK liquid_quote.profit_margin
@@ -689,15 +730,46 @@ const WalletScreen = React.memo(function WalletScreen({
           <View style={localStyles.liqContinueWrap}>
             <TouchableOpacity
               style={[localStyles.liqContinueBtn, liqStep === 'input' && liqInvestAmount <= 0 && { opacity: 0.5 }]}
-              onPress={() => {
-                if (liqStep === 'input') setLiqStep('review');
-                else {/* TODO: claim liquidation */}
+              onPress={async () => {
+                if (liqStep === 'input') {
+                  setLiqStep('review');
+                } else if (liqStep === 'review') {
+                  setLiqStep('processing');
+                  setLiqProcessingMsg('Connecting to oracle...');
+                  try {
+                    const result = await executeLiquidation({
+                      selectedVaults: liqVaultsRef.current as any,
+                      vaultPubkey: _wallet?.taprootPubkey || '',
+                      btcInVault: vaultCollateral || 0,
+                      unitDebt: vaultDebt || 0,
+                      feeRate: 1,
+                      signPsbts: async (psbts) => psbts, // TODO: real signing
+                    });
+                    if (result.success) {
+                      setLiqResultTxid(result.txid || null);
+                      setLiqStep('success');
+                    } else {
+                      setLiqError(result.error || 'Liquidation failed');
+                      setLiqStep('error');
+                    }
+                  } catch (err: unknown) {
+                    setLiqError(err instanceof Error ? err.message : 'Liquidation failed');
+                    setLiqStep('error');
+                  }
+                } else if (liqStep === 'success' || liqStep === 'error') {
+                  setLiqStep('input');
+                  setLiqError(null);
+                  setLiqResultTxid(null);
+                }
               }}
               testID="liquidation-continue-btn"
-              disabled={liqStep === 'input' && liqInvestAmount <= 0}
+              disabled={(liqStep === 'input' && liqInvestAmount <= 0) || liqStep === 'processing'}
             >
               <Text style={localStyles.liqContinueBtnText}>
-                {liqStep === 'review' ? 'Claim Liquidation' : 'Continue'}
+                {liqStep === 'processing' ? 'Processing...' :
+                 liqStep === 'success' ? 'Done' :
+                 liqStep === 'error' ? 'Try Again' :
+                 liqStep === 'review' ? 'Claim Liquidation' : 'Continue'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1175,6 +1247,35 @@ const localStyles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text.secondary,
     textAlign: 'center',
+  },
+  liqStatusScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  liqStatusIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1D1C21',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  liqStatusTitle: {
+    fontSize: fontSizes.xl,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  liqStatusSub: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   liqContinueWrap: {
     position: 'absolute',
