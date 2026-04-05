@@ -922,8 +922,17 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqStep('processing');
                   setLiqProcessingMsg('Connecting to oracle...');
                   try {
+                    // Select only the vaults covered by the invest amount
+                    const selectedVaults: LiquidVaultProfileWithMeta[] = [];
+                    let remainingInvest = liqInvestAmount;
+                    for (const vault of liqVaultsFullRef.current) {
+                      if (remainingInvest <= 0) break;
+                      selectedVaults.push(vault);
+                      remainingInvest -= vault.claimAmountBtc;
+                    }
+
                     const result = await executeLiquidation({
-                      liquidVaults: liqVaultsFullRef.current,
+                      liquidVaults: selectedVaults,
                       walletInfo: {
                         segwitAddress: _wallet?.segwitAddress || '',
                         segwitPubkey: _wallet?.segwitPubkey || '',
