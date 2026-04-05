@@ -775,7 +775,18 @@ const WalletScreen = React.memo(function WalletScreen({
               >
                 <View style={localStyles.liqVaultLeft}>
                   <Icon name="vault_logo" size={s(18)} color={colors.text.secondary} />
-                  <Text style={localStyles.liqVaultName}>Vaults</Text>
+                  <Text style={localStyles.liqVaultName}>
+                    {liqInvestAmount > 0 ? (() => {
+                      let count = 0;
+                      let rem = liqInvestAmount;
+                      for (const v of liqVaultsRef.current) {
+                        if (rem <= 0) break;
+                        count++;
+                        rem -= v.claimAmountBtc;
+                      }
+                      return `${count} Vault${count !== 1 ? 's' : ''} Selected`;
+                    })() : 'Vaults'}
+                  </Text>
                 </View>
                 <Text style={localStyles.liqVaultChevron}>{liqVaultExpanded ? '▲' : '▼'}</Text>
               </TouchableOpacity>
@@ -789,33 +800,66 @@ const WalletScreen = React.memo(function WalletScreen({
                     <Text style={localStyles.liqVaultColHeader}>Collateral</Text>
                     <Text style={localStyles.liqVaultColHeader}>Claim</Text>
                   </View>
-                  {liqVaultsRef.current.length === 0 ? (
-                    <View style={{ padding: 16, alignItems: 'center' }}>
-                      <Text style={{ color: colors.text.secondary, fontSize: fontSizes.sm }}>
-                        {liqVaultsLoaded ? 'No liquidatable vaults available' : 'Loading vaults...'}
-                      </Text>
-                    </View>
-                  ) : null}
-                  {liqVaultsRef.current.map((vault, i, arr) => (
-                    <TouchableOpacity
-                      key={vault.vaultId || `vault-${i}`}
-                      style={[localStyles.liqVaultRow, i === arr.length - 1 && { borderBottomWidth: 0, paddingBottom: 16 }]}
-                      onPress={() => setLiqVaultExpanded(false)}
-                    >
-                      <View style={localStyles.liqVaultRowCheck}>
-                        <Text style={{ color: '#59AA8A', fontSize: 14 }}>✓</Text>
-                      </View>
-                      <View style={localStyles.liqVaultRowValue}>
-                        <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
-                        <Text style={localStyles.liqVaultRowText}>{formatFiat(vault.unit, 2)}</Text>
-                      </View>
-                      <View style={localStyles.liqVaultRowValue}>
-                        <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
-                        <Text style={localStyles.liqVaultRowText}>{vault.btcInVault.toFixed(6)}</Text>
-                      </View>
-                      <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {(() => {
+                    // Compute which vaults are selected based on invest amount
+                    if (liqInvestAmount <= 0 || liqVaultsRef.current.length === 0) {
+                      return (
+                        <View style={{ padding: 16, alignItems: 'center' }}>
+                          <Text style={{ color: colors.text.secondary, fontSize: fontSizes.sm }}>
+                            {!liqVaultsLoaded ? 'Loading vaults...' :
+                             liqVaultsRef.current.length === 0 ? 'No liquidatable vaults available' :
+                             'Adjust slider to select vaults'}
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    // Select vaults greedily until invest amount is met
+                    const selected: { vault: LiqVaultDisplay; isPartial: boolean }[] = [];
+                    let remaining = liqInvestAmount;
+                    for (const vault of liqVaultsRef.current) {
+                      if (remaining <= 0) break;
+                      if (remaining >= vault.claimAmountBtc) {
+                        selected.push({ vault, isPartial: false });
+                        remaining -= vault.claimAmountBtc;
+                      } else {
+                        selected.push({ vault, isPartial: true });
+                        remaining = 0;
+                      }
+                    }
+
+                    return selected.map(({ vault, isPartial }, i) => (
+                      <TouchableOpacity
+                        key={vault.vaultId || `vault-${i}`}
+                        style={[localStyles.liqVaultRow, i === selected.length - 1 && { borderBottomWidth: 0, paddingBottom: 16 }]}
+                        onPress={() => setLiqVaultExpanded(false)}
+                      >
+                        <View style={localStyles.liqVaultRowCheck}>
+                          {isPartial ? (
+                            <View style={{ width: 14, height: 16, position: 'relative' }}>
+                              {/* Gray base checkmark */}
+                              <Text style={{ color: '#555', fontSize: 14, position: 'absolute', left: 0, top: 0 }}>✓</Text>
+                              {/* Green left half overlay */}
+                              <View style={{ position: 'absolute', left: 0, top: 0, width: 7, height: 16, overflow: 'hidden' }}>
+                                <Text style={{ color: '#59AA8A', fontSize: 14 }}>✓</Text>
+                              </View>
+                            </View>
+                          ) : (
+                            <Text style={{ color: '#59AA8A', fontSize: 14 }}>✓</Text>
+                          )}
+                        </View>
+                        <View style={localStyles.liqVaultRowValue}>
+                          <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
+                          <Text style={localStyles.liqVaultRowText}>{formatFiat(vault.unit, 2)}</Text>
+                        </View>
+                        <View style={localStyles.liqVaultRowValue}>
+                          <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
+                          <Text style={localStyles.liqVaultRowText}>{vault.btcInVault.toFixed(6)}</Text>
+                        </View>
+                        <Text style={[localStyles.liqVaultRowText, { flex: 1, textAlign: 'center' }]}>${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}</Text>
+                      </TouchableOpacity>
+                    ));
+                  })()}
                 </View>
               )}
 
