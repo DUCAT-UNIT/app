@@ -3,11 +3,12 @@ import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableO
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import { fetchLiquidatableVaults, formatValidatorResponse } from '../../services/liquidation/fetchVaults';
-import { computeLiqMeta } from '../../services/liquidation/calculations';
+import { computeLiqMeta, getMaxInvest, getAvailableCollateralBtc } from '../../services/liquidation/calculations';
+import { LIQ_MAX_CLAIM_AMOUNT_BTC } from '../../services/liquidation/constants';
+import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { executeLiquidation } from '../../services/liquidation/execution';
 import { fetchProtocolContract } from '../../services/vaultWallet';
 import { VaultAPI } from '@ducat-unit/client-sdk';
-import type { LiquidVaultProfile } from '@ducat-unit/client-sdk';
 import { colors,fonts,fontSizes } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
@@ -157,12 +158,30 @@ const WalletScreen = React.memo(function WalletScreen({
   // Liquidation: use refs to avoid render loops in React.memo
   interface LiqVaultDisplay { vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number }
   const liqVaultsRef = useRef<LiqVaultDisplay[]>([]);
-  const liqVaultsFullRef = useRef<LiquidVaultProfile[]>([]);
+  const liqVaultsFullRef = useRef<LiquidVaultProfileWithMeta[]>([]);
   const [liqVaultsLoaded, setLiqVaultsLoaded] = useState(false);
   const liqProfitRateRef = useRef(0.15);
   const liqDepositRateRef = useRef(0.32);
   const liqSwapRateRef = useRef(0.68);
-  const maxInvestable = vaultCollateral || (liqVaultsRef.current.length > 0 ? liqVaultsRef.current.reduce((acc, v) => acc + v.claimAmountBtc, 0) : 0.06);
+  const maxInvestable = React.useMemo(() => {
+    if (!btcPrice || liqVaultsFullRef.current.length === 0) return 0;
+    const walletSats = (segwitBalance || 0) + (taprootBalance || 0);
+    const availableCollateral = getAvailableCollateralBtc(
+      btcPrice,
+      vaultCollateral || 0,
+      vaultDebt || 0
+    );
+    const stats = getMaxInvest(
+      true, // isAutoSwap — always swap UNIT for the user
+      availableCollateral,
+      walletSats,
+      btcPrice,
+      1, // feeRate: 1 sat/vB (mutinynet default)
+      liqVaultsFullRef.current,
+      LIQ_MAX_CLAIM_AMOUNT_BTC
+    );
+    return stats.maxInvestBtc;
+  }, [btcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, liqVaultsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
   const liqPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -180,7 +199,7 @@ const WalletScreen = React.memo(function WalletScreen({
       const currentPrice = btcPrice || 67000;
       const extended = formatValidatorResponse(raw);
 
-      const fullProfiles: LiquidVaultProfile[] = [];
+      const fullProfiles: LiquidVaultProfileWithMeta[] = [];
       const displayProfiles: LiqVaultDisplay[] = [];
 
       for (const v of extended) {
@@ -190,9 +209,15 @@ const WalletScreen = React.memo(function WalletScreen({
             contract, sdkVault, v.thold_key, currentPrice
           );
           const meta = computeLiqMeta(profile);
+          const unitSwapBtc = v.unit / currentPrice;
 
           if (meta.profitBtc > 0 && meta.claimAmountBtc > 0) {
-            fullProfiles.push(profile);
+            fullProfiles.push({
+              ...v,
+              ...profile,
+              ...meta,
+              unitSwapBtc,
+            } as LiquidVaultProfileWithMeta);
             displayProfiles.push({
               vaultId: v.vaultId,
               unit: v.unit,
@@ -201,7 +226,7 @@ const WalletScreen = React.memo(function WalletScreen({
               profitBtc: meta.profitBtc,
               profitPercent: meta.profitPercent,
               postTaxBtcInVault: meta.postTaxBtcInVault,
-              unitSwapBtc: v.unit / currentPrice,
+              unitSwapBtc,
             });
           }
         } catch (sdkErr: unknown) {
