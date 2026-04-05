@@ -217,7 +217,7 @@ export async function executeLiquidation(
 
     const txid = guardRes.vault_txid;
     if (txid) {
-      registerLiquidationTxid(txid);
+      await registerLiquidationTxid(txid);
     }
     logger.info('[Liquidation] Guardian response received', {
       vault_txid: txid,

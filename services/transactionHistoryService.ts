@@ -3,6 +3,7 @@
  * Handles fetching and processing transaction history from blockchain APIs
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodeRunestone } from '../utils/runestoneEncoder';
 import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
@@ -61,12 +62,38 @@ export interface BTCTransactionAmount {
 
 export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
 
-// Registry of known liquidation (repo) txids — used to tag on-chain TXs
-// as vault operations when the vault history API doesn't include them
-const knownLiquidationTxids = new Set<string>();
+// Registry of known liquidation (repo) txids — persisted via AsyncStorage
+// so they survive app restarts until vault API indexes them
+const LIQUIDATION_TXIDS_KEY = '@ducat/liquidation_txids';
+let knownLiquidationTxids = new Set<string>();
+let liqTxidsLoaded = false;
 
-export function registerLiquidationTxid(txid: string): void {
+async function loadLiquidationTxids(): Promise<Set<string>> {
+  if (liqTxidsLoaded) return knownLiquidationTxids;
+  try {
+    const stored = await AsyncStorage.getItem(LIQUIDATION_TXIDS_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored) as string[];
+      knownLiquidationTxids = new Set(arr);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  liqTxidsLoaded = true;
+  return knownLiquidationTxids;
+}
+
+export async function registerLiquidationTxid(txid: string): Promise<void> {
+  await loadLiquidationTxids();
   knownLiquidationTxids.add(txid);
+  try {
+    await AsyncStorage.setItem(
+      LIQUIDATION_TXIDS_KEY,
+      JSON.stringify([...knownLiquidationTxids])
+    );
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export interface VaultTransaction {
@@ -404,7 +431,8 @@ export const fetchAllTransactionHistory = async (
   });
 
   // Tag known liquidation txids as vault transactions if not already
-  for (const txid of knownLiquidationTxids) {
+  const liqTxids = await loadLiquidationTxids();
+  for (const txid of liqTxids) {
     const existing = txMap.get(txid);
     if (existing && !existing.vaultTransaction) {
       txMap.set(txid, {
