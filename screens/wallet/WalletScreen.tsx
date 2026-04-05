@@ -3,7 +3,7 @@ import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableO
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import { fetchLiquidatableVaults, formatValidatorResponse } from '../../services/liquidation/fetchVaults';
-import { computeLiqMeta, getMaxInvest, getAvailableCollateralBtc } from '../../services/liquidation/calculations';
+import { computeLiqMeta, getMaxInvest } from '../../services/liquidation/calculations';
 import { LIQ_MAX_CLAIM_AMOUNT_BTC } from '../../services/liquidation/constants';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { executeLiquidation } from '../../services/liquidation/execution';
@@ -167,11 +167,10 @@ const WalletScreen = React.memo(function WalletScreen({
     if (!btcPrice || liqVaultsFullRef.current.length === 0) return 0;
     // segwitBalance and taprootBalance are in BTC, convert to sats for getMaxInvest
     const walletSats = Math.round(((segwitBalance || 0) + (taprootBalance || 0)) * 100_000_000);
-    // If user has a vault, available collateral is constrained by MIN_COL_RATE.
-    // If no vault, collateral is unconstrained — wallet BTC is the only limit.
-    const availableCollateral = hasVault
-      ? getAvailableCollateralBtc(btcPrice, vaultCollateral || 0, vaultDebt || 0)
-      : Infinity;
+    // For liquidations, collateral is unconstrained — the liquidation itself
+    // adds more collateral than debt (that's the profit). The wallet BTC
+    // balance and the investment cap are the real constraints.
+    const availableCollateral = Infinity;
     const stats = getMaxInvest(
       true, // isAutoSwap — always swap UNIT for the user
       availableCollateral,
@@ -191,7 +190,7 @@ const WalletScreen = React.memo(function WalletScreen({
       maxSwap: stats.maxSwapBtc,
     });
     return stats.maxInvestBtc;
-  }, [btcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, hasVault, liqVaultsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [btcPrice, segwitBalance, taprootBalance, liqVaultsLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
   const liqPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
