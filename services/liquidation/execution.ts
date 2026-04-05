@@ -39,6 +39,7 @@ import {
   computeVaultPrevoutFromTx,
 } from '../vault/utils';
 import { fetchVaultHistory } from '../vaultService';
+import { computeLiquidationPrice } from '../../utils/vaultUtils';
 
 // ============================================================
 // Types
@@ -102,25 +103,13 @@ export async function executeLiquidation(
     // ── Step 1: Oracle Price Quote ──
     progress('Fetching oracle price...');
 
-    const liquidationPrice = unitDebt > 0 && btcInVault > 0
-      ? unitDebt / btcInVault
-      : 0;
+    const liquidationPrice = computeLiquidationPrice(unitDebt, btcInVault);
     const oracleQuote: PriceQuote = await fetchPriceQuote(liquidationPrice);
-    const oraclePrice = oracleQuote.latest_price;
 
-    // Price fluctuation check (>0.5% deviation = abort)
-    if (liquidationPrice > 0) {
-      const fluctuation = Math.abs(oraclePrice - liquidationPrice) / Math.min(oraclePrice, liquidationPrice);
-      if (fluctuation > 0.005) {
-        logger.warn('[Liquidation] Price fluctuation exceeds 0.5%', {
-          estimated: liquidationPrice,
-          oracle: oraclePrice,
-          fluctuation: `${(fluctuation * 100).toFixed(2)}%`,
-        });
-      }
-    }
-
-    logger.debug('[Liquidation] Oracle quote', { price: oraclePrice });
+    logger.debug('[Liquidation] Oracle quote', {
+      price: oracleQuote.latest_price,
+      threshold: liquidationPrice,
+    });
 
     // ── Step 2: Create VaultWallet ──
     progress('Creating wallet context...');
