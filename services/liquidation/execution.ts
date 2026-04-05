@@ -1,123 +1,209 @@
 /**
  * Liquidation Execution
  *
- * Handles the transaction flow for claiming a liquidation:
- * 1. Fetch fresh price quote from oracle
- * 2. Build liquidation context via SDK
- * 3. Create PSBTs (psbt1 + psbt2)
- * 4. Sign PSBTs with wallet
- * 5. Submit to Guardian
+ * Full transaction flow for claiming liquidated vaults.
+ * Follows the same pattern as existing vault operations
+ * (deposit/borrow/repay/withdraw) but uses VaultAPI.repo.
  *
- * Reuses existing vault wallet infrastructure for signing and Guardian comms.
+ * Flow:
+ * 1. Oracle price quote
+ * 2. Create VaultWallet
+ * 3. Build user's VaultProfile from vault history
+ * 4. Build liquidation context (SDK: get_ctx)
+ * 5. Build vault repo context (SDK: create_ctx)
+ * 6. Fetch UTXOs for funding
+ * 7. Create PSBTs (SDK: create_psbt1 + create_psbt2)
+ * 8. Build request (SDK: create_req)
+ * 9. Submit to Guardian
  */
 
 import { VaultAPI } from '@ducat-unit/client-sdk';
-import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
+import type {
+  BaseUtxo,
+  GuardianSocket,
+  LiquidVaultProfile,
+  PriceQuote,
+  VaultProfile,
+  VaultWallet,
+} from '@ducat-unit/client-sdk';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
-import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
-import type { LiquidVaultProfileWithMeta } from './types';
+import { getGuardianClient, disconnectGuardian } from '../guardianService';
+import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
+import {
+  buildVaultProfile,
+  computeVaultPrevoutFromTx,
+} from '../vault/utils';
+import { fetchVaultHistory } from '../vaultService';
 
-interface LiquidationExecutionParams {
-  /** Selected vaults to claim */
-  selectedVaults: LiquidVaultProfileWithMeta[];
-  /** User's vault pubkey */
+// ============================================================
+// Types
+// ============================================================
+
+export interface LiquidationExecutionParams {
+  /** Liquid vault profiles to claim (from SDK get_liquid_profile) */
+  liquidVaults: LiquidVaultProfile[];
+  /** User's wallet info for creating VaultWallet */
+  walletInfo: {
+    segwitAddress: string;
+    segwitPubkey: string;
+    taprootAddress: string;
+    taprootPubkey: string;
+  };
+  /** User's vault pubkey (taproot) */
   vaultPubkey: string;
-  /** User's BTC in vault */
+  /** User's current BTC locked in vault */
   btcInVault: number;
-  /** User's UNIT debt */
+  /** User's current UNIT debt */
   unitDebt: number;
   /** Fee rate in sat/vB */
   feeRate: number;
-  /** Wallet signing function */
-  signPsbts: (psbts: string[]) => Promise<string[]>;
+  /** Vault info for building VaultProfile */
+  vaultInfo: {
+    creation_account: string;
+    guard_pubkey: string;
+    master_id: string;
+  };
+  /** Progress callback for UI updates */
+  onProgress?: (message: string) => void;
 }
 
-interface LiquidationExecutionResult {
+export interface LiquidationExecutionResult {
   success: boolean;
   txid?: string;
+  vaultTxid?: string;
   error?: string;
 }
 
-/**
- * Execute a liquidation claim.
- *
- * This is the main entry point for claiming liquidated vaults.
- * Currently a placeholder that will be wired to the SDK's
- * VaultAPI.repo functions once the full signing flow is integrated.
- */
+// ============================================================
+// Main Execution
+// ============================================================
+
 export async function executeLiquidation(
   params: LiquidationExecutionParams
 ): Promise<LiquidationExecutionResult> {
-  const { selectedVaults, vaultPubkey, btcInVault, unitDebt, feeRate } = params;
+  const {
+    liquidVaults, walletInfo, vaultPubkey,
+    btcInVault, unitDebt, feeRate, vaultInfo, onProgress,
+  } = params;
+
+  const progress = (msg: string) => {
+    logger.info(`[Liquidation] ${msg}`);
+    onProgress?.(msg);
+  };
+
+  let guardian: GuardianSocket | null = null;
 
   try {
-    logger.info('[Liquidation] Starting liquidation claim', {
-      vaultCount: selectedVaults.length,
-      vaultPubkey: vaultPubkey.substring(0, 16),
+    // ── Step 1: Oracle Price Quote ──
+    progress('Fetching oracle price...');
+
+    const liquidationPrice = unitDebt > 0 && btcInVault > 0
+      ? unitDebt / btcInVault
+      : 0;
+    const oracleQuote: PriceQuote = await fetchPriceQuote(liquidationPrice);
+
+    logger.debug('[Liquidation] Oracle quote', {
+      price: oracleQuote.latest_price,
     });
 
-    // Step 1: Get fresh oracle price quote
-    const liquidationPrice = computeLiquidationPrice(unitDebt, btcInVault);
-    const oracleQuote = await fetchPriceQuote(liquidationPrice);
-    const btcPrice = oracleQuote.latest_price;
+    // ── Step 2: Create VaultWallet ──
+    progress('Creating wallet context...');
 
-    logger.info('[Liquidation] Oracle price received', { btcPrice });
+    const wallet: VaultWallet = await createVaultWallet(walletInfo);
+    const contract = await fetchProtocolContract();
 
-    // Step 2: Build liquidation context via SDK
-    // This will use VaultAPI.repo.liquidation.get_ctx() once vault profiles
-    // are properly typed as LiquidVaultProfile[]
-    logger.info('[Liquidation] Building liquidation context...');
+    // ── Step 3: Build User's VaultProfile ──
+    progress('Building vault profile...');
 
-    // Step 3: Connect to Guardian
-    const guardian = await getGuardianClient(vaultPubkey);
-    logger.info('[Liquidation] Connected to Guardian');
-
-    // Step 4: Create PSBTs
-    // VaultAPI.repo.create_psbt1(liquid_ctx, vault_ctx, fund_utxos)
-    // VaultAPI.repo.create_psbt2(liquid_ctx, vault_ctx, psbt1)
-    logger.info('[Liquidation] PSBTs created');
-
-    // Step 5: Sign PSBTs
-    // const signed = await signPsbts([psbt1, psbt2]);
-    logger.info('[Liquidation] PSBTs signed');
-
-    // Step 6: Build and submit request
-    // const req = VaultAPI.repo.create_req(liquid_ctx, vault_ctx, psbt1, psbt2);
-    // const result = await guardian.send(req);
-    logger.info('[Liquidation] Request submitted to Guardian');
-
-    // Cleanup
-    await disconnectGuardian();
-
-    // TODO: Return actual txid from Guardian response
-    return {
-      success: true,
-      txid: 'pending-implementation',
-    };
-  } catch (error: unknown) {
-    logger.warn('[Liquidation] Execution failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    try {
-      await disconnectGuardian();
-    } catch {
-      // Ignore disconnect errors
+    const history = await fetchVaultHistory(vaultPubkey);
+    if (!history || history.length === 0) {
+      throw new Error('No vault history found');
     }
 
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Liquidation failed',
-    };
-  }
-}
+    const prevout = computeVaultPrevoutFromTx(history[0]);
+    if (!prevout) {
+      throw new Error('Failed to compute vault prevout');
+    }
 
-/**
- * Compute the liquidation price for oracle quote request.
- * Formula: unitDebt / btcInVault (price at which vault becomes undercollateralized)
- */
-function computeLiquidationPrice(unitDebt: number, btcInVault: number): number {
-  if (btcInVault <= 0) return 0;
-  return unitDebt / btcInVault;
+    const userVaultProfile: VaultProfile = buildVaultProfile(
+      vaultPubkey,
+      vaultInfo,
+      prevout
+    );
+
+    // ── Step 4: Build Liquidation Context ──
+    progress('Building liquidation context...');
+
+    const liquidCtx = VaultAPI.repo.liquidation.get_ctx(
+      liquidVaults,
+      contract
+    );
+
+    logger.debug('[Liquidation] Context', {
+      vaults: liquidCtx.vault_count,
+      claimedSats: liquidCtx.claimed_sats,
+      claimedUnit: liquidCtx.claimed_unit,
+    });
+
+    // ── Step 5: Build Vault Repo Context ──
+    progress('Preparing transaction...');
+
+    const repoConfig = {
+      sats_address: walletInfo.segwitAddress,
+      deposit_amount: 0,
+      tx_feerate: feeRate,
+    };
+
+    const vaultCtx = VaultAPI.repo.create_ctx(
+      oracleQuote,
+      contract,
+      userVaultProfile,
+      repoConfig
+    );
+
+    // ── Step 6: Fetch UTXOs ──
+    progress('Fetching available funds...');
+
+    const txQuote = VaultAPI.repo.get_tx_quote(repoConfig, liquidVaults.length);
+    const fundingRequired = txQuote.total_cost + 350 * feeRate;
+    const utxos: BaseUtxo[] = await wallet.fetch.sats_utxos(fundingRequired);
+
+    if (!utxos?.length) {
+      throw new Error('Insufficient funds for liquidation');
+    }
+
+    // ── Step 7: Create PSBTs ──
+    progress('Creating transaction...');
+
+    const psbt1 = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
+    const psbt2 = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1);
+
+    // ── Step 8: Build Request ──
+    progress('Signing transaction...');
+
+    const request = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
+
+    // ── Step 9: Submit to Guardian ──
+    progress('Submitting to network...');
+
+    guardian = await getGuardianClient(vaultPubkey);
+    const result = await (guardian as any).req.vault.repo(request);
+
+    progress('Liquidation complete!');
+    await disconnectGuardian();
+
+    const txid = result?.txid || result?.vault_txid;
+
+    return { success: true, txid, vaultTxid: txid };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Liquidation failed';
+    logger.warn('[Liquidation] Failed', { error: msg });
+
+    if (guardian) {
+      try { await disconnectGuardian(); } catch { /* */ }
+    }
+
+    return { success: false, error: msg };
+  }
 }

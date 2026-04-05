@@ -781,12 +781,23 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqProcessingMsg('Connecting to oracle...');
                   try {
                     const result = await executeLiquidation({
-                      selectedVaults: liqVaultsRef.current as any,
+                      liquidVaults: liqVaultsRef.current as any,
+                      walletInfo: {
+                        segwitAddress: _wallet?.segwitAddress || '',
+                        segwitPubkey: _wallet?.segwitPubkey || '',
+                        taprootAddress: _wallet?.taprootAddress || '',
+                        taprootPubkey: _wallet?.taprootPubkey || '',
+                      },
                       vaultPubkey: _wallet?.taprootPubkey || '',
                       btcInVault: vaultCollateral || 0,
                       unitDebt: vaultDebt || 0,
                       feeRate: 1,
-                      signPsbts: async (psbts) => psbts, // TODO: real signing
+                      vaultInfo: {
+                        creation_account: vaultData?.vaultInfo?.creation_account || '',
+                        guard_pubkey: vaultData?.vaultInfo?.guard_pubkey || '',
+                        master_id: vaultData?.vaultInfo?.master_id || '',
+                      },
+                      onProgress: setLiqProcessingMsg,
                     });
                     if (result.success) {
                       setLiqResultTxid(result.txid || null);
