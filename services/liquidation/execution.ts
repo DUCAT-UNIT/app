@@ -28,7 +28,7 @@ import type {
 } from '@ducat-unit/client-sdk';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
-import { getGuardianClient, disconnectGuardian } from '../guardianService';
+import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
 import {
   buildVaultProfile,
@@ -102,10 +102,21 @@ export async function executeLiquidation(
       ? unitDebt / btcInVault
       : 0;
     const oracleQuote: PriceQuote = await fetchPriceQuote(liquidationPrice);
+    const oraclePrice = oracleQuote.latest_price;
 
-    logger.debug('[Liquidation] Oracle quote', {
-      price: oracleQuote.latest_price,
-    });
+    // Price fluctuation check (>0.5% deviation = abort)
+    if (liquidationPrice > 0) {
+      const fluctuation = Math.abs(oraclePrice - liquidationPrice) / Math.min(oraclePrice, liquidationPrice);
+      if (fluctuation > 0.005) {
+        logger.warn('[Liquidation] Price fluctuation exceeds 0.5%', {
+          estimated: liquidationPrice,
+          oracle: oraclePrice,
+          fluctuation: `${(fluctuation * 100).toFixed(2)}%`,
+        });
+      }
+    }
+
+    logger.debug('[Liquidation] Oracle quote', { price: oraclePrice });
 
     // ── Step 2: Create VaultWallet ──
     progress('Creating wallet context...');
@@ -182,18 +193,32 @@ export async function executeLiquidation(
     // ── Step 8: Build Request ──
     progress('Signing transaction...');
 
-    const request = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
+    const rawRequest = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
+
+    // Add wallet metadata required by Guardian
+    const request = {
+      ...rawRequest,
+      contract_id: wallet.contract_id,
+      network: wallet.network,
+    };
 
     // ── Step 9: Submit to Guardian ──
     progress('Submitting to network...');
 
     guardian = await getGuardianClient(vaultPubkey);
-    const result = await (guardian as any).req.vault.repo(request);
+    const guardSub = await guardian.req.vault.repo(request);
+
+    // Wait for Guardian response with timeout
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const guardRes = await withGuardianTimeout(
+      guardSub.resolve(60000),
+      60000 + 10000
+    ) as { vault_txid: string };
 
     progress('Liquidation complete!');
     await disconnectGuardian();
 
-    const txid = result?.txid || result?.vault_txid;
+    const txid = guardRes.vault_txid;
 
     return { success: true, txid, vaultTxid: txid };
   } catch (error: unknown) {

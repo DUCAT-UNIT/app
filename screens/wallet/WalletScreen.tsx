@@ -3,14 +3,15 @@ import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableO
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import { fetchLiquidatableVaults, formatValidatorResponse } from '../../services/liquidation/fetchVaults';
-import { computeLiqMeta, getHealthValue } from '../../services/liquidation/calculations';
+import { computeLiqMeta } from '../../services/liquidation/calculations';
 import { executeLiquidation } from '../../services/liquidation/execution';
-import { COIN_SIZE } from '../../services/liquidation/constants';
 import { fetchProtocolContract } from '../../services/vaultWallet';
 import { VaultAPI } from '@ducat-unit/client-sdk';
-import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
+import type { LiquidVaultProfile } from '@ducat-unit/client-sdk';
+import { colors,fonts,fontSizes } from '../../styles/theme';
 import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import TotalBalanceSection,{ TotalBalanceSectionStyles } from '../../components/wallet/TotalBalanceSection';
 import VaultCard,{ VaultCardStyles } from '../../components/wallet/VaultCard';
 import WalletActions from '../../components/wallet/WalletActions';
@@ -27,6 +28,7 @@ import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
 import { usePrice } from '../../stores/priceStore';
 import { COLORS } from '../../theme';
+import { logger } from '../../utils/logger';
 import { formatBalance,formatFiat } from '../../utils/formatters';
 import { getRunesAmount } from '../../utils/runesHelper';
 
@@ -153,9 +155,13 @@ const WalletScreen = React.memo(function WalletScreen({
   const [liqError, setLiqError] = useState<string | null>(null);
 
   // Liquidation: use refs to avoid render loops in React.memo
-  const liqVaultsRef = useRef<Array<{ vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number }>>([]);
+  interface LiqVaultDisplay { vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number }
+  const liqVaultsRef = useRef<LiqVaultDisplay[]>([]);
+  const liqVaultsFullRef = useRef<LiquidVaultProfile[]>([]);
   const [liqVaultsLoaded, setLiqVaultsLoaded] = useState(false);
-  const liqProfitRateRef = useRef(0.15); // Updated from SDK
+  const liqProfitRateRef = useRef(0.15);
+  const liqDepositRateRef = useRef(0.32);
+  const liqSwapRateRef = useRef(0.68);
   const maxInvestable = vaultCollateral || (liqVaultsRef.current.length > 0 ? liqVaultsRef.current.reduce((acc, v) => acc + v.claimAmountBtc, 0) : 0.06);
   const expandAnim = useRef(new Animated.Value(0)).current;
   const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
@@ -185,43 +191,63 @@ const WalletScreen = React.memo(function WalletScreen({
             const currentPrice = btcPrice || 67000;
             const extended = formatValidatorResponse(raw);
 
-            const mapped = extended.map(v => {
+            const fullProfiles: LiquidVaultProfile[] = [];
+            const displayProfiles: LiqVaultDisplay[] = [];
+
+            for (const v of extended) {
               try {
+                // Cast extended profile to SDK VaultProfile shape
+                const sdkVault = v as unknown as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1];
                 const profile = VaultAPI.repo.liquidation.get_profile(
-                  contract, v as any, v.thold_key, currentPrice
+                  contract, sdkVault, v.thold_key, currentPrice
                 );
                 const meta = computeLiqMeta(profile);
-                return {
-                  vaultId: v.vaultId,
-                  unit: v.unit,
-                  btcInVault: v.btcInVault,
-                  claimAmountBtc: meta.claimAmountBtc,
-                  profitBtc: meta.profitBtc,
-                  profitPercent: meta.profitPercent,
-                  postTaxBtcInVault: meta.postTaxBtcInVault,
-                  unitSwapBtc: v.unit / currentPrice,
-                };
-              } catch {
-                // Fallback if SDK fails for this vault
-                const deficit = Math.max(0, (1.6 * v.unit / currentPrice) - v.btcInVault);
-                return {
-                  vaultId: v.vaultId, unit: v.unit, btcInVault: v.btcInVault,
-                  claimAmountBtc: deficit || v.btcInVault * 0.1,
-                  profitBtc: deficit * 0.15, profitPercent: 15,
-                  postTaxBtcInVault: v.btcInVault * 0.95,
-                  unitSwapBtc: v.unit / currentPrice,
-                };
-              }
-            }).filter(v => v.profitBtc > 0 && v.claimAmountBtc > 0)
-              .sort((a, b) => b.profitPercent - a.profitPercent);
 
-            if (mapped.length > 0) {
-              liqProfitRateRef.current = mapped[0].profitPercent / 100;
+                if (meta.profitBtc > 0 && meta.claimAmountBtc > 0) {
+                  fullProfiles.push(profile);
+                  displayProfiles.push({
+                    vaultId: v.vaultId,
+                    unit: v.unit,
+                    btcInVault: v.btcInVault,
+                    claimAmountBtc: meta.claimAmountBtc,
+                    profitBtc: meta.profitBtc,
+                    profitPercent: meta.profitPercent,
+                    postTaxBtcInVault: meta.postTaxBtcInVault,
+                    unitSwapBtc: v.unit / currentPrice,
+                  });
+                }
+              } catch (sdkErr: unknown) {
+                logger.debug('[Liquidation] SDK profile failed for vault', {
+                  vaultId: v.vaultId,
+                  error: sdkErr instanceof Error ? sdkErr.message : String(sdkErr),
+                });
+              }
             }
-            liqVaultsRef.current = mapped;
+
+            // Sort by profit descending
+            const indices = displayProfiles.map((_, i) => i);
+            indices.sort((a, b) => displayProfiles[b].profitPercent - displayProfiles[a].profitPercent);
+            const sortedDisplay = indices.map(i => displayProfiles[i]);
+            const sortedFull = indices.map(i => fullProfiles[i]);
+
+            // Compute real ratios from first vault
+            if (sortedDisplay.length > 0) {
+              const first = sortedDisplay[0];
+              liqProfitRateRef.current = first.profitPercent / 100;
+              const totalRequired = first.claimAmountBtc + first.unitSwapBtc;
+              if (totalRequired > 0) {
+                liqDepositRateRef.current = first.claimAmountBtc / totalRequired;
+                liqSwapRateRef.current = first.unitSwapBtc / totalRequired;
+              }
+            }
+
+            liqVaultsRef.current = sortedDisplay;
+            liqVaultsFullRef.current = sortedFull;
             setLiqVaultsLoaded(true);
-          } catch {
-            // Fallback: just show basic data
+          } catch (fetchErr: unknown) {
+            logger.warn('[Liquidation] Fetch failed', {
+              error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
+            });
             setLiqVaultsLoaded(true);
           }
         })();
@@ -447,6 +473,11 @@ const WalletScreen = React.memo(function WalletScreen({
             },
           ]}
         >
+          <ErrorBoundary
+            boundaryName="Liquidations"
+            fallbackMessage="Unable to load liquidations. Please try again."
+            onReset={() => { setShowLiquidations(false); }}
+          >
           <View style={localStyles.liquidationsHeader}>
             <Text style={localStyles.liquidationsTitle}>Liquidations</Text>
             <TouchableOpacity
@@ -516,20 +547,16 @@ const WalletScreen = React.memo(function WalletScreen({
           ) : liqStep === 'review' ? (() => {
           // Compute review values from investment amount
           const price = btcPrice ?? 0;
-          const profitRate = liqProfitRateRef.current; // From SDK liquid_quote.profit_margin
-          const depositRate = 0.32;
-          const swapRate = 0.68;
+          const profitRate = liqProfitRateRef.current;
+          const depositRate = liqDepositRateRef.current;
+          const swapRate = liqSwapRateRef.current;
           const liqProfitBtc = liqInvestAmount * profitRate;
           const liqDepositBtc = liqInvestAmount * depositRate;
           const liqSwapBtc = liqInvestAmount * swapRate;
-          const liqTotalBtc = liqInvestAmount;
           const liqReturnBtc = liqInvestAmount + liqProfitBtc;
-          const liqCollateralBtc = liqInvestAmount * 0.76;
+          const liqCollateralBtc = liqDepositBtc + liqProfitBtc; // deposit + profit = collateral received
           const liqSwapUnit = liqSwapBtc * price;
-          const liqProfitPct = Math.round(profitRate * 100);
           const fmt = (v: number, d = 8) => v.toFixed(d);
-          const fmtUsd = (v: number) => `$${(v * price).toFixed(2)}`;
-          const fmtBtcOrUsd = (v: number) => liquidationsShowBTC ? `${fmt(v)} BTC` : fmtUsd(v);
 
           return (<>
           {/* Tab Bar */}
@@ -613,7 +640,7 @@ const WalletScreen = React.memo(function WalletScreen({
                 <View style={localStyles.liqReviewGetBox}>
                   <Text style={localStyles.liqReviewGetBoxValue}>{fmt(liqReturnBtc, 6)} BTC</Text>
                   <Text style={localStyles.liqReviewGetBoxSub}>{fmt(liqCollateralBtc, 6)} collateral</Text>
-                  <Text style={localStyles.liqReviewGetBoxSub}>{(liqInvestAmount * 0.32).toFixed(6)} deposit</Text>
+                  <Text style={localStyles.liqReviewGetBoxSub}>{fmt(liqDepositBtc, 6)} deposit</Text>
                 </View>
                 <Text style={localStyles.liqReviewGetPlus}>+</Text>
                 <View style={[localStyles.liqReviewGetBox, { borderColor: colors.brand.primary }]}>
@@ -739,9 +766,14 @@ const WalletScreen = React.memo(function WalletScreen({
                     <Text style={localStyles.liqVaultColHeader}>Collateral</Text>
                     <Text style={localStyles.liqVaultColHeader}>Claim</Text>
                   </View>
-                  {(liqVaultsRef.current.length > 0 ? liqVaultsRef.current : [
-                    { unit: 3689.90, btcInVault: 0.06182657, claimAmountBtc: 0.01744, vaultId: 'mock-1', postTaxBtcInVault: 0.058, unitSwapBtc: 0.045, profitBtc: 0.004, profitPercent: 15, profitPercentPrecised: 15 },
-                  ]).map((vault, i, arr) => (
+                  {liqVaultsRef.current.length === 0 ? (
+                    <View style={{ padding: 16, alignItems: 'center' }}>
+                      <Text style={{ color: colors.text.secondary, fontSize: fontSizes.sm }}>
+                        {liqVaultsLoaded ? 'No liquidatable vaults available' : 'Loading vaults...'}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {liqVaultsRef.current.map((vault, i, arr) => (
                     <TouchableOpacity
                       key={vault.vaultId || `vault-${i}`}
                       style={[localStyles.liqVaultRow, i === arr.length - 1 && { borderBottomWidth: 0, paddingBottom: 16 }]}
@@ -778,10 +810,31 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqStep('review');
                 } else if (liqStep === 'review') {
                   setLiqStep('processing');
-                  setLiqProcessingMsg('Connecting to oracle...');
+                  setLiqProcessingMsg('Validating profit margins...');
                   try {
+                    // #12: Re-validate profit margins before execution
+                    const currentPrice = btcPrice || 0;
+                    if (currentPrice > 0 && liqVaultsRef.current.length > 0) {
+                      const displayVault = liqVaultsRef.current[0];
+                      const expectedProfit = displayVault.profitPercent;
+                      const liveProfit = displayVault.btcInVault > 0
+                        ? ((displayVault.postTaxBtcInVault - displayVault.unitSwapBtc) / displayVault.btcInVault) * 100
+                        : 0;
+                      const drift = Math.abs(expectedProfit - liveProfit);
+                      if (drift > 5) {
+                        logger.warn('[Liquidation] Profit margin drifted >5%', {
+                          expected: expectedProfit.toFixed(2),
+                          live: liveProfit.toFixed(2),
+                          drift: drift.toFixed(2),
+                        });
+                        setLiqError(`Profit margin has shifted significantly (${drift.toFixed(1)}%). Please re-check and try again.`);
+                        setLiqStep('error');
+                        return;
+                      }
+                    }
+                    setLiqProcessingMsg('Connecting to oracle...');
                     const result = await executeLiquidation({
-                      liquidVaults: liqVaultsRef.current as any,
+                      liquidVaults: liqVaultsFullRef.current,
                       walletInfo: {
                         segwitAddress: _wallet?.segwitAddress || '',
                         segwitPubkey: _wallet?.segwitPubkey || '',
@@ -827,6 +880,7 @@ const WalletScreen = React.memo(function WalletScreen({
               </Text>
             </TouchableOpacity>
           </View>
+          </ErrorBoundary>
         </Animated.View>
       )}
 
@@ -1123,42 +1177,6 @@ const localStyles = StyleSheet.create({
   liqTabTextActive: {
     color: colors.text.primary,
   },
-  liqHowFlowRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  liqHowFlowItem: {
-    backgroundColor: '#28272C',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    minWidth: 120,
-  },
-  liqHowFlowPlus: {
-    color: colors.text.secondary,
-    fontSize: 18,
-    marginHorizontal: 8,
-  },
-  liqHowFlowTitle: {
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.bold,
-    color: colors.text.primary,
-    marginTop: 4,
-  },
-  liqHowFlowSub: {
-    fontSize: 10,
-    fontFamily: fonts.regular,
-    color: '#D04C68',
-    marginTop: 2,
-  },
-  liqHowArrow: {
-    textAlign: 'center',
-    color: colors.text.secondary,
-    fontSize: 16,
-    marginVertical: 6,
-  },
   liqHowDesc: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
@@ -1348,36 +1366,6 @@ const localStyles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
     color: '#FFFFFF',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    padding: 0,
-    margin: 0,
-    gap: 12,
-  },
-  actionButton: {
-    alignItems: 'center',
-    minWidth: 62,
-  },
-  actionButtonIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: '#DDDDDD',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  buttonIcon: {
-    fontSize: 24,
-    color: COLORS.DARK_BG,
-    fontWeight: '200',
-  },
-  actionButtonLabel: {
-    fontSize: 13,
-    color: COLORS.WHITE,
-    fontWeight: '600',
   },
 });
 
