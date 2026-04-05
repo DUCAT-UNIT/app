@@ -32,6 +32,10 @@ import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../g
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
 import { createMobileWalletAPI } from '../vaultWallet/walletApi';
 import {
+  setPendingVaultSigningOperation,
+  clearPendingVaultSigningOperation,
+} from '../vaultWallet/signingContext';
+import {
   buildVaultProfile,
   computeVaultPrevoutFromTx,
 } from '../vault/utils';
@@ -200,10 +204,23 @@ export async function executeLiquidation(
     // ── Step 7b: Sign PSBTs ──
     progress('Signing transaction...');
 
-    const walletAPI = createMobileWalletAPI(walletInfo.segwitAddress);
-    const signUtxos = walletAPI.sign.utxos(wallet);
-    const psbt1 = await signUtxos(psbt1Raw);
-    const psbt2 = await signUtxos(psbt2Raw);
+    setPendingVaultSigningOperation({
+      action: 'repo',
+      liquidCtx,
+      vaultCtx,
+      satsUtxos: utxos,
+    });
+
+    let psbt1: string;
+    let psbt2: string;
+    try {
+      const walletAPI = createMobileWalletAPI(walletInfo.segwitAddress);
+      const signUtxos = walletAPI.sign.utxos(wallet);
+      psbt1 = await signUtxos(psbt1Raw);
+      psbt2 = await signUtxos(psbt2Raw);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
 
     // ── Step 8: Build Request ──
     progress('Building request...');
