@@ -30,6 +30,7 @@ import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
+import { createMobileWalletAPI } from '../vaultWallet/walletApi';
 import {
   buildVaultProfile,
   computeVaultPrevoutFromTx,
@@ -193,11 +194,19 @@ export async function executeLiquidation(
     // ── Step 7: Create PSBTs ──
     progress('Creating transaction...');
 
-    const psbt1 = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
-    const psbt2 = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1);
+    const psbt1Raw = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
+    const psbt2Raw = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1Raw);
+
+    // ── Step 7b: Sign PSBTs ──
+    progress('Signing transaction...');
+
+    const walletAPI = createMobileWalletAPI(walletInfo.segwitAddress);
+    const signUtxos = walletAPI.sign.utxos(wallet);
+    const psbt1 = await signUtxos(psbt1Raw);
+    const psbt2 = await signUtxos(psbt2Raw);
 
     // ── Step 8: Build Request ──
-    progress('Signing transaction...');
+    progress('Building request...');
 
     const rawRequest = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
 
