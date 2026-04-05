@@ -159,7 +159,7 @@ const WalletScreen = React.memo(function WalletScreen({
   interface LiqVaultDisplay { vaultId: string; unit: number; btcInVault: number; claimAmountBtc: number; profitBtc: number; profitPercent: number; postTaxBtcInVault: number; unitSwapBtc: number }
   const liqVaultsRef = useRef<LiqVaultDisplay[]>([]);
   const liqVaultsFullRef = useRef<LiquidVaultProfileWithMeta[]>([]);
-  const [liqVaultsLoaded, setLiqVaultsLoaded] = useState(false);
+  const [liqVaultsLoaded, setLiqVaultsLoaded] = useState(0);
   const liqProfitRateRef = useRef(0.15);
   const liqDepositRateRef = useRef(0.32);
   const liqSwapRateRef = useRef(0.68);
@@ -266,12 +266,12 @@ const WalletScreen = React.memo(function WalletScreen({
 
       liqVaultsRef.current = sortedDisplay;
       liqVaultsFullRef.current = sortedFull;
-      setLiqVaultsLoaded(true);
+      setLiqVaultsLoaded(prev => prev + 1);
     } catch (fetchErr: unknown) {
       logger.warn('[Liquidation] Fetch failed', {
         error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
       });
-      setLiqVaultsLoaded(true);
+      setLiqVaultsLoaded(prev => prev + 1);
     } finally {
       liqFetchInFlightRef.current = false;
     }
