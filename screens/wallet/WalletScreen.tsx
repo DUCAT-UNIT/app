@@ -915,29 +915,8 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqStep('review');
                 } else if (liqStep === 'review') {
                   setLiqStep('processing');
-                  setLiqProcessingMsg('Validating profit margins...');
+                  setLiqProcessingMsg('Connecting to oracle...');
                   try {
-                    // #12: Re-validate profit margins before execution
-                    const currentPrice = btcPrice || 0;
-                    if (currentPrice > 0 && liqVaultsRef.current.length > 0) {
-                      const displayVault = liqVaultsRef.current[0];
-                      const expectedProfit = displayVault.profitPercent;
-                      const liveProfit = displayVault.btcInVault > 0
-                        ? ((displayVault.postTaxBtcInVault - displayVault.unitSwapBtc) / displayVault.btcInVault) * 100
-                        : 0;
-                      const drift = Math.abs(expectedProfit - liveProfit);
-                      if (drift > 5) {
-                        logger.warn('[Liquidation] Profit margin drifted >5%', {
-                          expected: expectedProfit.toFixed(2),
-                          live: liveProfit.toFixed(2),
-                          drift: drift.toFixed(2),
-                        });
-                        setLiqError(`Profit margin has shifted significantly (${drift.toFixed(1)}%). Please re-check and try again.`);
-                        setLiqStep('error');
-                        return;
-                      }
-                    }
-                    setLiqProcessingMsg('Connecting to oracle...');
                     const result = await executeLiquidation({
                       liquidVaults: liqVaultsFullRef.current,
                       walletInfo: {
