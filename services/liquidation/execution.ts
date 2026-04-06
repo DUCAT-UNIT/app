@@ -229,8 +229,17 @@ export async function executeLiquidation(
 
     return { success: true, txid, vaultTxid: txid };
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Liquidation failed';
-    logger.warn('[Liquidation] Failed', { error: msg });
+    let msg: string;
+    if (error instanceof Error) {
+      msg = error.message;
+    } else if (typeof error === 'string') {
+      msg = error;
+    } else if (error && typeof error === 'object') {
+      msg = JSON.stringify(error);
+    } else {
+      msg = String(error);
+    }
+    logger.warn('[Liquidation] Failed', { error: msg, type: typeof error, raw: String(error) });
 
     if (guardian) {
       try { await disconnectGuardian(); } catch { /* */ }
