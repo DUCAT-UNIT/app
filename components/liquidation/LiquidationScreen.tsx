@@ -220,26 +220,30 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
         onClose();
       }}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Liquidations</Text>
-        <CurrencyToggle showBTC={showBTC} onToggle={handleToggleBTC} />
-      </View>
+      {/* Header — hidden during processing/success/error (status screen has its own title) */}
+      {!isProcessingOrResult && (
+        <View style={styles.header}>
+          <Text style={styles.title}>Liquidations</Text>
+          <CurrencyToggle showBTC={showBTC} onToggle={handleToggleBTC} />
+        </View>
+      )}
 
       {/* Body */}
       {renderBody()}
 
-      {/* Bottom Button — fixed */}
-      <View style={styles.continueWrap}>
-        <TouchableOpacity
-          style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}
-          onPress={handleButtonPress}
-          testID="liquidation-continue-btn"
-          disabled={buttonDisabled}
-        >
-          <Text style={styles.continueBtnText}>{buttonLabel}</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Button — hidden during processing */}
+      {currentStep !== 'processing' && (
+        <View style={styles.continueWrap}>
+          <TouchableOpacity
+            style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}
+            onPress={handleButtonPress}
+            testID="liquidation-continue-btn"
+            disabled={buttonDisabled}
+          >
+            <Text style={styles.continueBtnText}>{buttonLabel}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ErrorBoundary>
   );
 });
