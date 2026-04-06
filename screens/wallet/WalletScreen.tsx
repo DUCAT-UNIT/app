@@ -932,6 +932,9 @@ const WalletScreen = React.memo(function WalletScreen({
                       remainingInvest -= vault.claimAmountBtc;
                     }
 
+                    // Compute deficit (claim) amount from selected vaults
+                    const deficitBtc = selectedVaults.reduce((acc, v) => acc + v.claimAmountBtc, 0);
+
                     const result = await executeLiquidation({
                       liquidVaults: selectedVaults,
                       walletInfo: {
@@ -944,6 +947,7 @@ const WalletScreen = React.memo(function WalletScreen({
                       btcInVault: vaultCollateral || 0,
                       unitDebt: vaultDebt || 0,
                       feeRate: 1,
+                      deficitAmountBtc: deficitBtc,
                       vaultInfo: {
                         creation_account: vaultData?.vaultInfo?.creation_account || '',
                         guard_pubkey: vaultData?.vaultInfo?.guard_pubkey || '',
