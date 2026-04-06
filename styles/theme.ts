@@ -35,6 +35,8 @@ export const colors = {
     tertiary: '#28272C',
     white: '#FFFFFF',
     transparent: 'transparent',
+    successTint: '#1a3a2a',
+    errorTint: '#3a1a1a',
   },
 
   // Text
