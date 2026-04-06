@@ -53,12 +53,23 @@ export function useLiquidationExecution({
   const execute = useCallback(async () => {
     const { investAmount, vaultsFull } = store.getState();
 
+    logger.info('[Liquidation] Execute called', {
+      investAmount,
+      vaultsFullCount: vaultsFull.length,
+      firstVaultClaim: vaultsFull[0]?.claimAmountBtc,
+    });
+
     store.getState().setCurrentStep('processing');
     store.getState().setProcessingMessage('Connecting to oracle...');
 
     try {
       // Select vaults (uses selectItemsForAmount — no duplicate greedy loop)
       const claimed = selectItemsForAmount(vaultsFull, investAmount);
+      logger.info('[Liquidation] Vault selection', {
+        claimedCount: claimed.length,
+        hasPartial: claimed.some(v => !!v.claimAmountPartial),
+        totalClaim: claimed.reduce((a, v) => a + (v.claimAmountPartial || v.claimAmountBtc), 0),
+      });
       if (claimed.length === 0) {
         store.getState().setError('Investment amount too small to claim any vault.');
         store.getState().setCurrentStep('error');
@@ -143,9 +154,7 @@ export function useLiquidationExecution({
   }, [wallet, vaultCollateral, vaultDebt, btcPrice, vaultData]);
 
   const resetAfterSuccess = useCallback(() => {
-    store.getState().setError(null);
-    store.getState().setResultTxid(null);
-    store.getState().setInvestAmount(0);
+    store.getState().reset();
   }, []);
 
   const resetAfterError = useCallback(() => {
