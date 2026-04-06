@@ -152,3 +152,9 @@ export interface SelectionStats {
   totalClaimedBtc: number;
   totalClaimedUnit: number;
 }
+
+/** Display-oriented projection of LiquidationVaultComputedData for UI rendering */
+export type LiqVaultDisplay = Pick<
+  LiquidationVaultComputedData,
+  'vaultId' | 'unit' | 'btcInVault' | 'claimAmountBtc' | 'profitBtc' | 'profitPercent' | 'postTaxBtcInVault' | 'unitSwapBtc'
+>;
