@@ -40,24 +40,27 @@ interface VaultAmountDisplayProps {
 }
 
 function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDisplayProps) {
-  const isPositiveAction = action === 'Deposit' || action === 'Repay' || action === 'Open';
-  const color = isPositiveAction ? COLORS.GREEN : COLORS.RED;
+  // Per-action, per-asset color rules:
+  // BTC green: Deposit, Repossess   |  BTC red: Withdraw
+  // UNIT green: Repay               |  UNIT red: Open, Borrow, Repossess
+  const btcColor = (action === 'Withdraw') ? COLORS.RED : COLORS.GREEN;
+  const unitColor = (action === 'Repay') ? COLORS.GREEN : COLORS.RED;
 
-  const hasBoth = vaultData.btcAmount > 0 && vaultData.unitAmount > 0;
+  const hasBtc = vaultData.btcAmount > 0;
+  const hasUnit = vaultData.unitAmount > 0;
 
-  // Show both amounts for Repossess (BTC collateral gained = green, UNIT debt taken = red)
-  if (hasBoth) {
+  if (hasBtc && hasUnit) {
     return (
       <View style={{ alignItems: 'flex-end', gap: s(2) }}>
         <View style={styles.balanceWithIcon}>
-          <Icon name="unit_symbol" size={s(12)} color={COLORS.RED} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: COLORS.RED, fontSize: sf(14) }]}>
+          <Icon name="unit_symbol" size={s(12)} color={unitColor} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}>
             {formatUnitAmount(vaultData.unitAmount)}
           </Text>
         </View>
         <View style={styles.balanceWithIcon}>
-          <Icon name="btc_symbol" size={s(12)} color={COLORS.GREEN} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: COLORS.GREEN, fontSize: sf(14) }]}>
+          <Icon name="btc_symbol" size={s(12)} color={btcColor} style={styles.assetAmountIcon} />
+          <Text style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}>
             {formatBalance(vaultData.btcAmount / 100000000)}
           </Text>
         </View>
@@ -65,22 +68,22 @@ function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDis
     );
   }
 
-  if (vaultData.btcAmount > 0) {
+  if (hasBtc) {
     return (
       <View style={styles.balanceWithIcon}>
-        <Icon name="btc_symbol" size={s(12)} color={color} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color, fontSize: sf(14) }]}>
+        <Icon name="btc_symbol" size={s(12)} color={btcColor} style={styles.assetAmountIcon} />
+        <Text style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}>
           {formatBalance(vaultData.btcAmount / 100000000)}
         </Text>
       </View>
     );
   }
 
-  if (vaultData.unitAmount > 0) {
+  if (hasUnit) {
     return (
       <View style={styles.balanceWithIcon}>
-        <Icon name="unit_symbol" size={s(12)} color={color} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color, fontSize: sf(14) }]}>
+        <Icon name="unit_symbol" size={s(12)} color={unitColor} style={styles.assetAmountIcon} />
+        <Text style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}>
           {formatUnitAmount(vaultData.unitAmount)}
         </Text>
       </View>
