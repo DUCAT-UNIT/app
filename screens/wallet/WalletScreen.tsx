@@ -957,17 +957,28 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqStep('processing');
                   setLiqProcessingMsg('Connecting to oracle...');
                   try {
-                    // Select only the vaults covered by the invest amount
+                    // Select only vaults fully covered by the invest amount
                     const selectedVaults: LiquidVaultProfileWithMeta[] = [];
                     let remainingInvest = liqInvestAmount;
+                    let deficitBtc = 0;
                     for (const vault of liqVaultsFullRef.current) {
                       if (remainingInvest <= 0) break;
-                      selectedVaults.push(vault);
-                      remainingInvest -= vault.claimAmountBtc;
+                      // Only include vault if invest amount covers its full claim
+                      if (vault.claimAmountBtc <= remainingInvest) {
+                        selectedVaults.push(vault);
+                        remainingInvest -= vault.claimAmountBtc;
+                        deficitBtc += vault.claimAmountBtc;
+                      } else {
+                        // Partial claim — skip for now, don't over-claim
+                        break;
+                      }
                     }
 
-                    // Compute deficit (claim) amount from selected vaults
-                    const deficitBtc = selectedVaults.reduce((acc, v) => acc + v.claimAmountBtc, 0);
+                    if (selectedVaults.length === 0) {
+                      setLiqError('Investment amount too small to claim any vault fully.');
+                      setLiqStep('error');
+                      return;
+                    }
 
                     const result = await executeLiquidation({
                       liquidVaults: selectedVaults,
