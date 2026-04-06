@@ -52,18 +52,22 @@ export const getActionColor = (action: string): string => {
 
 /**
  * Determine UNIT amount color based on action
+ * Green: Repay (debt reduced)
+ * Red: Open, Borrow, Repossess (debt added)
  */
 export const getUnitColor = (actionLower: string): string => {
-  if (actionLower === 'borrow' || actionLower === 'open') return COLORS.GREEN;
+  if (actionLower === 'repay') return COLORS.GREEN;
   return COLORS.RED;
 };
 
 /**
  * Determine BTC amount color based on action
+ * Green: Deposit, Repossess (collateral added)
+ * Red: Withdraw (collateral removed)
  */
 export const getBtcColor = (actionLower: string): string => {
-  if (actionLower === 'deposit') return COLORS.GREEN;
-  return COLORS.RED;
+  if (actionLower === 'withdraw') return COLORS.RED;
+  return COLORS.GREEN;
 };
 
 /**
