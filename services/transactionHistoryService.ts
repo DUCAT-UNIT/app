@@ -447,6 +447,22 @@ export const fetchAllTransactionHistory = async (
     }
   }
 
+  // Filter out blockchain "Sent" TXs that are funding inputs for Repossess operations.
+  // These share the same block_time as the vault Repossess TX.
+  const repoTimestamps = new Set<number>();
+  for (const tx of txMap.values()) {
+    if (tx.vaultTransaction && tx.vaultData?.action === 'Repossess' && tx.status.block_time) {
+      repoTimestamps.add(tx.status.block_time);
+    }
+  }
+  if (repoTimestamps.size > 0) {
+    for (const [txid, tx] of txMap) {
+      if (!tx.vaultTransaction && tx.status.block_time && repoTimestamps.has(tx.status.block_time)) {
+        txMap.delete(txid);
+      }
+    }
+  }
+
   // Convert back to array and sort by timestamp (most recent first)
   const allTxs = Array.from(txMap.values()).sort(
     (a, b) => b.status.block_time - a.status.block_time
