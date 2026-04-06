@@ -765,7 +765,40 @@ const WalletScreen = React.memo(function WalletScreen({
           </ScrollView>
           )}
           </>);
-          })() : (
+          })() : (liqVaultsLoaded > 0 && liqVaultsRef.current.length === 0) ? (
+          /* Empty state: No vaults to liquidate */
+          <View style={localStyles.liqStatusScreen}>
+            <View style={[localStyles.liqStatusIcon, { backgroundColor: '#1D1C21' }]}>
+              <Icon name="liquidations" size={s(48)} color={colors.text.secondary} />
+            </View>
+            <Text style={localStyles.liqStatusTitle}>No Current Liquidations</Text>
+            <Text style={localStyles.liqStatusSub}>
+              There are no vaults in the liquidation pool at this time. All vaults are maintaining healthy collateral ratios.
+            </Text>
+          </View>
+          ) : (liqVaultsLoaded > 0 && maxInvestable <= 0) ? (
+          /* Empty state: Collateral too low */
+          <View style={localStyles.liqStatusScreen}>
+            <View style={[localStyles.liqStatusIcon, { backgroundColor: '#2A1A1A' }]}>
+              <Icon name="vault" size={s(48)} color="#D04C68" />
+            </View>
+            <Text style={localStyles.liqStatusTitle}>Vault Collateral Too Low</Text>
+            <Text style={localStyles.liqStatusSub}>
+              Your vault doesn't have enough available collateral to absorb liquidated debt. Deposit more BTC or repay some debt to free up capacity.
+            </Text>
+          </View>
+          ) : !liqVaultsLoaded ? (
+          /* Loading state */
+          <View style={localStyles.liqStatusScreen}>
+            <View style={[localStyles.liqStatusIcon, { backgroundColor: '#1D1C21' }]}>
+              <Icon name="liquidations" size={s(48)} color={colors.text.secondary} />
+            </View>
+            <Text style={localStyles.liqStatusTitle}>Loading Vaults...</Text>
+            <Text style={localStyles.liqStatusSub}>
+              Fetching liquidatable vaults from the network.
+            </Text>
+          </View>
+          ) : (
           <ScrollView style={localStyles.liquidationsBody} contentContainerStyle={{ paddingBottom: s(80) }} showsVerticalScrollIndicator={false}>
             {/* Investment Amount - uses existing AmountSlider component */}
             <AmountSlider
