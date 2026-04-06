@@ -30,7 +30,9 @@ export const formatAction = (action: string): string => {
     'repay': 'Repay',
     'deposit': 'Deposit',
     'withdraw': 'Withdraw',
-    'liquidate': 'Liquidation',
+    'liquidate': 'Repossess',
+    'repo': 'Repossess',
+    'repossess': 'Repossess',
   };
   return actionMap[action.toLowerCase()] || action;
 };
@@ -45,25 +47,31 @@ export const getActionColor = (action: string): string => {
     'repay': COLORS.PRIMARY_BLUE,
     'deposit': COLORS.SUCCESS_GREEN,
     'withdraw': COLORS.RED,
-    'liquidate': COLORS.RED,
+    'liquidate': COLORS.PRIMARY_BLUE,
+    'repo': COLORS.PRIMARY_BLUE,
+    'repossess': COLORS.PRIMARY_BLUE,
   };
   return colorMap[action.toLowerCase()] || COLORS.WHITE;
 };
 
 /**
  * Determine UNIT amount color based on action
+ * Green: Repay (debt reduced)
+ * Red: Open, Borrow, Repossess (debt added)
  */
 export const getUnitColor = (actionLower: string): string => {
-  if (actionLower === 'borrow' || actionLower === 'open') return COLORS.GREEN;
+  if (actionLower === 'repay') return COLORS.GREEN;
   return COLORS.RED;
 };
 
 /**
  * Determine BTC amount color based on action
+ * Green: Deposit, Repossess (collateral added)
+ * Red: Withdraw (collateral removed)
  */
 export const getBtcColor = (actionLower: string): string => {
-  if (actionLower === 'deposit') return COLORS.GREEN;
-  return COLORS.RED;
+  if (actionLower === 'withdraw') return COLORS.RED;
+  return COLORS.GREEN;
 };
 
 /**

@@ -10,6 +10,9 @@ import {
   type VaultRepayCtx,
   type VaultWithdrawCtx,
 } from '@ducat-unit/client-sdk';
+// Repo context types are inferred from VaultAPI.repo return types
+type VaultRepoLiquidCtx = ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>;
+type VaultRepoCtx = ReturnType<typeof VaultAPI.repo.create_ctx>;
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 
 export interface ExpectedPsbtInputTemplate {
@@ -57,6 +60,12 @@ type PendingVaultSigningOperation =
   | {
       action: 'withdraw';
       ctx: VaultWithdrawCtx;
+    }
+  | {
+      action: 'repo';
+      liquidCtx: VaultRepoLiquidCtx;
+      vaultCtx: VaultRepoCtx;
+      satsUtxos: BaseUtxo[];
     };
 
 let pendingVaultSigningOperation: PendingVaultSigningOperation | null = null;
@@ -138,6 +147,11 @@ export function getExpectedVaultPsbtTemplates(): ExpectedPsbtTemplate[] {
     case 'withdraw': {
       const psbt = VaultAPI.withdraw.create_psbt(operation.ctx);
       return [toExpectedPsbtTemplate(psbt)];
+    }
+    case 'repo': {
+      const psbt1 = VaultAPI.repo.create_psbt1(operation.liquidCtx, operation.vaultCtx, operation.satsUtxos);
+      const psbt2 = VaultAPI.repo.create_psbt2(operation.liquidCtx, operation.vaultCtx, psbt1);
+      return [toExpectedPsbtTemplate(psbt1), toExpectedPsbtTemplate(psbt2)];
     }
   }
 }

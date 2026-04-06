@@ -3,6 +3,7 @@
  * Handles fetching and processing transaction history from blockchain APIs
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodeRunestone } from '../utils/runestoneEncoder';
 import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
@@ -60,6 +61,40 @@ export interface BTCTransactionAmount {
 }
 
 export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
+
+// Registry of known liquidation (repo) txids — persisted via AsyncStorage
+// so they survive app restarts until vault API indexes them
+const LIQUIDATION_TXIDS_KEY = '@ducat/liquidation_txids';
+let knownLiquidationTxids = new Set<string>();
+let liqTxidsLoaded = false;
+
+async function loadLiquidationTxids(): Promise<Set<string>> {
+  if (liqTxidsLoaded) return knownLiquidationTxids;
+  try {
+    const stored = await AsyncStorage.getItem(LIQUIDATION_TXIDS_KEY);
+    if (stored) {
+      const arr = JSON.parse(stored) as string[];
+      knownLiquidationTxids = new Set(arr);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  liqTxidsLoaded = true;
+  return knownLiquidationTxids;
+}
+
+export async function registerLiquidationTxid(txid: string): Promise<void> {
+  await loadLiquidationTxids();
+  knownLiquidationTxids.add(txid);
+  try {
+    await AsyncStorage.setItem(
+      LIQUIDATION_TXIDS_KEY,
+      JSON.stringify([...knownLiquidationTxids])
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export interface VaultTransaction {
   transaction_id?: string;
@@ -337,6 +372,7 @@ export const fetchAllTransactionHistory = async (
     segwit: segwitTxs.length,
     taproot: taprootTxs.length,
     vault: vaultHistory.length,
+    vaultActions: vaultHistory.map((vt: VaultTransaction) => `${vt.action}:${vt.transaction_id?.substring(0, 8)}`),
   });
 
   // First, collect all vault transaction IDs
@@ -368,6 +404,7 @@ export const fetchAllTransactionHistory = async (
         withdraw: 'Withdraw',
         liquidate: 'Repossess',
         repossess: 'Repossess',
+        repo: 'Repossess',
       };
       return actionMap[action.toLowerCase()] || action;
     };
@@ -392,6 +429,39 @@ export const fetchAllTransactionHistory = async (
 
     txMap.set(syntheticTx.txid, syntheticTx);
   });
+
+  // Tag known liquidation txids as vault transactions if not already
+  const liqTxids = await loadLiquidationTxids();
+  for (const txid of liqTxids) {
+    const existing = txMap.get(txid);
+    if (existing && !existing.vaultTransaction) {
+      txMap.set(txid, {
+        ...existing,
+        vaultTransaction: true,
+        vaultData: {
+          action: 'Repossess',
+          btcAmount: 0,
+          unitAmount: 0,
+        },
+      });
+    }
+  }
+
+  // Filter out blockchain "Sent" TXs that are funding inputs for Repossess operations.
+  // These share the same block_time as the vault Repossess TX.
+  const repoTimestamps = new Set<number>();
+  for (const tx of txMap.values()) {
+    if (tx.vaultTransaction && tx.vaultData?.action === 'Repossess' && tx.status.block_time) {
+      repoTimestamps.add(tx.status.block_time);
+    }
+  }
+  if (repoTimestamps.size > 0) {
+    for (const [txid, tx] of txMap) {
+      if (!tx.vaultTransaction && tx.status.block_time && repoTimestamps.has(tx.status.block_time)) {
+        txMap.delete(txid);
+      }
+    }
+  }
 
   // Convert back to array and sort by timestamp (most recent first)
   const allTxs = Array.from(txMap.values()).sort(
