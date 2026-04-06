@@ -157,7 +157,7 @@ export type HealthStatus = 'healthy' | 'warning' | 'danger';
 
 export function getHealthStatus(healthFactor: number): HealthStatus {
   if (healthFactor >= 200) return 'healthy';
-  if (healthFactor >= 160) return 'warning';
+  if (healthFactor > 160) return 'warning';
   return 'danger';
 }
 
@@ -169,7 +169,7 @@ export function getHealthColor(status: HealthStatus): string {
     case 'healthy':
       return '#59AA8A'; // Green (semantic.success)
     case 'warning':
-      return '#F5A623'; // Yellow/Orange (semantic.warning)
+      return '#F5E4A2'; // Soft yellow (COLORS.YELLOW / semantic.highlight)
     case 'danger':
       return '#D04C68'; // Red (semantic.error)
   }
