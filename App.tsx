@@ -132,11 +132,15 @@ export default function App() {
   // Remote config initialization (has its own 3s timeout built in)
   const [configReady, setConfigReady] = useState(false);
   useEffect(() => {
+    const markReady = () => setConfigReady(true);
+    // Safety timeout — never block app load for more than 5s
+    const safetyTimer = setTimeout(markReady, 5000);
     useRemoteConfigStore
       .getState()
       .initialize()
-      .then(() => setConfigReady(true))
-      .catch(() => setConfigReady(true)); // proceed even on failure
+      .then(markReady)
+      .catch(markReady)
+      .finally(() => clearTimeout(safetyTimer));
   }, []);
 
   if ((!fontsLoaded && !fontTimedOut) || !configReady) {
