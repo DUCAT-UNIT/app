@@ -453,6 +453,7 @@ const WalletScreen = React.memo(function WalletScreen({
             onVaultPress={onVaultPress}
             onCreateVault={handleCreateVault}
             creatingVault={creatingVault}
+            isPendingVaultTx={isPendingVaultTx}
             styles={vaultCardStyles}
           />
         </View>
@@ -961,7 +962,20 @@ const WalletScreen = React.memo(function WalletScreen({
                     setLiqError(err instanceof Error ? err.message : 'Liquidation failed');
                     setLiqStep('error');
                   }
-                } else if (liqStep === 'success' || liqStep === 'error') {
+                } else if (liqStep === 'success') {
+                  // Close liquidation screen and return to wallet
+                  setLiqError(null);
+                  setLiqResultTxid(null);
+                  setLiqInvestAmount(0);
+                  Animated.timing(expandAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => {
+                    setShowLiquidations(false);
+                    setLiqStep('input');
+                  });
+                } else if (liqStep === 'error') {
                   setLiqStep('input');
                   setLiqError(null);
                   setLiqResultTxid(null);

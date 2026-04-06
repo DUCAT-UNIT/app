@@ -48,6 +48,7 @@ export interface VaultCardProps {
   onVaultPress?: () => void;
   onCreateVault: () => void;
   creatingVault: boolean;
+  isPendingVaultTx?: boolean;
   styles: VaultCardStyles;
   testID?: string;
 }
@@ -61,6 +62,7 @@ export default memo(function VaultCard({
   onVaultPress,
   onCreateVault,
   creatingVault,
+  isPendingVaultTx = false,
   styles,
 }: VaultCardProps) {
   // Memoize formatted values to avoid recalculation on every render
@@ -146,7 +148,7 @@ export default memo(function VaultCard({
             style={styles.createVaultButton}
             onPress={onCreateVault}
             activeOpacity={0.8}
-            disabled={creatingVault}
+            disabled={creatingVault || isPendingVaultTx}
             testID="create-vault-btn"
             accessibilityRole="button"
             accessibilityLabel="Create vault"
