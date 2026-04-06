@@ -45,6 +45,7 @@ import AppNavigator from './navigation/AppNavigator';
 import SplashScreen from './screens/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 
+import { useRemoteConfigStore } from './stores/remoteConfigStore';
 import { validateNetworkConfig } from './utils/bitcoin';
 import { NETWORK_DISPLAY_NAME } from './utils/constants';
 import { logger } from './utils/logger';
@@ -128,7 +129,17 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
-  if (!fontsLoaded && !fontTimedOut) {
+  // Remote config initialization (has its own 3s timeout built in)
+  const [configReady, setConfigReady] = useState(false);
+  useEffect(() => {
+    useRemoteConfigStore
+      .getState()
+      .initialize()
+      .then(() => setConfigReady(true))
+      .catch(() => setConfigReady(true)); // proceed even on failure
+  }, []);
+
+  if ((!fontsLoaded && !fontTimedOut) || !configReady) {
     return <SplashScreen />;
   }
 

@@ -7,6 +7,7 @@ import { NavigationContainer,NavigationContainerRef,Route } from '@react-navigat
 import { CardStyleInterpolators,createStackNavigator,StackNavigationOptions } from '@react-navigation/stack';
 import React,{ createRef,useCallback,useEffect,useRef } from 'react';
 import { ActivityIndicator,Alert,Keyboard,StyleSheet,Text,View } from 'react-native';
+import AnnouncementModal from '../components/AnnouncementModal';
 import BiometricSetupModal from '../components/BiometricSetupModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
@@ -44,6 +45,7 @@ import { useNotifications } from '../stores/notificationStore';
 
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
+import { useRemoteConfigStore } from '../stores/remoteConfigStore';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import { logger } from '../utils/logger';
@@ -105,6 +107,21 @@ export default function RootNavigator(): React.JSX.Element {
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
+
+  // Remote config store — announcement + network change
+  const shouldShowAnnouncement = useRemoteConfigStore((s) => s.shouldShowAnnouncement);
+  const dismissAnnouncement = useRemoteConfigStore((s) => s.dismissAnnouncement);
+  const announcement = useRemoteConfigStore((s) => s.config.announcement);
+  const pendingNetworkChange = useRemoteConfigStore((s) => s.pendingNetworkChange);
+
+  // Show alert when server pushes a network change
+  const networkAlertShown = useRef(false);
+  useEffect(() => {
+    if (pendingNetworkChange && !networkAlertShown.current) {
+      networkAlertShown.current = true;
+      Alert.alert('Network Changed', 'Please restart the app to apply changes.');
+    }
+  }, [pendingNetworkChange]);
 
   // Turbo snackbar queue (must be before token processor — provides checkQueuedSnackbars)
   const { checkQueuedSnackbars } = useTurboSnackbarQueue({
@@ -429,6 +446,18 @@ export default function RootNavigator(): React.JSX.Element {
             onSkip={handleBiometricSetupSkip}
           />
         )}
+
+        {/* Announcement Modal (server-driven popup) */}
+        {shouldShowAnnouncement() &&
+          isAuthenticated &&
+          !shouldShowPinOverlay &&
+          !shouldShowLockOverlay && (
+            <AnnouncementModal
+              visible
+              announcement={announcement}
+              onDismiss={() => dismissAnnouncement(announcement.id)}
+            />
+          )}
 
         {/* Token Verification Loading Overlay */}
         {isVerifyingToken && (

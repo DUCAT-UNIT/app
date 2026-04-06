@@ -14,6 +14,7 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useRemoteConfigStore } from '../../stores/remoteConfigStore';
 import { logger } from '../../utils/logger';
 import { styles } from './AdvancedScreen.styles';
 
@@ -66,6 +67,13 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   const advancedMode = settingsHandlers?.advancedMode || false;
   const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
 
+  // Remote config store (developer-only section)
+  const configVersion = useRemoteConfigStore((s) => s.config.version);
+  const configNetworkId = useRemoteConfigStore((s) => s.config.network.id);
+  const configIsLoading = useRemoteConfigStore((s) => s.isLoading);
+  const refreshConfig = useRemoteConfigStore((s) => s.refresh);
+  const resetOverrides = useRemoteConfigStore((s) => s.resetOverrides);
+
   // Format threshold display value
   const getThresholdDisplay = (): string => {
     if (ecashThreshold === Infinity) return 'All transfers';
@@ -112,6 +120,46 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               />
             )}
           </View>
+
+          {/* Remote Config section — only visible in developer mode */}
+          {advancedMode && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Remote Config</Text>
+              <SettingsOption
+                iconName="asset"
+                title="Config Version"
+                onPress={() => {
+                  logger.debug('[AdvancedScreen] Config version pressed');
+                }}
+                rightText={configVersion}
+                testID="advanced-config-version"
+              />
+              <SettingsOption
+                iconName="asset"
+                title="Network"
+                onPress={() => {
+                  logger.debug('[AdvancedScreen] Network ID pressed');
+                }}
+                rightText={configNetworkId}
+                testID="advanced-config-network"
+              />
+              <SettingsOption
+                iconName="asset"
+                title="Force Refresh"
+                onPress={() => {
+                  refreshConfig().catch(() => {});
+                }}
+                rightText={configIsLoading ? 'Loading...' : ''}
+                testID="advanced-config-refresh-btn"
+              />
+              <SettingsOption
+                iconName="asset"
+                title="Reset Overrides"
+                onPress={resetOverrides}
+                testID="advanced-config-reset-btn"
+              />
+            </View>
+          )}
 
         </View>
       </ScrollView>
