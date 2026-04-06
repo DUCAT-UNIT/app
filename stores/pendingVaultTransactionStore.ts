@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
 import type { VaultHistoryTransaction } from '../services/vaultService';
 
-export type VaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw';
+export type VaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'repo';
 
 export interface PendingVaultTransaction {
   txid: string;

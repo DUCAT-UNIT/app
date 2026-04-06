@@ -1027,6 +1027,19 @@ const WalletScreen = React.memo(function WalletScreen({
                     if (result.success) {
                       setLiqResultTxid(result.txid || null);
                       setLiqStep('success');
+                      // Add as pending vault transaction
+                      if (result.txid) {
+                        const { usePendingVaultTransactionStore } = require('../../stores/pendingVaultTransactionStore');
+                        void usePendingVaultTransactionStore.getState().setPendingTransaction({
+                          txid: result.txid,
+                          vaultTxid: result.vaultTxid,
+                          action: 'repo' as const,
+                          btcAmt: Math.round(deficitBtc * 100_000_000),
+                          unitAmt: Math.round(selectedVaults.reduce((acc, v) => acc + v.unit, 0) * 100),
+                          timestamp: Date.now(),
+                          vaultPubkey: _wallet?.taprootPubkey || '',
+                        });
+                      }
                     } else {
                       setLiqError(result.error || 'Liquidation failed');
                       setLiqStep('error');

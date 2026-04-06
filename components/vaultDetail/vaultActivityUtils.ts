@@ -30,7 +30,9 @@ export const formatAction = (action: string): string => {
     'repay': 'Repay',
     'deposit': 'Deposit',
     'withdraw': 'Withdraw',
-    'liquidate': 'Liquidation',
+    'liquidate': 'Repossess',
+    'repo': 'Repossess',
+    'repossess': 'Repossess',
   };
   return actionMap[action.toLowerCase()] || action;
 };
@@ -45,7 +47,9 @@ export const getActionColor = (action: string): string => {
     'repay': COLORS.PRIMARY_BLUE,
     'deposit': COLORS.SUCCESS_GREEN,
     'withdraw': COLORS.RED,
-    'liquidate': COLORS.RED,
+    'liquidate': COLORS.PRIMARY_BLUE,
+    'repo': COLORS.PRIMARY_BLUE,
+    'repossess': COLORS.PRIMARY_BLUE,
   };
   return colorMap[action.toLowerCase()] || COLORS.WHITE;
 };
