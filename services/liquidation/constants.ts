@@ -29,5 +29,8 @@ export const DUST_BTC = DUST_LIMIT / COIN_SIZE;
 /** VIN allowance for fee estimation */
 export const VIN_ALLOWANCE = 350;
 
+/** Default fee rate in sat/vB (Mutinynet) */
+export const LIQ_DEFAULT_FEE_RATE = 1;
+
 /** Liquidation validator base URL */
 export const LIQ_VALIDATOR_URL = 'https://validator.staging.ducatprotocol.com/liq';
