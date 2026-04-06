@@ -7,6 +7,7 @@ export {
   getHealthValue,
   getAvailableCollateralBtc,
   computeLiqMeta,
+  recomputePartialVaultProfile,
   computeLiquidVaultProfiles,
   selectItemsForAmount,
   getMaxInvest,

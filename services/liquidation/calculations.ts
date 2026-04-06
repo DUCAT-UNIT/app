@@ -11,6 +11,7 @@ import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
 // ProtocolProfile is exported from the main SDK module
 type ProtocolProfile = Parameters<typeof VaultAPI.repo.liquidation.get_profile>[0];
 import { logger } from '../../utils/logger';
+import { fetchProtocolContract } from '../vaultWallet';
 import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, VIN_ALLOWANCE } from './constants';
 import { formatValidatorResponse } from './fetchVaults';
 import type {
@@ -107,6 +108,33 @@ export function computeLiqMeta(profile: LiquidVaultProfile): Omit<LiquidationVau
     profitPercentPrecised: Math.abs(roundNumber(profit_margin * 100)),
     liquidationTaxRebatePercent: roundNumber(subsidy_rate * 100, 2),
   };
+}
+
+// ============================================================
+// Partial Vault Recomputation
+// ============================================================
+
+/**
+ * Re-compute a partial vault profile with its repo_portion applied.
+ * Used when a vault is only partially claimed (last vault in a selection).
+ */
+export async function recomputePartialVaultProfile(
+  claimedPartial: LiquidVaultProfileWithMeta,
+  btcPrice: number,
+): Promise<LiquidVaultProfileWithMeta> {
+  const portion = Number(
+    (claimedPartial.claimAmountPartial! / claimedPartial.claimAmountBtc).toFixed(4),
+  );
+  const contract = await fetchProtocolContract();
+  const partialProfile = VaultAPI.repo.liquidation.get_profile(
+    contract,
+    claimedPartial as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
+    claimedPartial.thold_key,
+    btcPrice,
+    portion,
+  );
+  const partialMeta = computeLiqMeta(partialProfile);
+  return { ...claimedPartial, ...partialProfile, ...partialMeta } as LiquidVaultProfileWithMeta;
 }
 
 // ============================================================

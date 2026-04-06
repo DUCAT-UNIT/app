@@ -5,12 +5,13 @@
  */
 
 import { useCallback } from 'react';
-import { VaultAPI } from '@ducat-unit/client-sdk';
-import { selectItemsForAmount, computeLiqMeta } from '../../services/liquidation/calculations';
+import {
+  selectItemsForAmount,
+  recomputePartialVaultProfile,
+} from '../../services/liquidation/calculations';
 import { LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
 import { executeLiquidation } from '../../services/liquidation/execution';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
-import { fetchProtocolContract } from '../../services/vaultWallet';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { logger } from '../../utils/logger';
@@ -71,24 +72,11 @@ export function useLiquidationExecution({
       // Re-compute partial vault profile with repo_portion
       let selectedVaults: LiquidVaultProfileWithMeta[];
       if (claimedPartial) {
-        const portion = Number(
-          (claimedPartial.claimAmountPartial! / claimedPartial.claimAmountBtc).toFixed(4),
-        );
         try {
-          const contract = await fetchProtocolContract();
-          const partialProfile = VaultAPI.repo.liquidation.get_profile(
-            contract,
-            claimedPartial as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
-            claimedPartial.thold_key,
+          const recomputedPartial = await recomputePartialVaultProfile(
+            claimedPartial,
             btcPrice || 0,
-            portion,
           );
-          const partialMeta = computeLiqMeta(partialProfile);
-          const recomputedPartial = {
-            ...claimedPartial,
-            ...partialProfile,
-            ...partialMeta,
-          } as LiquidVaultProfileWithMeta;
           // Partial vault first (matches web frontend order)
           selectedVaults = [recomputedPartial, ...claimedFull];
         } catch {
