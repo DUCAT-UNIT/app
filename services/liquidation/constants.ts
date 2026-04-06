@@ -30,4 +30,4 @@ export const DUST_BTC = DUST_LIMIT / COIN_SIZE;
 export const VIN_ALLOWANCE = 350;
 
 /** Liquidation validator base URL */
-export const LIQ_VALIDATOR_URL = 'https://validator.dev.ducatprotocol.com/liq';
+export const LIQ_VALIDATOR_URL = 'https://validator.staging.ducatprotocol.com/liq';
