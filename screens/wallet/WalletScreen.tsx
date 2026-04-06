@@ -3,7 +3,7 @@ import { Animated,RefreshControl,ScrollView,StyleSheet,Text,TextStyle,TouchableO
 import Icon from '../../components/icons';
 import { AmountSlider } from '../../components/vaultAction/AmountSlider';
 import { fetchLiquidatableVaults, formatValidatorResponse } from '../../services/liquidation/fetchVaults';
-import { computeLiqMeta, getMaxInvest, getAvailableCollateralBtc } from '../../services/liquidation/calculations';
+import { computeLiqMeta, getMaxInvest, getAvailableCollateralBtc, selectItemsForAmount } from '../../services/liquidation/calculations';
 import { LIQ_MAX_CLAIM_AMOUNT_BTC } from '../../services/liquidation/constants';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { executeLiquidation } from '../../services/liquidation/execution';
@@ -957,28 +957,52 @@ const WalletScreen = React.memo(function WalletScreen({
                   setLiqStep('processing');
                   setLiqProcessingMsg('Connecting to oracle...');
                   try {
-                    // Select only vaults fully covered by the invest amount
-                    const selectedVaults: LiquidVaultProfileWithMeta[] = [];
-                    let remainingInvest = liqInvestAmount;
-                    let deficitBtc = 0;
-                    for (const vault of liqVaultsFullRef.current) {
-                      if (remainingInvest <= 0) break;
-                      // Only include vault if invest amount covers its full claim
-                      if (vault.claimAmountBtc <= remainingInvest) {
-                        selectedVaults.push(vault);
-                        remainingInvest -= vault.claimAmountBtc;
-                        deficitBtc += vault.claimAmountBtc;
-                      } else {
-                        // Partial claim — skip for now, don't over-claim
-                        break;
-                      }
-                    }
-
-                    if (selectedVaults.length === 0) {
-                      setLiqError('Investment amount too small to claim any vault fully.');
+                    // Select vaults using the same algorithm as the web frontend
+                    // Supports partial claims on the last vault
+                    const claimed = selectItemsForAmount(liqVaultsFullRef.current, liqInvestAmount);
+                    if (claimed.length === 0) {
+                      setLiqError('Investment amount too small to claim any vault.');
                       setLiqStep('error');
                       return;
                     }
+
+                    // Separate full and partial vaults (matches web prepareRepossessData)
+                    const claimedFull = claimed.filter(v => !v.claimAmountPartial);
+                    const claimedPartial = claimed.find(v => !!v.claimAmountPartial);
+
+                    // Re-compute partial vault profile with repo_portion
+                    let selectedVaults: LiquidVaultProfileWithMeta[];
+                    if (claimedPartial) {
+                      const portion = Number((claimedPartial.claimAmountPartial! / claimedPartial.claimAmountBtc).toFixed(4));
+                      try {
+                        const contract = await fetchProtocolContract();
+                        const partialProfile = VaultAPI.repo.liquidation.get_profile(
+                          contract,
+                          claimedPartial as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
+                          claimedPartial.thold_key,
+                          btcPrice || 0,
+                          portion
+                        );
+                        const partialMeta = computeLiqMeta(partialProfile);
+                        const recomputedPartial = {
+                          ...claimedPartial,
+                          ...partialProfile,
+                          ...partialMeta,
+                        } as LiquidVaultProfileWithMeta;
+                        // Partial vault goes FIRST (same as web: line 172-179)
+                        selectedVaults = [recomputedPartial, ...claimedFull];
+                      } catch {
+                        // Fallback: use full vaults only
+                        selectedVaults = claimedFull;
+                      }
+                    } else {
+                      selectedVaults = claimedFull;
+                    }
+
+                    // Compute deficit from selected vaults
+                    const deficitBtc = selectedVaults.reduce(
+                      (acc, v) => acc + (v.claimAmountPartial || v.claimAmountBtc), 0
+                    );
 
                     const result = await executeLiquidation({
                       liquidVaults: selectedVaults,

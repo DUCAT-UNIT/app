@@ -45,20 +45,20 @@ function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDis
 
   const hasBoth = vaultData.btcAmount > 0 && vaultData.unitAmount > 0;
 
-  // Show both amounts for Repossess (liquidation shows collateral taken + debt cleared)
+  // Show both amounts for Repossess (BTC collateral gained = green, UNIT debt taken = red)
   if (hasBoth) {
     return (
       <View style={{ alignItems: 'flex-end', gap: s(2) }}>
         <View style={styles.balanceWithIcon}>
-          <Icon name="btc_symbol" size={s(12)} color={COLORS.RED} style={styles.assetAmountIcon} />
+          <Icon name="unit_symbol" size={s(12)} color={COLORS.RED} style={styles.assetAmountIcon} />
           <Text style={[styles.assetAmount, { color: COLORS.RED, fontSize: sf(14) }]}>
-            {formatBalance(vaultData.btcAmount / 100000000)}
+            {formatUnitAmount(vaultData.unitAmount)}
           </Text>
         </View>
         <View style={styles.balanceWithIcon}>
-          <Icon name="unit_symbol" size={s(12)} color={COLORS.GREEN} style={styles.assetAmountIcon} />
+          <Icon name="btc_symbol" size={s(12)} color={COLORS.GREEN} style={styles.assetAmountIcon} />
           <Text style={[styles.assetAmount, { color: COLORS.GREEN, fontSize: sf(14) }]}>
-            {formatUnitAmount(vaultData.unitAmount)}
+            {formatBalance(vaultData.btcAmount / 100000000)}
           </Text>
         </View>
       </View>
