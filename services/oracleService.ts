@@ -66,7 +66,7 @@ export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQu
  */
 export async function fetchCurrentPrice(): Promise<number> {
   try {
-    const response = await fetch(`${API.PRICE_SERVER}/price`);
+    const response = await fetch(`${API.PRICE_SERVER}/api/price/latest`);
     if (!response.ok) {
       throw new Error(`Price API returned status ${response.status}`);
     }
