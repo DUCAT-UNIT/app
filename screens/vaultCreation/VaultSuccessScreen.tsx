@@ -3,10 +3,12 @@
  * Uses shared VaultActionSuccess component for consistency
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { usePrice } from '../../stores/priceStore';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 
 import type { VaultCreateStackParamList } from '../../navigation/types';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -22,6 +24,15 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
   // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
   const btcAmountSats = Math.round(btcAmount * 100_000_000);
   const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
+
+  useEffect(() => {
+    if (txid) {
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_CREATED, txid, {
+        btc_amount_sats: btcAmountSats,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle done - reset state and go back to wallet
   const handleDone = useCallback(() => {

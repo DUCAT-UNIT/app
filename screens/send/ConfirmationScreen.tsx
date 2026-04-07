@@ -15,6 +15,8 @@ import Icon from '../../components/icons';
 import { useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashuOperations } from '../../contexts/CashuContext';
+import { analytics } from '../../services/analyticsService';
+import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { logger } from '../../utils/logger';
 import { useConfirmationParams } from '../../hooks/useConfirmationParams';
 import { useTurboMintCompletion } from '../../hooks/useTurboMintCompletion';
@@ -50,7 +52,10 @@ interface ConfirmationScreenProps {
   route: RouteProp<{ params: ConfirmationRouteParams }, 'params'>;
 }
 
-export default function ConfirmationScreen({ navigation, route }: ConfirmationScreenProps): React.JSX.Element {
+export default function ConfirmationScreen({
+  navigation,
+  route,
+}: ConfirmationScreenProps): React.JSX.Element {
   const { fetchTransactionHistory } = useTransactionHistory();
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashuOperations();
@@ -73,7 +78,9 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
 
   // Local state for token and deeplink (can be passed via route params or generated)
   const [localTurboToken, setLocalTurboToken] = useState(route?.params?.turboToken || null);
-  const [localTurboDeeplink, setLocalTurboDeeplink] = useState(route?.params?.turboDeeplink || null);
+  const [localTurboDeeplink, setLocalTurboDeeplink] = useState(
+    route?.params?.turboDeeplink || null
+  );
 
   // Handle Turbo mint completion (polling, P2PK token generation, deeplink)
   const {
@@ -113,24 +120,43 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     if (route?.params?.turboDeeplink && route.params.turboDeeplink !== localTurboDeeplink) {
       setLocalTurboDeeplink(route.params.turboDeeplink);
     }
-  }, [route?.params?.turboToken, route?.params?.turboDeeplink, localTurboToken, localTurboDeeplink]);
+  }, [
+    route?.params?.turboToken,
+    route?.params?.turboDeeplink,
+    localTurboToken,
+    localTurboDeeplink,
+  ]);
 
   // Generate Turbo deeplink when token is ready (only if not already provided)
   useEffect(() => {
     if (turboToken && turboRecipient && turboAmount && !turboDeeplink) {
       const generateLink = async () => {
         try {
-          const { generateTurboDeeplink } = await import('../../services/cashu/cashuLockedTokensService');
+          const { generateTurboDeeplink } = await import(
+            '../../services/cashu/cashuLockedTokensService'
+          );
           const deeplink = await generateTurboDeeplink(turboToken, turboRecipient, turboAmount);
           setLocalTurboDeeplink(deeplink);
           logger.debug('[ConfirmationScreen] Generated Turbo deeplink:', deeplink);
         } catch (error: unknown) {
-          logger.error('[ConfirmationScreen] Failed to generate deeplink:', { error: error instanceof Error ? error.message : String(error) });
+          logger.error('[ConfirmationScreen] Failed to generate deeplink:', {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       };
       generateLink();
     }
   }, [turboToken, turboRecipient, turboAmount, turboDeeplink]);
+
+  // Track send broadcast once when txid is present
+  useEffect(() => {
+    if (broadcastedTxid) {
+      analytics.trackTransaction(TRANSACTION_EVENTS.SEND_BROADCAST, broadcastedTxid, {
+        is_turbo: isTurbo ?? false,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcastedTxid]);
 
   // Handlers
   const {
@@ -161,7 +187,8 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
     : '';
 
   // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading
-  const isWaitingForTurboData = processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
+  const isWaitingForTurboData =
+    processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
 
   // Create responsive styles
   const styles = useMemo(() => createConfirmationStyles(s, sf), [s, sf]);
@@ -190,7 +217,11 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
 
             <View style={styles.divider} />
 
-            <TouchableOpacity onPress={handleViewExplorer} style={styles.linkRow} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={handleViewExplorer}
+              style={styles.linkRow}
+              activeOpacity={0.7}
+            >
               <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
               <Text style={styles.explorerText}>View on Explorer</Text>
             </TouchableOpacity>
@@ -239,9 +270,15 @@ export default function ConfirmationScreen({ navigation, route }: ConfirmationSc
         {/* Stage 1: Converting - Match ProcessingScreen appearance exactly */}
         {processingStage === 'converting' && (
           <>
-            <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={{ marginBottom: s(24) }} />
+            <ActivityIndicator
+              size="large"
+              color={COLORS.PRIMARY_BLUE}
+              style={{ marginBottom: s(24) }}
+            />
             <Text style={styles.processingTitle}>Converting to TurboUNIT</Text>
-            <Text style={styles.processingMessage}>Minting e-cash tokens and creating P2PK locked token...</Text>
+            <Text style={styles.processingMessage}>
+              Minting e-cash tokens and creating P2PK locked token...
+            </Text>
           </>
         )}
 

@@ -2,10 +2,12 @@
  * WithdrawSuccessScreen - Withdraw operation success confirmation
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useWithdraw } from '../../stores/withdrawStore';
 import { usePrice } from '../../stores/priceStore';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 
@@ -26,6 +28,17 @@ export default function WithdrawSuccessScreen({ navigation, route }: WithdrawSuc
   // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
   const withdrawUsdValue = btcPrice ? (withdrawAmountSats / 100_000_000) * btcPrice : 0;
 
+  useEffect(() => {
+    if (vaultTxid) {
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, vaultTxid, {
+        operation: 'withdraw',
+        amount_sats: withdrawAmountSats,
+        unit: 'BTC',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDone = useCallback(() => {
     reset();
     navigation.getParent()?.reset({
@@ -38,9 +51,7 @@ export default function WithdrawSuccessScreen({ navigation, route }: WithdrawSuc
               {
                 name: 'WalletTab',
                 state: {
-                  routes: [
-                    { name: 'WalletHome' },
-                  ],
+                  routes: [{ name: 'WalletHome' }],
                   index: 0,
                 },
               },

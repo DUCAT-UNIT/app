@@ -2,9 +2,11 @@
  * RepaySuccessScreen - Repay operation success confirmation
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useRepay } from '../../stores/repayStore';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 
@@ -22,6 +24,17 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
 
   const vaultTxid = route.params?.vaultTxid || storeVaultTxid || '';
 
+  useEffect(() => {
+    if (vaultTxid) {
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, vaultTxid, {
+        operation: 'repay',
+        amount: repayAmountUnit,
+        unit: 'UNIT',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDone = useCallback(() => {
     reset();
     navigation.getParent()?.reset({
@@ -34,9 +47,7 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
               {
                 name: 'WalletTab',
                 state: {
-                  routes: [
-                    { name: 'WalletHome' },
-                  ],
+                  routes: [{ name: 'WalletHome' }],
                   index: 0,
                 },
               },

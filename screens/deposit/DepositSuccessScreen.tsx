@@ -2,10 +2,12 @@
  * DepositSuccessScreen - Deposit operation success confirmation
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useDeposit } from '../../stores/depositStore';
 import { usePrice } from '../../stores/priceStore';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 
@@ -26,6 +28,17 @@ export default function DepositSuccessScreen({ navigation, route }: DepositSucce
   // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
   const depositUsdValue = btcPrice ? (depositAmountSats / 100_000_000) * btcPrice : 0;
 
+  useEffect(() => {
+    if (vaultTxid) {
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, vaultTxid, {
+        operation: 'deposit',
+        amount_sats: depositAmountSats,
+        unit: 'BTC',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDone = useCallback(() => {
     reset();
     navigation.getParent()?.reset({
@@ -38,9 +51,7 @@ export default function DepositSuccessScreen({ navigation, route }: DepositSucce
               {
                 name: 'WalletTab',
                 state: {
-                  routes: [
-                    { name: 'WalletHome' },
-                  ],
+                  routes: [{ name: 'WalletHome' }],
                   index: 0,
                 },
               },

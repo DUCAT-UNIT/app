@@ -6,8 +6,8 @@
 
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import React,{ useState } from 'react';
-import { Animated,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import React, { useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -16,8 +16,10 @@ import {
   setBiometricEnabled as persistBiometricEnabled,
 } from '../../services/biometricService';
 import { savePin } from '../../services/pinService';
-import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 import { COLORS } from '../../theme';
+import { analytics } from '../../services/analyticsService';
+import { ONBOARDING_EVENTS } from '../../constants/analyticsEvents';
 import { logger } from '../../utils/logger';
 import { ERRORS } from '../../utils/messages';
 import { notify } from '../../utils/notify';
@@ -112,42 +114,48 @@ export default function PinSetupScreen({
               }
             } else {
               // Initial wallet creation - just save PIN normally
-              savePin(pin).then(async (success) => {
-                logger.auth('savePin result', { success, isBiometricSupported });
-                if (success) {
-                  // Initial wallet creation or import
-                  logger.auth('PIN saved successfully, checking biometric support', { isBiometricSupported });
-                  if (isBiometricSupported) {
-                    logger.auth('Showing biometric prompt - setting showBiometricPrompt to true');
-                    setShowBiometricPrompt(true);
+              savePin(pin)
+                .then(async (success) => {
+                  logger.auth('savePin result', { success, isBiometricSupported });
+                  if (success) {
+                    // Initial wallet creation or import
+                    logger.auth('PIN saved successfully, checking biometric support', {
+                      isBiometricSupported,
+                    });
+                    if (isBiometricSupported) {
+                      logger.auth('Showing biometric prompt - setting showBiometricPrompt to true');
+                      setShowBiometricPrompt(true);
+                    } else {
+                      // No biometric support, complete setup
+                      logger.auth(
+                        'No biometric support (isBiometricSupported=false), completing setup without prompt'
+                      );
+                      // Pass the PIN back to parent for potential passkey migration
+                      onPinSetupComplete(pin);
+                    }
+                    // Fetch balance in background
+                    if (fetchBalance) {
+                      fetchBalance();
+                    }
                   } else {
-                    // No biometric support, complete setup
-                    logger.auth('No biometric support (isBiometricSupported=false), completing setup without prompt');
-                    // Pass the PIN back to parent for potential passkey migration
-                    onPinSetupComplete(pin);
+                    shakeError();
+                    setPinError(ERRORS.PIN_SAVE_FAILED);
+                    // Reset entire PIN process
+                    setPin('');
+                    setConfirmPin('');
+                    setPinStep('enter');
                   }
-                  // Fetch balance in background
-                  if (fetchBalance) {
-                    fetchBalance();
-                  }
-                } else {
+                })
+                .catch((error: unknown) => {
+                  logger.error('[PinSetupScreen] savePin failed', {
+                    error: error instanceof Error ? error.message : String(error),
+                  });
                   shakeError();
                   setPinError(ERRORS.PIN_SAVE_FAILED);
-                  // Reset entire PIN process
                   setPin('');
                   setConfirmPin('');
                   setPinStep('enter');
-                }
-              }).catch((error: unknown) => {
-                logger.error('[PinSetupScreen] savePin failed', {
-                  error: error instanceof Error ? error.message : String(error),
                 });
-                shakeError();
-                setPinError(ERRORS.PIN_SAVE_FAILED);
-                setPin('');
-                setConfirmPin('');
-                setPinStep('enter');
-              });
             }
           } else {
             shakeError();
@@ -180,6 +188,7 @@ export default function PinSetupScreen({
       );
 
       await persistBiometricEnabled(Boolean(result.success));
+      analytics.track(ONBOARDING_EVENTS.BIOMETRIC_ENABLED, { success: Boolean(result.success) });
 
       // Complete setup regardless of biometric result
       // Pass the PIN back to parent for potential passkey migration
@@ -191,6 +200,7 @@ export default function PinSetupScreen({
   };
 
   const handleBiometricSkip = async (): Promise<void> => {
+    analytics.track(ONBOARDING_EVENTS.BIOMETRIC_SKIPPED);
     setShowBiometricPrompt(false);
     await persistBiometricEnabled(false);
     // Pass the PIN back to parent for potential passkey migration
@@ -218,12 +228,25 @@ export default function PinSetupScreen({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             testID="pin-setup-cancel-btn"
           >
-            <Text style={[styles.lockCancelButtonText, { fontSize: sf(fontSizes.md) }]}>Cancel</Text>
+            <Text style={[styles.lockCancelButtonText, { fontSize: sf(fontSizes.md) }]}>
+              Cancel
+            </Text>
           </TouchableOpacity>
         )}
 
         {/* Title */}
-        <Text style={[styles.lockTitle, { fontSize: sf(20), marginBottom: s(32), marginTop: s(20), paddingHorizontal: s(spacing.lg) }]} testID="pin-setup-title">
+        <Text
+          style={[
+            styles.lockTitle,
+            {
+              fontSize: sf(20),
+              marginBottom: s(32),
+              marginTop: s(20),
+              paddingHorizontal: s(spacing.lg),
+            },
+          ]}
+          testID="pin-setup-title"
+        >
           {changingPin
             ? pinStep === 'enter'
               ? 'Enter New PIN'
@@ -235,34 +258,66 @@ export default function PinSetupScreen({
 
         {/* PIN Error */}
         {pinError ? (
-          <Text style={[styles.lockPinError, { fontSize: sf(fontSizes.md), marginBottom: s(20), paddingHorizontal: s(spacing.lg) }]} testID="pin-setup-error">
+          <Text
+            style={[
+              styles.lockPinError,
+              { fontSize: sf(fontSizes.md), marginBottom: s(20), paddingHorizontal: s(spacing.lg) },
+            ]}
+            testID="pin-setup-error"
+          >
             {pinError}
           </Text>
         ) : null}
 
         {/* PIN Dots */}
-        <Animated.View style={[styles.lockPinDots, { transform: [{ translateX: shakeAnimation }], gap: dotGap, marginBottom: s(spacing.lg) }]} testID="pin-setup-dots">
+        <Animated.View
+          style={[
+            styles.lockPinDots,
+            {
+              transform: [{ translateX: shakeAnimation }],
+              gap: dotGap,
+              marginBottom: s(spacing.lg),
+            },
+          ]}
+          testID="pin-setup-dots"
+        >
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <View
               key={i}
-              style={[styles.lockPinDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }, i < currentPin.length && styles.lockPinDotFilled]}
+              style={[
+                styles.lockPinDot,
+                { width: dotSize, height: dotSize, borderRadius: dotSize / 2 },
+                i < currentPin.length && styles.lockPinDotFilled,
+              ]}
               testID={`pin-dot-${i}`}
             />
           ))}
         </Animated.View>
 
         {/* Keypad */}
-        <View style={[styles.lockKeypad, { maxWidth: s(352), paddingHorizontal: s(spacing.lg), marginBottom: s(40) }]} testID="pin-setup-keypad">
+        <View
+          style={[
+            styles.lockKeypad,
+            { maxWidth: s(352), paddingHorizontal: s(spacing.lg), marginBottom: s(40) },
+          ]}
+          testID="pin-setup-keypad"
+        >
           {[
             [1, 2, 3],
             [4, 5, 6],
             [7, 8, 9],
           ].map((row, rowIndex) => (
-            <View key={rowIndex} style={[styles.lockKeypadRow, { marginBottom: s(spacing.lg), gap: keypadGap }]}>
+            <View
+              key={rowIndex}
+              style={[styles.lockKeypadRow, { marginBottom: s(spacing.lg), gap: keypadGap }]}
+            >
               {row.map((num) => (
                 <TouchableScale
                   key={num}
-                  style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
+                  style={[
+                    styles.lockKey,
+                    { width: keySize, height: keySize, borderRadius: keySize / 2 },
+                  ]}
                   onPress={() => handlePinDigit(String(num))}
                   testID={`pin-keypad-${num}`}
                 >
@@ -272,11 +327,31 @@ export default function PinSetupScreen({
             </View>
           ))}
           <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
-            <View style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} />
-            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={() => handlePinDigit('0')} testID="pin-keypad-0">
+            <View
+              style={[
+                styles.lockKey,
+                { width: keySize, height: keySize, borderRadius: keySize / 2 },
+              ]}
+            />
+            <TouchableScale
+              style={[
+                styles.lockKey,
+                { width: keySize, height: keySize, borderRadius: keySize / 2 },
+              ]}
+              onPress={() => handlePinDigit('0')}
+              testID="pin-keypad-0"
+            >
               <Text style={[styles.lockKeyText, { fontSize: keyTextSize }]}>0</Text>
             </TouchableScale>
-            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePinDelete} haptic={false} testID="pin-keypad-delete">
+            <TouchableScale
+              style={[
+                styles.lockKey,
+                { width: keySize, height: keySize, borderRadius: keySize / 2 },
+              ]}
+              onPress={handlePinDelete}
+              haptic={false}
+              testID="pin-keypad-delete"
+            >
               <Icon name="delete" size={iconSize} color={COLORS.WHITE} />
             </TouchableScale>
           </View>
@@ -290,39 +365,68 @@ export default function PinSetupScreen({
             contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
             showsVerticalScrollIndicator={false}
           >
-            <View style={[styles.biometricPromptModal, {
-              borderRadius: s(radii.xl),
-              padding: s(spacing.xl),
-              marginVertical: s(spacing.xl),
-            }]}>
-              <Text style={[styles.biometricPromptTitle, { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) }]}>
+            <View
+              style={[
+                styles.biometricPromptModal,
+                {
+                  borderRadius: s(radii.xl),
+                  padding: s(spacing.xl),
+                  marginVertical: s(spacing.xl),
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.biometricPromptTitle,
+                  { fontSize: sf(fontSizes.lg), marginBottom: s(spacing.md) },
+                ]}
+              >
                 Biometric Authentication
               </Text>
-              <Text style={[styles.biometricPromptText, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
+              <Text
+                style={[
+                  styles.biometricPromptText,
+                  { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) },
+                ]}
+              >
                 Do you want to use biometric authentication (FaceID or TouchID) for UNIT Wallet?
               </Text>
               <View style={[styles.biometricPromptButtons, { gap: s(12) }]}>
                 <TouchableOpacity
-                  style={[styles.biometricPromptButton, styles.biometricPromptButtonYes, {
-                    paddingVertical: s(spacing.md),
-                    paddingHorizontal: s(spacing.lg),
-                    borderRadius: s(radii.lg)
-                  }]}
+                  style={[
+                    styles.biometricPromptButton,
+                    styles.biometricPromptButtonYes,
+                    {
+                      paddingVertical: s(spacing.md),
+                      paddingHorizontal: s(spacing.lg),
+                      borderRadius: s(radii.lg),
+                    },
+                  ]}
                   onPress={handleBiometricEnable}
                   testID="biometric-enable-btn"
                 >
-                  <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
+                  <Text style={[styles.biometricPromptButtonText, { fontSize: sf(fontSizes.md) }]}>
+                    Yes, Enable
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.biometricPromptButton, styles.biometricPromptButtonNo, {
-                    paddingVertical: s(spacing.md),
-                    paddingHorizontal: s(spacing.lg),
-                    borderRadius: s(radii.lg)
-                  }]}
+                  style={[
+                    styles.biometricPromptButton,
+                    styles.biometricPromptButtonNo,
+                    {
+                      paddingVertical: s(spacing.md),
+                      paddingHorizontal: s(spacing.lg),
+                      borderRadius: s(radii.lg),
+                    },
+                  ]}
                   onPress={handleBiometricSkip}
                   testID="biometric-skip-btn"
                 >
-                  <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
+                  <Text
+                    style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}
+                  >
+                    No, Thanks
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -2,9 +2,11 @@
  * BorrowSuccessScreen - Borrow operation success confirmation
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useBorrow } from '../../stores/borrowStore';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 
@@ -22,6 +24,17 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
 
   const txid = route.params?.txid || storeTxid || '';
 
+  useEffect(() => {
+    if (txid) {
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, txid, {
+        operation: 'borrow',
+        amount: borrowAmount,
+        unit: 'UNIT',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDone = useCallback(() => {
     reset();
     navigation.getParent()?.reset({
@@ -34,9 +47,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
               {
                 name: 'WalletTab',
                 state: {
-                  routes: [
-                    { name: 'WalletHome' },
-                  ],
+                  routes: [{ name: 'WalletHome' }],
                   index: 0,
                 },
               },
