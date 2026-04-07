@@ -53,6 +53,10 @@ export function useLiquidationVaults({
 
   const refreshLiqVaults = useCallback(async () => {
     if (!btcPrice || fetchInFlightRef.current) return;
+    // Don't update vault data while user is reviewing or executing
+    const step = store.getState().currentStep;
+    if (step === 'review' || step === 'processing') return;
+
     fetchInFlightRef.current = true;
     // Only set loading on first fetch to avoid re-renders during polling
     if (store.getState().fetchStatus === 'idle') {
