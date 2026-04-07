@@ -33,8 +33,8 @@ function getClient(): any {
     const { PostHog } = require('posthog-react-native');
     posthogClient = new PostHog(apiKey, {
       host,
-      flushAt: 20,
-      flushInterval: 30000,
+      flushAt: 5,          // Flush after 5 events (was 20)
+      flushInterval: 10000, // Flush every 10s (was 30s)
     });
     logger.debug('[Analytics] PostHog initialized');
     return posthogClient;

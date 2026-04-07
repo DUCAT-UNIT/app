@@ -24,6 +24,8 @@ import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Application from 'expo-application';
 import BIP32Factory from 'bip32';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
@@ -152,8 +154,16 @@ export default function App() {
   useEffect(() => {
     analytics.setSuperProperties({
       app_version: Constants.expoConfig?.version ?? 'unknown',
+      build_number: Application.nativeBuildVersion ?? 'unknown',
+      bundle_id: Application.applicationId ?? 'unknown',
       network: NETWORK_DISPLAY_NAME,
       platform: Platform.OS,
+      os_version: Platform.Version?.toString() ?? 'unknown',
+      device_brand: Device.brand ?? 'unknown',
+      device_model: Device.modelName ?? 'unknown',
+      device_name: Device.deviceName ?? 'unknown',
+      device_type: Device.deviceType?.toString() ?? 'unknown',
+      is_device: Device.isDevice ?? false,
     });
     analytics.track(ONBOARDING_EVENTS.APP_OPENED);
   }, []);
