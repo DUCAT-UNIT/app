@@ -4,7 +4,7 @@ import Icon from '../icons';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
-export type LiquidationEmptyVariant = 'noVaults' | 'lowCollateral' | 'loading';
+export type LiquidationEmptyVariant = 'noVaults' | 'noVault' | 'lowCollateral' | 'loading';
 
 export interface LiquidationEmptyStatesProps {
   variant: LiquidationEmptyVariant;
@@ -14,6 +14,14 @@ const VARIANT_CONFIG: Record<
   LiquidationEmptyVariant,
   { icon: string; iconColor: string; bgColor: string; title: string; subtitle: string }
 > = {
+  noVault: {
+    icon: 'vault',
+    iconColor: colors.text.secondary,
+    bgColor: colors.bg.secondary,
+    title: 'No Vault Found',
+    subtitle:
+      'You need an active vault to claim liquidations. Create a vault first, then come back to earn profit from undercollateralized vaults.',
+  },
   noVaults: {
     icon: 'liquidations',
     iconColor: colors.text.secondary,

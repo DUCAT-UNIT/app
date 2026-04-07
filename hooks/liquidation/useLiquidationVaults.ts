@@ -53,7 +53,10 @@ export function useLiquidationVaults({
   const refreshLiqVaults = useCallback(async () => {
     if (!btcPrice || fetchInFlightRef.current) return;
     fetchInFlightRef.current = true;
-    store.getState().setFetchStatus('loading');
+    // Only set loading on first fetch to avoid re-renders during polling
+    if (store.getState().fetchStatus === 'idle') {
+      store.getState().setFetchStatus('loading');
+    }
 
     try {
       const [raw, contract] = await Promise.all([
@@ -92,18 +95,34 @@ export function useLiquidationVaults({
         }
       }
 
-      store.getState().setVaultData(displayProfiles, fullProfiles, profitRate, depositRate, swapRate);
-      store.getState().setFetchStatus('loaded');
+      // Batch store update into a single set() call to avoid multiple re-renders
+      const prev = store.getState();
+      const vaultsChanged = prev.vaults.length !== displayProfiles.length
+        || displayProfiles.some((v, i) => prev.vaults[i]?.vaultId !== v.vaultId);
+
+      if (vaultsChanged || prev.fetchStatus !== 'loaded') {
+        store.setState({
+          vaults: displayProfiles,
+          vaultsFull: fullProfiles,
+          profitRate,
+          depositRate,
+          swapRate,
+          fetchStatus: 'loaded',
+        });
+      }
 
       logger.debug('[Liquidation] Vaults ready', {
         display: displayProfiles.length,
         full: fullProfiles.length,
+        changed: vaultsChanged,
       });
     } catch (fetchErr: unknown) {
       logger.warn('[Liquidation] Fetch failed', {
         error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
       });
-      store.getState().setFetchStatus('error');
+      if (store.getState().fetchStatus !== 'error') {
+        store.getState().setFetchStatus('error');
+      }
     } finally {
       fetchInFlightRef.current = false;
     }

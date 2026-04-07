@@ -183,6 +183,10 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     }
 
     // Input step — check empty states
+    if (!hasVault) {
+      return <LiquidationEmptyStates variant="noVault" />;
+    }
+
     if (isLoaded && vaults.length === 0) {
       return <LiquidationEmptyStates variant="noVaults" />;
     }
