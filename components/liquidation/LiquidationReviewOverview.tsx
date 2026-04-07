@@ -101,8 +101,8 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
         </View>
         <View style={styles.getGrid}>
           <View style={styles.getBox}>
-            <Text style={styles.getBoxValue}>{fmt(returnBtc, 6)} BTC</Text>
-            <Text style={styles.getBoxSub}>{fmt(collateralBtc, 6)} collateral</Text>
+            <Text style={styles.getBoxValue}>{fmt(collateralBtc, 6)} BTC</Text>
+            <Text style={styles.getBoxSub}>{fmt(profitBtc, 6)} profit</Text>
             <Text style={styles.getBoxSub}>{fmt(claimBtc, 6)} deposit</Text>
           </View>
           <Text style={styles.getPlus}>+</Text>
