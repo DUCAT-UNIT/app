@@ -18,7 +18,8 @@ import { fetchProtocolContract } from '../../services/vaultWallet';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { logger } from '../../utils/logger';
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_ACTIVE_MS = 30_000;  // 30s when screen is open
+const POLL_INTERVAL_BG_MS = 120_000;    // 2 min background prefetch
 
 interface UseLiquidationVaultsParams {
   btcPrice: number | null;
@@ -128,29 +129,25 @@ export function useLiquidationVaults({
     }
   }, [btcPrice]);
 
-  // Poll every 30s while visible and on input screen
+  // Background prefetch — start fetching immediately on mount, poll every 2 min
+  // so data is ready when user opens the liquidation screen
   useEffect(() => {
-    if (visible && currentStep === 'input') {
-      pollingRef.current = setInterval(() => {
-        void refreshLiqVaults();
-      }, POLL_INTERVAL_MS);
-      logger.debug('[Liquidation] Polling started (30s interval)');
-    }
+    if (!btcPrice) return;
+    void refreshLiqVaults();
+    const interval = visible && currentStep === 'input'
+      ? POLL_INTERVAL_ACTIVE_MS   // 30s when screen is open
+      : POLL_INTERVAL_BG_MS;      // 2 min background
+    pollingRef.current = setInterval(() => {
+      void refreshLiqVaults();
+    }, interval);
+    logger.debug('[Liquidation] Polling started', { interval, visible });
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
-        logger.debug('[Liquidation] Polling stopped');
       }
     };
-  }, [visible, currentStep, refreshLiqVaults]);
-
-  // Initial fetch when becoming visible
-  useEffect(() => {
-    if (visible) {
-      void refreshLiqVaults();
-    }
-  }, [visible, refreshLiqVaults]);
+  }, [btcPrice, visible, currentStep, refreshLiqVaults]);
 
   // Compute max investable from vault data + wallet constraints
   const vaultsFull = store((s) => s.vaultsFull);
