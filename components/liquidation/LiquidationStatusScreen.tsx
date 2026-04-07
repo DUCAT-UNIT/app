@@ -180,7 +180,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
             </View>
           )}
 
-          {txid && (
+          {swapTxid && (
             <View style={styles.swapContainer}>
               {swapTxid ? (
                 <>
