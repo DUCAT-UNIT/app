@@ -252,10 +252,22 @@ export async function executeLiquidation(
           bitcoinPrice,
         });
 
+        // Get remaining wallet UTXOs (all minus repo-selected) for swap funding
+        const remainingUtxos = allUtxos.filter(
+          (u) => !utxos.some((r) => r.txid === u.txid && r.vout === u.vout),
+        );
+
+        // Check if change UTXO covers swap, otherwise add extra UTXOs
+        const swapAmountSats = Math.floor(swapBtcAmount * 100_000_000);
+        const needExtra = swapAmountSats > changeUtxo.value;
+        const extraUtxos = needExtra
+          ? select_sat_utxos(remainingUtxos, swapAmountSats - changeUtxo.value)
+          : [];
+
         // Fetch swap PSBT from faucet API
         const swapPayload = createSwapPayload({
           changeUtxo,
-          extraUtxos: [],
+          extraUtxos,
           swapBtcAmount,
           swapClaimedUnit,
           btcPrice: bitcoinPrice,
