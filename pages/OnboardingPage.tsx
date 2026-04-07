@@ -254,8 +254,18 @@ export default function OnboardingPage({
     );
   }
 
-  logger.debug('[OnboardingPage] Reached unexpected state:', { wallet: !!wallet, isAuthenticated, seedConfirmed });
-  return null;
+  // Fallback — should not normally reach here, but never show a black screen
+  logger.warn('[OnboardingPage] Reached fallback state:', {
+    wallet: !!wallet, isAuthenticated, seedConfirmed, settingUpPin,
+    showPinEntry, showPinInput, showRestorePinInput, importingWallet,
+  });
+  return (
+    <View style={localStyles.welcomeContainer} testID="onboarding-page-fallback">
+      <MutinynetBanner />
+      <WelcomeScreen {...welcomeProps} />
+      <StatusBar style="light" />
+    </View>
+  );
 }
 
 const localStyles = StyleSheet.create({
