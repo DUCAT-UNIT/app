@@ -2,27 +2,25 @@
  * Repay Store (Zustand)
  * Manages the repay UI flow state for paying back UNIT debt
  *
- * Refactored to use common vault store pattern from stores/vault/
+ * Built on createVaultOperationStore factory with repay-specific extensions
  */
 
-import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import {
-computeHealthFactor,
-computeLiquidationPrice,
-getHealthStatus,
-type HealthStatus,
+  computeHealthFactor,
+  computeLiquidationPrice,
+  getHealthStatus,
+  type HealthStatus,
 } from '../utils/vaultUtils';
-import type {
-CommonVaultActions,
-CommonVaultState,
-ProcessingStep,
-VaultOperationStep,
-} from './vault';
 import {
-commonInitialState,
-computeVaultHealth,
-createCommonVaultSlice
+  createVaultOperationStore,
+  computeVaultHealth,
+} from './vault';
+import type {
+  CommonVaultState,
+  CommonVaultActions,
+  VaultOperationStep,
+  ProcessingStep,
 } from './vault';
 
 // Re-export types for backwards compatibility
@@ -56,10 +54,8 @@ interface RepaySpecificActions {
   getMaxRepayable: () => number;
 }
 
-// Full store types
-type RepayState = CommonVaultState & RepaySpecificState;
-type RepayActions = CommonVaultActions & RepaySpecificActions;
-type RepayStore = RepayState & RepayActions;
+// Combined repay extension type
+type RepayExtension = RepaySpecificState & RepaySpecificActions;
 
 // Repay-specific initial state
 const repaySpecificInitialState: RepaySpecificState = {
@@ -68,33 +64,26 @@ const repaySpecificInitialState: RepaySpecificState = {
   issueTxid: null,
 };
 
-export const useRepayStore = create<RepayStore>()((set, get, store) => {
-  // Get common slice
-  const commonSlice = createCommonVaultSlice<RepayStore>({
-    storeName: 'RepayStore',
-  })(set, get, store);
-
-  return {
-    // Spread common state and actions
-    ...commonSlice,
-
+export const useRepayStore = createVaultOperationStore<RepayExtension>(
+  'repay',
+  (set, get, { initialState }) => ({
     // Repay-specific initial state
     ...repaySpecificInitialState,
 
     // Repay-specific form actions
-    setRepayAmountUnit: (repayAmountUnit) => {
+    setRepayAmountUnit: (repayAmountUnit: number) => {
       logger.debug('[RepayStore] setRepayAmountUnit:', repayAmountUnit);
-      set({ repayAmountUnit, error: null });
+      set({ repayAmountUnit, error: null } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
-    setAvailableUnitBalance: (availableUnitBalance) => {
+    setAvailableUnitBalance: (availableUnitBalance: number) => {
       logger.debug('[RepayStore] setAvailableUnitBalance:', availableUnitBalance);
-      set({ availableUnitBalance });
+      set({ availableUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
-    setIssueTxid: (issueTxid) => {
+    setIssueTxid: (issueTxid: string | null) => {
       logger.debug('[RepayStore] setIssueTxid:', issueTxid);
-      set({ issueTxid });
+      set({ issueTxid } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
     // Repay-specific computed getters
@@ -132,12 +121,12 @@ export const useRepayStore = create<RepayStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[RepayStore] reset');
       set({
-        ...commonInitialState,
+        ...initialState,
         ...repaySpecificInitialState,
-      });
+      } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
-  };
-});
+  })
+);
 
 /**
  * useRepay - Hook that returns commonly used state and actions

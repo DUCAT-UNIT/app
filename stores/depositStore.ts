@@ -2,10 +2,9 @@
  * Deposit Store (Zustand)
  * Manages the deposit UI flow state for adding more BTC collateral to an existing vault
  *
- * Refactored to use common vault store pattern from stores/vault/
+ * Built on createVaultOperationStore factory with deposit-specific extensions
  */
 
-import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import {
   computeHealthFactor,
@@ -14,8 +13,7 @@ import {
   type HealthStatus,
 } from '../utils/vaultUtils';
 import {
-  commonInitialState,
-  createCommonVaultSlice,
+  createVaultOperationStore,
   computeVaultHealth,
   computeNewVaultHealth,
 } from './vault';
@@ -56,10 +54,8 @@ interface DepositSpecificActions {
   getNewHealthStatus: () => HealthStatus;
 }
 
-// Full store types
-type DepositState = CommonVaultState & DepositSpecificState;
-type DepositActions = CommonVaultActions & DepositSpecificActions;
-type DepositStore = DepositState & DepositActions;
+// Combined deposit extension type
+type DepositExtension = DepositSpecificState & DepositSpecificActions;
 
 // Deposit-specific initial state
 const depositSpecificInitialState: DepositSpecificState = {
@@ -67,34 +63,27 @@ const depositSpecificInitialState: DepositSpecificState = {
   availableBalance: 0,
 };
 
-export const useDepositStore = create<DepositStore>()((set, get, store) => {
-  // Get common slice
-  const commonSlice = createCommonVaultSlice<DepositStore>({
-    storeName: 'DepositStore',
-  })(set, get, store);
-
-  return {
-    // Spread common state and actions
-    ...commonSlice,
-
+export const useDepositStore = createVaultOperationStore<DepositExtension>(
+  'deposit',
+  (set, get, { initialState }) => ({
     // Deposit-specific initial state
     ...depositSpecificInitialState,
 
     // Deposit-specific form actions
-    setDepositAmountSats: (depositAmountSats) => {
+    setDepositAmountSats: (depositAmountSats: number) => {
       logger.debug('[DepositStore] setDepositAmountSats:', depositAmountSats);
-      set({ depositAmountSats, error: null });
+      set({ depositAmountSats, error: null } as Partial<CommonVaultState & CommonVaultActions & DepositExtension>);
     },
 
-    setDepositAmountBtc: (btcAmount) => {
+    setDepositAmountBtc: (btcAmount: number) => {
       const sats = Math.round(btcAmount * 100_000_000);
       logger.debug('[DepositStore] setDepositAmountBtc:', { btcAmount, sats });
-      set({ depositAmountSats: sats, error: null });
+      set({ depositAmountSats: sats, error: null } as Partial<CommonVaultState & CommonVaultActions & DepositExtension>);
     },
 
-    setAvailableBalance: (availableBalance) => {
+    setAvailableBalance: (availableBalance: number) => {
       logger.debug('[DepositStore] setAvailableBalance:', availableBalance);
-      set({ availableBalance });
+      set({ availableBalance } as Partial<CommonVaultState & CommonVaultActions & DepositExtension>);
     },
 
     // Deposit-specific computed getters
@@ -131,12 +120,12 @@ export const useDepositStore = create<DepositStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[DepositStore] reset');
       set({
-        ...commonInitialState,
+        ...initialState,
         ...depositSpecificInitialState,
-      });
+      } as Partial<CommonVaultState & CommonVaultActions & DepositExtension>);
     },
-  };
-});
+  })
+);
 
 /**
  * useDeposit - Hook that returns commonly used state and actions
