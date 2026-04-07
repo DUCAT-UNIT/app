@@ -109,10 +109,16 @@ export default function RootNavigator(): React.JSX.Element {
   const { setShowAirdropModal } = useAirdrop();
 
   // Remote config store — announcement + network change
-  const shouldShowAnnouncement = useRemoteConfigStore((s) => s.shouldShowAnnouncement);
-  const dismissAnnouncement = useRemoteConfigStore((s) => s.dismissAnnouncement);
   const announcement = useRemoteConfigStore((s) => s.config.announcement);
+  const dismissedIds = useRemoteConfigStore((s) => s.dismissedAnnouncementIds);
+  const dismissAnnouncement = useRemoteConfigStore((s) => s.dismissAnnouncement);
   const pendingNetworkChange = useRemoteConfigStore((s) => s.pendingNetworkChange);
+  const [sessionDismissedAnn, setSessionDismissedAnn] = React.useState(false);
+  const showAnnouncement = announcement.enabled
+    && !!announcement.id
+    && !!announcement.title
+    && !sessionDismissedAnn
+    && (announcement.showMode !== 'once' || !dismissedIds.includes(announcement.id));
 
   // Show alert when server pushes a network change
   const networkAlertShown = useRef(false);
@@ -448,14 +454,19 @@ export default function RootNavigator(): React.JSX.Element {
         )}
 
         {/* Announcement Modal (server-driven popup) */}
-        {shouldShowAnnouncement() &&
+        {showAnnouncement &&
           isAuthenticated &&
           !shouldShowPinOverlay &&
           !shouldShowLockOverlay && (
             <AnnouncementModal
               visible
               announcement={announcement}
-              onDismiss={() => dismissAnnouncement(announcement.id)}
+              onDismiss={() => {
+                setSessionDismissedAnn(true);
+                if (announcement.showMode === 'once') {
+                  dismissAnnouncement(announcement.id);
+                }
+              }}
             />
           )}
 
