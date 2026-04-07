@@ -5,30 +5,33 @@ import { colors, fonts, fontSizes } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
 export interface LiquidationReviewOverviewProps {
-  investAmount: number;
-  profitRate: number;
-  depositRate: number;
-  swapRate: number;
+  claimBtc: number;
+  swapBtc: number;
+  swapUnit: number;
+  profitBtc: number;
+  profitPercent: number;
+  totalBtc: number;
+  returnBtc: number;
   btcPrice: number;
   showBTC: boolean;
 }
 
+const LIQ_GREEN = colors.brand.accent;
+
 const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview({
-  investAmount,
-  profitRate,
-  depositRate,
-  swapRate,
+  claimBtc,
+  swapBtc,
+  swapUnit,
+  profitBtc,
+  profitPercent,
+  totalBtc,
+  returnBtc,
   btcPrice,
   showBTC,
 }: LiquidationReviewOverviewProps): React.ReactElement {
   const { s } = useResponsive();
   const price = btcPrice;
-  const liqProfitBtc = investAmount * profitRate;
-  const liqDepositBtc = investAmount * depositRate;
-  const liqSwapBtc = investAmount * swapRate;
-  const liqReturnBtc = investAmount + liqProfitBtc;
-  const liqCollateralBtc = liqDepositBtc + liqProfitBtc;
-  const liqSwapUnit = liqSwapBtc * price;
+  const collateralBtc = claimBtc + profitBtc;
   const fmt = (v: number, d = 8): string => v.toFixed(d);
 
   return (
@@ -44,51 +47,47 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
           <View style={styles.profitHeader}>
             <Text style={styles.profitTitle}>Total profit</Text>
             <View style={styles.profitBadge}>
-              <Text style={styles.profitBadgeText}>+{Math.round(profitRate * 100)}%</Text>
+              <Text style={styles.profitBadgeText}>+{Math.round(profitPercent)}%</Text>
             </View>
           </View>
           <Text style={styles.profitAmount}>
             {showBTC
-              ? `+${fmt(liqProfitBtc)} BTC`
-              : `+$${(liqProfitBtc * price).toFixed(2)}`}
+              ? `+${fmt(profitBtc)} BTC`
+              : `+$${(profitBtc * price).toFixed(2)}`}
           </Text>
           <Text style={styles.profitSub}>
             {showBTC
-              ? `$ ${(liqProfitBtc * price).toFixed(2)}`
-              : `\u20BF ${fmt(liqProfitBtc)}`}
+              ? `$ ${(profitBtc * price).toFixed(2)}`
+              : `\u20BF ${fmt(profitBtc)}`}
           </Text>
         </View>
 
         {/* Lower: Breakdown */}
         <View style={styles.reviewLower}>
-          <View style={styles.reviewRow}>
+          <View style={styles.row}>
             <Text style={styles.rowLabel}>Your deposit</Text>
             <View>
-              <Text style={styles.rowValue}>{fmt(liqDepositBtc)} BTC</Text>
-              <Text style={styles.rowSub}>$ {(liqDepositBtc * price).toFixed(2)}</Text>
+              <Text style={styles.rowValue}>{fmt(claimBtc)} BTC</Text>
+              <Text style={styles.rowSub}>$ {(claimBtc * price).toFixed(2)}</Text>
             </View>
           </View>
           <View style={styles.divider} />
-          <View style={styles.reviewRow}>
-            <Text style={[styles.rowLabel, { color: colors.brand.primary }]}>
-              You swap to UNIT
-            </Text>
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { color: colors.brand.primary }]}>You swap to UNIT</Text>
             <View>
-              <Text style={styles.rowValue}>{fmt(liqSwapBtc)} BTC</Text>
-              <Text style={styles.rowSub}>$ {liqSwapUnit.toFixed(2)}</Text>
+              <Text style={styles.rowValue}>{fmt(swapBtc)} BTC</Text>
+              <Text style={styles.rowSub}>$ {(swapBtc * price).toFixed(2)}</Text>
             </View>
           </View>
           <View style={styles.divider} />
-          <View style={styles.reviewRow}>
+          <View style={styles.row}>
             <View>
               <Text style={styles.rowLabel}>Total BTC required</Text>
               <Text style={[styles.rowSub, { textAlign: 'left' }]}>from your vault</Text>
             </View>
             <View>
-              <Text style={[styles.rowValue, { fontFamily: fonts.bold }]}>
-                {investAmount.toFixed(8)} BTC
-              </Text>
-              <Text style={styles.rowSub}>$ {(investAmount * price).toFixed(2)}</Text>
+              <Text style={[styles.rowValue, { fontFamily: fonts.bold }]}>{fmt(totalBtc)} BTC</Text>
+              <Text style={styles.rowSub}>$ {(totalBtc * price).toFixed(2)}</Text>
             </View>
           </View>
         </View>
@@ -102,13 +101,13 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
         </View>
         <View style={styles.getGrid}>
           <View style={styles.getBox}>
-            <Text style={styles.getBoxValue}>{fmt(liqReturnBtc, 6)} BTC</Text>
-            <Text style={styles.getBoxSub}>{fmt(liqCollateralBtc, 6)} collateral</Text>
-            <Text style={styles.getBoxSub}>{fmt(liqDepositBtc, 6)} deposit</Text>
+            <Text style={styles.getBoxValue}>{fmt(returnBtc, 6)} BTC</Text>
+            <Text style={styles.getBoxSub}>{fmt(collateralBtc, 6)} collateral</Text>
+            <Text style={styles.getBoxSub}>{fmt(claimBtc, 6)} deposit</Text>
           </View>
           <Text style={styles.getPlus}>+</Text>
           <View style={[styles.getBox, { borderColor: colors.brand.primary }]}>
-            <Text style={styles.getBoxValue}>{liqSwapUnit.toFixed(2)} UNIT</Text>
+            <Text style={styles.getBoxValue}>{swapUnit.toFixed(2)} UNIT</Text>
             <Text style={styles.getBoxSub}>repayable debt</Text>
           </View>
         </View>
@@ -120,13 +119,8 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
           <Icon name="wallet" size={s(20)} color={colors.text.secondary} />
           <Text style={styles.getTitle}>You get in your wallet</Text>
         </View>
-        <View
-          style={[
-            styles.getBox,
-            { borderColor: colors.brand.primary, alignSelf: 'center', width: '60%' },
-          ]}
-        >
-          <Text style={styles.getBoxValue}>{liqSwapUnit.toFixed(2)} UNIT</Text>
+        <View style={[styles.getBox, { borderColor: colors.brand.primary, alignSelf: 'center', width: '60%' }]}>
+          <Text style={styles.getBoxValue}>{swapUnit.toFixed(2)} UNIT</Text>
           <Text style={styles.getBoxSub}>to pay the vault debt</Text>
         </View>
       </View>
@@ -140,28 +134,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   vaultOuter: {
-    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   reviewUpper: {
     backgroundColor: colors.bg.secondary,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    zIndex: 2,
-    elevation: 3,
-  },
-  reviewLower: {
-    backgroundColor: colors.bg.tertiary,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    marginTop: -16,
-    paddingTop: 22,
-    paddingHorizontal: 14,
-    paddingBottom: 12,
-    zIndex: 1,
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   profitHeader: {
     flexDirection: 'row',
@@ -171,43 +155,44 @@ const styles = StyleSheet.create({
   },
   profitTitle: {
     fontSize: fontSizes.sm,
-    fontFamily: fonts.medium,
-    color: colors.text.primary,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
   },
   profitBadge: {
-    backgroundColor: colors.brand.accent,
+    backgroundColor: LIQ_GREEN + '33',
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
   profitBadgeText: {
-    fontSize: 12,
+    fontSize: fontSizes.xs,
     fontFamily: fonts.bold,
-    color: colors.text.white,
+    color: LIQ_GREEN,
   },
   profitAmount: {
-    fontSize: 28,
+    fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
-    color: colors.brand.accent,
+    color: LIQ_GREEN,
     textAlign: 'center',
-    marginBottom: 2,
   },
   profitSub: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 4,
+    marginTop: 4,
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border.light,
-    marginVertical: 10,
+  reviewLower: {
+    backgroundColor: colors.bg.tertiary,
+    padding: 20,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
-  reviewRow: {
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 12,
   },
   rowLabel: {
     fontSize: fontSizes.sm,
@@ -221,26 +206,29 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   rowSub: {
-    fontSize: 12,
+    fontSize: fontSizes.xs,
     fontFamily: fonts.regular,
-    color: colors.text.secondary,
+    color: colors.text.tertiary,
     textAlign: 'right',
     marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.light,
   },
   card: {
     backgroundColor: colors.bg.secondary,
     borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.border.default,
-    padding: 14,
-    marginBottom: 8,
-    marginTop: 0,
   },
   getHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   getTitle: {
     fontSize: fontSizes.sm,
@@ -250,19 +238,21 @@ const styles = StyleSheet.create({
   getGrid: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   getBox: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border.default,
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: 12,
+    padding: 12,
     alignItems: 'center',
   },
   getPlus: {
+    fontSize: fontSizes.lg,
+    fontFamily: fonts.bold,
     color: colors.text.secondary,
-    fontSize: 18,
-    marginHorizontal: 6,
   },
   getBoxValue: {
     fontSize: fontSizes.sm,
@@ -273,8 +263,7 @@ const styles = StyleSheet.create({
   getBoxSub: {
     fontSize: 10,
     fontFamily: fonts.regular,
-    color: colors.text.secondary,
-    textAlign: 'center',
+    color: colors.text.tertiary,
   },
 });
 

@@ -7,24 +7,19 @@ import { useResponsive } from '../../hooks/useResponsive';
 const LIQ_GREEN = colors.brand.accent;
 
 export interface LiquidationReviewHowItWorksProps {
-  investAmount: number;
-  profitRate: number;
-  swapRate: number;
-  btcPrice: number;
+  returnBtc: number;
+  swapUnit: number;
+  profitBtc: number;
+  profitPercent: number;
 }
 
 const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWorks({
-  investAmount,
-  profitRate,
-  swapRate,
-  btcPrice,
+  returnBtc,
+  swapUnit,
+  profitBtc,
+  profitPercent,
 }: LiquidationReviewHowItWorksProps): React.ReactElement {
   const { s } = useResponsive();
-  const price = btcPrice;
-  const liqProfitBtc = investAmount * profitRate;
-  const liqSwapBtc = investAmount * swapRate;
-  const liqReturnBtc = investAmount + liqProfitBtc;
-  const liqSwapUnit = liqSwapBtc * price;
   const fmt = (v: number, d = 8): string => v.toFixed(d);
 
   return (
@@ -39,7 +34,7 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
           You deposit BTC to restore an unhealthy vault to health. In return, you receive the
           liquidated vault's collateral and debt to your vault, including a{' '}
           <Text style={{ color: LIQ_GREEN, fontFamily: fonts.bold }}>
-            {Math.round(profitRate * 100)}% profit
+            {Math.round(profitPercent)}% profit
           </Text>
           {' '}for taking on the liquidation.
         </Text>
@@ -52,25 +47,25 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
           {
             num: '1',
             title: 'Your vault gets updated',
-            desc: `Added to your vault: ${fmt(liqReturnBtc, 6)} BTC + ${liqSwapUnit.toFixed(2)} UNIT debt.`,
+            desc: `Added to your vault: ${fmt(returnBtc, 6)} BTC + ${swapUnit.toFixed(2)} UNIT debt.`,
             auto: true,
           },
           {
             num: '2',
             title: 'Receive UNIT in wallet',
-            desc: `You receive ${liqSwapUnit.toFixed(2)} UNIT in your wallet to repay the debt.`,
+            desc: `You receive ${swapUnit.toFixed(2)} UNIT in your wallet to repay the debt.`,
             auto: true,
           },
           {
             num: '3',
             title: 'Repay your vault debt',
-            desc: `Use the ${liqSwapUnit.toFixed(2)} UNIT in your wallet to clear the debt in your vault.`,
+            desc: `Use the ${swapUnit.toFixed(2)} UNIT in your wallet to clear the debt in your vault.`,
             auto: false,
           },
           {
             num: '4',
             title: 'Withdraw your profit',
-            desc: `After clearing the debt, withdraw your ${fmt(liqReturnBtc, 6)} BTC (includes the ${fmt(liqProfitBtc, 6)} BTC profit).`,
+            desc: `After clearing the debt, withdraw your ${fmt(returnBtc, 6)} BTC (includes the ${fmt(profitBtc, 6)} BTC profit).`,
             auto: false,
           },
         ].map((step) => (

@@ -275,6 +275,7 @@ const styles = StyleSheet.create({
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: spacing.sm,
     gap: spacing.sm,
   },

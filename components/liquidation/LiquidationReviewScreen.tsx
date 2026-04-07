@@ -6,10 +6,13 @@ import LiquidationReviewOverview from './LiquidationReviewOverview';
 import LiquidationReviewHowItWorks from './LiquidationReviewHowItWorks';
 
 export interface LiquidationReviewScreenProps {
-  investAmount: number;
-  profitRate: number;
-  depositRate: number;
-  swapRate: number;
+  claimBtc: number;
+  swapBtc: number;
+  swapUnit: number;
+  profitBtc: number;
+  profitPercent: number;
+  totalBtc: number;
+  returnBtc: number;
   btcPrice: number;
   showBTC: boolean;
   reviewTab: LiquidationReviewTab;
@@ -17,10 +20,13 @@ export interface LiquidationReviewScreenProps {
 }
 
 const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
-  investAmount,
-  profitRate,
-  depositRate,
-  swapRate,
+  claimBtc,
+  swapBtc,
+  swapUnit,
+  profitBtc,
+  profitPercent,
+  totalBtc,
+  returnBtc,
   btcPrice,
   showBTC,
   reviewTab,
@@ -50,19 +56,22 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
 
       {reviewTab === 'overview' ? (
         <LiquidationReviewOverview
-          investAmount={investAmount}
-          profitRate={profitRate}
-          depositRate={depositRate}
-          swapRate={swapRate}
+          claimBtc={claimBtc}
+          swapBtc={swapBtc}
+          swapUnit={swapUnit}
+          profitBtc={profitBtc}
+          profitPercent={profitPercent}
+          totalBtc={totalBtc}
+          returnBtc={returnBtc}
           btcPrice={btcPrice}
           showBTC={showBTC}
         />
       ) : (
         <LiquidationReviewHowItWorks
-          investAmount={investAmount}
-          profitRate={profitRate}
-          swapRate={swapRate}
-          btcPrice={btcPrice}
+          returnBtc={returnBtc}
+          swapUnit={swapUnit}
+          profitBtc={profitBtc}
+          profitPercent={profitPercent}
         />
       )}
     </>
