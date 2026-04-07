@@ -25,6 +25,7 @@ export interface LiquidationStatusScreenProps {
   step: LiquidationStep;
   processingMessage: string;
   txid: string | null;
+  swapTxid: string | null;
   error: string | null;
 }
 
@@ -52,6 +53,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   step,
   processingMessage,
   txid,
+  swapTxid,
   error,
 }: LiquidationStatusScreenProps): React.ReactElement {
   const { showToast } = useNotifications();
@@ -95,14 +97,32 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
     }
   }, [txid, showToast]);
 
+  const handleCopySwapTxid = useCallback(async () => {
+    if (swapTxid) {
+      await Clipboard.setStringAsync(swapTxid);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      showToast('Swap TX ID copied');
+    }
+  }, [swapTxid, showToast]);
+
   const handleViewExplorer = useCallback(() => {
     if (txid) {
       void Linking.openURL(getTxUrl(txid));
     }
   }, [txid]);
 
+  const handleViewSwapExplorer = useCallback(() => {
+    if (swapTxid) {
+      void Linking.openURL(getTxUrl(swapTxid));
+    }
+  }, [swapTxid]);
+
   const truncatedTxid = txid
     ? `${txid.slice(0, 8)}...${txid.slice(-8)}`
+    : '';
+
+  const truncatedSwapTxid = swapTxid
+    ? `${swapTxid.slice(0, 8)}...${swapTxid.slice(-8)}`
     : '';
 
   // ── Processing ──
@@ -145,6 +165,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
 
           {txid && (
             <View style={styles.linksContainer}>
+              <Text style={styles.txLabelText}>Repo TX</Text>
               <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
                 <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
                 <Text style={styles.txidText}>{truncatedTxid}</Text>
@@ -156,6 +177,32 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
                 <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
                 <Text style={styles.explorerText}>View on Explorer</Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {txid && (
+            <View style={styles.swapContainer}>
+              {swapTxid ? (
+                <>
+                  <Text style={styles.txLabelText}>Swap TX</Text>
+                  <TouchableOpacity onPress={handleCopySwapTxid} style={styles.linkRow} activeOpacity={0.7}>
+                    <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
+                    <Text style={styles.txidText}>{truncatedSwapTxid}</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.divider} />
+
+                  <TouchableOpacity onPress={handleViewSwapExplorer} style={styles.linkRow} activeOpacity={0.7}>
+                    <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
+                    <Text style={styles.explorerText}>View on Explorer</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={styles.linkRow}>
+                  <Ionicons name="swap-horizontal-outline" size={16} color={colors.text.tertiary} />
+                  <Text style={styles.swapPendingText}>Swap pending...</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -272,6 +319,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     width: '100%',
   },
+  swapContainer: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    width: '100%',
+  },
+  txLabelText: {
+    fontSize: fontSizes.xs,
+    fontFamily: fonts.medium,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,6 +354,11 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
     color: colors.brand.primary,
+  },
+  swapPendingText: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    color: colors.text.tertiary,
   },
   warningRow: {
     flexDirection: 'row',

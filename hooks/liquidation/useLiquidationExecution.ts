@@ -11,6 +11,7 @@ import {
 } from '../../services/liquidation/calculations';
 import { LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
 import { executeLiquidation } from '../../services/liquidation/execution';
+import { waitForMempool, broadcastSwapTx } from '../../services/liquidation/swapService';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
@@ -144,6 +145,34 @@ export function useLiquidationExecution({
             vaultPubkey: wallet?.taprootPubkey || '',
           });
         }
+
+        // Background swap broadcast: wait for repo TX in mempool, then broadcast swap
+        if (result.swapPsbtHex && result.txid) {
+          void (async () => {
+            try {
+              store.getState().setProcessingMessage('Waiting for repo TX...');
+              const inMempool = await waitForMempool(result.txid!);
+              if (!inMempool) {
+                logger.warn('[Liquidation] Repo TX not found in mempool, skipping swap broadcast');
+                return;
+              }
+
+              store.getState().setProcessingMessage('Broadcasting swap...');
+              const swapTxid = await broadcastSwapTx(result.swapPsbtHex!);
+              if (swapTxid) {
+                store.getState().setResultSwapTxid(swapTxid);
+                store.getState().setProcessingMessage('Swap broadcast!');
+                logger.info('[Liquidation] Swap broadcast success', { swapTxid });
+              } else {
+                logger.warn('[Liquidation] Swap broadcast returned no txid');
+              }
+            } catch (swapErr: unknown) {
+              logger.warn('[Liquidation] Background swap broadcast failed', {
+                error: swapErr instanceof Error ? swapErr.message : String(swapErr),
+              });
+            }
+          })();
+        }
       } else {
         store.getState().setError(result.error || 'Liquidation failed');
         store.getState().setCurrentStep('error');
@@ -166,6 +195,7 @@ export function useLiquidationExecution({
     store.getState().setCurrentStep('input');
     store.getState().setError(null);
     store.getState().setResultTxid(null);
+    store.getState().setResultSwapTxid(null);
   }, []);
 
   return { execute, resetAfterSuccess, resetAfterError };

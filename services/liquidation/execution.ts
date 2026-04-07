@@ -27,6 +27,7 @@ import type {
   VaultWallet,
   WalletVaultRepoRequest,
 } from '@ducat-unit/client-sdk';
+import { PSBT } from '@ducat-unit/client-sdk/util';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
@@ -43,6 +44,12 @@ import {
 import { fetchVaultHistory } from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { getAvailableCollateralBtc } from './calculations';
+import {
+  fetchSwapPsbt,
+  createSwapPayload,
+  calculateSwapBtcAmount,
+  finalizeSwapPsbt,
+} from './swapService';
 
 // ============================================================
 // Types
@@ -76,6 +83,8 @@ export interface LiquidationExecutionParams {
   deficitAmountBtc: number;
   /** Progress callback for UI updates */
   onProgress?: (message: string) => void;
+  /** Enable BTC→UNIT auto-swap after repo (default true) */
+  enableSwap?: boolean;
 }
 
 export interface LiquidationExecutionResult {
@@ -83,6 +92,10 @@ export interface LiquidationExecutionResult {
   txid?: string;
   vaultTxid?: string;
   error?: string;
+  /** Signed+finalized swap PSBT hex, ready to broadcast after repo TX confirms */
+  swapPsbtHex?: string;
+  /** Swap transaction ID (set after broadcast) */
+  swapTxid?: string;
 }
 
 // ============================================================
@@ -96,6 +109,7 @@ export async function executeLiquidation(
     liquidVaults, walletInfo, vaultPubkey,
     btcInVault, unitDebt, feeRate, vaultInfo,
     deficitAmountBtc, onProgress,
+    enableSwap = true,
   } = params;
 
   const progress = (msg: string) => {
@@ -207,13 +221,69 @@ export async function executeLiquidation(
       throw new Error('Insufficient funds for liquidation');
     }
 
-    // ── Step 8: Create PSBTs, Batch Sign, Build Request ──
-    // (matches web: repossess.api.ts:32-61, 63-75, 82-93)
-    progress('Signing transaction...');
+    // ── Step 8: Create Repo PSBTs ──
+    // (matches web: repossess.api.ts:32-61)
+    progress('Building transactions...');
 
     // Create PSBTs manually (same as web repoCreatePsbtsBatch)
     const psbt1Raw = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
     const psbt2Raw = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1Raw);
+
+    // ── Step 8a: Extract change UTXO from psbt2 for swap ──
+    let swapPsbtHex: string | undefined;
+    let swapData: Awaited<ReturnType<typeof fetchSwapPsbt>> = null;
+
+    if (enableSwap) {
+      try {
+        progress('Preparing swap...');
+
+        // Parse psbt2 and extract change UTXO (index 1 = change output)
+        const pdata = PSBT.parse(psbt2Raw);
+        const changeUtxo: BaseUtxo = PSBT.extract.utxo(pdata, 1);
+
+        // Calculate swap amounts
+        const swapClaimedUnit = liquidCtx.claimed_unit / 100;
+        const swapBtcAmount = calculateSwapBtcAmount(swapClaimedUnit, bitcoinPrice);
+
+        logger.debug('[Liquidation] Swap calc', {
+          claimedUnitCents: liquidCtx.claimed_unit,
+          swapClaimedUnit,
+          swapBtcAmount,
+          bitcoinPrice,
+        });
+
+        // Fetch swap PSBT from faucet API
+        const swapPayload = createSwapPayload({
+          changeUtxo,
+          extraUtxos: [],
+          swapBtcAmount,
+          swapClaimedUnit,
+          btcPrice: bitcoinPrice,
+          paymentAddress: wallet.acct.sats.address,
+          ordinalsAddress: wallet.acct.vault.address,
+          vaultTxId: liquidCtx.liquid_vaults[0]?.utxo?.txid || '',
+        });
+
+        swapData = await fetchSwapPsbt(swapPayload);
+
+        if (swapData) {
+          logger.info('[Liquidation] Swap PSBT received', {
+            userInputs: swapData.user_input_indices,
+          });
+        } else {
+          logger.warn('[Liquidation] Swap PSBT not available, proceeding without swap');
+        }
+      } catch (swapErr: unknown) {
+        logger.warn('[Liquidation] Swap preparation failed, proceeding without swap', {
+          error: swapErr instanceof Error ? swapErr.message : String(swapErr),
+        });
+        swapData = null;
+      }
+    }
+
+    // ── Step 8b: Batch Sign (2 or 3 PSBTs) ──
+    // (matches web: repossess.api.ts:63-75)
+    progress('Signing transaction...');
 
     // Build manifests (same as web repossess.api.ts:34-50)
     const vinVaultIdx = CONST.TXMAP.repo.vault_tx.vin.vault;
@@ -233,6 +303,14 @@ export async function executeLiquidation(
       [psbt2Raw, vaultManifest],
     ];
 
+    // Add swap PSBT as 3rd entry if available
+    if (swapData) {
+      const swapManifest: Record<string, number[]> = {
+        [wallet.acct.sats.address]: swapData.user_input_indices,
+      };
+      batchRequest.push([swapData.psbt, swapManifest]);
+    }
+
     // Set signing context for security validation
     setPendingVaultSigningOperation({
       action: 'repo',
@@ -251,7 +329,23 @@ export async function executeLiquidation(
     const psbt1 = signedPsbts[0];
     const psbt2 = signedPsbts[1];
 
-    // Build request (same as web repossess.api.ts:82-93)
+    // Finalize swap PSBT if it was signed
+    if (swapData && signedPsbts[2]) {
+      try {
+        swapPsbtHex = finalizeSwapPsbt(signedPsbts[2]);
+        logger.info('[Liquidation] Swap PSBT finalized', {
+          hexLength: swapPsbtHex.length,
+        });
+      } catch (finalizeErr: unknown) {
+        logger.warn('[Liquidation] Swap PSBT finalization failed', {
+          error: finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr),
+        });
+        swapPsbtHex = undefined;
+      }
+    }
+
+    // ── Step 9: Build request and submit ──
+    // (matches web: repossess.api.ts:82-93)
     const req = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
     const request: WalletVaultRepoRequest = {
       ...req,
@@ -259,7 +353,7 @@ export async function executeLiquidation(
       network: wallet.network,
     };
 
-    // ── Step 9: Submit to Guardian ──
+    // ── Step 10: Submit to Guardian ──
     // (matches web: repossess.op.ts:214-224)
     progress('Submitting to network...');
 
@@ -283,7 +377,7 @@ export async function executeLiquidation(
     progress('Liquidation complete!');
     await disconnectGuardian();
 
-    return { success: true, txid, vaultTxid: txid };
+    return { success: true, txid, vaultTxid: txid, swapPsbtHex };
   } catch (error: unknown) {
     let msg: string;
     if (error instanceof Error) {

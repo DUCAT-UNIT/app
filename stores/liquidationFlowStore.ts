@@ -27,6 +27,7 @@ interface LiquidationFlowState {
   vaultExpanded: boolean;
   processingMessage: string;
   resultTxid: string | null;
+  resultSwapTxid: string | null;
   error: string | null;
   vaults: LiqVaultDisplay[];
   vaultsFull: LiquidVaultProfileWithMeta[];
@@ -44,6 +45,7 @@ interface LiquidationFlowActions {
   setVaultExpanded: (expanded: boolean) => void;
   setProcessingMessage: (message: string) => void;
   setResultTxid: (txid: string | null) => void;
+  setResultSwapTxid: (txid: string | null) => void;
   setError: (error: string | null) => void;
   setVaultData: (
     display: LiqVaultDisplay[],
@@ -70,6 +72,7 @@ const initialState: LiquidationFlowState = {
   vaultExpanded: false,
   processingMessage: 'Preparing liquidation...',
   resultTxid: null,
+  resultSwapTxid: null,
   error: null,
   vaults: [],
   vaultsFull: [],
@@ -93,6 +96,7 @@ export const useLiquidationFlowStore = create<LiquidationFlowStore>((set) => ({
   setVaultExpanded: (expanded) => set({ vaultExpanded: expanded }),
   setProcessingMessage: (message) => set({ processingMessage: message }),
   setResultTxid: (txid) => set({ resultTxid: txid }),
+  setResultSwapTxid: (txid) => set({ resultSwapTxid: txid }),
   setError: (error) => set({ error: error }),
   setVaultData: (display, full, profitRate, depositRate, swapRate) =>
     set({ vaults: display, vaultsFull: full, profitRate, depositRate, swapRate }),
@@ -111,6 +115,7 @@ export const useLiqReviewTab = () => useLiquidationFlowStore((s) => s.reviewTab)
 export const useLiqVaultExpanded = () => useLiquidationFlowStore((s) => s.vaultExpanded);
 export const useLiqProcessingMsg = () => useLiquidationFlowStore((s) => s.processingMessage);
 export const useLiqResultTxid = () => useLiquidationFlowStore((s) => s.resultTxid);
+export const useLiqResultSwapTxid = () => useLiquidationFlowStore((s) => s.resultSwapTxid);
 export const useLiqError = () => useLiquidationFlowStore((s) => s.error);
 export const useLiqVaults = () => useLiquidationFlowStore((s) => s.vaults);
 export const useLiqVaultsFull = () => useLiquidationFlowStore((s) => s.vaultsFull);

@@ -158,3 +158,38 @@ export type LiqVaultDisplay = Pick<
   LiquidationVaultComputedData,
   'vaultId' | 'unit' | 'btcInVault' | 'claimAmountBtc' | 'profitBtc' | 'profitPercent' | 'postTaxBtcInVault' | 'unitSwapBtc'
 >;
+
+// ============================================================
+// Swap Types (BTC→UNIT auto-swap after liquidation)
+// ============================================================
+
+export interface SwapUtxo {
+  tx: string;
+  output: number;
+  value: number;
+}
+
+export interface SwapPsbtPayload {
+  utxos: SwapUtxo[];
+  amt_to_transfer: number;
+  unit_amt: number;
+  payment_address: string;
+  ordinals_address: string;
+  btc_price: number;
+  vault_id: string;
+}
+
+export interface SwapPsbtData {
+  psbt: string;
+  message: string;
+  inputs: Record<string, string>;
+  outputs: Record<string, string>;
+  user_input_indices: number[];
+}
+
+export interface SwapPsbtResponse {
+  success: boolean;
+  data?: SwapPsbtData;
+  error?: string;
+  timestamp?: string;
+}

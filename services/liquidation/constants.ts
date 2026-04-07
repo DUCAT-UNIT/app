@@ -32,5 +32,8 @@ export const VIN_ALLOWANCE = 350;
 /** Default fee rate in sat/vB (Mutinynet) */
 export const LIQ_DEFAULT_FEE_RATE = 1;
 
+/** Faucet swap API URL (BTC→UNIT swap after liquidation) */
+export const FAUCET_SWAP_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
+
 /** Liquidation validator base URL */
 export const LIQ_VALIDATOR_URL = 'https://validator.staging.ducatprotocol.com/liq';

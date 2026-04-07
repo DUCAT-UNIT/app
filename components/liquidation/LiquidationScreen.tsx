@@ -18,6 +18,7 @@ import {
   useLiqVaultExpanded,
   useLiqProcessingMsg,
   useLiqResultTxid,
+  useLiqResultSwapTxid,
   useLiqError,
   useLiqVaults,
   useLiqVaultsFull,
@@ -69,6 +70,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const vaultExpanded = useLiqVaultExpanded();
   const processingMessage = useLiqProcessingMsg();
   const resultTxid = useLiqResultTxid();
+  const resultSwapTxid = useLiqResultSwapTxid();
   const error = useLiqError();
   const vaults = useLiqVaults();
   const vaultsFull = useLiqVaultsFull();
@@ -170,6 +172,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           step={currentStep}
           processingMessage={processingMessage}
           txid={resultTxid}
+          swapTxid={resultSwapTxid}
           error={error}
         />
       );
