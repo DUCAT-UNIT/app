@@ -45,6 +45,11 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
       amt_to_transfer: payload.amt_to_transfer,
       unit_amt: payload.unit_amt,
       utxo_count: payload.utxos.length,
+      payment_address: payload.payment_address,
+      ordinals_address: payload.ordinals_address,
+      btc_price: payload.btc_price,
+      vault_id: payload.vault_id?.substring(0, 16),
+      utxos: JSON.stringify(payload.utxos.slice(0, 3)),
     });
 
     const response = await postJSON<SwapPsbtResponse>(FAUCET_SWAP_URL, payload, {
@@ -55,6 +60,7 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
     if (!response.success || !response.data) {
       logger.warn('[SwapService] Swap PSBT request failed', {
         error: response.error,
+        rawResponse: JSON.stringify(response).substring(0, 300),
       });
       return null;
     }
