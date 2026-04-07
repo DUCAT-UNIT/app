@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -39,8 +39,7 @@ const PrivacyPolicyScreen = React.memo(function PrivacyPolicyScreen({ route }: P
   const { onClose } = route.params;
 
   return (
-    <View style={localStyles.container} testID="privacy-policy-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="privacy-policy-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="privacy-back-btn">
@@ -229,7 +228,7 @@ const PrivacyPolicyScreen = React.memo(function PrivacyPolicyScreen({ route }: P
           <View style={localStyles.bottomPadding} />
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 

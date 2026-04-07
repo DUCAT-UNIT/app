@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -76,8 +76,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
     onRemoveSpentProofs,
   } = route.params;
   return (
-    <View style={localStyles.container} testID="cashu-settings-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="cashu-settings-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="cashu-settings-back-btn">
@@ -131,7 +130,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 

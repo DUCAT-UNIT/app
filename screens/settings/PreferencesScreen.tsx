@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 
 // Get device dimensions for responsive sizing
@@ -75,8 +75,7 @@ function PreferencesScreen({ route }: PreferencesScreenProps): React.ReactElemen
   } = settingsHandlers;
 
   return (
-    <View style={localStyles.container} testID="preferences-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="preferences-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header} accessibilityRole="header">
         <TouchableOpacity
@@ -112,7 +111,7 @@ function PreferencesScreen({ route }: PreferencesScreenProps): React.ReactElemen
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 }
 

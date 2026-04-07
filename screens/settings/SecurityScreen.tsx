@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers, useAuthFlowHandlers } from '../../contexts/NavigationHandlersContext';
 import { analytics } from '../../services/analyticsService';
 import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
@@ -89,8 +89,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   }, []);
 
   return (
-    <View style={localStyles.container} testID="security-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="security-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header} accessibilityRole="header">
         <TouchableOpacity
@@ -163,7 +162,7 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 
