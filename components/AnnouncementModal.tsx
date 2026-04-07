@@ -1,6 +1,6 @@
 /**
  * AnnouncementModal Component
- * Displays a server-driven announcement popup with optional image and CTA button.
+ * Full-screen announcement overlay with optional hero image and CTA.
  */
 
 import React from 'react';
@@ -9,16 +9,18 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  ScrollView,
   Image,
   Linking,
   StyleSheet,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
-import { useResponsive } from '../hooks/useResponsive';
-import { colors, spacing, fonts, fontSizes, radii } from '../styles/theme';
-import { COLORS } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, fonts, fontSizes, spacing } from '../styles/theme';
 import { logger } from '../utils/logger';
 import type { RemoteConfigAnnouncement } from '../types/remoteConfig';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AnnouncementModalProps {
   visible: boolean;
@@ -31,14 +33,15 @@ const AnnouncementModal = React.memo(function AnnouncementModal({
   announcement,
   onDismiss,
 }: AnnouncementModalProps) {
-  const { s, sf } = useResponsive();
+  const hasImage = !!announcement.imageUrl;
+  const hasCta = !!announcement.ctaLabel && !!announcement.ctaUrl;
 
   const handleCtaPress = async (): Promise<void> => {
     if (!announcement.ctaUrl) return;
     try {
       await Linking.openURL(announcement.ctaUrl);
     } catch (err: unknown) {
-      logger.error('[AnnouncementModal] Failed to open CTA URL', {
+      logger.warn('[AnnouncementModal] Failed to open CTA URL', {
         url: announcement.ctaUrl,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -46,157 +49,144 @@ const AnnouncementModal = React.memo(function AnnouncementModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={modalStyles.overlay}>
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View
-            style={[
-              modalStyles.modal,
-              {
-                borderRadius: s(radii.xl),
-                padding: s(spacing.xl),
-                marginVertical: s(spacing.xl),
-              },
-            ]}
-          >
-            {/* Title */}
-            <Text
-              style={[
-                modalStyles.title,
-                { fontSize: sf(fontSizes.xl), marginBottom: s(spacing.md) },
-              ]}
-            >
-              {announcement.title}
-            </Text>
-
-            {/* Optional Image */}
-            {announcement.imageUrl ? (
-              <Image
-                source={{ uri: announcement.imageUrl }}
-                style={[modalStyles.image, { marginBottom: s(spacing.md) }]}
-                resizeMode="contain"
-              />
-            ) : null}
-
-            {/* Body */}
-            <Text
-              style={[
-                modalStyles.body,
-                {
-                  fontSize: sf(fontSizes.md),
-                  marginBottom: s(spacing.lg),
-                  lineHeight: sf(22),
-                },
-              ]}
-            >
-              {announcement.body}
-            </Text>
-
-            {/* Buttons */}
-            <View style={[modalStyles.buttons, { gap: s(12) }]}>
-              {/* CTA Button (optional) */}
-              {announcement.ctaLabel && announcement.ctaUrl ? (
-                <TouchableOpacity
-                  style={[
-                    modalStyles.button,
-                    modalStyles.ctaButton,
-                    {
-                      paddingVertical: s(spacing.md),
-                      paddingHorizontal: s(spacing.lg),
-                      borderRadius: s(radii.lg),
-                    },
-                  ]}
-                  onPress={handleCtaPress}
-                  testID="announcement-cta-btn"
-                >
-                  <Text style={[modalStyles.ctaText, { fontSize: sf(fontSizes.md) }]}>
-                    {announcement.ctaLabel}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {/* Dismiss Button */}
-              <TouchableOpacity
-                style={[
-                  modalStyles.button,
-                  modalStyles.dismissButton,
-                  {
-                    paddingVertical: s(spacing.md),
-                    paddingHorizontal: s(spacing.lg),
-                    borderRadius: s(radii.lg),
-                  },
-                ]}
-                onPress={onDismiss}
-                testID="announcement-dismiss-btn"
-              >
-                <Text style={[modalStyles.dismissText, { fontSize: sf(fontSizes.md) }]}>
-                  Dismiss
-                </Text>
-              </TouchableOpacity>
+    <Modal visible={visible} animationType="fade" statusBarTranslucent>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.container}>
+        {/* Hero Image — top half */}
+        {hasImage ? (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: announcement.imageUrl! }}
+              style={styles.heroImage}
+              resizeMode="cover"
+            />
+            <LinearGradient
+              colors={['transparent', colors.bg.primary]}
+              style={styles.imageGradient}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
+          </View>
+        ) : (
+          <View style={styles.noImageHeader}>
+            <View style={styles.iconCircle}>
+              <Text style={styles.iconEmoji}>{'📣'}</Text>
             </View>
           </View>
-        </ScrollView>
+        )}
+
+        {/* Content */}
+        <View style={styles.content}>
+          <Text style={styles.title}>{announcement.title}</Text>
+          <Text style={styles.body}>{announcement.body}</Text>
+        </View>
+
+        {/* Buttons — pinned to bottom */}
+        <View style={styles.footer}>
+          {hasCta && (
+            <TouchableOpacity
+              style={styles.ctaButton}
+              onPress={handleCtaPress}
+              activeOpacity={0.8}
+              testID="announcement-cta-btn"
+            >
+              <Text style={styles.ctaText}>{announcement.ctaLabel}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.dismissButton}
+            onPress={onDismiss}
+            activeOpacity={0.7}
+            testID="announcement-dismiss-btn"
+          >
+            <Text style={styles.dismissText}>
+              {hasCta ? 'Maybe Later' : 'Got It'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Modal>
   );
 });
 
-const modalStyles = StyleSheet.create({
-  overlay: {
+const styles = StyleSheet.create({
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: colors.bg.primary,
+  },
+  imageContainer: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.45,
+    position: 'relative',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
+  noImageHeader: {
+    height: SCREEN_HEIGHT * 0.3,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modal: {
-    backgroundColor: colors.bg.secondary,
-    width: '85%',
-    maxWidth: 400,
+  iconCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: colors.bg.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconEmoji: {
+    fontSize: 48,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
   },
   title: {
+    fontSize: 28,
     fontFamily: fonts.bold,
-    fontWeight: 'bold' as const,
     color: colors.text.primary,
-    textAlign: 'center',
-  },
-  image: {
-    width: '100%',
-    height: 180,
-    borderRadius: 12,
+    marginBottom: spacing.md,
   },
   body: {
+    fontSize: fontSizes.md,
     fontFamily: fonts.regular,
-    color: colors.text.primary,
-    textAlign: 'center',
+    color: colors.text.secondary,
+    lineHeight: 24,
   },
-  buttons: {
-    flexDirection: 'column',
-  },
-  button: {
-    alignItems: 'center',
+  footer: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: 50,
+    gap: 12,
   },
   ctaButton: {
     backgroundColor: colors.brand.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
   ctaText: {
-    fontFamily: fonts.medium,
-    fontWeight: '600' as const,
-    color: colors.text.primary,
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: '#FFFFFF',
   },
   dismissButton: {
-    backgroundColor: COLORS.OFF_WHITE,
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   dismissText: {
+    fontSize: fontSizes.md,
     fontFamily: fonts.medium,
-    fontWeight: '600' as const,
-    color: COLORS.DARK_GRAY,
+    color: colors.text.tertiary,
   },
 });
 
