@@ -267,6 +267,7 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
       vault.resetVaultData();
       resetEcashTokens();
       initialBalancesLoadedRef.current = false;
+      initialHistoryFetchedRef.current = false;
     } else if (!prevWallet && wallet) {
       // Wallet just loaded for first time (import/creation) - fetch balances first
       // Transaction history and ecash tokens will be fetched by pollAllData once balances load
@@ -277,9 +278,11 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, vault.resetVaultData, vault.fetchVault, resetEcashTokens]);
 
-  // Trigger initial transaction history, vault transactions, and ecash tokens load once both balances have loaded
+  // Trigger initial transaction history, vault transactions, and ecash tokens load ONCE after both balances first load
+  const initialHistoryFetchedRef = useRef(false);
   useEffect(() => {
-    if (bothBalancesLoaded && initialBalancesLoadedRef.current) {
+    if (bothBalancesLoaded && initialBalancesLoadedRef.current && !initialHistoryFetchedRef.current) {
+      initialHistoryFetchedRef.current = true;
       logger.debug('[WalletDataContext] Both balances ready - fetching transaction history, vault transactions, and ecash tokens');
       history.fetchTransactionHistory();
       vault.fetchVaultTransactions();
