@@ -5,6 +5,8 @@
 
 import { logger } from '../utils/logger';
 import { isE2E } from '../utils/e2e';
+import { analytics } from '../services/analyticsService';
+import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 interface LoadWalletResult {
@@ -53,6 +55,7 @@ export function useOnboardingHandlers({
 }: UseOnboardingHandlersParams): UseOnboardingHandlersReturn {
   // PIN setup completion - saves wallet and resets state
   const handlePinSetupComplete = async (pin?: string): Promise<void> => {
+    analytics.track(ONBOARDING_EVENTS.PIN_SETUP_COMPLETED);
     logger.debug('[OnboardingHandlers] handlePinSetupComplete called', {
       isImportedWallet,
       hasPin: !!pin,
@@ -88,6 +91,7 @@ export function useOnboardingHandlers({
 
       // Complete setup
       await handlePinSetupCompleteWrapper();
+      analytics.track(ONBOARDING_EVENTS.ONBOARDING_COMPLETED, { method: 'import' });
 
       // Fetch balance with loaded addresses
       if (loadResult?.exists && loadResult?.addresses) {
@@ -111,6 +115,7 @@ export function useOnboardingHandlers({
       // Normal wallet creation flow
       logger.debug('[OnboardingHandlers] Completing setup (normal flow)');
       await handlePinSetupCompleteWrapper();
+      analytics.track(ONBOARDING_EVENTS.ONBOARDING_COMPLETED, { method: 'create' });
     }
   };
 

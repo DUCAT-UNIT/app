@@ -16,6 +16,8 @@ import {
 } from '../services/biometricService';
 import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsService';
 import { logger } from '../utils/logger';
+import { analytics } from '../services/analyticsService';
+import { AUTH_EVENTS } from '../constants/analyticsEvents';
 
 interface UseAuthParams {
   onSeedConfirmed?: (confirmed: boolean) => void;
@@ -160,6 +162,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         );
 
         if (result.success) {
+          analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'biometric' });
           if (changingPin) {
             // User authenticated to change PIN, proceed to PIN setup
             setSettingUpPin(true);
@@ -179,6 +182,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         setShowBiometricPrompt(true);
       }
     } catch (error) {
+      analytics.track(AUTH_EVENTS.AUTH_FAILED, { method: 'biometric', error: error instanceof Error ? error.message : 'unknown' });
       logger.warn('Biometric authentication failed', {
         operation: 'authenticateUser',
         error: error instanceof Error ? error.message : String(error)
@@ -205,6 +209,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
 
   // Lock screen authentication success
   const handleLockScreenAuthenticated = useCallback(() => {
+    analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'pin' });
     if (changingPin) {
       // User authenticated to change PIN, proceed to PIN setup
       setShowPinEntry(false); // Hide lock screen
@@ -226,6 +231,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
 
   // Lock the wallet
   const lock = useCallback(() => {
+    analytics.track(AUTH_EVENTS.APP_LOCKED);
     setIsAuthenticated(false);
   }, []);
 

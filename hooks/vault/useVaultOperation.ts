@@ -31,6 +31,8 @@ import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
+import { analytics } from '../../services/analyticsService';
+import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import type {
 ProcessingStep,
 UseVaultOperationResult,
@@ -246,6 +248,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
+    analytics.track(VAULT_EVENTS.VAULT_OPERATION_STARTED, { operation: operationName });
 
     try {
       // Step 1: Build VaultProfile and create config
@@ -342,6 +345,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         txid,
         vault_txid: resultVaultTxid,
       });
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, { operation: operationName });
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {
@@ -352,6 +356,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         message: errorMessage,
         stack: errorStack,
       });
+      analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, { operation: operationName, error: errorMessage });
       setError(errorMessage);
       setCurrentStep('confirm');
       return null;

@@ -12,6 +12,8 @@ import * as WalletService from '../services/walletService';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
+import { analytics } from '../services/analyticsService';
+import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 
 interface UseWalletImportParams {
   currentAccount: number;
@@ -108,6 +110,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
       // Set imported wallet flag AFTER clearing form data
       // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
       setIsImportedWallet(true);
+      analytics.track(ONBOARDING_EVENTS.WALLET_IMPORTED);
 
       // Don't show passkey migration prompt yet - wait until PIN is set
       // The parent component (OnboardingPage) will show it after PIN setup

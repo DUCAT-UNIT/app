@@ -5,7 +5,7 @@
 
 import { NavigationProp,RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import React,{ useMemo,useState } from 'react';
+import React,{ useEffect,useMemo,useState } from 'react';
 import { ScrollView,Share,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { useNotifications } from '../../stores/notificationStore';
 import { COLORS } from '../../theme';
 import { NETWORK_EDITION_LABEL } from '../../utils/constants';
+import { analytics } from '../../services/analyticsService';
+import { RECEIVE_EVENTS } from '../../constants/analyticsEvents';
 
 /**
  * Route parameters for ReceiveQRScreen
@@ -36,6 +38,8 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
   const [justCopied, setJustCopied] = useState(false);
   const { width, s, screenSize } = useResponsive();
   const { showSnackbar } = useNotifications();
+
+  useEffect(() => { analytics.track(RECEIVE_EVENTS.RECEIVE_SCREEN_VIEWED, { address_type: addressType }); }, [addressType]);
 
   // Calculate responsive values
   const responsiveValues = useMemo(() => {
@@ -64,6 +68,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
   }, [width, screenSize]);
 
   const handleCopy = async () => {
+    analytics.track(RECEIVE_EVENTS.ADDRESS_COPIED, { address_type: addressType });
     await Clipboard.setStringAsync(address);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
@@ -76,6 +81,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
 
   const handleShare = async () => {
     try {
+      analytics.track(RECEIVE_EVENTS.ADDRESS_SHARED, { address_type: addressType });
       await Share.share({
         message: address,
       });

@@ -4,6 +4,7 @@ import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secure
 import { logger } from '../utils/logger';
 import { clearP2PKCache } from '../services/cashu/p2pk';
 import { resetE2eVaultState } from '../utils/e2eVaultState';
+import { analytics } from '../services/analyticsService';
 
 export interface WalletAddresses {
   segwitAddress: string;
@@ -54,6 +55,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           taprootPubkey: addresses.taprootPubkey,
         });
         setCurrentAccount(accountIndex);
+        void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
+          analytics.identify(hashed);
+        });
 
         return { exists: true, addresses };
       }
@@ -77,6 +81,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     });
     setCurrentAccount(accountIndex);
 
+    // Identify user with hashed address for analytics
+    void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
+      analytics.identify(hashed);
+    });
+
     Promise.all([
       saveCachedAddresses(accountIndex, addresses),
       saveToMultiAccountCache(accountIndex, addresses),
@@ -90,6 +99,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // Reset wallet (for logout/delete)
   const resetWallet = useCallback(async () => {
+    analytics.reset();
     setWallet(null);
     setCurrentAccount(0);
     resetE2eVaultState();

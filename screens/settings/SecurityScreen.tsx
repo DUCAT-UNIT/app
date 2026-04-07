@@ -3,7 +3,7 @@
  * Security and authentication settings
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Text,
   View,
@@ -15,6 +15,8 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import MutinynetBanner from '../../components/MutinynetBanner';
 import { useSettingsHandlers, useAuthFlowHandlers } from '../../contexts/NavigationHandlersContext';
+import { analytics } from '../../services/analyticsService';
+import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -56,13 +58,25 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   const { settingsHandlers, biometricEnabled, passkeyUpgradeRecommended, triggerPasskeyUpgrade } = useSettingsHandlers();
   const { showPasskeyMigrationPrompt } = useAuthFlowHandlers();
   const {
-    handleFaceIdToggle: onFaceIdToggle,
-    handleChangePin: onChangePin,
+    handleFaceIdToggle: rawFaceIdToggle,
+    handleChangePin: rawChangePin,
     handleViewSeedPhrase: onViewSeedPhrase,
     handleDeleteWallet: onDeleteWallet,
   } = settingsHandlers;
 
   const faceIdEnabled = biometricEnabled;
+
+  const onFaceIdToggle = React.useCallback(() => {
+    analytics.track(SETTINGS_EVENTS.SECURITY_SETTING_CHANGED, { setting: 'biometric', new_value: !faceIdEnabled });
+    rawFaceIdToggle();
+  }, [rawFaceIdToggle, faceIdEnabled]);
+
+  const onChangePin = React.useCallback(() => {
+    analytics.track(SETTINGS_EVENTS.SECURITY_SETTING_CHANGED, { setting: 'pin_change' });
+    rawChangePin();
+  }, [rawChangePin]);
+
+  useEffect(() => { analytics.track(SETTINGS_EVENTS.SETTINGS_OPENED, { screen: 'security' }); }, []);
 
   // Check passkey status
   const [passkeyEnabled, setPasskeyEnabled] = React.useState(false);

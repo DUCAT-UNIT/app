@@ -49,6 +49,7 @@ import { useRemoteConfigStore } from '../stores/remoteConfigStore';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import { logger } from '../utils/logger';
+import { analytics } from '../services/analyticsService';
 
 import type { LogContext } from '../types';
 import type { RootNavigatorParamList } from './types';
@@ -90,6 +91,7 @@ export default function RootNavigator(): React.JSX.Element {
 
     if (previousRouteName !== currentRouteNameRef.current && currentRouteNameRef.current) {
       logger.screen(currentRouteNameRef.current, {} as LogContext);
+      analytics.screen(currentRouteNameRef.current);
     }
   }, []);
   const { shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay } = useNavigationState();

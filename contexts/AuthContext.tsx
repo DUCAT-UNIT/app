@@ -8,6 +8,8 @@ import React, { createContext, useContext, useState, useRef, useMemo, useCallbac
 import { useAuth as useAuthHook, UseAuthReturn } from '../hooks/useAuth';
 import { resetOnboardingState } from '../utils/onboardingHelpers';
 import { logger } from '../utils/logger';
+import { analytics } from '../services/analyticsService';
+import { SETTINGS_EVENTS } from '../constants/analyticsEvents';
 import { TextInput } from 'react-native';
 import { deleteWalletData } from '../services/secureStorageService';
 
@@ -109,6 +111,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
 
     lastWalletResetTimestamp = now;
 
+    analytics.track(SETTINGS_EVENTS.WALLET_DELETED);
+    analytics.reset();
     logger.warn('[AuthContext] Wallet reset completed', {
       timestamp: new Date(now).toISOString(),
     });

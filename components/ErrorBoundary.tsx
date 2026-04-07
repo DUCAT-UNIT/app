@@ -8,6 +8,8 @@ import React from 'react';
 import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { COLORS } from '../theme';
 import { logger } from '../utils/logger';
+import { analytics } from '../services/analyticsService';
+import { ERROR_EVENTS } from '../constants/analyticsEvents';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -44,6 +46,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       componentStack: errorInfo.componentStack,
       boundary: this.props.boundaryName || 'ErrorBoundary',
       ...(this.props.extraContext || {}),
+    });
+    analytics.track(ERROR_EVENTS.ERROR_BOUNDARY_TRIGGERED, {
+      boundary_name: this.props.boundaryName || 'ErrorBoundary',
+      error_message: error.message,
     });
 
     // Update state with error details

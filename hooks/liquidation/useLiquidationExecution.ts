@@ -15,6 +15,8 @@ import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/type
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { logger } from '../../utils/logger';
+import { analytics } from '../../services/analyticsService';
+import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 
 interface UseLiquidationExecutionParams {
   wallet: {
@@ -61,6 +63,7 @@ export function useLiquidationExecution({
 
     store.getState().setCurrentStep('processing');
     store.getState().setProcessingMessage('Connecting to oracle...');
+    analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_CLAIMED, { vault_count: vaultsFull.length, invest_amount: investAmount });
 
     try {
       // Select vaults (uses selectItemsForAmount — no duplicate greedy loop)
@@ -127,6 +130,7 @@ export function useLiquidationExecution({
       if (result.success) {
         store.getState().setResultTxid(result.txid || null);
         store.getState().setCurrentStep('success');
+        if (result.txid) analytics.trackTransaction(LIQUIDATION_EVENTS.LIQUIDATION_COMPLETED, result.txid);
 
         // Add as pending vault transaction
         if (result.txid) {
@@ -148,6 +152,7 @@ export function useLiquidationExecution({
       logger.warn('[Liquidation] Execution error', {
         error: err instanceof Error ? err.message : String(err),
       });
+      analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_FAILED, { error: err instanceof Error ? err.message : 'unknown' });
       store.getState().setError(err instanceof Error ? err.message : 'Liquidation failed');
       store.getState().setCurrentStep('error');
     }

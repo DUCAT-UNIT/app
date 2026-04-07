@@ -24,6 +24,8 @@ import { shortenCashuToken } from '../services/urlShortener';
 import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
+import { analytics } from '../services/analyticsService';
+import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { useWallet } from './WalletContext';
 
 export interface PendingMint {
@@ -320,23 +322,58 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     pendingMints: pendingMints as PendingMint[],
   }), [balance, isLoading, error, pendingMints]);
 
+  // Tracked wrappers for analytics
+  const trackedStartMint = useCallback(async (amount: number) => {
+    analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount });
+    return startMint(amount);
+  }, [startMint]);
+
+  const trackedCheckAndCompleteMint = useCallback(async (quoteId: string) => {
+    const result = await checkAndCompleteMint(quoteId);
+    if (result.completed) analytics.track(CASHU_EVENTS.CASHU_MINT_COMPLETED, { amount: result.amount });
+    return result;
+  }, [checkAndCompleteMint]);
+
+  const trackedReceive = useCallback(async (token: string) => {
+    const result = await receive(token);
+    analytics.track(CASHU_EVENTS.CASHU_TOKEN_RECEIVED);
+    return result;
+  }, [receive]);
+
+  const trackedSend = useCallback(async (amount: number) => {
+    const result = await send(amount);
+    analytics.track(CASHU_EVENTS.CASHU_TOKEN_SENT, { amount });
+    return result;
+  }, [send]);
+
+  const trackedStartMelt = useCallback(async (address: string, amount: number) => {
+    analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount });
+    return startMelt(address, amount);
+  }, [startMelt]);
+
+  const trackedFinishMelt = useCallback(async (quoteId: string, totalAmount: number) => {
+    const result = await finishMelt(quoteId, totalAmount);
+    analytics.track(CASHU_EVENTS.CASHU_MELT_COMPLETED, { amount: totalAmount });
+    return result;
+  }, [finishMelt]);
+
   // Memoize operations context value (stable references)
   const operationsValue = useMemo((): CashuOperationsValue => ({
-    startMint,
-    checkAndCompleteMint,
+    startMint: trackedStartMint,
+    checkAndCompleteMint: trackedCheckAndCompleteMint,
     removePendingMint,
     addPendingMint,
     autoMint,
-    receive,
-    send,
-    startMelt,
-    finishMelt,
+    receive: trackedReceive,
+    send: trackedSend,
+    startMelt: trackedStartMelt,
+    finishMelt: trackedFinishMelt,
     refresh,
     resetAndRefresh,
     reset,
   }), [
-    startMint, checkAndCompleteMint, removePendingMint, addPendingMint, autoMint,
-    receive, send, startMelt, finishMelt, refresh, resetAndRefresh, reset,
+    trackedStartMint, trackedCheckAndCompleteMint, removePendingMint, addPendingMint, autoMint,
+    trackedReceive, trackedSend, trackedStartMelt, trackedFinishMelt, refresh, resetAndRefresh, reset,
   ]);
 
   return (

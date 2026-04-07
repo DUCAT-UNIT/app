@@ -13,6 +13,8 @@ import { notify } from '../utils/notify';
 import { logger } from '../utils/logger';
 
 import { isE2E } from '../utils/e2e';
+import { analytics } from '../services/analyticsService';
+import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
@@ -62,6 +64,7 @@ export function usePasskeyCreation({
    */
   const startPasskeyCreation = async (): Promise<void> => {
     try {
+      analytics.track(ONBOARDING_EVENTS.WALLET_CREATION_STARTED);
       // Show PIN input
       setShowPinInput(true);
       setCreatingWithPasskey(true);
@@ -141,11 +144,13 @@ export function usePasskeyCreation({
 
       // Step 3: Navigate to wallet home
       completePasskeySetup();
+      analytics.track(ONBOARDING_EVENTS.WALLET_CREATED);
       notify.success('Wallet created successfully');
 
       // Step 4: Offer passkey backup first (most important for wallet recovery)
       // Biometric setup will be offered after passkey decision, or in Settings
       if (showPasskeyMigrationPrompt && !isE2E) {
+        analytics.track(ONBOARDING_EVENTS.PASSKEY_SETUP_OFFERED);
         showPasskeyMigrationPrompt(pin);
       } else if (biometricSupported) {
         // No passkey prompt available — show biometric instead

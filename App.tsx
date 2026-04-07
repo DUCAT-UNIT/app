@@ -21,10 +21,15 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
 }
 
 import React, { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import { useFonts } from 'expo-font';
+import Constants from 'expo-constants';
 import BIP32Factory from 'bip32';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
+
+import { analytics } from './services/analyticsService';
+import { ONBOARDING_EVENTS } from './constants/analyticsEvents';
 
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
@@ -141,6 +146,16 @@ export default function App() {
       .then(markReady)
       .catch(markReady)
       .finally(() => clearTimeout(safetyTimer));
+  }, []);
+
+  // Analytics: set super properties and track app open on mount
+  useEffect(() => {
+    analytics.setSuperProperties({
+      app_version: Constants.expoConfig?.version ?? 'unknown',
+      network: NETWORK_DISPLAY_NAME,
+      platform: Platform.OS,
+    });
+    analytics.track(ONBOARDING_EVENTS.APP_OPENED);
   }, []);
 
   if ((!fontsLoaded && !fontTimedOut) || !configReady) {
