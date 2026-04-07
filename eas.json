@@ -18,6 +18,18 @@
         "simulator": false
       }
     },
+    "production-simulator": {
+      "distribution": "internal",
+      "node": "22.12.0",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_ENV": "production",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
+    },
     "production": {
       "distribution": "store",
       "credentialsSource": "remote",
