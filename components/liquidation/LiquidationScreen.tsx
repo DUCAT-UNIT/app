@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Icon from '../icons';
 import ErrorBoundary from '../ErrorBoundary';
 import CurrencyToggle from './CurrencyToggle';
 import LiquidationStatusScreen from './LiquidationStatusScreen';
@@ -117,6 +118,12 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     [setReviewTab],
   );
 
+  const handleBack = useCallback(() => {
+    if (currentStep === 'review') {
+      setCurrentStep('input');
+    }
+  }, [currentStep, setCurrentStep]);
+
   const handleButtonPress = useCallback(async () => {
     if (currentStep === 'input') {
       setCurrentStep('review');
@@ -227,7 +234,14 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       {/* Header — hidden during processing/success/error (status screen has its own title) */}
       {!isProcessingOrResult && (
         <View style={styles.header}>
-          <Text style={styles.title}>Liquidations</Text>
+          <View style={styles.headerLeft}>
+            {isReview && (
+              <TouchableOpacity onPress={handleBack} style={styles.backButton} testID="liquidation-back-btn">
+                <Icon name="back" size={24} color={colors.text.primary} />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.title}>Liquidations</Text>
+          </View>
           {hasVault && <CurrencyToggle showBTC={showBTC} onToggle={handleToggleBTC} />}
         </View>
       )}
@@ -260,6 +274,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
   },
   title: {
     fontSize: fontSizes.xxl,
