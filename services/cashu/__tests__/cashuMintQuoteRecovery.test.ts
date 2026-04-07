@@ -41,6 +41,10 @@ jest.mock('../cashuProofManager', () => ({
   getCurrentCashuAccount: jest.fn(() => null),
 }));
 
+jest.mock('../../storagePolicy', () => ({
+  DEVICE_ONLY: {},
+}));
+
 import { checkMintQuote } from '../cashuMintClient';
 import { completeMint } from '../operations/cashuMintOperations';
 

@@ -46,6 +46,20 @@ jest.mock('@ducat-unit/client-sdk', () => ({
   },
 }));
 
+// Mock vaultWallet to prevent ESM import of @ducat-unit/client-sdk/util
+jest.mock('../../vaultWallet', () => ({
+  fetchProtocolContract: jest.fn(),
+}));
+
+jest.mock('../../../utils/logger', () => ({
+  logger: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 // Mock fetchVaults so computeLiquidVaultProfiles does not hit network
 jest.mock('../fetchVaults', () => ({
   formatValidatorResponse: jest.fn(),

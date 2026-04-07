@@ -14,8 +14,10 @@ import { logger } from '../../utils/logger';
 import { checkMintQuote } from './cashuMintClient';
 // Lazy import to break circular dependency:
 // cashuMintOperations → cashuMintQuoteRecovery → cashuMintOperations
+// Uses require() for Jest compatibility (dynamic import() not supported without --experimental-vm-modules)
 const lazyCompleteMint = async (...args: Parameters<typeof import('./operations/cashuMintOperations').completeMint>) => {
-  const { completeMint } = await import('./operations/cashuMintOperations');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { completeMint } = require('./operations/cashuMintOperations') as typeof import('./operations/cashuMintOperations');
   return completeMint(...args);
 };
 import { DEVICE_ONLY } from '../storagePolicy';

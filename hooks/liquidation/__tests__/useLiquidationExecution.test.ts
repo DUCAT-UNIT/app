@@ -502,7 +502,7 @@ describe('useLiquidationExecution', () => {
       expect(state.investAmount).toBe(0);
     });
 
-    it('should not change the current step', async () => {
+    it('should reset the current step to input', async () => {
       useLiquidationFlowStore.getState().setCurrentStep('success');
 
       const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
@@ -511,8 +511,8 @@ describe('useLiquidationExecution', () => {
         result.current!.resetAfterSuccess();
       });
 
-      // resetAfterSuccess does not navigate away — that is the caller's responsibility
-      expect(useLiquidationFlowStore.getState().currentStep).toBe('success');
+      // resetAfterSuccess calls store.reset() which resets all state including step
+      expect(useLiquidationFlowStore.getState().currentStep).toBe('input');
     });
   });
 

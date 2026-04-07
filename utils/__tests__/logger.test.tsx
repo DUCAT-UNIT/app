@@ -80,7 +80,8 @@ describe('logger', () => {
       const error = new Error('Test error');
       logger.error(error, { context: 'test' });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      // In dev mode, logger.error uses console.warn to avoid red error overlay
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[ERROR]',
         error,
         { context: 'test' }
@@ -90,7 +91,8 @@ describe('logger', () => {
     it('should handle string errors', () => {
       logger.error('String error', { code: 'ERR01' });
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      // In dev mode, logger.error uses console.warn to avoid red error overlay
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[ERROR]',
         'String error',
         { code: 'ERR01' }

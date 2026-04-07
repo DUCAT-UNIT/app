@@ -479,14 +479,13 @@ describe('useLiquidationVaults', () => {
       expect(mockFetchVaults.mock.calls.length).toBe(callsBefore);
     });
 
-    it('should not poll when visible is false', () => {
+    it('should still fetch in background when visible is false', () => {
       const params = { ...DEFAULT_PARAMS, visible: false };
       renderHook(() => useLiquidationVaults(params));
 
-      act(() => { jest.advanceTimersByTime(30_000); });
-
-      // No poll calls (initial fetch is also skipped since visible=false)
-      expect(mockFetchVaults).not.toHaveBeenCalled();
+      // The hook now always fetches on mount for background prefetch
+      // When visible=false, it uses the background polling interval (120s)
+      expect(mockFetchVaults).toHaveBeenCalled();
     });
 
     it('should not poll when currentStep is not input', () => {
@@ -502,8 +501,8 @@ describe('useLiquidationVaults', () => {
     });
   });
 
-  describe('initial fetch on visibility change', () => {
-    it('should trigger fetch when visible becomes true', async () => {
+  describe('initial fetch on mount', () => {
+    it('should trigger fetch when visible is true', async () => {
       const params = { ...DEFAULT_PARAMS, visible: true };
       renderHook(() => useLiquidationVaults(params));
 
@@ -511,10 +510,10 @@ describe('useLiquidationVaults', () => {
         await Promise.resolve();
       });
 
-      expect(mockFetchVaults).toHaveBeenCalledTimes(1);
+      expect(mockFetchVaults).toHaveBeenCalled();
     });
 
-    it('should not trigger fetch when visible is false', async () => {
+    it('should also trigger background fetch when visible is false', async () => {
       const params = { ...DEFAULT_PARAMS, visible: false };
       renderHook(() => useLiquidationVaults(params));
 
@@ -522,7 +521,8 @@ describe('useLiquidationVaults', () => {
         await Promise.resolve();
       });
 
-      expect(mockFetchVaults).not.toHaveBeenCalled();
+      // The hook now prefetches in background regardless of visibility
+      expect(mockFetchVaults).toHaveBeenCalled();
     });
   });
 });

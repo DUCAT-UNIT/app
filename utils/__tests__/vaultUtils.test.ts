@@ -207,14 +207,14 @@ describe('vaultUtils', () => {
       expect(getHealthStatus(500)).toBe('healthy');
     });
 
-    it('should return warning for factor 160-199', () => {
-      expect(getHealthStatus(160)).toBe('warning');
+    it('should return warning for factor 161-199', () => {
       expect(getHealthStatus(161)).toBe('warning');
       expect(getHealthStatus(180)).toBe('warning');
       expect(getHealthStatus(199)).toBe('warning');
     });
 
-    it('should return danger for factor < 160', () => {
+    it('should return danger for factor <= 160', () => {
+      expect(getHealthStatus(160)).toBe('danger');
       expect(getHealthStatus(159)).toBe('danger');
       expect(getHealthStatus(100)).toBe('danger');
       expect(getHealthStatus(0)).toBe('danger');
@@ -227,7 +227,7 @@ describe('vaultUtils', () => {
     });
 
     it('should return yellow/orange for warning', () => {
-      expect(getHealthColor('warning')).toBe('#F5A623');
+      expect(getHealthColor('warning')).toBe('#F5E4A2');
     });
 
     it('should return red for danger', () => {

@@ -82,8 +82,9 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
   const [passkeyEnabled, setPasskeyEnabled] = React.useState(false);
   React.useEffect(() => {
     const check = async () => {
-      const { isPasskeyEnabled } = await import('../../services/passkey');
-      setPasskeyEnabled(await isPasskeyEnabled());
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { isPasskeyEnabled: checkPasskey } = require('../../services/passkey') as typeof import('../../services/passkey');
+      setPasskeyEnabled(await checkPasskey());
     };
     check();
   }, []);
