@@ -310,20 +310,12 @@ export async function executeLiquidation(
       [wallet.acct.vault.address]: [vinVaultIdx, vinConnIdx],
     };
 
-    const batchRequest: SignPSBTEntry[] = [
+    // Sign repo PSBTs (2 PSBTs with security context validation)
+    const repoBatchRequest: SignPSBTEntry[] = [
       [psbt1Raw, utxoManifest],
       [psbt2Raw, vaultManifest],
     ];
 
-    // Add swap PSBT as 3rd entry if available
-    if (swapData) {
-      const swapManifest: Record<string, number[]> = {
-        [wallet.acct.sats.address]: swapData.user_input_indices,
-      };
-      batchRequest.push([swapData.psbt, swapManifest]);
-    }
-
-    // Set signing context for security validation
     setPendingVaultSigningOperation({
       action: 'repo',
       liquidCtx,
@@ -331,26 +323,30 @@ export async function executeLiquidation(
       satsUtxos: utxos,
     });
 
-    let signedPsbts: string[];
+    let signedRepoPsbts: string[];
     try {
-      signedPsbts = await wallet.sign.batch(batchRequest);
+      signedRepoPsbts = await wallet.sign.batch(repoBatchRequest);
     } finally {
       clearPendingVaultSigningOperation();
     }
 
-    const psbt1 = signedPsbts[0];
-    const psbt2 = signedPsbts[1];
+    const psbt1 = signedRepoPsbts[0];
+    const psbt2 = signedRepoPsbts[1];
 
-    // Finalize swap PSBT if it was signed
-    if (swapData && signedPsbts[2]) {
+    // Sign swap PSBT separately (no security context — swap is optional, not a vault op)
+    if (swapData) {
       try {
-        swapPsbtHex = finalizeSwapPsbt(signedPsbts[2]);
-        logger.info('[Liquidation] Swap PSBT finalized', {
+        const swapManifest: Record<string, number[]> = {
+          [wallet.acct.sats.address]: swapData.user_input_indices,
+        };
+        const signedSwapPsbts = await wallet.sign.batch([[swapData.psbt, swapManifest]]);
+        swapPsbtHex = finalizeSwapPsbt(signedSwapPsbts[0]);
+        logger.info('[Liquidation] Swap PSBT signed and finalized', {
           hexLength: swapPsbtHex.length,
         });
-      } catch (finalizeErr: unknown) {
-        logger.warn('[Liquidation] Swap PSBT finalization failed', {
-          error: finalizeErr instanceof Error ? finalizeErr.message : String(finalizeErr),
+      } catch (swapSignErr: unknown) {
+        logger.warn('[Liquidation] Swap PSBT signing/finalization failed', {
+          error: swapSignErr instanceof Error ? swapSignErr.message : String(swapSignErr),
         });
         swapPsbtHex = undefined;
       }
