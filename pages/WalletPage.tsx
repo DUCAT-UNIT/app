@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import React,{ useEffect,useState } from 'react';
 import { ActivityIndicator,Animated,StyleSheet,Text,View } from 'react-native';
 import { COLORS } from '../theme';
+import { useAuth } from '../contexts/AuthContext';
 
 // Components
 import MutinynetBanner from '../components/MutinynetBanner';
@@ -68,6 +69,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const styles = require('../styles').default;
 
   // Context consumption
+  const { isAuthenticated } = useAuth();
   const { resetInactivityTimer } = useOnboardingFlow();
   const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
   const { setShowAccountPicker, switchingAccount } = useAccountSwitcherContext();
@@ -91,7 +93,7 @@ export default function WalletPage({ route }: WalletPageProps) {
     showLowBalanceModal, closeModal: closeLowBalanceModal,
     amountNeeded: lowBalanceAmountNeeded, currentBalance: lowBalanceCurrentBalance,
     defaultThreshold: lowBalanceDefaultThreshold,
-  } = useEcashBalanceCheck(cashuBalance, settingsHandlers.ecashThreshold, currentUnitBalance);
+  } = useEcashBalanceCheck(cashuBalance, settingsHandlers.ecashThreshold, currentUnitBalance, isAuthenticated);
 
   // Transaction notifications
   useTransactionNotifications({ intentStep, broadcastedTxid: broadcastedTxid ?? undefined, sendAssetType: sendAssetType ?? undefined, turboEnabled, showSnackbar });

@@ -21,7 +21,8 @@ interface UseEcashBalanceCheckReturn {
 export function useEcashBalanceCheck(
   cashuBalance: number | null | undefined,
   ecashThreshold: number | undefined,
-  unitBalance: number
+  unitBalance: number,
+  isAuthenticated = true,
 ): UseEcashBalanceCheckReturn {
   const [showLowBalanceModal, setShowLowBalanceModal] = useState(false);
   const [amountNeeded, setAmountNeeded] = useState(0);
@@ -37,7 +38,7 @@ export function useEcashBalanceCheck(
 
       // Only check once per session and if we have valid data
       // unitBalance > 0 implies a wallet with UNIT exists (skip for fresh/locked wallets)
-      if (hasChecked.current || cashuBalance === null || cashuBalance === undefined || unitBalance <= 0) {
+      if (hasChecked.current || !isAuthenticated || cashuBalance === null || cashuBalance === undefined || unitBalance <= 0) {
         return;
       }
 
@@ -57,7 +58,7 @@ export function useEcashBalanceCheck(
       }
 
       // Check if balance is 25% or less of default threshold
-      const threshold = ecashThreshold || 100;
+      const threshold = ecashThreshold || 10000;
       const lowBalanceThreshold = threshold * 0.25;
 
       logger.debug('[useEcashBalanceCheck] Checking balance:', {
@@ -101,6 +102,6 @@ export function useEcashBalanceCheck(
     closeModal,
     amountNeeded,
     currentBalance: cashuBalance || 0,
-    defaultThreshold: ecashThreshold || 100,
+    defaultThreshold: ecashThreshold || 10000,
   };
 }
