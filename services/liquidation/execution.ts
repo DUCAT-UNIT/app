@@ -37,6 +37,7 @@ import {
   setPendingVaultSigningOperation,
   clearPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
+import { signPsbtRaw } from '../signing';
 import {
   buildVaultProfile,
   computeVaultPrevoutFromTx,
@@ -333,14 +334,21 @@ export async function executeLiquidation(
     const psbt1 = signedRepoPsbts[0];
     const psbt2 = signedRepoPsbts[1];
 
-    // Sign swap PSBT separately (no security context — swap is optional, not a vault op)
+    // Sign swap PSBT separately using raw signing (no vault security context needed)
     if (swapData) {
       try {
         const swapManifest: Record<string, number[]> = {
           [wallet.acct.sats.address]: swapData.user_input_indices,
         };
-        const signedSwapPsbts = await wallet.sign.batch([[swapData.psbt, swapManifest]]);
-        swapPsbtHex = finalizeSwapPsbt(signedSwapPsbts[0]);
+        // Use signPsbtRaw with empty expectedPsbtTemplates to skip vault template check
+        const signedSwapPsbt = await signPsbtRaw(swapData.psbt, swapManifest, {
+          recipient: wallet.acct.vault.address,
+          change: wallet.acct.sats.address,
+          minAmountSats: 0,
+          allowOpReturn: true,
+          expectedPsbtTemplates: [], // Empty = skip template validation
+        });
+        swapPsbtHex = finalizeSwapPsbt(signedSwapPsbt);
         logger.info('[Liquidation] Swap PSBT signed and finalized', {
           hexLength: swapPsbtHex.length,
         });
