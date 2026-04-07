@@ -2,10 +2,9 @@
  * Borrow Store (Zustand)
  * Manages the borrow UI flow state for borrowing more UNIT from an existing vault
  *
- * Refactored to use common vault store pattern from stores/vault/
+ * Built on createVaultOperationStore factory with borrow-specific extensions
  */
 
-import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import {
   computeHealthFactor,
@@ -15,10 +14,9 @@ import {
   type HealthStatus,
 } from '../utils/vaultUtils';
 import {
-  createCommonVaultSlice,
+  createVaultOperationStore,
   computeVaultHealth,
   computeNewVaultHealth,
-  commonInitialState,
 } from './vault';
 import type {
   CommonVaultState,
@@ -59,10 +57,8 @@ interface BorrowSpecificActions {
   getNewHealthStatus: () => HealthStatus;
 }
 
-// Full store types
-type BorrowState = CommonVaultState & BorrowSpecificState;
-type BorrowActions = CommonVaultActions & BorrowSpecificActions;
-type BorrowStore = BorrowState & BorrowActions;
+// Combined borrow extension type
+type BorrowExtension = BorrowSpecificState & BorrowSpecificActions;
 
 // Borrow-specific initial state
 const borrowSpecificInitialState: BorrowSpecificState = {
@@ -70,29 +66,22 @@ const borrowSpecificInitialState: BorrowSpecificState = {
   txid: null,
 };
 
-export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
-  // Get common slice
-  const commonSlice = createCommonVaultSlice<BorrowStore>({
-    storeName: 'BorrowStore',
-  })(set, get, store);
-
-  return {
-    // Spread common state and actions
-    ...commonSlice,
-
+export const useBorrowStore = createVaultOperationStore<BorrowExtension>(
+  'borrow',
+  (set, get, { initialState }) => ({
     // Borrow-specific initial state
     ...borrowSpecificInitialState,
 
     // Borrow-specific form actions
-    setBorrowAmount: (borrowAmount) => {
+    setBorrowAmount: (borrowAmount: number) => {
       logger.debug('[BorrowStore] setBorrowAmount:', borrowAmount);
-      set({ borrowAmount, error: null });
+      set({ borrowAmount, error: null } as Partial<CommonVaultState & CommonVaultActions & BorrowExtension>);
     },
 
     // Legacy action for backwards compatibility
-    setTxid: (txid, vaultTxid = null) => {
+    setTxid: (txid: string | null, vaultTxid: string | null = null) => {
       logger.debug('[BorrowStore] setTxid:', { txid, vaultTxid });
-      set({ txid, vaultTxid });
+      set({ txid, vaultTxid } as Partial<CommonVaultState & CommonVaultActions & BorrowExtension>);
     },
 
     // Borrow-specific computed getters
@@ -131,12 +120,12 @@ export const useBorrowStore = create<BorrowStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[BorrowStore] reset');
       set({
-        ...commonInitialState,
+        ...initialState,
         ...borrowSpecificInitialState,
-      });
+      } as Partial<CommonVaultState & CommonVaultActions & BorrowExtension>);
     },
-  };
-});
+  })
+);
 
 /**
  * useBorrow - Hook that returns commonly used state and actions

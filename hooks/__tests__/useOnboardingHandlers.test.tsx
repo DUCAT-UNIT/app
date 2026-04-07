@@ -16,6 +16,25 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+jest.mock('../../services/analyticsService', () => ({
+  analytics: {
+    track: jest.fn(),
+    screen: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
+}));
+
+jest.mock('../../constants/analyticsEvents', () => ({
+  ONBOARDING_EVENTS: {
+    PIN_SETUP_COMPLETED: 'pin_setup_completed',
+    ONBOARDING_COMPLETED: 'onboarding_completed',
+    IMPORT_STARTED: 'import_started',
+    IMPORT_COMPLETED: 'import_completed',
+    CANCEL_ONBOARDING: 'cancel_onboarding',
+  },
+}));
+
 // Helper to render hooks with props
 function renderHookWithProps(props: Record<string, unknown>) {
   const result: { current: ReturnType<typeof useOnboardingHandlers> | null } = { current: null };
@@ -111,9 +130,8 @@ describe('useOnboardingHandlers', () => {
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
       expect(mockProps.setImportedMnemonic).toHaveBeenCalledWith(null);
 
-      // Passkey migration prompt is skipped in __DEV__ mode (line 90 of hook)
-      // In production, it would be called immediately after setup
-      expect(mockProps.showPasskeyMigrationPromptGlobal).not.toHaveBeenCalled();
+      // Passkey migration prompt is shown unless isE2E (which is false in tests)
+      expect(mockProps.showPasskeyMigrationPromptGlobal).toHaveBeenCalledWith('1234');
 
       jest.useRealTimers();
     });

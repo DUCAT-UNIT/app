@@ -58,7 +58,6 @@ describe('AuthContext', () => {
     setShowBiometricPrompt: jest.fn(),
     setShowFaceIdButton: jest.fn(),
     setPasskeyEnabled: jest.fn(),
-    setShowPasskeyPrompt: jest.fn(),
     setShowPinEntry: jest.fn(),
     setSettingUpPin: jest.fn(),
     setChangingPin: jest.fn(),

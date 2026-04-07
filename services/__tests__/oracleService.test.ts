@@ -50,7 +50,7 @@ describe('oracleService', () => {
 
       const result = await fetchCurrentPrice();
 
-      expect(mockFetch).toHaveBeenCalledWith('https://test.price.server/price');
+      expect(mockFetch).toHaveBeenCalledWith('https://test.price.server/api/price/latest');
       expect(result).toBe(100000);
     });
 

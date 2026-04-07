@@ -2,10 +2,9 @@
  * Withdraw Store (Zustand)
  * Manages the withdraw UI flow state for withdrawing BTC collateral from an existing vault
  *
- * Refactored to use common vault store pattern from stores/vault/
+ * Built on createVaultOperationStore factory with withdraw-specific extensions
  */
 
-import { create } from 'zustand';
 import { logger } from '../utils/logger';
 import {
   computeHealthFactor,
@@ -15,8 +14,7 @@ import {
 } from '../utils/vaultUtils';
 import { VAULT_CONFIG } from '../utils/constants';
 import {
-  commonInitialState,
-  createCommonVaultSlice,
+  createVaultOperationStore,
   computeVaultHealth,
   computeNewVaultHealth,
 } from './vault';
@@ -56,39 +54,30 @@ interface WithdrawSpecificActions {
   getMaxWithdrawable: () => number; // Max BTC that can be withdrawn while maintaining min health
 }
 
-// Full store types
-type WithdrawState = CommonVaultState & WithdrawSpecificState;
-type WithdrawActions = CommonVaultActions & WithdrawSpecificActions;
-type WithdrawStore = WithdrawState & WithdrawActions;
+// Combined withdraw extension type
+type WithdrawExtension = WithdrawSpecificState & WithdrawSpecificActions;
 
 // Withdraw-specific initial state
 const withdrawSpecificInitialState: WithdrawSpecificState = {
   withdrawAmountSats: 0,
 };
 
-export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
-  // Get common slice
-  const commonSlice = createCommonVaultSlice<WithdrawStore>({
-    storeName: 'WithdrawStore',
-  })(set, get, store);
-
-  return {
-    // Spread common state and actions
-    ...commonSlice,
-
+export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
+  'withdraw',
+  (set, get, { initialState }) => ({
     // Withdraw-specific initial state
     ...withdrawSpecificInitialState,
 
     // Withdraw-specific form actions
-    setWithdrawAmountSats: (withdrawAmountSats) => {
+    setWithdrawAmountSats: (withdrawAmountSats: number) => {
       logger.debug('[WithdrawStore] setWithdrawAmountSats:', withdrawAmountSats);
-      set({ withdrawAmountSats, error: null });
+      set({ withdrawAmountSats, error: null } as Partial<CommonVaultState & CommonVaultActions & WithdrawExtension>);
     },
 
-    setWithdrawAmountBtc: (btcAmount) => {
+    setWithdrawAmountBtc: (btcAmount: number) => {
       const sats = Math.round(btcAmount * 100_000_000);
       logger.debug('[WithdrawStore] setWithdrawAmountBtc:', { btcAmount, sats });
-      set({ withdrawAmountSats: sats, error: null });
+      set({ withdrawAmountSats: sats, error: null } as Partial<CommonVaultState & CommonVaultActions & WithdrawExtension>);
     },
 
     // Withdraw-specific computed getters
@@ -148,12 +137,12 @@ export const useWithdrawStore = create<WithdrawStore>()((set, get, store) => {
     reset: () => {
       logger.debug('[WithdrawStore] reset');
       set({
-        ...commonInitialState,
+        ...initialState,
         ...withdrawSpecificInitialState,
-      });
+      } as Partial<CommonVaultState & CommonVaultActions & WithdrawExtension>);
     },
-  };
-});
+  })
+);
 
 
 /**

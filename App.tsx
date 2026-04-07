@@ -39,6 +39,7 @@ import { WalletProvider, useWallet } from './contexts/WalletContext';
 import { usePendingTransactionsStore } from './stores/pendingTransactionsStore';
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { usePriceStore } from './stores/priceStore';
+import { useVaultCreationStore } from './stores/vaultCreationStore';
 import { CashuProvider } from './contexts/CashuContext';
 // UIProvider removed — fully migrated to Zustand (displayPreferencesStore, notificationStore)
 // AirdropProvider removed — airdrop logic lives in AirdropContext, used via hooks only
@@ -166,6 +167,9 @@ export default function App() {
       is_device: Device.isDevice ?? false,
     });
     analytics.track(ONBOARDING_EVENTS.APP_OPENED);
+    // Reset stale vault creation form data on app launch
+    // (persisted amounts/fee rates may be outdated after restart)
+    useVaultCreationStore.getState().reset();
   }, []);
 
   if ((!fontsLoaded && !fontTimedOut) || !configReady) {

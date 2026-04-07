@@ -144,7 +144,7 @@ describe('WalletDataContext', () => {
 
       expect(() => {
         renderHook(() => useBalance());
-      }).toThrow('useBalance must be used within a WalletDataProvider');
+      }).toThrow('useBalance must be used within a BalanceProvider');
 
       consoleError.mockRestore();
     });
@@ -154,7 +154,7 @@ describe('WalletDataContext', () => {
 
       expect(() => {
         renderHook(() => useTransactionHistory());
-      }).toThrow('useTransactionHistory must be used within a WalletDataProvider');
+      }).toThrow('useTransactionHistory must be used within a TransactionHistoryProvider');
 
       consoleError.mockRestore();
     });
@@ -164,7 +164,7 @@ describe('WalletDataContext', () => {
 
       expect(() => {
         renderHook(() => useVaultData());
-      }).toThrow('useVaultData must be used within a WalletDataProvider');
+      }).toThrow('useVaultData must be used within a VaultProvider');
 
       consoleError.mockRestore();
     });
@@ -174,7 +174,7 @@ describe('WalletDataContext', () => {
 
       expect(() => {
         renderHook(() => useEcashTokens());
-      }).toThrow('useEcashTokens must be used within a WalletDataProvider');
+      }).toThrow('useEcashTokens must be used within an EcashTokensProvider');
 
       consoleError.mockRestore();
     });
@@ -478,7 +478,7 @@ describe('WalletDataContext', () => {
       });
 
       expect(logger.error).toHaveBeenCalledWith(
-        '[WalletDataContext] Failed to load ecash tokens:',
+        '[EcashTokensContext] Failed to load ecash tokens:',
         expect.objectContaining({ error: 'Token load failed' })
       );
     });
@@ -495,7 +495,7 @@ describe('WalletDataContext', () => {
       });
 
       expect(logger.error).toHaveBeenCalledWith(
-        '[WalletDataContext] Failed to load ecash tokens:',
+        '[EcashTokensContext] Failed to load ecash tokens:',
         expect.objectContaining({ error: 'string error' })
       );
     });

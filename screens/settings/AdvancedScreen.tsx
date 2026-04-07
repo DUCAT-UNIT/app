@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useRemoteConfigStore } from '../../stores/remoteConfigStore';
 import { logger } from '../../utils/logger';
@@ -83,8 +83,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
-    <View style={styles.container} testID="advanced-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="advanced-screen">
       {/* Header with back button and title on same line */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.backButton} testID="advanced-back-btn">
@@ -163,7 +162,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
 
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 

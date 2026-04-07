@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 import type { WalletStackParamList } from '../../navigation/types';
 
 // Get device dimensions for responsive sizing
@@ -70,8 +70,7 @@ const AboutScreen = React.memo(function AboutScreen({ route }: AboutScreenProps)
   };
 
   return (
-    <View style={localStyles.container} testID="about-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="about-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="about-back-btn">
@@ -105,7 +104,7 @@ const AboutScreen = React.memo(function AboutScreen({ route }: AboutScreenProps)
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 

@@ -29,12 +29,12 @@ jest.mock('../../../components/icons', () => {
   };
 });
 
-// Mock MutinynetBanner
-jest.mock('../../../components/MutinynetBanner', () => {
+// Mock ScreenLayout
+jest.mock('../../../components/layouts/ScreenLayout', () => {
   const React = require('react');
   const { View } = require('react-native');
-  return function MockMutinynetBanner() {
-    return React.createElement(View, { testID: 'mutinynet-banner' });
+  return function MockScreenLayout({ children, testID }: { children: React.ReactNode; testID?: string }) {
+    return React.createElement(View, { testID }, children);
   };
 });
 

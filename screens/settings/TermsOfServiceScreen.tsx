@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import MutinynetBanner from '../../components/MutinynetBanner';
+import ScreenLayout from '../../components/layouts/ScreenLayout';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -39,8 +39,7 @@ const TermsOfServiceScreen = React.memo(function TermsOfServiceScreen({ route }:
   const { onClose } = route.params;
 
   return (
-    <View style={localStyles.container} testID="terms-of-service-screen">
-      <MutinynetBanner />
+    <ScreenLayout testID="terms-of-service-screen">
       {/* Header with back button and title on same line */}
       <View style={localStyles.header}>
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="terms-back-btn">
@@ -211,7 +210,7 @@ const TermsOfServiceScreen = React.memo(function TermsOfServiceScreen({ route }:
           <View style={localStyles.bottomPadding} />
         </View>
       </ScrollView>
-    </View>
+    </ScreenLayout>
   );
 });
 

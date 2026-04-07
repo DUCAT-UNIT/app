@@ -3,8 +3,9 @@
  */
 
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react-native';
+import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import SecurityScreen from '../SecurityScreen';
+import { isPasskeyEnabled } from '../../../services/passkey';
 
 // Mock NavigationHandlersContext
 const mockSettingsHandlers = {
@@ -23,6 +24,9 @@ const mockSettingsContext = {
 
 jest.mock('../../../contexts/NavigationHandlersContext', () => ({
   useSettingsHandlers: () => mockSettingsContext,
+  useAuthFlowHandlers: () => ({
+    showPasskeyMigrationPrompt: jest.fn(),
+  }),
 }));
 
 // Mock Icon component
@@ -34,14 +38,36 @@ jest.mock('../../../components/icons', () => {
   };
 });
 
-// Mock MutinynetBanner
-jest.mock('../../../components/MutinynetBanner', () => {
+// Mock ScreenLayout
+jest.mock('../../../components/layouts/ScreenLayout', () => {
   const React = require('react');
   const { View } = require('react-native');
-  return function MockMutinynetBanner() {
-    return React.createElement(View, { testID: 'mutinynet-banner' });
+  return function MockScreenLayout({ children, testID }: { children: React.ReactNode; testID?: string }) {
+    return React.createElement(View, { testID }, children);
   };
 });
+
+// Mock passkey service (used via dynamic import in SecurityScreen)
+jest.mock('../../../services/passkey', () => ({
+  isPasskeyEnabled: jest.fn().mockResolvedValue(false),
+}));
+
+// Mock analytics
+jest.mock('../../../services/analyticsService', () => ({
+  analytics: {
+    track: jest.fn(),
+    screen: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
+}));
+
+jest.mock('../../../constants/analyticsEvents', () => ({
+  SETTINGS_EVENTS: {
+    SETTINGS_OPENED: 'settings_opened',
+    SECURITY_SETTING_CHANGED: 'security_setting_changed',
+  },
+}));
 
 describe('SecurityScreen', () => {
   const mockOnClose = jest.fn();
@@ -134,9 +160,15 @@ describe('SecurityScreen', () => {
       expect(mockSettingsHandlers.handleDeleteWallet).toHaveBeenCalledTimes(1);
     });
 
-    it('should call triggerPasskeyUpgrade when upgrade option is pressed', () => {
+    it('should call triggerPasskeyUpgrade when upgrade option is pressed', async () => {
       mockSettingsContext.passkeyUpgradeRecommended = true;
+      (isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
       const { getByTestId } = render(<SecurityScreen {...defaultProps} />);
+
+      // Wait for the async passkey check to complete
+      await waitFor(() => {
+        expect(getByTestId('security-passkey-upgrade-btn')).toBeTruthy();
+      });
 
       fireEvent.press(getByTestId('security-passkey-upgrade-btn'));
 
@@ -182,7 +214,7 @@ describe('SecurityScreen', () => {
 
       expect(deleteBtn.props.accessibilityRole).toBe('button');
       expect(deleteBtn.props.accessibilityHint).toBe(
-        'Warning: Deletes wallet data from this device. Passkey backup is not removed.'
+        'Warning: Deletes wallet data from this device.'
       );
     });
   });
@@ -198,10 +230,16 @@ describe('SecurityScreen', () => {
       expect(getByTestId('security-delete-btn').props.accessibilityLabel).toBe('Delete Local Wallet');
     });
 
-    it('should render the passkey upgrade option when recommended', () => {
+    it('should render the passkey upgrade option when recommended', async () => {
       mockSettingsContext.passkeyUpgradeRecommended = true;
+      (isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
 
       const { getByTestId } = render(<SecurityScreen {...defaultProps} />);
+
+      // Wait for the async passkey check to complete
+      await waitFor(() => {
+        expect(getByTestId('security-passkey-upgrade-btn')).toBeTruthy();
+      });
 
       expect(getByTestId('security-passkey-upgrade-btn').props.accessibilityLabel)
         .toBe('Upgrade Passkey Security, currently RECOMMENDED');

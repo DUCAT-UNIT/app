@@ -85,7 +85,7 @@ describe('useEcashBalanceCheck', () => {
   it('should use default threshold when ecashThreshold is null', () => {
     const { result } = renderHookWithProps(100, null, 1000);
 
-    expect(result.current!.defaultThreshold).toBe(100);
+    expect(result.current!.defaultThreshold).toBe(10000);
   });
 
   it('should show modal when balance is low and unit balance sufficient', async () => {

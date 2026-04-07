@@ -1,244 +1,72 @@
 /**
- * WalletDataContext - Consolidated wallet data management
- * Merges BalanceContext, TransactionHistoryContext, and VaultDataContext
- * Manages all wallet-related data fetching with unified auto-refresh logic
+ * WalletDataContext - Slim coordinator for wallet data sub-providers
+ * Composes BalanceProvider, VaultProvider, TransactionHistoryProvider, EcashTokensProvider
+ * Owns polling logic and initialization sequencing
  */
 
-import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
-import { useBalanceData,UseBalanceDataReturn } from '../hooks/useBalanceData';
+import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { usePolling } from '../hooks/usePolling';
-import { useTransactionHistoryFetch,UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
-import { useVaultDataFetch,UseVaultDataFetchReturn } from '../hooks/useVaultDataFetch';
-import { getReceivedTokens,getSentLockedTokens,subscribeToTokenChanges } from '../services/cashu/cashuLockedTokensService';
-import { loadTokensWithStatus,TokenWithStatus } from '../services/cashu/tokenStatusService';
-import { useNotificationStore } from '../stores/notificationStore';
-import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
-import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
-import { useSendFlowStore } from '../stores/sendFlowStore';
 import { logger } from '../utils/logger';
+import { BalanceProvider, useBalance } from './BalanceContext';
 import { useCashuBalanceState } from './CashuContext';
+import { EcashTokensProvider, useEcashTokens } from './EcashTokensContext';
+import { TransactionHistoryProvider, useTransactionHistory } from './TransactionHistoryContext';
+import { VaultProvider, useVaultData } from './VaultContext';
 import { useWallet } from './WalletContext';
 
-// Polling intervals (in milliseconds)
-const POLL_INTERVAL = 10000; // 10 seconds - for balance and vault data
+// Re-export hooks and types so existing imports from WalletDataContext keep working
+export { useBalance, type BalanceDataValue } from './BalanceContext';
+export { useTransactionHistory, type TransactionHistoryValue } from './TransactionHistoryContext';
+export { useVaultData, type VaultDataValue } from './VaultContext';
+export { useEcashTokens, type EcashTokensValue } from './EcashTokensContext';
 
-// Use hook return types directly for consistency
-export type BalanceDataValue = UseBalanceDataReturn;
-export type TransactionHistoryValue = UseTransactionHistoryFetchReturn;
-export type VaultDataValue = UseVaultDataFetchReturn;
-
-// Ecash tokens context value
-export interface EcashTokensValue {
-  ecashTokens: TokenWithStatus[];
-  loadingEcashTokens: boolean;
-  fetchEcashTokens: () => Promise<void>;
-  resetEcashTokens: () => void;
-}
-
-// PERFORMANCE: Split into 4 separate contexts to prevent unnecessary re-renders
-// When balance changes, only components using useBalance() will re-render
-// When history changes, only components using useTransactionHistory() will re-render
-// When vault changes, only components using useVaultData() will re-render
-// When ecash tokens change, only components using useEcashTokens() will re-render
-const BalanceContext = createContext<BalanceDataValue | undefined>(undefined);
-const HistoryContext = createContext<TransactionHistoryValue | undefined>(undefined);
-const VaultDataContext = createContext<VaultDataValue | undefined>(undefined);
-const EcashTokensContext = createContext<EcashTokensValue | undefined>(undefined);
-// OPTIMIZED: Direct context access - no re-render unless balance changes
-export const useBalance = (): BalanceDataValue => {
-  const context = useContext(BalanceContext);
-  if (!context) {
-    throw new Error('useBalance must be used within a WalletDataProvider');
-  }
-  return context;
-};
-
-// OPTIMIZED: Direct context access - no re-render unless history changes
-export const useTransactionHistory = (): TransactionHistoryValue => {
-  const context = useContext(HistoryContext);
-  if (!context) {
-    throw new Error('useTransactionHistory must be used within a WalletDataProvider');
-  }
-  return context;
-};
-
-// OPTIMIZED: Direct context access - no re-render unless vault changes
-export const useVaultData = (): VaultDataValue => {
-  const context = useContext(VaultDataContext);
-  if (!context) {
-    throw new Error('useVaultData must be used within a WalletDataProvider');
-  }
-  return context;
-};
-
-// OPTIMIZED: Direct context access - no re-render unless ecash tokens change
-export const useEcashTokens = (): EcashTokensValue => {
-  const context = useContext(EcashTokensContext);
-  if (!context) {
-    throw new Error('useEcashTokens must be used within a WalletDataProvider');
-  }
-  return context;
-};
+// Polling interval (milliseconds)
+const POLL_INTERVAL = 10000;
 
 interface WalletDataProviderProps {
   children: ReactNode;
 }
 
-export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children }) => {
+/**
+ * Inner component that has access to all four sub-contexts.
+ * Owns: polling, init sequencing, wallet-change resets.
+ */
+const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
-  const { getUnconfirmedBalance, getUnconfirmedUTXOs } = usePendingTransactionsStore();
   const { isLoading: loadingCashu, balance: cashuBalance } = useCashuBalanceState();
 
-  // ============================================================
-  // USE EXTRACTED HOOKS FOR DATA MANAGEMENT
-  // ============================================================
+  const balance = useBalance();
+  const history = useTransactionHistory();
+  const vault = useVaultData();
+  const { fetchEcashTokens, resetEcashTokens } = useEcashTokens();
 
-  // Balance data hook - pass getUnconfirmedUTXOs to filter out already-confirmed UTXOs
-  const balance = useBalanceData(wallet, getUnconfirmedBalance, getUnconfirmedUTXOs);
-
-  // Transaction history data hook
-  const history = useTransactionHistoryFetch(wallet);
-
-  // Vault data hook
-  const vault = useVaultDataFetch(wallet);
-
-  // ============================================================
-  // ECASH TOKENS STATE (pre-loaded for instant access)
-  // ============================================================
-  const [ecashTokens, setEcashTokens] = useState<TokenWithStatus[]>([]);
-  const [loadingEcashTokens, setLoadingEcashTokens] = useState(false);
-  const ecashFetchingRef = useRef(false);
-
-  // Fetch ecash tokens for the current wallet
-  const fetchEcashTokens = useCallback(async () => {
-    if (!wallet?.taprootAddress || ecashFetchingRef.current) return;
-
-    ecashFetchingRef.current = true;
-    // Only show loading on initial fetch, not background refreshes
-    if (ecashTokens.length === 0) {
-      setLoadingEcashTokens(true);
-    }
-
-    try {
-      const tokensWithStatus = await loadTokensWithStatus(
-        wallet.taprootAddress,
-        getSentLockedTokens,
-        getReceivedTokens
-      );
-      setEcashTokens(tokensWithStatus);
-    } catch (error: unknown) {
-      logger.error('[WalletDataContext] Failed to load ecash tokens:', { error: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setLoadingEcashTokens(false);
-      ecashFetchingRef.current = false;
-    }
-  }, [wallet?.taprootAddress, ecashTokens.length]);
-
-  // Reset ecash tokens
-  const resetEcashTokens = useCallback(() => {
-    setEcashTokens([]);
-    setLoadingEcashTokens(false);
-  }, []);
-
-  // Subscribe to token changes (send/receive) to auto-refresh
-  useEffect(() => {
-    if (!wallet) return;
-
-    const unsubscribe = subscribeToTokenChanges(() => {
-      logger.debug('[WalletDataContext] Token change detected, refreshing ecash tokens');
-      fetchEcashTokens().catch((error: unknown) => {
-        logger.error('[WalletDataContext] Failed to refresh ecash tokens after token change', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [wallet, fetchEcashTokens]);
-
-  // ============================================================
-  // VAULT TRANSACTION CONFIRMATION CHECK
-  // ============================================================
-  // Check if pending vault transaction has been confirmed (appears in history)
-  const pendingVaultTx = usePendingVaultTransactionStore((state) => state.pendingTransaction);
-
-  useEffect(() => {
-    if (pendingVaultTx && vault.vaultTransactions.length > 0) {
-      logger.debug('[WalletDataContext] Checking vault tx confirmation', {
-        pendingTxid: pendingVaultTx.txid,
-        pendingVaultTxid: pendingVaultTx.vaultTxid,
-        pendingAction: pendingVaultTx.action,
-        historyCount: vault.vaultTransactions.length,
-        historyTxIds: vault.vaultTransactions.slice(0, 5).map(tx => tx.transaction_id),
-      });
-
-      // Check if the pending transaction's txid matches any in the history
-      const isConfirmed = vault.vaultTransactions.some(
-        tx => tx.transaction_id === pendingVaultTx.txid ||
-              tx.transaction_id === pendingVaultTx.vaultTxid
-      );
-
-      logger.debug('[WalletDataContext] Confirmation check result', { isConfirmed });
-
-      if (isConfirmed) {
-        // Transaction confirmed - clear pending state and show success snackbar
-        const confirmedAction = pendingVaultTx.action;
-        const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
-        logger.info('[WalletDataContext] Vault transaction confirmed', { action: confirmedAction, txid: confirmedTxid });
-        usePendingVaultTransactionStore.getState().clearPendingTransaction();
-        // Only show snackbar if no other snackbar is active and no send flow in progress —
-        // avoids overwriting swap/send confirmation banners
-        const currentSnackbar = useNotificationStore.getState().snackbar;
-        const intentStep = useSendFlowStore.getState().intentStep;
-        if (!currentSnackbar && intentStep === 'idle') {
-          useNotificationStore.getState().showSnackbar({
-            type: 'success',
-            action: confirmedAction,
-            txid: confirmedTxid,
-          });
-        } else {
-          logger.debug('[WalletDataContext] Skipping vault confirmation snackbar', { hasSnackbar: !!currentSnackbar, intentStep });
-        }
-      }
-    }
-  }, [pendingVaultTx, vault.vaultTransactions]);
-
-  // ============================================================
-  // UNIFIED AUTO-REFRESH POLLING
-  // ============================================================
-
-  // Track previous wallet to detect changes (account switches)
+  // Track previous wallet to detect changes
   const prevWalletRef = useRef<typeof wallet | null>(null);
 
-  // Track if initial balances have loaded (both runes and cashu)
-  const initialBalancesLoadedRef = useRef(false);
+  // Consolidated fetch-state tracking
+  const fetchStateRef = useRef({ initialBalancesLoaded: false, initialHistoryFetched: false });
 
   // Check if both balances have loaded at least once
   const hasRunesData = balance.runesBalance !== null && balance.runesBalance !== undefined && !balance.loadingBalance;
   const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
   const bothBalancesLoaded = hasRunesData && hasCashuData;
 
-  // Update ref when both balances have loaded
-  if (bothBalancesLoaded && !initialBalancesLoadedRef.current) {
+  if (bothBalancesLoaded && !fetchStateRef.current.initialBalancesLoaded) {
     logger.debug('[WalletDataContext] Both balances loaded, enabling transaction history fetch', {
       runesBalance: balance.runesBalance,
       cashuBalance,
     });
-    initialBalancesLoadedRef.current = true;
+    fetchStateRef.current.initialBalancesLoaded = true;
   }
 
-  // Unified polling callback - fetches all data on a coordinated schedule
+  // Unified polling callback
   const pollAllData = useCallback(() => {
     if (!wallet) return;
 
-    // Always fetch balance and vault
     balance.fetchBalance();
     vault.fetchVault();
 
-    // Only fetch transaction history, vault transactions, and ecash tokens after both balances have loaded at least once
-    if (initialBalancesLoadedRef.current) {
+    if (fetchStateRef.current.initialBalancesLoaded) {
       history.fetchTransactionHistory();
       vault.fetchVaultTransactions();
       fetchEcashTokens();
@@ -253,36 +81,29 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.fetchBalance, vault.fetchVault, vault.fetchVaultTransactions, history.fetchTransactionHistory, fetchEcashTokens]);
 
-  // Handle wallet changes - reset data when removed, fetch on first load
-  // NOTE: Account switches are handled by useAccountSwitcher in NavigationHandlersContext
-  // which coordinates reset + fetch synchronously for snappier switching
+  // Handle wallet changes - reset on removal, fetch on first load
   useEffect(() => {
     const prevWallet = prevWalletRef.current;
     prevWalletRef.current = wallet;
 
     if (!wallet) {
-      // Wallet removed - reset all data
       balance.resetBalances();
       history.resetTransactionHistory();
       vault.resetVaultData();
       resetEcashTokens();
-      initialBalancesLoadedRef.current = false;
-      initialHistoryFetchedRef.current = false;
+      fetchStateRef.current.initialBalancesLoaded = false;
+      fetchStateRef.current.initialHistoryFetched = false;
     } else if (!prevWallet && wallet) {
-      // Wallet just loaded for first time (import/creation) - fetch balances first
-      // Transaction history and ecash tokens will be fetched by pollAllData once balances load
       balance.fetchBalance();
       vault.fetchVault();
     }
-    // Account switches are handled by useAccountSwitcher - no action needed here
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, balance.resetBalances, balance.fetchBalance, history.resetTransactionHistory, vault.resetVaultData, vault.fetchVault, resetEcashTokens]);
 
-  // Trigger initial transaction history, vault transactions, and ecash tokens load ONCE after both balances first load
-  const initialHistoryFetchedRef = useRef(false);
+  // Trigger initial history/vault-tx/ecash load ONCE after both balances first load
   useEffect(() => {
-    if (bothBalancesLoaded && initialBalancesLoadedRef.current && !initialHistoryFetchedRef.current) {
-      initialHistoryFetchedRef.current = true;
+    if (bothBalancesLoaded && fetchStateRef.current.initialBalancesLoaded && !fetchStateRef.current.initialHistoryFetched) {
+      fetchStateRef.current.initialHistoryFetched = true;
       logger.debug('[WalletDataContext] Both balances ready - fetching transaction history, vault transactions, and ecash tokens');
       history.fetchTransactionHistory();
       vault.fetchVaultTransactions();
@@ -299,29 +120,19 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
     immediate: true,
   });
 
-  // ============================================================
-  // PERFORMANCE OPTIMIZATION: Separate Memoized Values
-  // ============================================================
-  // balance, history, and vault are hook return values with stable references —
-  // no wrapping needed. ecashValue constructs a new object and must be memoized.
+  return <>{children}</>;
+};
 
-  // Ecash tokens context value - only updates when ecash tokens change
-  const ecashValue = useMemo((): EcashTokensValue => ({
-    ecashTokens,
-    loadingEcashTokens,
-    fetchEcashTokens,
-    resetEcashTokens,
-  }), [ecashTokens, loadingEcashTokens, fetchEcashTokens, resetEcashTokens]);
-
+export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children }) => {
   return (
-    <BalanceContext.Provider value={balance}>
-      <HistoryContext.Provider value={history}>
-        <VaultDataContext.Provider value={vault}>
-          <EcashTokensContext.Provider value={ecashValue}>
-            {children}
-          </EcashTokensContext.Provider>
-        </VaultDataContext.Provider>
-      </HistoryContext.Provider>
-    </BalanceContext.Provider>
+    <BalanceProvider>
+      <VaultProvider>
+        <TransactionHistoryProvider>
+          <EcashTokensProvider>
+            <WalletDataCoordinator>{children}</WalletDataCoordinator>
+          </EcashTokensProvider>
+        </TransactionHistoryProvider>
+      </VaultProvider>
+    </BalanceProvider>
   );
 };

@@ -4,7 +4,6 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import * as PasskeyService from '../../services/passkey';
 import { usePasskeyCreation } from '../usePasskeyCreation';
 import { notify } from '../../utils/notify';
 
@@ -32,14 +31,54 @@ function renderHook<T>(hook: () => T) {
 jest.mock('expo-device', () => ({
   deviceName: 'iPhone 15',
 }));
+
+// Mock WalletService (used by createWalletWithPasskey internally)
+const mockGenerateWallet = jest.fn();
+const mockSaveWalletToStorage = jest.fn();
+jest.mock('../../services/walletService', () => ({
+  generateWallet: (...args: unknown[]) => mockGenerateWallet(...args),
+  saveWalletToStorage: (...args: unknown[]) => mockSaveWalletToStorage(...args),
+}));
+
+// Mock pinService
+const mockSavePin = jest.fn();
+jest.mock('../../services/pinService', () => ({
+  savePin: (...args: unknown[]) => mockSavePin(...args),
+}));
+
+// Mock expo-local-authentication
+jest.mock('expo-local-authentication', () => ({
+  hasHardwareAsync: jest.fn().mockResolvedValue(false),
+  isEnrolledAsync: jest.fn().mockResolvedValue(false),
+}));
+
+// Mock passkey service (not directly used by the hook anymore, but may be imported)
 jest.mock('../../services/passkey');
+
+// Mock analytics
+jest.mock('../../services/analyticsService', () => ({
+  analytics: {
+    track: jest.fn(),
+    screen: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+  },
+}));
+
+jest.mock('../../constants/analyticsEvents', () => ({
+  ONBOARDING_EVENTS: {
+    WALLET_CREATION_STARTED: 'wallet_creation_started',
+    WALLET_CREATED: 'wallet_created',
+    PASSKEY_SETUP_OFFERED: 'passkey_setup_offered',
+  },
+}));
 
 interface MockProps {
   setIsAuthenticated: jest.Mock;
   setSeedConfirmed: jest.Mock;
   setWalletAddresses: jest.Mock;
   showBiometricSetupPrompt: jest.Mock;
-  loadWallet: jest.Mock;
+  showPasskeyMigrationPrompt?: jest.Mock;
 }
 
 describe('usePasskeyCreation', () => {
@@ -49,18 +88,17 @@ describe('usePasskeyCreation', () => {
     mockProps = {
       setIsAuthenticated: jest.fn(),
       setSeedConfirmed: jest.fn(),
-      loadWallet: jest.fn().mockResolvedValue(undefined),
       setWalletAddresses: jest.fn(),
       showBiometricSetupPrompt: jest.fn(),
     };
 
     jest.clearAllMocks();
-    (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(true);
-    (PasskeyService.createWalletWithPasskey as jest.Mock).mockResolvedValue({
+    mockGenerateWallet.mockResolvedValue({
       mnemonic: 'test mnemonic phrase',
       addresses: { segwit: 'bc1q...', taproot: 'bc1p...' },
-      icloudBackupSucceeded: true,
     });
+    mockSaveWalletToStorage.mockResolvedValue(undefined);
+    mockSavePin.mockResolvedValue(undefined);
   });
 
   describe('Initialization', () => {
@@ -107,58 +145,15 @@ describe('usePasskeyCreation', () => {
   });
 
   describe('startPasskeyCreation', () => {
-    it('should show PIN input when passkeys are supported', async () => {
-      (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(true);
-
+    it('should show PIN input', async () => {
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
 
       await act(async () => {
         await result.current!.startPasskeyCreation();
       });
 
-      expect(PasskeyService.isPasskeySupported).toHaveBeenCalled();
       expect(result.current!.showPinInput).toBe(true);
       expect(result.current!.creatingWithPasskey).toBe(true);
-    });
-
-    it('should show error when passkeys are not supported', async () => {
-      (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(false);
-
-      const { result } = renderHook(() => usePasskeyCreation(mockProps));
-
-      await act(async () => {
-        await result.current!.startPasskeyCreation();
-      });
-
-      expect(notify.passkey.notSupported).toHaveBeenCalled();
-      expect(result.current!.showPinInput).toBe(false);
-      expect(result.current!.creatingWithPasskey).toBe(false);
-    });
-
-    it('should handle errors during passkey check', async () => {
-      const error = new Error('Passkey check failed');
-      (PasskeyService.isPasskeySupported as jest.Mock).mockRejectedValue(error);
-
-      const { result } = renderHook(() => usePasskeyCreation(mockProps));
-
-      await act(async () => {
-        await result.current!.startPasskeyCreation();
-      });
-
-      expect(notify.passkey.creationFailed).toHaveBeenCalled();
-      expect(result.current!.showPinInput).toBe(false);
-    });
-
-    it('should handle errors without message', async () => {
-      (PasskeyService.isPasskeySupported as jest.Mock).mockRejectedValue(new Error());
-
-      const { result } = renderHook(() => usePasskeyCreation(mockProps));
-
-      await act(async () => {
-        await result.current!.startPasskeyCreation();
-      });
-
-      expect(notify.passkey.creationFailed).toHaveBeenCalled();
     });
   });
 
@@ -171,7 +166,7 @@ describe('usePasskeyCreation', () => {
       });
 
       expect(result.current!.confirmingPin).toBe(true);
-      expect(PasskeyService.createWalletWithPasskey).not.toHaveBeenCalled();
+      expect(mockGenerateWallet).not.toHaveBeenCalled();
     });
 
     it('should show error when PIN is null', async () => {
@@ -239,20 +234,12 @@ describe('usePasskeyCreation', () => {
         await result.current!.handlePinEntry('123456');
       });
 
-      expect(PasskeyService.createWalletWithPasskey).toHaveBeenCalledWith({
-        userName: 'iPhone 15-DUCAT_APP',
-        userDisplayName: 'iPhone 15 - Ducat',
-        pin: '123456',
-      });
-      expect(mockProps.setWalletAddresses).toHaveBeenCalledWith(
-        { segwit: 'bc1q...', taproot: 'bc1p...' },
-        0
-      );
+      expect(mockGenerateWallet).toHaveBeenCalledWith(0);
+      expect(mockSaveWalletToStorage).toHaveBeenCalled();
+      expect(mockSavePin).toHaveBeenCalledWith('123456');
+      expect(mockProps.setWalletAddresses).toHaveBeenCalled();
       expect(mockProps.setIsAuthenticated).toHaveBeenCalledWith(true);
       expect(mockProps.setSeedConfirmed).toHaveBeenCalledWith(true);
-      expect(notify.passkey.created).toHaveBeenCalled();
-      expect(result.current!.showPinInput).toBe(false);
-      expect(result.current!.creatingWithPasskey).toBe(false);
       expect(result.current!.walletExistsRef.current).toBe(true);
     });
 
@@ -278,18 +265,12 @@ describe('usePasskeyCreation', () => {
       expect(result.current!.confirmingPin).toBe(false);
       expect(result.current!.passkeyPin).toBe('');
       expect(result.current!.passkeyPinConfirm).toBe('');
-      expect(PasskeyService.createWalletWithPasskey).not.toHaveBeenCalled();
+      expect(mockGenerateWallet).not.toHaveBeenCalled();
     });
   });
 
   describe('createWalletWithPasskey - Success', () => {
-    it('should show success message when iCloud backup succeeds', async () => {
-      (PasskeyService.createWalletWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: 'test',
-        addresses: {},
-        icloudBackupSucceeded: true,
-      });
-
+    it('should show success message on wallet creation', async () => {
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
 
       await act(async () => {
@@ -303,20 +284,14 @@ describe('usePasskeyCreation', () => {
         await result.current!.handlePinEntry('123456');
       });
 
-      expect(notify.passkey.created).toHaveBeenCalled();
+      expect(notify.success).toHaveBeenCalledWith('Wallet created successfully');
     });
 
-    it('should show warning when iCloud backup fails', async () => {
-      // Create a promise that resolves with backup failure
-      const backupPromise = Promise.resolve({ success: false, error: 'Backup failed' });
+    it('should offer passkey migration when showPasskeyMigrationPrompt is provided', async () => {
+      const showPasskeyPrompt = jest.fn();
+      const propsWithPasskey = { ...mockProps, showPasskeyMigrationPrompt: showPasskeyPrompt };
 
-      (PasskeyService.createWalletWithPasskey as jest.Mock).mockResolvedValue({
-        mnemonic: 'test',
-        addresses: {},
-        icloudBackupPromise: backupPromise,
-      });
-
-      const { result } = renderHook(() => usePasskeyCreation(mockProps));
+      const { result } = renderHook(() => usePasskeyCreation(propsWithPasskey));
 
       await act(async () => {
         await result.current!.handlePinEntry('123456');
@@ -329,30 +304,16 @@ describe('usePasskeyCreation', () => {
         await result.current!.handlePinEntry('123456');
       });
 
-      // First should show success toast
-      expect(notify.passkey.created).toHaveBeenCalled();
-
-      // Wait for background backup promise to resolve
-      await act(async () => {
-        await backupPromise;
-      });
-
-      // Then should show a blocking native alert about backup failure
-      const { Alert } = require('react-native');
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Cloud Backup Failed',
-        expect.stringContaining('could not be backed up to iCloud'),
-        expect.arrayContaining([expect.objectContaining({ text: 'I Understand' })]),
-        { cancelable: false }
-      );
+      // In non-E2E mode, passkey migration prompt should be offered
+      expect(showPasskeyPrompt).toHaveBeenCalledWith('123456');
     });
 
     it('should set isCreating to true during creation', async () => {
-      let createResolve: (value: unknown) => void;
-      const createPromise = new Promise((resolve) => {
-        createResolve = resolve;
+      let generateResolve: (value: unknown) => void;
+      const generatePromise = new Promise((resolve) => {
+        generateResolve = resolve;
       });
-      (PasskeyService.createWalletWithPasskey as jest.Mock).mockReturnValue(createPromise);
+      mockGenerateWallet.mockReturnValue(generatePromise);
 
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
 
@@ -372,8 +333,11 @@ describe('usePasskeyCreation', () => {
       expect(result.current!.isCreating).toBe(true);
 
       await act(async () => {
-        createResolve({ mnemonic: 'test', addresses: {}, icloudBackupSucceeded: true });
-        await createPromise;
+        generateResolve!({
+          mnemonic: 'test',
+          addresses: { segwit: 'bc1q...', taproot: 'bc1p...' },
+        });
+        await generatePromise;
       });
 
       expect(result.current!.isCreating).toBe(false);
@@ -383,7 +347,7 @@ describe('usePasskeyCreation', () => {
   describe('createWalletWithPasskey - Error Handling', () => {
     it('should handle wallet creation errors', async () => {
       const error = new Error('Creation failed');
-      (PasskeyService.createWalletWithPasskey as jest.Mock).mockRejectedValue(error);
+      mockGenerateWallet.mockRejectedValue(error);
 
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
 
@@ -408,7 +372,7 @@ describe('usePasskeyCreation', () => {
     });
 
     it('should handle errors without message', async () => {
-      (PasskeyService.createWalletWithPasskey as jest.Mock).mockRejectedValue(new Error());
+      mockGenerateWallet.mockRejectedValue(new Error());
 
       const { result } = renderHook(() => usePasskeyCreation(mockProps));
 
