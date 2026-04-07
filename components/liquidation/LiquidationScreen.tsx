@@ -228,7 +228,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       {!isProcessingOrResult && (
         <View style={styles.header}>
           <Text style={styles.title}>Liquidations</Text>
-          <CurrencyToggle showBTC={showBTC} onToggle={handleToggleBTC} />
+          {hasVault && <CurrencyToggle showBTC={showBTC} onToggle={handleToggleBTC} />}
         </View>
       )}
 
