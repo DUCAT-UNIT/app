@@ -354,22 +354,22 @@ export default function RootNavigator(): React.JSX.Element {
                   <Stack.Screen
                     name="BorrowFlow"
                     component={BorrowNavigator}
-                    options={noAnimationOptions}
+                    options={{ presentation: 'modal' }}
                   />
                   <Stack.Screen
                     name="DepositFlow"
                     component={DepositNavigator}
-                    options={noAnimationOptions}
+                    options={{ presentation: 'modal' }}
                   />
                   <Stack.Screen
                     name="RepayFlow"
                     component={RepayNavigator}
-                    options={noAnimationOptions}
+                    options={{ presentation: 'modal' }}
                   />
                   <Stack.Screen
                     name="WithdrawFlow"
                     component={WithdrawNavigator}
-                    options={noAnimationOptions}
+                    options={{ presentation: 'modal' }}
                   />
                 </React.Fragment>
               )}
