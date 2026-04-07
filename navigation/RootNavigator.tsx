@@ -68,6 +68,34 @@ const noAnimationOptions: StackNavigationOptions = {
   },
 };
 
+// Bubble zoom animation for vault action flows (Repay, Borrow, Deposit, Withdraw)
+const bubbleZoomOptions: StackNavigationOptions = {
+  cardStyleInterpolator: ({ current: { progress } }) => ({
+    cardStyle: {
+      opacity: progress,
+      transform: [
+        {
+          scale: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.85, 1],
+          }),
+        },
+      ],
+    },
+    overlayStyle: {
+      opacity: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 0.5],
+      }),
+    },
+  }),
+  transitionSpec: {
+    open: { animation: 'spring', config: { damping: 20, stiffness: 300, mass: 0.8 } },
+    close: { animation: 'timing', config: { duration: 200 } },
+  },
+  cardOverlayEnabled: true,
+};
+
 // Wrap PIN setup screen with error boundary
 const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, {
   boundaryName: 'PinSetupScreen',
@@ -379,22 +407,22 @@ export default function RootNavigator(): React.JSX.Element {
                   <Stack.Screen
                     name="BorrowFlow"
                     component={BorrowNavigator}
-                    options={noAnimationOptions}
+                    options={bubbleZoomOptions}
                   />
                   <Stack.Screen
                     name="DepositFlow"
                     component={DepositNavigator}
-                    options={noAnimationOptions}
+                    options={bubbleZoomOptions}
                   />
                   <Stack.Screen
                     name="RepayFlow"
                     component={RepayNavigator}
-                    options={noAnimationOptions}
+                    options={bubbleZoomOptions}
                   />
                   <Stack.Screen
                     name="WithdrawFlow"
                     component={WithdrawNavigator}
-                    options={noAnimationOptions}
+                    options={bubbleZoomOptions}
                   />
                 </React.Fragment>
               )}

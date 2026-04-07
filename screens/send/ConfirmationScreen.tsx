@@ -12,7 +12,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
-import { useTransactionHistory } from '../../contexts/WalletDataContext';
+import { useTransactionHistory, useBalance } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useCashuOperations } from '../../contexts/CashuContext';
 import { analytics } from '../../services/analyticsService';
@@ -57,6 +57,7 @@ export default function ConfirmationScreen({
   route,
 }: ConfirmationScreenProps): React.JSX.Element {
   const { fetchTransactionHistory } = useTransactionHistory();
+  const { fetchBalance } = useBalance();
   const { wallet } = useWallet();
   const { refresh: refreshCashuBalance } = useCashuOperations();
   const { s, sf } = useResponsive();
@@ -95,6 +96,7 @@ export default function ConfirmationScreen({
     skipMint,
     senderTaprootAddress: wallet?.taprootAddress,
     fetchTransactionHistory,
+    fetchBalance: fetchBalance as unknown as () => Promise<void>,
     refreshCashuBalance,
   });
 

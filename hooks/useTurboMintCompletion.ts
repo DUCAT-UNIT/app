@@ -23,6 +23,7 @@ interface UseTurboMintCompletionParams {
   skipMint: boolean;
   senderTaprootAddress: string | undefined;
   fetchTransactionHistory: () => Promise<void>;
+  fetchBalance: () => Promise<void>;
   refreshCashuBalance: () => Promise<void>;
 }
 
@@ -49,6 +50,7 @@ export function useTurboMintCompletion({
   skipMint,
   senderTaprootAddress,
   fetchTransactionHistory,
+  fetchBalance,
   refreshCashuBalance,
 }: UseTurboMintCompletionParams): UseTurboMintCompletionReturn {
   const [turboToken, setTurboToken] = useState<string | null>(null);
@@ -195,8 +197,11 @@ export function useTurboMintCompletion({
             setProcessingStage('ready');
           }
 
-          // Refresh balance
-          await fetchTransactionHistory();
+          // Refresh all balances — Runes (ord indexer) + Cashu + TX history
+          await Promise.all([
+            fetchTransactionHistory(),
+            fetchBalance(),
+          ]);
 
           if (!mountedRef.current) return;
           setIsCompletingMint(false);
@@ -230,7 +235,7 @@ export function useTurboMintCompletion({
     return () => {
       mountedRef.current = false;
     };
-  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, refreshCashuBalance, processingStage]);
+  }, [isTurbo, mintQuoteId, mintAmount, turboRecipient, skipMint, senderTaprootAddress, fetchTransactionHistory, fetchBalance, refreshCashuBalance, processingStage]);
 
   return {
     turboToken,
