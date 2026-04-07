@@ -144,19 +144,27 @@ export default memo(function VaultCard({
           end={GRADIENT_END}
           testID="vault-overlay"
         >
-          <TouchableOpacity
-            style={styles.createVaultButton}
-            onPress={onCreateVault}
-            activeOpacity={0.8}
-            disabled={creatingVault || isPendingVaultTx}
-            testID="create-vault-btn"
-            accessibilityRole="button"
-            accessibilityLabel="Create vault"
-            accessibilityHint="Creates a new vault to borrow UNIT against your Bitcoin"
-            accessibilityState={{ disabled: creatingVault }}
-          >
-            <Text style={styles.createVaultButtonText}>Create Vault</Text>
-          </TouchableOpacity>
+          {isPendingVaultTx ? (
+            <View style={[styles.createVaultButton, { opacity: 0.7 }]} testID="creating-vault-status">
+              <Text style={styles.createVaultButtonText}>Creating your vault...</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.createVaultButton}
+              onPress={onCreateVault}
+              activeOpacity={0.8}
+              disabled={creatingVault}
+              testID="create-vault-btn"
+              accessibilityRole="button"
+              accessibilityLabel="Create vault"
+              accessibilityHint="Creates a new vault to borrow UNIT against your Bitcoin"
+              accessibilityState={{ disabled: creatingVault }}
+            >
+              <Text style={styles.createVaultButtonText}>
+                {creatingVault ? 'Creating your vault...' : 'Create Vault'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </LinearGradient>
       )}
     </TouchableOpacity>
