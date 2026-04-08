@@ -145,7 +145,10 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
     const vaultInfo = vault.vaultData?.vaultInfo;
     if (!vaultInfo) return;
 
-    const healthPercent = vaultInfo.collateral_ratio;
+    // collateral_ratio from the API is a multiplier (e.g. 1.6 for 160%)
+    // Convert to percentage for display and threshold checks
+    const rawRatio = vaultInfo.collateral_ratio;
+    const healthPercent = rawRatio < 10 ? rawRatio * 100 : rawRatio;
     if (typeof healthPercent === 'number' && healthPercent > 0) {
       void checkVaultHealthAlert(healthPercent);
     }
