@@ -41,8 +41,9 @@ export function useTurboConvert({
     await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
 
     try {
-      // Request mint quote
-      const mintQuote = await requestMint(unitRunesAmount);
+      // Request mint quote — mint expects smallest units (cents), not display units
+      const unitRunesCents = Math.round(unitRunesAmount * 100);
+      const mintQuote = await requestMint(unitRunesCents);
 
       // Navigate to TurboLoading screen
       navigation.navigate('SendFlow', {
@@ -52,7 +53,7 @@ export function useTurboConvert({
           prefillAddress: mintQuote.depositAddress,
           prefillAmount: unitRunesAmount,
           mintQuoteId: mintQuote.quoteId,
-          mintAmount: unitRunesAmount,
+          mintAmount: unitRunesCents,
           isTurbo: true,
         }
       });

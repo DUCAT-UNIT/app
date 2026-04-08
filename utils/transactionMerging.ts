@@ -144,10 +144,11 @@ export function processEcashTokens(
       return true;
     })
     .map((token) => {
-      // Ecash token amounts are stored in display units (e.g., 5.00 for 5 UNIT).
-      // Convert to cents (smallest units) so formatUnitAmount() works correctly
-      // (it divides by 100 to get display units).
-      const amountInCents = Math.round(token.amount * 100);
+      // Token amounts may be in display units (legacy, e.g. 5.00) or cents (new, e.g. 500).
+      // Normalize to cents so formatUnitAmount() (which divides by 100) displays correctly.
+      // Heuristic: if amount has a fractional part, it's display units; otherwise cents.
+      const raw = token.amount;
+      const amountInCents = raw !== Math.floor(raw) ? Math.round(raw * 100) : raw;
       const isSentToken = 'recipient' in token;
       const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
 
