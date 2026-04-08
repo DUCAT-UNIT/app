@@ -12,6 +12,7 @@ import {
 import { LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
 import { executeLiquidation } from '../../services/liquidation/execution';
 import { waitForMempool, broadcastSwapTx } from '../../services/liquidation/swapService';
+import { registerLiquidationTxid } from '../../services/transactionHistoryService';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
@@ -162,6 +163,8 @@ export function useLiquidationExecution({
               if (swapTxid) {
                 store.getState().setResultSwapTxid(swapTxid);
                 store.getState().setProcessingMessage('Swap broadcast!');
+                // Register swap txid so it's tagged properly in history (not shown as random "Sent")
+                await registerLiquidationTxid(swapTxid);
                 logger.info('[Liquidation] Swap broadcast success', { swapTxid });
               } else {
                 logger.warn('[Liquidation] Swap broadcast returned no txid');
