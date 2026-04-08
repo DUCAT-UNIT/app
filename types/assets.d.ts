@@ -29,7 +29,7 @@ export type AddressTypeParam = 'segwit' | 'taproot';
 /**
  * Vault action types
  */
-export type VaultAction = 'Borrow' | 'Repay' | 'Deposit' | 'Withdraw' | 'Open' | 'Repossess';
+export type VaultAction = 'Borrow' | 'Repay' | 'Deposit' | 'Withdraw' | 'Open' | 'Repossess' | 'Swap';
 
 /**
  * Vault transaction data (for transaction display)

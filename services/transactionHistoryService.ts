@@ -62,6 +62,34 @@ export interface BTCTransactionAmount {
 
 export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
 
+// Registry of known swap txids — persisted via AsyncStorage
+// Shows as "Swap" entries in history with UNIT amount
+const SWAP_TXIDS_KEY = '@ducat/swap_txids';
+interface SwapTxRecord { txid: string; unitAmount: number; timestamp: number }
+let knownSwapTxids: SwapTxRecord[] = [];
+let swapTxidsLoaded = false;
+
+async function loadSwapTxids(): Promise<SwapTxRecord[]> {
+  if (swapTxidsLoaded) return knownSwapTxids;
+  try {
+    const stored = await AsyncStorage.getItem(SWAP_TXIDS_KEY);
+    if (stored) {
+      knownSwapTxids = JSON.parse(stored) as SwapTxRecord[];
+    }
+  } catch { /* ignore */ }
+  swapTxidsLoaded = true;
+  return knownSwapTxids;
+}
+
+export async function registerSwapTxid(txid: string, unitAmount: number): Promise<void> {
+  await loadSwapTxids();
+  if (knownSwapTxids.some((s) => s.txid === txid)) return;
+  knownSwapTxids.push({ txid, unitAmount, timestamp: Date.now() });
+  try {
+    await AsyncStorage.setItem(SWAP_TXIDS_KEY, JSON.stringify(knownSwapTxids));
+  } catch { /* ignore */ }
+}
+
 // Registry of known liquidation (repo) txids — persisted via AsyncStorage
 // so they survive app restarts until vault API indexes them
 const LIQUIDATION_TXIDS_KEY = '@ducat/liquidation_txids';
@@ -442,6 +470,35 @@ export const fetchAllTransactionHistory = async (
           action: 'Repossess',
           btcAmount: 0,
           unitAmount: 0,
+        },
+      });
+    }
+  }
+
+  // Replace known swap TXs with "Swap" vault entries (shows UNIT received, hides BTC sent)
+  const swapTxRecords = await loadSwapTxids();
+  for (const swap of swapTxRecords) {
+    const existing = txMap.get(swap.txid);
+    if (existing) {
+      txMap.set(swap.txid, {
+        ...existing,
+        vaultTransaction: true,
+        vaultData: {
+          action: 'Swap',
+          btcAmount: 0,
+          unitAmount: swap.unitAmount,
+        },
+      });
+    } else {
+      // TX not yet in blockchain results — add synthetic entry
+      txMap.set(swap.txid, {
+        txid: swap.txid,
+        status: { confirmed: false, block_time: Math.floor(swap.timestamp / 1000) },
+        vaultTransaction: true,
+        vaultData: {
+          action: 'Swap',
+          btcAmount: 0,
+          unitAmount: swap.unitAmount,
         },
       });
     }

@@ -42,9 +42,9 @@ interface VaultAmountDisplayProps {
 function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDisplayProps) {
   // Per-action, per-asset color rules:
   // BTC green: Deposit, Repossess   |  BTC red: Withdraw
-  // UNIT green: Repay               |  UNIT red: Open, Borrow, Repossess
+  // UNIT green: Repay, Swap         |  UNIT red: Open, Borrow, Repossess
   const btcColor = (action === 'Withdraw') ? COLORS.RED : COLORS.GREEN;
-  const unitColor = (action === 'Repay') ? COLORS.GREEN : COLORS.RED;
+  const unitColor = (action === 'Repay' || action === 'Swap') ? COLORS.GREEN : COLORS.RED;
 
   const hasBtc = vaultData.btcAmount > 0;
   const hasUnit = vaultData.unitAmount > 0;
@@ -116,7 +116,7 @@ export default function VaultTransactionItem({ tx, styles, onPress }: VaultTrans
   const { s, sf } = useResponsive();
   const vaultData = tx.vaultData;
   const action: VaultAction = vaultData.action;
-  const actionLabel: Record<VaultAction, string> = { Borrow: 'Borrow', Repay: 'Repay', Deposit: 'Deposit', Withdraw: 'Withdraw', Open: 'Open', Repossess: 'Repossess' };
+  const actionLabel: Record<VaultAction, string> = { Borrow: 'Borrow', Repay: 'Repay', Deposit: 'Deposit', Withdraw: 'Withdraw', Open: 'Open', Repossess: 'Repossess', Swap: 'Swap' };
   const label = actionLabel[action] || action;
 
   return (

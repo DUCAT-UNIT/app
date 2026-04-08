@@ -33,6 +33,7 @@ export const formatAction = (action: string): string => {
     'liquidate': 'Repossess',
     'repo': 'Repossess',
     'repossess': 'Repossess',
+    'swap': 'Swap',
   };
   return actionMap[action.toLowerCase()] || action;
 };
@@ -50,17 +51,18 @@ export const getActionColor = (action: string): string => {
     'liquidate': COLORS.PRIMARY_BLUE,
     'repo': COLORS.PRIMARY_BLUE,
     'repossess': COLORS.PRIMARY_BLUE,
+    'swap': COLORS.SUCCESS_GREEN,
   };
   return colorMap[action.toLowerCase()] || COLORS.WHITE;
 };
 
 /**
  * Determine UNIT amount color based on action
- * Green: Repay (debt reduced)
+ * Green: Repay, Swap (UNIT received)
  * Red: Open, Borrow, Repossess (debt added)
  */
 export const getUnitColor = (actionLower: string): string => {
-  if (actionLower === 'repay') return COLORS.GREEN;
+  if (actionLower === 'repay' || actionLower === 'swap') return COLORS.GREEN;
   return COLORS.RED;
 };
 
