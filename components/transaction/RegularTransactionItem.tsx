@@ -86,15 +86,9 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     };
 
     // Format amount once
-    // For tUNIT Swap: on-chain Runes amount is in cents but the mint returns
-    // cashu at 1 cent per 1 display UNIT, so the actual tUNIT received is
-    // the Runes cents divided by 100 (display UNIT), then shown via formatUnitAmount.
-    // We pass the display UNIT value directly (already divided by 100) to formatUnitAmount
-    // which divides by 100 again — so we need to pass display * 100 = raw cents as-is
-    // for normal UNIT, but for swap we pass the cashu-equivalent cents.
     const absAmount = Math.abs(numericAmount);
     const formatted = assetType === 'UNIT'
-      ? formatUnitAmount(isEcashSwap ? absAmount / 100 : absAmount)
+      ? formatUnitAmount(absAmount)
       : formatBalance(absAmount / 100000000);
 
     // Format date once
