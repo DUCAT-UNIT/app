@@ -42,6 +42,10 @@ useWallet,
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useNotifications } from '../stores/notificationStore';
+import { useNotifications as useNotificationsPush } from '../hooks/useNotifications';
+import type { NotificationDataType } from '../hooks/useNotifications';
+import * as Notifications from 'expo-notifications';
+import { isE2E } from '../utils/e2e';
 
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
@@ -137,6 +141,51 @@ export default function RootNavigator(): React.JSX.Element {
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
+
+  // Notification tap response handler — routes to appropriate screen
+  const handleNotificationResponse = useCallback((dataType: NotificationDataType) => {
+    if (!navigationRef.current?.isReady() || !isAuthenticated) return;
+
+    logger.info('[RootNavigator] Routing notification tap', { dataType });
+
+    switch (dataType) {
+      case 'tx_confirmed':
+      case 'swap_complete':
+        // Stay on wallet — already the default screen
+        break;
+      case 'vault_health':
+        navigationRef.current.navigate('Main', {
+          screen: 'WalletTab',
+          params: { screen: 'VaultDetail' },
+        } as never);
+        break;
+      case 'liquidation_opportunity':
+        // Navigate to main tab (liquidation is accessible from there)
+        navigationRef.current.navigate('Main');
+        break;
+      default:
+        break;
+    }
+  }, [isAuthenticated]);
+
+  // Initialize push notification hooks (foreground handler + response listener)
+  useNotificationsPush(handleNotificationResponse);
+
+  // Deep notification response listener — handles taps when app was killed/backgrounded
+  useEffect(() => {
+    if (isE2E) return;
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as
+        | { type?: NotificationDataType }
+        | undefined;
+      if (data?.type) {
+        handleNotificationResponse(data.type);
+      }
+    });
+
+    return () => subscription.remove();
+  }, [handleNotificationResponse]);
 
   // Remote config store — announcement + network change
   const announcement = useRemoteConfigStore((s) => s.config.announcement);

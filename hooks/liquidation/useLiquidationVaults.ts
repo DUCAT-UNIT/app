@@ -16,10 +16,14 @@ import { LIQ_MAX_CLAIM_AMOUNT_BTC, LIQ_DEFAULT_FEE_RATE } from '../../services/l
 import type { LiqVaultDisplay } from '../../services/liquidation/types';
 import { fetchProtocolContract } from '../../services/vaultWallet';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
+import { sendLocalNotification } from '../../services/pushNotificationService';
+import { getNotificationsEnabled } from '../../services/settingsService';
+import { isE2E } from '../../utils/e2e';
 import { logger } from '../../utils/logger';
 
 const POLL_INTERVAL_ACTIVE_MS = 30_000;  // 30s when screen is open
 const POLL_INTERVAL_BG_MS = 120_000;    // 2 min background prefetch
+const LIQ_ALERT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour throttle
 
 interface UseLiquidationVaultsParams {
   btcPrice: number | null;
@@ -50,6 +54,8 @@ export function useLiquidationVaults({
   const currentStep = store((s) => s.currentStep);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchInFlightRef = useRef(false);
+  const prevVaultCountRef = useRef<number>(-1);
+  const lastLiqAlertRef = useRef<number>(0);
 
   const refreshLiqVaults = useCallback(async () => {
     if (!btcPrice || fetchInFlightRef.current) return;
@@ -121,6 +127,28 @@ export function useLiquidationVaults({
         full: fullProfiles.length,
         changed: vaultsChanged,
       });
+
+      // Send liquidation opportunity notification when new vaults appear
+      if (!isE2E && vaultsChanged && prevVaultCountRef.current >= 0) {
+        const newCount = displayProfiles.length;
+        if (newCount > prevVaultCountRef.current) {
+          const now = Date.now();
+          if (now - lastLiqAlertRef.current >= LIQ_ALERT_INTERVAL_MS) {
+            const notificationsEnabled = await getNotificationsEnabled();
+            if (notificationsEnabled) {
+              const added = newCount - prevVaultCountRef.current;
+              void sendLocalNotification({
+                title: 'Liquidation Opportunity',
+                body: `${added} new vault${added > 1 ? 's' : ''} available for liquidation.`,
+                data: { type: 'liquidation_opportunity' },
+              });
+              lastLiqAlertRef.current = now;
+              logger.info('[Liquidation] Sent opportunity alert', { added, total: newCount });
+            }
+          }
+        }
+      }
+      prevVaultCountRef.current = displayProfiles.length;
     } catch (fetchErr: unknown) {
       logger.warn('[Liquidation] Fetch failed', {
         error: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),

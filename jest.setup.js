@@ -124,6 +124,18 @@ jest.mock('expo-application', () => ({
   applicationName: 'Ducat',
 }));
 
+// Mock expo-constants
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: {
+      version: '1.0.0',
+      extra: { eas: { projectId: 'mock-project-id' } },
+    },
+    easConfig: { projectId: 'mock-project-id' },
+  },
+}));
+
 // Mock expo-crypto with real crypto implementation for testing
 jest.mock('expo-crypto', () => {
   const { webcrypto: nodeWebcrypto, createHash, randomBytes } = require('node:crypto');
@@ -242,10 +254,18 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[mock-token]' }),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
   AndroidImportance: {
     MAX: 'max',
     HIGH: 'high',
     DEFAULT: 'default',
+  },
+  AndroidNotificationPriority: {
+    HIGH: 'high',
   },
 }));
 

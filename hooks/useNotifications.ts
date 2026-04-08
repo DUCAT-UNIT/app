@@ -1,13 +1,17 @@
 /**
  * useNotifications Hook
- * Handles push notification permissions and sending local notifications
+ * Handles push notification permissions, sending local notifications,
+ * and routing notification tap responses to the appropriate screen.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Subscription } from 'expo-notifications';
 import type { DisplayAssetType } from '../types/assets';
+import { sendLocalNotification } from '../services/pushNotificationService';
+import { isE2E } from '../utils/e2e';
+import { logger } from '../utils/logger';
 
 // Configure how notifications should be handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -22,12 +26,24 @@ Notifications.setNotificationHandler({
 
 type TransactionType = 'deposit' | 'withdraw';
 
+/** Notification data type for routing on tap */
+export type NotificationDataType =
+  | 'tx_confirmed'
+  | 'vault_health'
+  | 'liquidation_opportunity'
+  | 'swap_complete';
+
+/** Callback for handling notification taps with routing data */
+export type NotificationResponseHandler = (dataType: NotificationDataType) => void;
+
 interface UseNotificationsReturn {
   sendTransactionConfirmedNotification: (assetType: DisplayAssetType, amount: string, txid: string, type?: TransactionType) => Promise<void>;
   registerForPushNotificationsAsync: () => Promise<boolean>;
 }
 
-export function useNotifications(): UseNotificationsReturn {
+export function useNotifications(
+  onNotificationResponse?: NotificationResponseHandler,
+): UseNotificationsReturn {
   const notificationListener = useRef<Subscription | undefined>(undefined);
   const responseListener = useRef<Subscription | undefined>(undefined);
 
@@ -35,17 +51,29 @@ export function useNotifications(): UseNotificationsReturn {
     // Request permissions on mount
     registerForPushNotificationsAsync();
 
-    // Note: Background fetch disabled - requires backend server for true background notifications
-    // registerBackgroundFetchAsync();
-
     // Listen for notifications received while app is foregrounded
     notificationListener.current = Notifications.addNotificationReceivedListener(
-      (_notification) => {}
+      (notification) => {
+        logger.debug('[Notifications] Foreground notification received', {
+          title: notification.request.content.title,
+        });
+      }
     );
 
-    // Listen for user interactions with notifications
+    // Listen for user interactions with notifications (tap handling)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (_response) => {}
+      (response) => {
+        const data = response.notification.request.content.data as
+          | { type?: NotificationDataType }
+          | undefined;
+
+        const dataType = data?.type;
+        logger.info('[Notifications] Notification tapped', { dataType });
+
+        if (dataType && onNotificationResponse) {
+          onNotificationResponse(dataType);
+        }
+      }
     );
 
     return () => {
@@ -56,7 +84,7 @@ export function useNotifications(): UseNotificationsReturn {
         responseListener.current.remove();
       }
     };
-  }, []);
+  }, [onNotificationResponse]);
 
   /**
    * Request notification permissions
@@ -94,31 +122,30 @@ export function useNotifications(): UseNotificationsReturn {
   /**
    * Send a local notification for transaction confirmation
    */
-  const sendTransactionConfirmedNotification = async (
-    _assetType: DisplayAssetType,
-    _amount: string,
-    _txid: string,
-    _type: TransactionType = 'withdraw'
+  const sendTransactionConfirmedNotification = useCallback(async (
+    assetType: DisplayAssetType,
+    amount: string,
+    txid: string,
+    type: TransactionType = 'withdraw'
   ): Promise<void> => {
-    try {
-      // Push notifications disabled - using snackbars only
-      // Format message based on asset type
-      // Notification removed - snackbars are used instead
-      // const notificationId = await Notifications.scheduleNotificationAsync({...});
+    if (isE2E) return;
 
-      // Auto-dismiss timer removed
-      // setTimeout(async () => {
-      //   try {
-      //     await Notifications.dismissNotificationAsync(notificationId);
-      //   } catch (dismissError) {
-      //     // Silently fail if notification already dismissed
-      //   }
-      // }, 15000);
+    try {
+      const action = type === 'deposit' ? 'Received' : 'Sent';
+      const title = `${action} ${assetType}`;
+      const body = `${action} ${amount} ${assetType} successfully.`;
+
+      await sendLocalNotification({
+        title,
+        body,
+        data: { type: 'tx_confirmed' as const, txid, assetType },
+      });
     } catch (error: unknown) {
-      // Notification functionality disabled - using snackbars only
-      // Silently ignore since this is intentionally a no-op
+      logger.error('[Notifications] Failed to send transaction notification', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-  };
+  }, []);
 
   return {
     sendTransactionConfirmedNotification,
