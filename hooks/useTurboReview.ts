@@ -61,11 +61,13 @@ export function useTurboReview({
     }
 
     // Auto-enable Turbo for UNIT transactions less than threshold
+    // ecashThreshold is in cents, sendAmount is in display units — convert for comparison
     let shouldUseTurbo = turboEnabled;
     if (sendAssetType === 'unit') {
       const displayAmount = parseFloat(sendAmount);
-      if (displayAmount < ecashThreshold && !turboEnabled) {
-        logger.debug(`[useTurboReview] Auto-enabling Turbo for < ${ecashThreshold} UNIT`);
+      const thresholdDisplay = ecashThreshold / 100;
+      if (displayAmount < thresholdDisplay && !turboEnabled) {
+        logger.debug(`[useTurboReview] Auto-enabling Turbo for < ${thresholdDisplay} UNIT`);
         setTurboEnabled(true);
         shouldUseTurbo = true;
       }

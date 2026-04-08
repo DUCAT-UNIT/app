@@ -72,7 +72,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const { wallet } = useWallet();
   const { keyboardHeight } = useKeyboard();
   const { settingsHandlers } = useSettingsHandlers();
-  const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+  const ecashThreshold = settingsHandlers?.ecashThreshold || 10000;
 
   // Local state
   const prevMaxRef = useRef<number>(0);

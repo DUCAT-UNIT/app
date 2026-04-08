@@ -36,13 +36,15 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
   const [ecashTokens, setEcashTokens] = useState<TokenWithStatus[]>([]);
   const [loadingEcashTokens, setLoadingEcashTokens] = useState(false);
   const ecashFetchingRef = useRef(false);
+  const hasLoadedOnceRef = useRef(false);
+  const prevTokenHashRef = useRef('');
 
   const fetchEcashTokens = useCallback(async () => {
     if (!wallet?.taprootAddress || ecashFetchingRef.current) return;
 
     ecashFetchingRef.current = true;
-    // Only show loading on initial fetch, not background refreshes
-    if (ecashTokens.length === 0) {
+    // Only show loading on first fetch, not background refreshes
+    if (!hasLoadedOnceRef.current) {
       setLoadingEcashTokens(true);
     }
 
@@ -52,18 +54,36 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
         getSentLockedTokens,
         getReceivedTokens
       );
-      setEcashTokens(tokensWithStatus);
+
+      // Only update state if tokens have actually changed
+      const newHash = tokensWithStatus
+        .map(t => `${t.id}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`)
+        .join('|');
+      if (newHash !== prevTokenHashRef.current) {
+        prevTokenHashRef.current = newHash;
+        setEcashTokens(tokensWithStatus);
+      }
+
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        setLoadingEcashTokens(false);
+      }
     } catch (error: unknown) {
       logger.error('[EcashTokensContext] Failed to load ecash tokens:', { error: error instanceof Error ? error.message : String(error) });
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        setLoadingEcashTokens(false);
+      }
     } finally {
-      setLoadingEcashTokens(false);
       ecashFetchingRef.current = false;
     }
-  }, [wallet?.taprootAddress, ecashTokens.length]);
+  }, [wallet?.taprootAddress]);
 
   const resetEcashTokens = useCallback(() => {
     setEcashTokens([]);
     setLoadingEcashTokens(false);
+    hasLoadedOnceRef.current = false;
+    prevTokenHashRef.current = '';
   }, []);
 
   // Subscribe to token changes (send/receive) to auto-refresh

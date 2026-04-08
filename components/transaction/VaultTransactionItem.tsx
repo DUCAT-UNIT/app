@@ -121,11 +121,11 @@ export default function VaultTransactionItem({ tx, styles, onPress }: VaultTrans
 
   return (
     <TouchableOpacity
-      style={[styles.historyTxRow, { paddingLeft: 5, paddingTop: 12, paddingBottom: 12 }]}
+      style={[styles.historyTxRow, { paddingHorizontal: 0, paddingLeft: 0, paddingTop: 12, paddingBottom: 12 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={{ marginRight: s(12), alignSelf: 'center' }}>
+      <View style={{ width: s(36), height: s(36), marginRight: s(12), marginLeft: 0, justifyContent: 'center', alignItems: 'center' }}>
         <Icon name={action === 'Swap' ? 'unit_logo' : 'vault_logo'} size={s(36)} />
       </View>
       <View style={localStyles.txContentContainer}>

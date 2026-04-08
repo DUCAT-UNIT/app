@@ -5,7 +5,7 @@
  * Note: Different from useTransactionHistoryData which is for UI consumption
  */
 
-import { useCallback,useRef,useState } from 'react';
+import { useCallback,useMemo,useRef,useState } from 'react';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { fetchAllTransactionHistory,Transaction } from '../services/transactionHistoryService';
 
@@ -25,6 +25,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
 
   // Keep a ref to previous transaction hash for comparison
   const prevHashRef = useRef<string>('');
+  // Track whether we've ever loaded data (to avoid setting loading=false when already false)
+  const hasLoadedOnceRef = useRef(false);
 
   /**
    * Fetch transaction history in background
@@ -38,8 +40,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
     if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
 
     try {
-      // Only show loading spinner if we have no cached data
-      if (transactionHistory.length === 0) {
+      // Only show loading spinner on first fetch (no cached data yet)
+      if (!hasLoadedOnceRef.current) {
         setLoadingTransactionHistory(true);
       }
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
@@ -55,27 +57,37 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
         prevHashRef.current = newHash;
         setTransactionHistory(history);
       }
+
+      // Only update loading state if it was true (first fetch)
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        setLoadingTransactionHistory(false);
+      }
     } catch (error: unknown) {
       setHistoryError('Failed to fetch transaction history');
-    } finally {
-      setLoadingTransactionHistory(false);
+      if (!hasLoadedOnceRef.current) {
+        hasLoadedOnceRef.current = true;
+        setLoadingTransactionHistory(false);
+      }
     }
-  }, [transactionHistory.length, wallet]);
+  }, [wallet]);
 
   /**
    * Reset transaction history (called when wallet is reset)
    */
   const resetTransactionHistory = useCallback(() => {
     setTransactionHistory([]);
+    hasLoadedOnceRef.current = false;
+    prevHashRef.current = '';
   }, []);
 
-  return {
-    // State
+  // Memoize return value to prevent context consumers from re-rendering
+  // when nothing has actually changed
+  return useMemo(() => ({
     transactionHistory,
     loadingTransactionHistory,
     historyError,
-    // Functions
     fetchTransactionHistory,
     resetTransactionHistory,
-  };
+  }), [transactionHistory, loadingTransactionHistory, historyError, fetchTransactionHistory, resetTransactionHistory]);
 }

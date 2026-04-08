@@ -23,9 +23,9 @@ interface EcashThresholdSheetProps {
 
 export default function EcashThresholdSheet({ visible, onClose, onSelectThreshold, currentThreshold }: EcashThresholdSheetProps) {
   const thresholdOptions = [
-    { value: 100, label: '100' },
-    { value: 500, label: '500' },
-    { value: 1000, label: '1000' },
+    { value: 10000, label: '100.00' },
+    { value: 50000, label: '500.00' },
+    { value: 100000, label: '1,000.00' },
     { value: Infinity, label: 'All transfers' },
   ];
 

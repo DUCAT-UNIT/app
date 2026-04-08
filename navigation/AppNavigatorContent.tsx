@@ -63,7 +63,7 @@ function EcashThresholdSheetGlobal() {
       visible={visible}
       onClose={hide}
       onSelectThreshold={handleSelectThreshold}
-      currentThreshold={settingsHandlers.ecashThreshold || 100}
+      currentThreshold={settingsHandlers.ecashThreshold || 10000}
     />
   );
 }

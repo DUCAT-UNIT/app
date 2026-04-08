@@ -42,7 +42,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
-  const [ecashThreshold, setEcashThreshold] = useState(100); // Default 100 UNIT for auto-Turbo
+  const [ecashThreshold, setEcashThreshold] = useState(10000); // Default 100 UNIT (10000 cents) for auto-Turbo
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
 
@@ -53,7 +53,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
         setNotificationsEnabled(await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false));
         setShowZeroAssets(await getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false));
         setAdvancedMode(await getBoolean(SettingKeys.ADVANCED_MODE, false));
-        setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 100));
+        setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 10000));
       } catch (error: unknown) {
         logger.warn('Failed to load app settings', {
           error: error instanceof Error ? error.message : String(error)

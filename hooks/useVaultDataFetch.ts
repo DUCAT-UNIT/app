@@ -4,7 +4,7 @@
  * Extracted from WalletDataContext for better separation of concerns
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
@@ -51,6 +51,8 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const prevVaultDataRef = useRef<VaultData | null>(null);
   const prevWalletPubkeyRef = useRef<string | undefined>(undefined);
   const prevVaultTransactionsRef = useRef<VaultHistoryTransaction[]>([]);
+  const vaultLoadedOnceRef = useRef(false);
+  const vaultTxLoadedOnceRef = useRef(false);
 
   // Reset refs when wallet pubkey changes
   useEffect(() => {
@@ -74,7 +76,7 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
 
     try {
       // Only show loading on first fetch — avoids flicker on poll cycles
-      if (!vaultData) {
+      if (!vaultLoadedOnceRef.current) {
         setLoadingVault(true);
       }
 
@@ -109,7 +111,10 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
           prevVaultDataRef.current = fakeData;
           setVaultData(fakeData);
         }
-        setLoadingVault(false);
+        if (!vaultLoadedOnceRef.current) {
+          vaultLoadedOnceRef.current = true;
+          setLoadingVault(false);
+        }
         return;
       }
 
@@ -120,11 +125,16 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         prevVaultDataRef.current = data;
         setVaultData(data);
       }
+
+      if (!vaultLoadedOnceRef.current) {
+        vaultLoadedOnceRef.current = true;
+        setLoadingVault(false);
+      }
     } catch (error: unknown) {
       logger.error('[useVaultDataFetch] Failed to fetch vault data', { error: error instanceof Error ? error.message : String(error) });
       setVaultError('Failed to fetch vault data');
-    } finally {
-      if (loadingVault) {
+      if (!vaultLoadedOnceRef.current) {
+        vaultLoadedOnceRef.current = true;
         setLoadingVault(false);
       }
     }
@@ -142,8 +152,8 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     }
 
     try {
-      // Only show loading on initial fetch, not background refreshes
-      if (vaultTransactions.length === 0) {
+      // Only show loading on first fetch, not background refreshes
+      if (!vaultTxLoadedOnceRef.current) {
         setLoadingVaultTransactions(true);
       }
 
@@ -162,14 +172,19 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         prevVaultTransactionsRef.current = transactions;
         setVaultTransactions(transactions);
       }
+
+      if (!vaultTxLoadedOnceRef.current) {
+        vaultTxLoadedOnceRef.current = true;
+        setLoadingVaultTransactions(false);
+      }
     } catch (error: unknown) {
       logger.error('[useVaultDataFetch] Failed to fetch vault transactions', { error: error instanceof Error ? error.message : String(error) });
-    } finally {
-      if (loadingVaultTransactions) {
+      if (!vaultTxLoadedOnceRef.current) {
+        vaultTxLoadedOnceRef.current = true;
         setLoadingVaultTransactions(false);
       }
     }
-  }, [wallet, vaultTransactions.length]);
+  }, [wallet]);
 
   /**
    * Reset vault data (called when wallet is reset)
@@ -179,9 +194,11 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     setVaultTransactions([]);
     prevVaultDataRef.current = null;
     prevVaultTransactionsRef.current = [];
+    vaultLoadedOnceRef.current = false;
+    vaultTxLoadedOnceRef.current = false;
   }, []);
 
-  return {
+  return useMemo(() => ({
     // State
     vaultData,
     loadingVault,
@@ -193,5 +210,5 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     fetchVault,
     resetVaultData,
     fetchVaultTransactions,
-  };
+  }), [vaultData, loadingVault, vaultError, vaultTransactions, loadingVaultTransactions, fetchVault, resetVaultData, fetchVaultTransactions]);
 }

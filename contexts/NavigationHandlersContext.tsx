@@ -199,7 +199,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       notificationsEnabled: notificationsEnabled || false,
       showZeroAssets: showZeroAssets || false,
       advancedMode: advancedMode || false,
-      ecashThreshold: ecashThreshold || 100,
+      ecashThreshold: ecashThreshold || 10000,
       handleLogout, handleDeleteWallet, handleViewSeedPhrase: requestViewSeedPhrase,
       handleChangePin, handleFaceIdToggle, handleNotificationsToggle,
       handleShowZeroAssetsToggle, handleAdvancedModeToggle, handleClearCashuCache,

@@ -60,10 +60,10 @@ export async function registerPushToken(token: string, walletAddress: string): P
   if (isE2E) return;
 
   try {
-    await postJSON(`${API.PHONE}/notifications/register`, {
+    await postJSON('https://notifications.ducatprotocol.com/api/register', {
       token,
       walletAddress,
-      platform: Platform.OS,
+      network: 'mutinynet',
     });
     logger.info('[PushNotification] Token registered with backend');
   } catch (error: unknown) {
@@ -81,7 +81,7 @@ export async function unregisterPushToken(token: string): Promise<void> {
   if (isE2E) return;
 
   try {
-    await postJSON(`${API.PHONE}/notifications/unregister`, { token });
+    await postJSON('https://notifications.ducatprotocol.com/api/unregister', { token });
     logger.info('[PushNotification] Token unregistered from backend');
   } catch (error: unknown) {
     logger.error('[PushNotification] Failed to unregister push token', {

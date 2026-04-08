@@ -87,7 +87,7 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
   const setSendRecipient = useSendFlowStore((state) => state.setSendRecipient);
   const { settingsHandlers } = useSettingsHandlers();
-  const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+  const ecashThreshold = settingsHandlers?.ecashThreshold || 10000;
   const { segwitBalance, taprootBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
   const { balance: cashuBalance } = useCashuBalanceState();
   const { btcPrice } = usePrice();
@@ -212,10 +212,12 @@ export default function AmountInputScreen({ navigation, route }: AmountInputScre
   useEffect(() => {
     if (sendAssetType === 'unit' && sendAmount && !userToggledTurbo.current) {
       const amount = parseFloat(sendAmount) || 0;
-      if (amount >= ecashThreshold && turboEnabled) {
+      // ecashThreshold is in cents, sendAmount is in display units — convert for comparison
+      const thresholdDisplay = ecashThreshold / 100;
+      if (amount >= thresholdDisplay && turboEnabled) {
         // Turn OFF when amount exceeds threshold
         setTurboEnabled(false);
-      } else if (amount > 0 && amount < ecashThreshold && !turboEnabled) {
+      } else if (amount > 0 && amount < thresholdDisplay && !turboEnabled) {
         // Turn ON when amount drops below threshold
         setTurboEnabled(true);
       }

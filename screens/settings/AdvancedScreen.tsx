@@ -65,7 +65,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   // Get advancedMode and ecashThreshold directly from context so they update when toggled
   const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
-  const ecashThreshold = settingsHandlers?.ecashThreshold || 100;
+  const ecashThreshold = settingsHandlers?.ecashThreshold || 10000;
 
   // Remote config store (developer-only section)
   const configVersion = useRemoteConfigStore((s) => s.config.version);
@@ -77,7 +77,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   // Format threshold display value
   const getThresholdDisplay = (): string => {
     if (ecashThreshold === Infinity) return 'All transfers';
-    return `${ecashThreshold} UNIT`;
+    return `${(ecashThreshold / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UNIT`;
   };
 
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);

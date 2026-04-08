@@ -144,7 +144,10 @@ export function processEcashTokens(
       return true;
     })
     .map((token) => {
-      const amount = token.amount;
+      // Ecash token amounts are stored in display units (e.g., 5.00 for 5 UNIT).
+      // Convert to cents (smallest units) so formatUnitAmount() works correctly
+      // (it divides by 100 to get display units).
+      const amountInCents = Math.round(token.amount * 100);
       const isSentToken = 'recipient' in token;
       const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
 
@@ -157,9 +160,9 @@ export function processEcashTokens(
         partiallySpent: token.partiallySpent,
         isAutoclaim,
         txData: {
-          amount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
+          amount: isAutoclaim ? amountInCents : (isSentToken ? -amountInCents : amountInCents),
           assetType: 'UNIT',
-          numericAmount: isAutoclaim ? amount : (isSentToken ? -amount : amount),
+          numericAmount: isAutoclaim ? amountInCents : (isSentToken ? -amountInCents : amountInCents),
           isSent: isSentToken && !isAutoclaim,
           isReceived: !isSentToken || isAutoclaim,
           isAutoclaim,

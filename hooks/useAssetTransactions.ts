@@ -80,24 +80,23 @@ export function useAssetTransactions(
   const pendingTransactions = usePendingTxs();
 
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
-  const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
+  const { ecashTokens: preloadedEcashTokens, fetchEcashTokens } = useEcashTokens();
 
   // Include ecash tokens for UNIT asset view (Turbo UNIT transactions)
-  // Stabilize reference — only update when token count or IDs change
+  // Stabilize reference — only update when token count, IDs, or status change
   const ecashTokensRef = useRef<typeof preloadedEcashTokens>([]);
   const ecashTokens = useMemo(() => {
     if (assetType !== 'UNIT') return [];
-    const prevIds = ecashTokensRef.current.map(t => t.token?.substring(0, 20)).join(',');
-    const newIds = preloadedEcashTokens.map(t => t.token?.substring(0, 20)).join(',');
-    if (prevIds === newIds && ecashTokensRef.current.length === preloadedEcashTokens.length) {
+    const toKey = (t: (typeof preloadedEcashTokens)[0]) =>
+      `${t.token?.substring(0, 20)}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`;
+    const prevKey = ecashTokensRef.current.map(toKey).join(',');
+    const newKey = preloadedEcashTokens.map(toKey).join(',');
+    if (prevKey === newKey) {
       return ecashTokensRef.current;
     }
     ecashTokensRef.current = preloadedEcashTokens;
     return preloadedEcashTokens;
   }, [assetType, preloadedEcashTokens]);
-
-  // Ecash is ready if: not UNIT, or tokens have loaded
-  const ecashReady = assetType !== 'UNIT' || !loadingEcashTokens || preloadedEcashTokens.length > 0;
 
   // Trigger background refresh when viewing UNIT
   useEffect(() => {
@@ -204,8 +203,8 @@ export function useAssetTransactions(
     return merged;
   }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex, pendingTransactions]);
 
-  // Loading is true only when we have no data yet
-  const isLoading = !ecashReady || (transactionHistory !== null && filteredTransactions.length === 0 && !transactionsProcessedRef.current);
+  // Loading is true only on FIRST load — never flicker after data has been shown
+  const isLoading = !transactionsProcessedRef.current && filteredTransactions.length === 0;
 
   return {
     transactions: filteredTransactions,
