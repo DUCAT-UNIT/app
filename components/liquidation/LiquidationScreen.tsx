@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
 import ErrorBoundary from '../ErrorBoundary';
 import { selectItemsForAmount, getTotalClaimBtc, getTotalEstimatedProfit } from '../../services/liquidation/calculations';
+import { UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
 import CurrencyToggle from './CurrencyToggle';
 import LiquidationStatusScreen from './LiquidationStatusScreen';
 import LiquidationReviewScreen from './LiquidationReviewScreen';
@@ -183,14 +184,14 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       const selected = selectItemsForAmount(vaultsFull, investAmount);
       const exactClaimBtc = getTotalClaimBtc(selected);
       const exactProfitBtc = getTotalEstimatedProfit(selected);
-      const exactSwapBtc = selected.reduce(
-        (acc, v) => acc + (v.claimAmountPartial ? (v.claimAmountPartial / v.claimAmountBtc) * v.unitSwapBtc : v.unitSwapBtc),
-        0,
-      );
       const exactSwapUnit = selected.reduce(
         (acc, v) => acc + (v.claimAmountPartial ? (v.claimAmountPartial / v.claimAmountBtc) * v.unit : v.unit),
         0,
       );
+      // Swap BTC includes protocol swap rate (matching calculateSwapBtcAmount in execution)
+      const exactSwapBtc = btcPrice
+        ? parseFloat(((exactSwapUnit / (btcPrice ?? 1)) * UNIT_TO_BTC_RATE).toFixed(8))
+        : 0;
       const exactTotalBtc = exactClaimBtc + exactSwapBtc;
       const exactReturnBtc = exactTotalBtc + exactProfitBtc;
       const exactProfitPercent = exactTotalBtc > 0 ? (exactProfitBtc / exactTotalBtc) * 100 : 0;
