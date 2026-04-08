@@ -134,6 +134,11 @@ export function useAssetTransactions(
     const cache = txDataCacheRef.current;
 
     for (const tx of transactionHistory) {
+      // Include swap TXs in UNIT asset view (they deliver UNIT to wallet)
+      if (tx.vaultTransaction && tx.vaultData?.action === 'Swap' && assetType === 'UNIT') {
+        filtered.push(tx as ProcessedTransaction);
+        continue;
+      }
       if (tx.vaultTransaction) continue;
 
       const txWithData = tx as ProcessedTransaction;
