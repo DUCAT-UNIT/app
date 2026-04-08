@@ -6,6 +6,18 @@
 import { retrySilently, type RetryOptions } from './retry';
 import { fetchWithTimeout } from './api';
 import { logger } from './logger';
+import { analytics } from '../services/analyticsService';
+import { ERROR_EVENTS } from '../constants/analyticsEvents';
+
+/** Extract URL path without query params or host for safe analytics logging */
+function getEndpointPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname;
+  } catch {
+    return url.split('?')[0];
+  }
+}
 
 const DEFAULT_TIMEOUT = 10000; // 10 seconds
 const DEFAULT_HEADERS = {
@@ -86,6 +98,11 @@ export async function postWithRetry(
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     logger.api(url, 'POST', 0, duration);
+    analytics.track(ERROR_EVENTS.API_ERROR, {
+      endpoint: getEndpointPath(url),
+      status_code: 0,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -128,6 +145,11 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     logger.api(url, 'GET', 0, duration);
+    analytics.track(ERROR_EVENTS.API_ERROR, {
+      endpoint: getEndpointPath(url),
+      status_code: 0,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -145,7 +167,15 @@ export async function postJSON<T = unknown>(url: string, body: unknown, options:
   // Check if response was successful
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string };
-    throw new Error(errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+    if (response.status >= 500) {
+      analytics.track(ERROR_EVENTS.API_ERROR, {
+        endpoint: getEndpointPath(url),
+        status_code: response.status,
+        error: errorMessage,
+      });
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json() as Promise<T>;
@@ -162,6 +192,13 @@ export async function getJSON<T = unknown>(url: string, options: GetOptions = {}
 
   // Check if response is OK before parsing
   if (!response.ok) {
+    if (response.status >= 500) {
+      analytics.track(ERROR_EVENTS.API_ERROR, {
+        endpoint: getEndpointPath(url),
+        status_code: response.status,
+        error: `HTTP ${response.status}: ${response.statusText}`,
+      });
+    }
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 

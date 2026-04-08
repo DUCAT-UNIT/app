@@ -349,7 +349,7 @@ describe('executeLiquidation', () => {
     mockSelectSatUtxos.mockReturnValue(mockSelectedUtxos as unknown as ReturnType<typeof select_sat_utxos>);
     mockVaultApiRepoCreatePsbt1.mockReturnValue('raw_psbt1_base64');
     mockVaultApiRepoCreatePsbt2.mockReturnValue('raw_psbt2_base64');
-    mockVaultApiRepoCreateReq.mockReturnValue({ psbt1: 'signed_psbt1_base64', psbt2: 'signed_psbt2_base64' });
+    mockVaultApiRepoCreateReq.mockReturnValue({ liquid_psbt: 'signed_psbt1_base64', liquid_txid: 'signed_psbt2_base64' } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
     mockSetPendingVaultSigningOperation.mockImplementation(() => undefined);
     mockClearPendingVaultSigningOperation.mockImplementation(() => undefined);
     mockGetGuardianClient.mockResolvedValue(mockGuardian as unknown as ReturnType<typeof getGuardianClient> extends Promise<infer T> ? T : never);
@@ -694,8 +694,8 @@ describe('executeLiquidation', () => {
       await executeLiquidation(makeParams());
 
       const infoCalls = logger.info.mock.calls.map((c: unknown[]) => c[0] as string);
-      expect(infoCalls.some((m) => m.includes('Fetching oracle price...'))).toBe(true);
-      expect(infoCalls.some((m) => m.includes('Liquidation complete!'))).toBe(true);
+      expect(infoCalls.some((m: string) => m.includes('Fetching oracle price...'))).toBe(true);
+      expect(infoCalls.some((m: string) => m.includes('Liquidation complete!'))).toBe(true);
     });
   });
 
@@ -931,7 +931,7 @@ describe('executeLiquidation', () => {
 
     it('should attempt disconnectGuardian even if disconnect itself throws', async () => {
       mockGuardianSub.resolve.mockRejectedValue(new Error('guardian failed'));
-      mockDisconnectGuardian.mockRejectedValue(new Error('disconnect also failed'));
+      mockDisconnectGuardian.mockRejectedValue(new Error('disconnect also failed') as never);
 
       // Should not propagate the disconnect error
       const result = await executeLiquidation(makeParams());
