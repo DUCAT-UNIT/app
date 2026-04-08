@@ -32,12 +32,12 @@ export default function EcashConversionModal({
   unitBalance,
   newThreshold,
 }: EcashConversionModalProps) {
-  // Ensure we have valid numbers
-  const safeAmountToConvert = Number(amountToConvert) || 0;
+  // amountToConvert is in cents, unitBalance is in display units
+  const amountToConvertDisplay = (Number(amountToConvert) || 0) / 100;
   const safeUnitBalance = Number(unitBalance) || 0;
 
   // Check if we're converting all remaining balance
-  const isConvertingAll = safeAmountToConvert >= safeUnitBalance;
+  const isConvertingAll = amountToConvertDisplay >= safeUnitBalance;
 
   return (
     <Modal
@@ -66,7 +66,7 @@ export default function EcashConversionModal({
             <Text style={styles.message}>
               This will convert{' '}
               <Text style={styles.highlight}>
-                {safeAmountToConvert.toFixed(2)} UNIT
+                {amountToConvertDisplay.toFixed(2)} UNIT
               </Text>
               {' '}out of{' '}
               <Text style={styles.highlight}>

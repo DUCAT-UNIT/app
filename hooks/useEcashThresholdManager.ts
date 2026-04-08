@@ -90,26 +90,27 @@ export function useEcashThresholdManager({
     }
 
     // Check if we need to convert more ecash
-    const currentEcashBalance = cashuBalance || 0;
-    // runesBalance can be array of arrays or array of objects
-    const currentUnitBalance = getRunesAmount(runesBalance);
+    // All amounts in cents for consistent comparison
+    const currentEcashCents = cashuBalance || 0;
+    const currentUnitDisplay = getRunesAmount(runesBalance);
+    const currentUnitCents = Math.round(currentUnitDisplay * 100);
 
     // For Infinity (convert all), use entire UNIT balance; otherwise use the threshold
-    const requiredAmount = newThreshold === Infinity ? currentEcashBalance + currentUnitBalance : newThreshold;
-    const amountNeeded = Math.max(0, requiredAmount - currentEcashBalance);
-    const actualConversionAmount = Math.min(amountNeeded, currentUnitBalance);
+    const requiredCents = newThreshold === Infinity ? currentEcashCents + currentUnitCents : newThreshold;
+    const amountNeededCents = Math.max(0, requiredCents - currentEcashCents);
+    const actualConversionAmount = Math.min(amountNeededCents, currentUnitCents);
 
     if (actualConversionAmount > 0) {
       logger.debug('[useEcashThresholdManager] Setting conversion modal state:', {
-        currentUnitBalance,
-        amountNeeded,
+        currentUnitCents,
+        amountNeededCents,
         actualConversionAmount,
         runesBalance,
       });
 
       setPendingThreshold(newThreshold);
-      setConversionAmount(actualConversionAmount);
-      setSavedUnitBalance(currentUnitBalance);
+      setConversionAmount(actualConversionAmount); // in cents — for requestMint
+      setSavedUnitBalance(currentUnitDisplay); // in display units — for modal text
       setShowConversionModal(true);
     } else {
       // No conversion possible (no UNIT balance), just update threshold
