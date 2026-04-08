@@ -112,12 +112,12 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bothBalancesLoaded]);
 
-  // Single unified polling mechanism
+  // Single unified polling mechanism — NOT immediate (wallet change effect handles first fetch)
   usePolling({
     onPoll: pollAllData,
     interval: POLL_INTERVAL,
     enabled: !!wallet,
-    immediate: true,
+    immediate: false,
   });
 
   return <>{children}</>;
