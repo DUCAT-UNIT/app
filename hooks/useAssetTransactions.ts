@@ -83,10 +83,18 @@ export function useAssetTransactions(
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
   // Include ecash tokens for UNIT asset view (Turbo UNIT transactions)
-  const ecashTokens = useMemo(
-    () => (assetType === 'UNIT' ? preloadedEcashTokens : []),
-    [assetType, preloadedEcashTokens]
-  );
+  // Stabilize reference — only update when token count or IDs change
+  const ecashTokensRef = useRef<typeof preloadedEcashTokens>([]);
+  const ecashTokens = useMemo(() => {
+    if (assetType !== 'UNIT') return [];
+    const prevIds = ecashTokensRef.current.map(t => t.token?.substring(0, 20)).join(',');
+    const newIds = preloadedEcashTokens.map(t => t.token?.substring(0, 20)).join(',');
+    if (prevIds === newIds && ecashTokensRef.current.length === preloadedEcashTokens.length) {
+      return ecashTokensRef.current;
+    }
+    ecashTokensRef.current = preloadedEcashTokens;
+    return preloadedEcashTokens;
+  }, [assetType, preloadedEcashTokens]);
 
   // Ecash is ready if: not UNIT, or tokens have loaded
   const ecashReady = assetType !== 'UNIT' || !loadingEcashTokens || preloadedEcashTokens.length > 0;

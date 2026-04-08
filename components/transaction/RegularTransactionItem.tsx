@@ -102,7 +102,9 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     };
   }, [assetType, isSent, isReceived, tx.vout, tx.status.confirmed, tx.status.block_time, numericAmount]);
 
-  const amountColor = isReceived ? COLORS.GREEN : COLORS.RED;
+  // tUNIT Swap is a conversion (positive action) — show green
+  const isEcashSwap = actionLabel === 'tUNIT Swap';
+  const amountColor = (isReceived || isEcashSwap) ? COLORS.GREEN : COLORS.RED;
 
   return (
     <TouchableOpacity
@@ -112,7 +114,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     >
       <View style={{ marginRight: s(10), marginLeft: 0 }}>
         <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : 'btc_logo')}
-          size={s(40)} color={showTurboUI ? '#DDDDDD' : undefined} />
+          size={s(36)} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
       <View style={localStyles.txContentContainer}>
         <View style={[styles.historyTxTopRow, { marginBottom: s(4) }]}>
