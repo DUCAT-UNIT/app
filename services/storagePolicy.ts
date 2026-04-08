@@ -6,7 +6,24 @@ export const DEVICE_ONLY = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 } as const;
 
+// Keys that are safe to migrate from SecureStore to AsyncStorage (non-sensitive preferences only)
+const MIGRATABLE_PREFERENCE_KEYS = new Set([
+  'notificationsEnabled',
+  'showZeroAssets',
+  'advancedMode',
+  'ecashThreshold',
+  'displayCurrency',
+  'priceDisplayMode',
+  'autoLockEnabled',
+  'autoLockTimeout',
+]);
+
 const migrateLegacyPreferenceFromSecureStore = async (key: string): Promise<string | null> => {
+  if (!MIGRATABLE_PREFERENCE_KEYS.has(key)) {
+    logger.warn('[StoragePolicy] Attempted to migrate non-allowlisted key from SecureStore', { key });
+    return null;
+  }
+
   const legacyValue = await SecureStore.getItemAsync(key);
   if (legacyValue == null) {
     return null;

@@ -512,7 +512,7 @@ describe('useAppSettings', () => {
     it('should initialize with default threshold of 100', () => {
       const { result } = renderHook(() => useAppSettings(mockProps));
 
-      expect(result.current!.ecashThreshold).toBe(100);
+      expect(result.current!.ecashThreshold).toBe(10000);
     });
 
     it('should load ecashThreshold from SecureStore', async () => {

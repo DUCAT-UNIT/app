@@ -218,7 +218,8 @@ export function useTurboTokenProcessor({
     // Check immediately and poll
     logger.debug('[TURBO] Starting token polling');
     checkPendingToken();
-    const interval = setInterval(checkPendingToken, 500);
+    // 2s poll interval — balances responsiveness with CPU usage
+    const interval = setInterval(checkPendingToken, 2000);
 
     // Register callback for external triggering via store
     registerTokenCheckCallback(checkPendingToken);

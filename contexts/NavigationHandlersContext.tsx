@@ -111,6 +111,10 @@ interface NavigationHandlersProviderProps {
 }
 
 export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProps> = ({ children, walletExists }) => {
+  // NOTE: This provider calls 13 hooks which couples settings re-renders to auth flow re-renders.
+  // Settings state (showLogoutModal, showDeleteModal, etc.) could be moved to a Zustand store
+  // to reduce the hook count and decouple concerns. The 3-sub-context split below mitigates
+  // the re-render impact for consumers.
   const {
     setIsAuthenticated, setBiometricEnabled, biometricEnabled, passkeyEnabled,
     setSettingUpPin, setChangingPin, changingPin, resetAuth,

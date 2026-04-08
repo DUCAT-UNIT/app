@@ -23,8 +23,8 @@ interface UseAppLifecycleParams {
 
 // Mock expo-screen-capture
 jest.mock('expo-screen-capture', () => ({
-  allowScreenCaptureAsync: jest.fn(),
-  preventScreenCaptureAsync: jest.fn(),
+  allowScreenCaptureAsync: jest.fn().mockResolvedValue(undefined),
+  preventScreenCaptureAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
 // Mock timers for inactivity
@@ -87,9 +87,7 @@ describe('useAppLifecycle', () => {
   });
 
   describe('Screen Capture Management', () => {
-    it('should prevent screen capture on mount', async () => {
-      (ScreenCapture.preventScreenCaptureAsync as jest.Mock).mockResolvedValue(undefined);
-
+    it('should allow screen capture on mount', async () => {
       renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
@@ -98,7 +96,7 @@ describe('useAppLifecycle', () => {
         await Promise.resolve();
       });
 
-      expect(ScreenCapture.preventScreenCaptureAsync).toHaveBeenCalled();
+      expect(ScreenCapture.allowScreenCaptureAsync).toHaveBeenCalled();
     });
 
 

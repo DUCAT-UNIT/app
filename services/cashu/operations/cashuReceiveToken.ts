@@ -108,8 +108,8 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       throw new Error('Unable to verify token spend state with mint');
     }
     if (spendCheck.states.some((s) => {
-      const state = (s as { state: unknown }).state;
-      return state === true || String(state).toUpperCase() === 'SPENT';
+      const state = (s as { state: string }).state;
+      return state === 'SPENT';
     })) {
       throw new Error('Token proofs already spent');
     }
@@ -136,9 +136,9 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       for (const proof of proofs) {
         if (isP2PKLocked(proof)) {
           recipientPubkey = getP2PKRecipient(proof.secret);
-          logger.info('[P2PK TOKEN] 🔐 Extracted recipient pubkey from token');
-          logger.info(`[P2PK TOKEN] Full pubkey: ${recipientPubkey}`);
-          logger.info(`[P2PK TOKEN] Pubkey length: ${recipientPubkey?.length}`);
+          logger.info('[P2PK TOKEN] Extracted recipient pubkey from token', {
+            pubkeyPrefix: recipientPubkey?.substring(0, 12) + '...',
+          });
           if (recipientPubkey) {
             break;
           }

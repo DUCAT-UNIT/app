@@ -140,7 +140,7 @@ describe('useTurboReview', () => {
 
     it('should auto-enable turbo for small amounts below threshold', async () => {
       mockProps.sendAmount = '50';
-      mockProps.ecashThreshold = 1000;
+      mockProps.ecashThreshold = 10000; // 10000 cents = 100 UNIT; sendAmount 50 < 100
       mockProps.turboEnabled = false;
       const { result } = renderHookWithProps(mockProps);
 

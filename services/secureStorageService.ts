@@ -4,12 +4,20 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { AppState } from 'react-native';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { DEVICE_ONLY, clearPreferenceItems } from './storagePolicy';
 import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
 
 let sessionMnemonic: string | null = null;
+
+// Clear cached mnemonic when app goes to background to reduce exposure window
+AppState.addEventListener('change', (nextState) => {
+  if (nextState === 'background') {
+    sessionMnemonic = null;
+  }
+});
 
 export const cacheSessionMnemonic = (mnemonic: string): void => {
   sessionMnemonic = mnemonic;

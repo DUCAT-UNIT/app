@@ -140,104 +140,96 @@ export async function createVaultReqOpen(
       clearPendingVaultSigningOperation();
     }
 
-    // Log the vault request details for debugging
     logger.debug('[VaultOps] Vault request created');
-    logger.debug('[VaultOps] issue_txid from SDK:', { txid: vaultReq.issue_txid });
-    logger.debug('[VaultOps] vault_txid from SDK:', { txid: vaultReq.vault_txid });
 
-    // Recompute txids ourselves to verify
-    try {
-      if (vaultReq.issue_txhex && vaultReq.vault_txhex) {
-        const recomputedIssueTxid = TX.get_txid(vaultReq.issue_txhex);
-        const recomputedVaultTxid = TX.get_txid(vaultReq.vault_txhex);
-        logger.debug('[VaultOps] Recomputed issue_txid:', { txid: recomputedIssueTxid });
-        logger.debug('[VaultOps] Recomputed vault_txid:', { txid: recomputedVaultTxid });
-        logger.debug('[VaultOps] issue_txid match:', { match: vaultReq.issue_txid === recomputedIssueTxid });
-        logger.debug('[VaultOps] vault_txid match:', { match: vaultReq.vault_txid === recomputedVaultTxid });
-      }
-    } catch (txidError) {
-      logger.warn('[VaultOps] Could not recompute txids:', { error: txidError instanceof Error ? txidError.message : String(txidError) });
-    }
-
-    // Log raw tx hex (truncated for readability)
-    logger.debug('[VaultOps] issue_txhex (first 200 chars):', { rawtx: vaultReq.issue_txhex?.substring(0, 200) });
-    logger.debug('[VaultOps] vault_txhex (first 200 chars):', { rawtx: vaultReq.vault_txhex?.substring(0, 200) });
-
-    // ===== DEBUG: Check OP_RETURN in the txhex returned by SDK =====
+    // SAFETY: Check OP_RETURN for runestone corruption before submitting
     const issueTxOpReturn = extractOpReturnFromTxHex(vaultReq.issue_txhex);
-    const vaultTxOpReturn = extractOpReturnFromTxHex(vaultReq.vault_txhex);
-    logger.debug('[VaultOps] OP_RETURN in issue_txhex from SDK:', { opReturn: issueTxOpReturn });
-    logger.debug('[VaultOps] OP_RETURN in vault_txhex from SDK:', { opReturn: vaultTxOpReturn });
-
-    // Check if OP_RETURN is proper runestone (should be 6a5d09... not 6a5d00)
     if (issueTxOpReturn) {
       const isCorrupted = issueTxOpReturn.includes('6a5d00') && !issueTxOpReturn.includes('6a5d09');
-      logger.debug('[VaultOps] issue_txhex OP_RETURN appears corrupted:', { isCorrupted });
       if (isCorrupted) {
         throw new Error('Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.');
       }
     }
-    // ===== END DEBUG =====
 
-    // Log issue PSBT details
-    if (vaultReq.issue_psbt) {
+    if (__DEV__) {
+      // Detailed debug logging for development only — includes PSBT hex, txids, witnesses
+      logger.debug('[VaultOps] issue_txid from SDK:', { txid: vaultReq.issue_txid });
+      logger.debug('[VaultOps] vault_txid from SDK:', { txid: vaultReq.vault_txid });
+
       try {
-        const issuePdata = PSBT.decode(vaultReq.issue_psbt);
-        logger.debug('[VaultOps] Issue PSBT inputs:', { count: issuePdata.inputsLength });
-        for (let i = 0; i < issuePdata.inputsLength; i++) {
-          const inp = issuePdata.getInput(i);
-          logger.debug(`[VaultOps] Issue PSBT input ${i}:`, {
-            hasFinalWitness: !!inp.finalScriptWitness,
-            witnessLength: inp.finalScriptWitness?.length,
-            hasPartialSig: !!inp.partialSig,
-            partialSigLength: inp.partialSig?.length,
-          });
+        if (vaultReq.issue_txhex && vaultReq.vault_txhex) {
+          const recomputedIssueTxid = TX.get_txid(vaultReq.issue_txhex);
+          const recomputedVaultTxid = TX.get_txid(vaultReq.vault_txhex);
+          logger.debug('[VaultOps] issue_txid match:', { match: vaultReq.issue_txid === recomputedIssueTxid });
+          logger.debug('[VaultOps] vault_txid match:', { match: vaultReq.vault_txid === recomputedVaultTxid });
         }
-      } catch (psbtError) {
-        logger.warn('[VaultOps] Could not decode issue_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+      } catch (txidError) {
+        logger.warn('[VaultOps] Could not recompute txids:', { error: txidError instanceof Error ? txidError.message : String(txidError) });
       }
-    }
 
-    // Log vault PSBT details
-    if (vaultReq.vault_psbt) {
-      try {
-        const vaultPdata = PSBT.decode(vaultReq.vault_psbt);
-        logger.debug('[VaultOps] Vault PSBT inputs:', { count: vaultPdata.inputsLength });
-        for (let i = 0; i < vaultPdata.inputsLength; i++) {
-          const inp = vaultPdata.getInput(i);
-          logger.debug(`[VaultOps] Vault PSBT input ${i}:`, {
-            hasFinalWitness: !!inp.finalScriptWitness,
-            witnessLength: inp.finalScriptWitness?.length,
-            hasTapScriptSig: !!inp.tapScriptSig,
-            tapScriptSigLength: inp.tapScriptSig?.length,
-            hasTapLeafScript: !!inp.tapLeafScript,
-          });
+      logger.debug('[VaultOps] issue_txhex (first 200 chars):', { rawtx: vaultReq.issue_txhex?.substring(0, 200) });
+      logger.debug('[VaultOps] vault_txhex (first 200 chars):', { rawtx: vaultReq.vault_txhex?.substring(0, 200) });
+
+      const vaultTxOpReturn = extractOpReturnFromTxHex(vaultReq.vault_txhex);
+      logger.debug('[VaultOps] OP_RETURN in issue_txhex from SDK:', { opReturn: issueTxOpReturn });
+      logger.debug('[VaultOps] OP_RETURN in vault_txhex from SDK:', { opReturn: vaultTxOpReturn });
+
+      if (vaultReq.issue_psbt) {
+        try {
+          const issuePdata = PSBT.decode(vaultReq.issue_psbt);
+          logger.debug('[VaultOps] Issue PSBT inputs:', { count: issuePdata.inputsLength });
+          for (let i = 0; i < issuePdata.inputsLength; i++) {
+            const inp = issuePdata.getInput(i);
+            logger.debug(`[VaultOps] Issue PSBT input ${i}:`, {
+              hasFinalWitness: !!inp.finalScriptWitness,
+              witnessLength: inp.finalScriptWitness?.length,
+              hasPartialSig: !!inp.partialSig,
+              partialSigLength: inp.partialSig?.length,
+            });
+          }
+        } catch (psbtError) {
+          logger.warn('[VaultOps] Could not decode issue_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
         }
-      } catch (psbtError) {
-        logger.warn('[VaultOps] Could not decode vault_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
       }
-    }
 
-    // Log sats_inputs for debugging signature data
-    if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
-      logger.debug('[VaultOps] sats_inputs:', JSON.stringify(vaultReq.sats_inputs.map(inp => ({
-        txid: inp.txid,
-        vout: inp.vout,
-        value: inp.value,
-        witnessLength: inp.witness?.length,
-        witness: inp.witness,
-      }))));
-    }
+      if (vaultReq.vault_psbt) {
+        try {
+          const vaultPdata = PSBT.decode(vaultReq.vault_psbt);
+          logger.debug('[VaultOps] Vault PSBT inputs:', { count: vaultPdata.inputsLength });
+          for (let i = 0; i < vaultPdata.inputsLength; i++) {
+            const inp = vaultPdata.getInput(i);
+            logger.debug(`[VaultOps] Vault PSBT input ${i}:`, {
+              hasFinalWitness: !!inp.finalScriptWitness,
+              witnessLength: inp.finalScriptWitness?.length,
+              hasTapScriptSig: !!inp.tapScriptSig,
+              tapScriptSigLength: inp.tapScriptSig?.length,
+              hasTapLeafScript: !!inp.tapLeafScript,
+            });
+          }
+        } catch (psbtError) {
+          logger.warn('[VaultOps] Could not decode vault_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+        }
+      }
 
-    // Log connect_input for debugging script-path signature
-    if (vaultReq.connect_input) {
-      logger.debug('[VaultOps] connect_input:', JSON.stringify({
-        txid: vaultReq.connect_input.txid,
-        vout: vaultReq.connect_input.vout,
-        value: vaultReq.connect_input.value,
-        witnessLength: vaultReq.connect_input.witness?.length,
-        witness: vaultReq.connect_input.witness,
-      }));
+      if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
+        logger.debug('[VaultOps] sats_inputs:', JSON.stringify(vaultReq.sats_inputs.map(inp => ({
+          txid: inp.txid,
+          vout: inp.vout,
+          value: inp.value,
+          witnessLength: inp.witness?.length,
+          witness: inp.witness,
+        }))));
+      }
+
+      if (vaultReq.connect_input) {
+        logger.debug('[VaultOps] connect_input:', JSON.stringify({
+          txid: vaultReq.connect_input.txid,
+          vout: vaultReq.connect_input.vout,
+          value: vaultReq.connect_input.value,
+          witnessLength: vaultReq.connect_input.witness?.length,
+          witness: vaultReq.connect_input.witness,
+        }));
+      }
     }
 
     return vaultReq;

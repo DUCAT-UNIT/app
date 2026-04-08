@@ -177,7 +177,7 @@ describe('useTurboConvert', () => {
       await result.current!.handleTurboPress();
     });
 
-    expect(requestMint).toHaveBeenCalledWith(100.5);
+    expect(requestMint).toHaveBeenCalledWith(10050);
     expect(mockNavigation.navigate).toHaveBeenCalledWith('SendFlow', {
       screen: 'TurboLoading',
       params: {
@@ -185,7 +185,7 @@ describe('useTurboConvert', () => {
         prefillAddress: 'bc1qdeposit',
         prefillAmount: 100.5,
         mintQuoteId: 'quote456',
-        mintAmount: 100.5,
+        mintAmount: 10050,
         isTurbo: true,
       },
     });

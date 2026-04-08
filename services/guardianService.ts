@@ -106,8 +106,12 @@ export async function getGuardianClient(
 export function disconnectGuardian(): void {
   if (currentClient) {
     logger.debug('[GuardianService] Disconnecting guardian client');
-    // The SDK doesn't expose a close method, but setting references to null
-    // will allow garbage collection and the socket will close
+    try {
+      // SDK doesn't expose a public close() method — access underlying WebSocket directly
+      (currentClient as any)._socket?.close();
+    } catch (e) {
+      logger.debug('[GuardianService] Error closing socket', { error: (e as Error).message });
+    }
     currentClient = null;
     gclientPromise = null;
   }

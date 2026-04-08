@@ -167,6 +167,9 @@ export function selectUtxosForTransaction(
 
   // Calculate final change
   let change = totalInput - amountInSats - estimatedFee;
+  if (change < 0) {
+    throw new Error('Insufficient funds: input total does not cover amount plus fee');
+  }
   let finalFee = estimatedFee;
 
   // If change is below dust, add it to the fee instead of creating a dust output

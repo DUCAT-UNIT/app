@@ -675,6 +675,8 @@ describe('executeLiquidation', () => {
         'Building liquidation context...',
         'Preparing transaction...',
         'Fetching available funds...',
+        'Building transactions...',
+        'Preparing swap...',
         'Signing transaction...',
         'Submitting to network...',
         'Liquidation complete!',

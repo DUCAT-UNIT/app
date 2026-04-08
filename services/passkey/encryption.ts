@@ -12,10 +12,14 @@ const { subtle, getRandomValues, createHmac } = require('react-native-quick-cryp
 
 /**
  * Generate random BIP39 mnemonic (12 words = 128 bits entropy)
+ * Uses react-native-quick-crypto CSPRNG for entropy generation instead of
+ * bip39's default Math.random()-based fallback.
  * @returns BIP39 mnemonic
  */
 export const generateRandomMnemonic = (): string => {
-  const mnemonic = bip39.generateMnemonic(128); // 12 words
+  const entropy = new Uint8Array(16); // 128 bits
+  getRandomValues(entropy);
+  const mnemonic = bip39.entropyToMnemonic(Buffer.from(entropy).toString('hex'));
   if (!bip39.validateMnemonic(mnemonic)) {
     throw new Error('Generated mnemonic is invalid');
   }

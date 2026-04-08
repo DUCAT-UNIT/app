@@ -155,10 +155,13 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
     const vaultInfo = vault.vaultData?.vaultInfo;
     if (!vaultInfo) return;
 
-    // collateral_ratio from the API is a multiplier (e.g. 1.6 for 160%)
-    // Convert to percentage for display and threshold checks
+    // collateral_ratio from the API may be a multiplier (e.g., 1.6) or percentage (e.g., 160)
+    // No legitimate vault can have 5000%+ health (50x collateral), so values > 50 are already percentages
     const rawRatio = vaultInfo.collateral_ratio;
-    const healthPercent = rawRatio < 10 ? rawRatio * 100 : rawRatio;
+    const healthPercent = rawRatio > 50 ? rawRatio : rawRatio * 100;
+    if (rawRatio > 50) {
+      logger.warn('[VaultContext] collateral_ratio appears to already be a percentage', { rawRatio });
+    }
     if (typeof healthPercent === 'number' && healthPercent > 0) {
       void checkVaultHealthAlert(healthPercent);
     }

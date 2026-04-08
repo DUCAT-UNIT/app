@@ -108,7 +108,7 @@ export function useNotifications(
   /**
    * Request notification permissions
    */
-  const registerForPushNotificationsAsync = async (): Promise<boolean> => {
+  const registerForPushNotificationsAsync = useCallback(async (): Promise<boolean> => {
     try {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
@@ -136,7 +136,7 @@ export function useNotifications(
     } catch (error: unknown) {
       return false;
     }
-  };
+  }, []);
 
   /**
    * Send a local notification for transaction confirmation

@@ -12,6 +12,7 @@ import {
   loadCachedConfig,
 } from '../services/remoteConfigService';
 import { logger } from '../utils/logger';
+import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
 import type { RemoteConfig, AppNetworkId } from '../types/remoteConfig';
 
 // ============================================================
@@ -103,7 +104,6 @@ export const useRemoteConfigStore = create<RemoteConfigStore>((set, get) => ({
 
         // Check for network change
         const currentNetworkId = result.network.id;
-        const { APP_NETWORK_CONFIG } = require('../utils/networkConfig');
         if (currentNetworkId !== APP_NETWORK_CONFIG.id && !userNetworkOverride) {
           set({ pendingNetworkChange: true });
         }

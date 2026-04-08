@@ -36,17 +36,12 @@ export const receiveP2PKToken = async (
   privateKey: string,
   onProgress?: ProgressCallback
 ): Promise<ReceiveP2PKTokenResult> => {
-  if (privateKey === 'wrongkey') {
-    throw new Error('P2PK verification failed');
-  }
   const txn = logger.startTransaction('p2pk_receive_token');
 
   logger.cashu('p2pk_receive_start', {
     step: 'RECEIVE',
     tokenLength: tokenString?.length,
     tokenPrefix: tokenString?.substring(0, 20) + '...',
-    privateKeyLength: privateKey?.length,
-    privateKeyType: typeof privateKey,
   });
 
   try {
@@ -204,8 +199,8 @@ export const receiveP2PKToken = async (
         amount: proof.amount,
         lockedToPubkey: lockedToPubkey || 'NOT_P2PK',
         hasWitness: !!proof.witness,
-        witnessSignature: witnessSignature || 'NO_SIGNATURE',
-        secretFull: proof.secret,
+        witnessSignaturePrefix: witnessSignature ? witnessSignature.substring(0, 16) + '...' : 'NO_SIGNATURE',
+        secretPrefix: proof.secret.substring(0, 16) + '...',
       });
     });
 
@@ -269,36 +264,13 @@ export const receiveP2PKToken = async (
       proofCount: newProofs.length || proofs.length,
     };
   } catch (error: unknown) {
-    // Derive pubkey from private key for error logging
-    let derivedPubkeyForError: string | null = null;
-    try {
-      const ecc = require('@bitcoinerlab/secp256k1');
-      const { Buffer } = require('buffer');
-      if (privateKey && typeof privateKey === 'string' && privateKey.length === 64) {
-        const privateKeyBuffer = Buffer.from(privateKey, 'hex');
-        const pubkeyFull = ecc.pointFromScalar(privateKeyBuffer);
-        if (pubkeyFull) {
-          derivedPubkeyForError = Buffer.from(pubkeyFull).slice(1).toString('hex');
-        }
-      }
-    } catch (e: unknown) { /* ignore derivation errors */ }
-
     logger.cashu('p2pk_receive_error', {
       step: 'RECEIVE',
       error: (error as Error).message,
-      stack: (error as Error).stack?.substring(0, 200),
-      derivedPubkey: derivedPubkeyForError || 'COULD_NOT_DERIVE',
-      privateKeyLength: privateKey?.length,
-      privateKeyType: typeof privateKey,
-      hint: 'If signature mismatch, compare derivedPubkey with lockedToPubkey in p2pk_swap_proof_detail logs',
     });
     txn.finish('error');
     logger.error('Failed to receive P2PK token', {
       error: (error as Error).message,
-      stack: (error as Error).stack,
-      privateKeyLength: privateKey?.length,
-      privateKeyType: typeof privateKey,
-      derivedPubkey: derivedPubkeyForError,
     });
 
     // Enhanced error message with diagnostic info

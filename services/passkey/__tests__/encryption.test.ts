@@ -10,6 +10,7 @@ import { logger } from '../../../utils/logger';
 // Mock bip39
 jest.mock('bip39', () => ({
   generateMnemonic: jest.fn(),
+  entropyToMnemonic: jest.fn(),
   validateMnemonic: jest.fn(),
 }));
 
@@ -55,6 +56,7 @@ describe('Passkey Encryption', () => {
 
     // Default mocks
     (bip39.generateMnemonic as jest.Mock).mockReturnValue(mockMnemonic);
+    (bip39.entropyToMnemonic as jest.Mock).mockReturnValue(mockMnemonic);
     (bip39.validateMnemonic as jest.Mock).mockReturnValue(true);
     // Reset the mock implementation for each test
     mockHashPinForEncryption.mockResolvedValue(mockHashedPin);
@@ -64,7 +66,7 @@ describe('Passkey Encryption', () => {
     it('should generate valid 12-word mnemonic', () => {
       const mnemonic = generateRandomMnemonic();
 
-      expect(bip39.generateMnemonic).toHaveBeenCalledWith(128);
+      expect(bip39.entropyToMnemonic).toHaveBeenCalledWith(expect.any(String));
       expect(bip39.validateMnemonic).toHaveBeenCalledWith(mockMnemonic);
       expect(mnemonic).toBe(mockMnemonic);
     });
@@ -78,7 +80,8 @@ describe('Passkey Encryption', () => {
     it('should always generate 128-bit entropy (12 words)', () => {
       generateRandomMnemonic();
 
-      expect(bip39.generateMnemonic).toHaveBeenCalledWith(128);
+      // 128-bit entropy = 16 bytes = 32 hex chars
+      expect(bip39.entropyToMnemonic).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f]{32}$/));
     });
   });
 

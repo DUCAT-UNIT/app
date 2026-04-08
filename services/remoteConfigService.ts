@@ -138,6 +138,12 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
+    // Validate config URL uses HTTPS
+    if (!REMOTE_CONFIG_URL.startsWith('https://')) {
+      logger.warn('[RemoteConfig] Config URL is not HTTPS — this is insecure', { url: REMOTE_CONFIG_URL });
+    }
+    // TODO: Add HMAC signature verification on config payloads before mainnet launch
+
     const response = await fetch(REMOTE_CONFIG_URL, {
       signal: controller.signal,
       headers: { 'Cache-Control': 'no-cache' },

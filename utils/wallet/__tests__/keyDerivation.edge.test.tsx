@@ -316,7 +316,7 @@ describe('keyDerivation - Edge Cases', () => {
   });
 
   describe('Boundary account index', () => {
-    it('should search up to account 100 by default', async () => {
+    it('should search up to account 10 by default', async () => {
       const mockChild = {
         publicKey: Buffer.alloc(33),
         privateKey: Buffer.alloc(32),
@@ -343,10 +343,10 @@ describe('keyDerivation - Edge Cases', () => {
         return callback('test mnemonic');
       });
 
-      await expect(getPrivateKeyForAddress('tb1pnotfound')).rejects.toThrow('not found in first 100 accounts');
+      await expect(getPrivateKeyForAddress('tb1pnotfound')).rejects.toThrow('not found in first 10 accounts');
 
-      // Should have tried 100 accounts
-      expect(derivedAccounts.length).toBe(100);
+      // Should have tried 10 accounts
+      expect(derivedAccounts.length).toBe(10);
     });
 
     it('should expand search range when known account index is high', async () => {
@@ -376,12 +376,12 @@ describe('keyDerivation - Edge Cases', () => {
         return callback('test mnemonic');
       });
 
-      // Known account 150 - should search up to 160 (150 + 10)
+      // Known account 150 - should search up to 155 (150 + 5)
       await expect(getPrivateKeyForAddress('tb1pnotfound', 150)).rejects.toThrow();
 
-      // Should have tried 160 accounts (0 through 159)
-      expect(derivedAccounts.length).toBe(160);
-      expect(Math.max(...derivedAccounts)).toBe(159);
+      // Should have tried 155 accounts (0 through 154)
+      expect(derivedAccounts.length).toBe(155);
+      expect(Math.max(...derivedAccounts)).toBe(154);
     });
   });
 

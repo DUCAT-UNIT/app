@@ -14,6 +14,7 @@ import { logger } from '../../utils/logger';
 import { checkICloudAvailability,loadFromICloud } from '../icloudStorage';
 const { getRandomValues } = require('react-native-quick-crypto');
 
+import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
 cacheSessionMnemonic,
@@ -122,6 +123,12 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       throw new Error('Credential ID mismatch');
     }
 
+    // Defense-in-depth: verify authenticator data is present
+    // (The OS already validates these, but we check as a safety net)
+    if (!authResult.response?.authenticatorData) {
+      logger.warn('[PasskeyUnlock] Missing authenticatorData in passkey assertion');
+    }
+
     // Extract PRF result if PRF was requested
     let prfSecret: Uint8Array | null = null;
     if (usePrf) {
@@ -187,6 +194,17 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     };
   } catch (error: unknown) {
     logger.error('Failed to unlock with passkey', { error: (error as Error).message });
+
+    // Record failed passkey attempt for unified auth lockout tracking
+    try {
+      const { failedAttempts } = await loadLockoutState();
+      await recordFailedAttempt(failedAttempts);
+    } catch (lockoutError) {
+      logger.warn('[PasskeyUnlock] Failed to record failed attempt for lockout', {
+        error: (lockoutError as Error).message,
+      });
+    }
+
     throw error;
   }
 };

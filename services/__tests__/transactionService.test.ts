@@ -200,12 +200,12 @@ describe('transactionService', () => {
     });
 
     it('should throw error for insufficient funds', async () => {
-      __mockUtxoValues['test_txid'] = 1000;
+      __mockUtxoValues['test_txid'] = 500;
       (balanceService.fetchUtxos as jest.Mock).mockResolvedValue([
         {
           txid: 'test_txid',
           vout: 0,
-          value: 1000, // Only 1000 sats, not enough for 0.1 BTC + fees
+          value: 500, // Only 500 sats — after fee deduction, below dust limit (546)
           status: { confirmed: true },
         },
       ]);

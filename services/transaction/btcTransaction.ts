@@ -141,6 +141,10 @@ export async function createBtcIntent(
       if (effectiveAmountInSats <= 0) {
         throw new Error(ERRORS.INSUFFICIENT_FUNDS);
       }
+      // Ensure effective amount after fee is above dust limit
+      if (effectiveAmountInSats < BITCOIN_TX.DUST_LIMIT) {
+        throw new Error(ERRORS.INSUFFICIENT_FUNDS);
+      }
       logger.info('[BTC Intent] Max send detected, reducing amount by fee', {
         originalAmount: amountInSats,
         effectiveAmount: effectiveAmountInSats,

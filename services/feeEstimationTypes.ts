@@ -105,8 +105,14 @@ export function getTransactionShape(type: TransactionType): { inputs: number; ou
 }
 
 /**
- * Get base cost for vault operations (SDK's txQuote.total_cost)
- * Values based on test mocks in services/vault/__tests__/vault.test.ts
+ * Get estimated base cost (in sats) for vault operations.
+ *
+ * NOTE: These values are currently hardcoded estimates based on observed transaction sizes.
+ * They serve as fallback fee estimates for UI display before the actual SDK transaction
+ * quote is available. In production, the real cost comes from the SDK's txQuote.total_cost.
+ *
+ * TODO: Consider fetching actual base costs from the SDK at runtime instead of using
+ * these static estimates.
  */
 export function getVaultBaseCost(type: TransactionType): number {
   switch (type) {

@@ -33,7 +33,10 @@ export const VIN_ALLOWANCE = 350;
 export const LIQ_DEFAULT_FEE_RATE = 1;
 
 /** Faucet swap API URL (BTC→UNIT swap after liquidation) */
-export const FAUCET_SWAP_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
+// NOTE: /test endpoint is for Mutinynet testnet only
+export const FAUCET_SWAP_URL = __DEV__
+  ? 'https://faucet.ducatprotocol.com/unit/faucet/test'
+  : 'https://faucet.ducatprotocol.com/unit/faucet';
 
 /** Liquidation validator base URL */
 export const LIQ_VALIDATOR_URL = 'https://validator.staging.ducatprotocol.com/liq';

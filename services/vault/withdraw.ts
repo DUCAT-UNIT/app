@@ -136,7 +136,9 @@ export async function guardianSendReqWithdraw(
     const guardSub = await gclient.req.vault.withdraw(withdrawReq);
     logger.debug('[VaultOps] Withdraw request submitted, waiting for response...');
 
-    // Small delay before resolving (as in frontend)
+    // Brief delay to allow the Guardian node to commit the state change internally
+    // before resolving. Without this, subsequent reads may return stale data.
+    // This mirrors the web frontend behavior and was empirically determined.
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     const guardRes = await withGuardianTimeout(

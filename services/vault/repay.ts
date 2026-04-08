@@ -215,7 +215,9 @@ export async function guardianSendReqRepay(
     const guardSub = await gclient.req.vault.repay(repayReq);
     logger.debug('[VaultOps] Repay request submitted, waiting for response...');
 
-    // Small delay before resolving (as in frontend)
+    // Brief delay to allow the Guardian node to commit the state change internally
+    // before resolving. Without this, subsequent reads may return stale data.
+    // This mirrors the web frontend behavior and was empirically determined.
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     const guardRes = await withGuardianTimeout(

@@ -179,17 +179,21 @@ describe('useEcashThresholdManager', () => {
     });
 
     it('should limit conversion to available unit balance', async () => {
+      // runesBalance amount '1' with divisibility 0 => getRunesAmount returns 1 display unit
+      // => currentUnitCents = Math.round(1 * 100) = 100 cents
+      // Threshold 500 cents: amountNeededCents = max(0, 500 - 0) = 500
+      // actualConversionAmount = min(500, 100) = 100 (limited by unit balance)
       const { result } = renderHookWithProps({
         ...mockProps,
         cashuBalance: 0,
-        runesBalance: [{ rune: 'rune1', amount: '100', divisibility: 0 }], // Only 100 available
+        runesBalance: [{ rune: 'rune1', amount: '1', divisibility: 0 }], // Only 100 cents available
       });
 
       await act(async () => {
         await result.current!.handleThresholdSelect(500);
       });
 
-      expect(result.current!.conversionAmount).toBe(100); // Limited by unit balance
+      expect(result.current!.conversionAmount).toBe(100); // Limited by unit balance (100 cents)
     });
 
     it('should update directly when ecash balance is sufficient', async () => {

@@ -46,13 +46,15 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
   const seedInputRefs = useRef<TextInput[]>([]);
 
   // CRITICAL: Use ref for mnemonic so it survives renders but doesn't persist to storage
-  // This allows it to survive navigation to PIN screen without storing sensitive data
+  // This allows it to survive navigation to PIN screen without storing sensitive data.
+  // SECURITY: Only expose a boolean flag via React state to avoid holding the mnemonic
+  // in the component tree / React DevTools. The actual value lives only in the ref.
   const importedMnemonicRef = useRef<string | null>(null);
-  const [importedMnemonic, setImportedMnemonicState] = useState<string | null>(null);
+  const [hasImportedMnemonic, setHasImportedMnemonic] = useState(false);
 
   const setImportedMnemonic = (value: string | null) => {
     importedMnemonicRef.current = value;
-    setImportedMnemonicState(value);
+    setHasImportedMnemonic(!!value);
   };
 
   /**
@@ -153,7 +155,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     isImportedWallet,
     isImporting, // Loading state
     seedInputRefs,
-    importedMnemonic,
+    importedMnemonic: importedMnemonicRef.current,
 
     // Setters
     setImportingWallet,

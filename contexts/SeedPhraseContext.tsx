@@ -55,45 +55,42 @@ export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children
   const [returnToSettings, setReturnToSettings] = useState(false);
 
   const seedPhraseTranslateX = useRef(new Animated.Value(0)).current;
-  const seedPhrasePanResponderRef = useRef<{ panHandlers: GestureResponderHandlers } | null>(null);
 
   const SCREEN_WIDTH = Dimensions.get('window').width;
 
-  // Create pan responder for swipe gesture
-  if (!seedPhrasePanResponderRef.current) {
-    seedPhrasePanResponderRef.current = PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const isSwipeRight =
-          gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
-        return isSwipeRight;
-      },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx > 0) {
-          seedPhraseTranslateX.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > 100 || gestureState.vx > 0.5) {
-          Animated.timing(seedPhraseTranslateX, {
-            toValue: SCREEN_WIDTH,
-            duration: 250,
-            useNativeDriver: true,
-          }).start(() => {
-            setViewingSeedPhrase(false);
-            setSeedPhraseWords([]);
-            setSeedPhraseVisible(false);
-          });
-        } else {
-          Animated.spring(seedPhraseTranslateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    });
-  }
+  // Create pan responder for swipe gesture — initialized once via useRef
+  const seedPhrasePanResponderRef = useRef<{ panHandlers: GestureResponderHandlers } | null>(PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gestureState) => {
+      const isSwipeRight =
+        gestureState.dx > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy);
+      return isSwipeRight;
+    },
+    onPanResponderMove: (_, gestureState) => {
+      if (gestureState.dx > 0) {
+        seedPhraseTranslateX.setValue(gestureState.dx);
+      }
+    },
+    onPanResponderRelease: (_, gestureState) => {
+      if (gestureState.dx > 100 || gestureState.vx > 0.5) {
+        Animated.timing(seedPhraseTranslateX, {
+          toValue: SCREEN_WIDTH,
+          duration: 250,
+          useNativeDriver: true,
+        }).start(() => {
+          setViewingSeedPhrase(false);
+          setSeedPhraseWords([]);
+          setSeedPhraseVisible(false);
+        });
+      } else {
+        Animated.spring(seedPhraseTranslateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          friction: 8,
+        }).start();
+      }
+    },
+  }));
 
   // Load and display seed phrase (called after PIN authentication)
   const loadSeedPhrase = useCallback(async () => {

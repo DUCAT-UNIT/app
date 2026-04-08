@@ -249,6 +249,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
           logger.debug('[Airdrop] Skipping: lock active');
           return;
         }
+        if (cancelled) return;
 
         // Get current balance from refs (always fresh, not stale closure values)
         const totalBtcBalance = segwitBalanceRef.current + taprootBalanceRef.current;
@@ -261,26 +262,30 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             logger.debug('[Airdrop] Skipping: cooldown not expired');
             return;
           }
+          if (cancelled) return;
 
           // Acquire lock BEFORE setting ref
           await acquireLock(lockKey);
+          if (cancelled) return;
           airdropInProgress.current = true;
 
           try {
             // Store attempt time immediately to prevent duplicate requests (per account)
             await recordAirdropTime(airdropKey);
+            if (cancelled) return;
 
             // Request airdrop
             logger.debug('[Airdrop] Requesting airdrop for', { address: address.slice(0, 12) + '...' });
             const result = await AirdropService.requestAirdrop(address);
+            if (cancelled) return;
 
             logger.debug('[Airdrop] Airdrop received!', { txId: result.txId });
 
             // Store pending airdrop in SecureStore (survives state resets during onboarding)
             await storePendingAirdrop(pendingKey, result.txId);
+            if (cancelled) return;
 
             // Show modal - defer if biometric setup modal is visible
-            if (cancelled) return;
             pendingAirdropTxIdRef.current = result.txId;
             // If biometric modal is not showing, display immediately (use ref for fresh value)
             if (!showBiometricSetupModalRef.current) {

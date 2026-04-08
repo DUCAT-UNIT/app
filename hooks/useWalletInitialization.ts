@@ -2,7 +2,7 @@
  * useWalletInitialization - Handles wallet loading and initialization on app start
  */
 
-import { useState, useEffect, MutableRefObject } from 'react';
+import { useState, useEffect, useCallback, MutableRefObject } from 'react';
 import { logger } from '../utils/logger';
 
 interface LoadWalletResult {
@@ -80,7 +80,7 @@ export const useWalletInitialization = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
-  const retryInitialization = async (): Promise<void> => {
+  const retryInitialization = useCallback(async (): Promise<void> => {
     setInitializationError(null);
     setIsLoading(true);
 
@@ -115,7 +115,7 @@ export const useWalletInitialization = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loadWallet, loadBiometricPreference, setSeedConfirmed, setIsAuthenticated, walletExistsRef]);
 
   return { isLoading, initializationError, retryInitialization };
 };

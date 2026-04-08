@@ -6,6 +6,25 @@
 // Determine if we're in development mode
 const isDev = __DEV__;
 
+// Keys that should never appear in log output
+const SENSITIVE_KEYS = new Set([
+  'mnemonic', 'privatekey', 'secret', 'seed', 'password', 'pin', 'passphrase',
+]);
+
+function sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'string' && value.length > 500) {
+      sanitized[key] = value.substring(0, 500) + '...[truncated]';
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 export type LogContext = Record<string, unknown>;
 
 export interface PerformanceTransaction {
@@ -57,13 +76,14 @@ export const logger = {
    * @param context - Additional context
    */
   error: (error: Error | string | unknown, context: LogContext = {}): void => {
+    const sanitizedContext = sanitizeContext(context);
     if (isDev) {
       // Use console.warn in dev to avoid triggering the red error overlay
       // Errors are still clearly labeled [ERROR] in the log output
-      console.warn('[ERROR]', error, context);
+      console.warn('[ERROR]', error, sanitizedContext);
     } else {
       // Production: log to console.error so crash reporters (e.g. EAS Updates) can capture
-      console.error('[ERROR]', error instanceof Error ? error.message : error);
+      console.error('[ERROR]', error instanceof Error ? error.message : error, sanitizedContext);
     }
   },
 

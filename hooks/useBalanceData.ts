@@ -180,9 +180,7 @@ export function useBalanceData(
       } catch (error: unknown) {
         setBalanceError('Failed to fetch balance. Tap to retry.');
       } finally {
-        if (loadingBalance) {
-          setLoadingBalance(false);
-        }
+        setLoadingBalance(false);
       }
     },
     [wallet, getUnconfirmedBalance, getUnconfirmedUTXOs]

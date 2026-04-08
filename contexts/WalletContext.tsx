@@ -56,7 +56,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         });
         setCurrentAccount(accountIndex);
         void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
-          analytics.identify(hashed);
+          analytics.identifyHashed(hashed);
         });
 
         return { exists: true, addresses };
@@ -83,7 +83,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     // Identify user with hashed address for analytics
     void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
-      analytics.identify(hashed);
+      analytics.identifyHashed(hashed);
     });
 
     Promise.all([

@@ -164,11 +164,27 @@ export function decodeRunestone(script) {
       return { edicts: [] };
     }
 
-    // Get payload length (OP_PUSHBYTES_N)
-    const payloadLength = scriptBuffer[2];
+    // Handle variable-length push opcodes
+    let payloadLength, payloadStart;
+    const pushByte = scriptBuffer[2];
+    if (pushByte <= 75) {
+      // OP_PUSHBYTES_N: single-byte length
+      payloadLength = pushByte;
+      payloadStart = 3;
+    } else if (pushByte === 0x4c) {
+      // OP_PUSHDATA1: 1-byte length follows
+      payloadLength = scriptBuffer[3];
+      payloadStart = 4;
+    } else if (pushByte === 0x4d) {
+      // OP_PUSHDATA2: 2-byte LE length follows
+      payloadLength = scriptBuffer.readUInt16LE(3);
+      payloadStart = 5;
+    } else {
+      return null; // Unknown push opcode
+    }
 
     // Extract payload
-    const payload = scriptBuffer.slice(3, 3 + payloadLength);
+    const payload = scriptBuffer.slice(payloadStart, payloadStart + payloadLength);
 
     let offset = 0;
     const edicts = [];

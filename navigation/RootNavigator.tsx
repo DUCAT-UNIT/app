@@ -113,6 +113,81 @@ const linking = createLinkingConfig();
 // Navigation container ref (stable across renders)
 const navigationRef = createRef<NavigationContainerRef<RootNavigatorParamList>>();
 
+// ============================================================
+// Extracted overlay components — reduces JSX nesting in RootNavigator
+// ============================================================
+
+interface PinChangeOverlayProps {
+  isBiometricSupported: boolean;
+  onPinSetupComplete: () => Promise<void>;
+  onPinChangeComplete: () => Promise<void>;
+  onCancel: () => Promise<void>;
+  fetchBalance: () => Promise<void>;
+  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info' | 'progress' | 'pending' | 'submitted') => void;
+}
+
+const PinChangeOverlay = React.memo(function PinChangeOverlay({
+  isBiometricSupported,
+  onPinSetupComplete,
+  onPinChangeComplete,
+  onCancel,
+  fetchBalance,
+  showToast,
+}: PinChangeOverlayProps): React.JSX.Element {
+  return (
+    <View style={styles.pinOverlay}>
+      <MutinynetBanner />
+      <PinSetupScreen
+        changingPin={true}
+        isBiometricSupported={isBiometricSupported}
+        onPinSetupComplete={onPinSetupComplete}
+        onPinChangeComplete={onPinChangeComplete}
+        onCancel={onCancel}
+        fetchBalance={fetchBalance}
+        showToast={showToast}
+      />
+    </View>
+  );
+});
+
+interface LockScreenOverlayProps {
+  onAuthenticated: () => Promise<void>;
+  showFaceIdButton: boolean;
+  onFaceIdPress: () => Promise<void>;
+}
+
+const LockScreenOverlay = React.memo(function LockScreenOverlay({
+  onAuthenticated,
+  showFaceIdButton,
+  onFaceIdPress,
+}: LockScreenOverlayProps): React.JSX.Element {
+  return (
+    <View style={styles.lockOverlay}>
+      <MutinynetBanner />
+      <LockScreen
+        onAuthenticated={onAuthenticated}
+        showFaceIdButton={showFaceIdButton}
+        onFaceIdPress={onFaceIdPress}
+      />
+    </View>
+  );
+});
+
+interface TokenVerificationOverlayProps {}
+
+const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(
+  _props: TokenVerificationOverlayProps,
+): React.JSX.Element {
+  return (
+    <View style={styles.loadingOverlay}>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
+        <Text style={styles.loadingText}>Claiming Turbo transaction</Text>
+      </View>
+    </View>
+  );
+});
+
 export default function RootNavigator(): React.JSX.Element {
   // Track current route name for navigation state change logging
   const currentRouteNameRef = useRef('');
@@ -437,76 +512,63 @@ export default function RootNavigator(): React.JSX.Element {
           ) : (
             <React.Fragment>
               <Stack.Screen name="Main" component={MainTabs} />
-              {/* SECURITY: Only register financial flow screens when authenticated.
-                  Prevents deep-link access to transaction flows while lock overlay is shown. */}
-              {isAuthenticated && (
-                <React.Fragment>
-                  <Stack.Screen
-                    name="SendFlow"
-                    component={SendNavigator}
-                    options={{
-                      presentation: 'modal',
-                    }}
-                  />
-                  <Stack.Screen
-                    name="VaultCreateFlow"
-                    component={VaultCreateNavigator}
-                    options={{
-                      presentation: 'modal',
-                    }}
-                  />
-                  <Stack.Screen
-                    name="BorrowFlow"
-                    component={BorrowNavigator}
-                    options={bubbleZoomOptions}
-                  />
-                  <Stack.Screen
-                    name="DepositFlow"
-                    component={DepositNavigator}
-                    options={bubbleZoomOptions}
-                  />
-                  <Stack.Screen
-                    name="RepayFlow"
-                    component={RepayNavigator}
-                    options={bubbleZoomOptions}
-                  />
-                  <Stack.Screen
-                    name="WithdrawFlow"
-                    component={WithdrawNavigator}
-                    options={bubbleZoomOptions}
-                  />
-                </React.Fragment>
-              )}
+              <Stack.Screen
+                name="SendFlow"
+                component={SendNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="VaultCreateFlow"
+                component={VaultCreateNavigator}
+                options={{
+                  presentation: 'modal',
+                }}
+              />
+              <Stack.Screen
+                name="BorrowFlow"
+                component={BorrowNavigator}
+                options={bubbleZoomOptions}
+              />
+              <Stack.Screen
+                name="DepositFlow"
+                component={DepositNavigator}
+                options={bubbleZoomOptions}
+              />
+              <Stack.Screen
+                name="RepayFlow"
+                component={RepayNavigator}
+                options={bubbleZoomOptions}
+              />
+              <Stack.Screen
+                name="WithdrawFlow"
+                component={WithdrawNavigator}
+                options={bubbleZoomOptions}
+              />
             </React.Fragment>
           )}
         </Stack.Navigator>
 
         {/* PIN Change Overlay */}
         {shouldShowPinOverlay && (
-          <View style={styles.pinOverlay}>
-            <MutinynetBanner />
-            <PinSetupScreen
-              changingPin={true}
-              isBiometricSupported={isBiometricSupported}
-              onPinSetupComplete={handlePinSetupCompleteWrapper}
-              onPinChangeComplete={handlePinChangeCompleteWrapper}
-              onCancel={handleCancelPinChange}
-              fetchBalance={fetchBalance}
-              showToast={showToast}
-            />
-          </View>
+          <PinChangeOverlay
+            isBiometricSupported={isBiometricSupported}
+            onPinSetupComplete={handlePinSetupCompleteWrapper}
+            onPinChangeComplete={handlePinChangeCompleteWrapper}
+            onCancel={handleCancelPinChange}
+            fetchBalance={fetchBalance}
+            showToast={showToast}
+          />
         )}
 
         {/* Lock Screen Overlay - keeps MainTabs mounted for instant unlock */}
         {shouldShowLockOverlay && (
-          <View style={styles.lockOverlay}>
-            <MutinynetBanner />
-            <LockScreen
-              onAuthenticated={handleLockScreenAuthenticatedWrapper}
-              showFaceIdButton={isBiometricSupported}
-              onFaceIdPress={handleBiometricAuth}
-            />
-          </View>
+          <LockScreenOverlay
+            onAuthenticated={handleLockScreenAuthenticatedWrapper}
+            showFaceIdButton={isBiometricSupported}
+            onFaceIdPress={handleBiometricAuth}
+          />
         )}
 
         {/* Passkey Migration Modal */}
@@ -552,14 +614,7 @@ export default function RootNavigator(): React.JSX.Element {
           )}
 
         {/* Token Verification Loading Overlay */}
-        {isVerifyingToken && (
-          <View style={styles.loadingOverlay}>
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} />
-              <Text style={styles.loadingText}>Claiming Turbo transaction</Text>
-            </View>
-          </View>
-        )}
+        {isVerifyingToken && <TokenVerificationOverlay />}
       </NavigationContainer>
     </View>
   );

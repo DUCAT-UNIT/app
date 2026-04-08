@@ -122,7 +122,7 @@ describe('btcTransaction', () => {
         type: 'send',
         assetType: 'BTC',
         amount: 100000,
-        amountBTC: '0.001',
+        amountBTC: '0.00100000',
         recipient,
         addressType: 'segwit',
         sourceAddress: segwitAddress,
@@ -176,9 +176,11 @@ describe('btcTransaction', () => {
     });
 
     it('should throw error for insufficient funds', async () => {
-      (fetchUtxos as jest.Mock).mockResolvedValue([
-        { txid: 'tx1', vout: 0, value: 1000, status: { confirmed: true } }, // Only 1000 sats
-      ]);
+      const utxos = [
+        { txid: 'tx1', vout: 0, value: 600, status: { confirmed: true } }, // Only 600 sats — below dust after fee
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
 
       await expect(createBtcIntent(recipient, '1.0', segwitAddress, 0)) // 1 BTC = 100M sats
         .rejects.toThrow('Insufficient funds');

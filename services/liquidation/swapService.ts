@@ -6,6 +6,7 @@
 
 import * as bitcoin from 'bitcoinjs-lib';
 import type { BaseUtxo } from '@ducat-unit/client-sdk';
+import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
 import { postJSON } from '../../utils/apiClient';
 import { broadcastTransaction } from '../transactionBroadcastService';
@@ -83,11 +84,34 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
 
 /**
  * Finalize a signed swap PSBT and extract the raw transaction hex.
+ * Optionally validates that at least one output pays to the expected address.
  */
-export function finalizeSwapPsbt(signedPsbtBase64: string): string {
+export function finalizeSwapPsbt(
+  signedPsbtBase64: string,
+  expectedPaymentAddress?: string
+): string {
   const psbt = bitcoin.Psbt.fromBase64(signedPsbtBase64);
+
+  // Basic validation: ensure all inputs are properly signed
   psbt.finalizeAllInputs();
+
   const tx = psbt.extractTransaction();
+
+  // If expected payment address provided, verify at least one output pays to it
+  if (expectedPaymentAddress) {
+    const hasExpectedOutput = tx.outs.some(out => {
+      try {
+        const addr = bitcoin.address.fromOutputScript(out.script, MUTINYNET_NETWORK);
+        return addr === expectedPaymentAddress;
+      } catch {
+        return false;
+      }
+    });
+    if (!hasExpectedOutput) {
+      throw new Error('Swap PSBT does not pay to expected address');
+    }
+  }
+
   return tx.toHex();
 }
 

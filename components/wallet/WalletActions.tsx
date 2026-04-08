@@ -3,6 +3,7 @@
  * Renders the action buttons row (Repay, Borrow, Withdraw, Deposit) on the wallet screen
  */
 
+// TODO: Move inline styles to useMemo or StyleSheet.create to prevent object re-creation on each render
 import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';

@@ -295,11 +295,11 @@ export const sendP2PKToken = async (
 
     // Log secret types to verify correct identification
     logger.info('Send proof secret types', {
-      secrets: proofsToSend.map(p => p.secret.substring(0, 50)),
+      count: proofsToSend.length,
       areAllP2PK: proofsToSend.every(p => p.secret.startsWith('["P2PK"'))
     });
     logger.info('Change proof secret types', {
-      secrets: changeProofs.map(p => p.secret.substring(0, 50)),
+      count: changeProofs.length,
       areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
     });
 
@@ -317,7 +317,6 @@ export const sendP2PKToken = async (
         logger.info('Change proofs added back to wallet', {
           count: changeProofs.length,
           total: changeTotal,
-          secrets: changeProofs.map(p => p.secret.substring(0, 20) + '...'),
         });
       }
 

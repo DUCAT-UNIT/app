@@ -78,8 +78,8 @@ export async function getPrivateKeyForAddress(
       logger.warn(`[getPrivateKeyForAddress] Known account ${knownAccountIndex} didn't match, falling back to search`);
     }
 
-    // Dynamic scan range: at least 100 accounts, or more if we know of a higher account
-    const maxAccounts = Math.max(100, (knownAccountIndex || 0) + 10);
+    // Dynamic scan range: at least 10 accounts, or more if we know of a higher account
+    const maxAccounts = Math.max(10, (knownAccountIndex || 0) + 5);
     logger.info(`[getPrivateKeyForAddress] Searching up to ${maxAccounts} accounts`);
 
     for (let accountIndex = 0; accountIndex < maxAccounts; accountIndex++) {

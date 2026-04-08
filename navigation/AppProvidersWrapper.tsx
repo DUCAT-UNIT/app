@@ -3,7 +3,7 @@
  * Wraps the app content with all necessary context providers
  */
 
-import React,{ MutableRefObject } from 'react';
+import React,{ MutableRefObject, useMemo } from 'react';
 
 // Contexts
 import { useOnboardingFlow } from '../contexts/AuthContext';
@@ -69,6 +69,11 @@ export default function AppProvidersWrapper({
   const { seedConfirmed } = useOnboardingFlow();
   const { showSnackbar } = useNotifications();
 
+  const notificationAdapter = useMemo(
+    () => createNotificationAdapter(sendTransactionConfirmedNotification),
+    [sendTransactionConfirmedNotification]
+  );
+
   return (
     <TransactionBuildProvider
       wallet={wallet}
@@ -78,7 +83,7 @@ export default function AppProvidersWrapper({
         currentAccount={currentAccount}
         showSnackbar={showSnackbar}
         startTransactionPolling={startPolling}
-        sendTransactionConfirmedNotification={createNotificationAdapter(sendTransactionConfirmedNotification)}
+        sendTransactionConfirmedNotification={notificationAdapter}
         notificationsEnabled={notificationsEnabled}
         fetchBalance={fetchBalance}
         fetchTransactionHistory={fetchTransactionHistory as (() => Promise<void>) | undefined}

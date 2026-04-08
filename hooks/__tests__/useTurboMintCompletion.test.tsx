@@ -87,7 +87,11 @@ const advanceThroughPolling = async () => {
     await jest.advanceTimersByTimeAsync(0);
     // Advance past the 2000ms setTimeout in the polling loop
     await jest.advanceTimersByTimeAsync(2100);
-    // Flush downstream awaits (completeMint, updateTurboSendStage, etc.)
+    // Flush downstream awaits (completeMint, updateTurboSendStage, P2PK, etc.)
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(0);
+    // Flush fetchTransactionHistory + fetchBalance + refreshCashuBalance + notify
     await jest.advanceTimersByTimeAsync(0);
     await jest.advanceTimersByTimeAsync(0);
     await jest.advanceTimersByTimeAsync(0);
@@ -121,6 +125,7 @@ describe('useTurboMintCompletion', () => {
       skipMint: false,
       senderTaprootAddress: 'tb1psender123',
       fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
+      fetchBalance: jest.fn().mockResolvedValue(undefined),
       refreshCashuBalance: jest.fn().mockResolvedValue(undefined),
     };
 

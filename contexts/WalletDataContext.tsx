@@ -51,13 +51,12 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
   const hasCashuData = cashuBalance !== null && cashuBalance !== undefined;
   const bothBalancesLoaded = hasRunesData && hasCashuData;
 
-  if (bothBalancesLoaded && !fetchStateRef.current.initialBalancesLoaded) {
-    logger.debug('[WalletDataContext] Both balances loaded, enabling transaction history fetch', {
-      runesBalance: balance.runesBalance,
-      cashuBalance,
-    });
-    fetchStateRef.current.initialBalancesLoaded = true;
-  }
+  useEffect(() => {
+    if (bothBalancesLoaded && !fetchStateRef.current.initialBalancesLoaded) {
+      logger.debug('[WalletDataContext] Both balances loaded, starting coordinated polling');
+      fetchStateRef.current.initialBalancesLoaded = true;
+    }
+  }, [bothBalancesLoaded]);
 
   // Unified polling callback
   const pollAllData = useCallback(() => {

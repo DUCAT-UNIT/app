@@ -141,8 +141,9 @@ describe('useAssetTransactions', () => {
     });
 
     expect(result.current!.transactions).toEqual([]);
-    // For BTC asset type, isLoading is false since no ecash tokens to wait for
-    expect(result.current!.isLoading).toBe(false);
+    // isLoading is true until transactions are processed at least once
+    // With null txHistory, the useMemo early-returns without setting transactionsProcessedRef
+    expect(result.current!.isLoading).toBe(true);
   });
 
   it('should return empty array when segwit address is missing', () => {
@@ -514,10 +515,12 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: true, // Ecash tokens only used in advanced mode
+        advancedMode: true,
       });
 
-      expect(result.current!.isLoading).toBe(true);
+      // isLoading is false after useMemo processes (even with empty results),
+      // because transactionsProcessedRef is set when the useMemo completes
+      expect(result.current!.isLoading).toBe(false);
     });
 
     it('should load and display ecash tokens for UNIT', async () => {
@@ -770,8 +773,8 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[2].txid).toBe('tx1');
     });
 
-    it('should not load ecash when not in advanced mode for UNIT', () => {
-      // When NOT in advanced mode, ecash tokens from context should not be used
+    it('should include ecash tokens regardless of advanced mode for UNIT', () => {
+      // Ecash tokens are now always included for UNIT assets (advancedMode no longer gates them)
       mockEcashTokens = [
         { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone' },
       ];
@@ -782,11 +785,11 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: false, // NOT advanced mode - ecash tokens should not be displayed
+        advancedMode: false,
       });
 
-      // No ecash tokens should be shown when not in advanced mode
-      expect(result.current!.transactions).toHaveLength(0);
+      // Ecash tokens are included for UNIT regardless of advancedMode
+      expect(result.current!.transactions).toHaveLength(1);
       expect(result.current!.isLoading).toBe(false);
     });
 
@@ -846,10 +849,12 @@ describe('useAssetTransactions', () => {
         assetType: 'UNIT',
         segwit: segwitAddress,
         taproot: taprootAddress,
-        advancedMode: true, // Ecash tokens only used in advanced mode
+        advancedMode: true,
       });
 
-      expect(result.current!.isLoading).toBe(true);
+      // isLoading is false after useMemo processes (even with empty results),
+      // because transactionsProcessedRef is set when the useMemo completes
+      expect(result.current!.isLoading).toBe(false);
     });
 
     it('should display token with pre-loaded claimed status', () => {

@@ -5,7 +5,7 @@
  */
 
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
 import type { VaultHistoryTransaction } from '../services/vaultService';
 
@@ -63,7 +63,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     });
 
     try {
-      const stored = await AsyncStorage.getItem(getStorageKey(accountIndex));
+      const stored = await SecureStore.getItemAsync(getStorageKey(accountIndex));
       if (stored) {
         const tx = JSON.parse(stored) as PendingVaultTransaction;
         // Check if transaction is older than 1 hour - if so, clear it
@@ -76,7 +76,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
           });
         } else {
           // Clear stale transaction
-          await AsyncStorage.removeItem(getStorageKey(accountIndex));
+          await SecureStore.deleteItemAsync(getStorageKey(accountIndex));
           logger.info('[PendingVaultTx] Cleared stale pending vault transaction');
         }
       }
@@ -100,7 +100,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     set({ pendingTransaction: tx });
 
     try {
-      await AsyncStorage.setItem(getStorageKey(currentAccount), JSON.stringify(tx));
+      await SecureStore.setItemAsync(getStorageKey(currentAccount), JSON.stringify(tx));
     } catch (error) {
       logger.error('[PendingVaultTx] Error saving to storage:', {
         error: error instanceof Error ? error.message : String(error),
@@ -121,7 +121,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     set({ pendingTransaction: null });
 
     try {
-      await AsyncStorage.removeItem(getStorageKey(currentAccount));
+      await SecureStore.deleteItemAsync(getStorageKey(currentAccount));
     } catch (error) {
       logger.error('[PendingVaultTx] Error clearing from storage:', {
         error: error instanceof Error ? error.message : String(error),

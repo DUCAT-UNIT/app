@@ -4,16 +4,15 @@
  * All methods are fire-and-forget — never block UI or throw.
  */
 
+import type PostHog from 'posthog-react-native';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 
 // Lazy-initialized PostHog client
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let posthogClient: any = null;
+let posthogClient: PostHog | null = null;
 let initAttempted = false;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getClient(): any {
+function getClient(): PostHog | null {
   if (isE2E) return null;
   if (posthogClient) return posthogClient;
   if (initAttempted) return null;
@@ -69,7 +68,7 @@ export const analytics = {
    * Track an event with optional properties.
    * Fire-and-forget — never blocks, never throws.
    */
-  track(event: string, properties?: Record<string, unknown>): void {
+  track(event: string, properties?: Record<string, any>): void {
     try {
       getClient()?.capture(event, properties);
     } catch {
@@ -80,7 +79,7 @@ export const analytics = {
   /**
    * Track a screen view.
    */
-  screen(screenName: string, properties?: Record<string, unknown>): void {
+  screen(screenName: string, properties?: Record<string, any>): void {
     try {
       getClient()?.screen(screenName, properties);
     } catch {
@@ -89,11 +88,16 @@ export const analytics = {
   },
 
   /**
-   * Identify a user with traits. Uses hashed wallet address as ID.
+   * Identify a user in analytics.
+   * IMPORTANT: userId MUST be a pre-hashed value (use hashAddress() or hashString()).
+   * Never pass raw Bitcoin addresses or other PII as userId.
    */
-  identify(userId: string, traits?: Record<string, unknown>): void {
+  identifyHashed(hashedUserId: string, traits?: Record<string, any>): void {
     try {
-      getClient()?.identify(userId, traits);
+      if (hashedUserId.length !== 64) {
+        logger.warn('[Analytics] identifyHashed called with non-hash userId (expected 64-char hex)');
+      }
+      getClient()?.identify(hashedUserId, traits);
     } catch {
       // Never throw from analytics
     }
@@ -113,7 +117,7 @@ export const analytics = {
   /**
    * Set super properties attached to every subsequent event.
    */
-  setSuperProperties(props: Record<string, unknown>): void {
+  setSuperProperties(props: Record<string, any>): void {
     try {
       getClient()?.register(props);
     } catch {
@@ -127,7 +131,7 @@ export const analytics = {
   async trackWithAddress(
     event: string,
     address: string,
-    properties?: Record<string, unknown>,
+    properties?: Record<string, any>,
   ): Promise<void> {
     try {
       const hashed = await hashString(address);
@@ -143,7 +147,7 @@ export const analytics = {
   trackTransaction(
     event: string,
     txid: string,
-    properties?: Record<string, unknown>,
+    properties?: Record<string, any>,
   ): void {
     try {
       getClient()?.capture(event, {

@@ -44,6 +44,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
       if (!hasLoadedOnceRef.current) {
         setLoadingTransactionHistory(true);
       }
+      // Clear any previous error on new attempt
+      setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
 
       // Update state if transactions have changed

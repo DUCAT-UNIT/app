@@ -71,6 +71,7 @@ export async function retryWithBackoff<T>(
       const delay = Math.min(initialDelay * Math.pow(2, attempt), maxDelay);
 
       // Add jitter to prevent thundering herd
+      // Math.random() is intentional here — jitter is for retry timing, not cryptographic use
       const jitter = Math.random() * 0.3 * delay; // +/- 30% jitter
       const finalDelay = delay + jitter;
 

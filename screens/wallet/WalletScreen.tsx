@@ -84,6 +84,8 @@ const WalletScreen = React.memo(function WalletScreen({
   const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
+  const handleToggleBTCDisplay = useCallback(() => setShowTotalInBTC(prev => !prev), [setShowTotalInBTC]);
+
   // Calculate all wallet-related values (business logic extracted to hook)
   const {
     totalBalanceBTC,
@@ -245,7 +247,7 @@ const WalletScreen = React.memo(function WalletScreen({
       {/* Total Balance Section - Xverse Style */}
       <TotalBalanceSection
         showTotalInBTC={showTotalInBTC}
-        onToggle={() => setShowTotalInBTC(!showTotalInBTC)}
+        onToggle={handleToggleBTCDisplay}
         totalBTC={formatted.totalBTC}
         totalUSD={formatted.totalUSD}
         totalBalanceUSD={totalBalanceUSD}

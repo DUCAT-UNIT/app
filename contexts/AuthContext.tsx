@@ -182,6 +182,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
     startPinChange,
   } = authState;
 
+  // TODO: Split AuthContext into AuthSessionContext (isAuthenticated, biometricEnabled, lock, resetAuth)
+  // and PinFlowContext (pin, confirmPin, pinStep, pinError, etc.) to reduce re-render surface.
+  // Currently, PIN keystroke changes re-render all useAuth() consumers including RootNavigator.
   const value = useMemo(
     () => ({
       // Auth state (from useAuth hook)

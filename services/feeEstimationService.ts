@@ -123,7 +123,7 @@ export async function getRecommendedFeeRate(): Promise<number> {
   }
 
   // Enforce bounds
-  rate = Math.max(MIN_FEE, Math.min(rate, Number(MAX_FEE_RATE ?? 50)));
+  rate = Math.max(MIN_FEE, Math.min(rate, Number(MAX_FEE_RATE)));
   feeCache = { rate, fetchedAt: now };
   return rate;
 }

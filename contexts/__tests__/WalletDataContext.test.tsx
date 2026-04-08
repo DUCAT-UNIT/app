@@ -255,7 +255,7 @@ describe('WalletDataContext', () => {
         onPoll: expect.any(Function),
         interval: 10000,
         enabled: true,
-        immediate: true,
+        immediate: false,
       });
     });
 
@@ -269,7 +269,7 @@ describe('WalletDataContext', () => {
         onPoll: expect.any(Function),
         interval: 10000,
         enabled: false,
-        immediate: true,
+        immediate: false,
       });
     });
 

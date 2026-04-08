@@ -501,22 +501,22 @@ describe('useTurboTokenProcessor', () => {
   });
 
   describe('polling behavior', () => {
-    it('should poll for pending tokens at 500ms intervals', async () => {
+    it('should poll for pending tokens at 2000ms intervals', async () => {
       renderHook(() => useTurboTokenProcessor(mockProps as any));
 
       // Should check immediately
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(1);
 
-      // Advance timer by 500ms
+      // Advance timer by 2000ms
       act(() => {
-        jest.advanceTimersByTime(500);
+        jest.advanceTimersByTime(2000);
       });
 
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(2);
 
-      // Advance another 500ms
+      // Advance another 2000ms
       act(() => {
-        jest.advanceTimersByTime(500);
+        jest.advanceTimersByTime(2000);
       });
 
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(3);

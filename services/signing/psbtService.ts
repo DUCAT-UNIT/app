@@ -543,6 +543,9 @@ function signKeyPathWithFallback(
     // Fall back to manual signing
     const { scripts, values } = extractWitnessData(psbt);
 
+    // INTERNAL API: Accessing bitcoinjs-lib private __CACHE.__TX for sighash computation.
+    // This is not part of the public API and may break on library updates.
+    // Pinned to bitcoinjs-lib v7.x — verify after any version bump.
     const psbtCache = (psbt as unknown as { __CACHE: PsbtCache }).__CACHE;
     const tx = psbtCache.__TX.clone();
     const sighash = Buffer.from(tx.hashForWitnessV1(
@@ -600,6 +603,9 @@ function matchesExpectedPsbtTemplate(
   psbt: bitcoin.Psbt,
   expected: ExpectedPsbtTemplate
 ): boolean {
+  // INTERNAL API: Accessing bitcoinjs-lib private __CACHE.__TX for sighash computation.
+  // This is not part of the public API and may break on library updates.
+  // Pinned to bitcoinjs-lib v7.x — verify after any version bump.
   const unsignedTx = (psbt as unknown as {
     __CACHE?: { __TX?: { version: number; locktime: number } };
   }).__CACHE?.__TX;
@@ -661,6 +667,11 @@ function enforceIntentOutputs(
   psbt: bitcoin.Psbt,
   intent?: PsbtSigningIntent
 ): void {
+  // SECURITY NOTE: skipOutputValidation bypasses ALL output checks. Currently used only
+  // for liquidation swap PSBTs from the Guardian server. This is a known risk — if the
+  // Guardian is compromised, swap PSBTs could drain funds. A narrow output allowlist
+  // should replace this blanket bypass before mainnet launch.
+  // TODO: Replace skipOutputValidation with allowedOutputAddresses validation
   if (intent?.skipOutputValidation) {
     return;
   }

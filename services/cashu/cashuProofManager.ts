@@ -209,11 +209,8 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
       return [];
     }
 
-    // Log stack trace to see who's calling this
-    const caller = new Error().stack?.split('\n')[2]?.trim() || 'unknown';
     logger.info('Loaded proofs from storage', {
       count: proofs.length,
-      caller: caller.substring(0, 100), // Truncate to avoid huge logs
     });
 
     return proofs;
