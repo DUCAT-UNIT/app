@@ -171,7 +171,8 @@ export function useEcashThresholdManager({
 
       // Use setTimeout to ensure settings close completes
       setTimeout(() => {
-        const amountStr = conversionAmount?.toString() || '0';
+        // conversionAmount is in cents; send flow expects display units
+        const amountStr = (conversionAmount / 100).toString();
 
         try {
           // Navigate from root navigator to ensure modal opens correctly
