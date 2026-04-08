@@ -106,8 +106,8 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={[localStyles.assetLogoContainer, { width: s(40), height: s(40), marginRight: s(10), marginLeft: 0 }]}>
-        <Icon name="unit_logo" size={s(40)} />
+      <View style={[localStyles.assetLogoContainer, { width: s(36), height: s(36), marginRight: s(12), marginLeft: 0 }]}>
+        <Icon name="unit_logo" size={s(36)} />
         <Text style={[localStyles.lightningBadge, { bottom: s(-4), right: s(-3), fontSize: sf(16), lineHeight: sf(16) }]}>⚡</Text>
       </View>
       <View style={localStyles.txContentContainer}>

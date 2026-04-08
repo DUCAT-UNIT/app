@@ -125,7 +125,7 @@ export default function VaultTransactionItem({ tx, styles, onPress }: VaultTrans
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={{ marginRight: s(16), alignSelf: 'center' }}>
+      <View style={{ marginRight: s(12), alignSelf: 'center' }}>
         <Icon name={action === 'Swap' ? 'unit_logo' : 'vault_logo'} size={s(36)} />
       </View>
       <View style={localStyles.txContentContainer}>

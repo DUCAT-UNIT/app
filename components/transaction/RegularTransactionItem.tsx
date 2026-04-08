@@ -112,7 +112,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <View style={{ marginRight: s(10), marginLeft: 0 }}>
+      <View style={{ marginRight: s(12), marginLeft: 0 }}>
         <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : 'btc_logo')}
           size={s(36)} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
