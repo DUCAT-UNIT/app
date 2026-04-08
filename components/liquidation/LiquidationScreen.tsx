@@ -194,7 +194,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
         : 0;
       const exactTotalBtc = exactClaimBtc + exactSwapBtc;
       const exactReturnBtc = exactTotalBtc + exactProfitBtc;
-      const exactProfitPercent = exactTotalBtc > 0 ? (exactProfitBtc / exactTotalBtc) * 100 : 0;
+      const exactProfitPercent = exactClaimBtc > 0 ? (exactProfitBtc / exactClaimBtc) * 100 : 0;
 
       return (
         <LiquidationReviewScreen

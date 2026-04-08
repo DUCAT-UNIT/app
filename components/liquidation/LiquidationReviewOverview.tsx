@@ -83,7 +83,7 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
           <View style={styles.row}>
             <View>
               <Text style={styles.rowLabel}>Total BTC required</Text>
-              <Text style={[styles.rowSub, { textAlign: 'left' }]}>from your vault</Text>
+              <Text style={[styles.rowSub, { textAlign: 'left' }]}>from your wallet</Text>
             </View>
             <View>
               <Text style={[styles.rowValue, { fontFamily: fonts.bold }]}>{fmt(totalBtc)} BTC</Text>
