@@ -79,7 +79,7 @@ export default function EcashConversionModal({
           <View style={styles.infoBox}>
             <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
             <Text style={styles.infoText}>
-              Turbo UNIT enables instant payments for transactions under {newThreshold === Infinity ? 'any amount' : `${newThreshold} UNIT`}.
+              Turbo UNIT enables instant payments for transactions under {newThreshold === Infinity ? 'any amount' : `${(newThreshold / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UNIT`}.
             </Text>
           </View>
 
