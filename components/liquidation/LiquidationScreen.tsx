@@ -1,5 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { analytics } from '../../services/analyticsService';
+import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 import Icon from '../icons';
 import ErrorBoundary from '../ErrorBoundary';
 import { selectItemsForAmount, getTotalClaimBtc, getTotalEstimatedProfit } from '../../services/liquidation/calculations';
@@ -86,6 +88,13 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     setReviewTab,
     setVaultExpanded,
   } = useLiquidationFlowStore.getState();
+
+  // Track screen opened when visible
+  useEffect(() => {
+    if (visible) {
+      analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_SCREEN_OPENED);
+    }
+  }, [visible]);
 
   // ── Hooks ────────────────────────────────────────────────────────
   const { maxInvestable } = useLiquidationVaults({

@@ -9,6 +9,8 @@ import React,{ useEffect,useRef,useState } from 'react';
 import { ActivityIndicator,StyleSheet,Text,View } from 'react-native';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
+import { analytics } from '../../services/analyticsService';
+import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { useNotifications } from "../../stores/notificationStore";
 import { useSendFlow,type AssetType } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
@@ -150,6 +152,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       }
 
       hasStarted.current = true;
+      analytics.track(TRANSACTION_EVENTS.SEND_PROCESSING, { asset_type: sendAssetType });
       // Small delay to allow screen to render before starting heavy operations
       const timer = setTimeout(() => {
         logger.debug('Creating send intent for asset type:', sendAssetType);
@@ -185,6 +188,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
         } catch (error: unknown) {
           if (cancelled) return;
           const errorMessage = error instanceof Error ? error.message : String(error) || 'Transaction failed';
+          analytics.track(TRANSACTION_EVENTS.SEND_FAILED, { asset_type: sendAssetType, error: errorMessage });
           logger.error('Signing error:', { error: errorMessage });
           handleNavigationError(errorMessage);
         }
@@ -218,6 +222,10 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
         // Error - go back to amount input
         logger.debug('Error creating intent, going back to amount');
         hasNavigated.current = true;
+        analytics.track(TRANSACTION_EVENTS.SEND_FAILED, {
+          asset_type: sendAssetType,
+          error: 'Failed to create transaction',
+        });
         handleNavigationError('Failed to create transaction. Please check your balance and try again.');
       }
     }

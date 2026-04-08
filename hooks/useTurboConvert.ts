@@ -5,6 +5,8 @@
 
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
+import { analytics } from '../services/analyticsService';
+import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
 import { getRunesAmount } from '../utils/runesHelper';
 import { requestMint } from '../services/cashu/cashuWalletService';
@@ -43,6 +45,7 @@ export function useTurboConvert({
     try {
       // Request mint quote — mint expects smallest units (cents), not display units
       const unitRunesCents = Math.round(unitRunesAmount * 100);
+      analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount: unitRunesCents });
       const mintQuote = await requestMint(unitRunesCents);
 
       // Navigate to TurboLoading screen

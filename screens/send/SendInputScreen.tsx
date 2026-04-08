@@ -29,6 +29,8 @@ import { useTurboReview } from '../../hooks/useTurboReview';
 import { TransactionType } from '../../services/feeEstimationService';
 import { usePrice } from '../../stores/priceStore';
 import { useSendFlowStore,type AssetType } from '../../stores/sendFlowStore';
+import { analytics } from '../../services/analyticsService';
+import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 
 // Local hooks and components
@@ -160,6 +162,12 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     hasSufficientBtcForUnitFees,
     isRequestingMint,
   });
+
+  // Track send flow started on mount
+  useEffect(() => {
+    analytics.track(TRANSACTION_EVENTS.SEND_STARTED, { asset_type: sendAssetType });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Set asset type from route params
   useEffect(() => {

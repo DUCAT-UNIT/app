@@ -5,6 +5,8 @@
 
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
+import { analytics } from '../services/analyticsService';
+import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { logger } from '../utils/logger';
 import { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } from '../services/cashu/cashuWalletService';
 
@@ -54,6 +56,7 @@ export function useFuseEcash({
           text: 'Fuse',
           onPress: async () => {
             try {
+              analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount: cashuBalance });
               // Request melt quote
               const quote = await requestMelt(taprootAddress, cashuBalance);
 

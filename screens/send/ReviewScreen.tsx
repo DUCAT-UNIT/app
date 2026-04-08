@@ -15,6 +15,8 @@ import UnconfirmedWarning from '../../components/review/UnconfirmedWarning';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
+import { analytics } from '../../services/analyticsService';
+import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { useSendFlowStore } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
 
@@ -63,6 +65,17 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   const selectedFeeRate = useSendFlowStore((state) => state.selectedFeeRate);
   const { cancelIntent } = useTransactionBuild();
   const isFocused = useIsFocused();
+
+  // Track review screen viewed on mount
+  useEffect(() => {
+    if (sendIntent) {
+      analytics.track(TRANSACTION_EVENTS.SEND_REVIEWED, {
+        asset_type: sendIntent.assetType,
+        amount: sendIntent.amount,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle missing sendIntent - navigate back only when this screen is focused.
   // sendIntent gets cleared during broadcast (sign_and_broadcast phase), but ReviewScreen
