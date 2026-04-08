@@ -130,10 +130,29 @@ export async function createBtcIntent(
     // Create fee calculator
     const calculateFee = createFeeCalculator(feeRate);
 
+    // Detect "send max" — user is trying to send their entire balance
+    const totalAvailable = availableUtxos.reduce((sum, u) => sum + u.value, 0);
+    let effectiveAmountInSats = amountInSats;
+
+    if (amountInSats >= totalAvailable) {
+      // Max send: deduct fee from send amount (1 output, no change)
+      const maxFee = calculateFee(availableUtxos.length, 1);
+      effectiveAmountInSats = totalAvailable - maxFee;
+      if (effectiveAmountInSats <= 0) {
+        throw new Error(ERRORS.INSUFFICIENT_FUNDS);
+      }
+      logger.info('[BTC Intent] Max send detected, reducing amount by fee', {
+        originalAmount: amountInSats,
+        effectiveAmount: effectiveAmountInSats,
+        fee: maxFee,
+        totalAvailable,
+      });
+    }
+
     // Select UTXOs and calculate fee
     const { selectedUtxos, totalInput, fee, change } = selectUtxosForTransaction(
       availableUtxos,
-      amountInSats,
+      effectiveAmountInSats,
       calculateFee,
       BITCOIN_TX.DUST_LIMIT
     );
@@ -143,19 +162,19 @@ export async function createBtcIntent(
       totalInput,
       fee,
       change,
-      amountInSats,
-      requiredAmount: amountInSats + fee,
-      shortfall: (amountInSats + fee) - totalInput,
+      amountInSats: effectiveAmountInSats,
+      requiredAmount: effectiveAmountInSats + fee,
+      shortfall: (effectiveAmountInSats + fee) - totalInput,
     });
 
     // Final check for sufficient funds
-    const requiredAmount = amountInSats + fee;
+    const requiredAmount = effectiveAmountInSats + fee;
     if (totalInput < requiredAmount) {
       logger.error(new Error('[BTC Intent] Insufficient funds'), {
         totalInput,
         requiredAmount,
         shortfall: requiredAmount - totalInput,
-        amountInSats,
+        amountInSats: effectiveAmountInSats,
         fee,
       });
       throw new Error(ERRORS.INSUFFICIENT_FUNDS);
@@ -168,7 +187,7 @@ export async function createBtcIntent(
     const psbt = buildBtcPsbt(
       inputsWithTx,
       validatedRecipient,
-      amountInSats,
+      effectiveAmountInSats,
       sourceAddress,
       change,
       BITCOIN_TX.DUST_LIMIT
@@ -179,8 +198,8 @@ export async function createBtcIntent(
       id: `${Date.now()}-${Buffer.from(Crypto.getRandomBytes(8)).toString('hex')}`,
       type: 'send',
       assetType: 'BTC',
-      amount: amountInSats,
-      amountBTC: amount,
+      amount: effectiveAmountInSats,
+      amountBTC: (effectiveAmountInSats / 100000000).toFixed(8),
       recipient: validatedRecipient,
       fee,
       addressType,
