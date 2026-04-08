@@ -93,8 +93,10 @@ export function useBalanceData(
       }
 
       try {
-        setLoadingBalance(true);
-        setBalanceError(null);
+        // Only show loading on first fetch — avoids flicker on 10s poll cycles
+        if (!prevBalancesRef.current.segwit && !prevBalancesRef.current.taproot) {
+          setLoadingBalance(true);
+        }
         const balances = await fetchWalletBalances(segwitAddress, taprootAddress);
 
         // Only update state if balances have actually changed
@@ -178,7 +180,9 @@ export function useBalanceData(
       } catch (error: unknown) {
         setBalanceError('Failed to fetch balance. Tap to retry.');
       } finally {
-        setLoadingBalance(false);
+        if (loadingBalance) {
+          setLoadingBalance(false);
+        }
       }
     },
     [wallet, getUnconfirmedBalance, getUnconfirmedUTXOs]

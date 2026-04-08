@@ -73,8 +73,10 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     }
 
     try {
-      setLoadingVault(true);
-      setVaultError(null);
+      // Only show loading on first fetch — avoids flicker on poll cycles
+      if (!vaultData) {
+        setLoadingVault(true);
+      }
 
       // E2E bypass: return fake vault data when vault was "created" via bypass
       if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && e2eVaultState.vaultCreated) {
@@ -122,7 +124,9 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
       logger.error('[useVaultDataFetch] Failed to fetch vault data', { error: error instanceof Error ? error.message : String(error) });
       setVaultError('Failed to fetch vault data');
     } finally {
-      setLoadingVault(false);
+      if (loadingVault) {
+        setLoadingVault(false);
+      }
     }
   }, [wallet]);
 
@@ -161,7 +165,9 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
     } catch (error: unknown) {
       logger.error('[useVaultDataFetch] Failed to fetch vault transactions', { error: error instanceof Error ? error.message : String(error) });
     } finally {
-      setLoadingVaultTransactions(false);
+      if (loadingVaultTransactions) {
+        setLoadingVaultTransactions(false);
+      }
     }
   }, [wallet, vaultTransactions.length]);
 
