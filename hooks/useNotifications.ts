@@ -45,6 +45,7 @@ interface UseNotificationsReturn {
 export function useNotifications(
   onNotificationResponse?: NotificationResponseHandler,
   walletAddress?: string,
+  notificationsEnabled?: boolean,
 ): UseNotificationsReturn {
   const notificationListener = useRef<Subscription | undefined>(undefined);
   const responseListener = useRef<Subscription | undefined>(undefined);
@@ -53,7 +54,8 @@ export function useNotifications(
   useEffect(() => {
     if (isE2E || !walletAddress) return;
     void (async () => {
-      const enabled = await getNotificationsEnabled();
+      // Use the reactive prop if provided, otherwise fall back to async check
+      const enabled = notificationsEnabled ?? (await getNotificationsEnabled());
       if (enabled) {
         const token = await initializePushNotifications(walletAddress);
         if (token) {
@@ -61,7 +63,7 @@ export function useNotifications(
         }
       }
     })();
-  }, [walletAddress]);
+  }, [walletAddress, notificationsEnabled]);
 
   useEffect(() => {
     // Request permissions on mount

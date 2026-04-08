@@ -37,6 +37,7 @@ useAuthFlowHandlers,
 useBalance,
 useCashuOperations,
 useOnboardingFlow,
+useSettingsHandlers,
 useWallet,
 } from '../contexts';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
@@ -141,6 +142,7 @@ export default function RootNavigator(): React.JSX.Element {
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
+  const { settingsHandlers } = useSettingsHandlers();
 
   // Notification tap response handler — routes to appropriate screen
   const handleNotificationResponse = useCallback((dataType: NotificationDataType) => {
@@ -169,7 +171,7 @@ export default function RootNavigator(): React.JSX.Element {
   }, [isAuthenticated]);
 
   // Initialize push notification hooks (foreground handler + response listener)
-  useNotificationsPush(handleNotificationResponse, wallet?.segwitAddress);
+  useNotificationsPush(handleNotificationResponse, wallet?.segwitAddress, settingsHandlers.notificationsEnabled);
 
   // Deep notification response listener — handles taps when app was killed/backgrounded
   useEffect(() => {
