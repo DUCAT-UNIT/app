@@ -6,6 +6,7 @@
 import { useCallback } from 'react';
 import { broadcastTransaction } from '../../services/transaction';
 import * as BackgroundTaskService from '../../services/backgroundTaskService';
+import { watchTransaction } from '../../services/pushNotificationService';
 import { parseErrorMessage } from '../../utils/errorParser';
 import { ERRORS } from '../../utils/messages';
 import { logger } from '../../utils/logger';
@@ -120,6 +121,9 @@ export function useTransactionBroadcast({
 
         const txid = await broadcastTransaction(intent.signedTxHex);
         logger.debug('✅ Broadcast successful, txid:', txid);
+
+        // Register TX for push-notification monitoring (fire-and-forget)
+        void watchTransaction(txid, wallet?.segwitAddress || '');
 
         // Extract outputs and track pending transaction
         try {

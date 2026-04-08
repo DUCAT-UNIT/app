@@ -122,6 +122,44 @@ export async function sendLocalNotification(params: {
 }
 
 /**
+ * Register a transaction for push-notification monitoring.
+ * The server will send a push when the TX confirms on-chain.
+ * Fire-and-forget — errors are silently logged; never blocks the caller.
+ *
+ * @param txid - The broadcast transaction ID
+ * @param walletAddress - The wallet's primary address for association
+ * @param type - Notification type hint (default: 'tx_confirmed')
+ */
+export async function watchTransaction(
+  txid: string,
+  walletAddress: string,
+  type?: string
+): Promise<void> {
+  if (isE2E) return;
+
+  try {
+    const token = await getExpoPushToken();
+    if (!token) {
+      logger.debug('[PushNotification] No push token — skipping watch-tx registration');
+      return;
+    }
+
+    await postJSON('https://notifications.ducatprotocol.com/api/watch-tx', {
+      txid,
+      token,
+      walletAddress,
+      type: type || 'tx_confirmed',
+    });
+    logger.info('[PushNotification] TX watch registered', { txid: txid.substring(0, 8) + '...' });
+  } catch (error: unknown) {
+    logger.error('[PushNotification] Failed to register TX watch', {
+      error: error instanceof Error ? error.message : String(error),
+      txid: txid.substring(0, 8) + '...',
+    });
+  }
+}
+
+/**
  * Initialize push notifications on app start.
  * Requests permissions, obtains a push token, registers it with the backend,
  * and configures the Android notification channel.

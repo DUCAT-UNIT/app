@@ -32,6 +32,7 @@ import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransa
 import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
+import { watchTransaction } from '../../services/pushNotificationService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import type {
 ProcessingStep,
@@ -346,6 +347,13 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         vault_txid: resultVaultTxid,
       });
       analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, { operation: operationName });
+
+      // Register vault TX for push-notification monitoring (fire-and-forget)
+      void watchTransaction(
+        resultVaultTxid,
+        wallet?.segwitAddress || '',
+        'vault_operation'
+      );
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {

@@ -18,7 +18,7 @@ import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransa
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
-import { sendLocalNotification } from '../../services/pushNotificationService';
+import { sendLocalNotification, watchTransaction } from '../../services/pushNotificationService';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 
@@ -135,6 +135,11 @@ export function useLiquidationExecution({
         store.getState().setResultTxid(result.txid || null);
         store.getState().setCurrentStep('success');
         if (result.txid) analytics.trackTransaction(LIQUIDATION_EVENTS.LIQUIDATION_COMPLETED, result.txid);
+
+        // Register liquidation TX for push-notification monitoring (fire-and-forget)
+        if (result.txid) {
+          void watchTransaction(result.txid, wallet?.segwitAddress || '', 'liquidation');
+        }
 
         // Add as pending vault transaction
         if (result.txid) {
