@@ -18,6 +18,8 @@ import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransa
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
+import { sendLocalNotification } from '../../services/pushNotificationService';
+import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 
 interface UseLiquidationExecutionParams {
@@ -167,6 +169,12 @@ export function useLiquidationExecution({
                 const swapUnitAmount = store.getState().vaultsFull.reduce((acc, v) => acc + v.unit, 0);
                 await registerSwapTxid(swapTxid, swapUnitAmount);
                 logger.info('[Liquidation] Swap broadcast success', { swapTxid });
+                // Notify user that UNIT swap arrived
+                void sendLocalNotification({
+                  title: 'UNIT Swap Complete',
+                  body: `You received ${formatUnitAmount(swapUnitAmount)} UNIT from your liquidation swap.`,
+                  data: { type: 'swap_complete', txid: swapTxid },
+                });
               } else {
                 logger.warn('[Liquidation] Swap broadcast returned no txid');
               }
