@@ -82,22 +82,22 @@ export function useAssetTransactions(
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
 
-  // Filter tokens: only use for UNIT in advanced mode
+  // Include ecash tokens for UNIT asset view (Turbo UNIT transactions)
   const ecashTokens = useMemo(
-    () => ((assetType === 'UNIT' && advancedMode) ? preloadedEcashTokens : []),
-    [assetType, advancedMode, preloadedEcashTokens]
+    () => (assetType === 'UNIT' ? preloadedEcashTokens : []),
+    [assetType, preloadedEcashTokens]
   );
 
-  // Ecash is ready if: not UNIT, or not advanced mode (doesn't need ecash), or tokens have loaded
-  const ecashReady = assetType !== 'UNIT' || !advancedMode || !loadingEcashTokens || preloadedEcashTokens.length > 0;
+  // Ecash is ready if: not UNIT, or tokens have loaded
+  const ecashReady = assetType !== 'UNIT' || !loadingEcashTokens || preloadedEcashTokens.length > 0;
 
-  // Trigger background refresh when component mounts (data is already available)
+  // Trigger background refresh when viewing UNIT
   useEffect(() => {
-    if (assetType === 'UNIT' && advancedMode) {
+    if (assetType === 'UNIT') {
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assetType, advancedMode]);
+  }, [assetType]);
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {
