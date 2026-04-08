@@ -340,13 +340,10 @@ export async function executeLiquidation(
         const swapManifest: Record<string, number[]> = {
           [wallet.acct.sats.address]: swapData.user_input_indices,
         };
-        // Use signPsbtRaw with empty expectedPsbtTemplates to skip vault template check
+        // Use signPsbtRaw with skipOutputValidation — swap outputs go to faucet, not our addresses
         const signedSwapPsbt = await signPsbtRaw(swapData.psbt, swapManifest, {
-          recipient: wallet.acct.vault.address,
-          change: wallet.acct.sats.address,
-          minAmountSats: 0,
-          allowOpReturn: true,
-          expectedPsbtTemplates: [], // Empty = skip template validation
+          recipient: wallet.acct.sats.address,
+          skipOutputValidation: true,
         });
         swapPsbtHex = finalizeSwapPsbt(signedSwapPsbt);
         logger.info('[Liquidation] Swap PSBT signed and finalized', {

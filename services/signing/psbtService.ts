@@ -44,6 +44,8 @@ interface PsbtSigningIntent {
   minAmountSats?: number;
   allowOpReturn?: boolean;
   expectedPsbtTemplates?: ExpectedPsbtTemplate[];
+  /** Skip output validation entirely (for non-vault PSBTs like swaps) */
+  skipOutputValidation?: boolean;
 }
 
 const TAPROOT_PREFIX = `${NETWORK.bech32}1p`;
@@ -659,6 +661,10 @@ function enforceIntentOutputs(
   psbt: bitcoin.Psbt,
   intent?: PsbtSigningIntent
 ): void {
+  if (intent?.skipOutputValidation) {
+    return;
+  }
+
   if (!intent?.recipient) {
     throw new Error('SECURITY: Missing intent for PSBT signing');
   }
