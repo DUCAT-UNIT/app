@@ -15,6 +15,8 @@ import Icon from '../../components/icons';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useRemoteConfigStore } from '../../stores/remoteConfigStore';
+import { analytics } from '../../services/analyticsService';
+import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
 import { logger } from '../../utils/logger';
 import { styles } from './AdvancedScreen.styles';
 
@@ -80,6 +82,22 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
     return `${(ecashThreshold / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UNIT`;
   };
 
+  const handleAdvancedModeToggle = (): void => {
+    onAdvancedModeToggle();
+    analytics.track(SETTINGS_EVENTS.PREFERENCE_CHANGED, {
+      setting: 'advanced_mode',
+      value: !advancedMode,
+    });
+  };
+
+  const handleEcashThresholdPress = (): void => {
+    onEcashThresholdPress();
+    analytics.track(SETTINGS_EVENTS.PREFERENCE_CHANGED, {
+      setting: 'ecash_threshold',
+      value: ecashThreshold,
+    });
+  };
+
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
@@ -98,14 +116,14 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
             <SettingsOption
               iconName="asset"
               title="Developer Mode"
-              onPress={onAdvancedModeToggle}
+              onPress={handleAdvancedModeToggle}
               rightText={advancedMode ? 'ON' : 'OFF'}
               testID="advanced-dev-mode-btn"
             />
             <SettingsOption
               iconName="unit_logo"
               title="Turbo UNIT Default"
-              onPress={onEcashThresholdPress}
+              onPress={handleEcashThresholdPress}
               rightText={getThresholdDisplay()}
               testID="advanced-ecash-threshold-btn"
             />

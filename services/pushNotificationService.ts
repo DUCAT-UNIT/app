@@ -55,14 +55,16 @@ export async function getExpoPushToken(): Promise<string | null> {
  * Register a push token with the backend server.
  * @param token - Expo push token string
  * @param walletAddress - The wallet's primary address for association
+ * @param vaultPubkey - Optional taproot pubkey for vault health monitoring
  */
-export async function registerPushToken(token: string, walletAddress: string): Promise<void> {
+export async function registerPushToken(token: string, walletAddress: string, vaultPubkey?: string): Promise<void> {
   if (isE2E) return;
 
   try {
     await postJSON('https://notifications.ducatprotocol.com/api/register', {
       token,
       walletAddress,
+      vaultPubkey,
       network: 'mutinynet',
     });
     logger.info('[PushNotification] Token registered with backend');
@@ -125,9 +127,10 @@ export async function sendLocalNotification(params: {
  * and configures the Android notification channel.
  *
  * @param walletAddress - The wallet's primary address for backend association
+ * @param vaultPubkey - Optional taproot pubkey for vault health monitoring
  * @returns The Expo push token, or null if initialization failed
  */
-export async function initializePushNotifications(walletAddress: string): Promise<string | null> {
+export async function initializePushNotifications(walletAddress: string, vaultPubkey?: string): Promise<string | null> {
   if (isE2E) {
     logger.debug('[PushNotification] Skipped initialization in E2E mode');
     return null;
@@ -146,7 +149,7 @@ export async function initializePushNotifications(walletAddress: string): Promis
 
     const token = await getExpoPushToken();
     if (token) {
-      await registerPushToken(token, walletAddress);
+      await registerPushToken(token, walletAddress, vaultPubkey);
     }
 
     logger.info('[PushNotification] Initialization complete', { hasToken: !!token });

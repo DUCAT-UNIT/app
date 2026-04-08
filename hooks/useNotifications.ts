@@ -46,6 +46,7 @@ export function useNotifications(
   onNotificationResponse?: NotificationResponseHandler,
   walletAddress?: string,
   notificationsEnabled?: boolean,
+  vaultPubkey?: string,
 ): UseNotificationsReturn {
   const notificationListener = useRef<Subscription | undefined>(undefined);
   const responseListener = useRef<Subscription | undefined>(undefined);
@@ -57,7 +58,7 @@ export function useNotifications(
       // Use the reactive prop if provided, otherwise fall back to async check
       const enabled = notificationsEnabled ?? (await getNotificationsEnabled());
       if (enabled) {
-        const token = await initializePushNotifications(walletAddress);
+        const token = await initializePushNotifications(walletAddress, vaultPubkey);
         if (token) {
           logger.info('[Notifications] Push token registered', { token: token.substring(0, 20) });
         }

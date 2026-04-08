@@ -11,6 +11,8 @@ import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransacti
 import { useSendFlowStore } from '../stores/sendFlowStore';
 import { sendLocalNotification } from '../services/pushNotificationService';
 import { getNotificationsEnabled } from '../services/settingsService';
+import { analytics } from '../services/analyticsService';
+import { VAULT_EVENTS } from '../constants/analyticsEvents';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 import { useWallet } from './WalletContext';
@@ -119,6 +121,10 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
           });
           lastHealthAlertRef.current.critical = now;
           await AsyncStorage.setItem(VAULT_HEALTH_CRITICAL_KEY, String(now));
+          analytics.track(VAULT_EVENTS.VAULT_HEALTH_WARNING, {
+            health_percent: healthPercent,
+            level: 'critical',
+          });
           logger.info('[VaultContext] Sent critical vault health alert', { healthPercent });
         }
       } else if (healthPercent < 200 && healthPercent > 170) {
@@ -131,6 +137,10 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
           });
           lastHealthAlertRef.current.warning = now;
           await AsyncStorage.setItem(VAULT_HEALTH_WARNING_KEY, String(now));
+          analytics.track(VAULT_EVENTS.VAULT_HEALTH_WARNING, {
+            health_percent: healthPercent,
+            level: 'warning',
+          });
           logger.info('[VaultContext] Sent warning vault health alert', { healthPercent });
         }
       }
