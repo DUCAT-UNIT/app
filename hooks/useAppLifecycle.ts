@@ -66,30 +66,11 @@ export function useAppLifecycle({
     isProcessingRef.current = isProcessing;
   }, [isProcessing]);
 
-  // Prevent screenshots while the wallet UI is mounted
+  // Screen capture protection disabled — allows screenshots and screen recordings
+  // Re-enable for production/mainnet if needed
   useEffect(() => {
-    const manageScreenCapture = async () => {
-      try {
-        await ScreenCapture.preventScreenCaptureAsync();
-      } catch (error: unknown) {
-        // Non-critical: screen capture permissions may not be available on all devices
-        logger.debug('[useAppLifecycle] Screen capture setup skipped', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    };
-
-    manageScreenCapture();
-
-    // Cleanup: restore the platform default when the hook unmounts
-    return () => {
-      Promise.resolve(ScreenCapture.allowScreenCaptureAsync()).catch((error) => {
-        // Cleanup errors are expected and non-critical, but log for debugging
-        logger.debug('[useAppLifecycle] Screen capture cleanup failed (non-critical)', {
-          error: error instanceof Error ? error.message : String(error)
-        });
-      });
-    };
+    // Ensure screen capture is allowed
+    void ScreenCapture.allowScreenCaptureAsync().catch(() => {});
   }, []);
 
   // Handle app state changes (background/foreground)
