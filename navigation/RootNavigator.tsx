@@ -169,7 +169,7 @@ export default function RootNavigator(): React.JSX.Element {
   }, [isAuthenticated]);
 
   // Initialize push notification hooks (foreground handler + response listener)
-  useNotificationsPush(handleNotificationResponse);
+  useNotificationsPush(handleNotificationResponse, wallet?.segwitAddress);
 
   // Deep notification response listener — handles taps when app was killed/backgrounded
   useEffect(() => {

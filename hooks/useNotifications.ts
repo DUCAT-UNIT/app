@@ -9,7 +9,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Subscription } from 'expo-notifications';
 import type { DisplayAssetType } from '../types/assets';
-import { sendLocalNotification } from '../services/pushNotificationService';
+import { sendLocalNotification, initializePushNotifications } from '../services/pushNotificationService';
+import { getNotificationsEnabled } from '../services/settingsService';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 
@@ -43,9 +44,24 @@ interface UseNotificationsReturn {
 
 export function useNotifications(
   onNotificationResponse?: NotificationResponseHandler,
+  walletAddress?: string,
 ): UseNotificationsReturn {
   const notificationListener = useRef<Subscription | undefined>(undefined);
   const responseListener = useRef<Subscription | undefined>(undefined);
+
+  // Initialize push notifications when wallet is available and notifications enabled
+  useEffect(() => {
+    if (isE2E || !walletAddress) return;
+    void (async () => {
+      const enabled = await getNotificationsEnabled();
+      if (enabled) {
+        const token = await initializePushNotifications(walletAddress);
+        if (token) {
+          logger.info('[Notifications] Push token registered', { token: token.substring(0, 20) });
+        }
+      }
+    })();
+  }, [walletAddress]);
 
   useEffect(() => {
     // Request permissions on mount
