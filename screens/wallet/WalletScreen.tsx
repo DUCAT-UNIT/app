@@ -352,7 +352,7 @@ const WalletScreen = React.memo(function WalletScreen({
         )}
       </ScrollView>
 
-      {/* Liquidations Screen - circular reveal from bottom-left FAB */}
+      {/* Liquidations disabled for App Store review
       {showLiquidations && (
         <Animated.View
           style={[
@@ -362,7 +362,6 @@ const WalletScreen = React.memo(function WalletScreen({
                 inputRange: [0, 0.3, 1],
                 outputRange: [0, 1, 1],
               }),
-              // Circular expand: scale from bottom-left origin
               transform: [
                 { translateX: expandAnim.interpolate({
                   inputRange: [0, 1],
@@ -396,7 +395,6 @@ const WalletScreen = React.memo(function WalletScreen({
         </Animated.View>
       )}
 
-      {/* FAB - toggles between liquidations and vault icon */}
       <TouchableOpacity
         style={[localStyles.liquidationsFab, { bottom: s(38), left: s(16), width: s(52), height: s(52), borderRadius: s(26) }]}
         onPress={toggleLiquidations}
@@ -410,6 +408,7 @@ const WalletScreen = React.memo(function WalletScreen({
           color="#FFFFFF"
         />
       </TouchableOpacity>
+      */}
     </View>
   );
 });
