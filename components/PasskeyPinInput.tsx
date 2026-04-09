@@ -10,7 +10,6 @@ import { useResponsive } from '../hooks/useResponsive';
 import styles from '../styles';
 import { colors,fonts,fontSizes } from '../styles/theme';
 import { COLORS } from '../theme';
-import MutinynetBanner from './MutinynetBanner';
 import Icon from './icons';
 
 interface PasskeyPinInputProps {
@@ -49,9 +48,7 @@ export default function PasskeyPinInput({
 
   return (
     <View style={localStyles.container} testID="pin-setup-screen">
-      <MutinynetBanner />
-
-      {/* Cancel button - top right, below MutinynetBanner */}
+      {/* Cancel button - top right */}
       <TouchableOpacity
         style={[localStyles.cancelButton, { top: s(100), right: s(20), padding: s(12) }]}
         onPress={onCancel}
