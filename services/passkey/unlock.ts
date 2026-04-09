@@ -14,6 +14,25 @@ import { logger } from '../../utils/logger';
 import { checkICloudAvailability,loadFromICloud } from '../icloudStorage';
 const { getRandomValues } = require('react-native-quick-crypto');
 
+// Timeout for native passkey dialog to prevent indefinite hangs
+// (iPad compatibility mode can cause the WebAuthn dialog to stall)
+const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
+
+/**
+ * Race a passkey operation against a timeout to prevent indefinite hangs.
+ * The PASSKEY.TIMEOUT_MS in the request is a hint to the OS and not always enforced.
+ */
+const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Passkey authentication timed out — please try again or use your PIN')),
+        PASSKEY_NATIVE_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+
 import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
@@ -103,10 +122,10 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
 
     logger.debug('Authenticating with passkey...', { usePrf, derivationVersion });
 
-    // Authenticate with passkey
+    // Authenticate with passkey (with timeout to prevent indefinite hangs on iPad)
     let authResult;
     try {
-      authResult = await Passkey.get(requestJson);
+      authResult = await withPasskeyTimeout(Passkey.get(requestJson));
     } catch (nativeError: unknown) {
       // react-native-passkey throws raw objects, not Error instances
       if (nativeError instanceof Error) throw nativeError;
@@ -289,10 +308,10 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
 
     logger.debug('Authenticating with synced passkey...', { usePrf });
 
-    // Authenticate with synced passkey
+    // Authenticate with synced passkey (with timeout to prevent indefinite hangs on iPad)
     let prfSecret: Uint8Array | null = null;
     try {
-      const authResult = await Passkey.get(requestJson);
+      const authResult = await withPasskeyTimeout(Passkey.get(requestJson));
       debugSteps += '✅ Passkey authentication successful\n';
 
       // Extract PRF result if PRF was requested

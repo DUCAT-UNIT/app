@@ -13,6 +13,19 @@ import { savePin } from '../pinService';
 import { withMnemonic } from '../secureStorageService';
 const { getRandomValues } = require('react-native-quick-crypto');
 
+const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
+
+const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Passkey authentication timed out — please try again')),
+        PASSKEY_NATIVE_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+
 import {
   PASSKEY_DERIVATION_VERSION,
   PASSKEY_KEYS,
@@ -206,7 +219,7 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
         },
       };
 
-      const authResult = await Passkey.get(requestJson);
+      const authResult = await withPasskeyTimeout(Passkey.get(requestJson));
       const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
       prfSecret = prfResultRaw
         ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))

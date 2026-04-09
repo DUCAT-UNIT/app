@@ -10,6 +10,19 @@ import { logger } from '../../utils/logger';
 import { fromBase64Url,PRF_SALT,toBase64Url } from './core';
 const { getRandomValues } = require('react-native-quick-crypto');
 
+const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
+
+const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Passkey creation timed out — please try again')),
+        PASSKEY_NATIVE_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+
 /**
  * Generate cryptographic challenge and user ID for FIDO2
  */
@@ -88,7 +101,7 @@ export const createPasskeyCredential = async (
   // Create passkey credential
   let result;
   try {
-    result = await Passkey.create(requestJson);
+    result = await withPasskeyTimeout(Passkey.create(requestJson));
   } catch (nativeError: unknown) {
     // react-native-passkey throws raw objects, not Error instances
     if (nativeError instanceof Error) throw nativeError;

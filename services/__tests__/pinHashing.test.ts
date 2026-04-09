@@ -23,13 +23,13 @@ jest.mock('expo-crypto', () => ({
 
 // Mock react-native-quick-crypto
 jest.mock('react-native-quick-crypto', () => ({
-  pbkdf2Sync: jest.fn(),
+  pbkdf2: jest.fn(),
   createHmac: (algorithm: string, key: Buffer) => require('crypto').createHmac(algorithm, key),
 }));
 
 // Get mocked functions with proper typing
 const mockGetRandomBytesAsync = Crypto.getRandomBytesAsync as jest.MockedFunction<typeof Crypto.getRandomBytesAsync>;
-const mockPbkdf2Sync = jest.requireMock('react-native-quick-crypto').pbkdf2Sync as jest.Mock;
+const mockPbkdf2 = jest.requireMock('react-native-quick-crypto').pbkdf2 as jest.Mock;
 
 describe('timingSafeEqual', () => {
   it('should return true for equal buffers', () => {
@@ -112,26 +112,29 @@ describe('hashPin', () => {
 
   it('should hash a PIN using PBKDF2', async () => {
     const mockDerivedKey = Buffer.from('mockedhash123456789012345678901234567890123456789012345678901234');
-    mockPbkdf2Sync.mockReturnValue(mockDerivedKey);
+    mockPbkdf2.mockImplementation((_pw: string, _salt: Buffer, _iter: number, _len: number, _dig: string, cb: (err: Error | null, key: Buffer) => void) => {
+      cb(null, mockDerivedKey);
+    });
 
     const pin = '123456';
     const salt = 'deadbeef1234567890abcdef1234567890abcdef1234567890abcdef12345678';
 
     const hash = await hashPin(pin, salt);
 
-    expect(mockPbkdf2Sync).toHaveBeenCalledWith(
+    expect(mockPbkdf2).toHaveBeenCalledWith(
       pin,
       Buffer.from(salt, 'hex'),
       310000, // CRYPTO.PIN_HASH_ITERATIONS (updated from 10K to 310K)
       64,
-      'sha512'
+      'sha512',
+      expect.any(Function),
     );
     expect(hash).toBe(mockDerivedKey.toString('hex'));
   });
 
   it('should throw error if hashing fails', async () => {
-    mockPbkdf2Sync.mockImplementation(() => {
-      throw new Error('Crypto error');
+    mockPbkdf2.mockImplementation((_pw: string, _salt: Buffer, _iter: number, _len: number, _dig: string, cb: (err: Error | null, key: Buffer) => void) => {
+      cb(new Error('Crypto error'), Buffer.alloc(0));
     });
 
     await expect(hashPin('123456', 'salt')).rejects.toThrow('PIN hashing failed: Crypto error');
@@ -139,13 +142,15 @@ describe('hashPin', () => {
 
   it('should handle different PINs', async () => {
     const mockDerivedKey = Buffer.from('hash');
-    mockPbkdf2Sync.mockReturnValue(mockDerivedKey);
+    mockPbkdf2.mockImplementation((_pw: string, _salt: Buffer, _iter: number, _len: number, _dig: string, cb: (err: Error | null, key: Buffer) => void) => {
+      cb(null, mockDerivedKey);
+    });
 
     await hashPin('000000', 'salt123');
-    expect(mockPbkdf2Sync).toHaveBeenCalledWith('000000', expect.any(Buffer), 310000, 64, 'sha512');
+    expect(mockPbkdf2).toHaveBeenCalledWith('000000', expect.any(Buffer), 310000, 64, 'sha512', expect.any(Function));
 
     await hashPin('999999', 'salt456');
-    expect(mockPbkdf2Sync).toHaveBeenCalledWith('999999', expect.any(Buffer), 310000, 64, 'sha512');
+    expect(mockPbkdf2).toHaveBeenCalledWith('999999', expect.any(Buffer), 310000, 64, 'sha512', expect.any(Function));
   });
 });
 

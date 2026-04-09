@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Platform, PlatformIOSStatic } from 'react-native';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { resetPinAttempts, loadLockoutState, recordFailedAttempt } from './pinLockout';
@@ -14,6 +15,10 @@ import {
   getPreferenceItem,
   setDeviceOnlyItem,
 } from './storagePolicy';
+
+// Timeout for biometric authentication to prevent indefinite hangs
+// (iPad compatibility mode can cause the native dialog to stall)
+const BIOMETRIC_AUTH_TIMEOUT_MS = 15000;
 
 // Rate limiting constants
 const BIOMETRIC_KEYS = {
@@ -144,12 +149,20 @@ export const authenticateWithBiometrics = async (
     // SECURITY: Check if locked out before attempting authentication
     await checkBiometricLockout();
 
-    // Perform biometric authentication
-    const result = await LocalAuthentication.authenticateAsync({
+    // iPad in iPhone compatibility mode can cause the native biometric dialog
+    // to hang or fail silently. Wrap with a timeout to prevent indefinite freeze.
+    const authPromise = LocalAuthentication.authenticateAsync({
       promptMessage,
       fallbackLabel,
       disableDeviceFallback: true,
     });
+
+    const result = await Promise.race([
+      authPromise,
+      new Promise<LocalAuthentication.LocalAuthenticationResult>((_, reject) =>
+        setTimeout(() => reject(new Error('Biometric authentication timed out')), BIOMETRIC_AUTH_TIMEOUT_MS)
+      ),
+    ]);
 
     // SECURITY: Record attempt for rate limiting
     await recordBiometricAttempt(result.success);
@@ -168,8 +181,12 @@ export const authenticateWithBiometrics = async (
       };
     }
 
-    // Other errors
-    logger.error('Biometric authentication error', { error: err.message });
+    // Log timeout or other unexpected errors
+    const isIPad = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true;
+    logger.error('Biometric authentication error', {
+      error: err.message,
+      isIPad,
+    });
     return {
       success: false,
       error: err.message,

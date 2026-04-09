@@ -8,8 +8,10 @@
  */
 
 import { useEffect, useRef, useCallback, MutableRefObject } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform, PlatformIOSStatic } from 'react-native';
 import * as ScreenCapture from 'expo-screen-capture';
+
+const IS_IPAD = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true;
 import { logger } from '../utils/logger';
 import {
   startDerivedKeyCacheLifecycle,
@@ -104,7 +106,10 @@ export function useAppLifecycle({
           logger.debug('[useAppLifecycle] 🔒 LOCKING WALLET');
           onLockRef.current();
           // Only auto-trigger biometrics if user has enabled it AND device supports it
-          if (isBiometricSupported && biometricEnabled) {
+          // Skip on iPad — iPhone compatibility mode can cause the native biometric
+          // dialog to hang or render incorrectly, leading to a frozen UI.
+          // iPad users will see the PIN screen and can tap the Face ID button manually.
+          if (isBiometricSupported && biometricEnabled && !IS_IPAD) {
             logger.debug('[useAppLifecycle] Triggering biometric auth');
             onAuthenticateUserRef.current();
           }

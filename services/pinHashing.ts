@@ -5,7 +5,7 @@
 
 import * as Crypto from 'expo-crypto';
 import { CRYPTO } from '../constants/security';
-const { pbkdf2Sync, createHmac } = require('react-native-quick-crypto');
+const { pbkdf2: pbkdf2Async, createHmac } = require('react-native-quick-crypto');
 
 /**
  * Constant-time buffer comparison to prevent timing attacks
@@ -80,13 +80,19 @@ export const hashPin = async (pin: string, salt: string, iterations?: number): P
     // - iterations: 310,000 (OWASP standard) or 10,000 (legacy)
     // - keylen: 64 bytes (512 bits) to match SHA512 output
     // - digest: sha512
-    const derivedKey = pbkdf2Sync(
-      pin,
-      Buffer.from(salt, 'hex'),
-      iterationCount,
-      64, // 64 bytes = 512 bits
-      'sha512'
-    );
+    const derivedKey = await new Promise<Buffer>((resolve, reject) => {
+      pbkdf2Async(
+        pin,
+        Buffer.from(salt, 'hex'),
+        iterationCount,
+        64, // 64 bytes = 512 bits
+        'sha512',
+        (err: Error | null, key: Buffer) => {
+          if (err) reject(err);
+          else resolve(key);
+        },
+      );
+    });
     return derivedKey.toString('hex');
   } catch (error: unknown) {
     throw new Error('PIN hashing failed: ' + (error as Error).message);
