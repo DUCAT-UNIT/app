@@ -20,8 +20,8 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
   LogBox.ignoreAllLogs(true);
 }
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
@@ -177,28 +177,18 @@ export default function App() {
 
   const appReady = (fontsLoaded || fontTimedOut) && configReady;
 
-  const onLayoutRootView = useCallback(async () => {
+  // Hide native splash once app is ready — useEffect ensures it fires after render
+  useEffect(() => {
     if (appReady) {
-      await ExpoSplashScreen.hideAsync();
+      ExpoSplashScreen.hideAsync();
     }
   }, [appReady]);
 
-  if (!appReady) {
-    // Render a view that matches the native splash exactly so
-    // preventAutoHideAsync keeps the storyboard on top with no gap.
-    return (
-      <View style={splashStyles.container}>
-        <Image
-          source={require('./assets/logos/ducat-logo.png')}
-          style={splashStyles.logo}
-          resizeMode="contain"
-        />
-      </View>
-    );
-  }
-
+  // Always render the full tree so the root view exists behind the native splash.
+  // Before fonts/config are ready the providers still mount (preparing state),
+  // and the native splash stays on top via preventAutoHideAsync.
   return (
-    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+    <View style={{ flex: 1 }}>
       <ErrorBoundary
         boundaryName="App"
         fallbackMessage="A critical error occurred. Please restart the app."
@@ -216,16 +206,3 @@ export default function App() {
     </View>
   );
 }
-
-const splashStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#111015',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logo: {
-    width: '100%',
-    height: '100%',
-  },
-});

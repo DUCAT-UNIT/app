@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ducatprotocol.DucatProtocolWallet",
-      "buildNumber": "49",
+      "buildNumber": "50",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"

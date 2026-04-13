@@ -76,7 +76,7 @@ export default function SplashScreen(): React.JSX.Element {
         }
       ]}
     >
-      <Icon name="ducat_logo" size={100} />
+      <Icon name="ducat_logo" size={113} />
       <StatusBar style="light" />
     </View>
   );
