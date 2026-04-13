@@ -20,8 +20,9 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
   LogBox.ignoreAllLogs(true);
 }
 
-import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Platform, View } from 'react-native';
+import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -50,13 +51,15 @@ import { ResponsiveProvider } from './contexts/ResponsiveContext';
 import AppNavigator from './navigation/AppNavigator';
 
 // Components
-import SplashScreen from './screens/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import { useRemoteConfigStore } from './stores/remoteConfigStore';
 import { validateNetworkConfig } from './utils/bitcoin';
 import { NETWORK_DISPLAY_NAME } from './utils/constants';
 import { logger } from './utils/logger';
+
+// Keep the native splash screen visible until we explicitly hide it
+ExpoSplashScreen.preventAutoHideAsync();
 
 // Initialize BIP32 and ECC for bitcoinjs-lib — wrapped to prevent app crash
 try {
@@ -172,24 +175,32 @@ export default function App() {
     useVaultCreationStore.getState().reset();
   }, []);
 
+  const onLayoutRootView = useCallback(async () => {
+    if ((fontsLoaded || fontTimedOut) && configReady) {
+      await ExpoSplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontTimedOut, configReady]);
+
   if ((!fontsLoaded && !fontTimedOut) || !configReady) {
-    return <SplashScreen />;
+    return null;
   }
 
   return (
-    <ErrorBoundary
-      boundaryName="App"
-      fallbackMessage="A critical error occurred. Please restart the app."
-    >
-      <AuthProvider>
-        <ResponsiveProvider>
-          <WalletProvider>
-            <AppProviders>
-              <AppNavigator />
-            </AppProviders>
-          </WalletProvider>
-        </ResponsiveProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <ErrorBoundary
+        boundaryName="App"
+        fallbackMessage="A critical error occurred. Please restart the app."
+      >
+        <AuthProvider>
+          <ResponsiveProvider>
+            <WalletProvider>
+              <AppProviders>
+                <AppNavigator />
+              </AppProviders>
+            </WalletProvider>
+          </ResponsiveProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </View>
   );
 }

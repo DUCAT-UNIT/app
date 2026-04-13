@@ -63,6 +63,7 @@
     "expo-notifications": "~0.32.12",
     "expo-screen-capture": "~8.0.8",
     "expo-secure-store": "~15.0.7",
+    "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.8",
     "posthog-react-native": "^4.40.0",
     "prop-types": "^15.8.1",

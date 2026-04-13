@@ -93,6 +93,12 @@ jest.mock('react-native-icloudstore', () => ({
   },
 }));
 
+// Mock expo-splash-screen
+jest.mock('expo-splash-screen', () => ({
+  preventAutoHideAsync: jest.fn().mockResolvedValue(true),
+  hideAsync: jest.fn().mockResolvedValue(true),
+}));
+
 // Mock expo-secure-store (getItemAsync returns null by default, matching real SecureStore behavior)
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
