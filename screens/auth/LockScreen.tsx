@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import React,{ memo,useCallback,useEffect,useRef,useState } from 'react';
 import { Animated,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
 import * as PasskeyService from '../../services/passkey';
@@ -17,7 +18,7 @@ import { checkPinLockout,verifyPin } from '../../services/pinService';
 import { hasSessionMnemonic } from '../../services/secureStorageService';
 import { analytics } from '../../services/analyticsService';
 import { AUTH_EVENTS } from '../../constants/analyticsEvents';
-import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
+import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { COLORS } from '../../theme';
 import { logger } from '../../utils/logger';
 import { ERRORS } from '../../utils/messages';
@@ -46,6 +47,8 @@ interface LockScreenProps {
   showFaceIdButton?: boolean;
   /** Callback invoked when the Face ID/Touch ID button is pressed */
   onFaceIdPress?: () => void;
+  /** Callback invoked when the user chooses to reset their wallet from the lock screen */
+  onResetWallet?: () => void;
 }
 
 // Memoized keypad button component
@@ -58,12 +61,14 @@ const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontS
   );
 });
 
-export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress }: LockScreenProps): React.JSX.Element {
+export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceIdPress, onResetWallet }: LockScreenProps): React.JSX.Element {
   const { s, sf } = useResponsive();
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [, setPasskeyEnabled] = useState(false);
   const [showPasskeyButton, setShowPasskeyButton] = useState(false);
+  const [showResetWarning, setShowResetWarning] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
   // Check if passkey is enabled on mount
@@ -194,6 +199,30 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     }
   }, [pin, onAuthenticated]);
 
+  const handleResetPress = useCallback(() => {
+    setShowResetWarning(true);
+  }, []);
+
+  const handleResetWarningConfirm = useCallback(() => {
+    setShowResetWarning(false);
+    setShowResetConfirm(true);
+  }, []);
+
+  const handleResetWarningCancel = useCallback(() => {
+    setShowResetWarning(false);
+  }, []);
+
+  const handleResetConfirmConfirm = useCallback(() => {
+    setShowResetConfirm(false);
+    if (onResetWallet) {
+      onResetWallet();
+    }
+  }, [onResetWallet]);
+
+  const handleResetConfirmCancel = useCallback(() => {
+    setShowResetConfirm(false);
+  }, []);
+
   const keySize = s(76);
   const keyTextSize = sf(32);
   const iconSize = s(28);
@@ -257,6 +286,42 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           </TouchableScale>
         </View>
       </View>
+
+      {/* Reset wallet escape hatch */}
+      {onResetWallet && (
+        <TouchableOpacity onPress={handleResetPress} testID="lock-reset-wallet-link">
+          <Text style={[styles.resetLink, { fontSize: sf(fontSizes.sm) }]}>
+            {"Can't access your wallet?"}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Step 1: Initial warning */}
+      <ConfirmationModal
+        visible={showResetWarning}
+        title="Reset Wallet"
+        message="This will permanently delete all wallet data from this device. You will need your seed phrase or iCloud passkey backup to recover your funds. This cannot be undone."
+        confirmText="Continue"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        iconName="delete_wallet"
+        onConfirm={handleResetWarningConfirm}
+        onCancel={handleResetWarningCancel}
+        styles={confirmationModalStyles}
+      />
+
+      {/* Step 2: Final confirmation */}
+      <ConfirmationModal
+        visible={showResetConfirm}
+        title="Are You Sure?"
+        message="All wallet data, keys, and transaction history on this device will be erased. Without a backup, your funds will be permanently lost."
+        confirmText="Delete Wallet"
+        cancelText="Go Back"
+        confirmStyle="destructive"
+        onConfirm={handleResetConfirmConfirm}
+        onCancel={handleResetConfirmCancel}
+        styles={confirmationModalStyles}
+      />
     </View>
   );
 }
@@ -307,5 +372,85 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text.primary,
     fontWeight: '300' as const,
+  },
+  resetLink: {
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    textDecorationLine: 'underline',
+  },
+});
+
+// Styles for the ConfirmationModal used in the lock screen reset flow.
+// Matches the shared modal styles from common.ts.
+const confirmationModalStyles = StyleSheet.create({
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  confirmationModal: {
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    width: '85%',
+    maxWidth: 400,
+  },
+  confirmationModalIconContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  confirmationModalTitle: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.lg,
+    fontWeight: 'bold' as const,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  confirmationModalText: {
+    fontFamily: fonts.regular,
+    fontSize: fontSizes.md,
+    color: colors.text.primary,
+    marginBottom: 25,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  confirmationModalButtons: {
+    gap: 12,
+  },
+  confirmationModalButton: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.lg,
+    alignItems: 'center',
+  },
+  confirmationModalButtonPrimary: {
+    backgroundColor: colors.brand.primary,
+  },
+  confirmationModalButtonDestructive: {
+    backgroundColor: colors.semantic.error,
+  },
+  confirmationModalButtonCancel: {
+    backgroundColor: COLORS.OFF_WHITE,
+  },
+  confirmationModalButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.md,
+    fontWeight: '700' as const,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  confirmationModalButtonTextCancel: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.md,
+    fontWeight: '700' as const,
+    color: COLORS.DARK_GRAY,
+    textAlign: 'center',
   },
 });

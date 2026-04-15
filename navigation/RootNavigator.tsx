@@ -47,6 +47,8 @@ import { useNotifications as useNotificationsPush } from '../hooks/useNotificati
 import type { NotificationDataType } from '../hooks/useNotifications';
 import * as Notifications from 'expo-notifications';
 import { isE2E } from '../utils/e2e';
+import { deleteWalletData } from '../services/secureStorageService';
+import { resetOnboardingState } from '../utils/onboardingHelpers';
 
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
@@ -154,12 +156,14 @@ interface LockScreenOverlayProps {
   onAuthenticated: () => Promise<void>;
   showFaceIdButton: boolean;
   onFaceIdPress: () => Promise<void>;
+  onResetWallet: () => void;
 }
 
 const LockScreenOverlay = React.memo(function LockScreenOverlay({
   onAuthenticated,
   showFaceIdButton,
   onFaceIdPress,
+  onResetWallet,
 }: LockScreenOverlayProps): React.JSX.Element {
   return (
     <View style={styles.lockOverlay}>
@@ -168,6 +172,7 @@ const LockScreenOverlay = React.memo(function LockScreenOverlay({
         onAuthenticated={onAuthenticated}
         showFaceIdButton={showFaceIdButton}
         onFaceIdPress={onFaceIdPress}
+        onResetWallet={onResetWallet}
       />
     </View>
   );
@@ -210,9 +215,10 @@ export default function RootNavigator(): React.JSX.Element {
     biometricEnabled,
     setIsAuthenticated,
     setBiometricEnabled,
+    resetAuth,
   } = useAuth();
-  const { wallet, switchAccount } = useWallet();
-  const { seedConfirmedRef } = useOnboardingFlow();
+  const { wallet, switchAccount, resetWallet } = useWallet();
+  const { seedConfirmedRef, setSeedConfirmed } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
   const { receive, refresh: refreshCashu } = useCashuOperations();
@@ -466,6 +472,24 @@ export default function RootNavigator(): React.JSX.Element {
     }
   }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, enableBiometricFromPrompt, handleLockScreenAuthenticatedWrapper]);
 
+  // Reset wallet from lock screen — escape hatch when user cannot authenticate
+  const handleResetWalletFromLockScreen = useCallback(async () => {
+    logger.warn('[RootNavigator] Wallet reset from lock screen initiated');
+    try {
+      await deleteWalletData();
+      await resetOnboardingState();
+      await resetWallet();
+      resetAuth();
+      setSeedConfirmed(false);
+      analytics.track('wallet_reset_from_lock_screen');
+      analytics.reset();
+    } catch (error) {
+      logger.error('[RootNavigator] Failed to reset wallet from lock screen', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [resetWallet, resetAuth, setSeedConfirmed]);
+
   // Set up app lifecycle (inactivity timer, app state changes)
   const { resetInactivityTimer } = useAppLifecycle({
     isAuthenticated,
@@ -568,6 +592,7 @@ export default function RootNavigator(): React.JSX.Element {
             onAuthenticated={handleLockScreenAuthenticatedWrapper}
             showFaceIdButton={isBiometricSupported}
             onFaceIdPress={handleBiometricAuth}
+            onResetWallet={handleResetWalletFromLockScreen}
           />
         )}
 
