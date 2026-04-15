@@ -32,10 +32,12 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 
 import { analytics } from './services/analyticsService';
-import { ONBOARDING_EVENTS, STARTUP_EVENTS } from './constants/analyticsEvents';
+import { ONBOARDING_EVENTS } from './constants/analyticsEvents';
+import { startupDiagnostics } from './services/startupDiagnostics';
 
 // Startup timing — capture t0 as early as possible
 const startupT0 = Date.now();
+void startupDiagnostics.beginAttempt();
 
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
@@ -67,6 +69,9 @@ void ExpoSplashScreen.preventAutoHideAsync().catch((error: unknown) => {
   logger.warn('[App] Failed to prevent native splash auto-hide', {
     error: error instanceof Error ? error.message : String(error),
   });
+  startupDiagnostics.recordWarning('prevent_auto_hide_failed', {
+    error: error instanceof Error ? error.message : String(error),
+  });
 });
 
 // Initialize BIP32 and ECC for bitcoinjs-lib — wrapped to prevent app crash
@@ -77,6 +82,9 @@ try {
   logger.error('[App] Failed to initialize crypto libraries', {
     error: error instanceof Error ? error.message : String(error),
   });
+  startupDiagnostics.recordFailure('crypto_library_init_failed', {
+    error: error instanceof Error ? error.message : String(error),
+  });
 }
 
 // CRITICAL: Validate network configuration at startup
@@ -85,6 +93,9 @@ try {
   logger.info(`Network validation passed: App is correctly configured for ${NETWORK_DISPLAY_NAME}`);
 } catch (error: unknown) {
   logger.error('CRITICAL NETWORK ERROR', { error: error instanceof Error ? error.message : String(error) });
+  startupDiagnostics.recordFailure('network_config_validation_failed', {
+    error: error instanceof Error ? error.message : String(error),
+  });
   throw error; // Fail fast - do not allow app to start with wrong network
 }
 
@@ -93,6 +104,10 @@ if (!__DEV__) {
   const defaultHandler = ErrorUtils.getGlobalHandler();
   ErrorUtils.setGlobalHandler((error, isFatal) => {
     logger.error('[App] Unhandled error', { error: error?.message, isFatal });
+    startupDiagnostics.recordFailure('unhandled_js_error', {
+      error: error?.message ?? 'unknown',
+      is_fatal: isFatal,
+    });
     defaultHandler(error, isFatal);
   });
 }
@@ -140,17 +155,20 @@ export default function App() {
 
     nativeSplashStateRef.current = 'hiding';
 
-    analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-      gate: 'native_splash_hide',
+    startupDiagnostics.recordCheckpoint('native_splash_hide', {
       elapsed_ms: Date.now() - startupT0,
       reason,
-    });
+    }, { flush: true });
 
     try {
       await ExpoSplashScreen.hideAsync();
       nativeSplashStateRef.current = 'hidden';
     } catch (error: unknown) {
       logger.warn('[App] Failed to hide native splash', {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      startupDiagnostics.recordWarning('hide_native_splash_failed', {
         reason,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -169,15 +187,21 @@ export default function App() {
   const [fontTimedOut, setFontTimedOut] = useState(false);
   useEffect(() => {
     if (fontsLoaded) {
-      analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-        gate: 'fonts_loaded', elapsed_ms: Date.now() - startupT0, timed_out: false,
+      startupDiagnostics.recordCheckpoint('fonts_loaded', {
+        elapsed_ms: Date.now() - startupT0,
+        timed_out: false,
       });
       return;
     }
     const timer = setTimeout(() => {
       logger.warn('[App] Font loading timed out, proceeding without custom fonts');
-      analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-        gate: 'fonts_loaded', elapsed_ms: Date.now() - startupT0, timed_out: true,
+      startupDiagnostics.recordWarning('font_load_timed_out', {
+        elapsed_ms: Date.now() - startupT0,
+        timeout_ms: FONT_LOAD_TIMEOUT_MS,
+      });
+      startupDiagnostics.recordCheckpoint('fonts_loaded', {
+        elapsed_ms: Date.now() - startupT0,
+        timed_out: true,
       });
       setFontTimedOut(true);
     }, FONT_LOAD_TIMEOUT_MS);
@@ -190,8 +214,9 @@ export default function App() {
     let timedOut = false;
     const markReady = () => {
       if (!configReady) {
-        analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-          gate: 'config_ready', elapsed_ms: Date.now() - startupT0, timed_out: timedOut,
+        startupDiagnostics.recordCheckpoint('config_ready', {
+          elapsed_ms: Date.now() - startupT0,
+          timed_out: timedOut,
         });
       }
       setConfigReady(true);
@@ -246,10 +271,9 @@ export default function App() {
       return;
     }
 
-    analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-      gate: 'app_ready',
+    startupDiagnostics.recordCheckpoint('app_ready', {
       elapsed_ms: Date.now() - startupT0,
-    });
+    }, { flush: true });
 
     void hideNativeSplash('app_ready');
   }, [appReady, hideNativeSplash]);
@@ -262,7 +286,7 @@ export default function App() {
   // If initialization is still running, the React launch splash covers the app
   // after the native splash is dismissed.
   return (
-    <View style={{ flex: 1 }} onLayout={handleRootLayout}>
+    <View style={{ flex: 1, backgroundColor: '#111015' }} onLayout={handleRootLayout}>
       <ErrorBoundary
         boundaryName="App"
         fallbackMessage="A critical error occurred. Please restart the app."
