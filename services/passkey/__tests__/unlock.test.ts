@@ -79,6 +79,7 @@ jest.mock('../../pinService', () => ({
 
 jest.mock('../../secureStorageService', () => ({
   cacheSessionMnemonic: jest.fn(),
+  saveMnemonic: jest.fn(),
   saveCachedAddresses: jest.fn(),
   saveCurrentAccount: jest.fn(),
   saveToMultiAccountCache: jest.fn(),
@@ -88,11 +89,13 @@ jest.mock('../../secureStorageService', () => ({
 import { savePinWithExistingSalt } from '../../pinService';
 import {
   cacheSessionMnemonic,
+  saveMnemonic,
   saveCachedAddresses,
   saveCurrentAccount,
   saveToMultiAccountCache,
 } from '../../secureStorageService';
 const mockSavePinWithExistingSalt = savePinWithExistingSalt as jest.Mock;
+const mockSaveMnemonic = saveMnemonic as jest.Mock;
 const mockCacheSessionMnemonic = cacheSessionMnemonic as jest.Mock;
 const mockSaveCachedAddresses = saveCachedAddresses as jest.Mock;
 const mockSaveCurrentAccount = saveCurrentAccount as jest.Mock;

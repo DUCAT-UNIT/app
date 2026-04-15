@@ -152,7 +152,7 @@ export default function AppNavigatorContent({
 
   // Show loading splash (initial load only)
   if (isLoading) {
-    return <SplashScreen />;
+    return <SplashScreen mode="launch" />;
   }
 
   if (initializationError) {
@@ -176,7 +176,7 @@ export default function AppNavigatorContent({
       <RootNavigator />
 
       {/* Background splash overlay - shows on top when app is backgrounded */}
-      <SplashScreen />
+      <SplashScreen mode="background" />
 
       {/* Seed Phrase Viewing Screen Overlay */}
       <SeedPhraseOverlay

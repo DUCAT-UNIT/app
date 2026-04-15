@@ -37,6 +37,7 @@ import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
 cacheSessionMnemonic,
+saveMnemonic,
 saveCachedAddresses,
 saveCurrentAccount,
 saveToMultiAccountCache,
@@ -193,7 +194,11 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       tagBase64 || '',
       encryptionKey
     );
-    cacheSessionMnemonic(mnemonic);
+
+    // Persist the plain mnemonic to SecureStore so future unlocks (after the
+    // session cache is cleared on background) can reload it without triggering
+    // the native WebAuthn passkey dialog every time.
+    await saveMnemonic(mnemonic);
 
     // Get current account index
     const accountIndex = parseInt(

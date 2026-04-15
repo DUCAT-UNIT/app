@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "hash": "test-lucas-002",
+  "network": {
+    "id": "mutinynet",
+    "endpointOverrides": {
+      "esploraApiUrl": null,
+      "ordUrl": null,
+      "guardianWs": null,
+      "quoteServer": null,
+      "priceServer": null,
+      "vaultUrl": null,
+      "phoneUrl": null,
+      "feeRecommendationsUrl": null,
+      "faucetUrl": null
+    }
+  },
+  "banner": {
+    "visible": true,
+    "text": "Lucas Edition",
+    "textColor": "#F5E4A2",
+    "backgroundColor": "#1D1C21"
+  },
+  "announcement": {
+    "id": "ann-test-002",
+    "enabled": true,
+    "title": "Liquidations Are Live",
+    "body": "Claim undercollateralized vaults and earn profit on your Bitcoin. Tap below to learn how the liquidation system works.",
+    "imageUrl": "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800&q=80",
+    "ctaLabel": "Learn More",
+    "ctaUrl": "https://ducatprotocol.com",
+    "showMode": "once"
+  },
+  "features": {}
+}

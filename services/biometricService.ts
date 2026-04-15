@@ -8,6 +8,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform, PlatformIOSStatic } from 'react-native';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { withTimeout } from '../utils/withTimeout';
 import { resetPinAttempts, loadLockoutState, recordFailedAttempt } from './pinLockout';
 import {
   DEVICE_ONLY,
@@ -200,10 +201,16 @@ export const authenticateWithBiometrics = async (
  */
 export const isBiometricEnabled = async (): Promise<boolean> => {
   try {
-    let enabled = await SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED);
+    let enabled = await withTimeout(
+      SecureStore.getItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
+      5000, null, 'isBiometricEnabled',
+    );
 
     if (enabled === null) {
-      const legacyEnabled = await getPreferenceItem('biometricEnabled');
+      const legacyEnabled = await withTimeout(
+        getPreferenceItem('biometricEnabled'),
+        3000, null, 'isBiometricEnabled:legacy',
+      );
       if (legacyEnabled !== null) {
         await setDeviceOnlyItem(SECURE_KEYS.BIOMETRIC_ENABLED, legacyEnabled);
         await deletePreferenceItem('biometricEnabled');

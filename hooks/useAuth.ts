@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useMemo, useCallback, Dispatch, SetStateAction } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Platform, PlatformIOSStatic } from 'react-native';
 import * as PasskeyService from '../services/passkey';
 import {
   authenticateWithBiometrics,
@@ -18,6 +19,12 @@ import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsServ
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
 import { AUTH_EVENTS } from '../constants/analyticsEvents';
+import { withTimeout } from '../utils/withTimeout';
+
+// Native API calls (LocalAuthentication, PasskeyService) can hang indefinitely
+// on iPad in iPhone compatibility mode. Cap each at 5s with safe fallbacks.
+const NATIVE_API_TIMEOUT_MS = 5000;
+const IS_IPAD_COMPAT_MODE = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true;
 
 interface UseAuthParams {
   onSeedConfirmed?: (confirmed: boolean) => void;
@@ -88,20 +95,52 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   const [pinError, setPinError] = useState('');
   const [pinStep, setPinStep] = useState<PinStep>('enter');
 
-  // Check biometric and passkey support on mount
+  // Check biometric and passkey support on mount.
+  // Each native call is timeout-wrapped — on iPad in compatibility mode these can hang.
   useEffect(() => {
+    if (IS_IPAD_COMPAT_MODE) {
+      logger.warn('[useAuth] Skipping biometric and passkey capability probes on iPad compatibility mode');
+      setIsBiometricSupported(false);
+      setIsPasskeySupported(false);
+      return;
+    }
+
+    let cancelled = false;
+
     const checkAuthSupport = async () => {
-      // Check both hardware availability AND enrollment
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-      setIsBiometricSupported(hasHardware && isEnrolled);
+      const hasHardware = await withTimeout(
+        LocalAuthentication.hasHardwareAsync(),
+        NATIVE_API_TIMEOUT_MS,
+        false,
+        'hasHardwareAsync',
+      );
+      const isEnrolled = await withTimeout(
+        LocalAuthentication.isEnrolledAsync(),
+        NATIVE_API_TIMEOUT_MS,
+        false,
+        'isEnrolledAsync',
+      );
+      if (!cancelled) {
+        setIsBiometricSupported(hasHardware && isEnrolled);
+      }
       logger.auth('Biometric support check', { hasHardware, isEnrolled, supported: hasHardware && isEnrolled });
 
-      const passkeySupported = await PasskeyService.isPasskeySupported();
-      setIsPasskeySupported(passkeySupported);
+      const passkeySupported = await withTimeout(
+        PasskeyService.isPasskeySupported(),
+        NATIVE_API_TIMEOUT_MS,
+        false,
+        'isPasskeySupported',
+      );
+      if (!cancelled) {
+        setIsPasskeySupported(passkeySupported);
+      }
     };
 
-    checkAuthSupport();
+    void checkAuthSupport();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Load biometric preference
@@ -120,7 +159,12 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   // Load passkey preference
   const loadPasskeyPreference = useCallback(async () => {
     try {
-      const passkeyPref = await PasskeyService.isPasskeyEnabled();
+      const passkeyPref = await withTimeout(
+        PasskeyService.isPasskeyEnabled(),
+        NATIVE_API_TIMEOUT_MS,
+        false,
+        'isPasskeyEnabled',
+      );
       setPasskeyEnabled(passkeyPref);
     } catch (error) {
       logger.warn('Failed to load passkey preference', {

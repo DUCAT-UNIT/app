@@ -97,3 +97,13 @@ export const ERROR_EVENTS = {
   TRANSACTION_ERROR: 'transaction_error',
   API_ERROR: 'api_error',
 } as const;
+
+// ── Startup Diagnostics ─────────────────────────────────────
+export const STARTUP_EVENTS = {
+  /** Fired once at end of startup with timing for every gate. */
+  STARTUP_COMPLETE: 'startup_complete',
+  /** Fired if startup times out (splash hung). */
+  STARTUP_TIMEOUT: 'startup_timeout',
+  /** Fired per-checkpoint so we get partial data even if app crashes. */
+  STARTUP_CHECKPOINT: 'startup_checkpoint',
+} as const;

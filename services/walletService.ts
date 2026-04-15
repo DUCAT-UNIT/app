@@ -9,7 +9,12 @@ import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bit
 import { DEFAULT_WALLET_DERIVATION_MODE } from '../constants/bitcoin';
 import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
 import { logger } from '../utils/logger';
+import { withTimeout } from '../utils/withTimeout';
 import { getWalletDerivationMode, setWalletDerivationMode } from './walletDerivationService';
+
+// Per-operation timeout for SecureStore reads during wallet load.
+// iPad in iPhone compatibility mode can stall individual SecureStore calls.
+const SECURESTORE_READ_TIMEOUT_MS = 5000;
 
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -92,17 +97,25 @@ export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<
  */
 export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
   try {
-    const accountIndex = await getCurrentAccount();
-    const derivationMode = await getWalletDerivationMode();
+    const accountIndex = await withTimeout(
+      getCurrentAccount(), SECURESTORE_READ_TIMEOUT_MS, 0, 'getCurrentAccount',
+    );
+    const derivationMode = await withTimeout(
+      getWalletDerivationMode(), SECURESTORE_READ_TIMEOUT_MS, DEFAULT_WALLET_DERIVATION_MODE, 'getWalletDerivationMode',
+    );
 
     // Try multi-account cache first (instant if in memory)
-    const multiCached = await getMultiAccountCache(accountIndex);
+    const multiCached = await withTimeout(
+      getMultiAccountCache(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getMultiAccountCache',
+    );
     if (multiCached) {
       return { addresses: multiCached, accountIndex };
     }
 
     // Try single-account cache (fast path - ~5ms)
-    const cachedAddresses = await getCachedAddresses(accountIndex);
+    const cachedAddresses = await withTimeout(
+      getCachedAddresses(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getCachedAddresses',
+    );
     if (cachedAddresses) {
       // Populate multi-account cache for future fast switching (non-blocking with error logging)
       saveToMultiAccountCache(accountIndex, cachedAddresses).catch((error) => {

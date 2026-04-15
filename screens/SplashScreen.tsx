@@ -1,72 +1,53 @@
 /**
  * SplashScreen Component
- * Displays the Ducat logo on app launch and when app is backgrounded
+ * Displays the Ducat logo during launch and while the app is backgrounded.
  */
 
-import React, { useEffect, useRef } from 'react';
-import { AppState, View, AppStateStatus } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, AppState, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import Icon from '../components/icons';
+import { useBackgroundSplash } from '../hooks/useBackgroundSplash';
 import styles from '../styles';
-import { logger } from '../utils/logger';
 
 type PointerEvents = 'auto' | 'none' | 'box-none' | 'box-only';
 
-export default function SplashScreen(): React.JSX.Element {
-  const viewRef = useRef<View>(null);
-  const [pointerEvents, setPointerEvents] = React.useState<PointerEvents>('auto');
-  const hasHiddenRef = useRef(false);
+interface SplashScreenProps {
+  mode?: 'launch' | 'background';
+}
+
+function LaunchSplashScreen(): React.JSX.Element {
+  return (
+    <View style={styles.splashContainer}>
+      <Icon name="ducat_logo" size={113} />
+      <StatusBar style="light" />
+    </View>
+  );
+}
+
+function BackgroundSplashScreen(): React.JSX.Element {
+  const { opacityRef } = useBackgroundSplash();
+  const [pointerEvents, setPointerEvents] = useState<PointerEvents>(
+    AppState.currentState === 'active' ? 'none' : 'auto'
+  );
 
   useEffect(() => {
-    let hasBeenInactive = false;
-
-    // Fallback: Always hide after 2 seconds if not hidden yet
-    const fallbackTimer = setTimeout(() => {
-      if (!hasHiddenRef.current) {
-        logger.debug('[SplashScreen] Fallback timer - hiding splash');
-        viewRef.current?.setNativeProps({
-          style: { opacity: 0 }
-        });
-        setPointerEvents('none');
-        hasHiddenRef.current = true;
-      }
-    }, 2000);
-
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Show splash immediately
-        hasBeenInactive = true;
-        setPointerEvents('auto');
-        viewRef.current?.setNativeProps({
-          style: { opacity: 1 }
-        });
-      } else if (nextAppState === 'active') {
-        // Hide splash when becoming active
-        setTimeout(() => {
-          viewRef.current?.setNativeProps({
-            style: { opacity: 0 }
-          });
-          setPointerEvents('none');
-          hasHiddenRef.current = true;
-          hasBeenInactive = false;
-        }, hasBeenInactive ? 1000 : 100); // Longer delay if coming from background
-      }
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      setPointerEvents(nextAppState === 'active' ? 'none' : 'auto');
     });
 
     return () => {
       subscription.remove();
-      clearTimeout(fallbackTimer);
     };
   }, []);
 
   return (
-    <View
-      ref={viewRef}
+    <Animated.View
       pointerEvents={pointerEvents}
       style={[
         styles.splashContainer,
         {
-          opacity: 1, // Always start visible
+          opacity: opacityRef,
           position: 'absolute',
           top: 0,
           left: 0,
@@ -78,6 +59,16 @@ export default function SplashScreen(): React.JSX.Element {
     >
       <Icon name="ducat_logo" size={113} />
       <StatusBar style="light" />
-    </View>
+    </Animated.View>
   );
+}
+
+export default function SplashScreen({
+  mode = 'launch',
+}: SplashScreenProps): React.JSX.Element {
+  if (mode === 'background') {
+    return <BackgroundSplashScreen />;
+  }
+
+  return <LaunchSplashScreen />;
 }
