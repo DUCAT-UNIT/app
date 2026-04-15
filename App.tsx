@@ -20,7 +20,7 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
   LogBox.ignoreAllLogs(true);
 }
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
@@ -142,39 +142,8 @@ function AppProviders({ children }: { children: React.ReactNode }) {
 
 // Font loading timeout (ms) — proceed without custom fonts rather than hang forever
 const FONT_LOAD_TIMEOUT_MS = 5000;
-const NATIVE_SPLASH_WATCHDOG_MS = 1500;
-
 // Main App - Provider setup only
 export default function App() {
-  const nativeSplashStateRef = useRef<'visible' | 'hiding' | 'hidden'>('visible');
-
-  const hideNativeSplash = useCallback(async (reason: 'layout' | 'watchdog' | 'app_ready') => {
-    if (nativeSplashStateRef.current !== 'visible') {
-      return;
-    }
-
-    nativeSplashStateRef.current = 'hiding';
-
-    startupDiagnostics.recordCheckpoint('native_splash_hide', {
-      elapsed_ms: Date.now() - startupT0,
-      reason,
-    }, { flush: true });
-
-    try {
-      await ExpoSplashScreen.hideAsync();
-      nativeSplashStateRef.current = 'hidden';
-    } catch (error: unknown) {
-      logger.warn('[App] Failed to hide native splash', {
-        reason,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      startupDiagnostics.recordWarning('hide_native_splash_failed', {
-        reason,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      nativeSplashStateRef.current = 'visible';
-    }
-  }, []);
 
   // Load fonts
   const [fontsLoaded] = useFonts({
@@ -255,38 +224,34 @@ export default function App() {
 
   const appReady = (fontsLoaded || fontTimedOut) && configReady;
 
-  // Hide the native splash as soon as the first React layout exists.
-  // The in-app splash/loading screen continues covering initialization afterwards,
-  // which avoids deadlocks if a later native capability probe stalls on iPad.
+  // Hide native splash once app is ready — useEffect ensures it fires after render
+  useEffect(() => {
+    if (appReady) {
+      startupDiagnostics.recordCheckpoint('app_ready', {
+        elapsed_ms: Date.now() - startupT0,
+      }, { flush: true });
+      ExpoSplashScreen.hideAsync();
+    }
+  }, [appReady]);
+
+  // Safety watchdog: if appReady never fires (e.g. both timeouts fail),
+  // force-hide the native splash after 8s so the app never gets stuck.
   useEffect(() => {
     const timer = setTimeout(() => {
-      void hideNativeSplash('watchdog');
-    }, NATIVE_SPLASH_WATCHDOG_MS);
-
+      if (!appReady) {
+        logger.warn('[App] Safety watchdog: forcing native splash hide after 8s');
+        startupDiagnostics.recordWarning('splash_watchdog_fired', {
+          elapsed_ms: Date.now() - startupT0,
+        });
+        ExpoSplashScreen.hideAsync();
+      }
+    }, 8000);
     return () => clearTimeout(timer);
-  }, [hideNativeSplash]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  useEffect(() => {
-    if (!appReady) {
-      return;
-    }
-
-    startupDiagnostics.recordCheckpoint('app_ready', {
-      elapsed_ms: Date.now() - startupT0,
-    }, { flush: true });
-
-    void hideNativeSplash('app_ready');
-  }, [appReady, hideNativeSplash]);
-
-  const handleRootLayout = useCallback(() => {
-    void hideNativeSplash('layout');
-  }, [hideNativeSplash]);
-
-  // Always render the full tree so the root view exists immediately.
-  // If initialization is still running, the React launch splash covers the app
-  // after the native splash is dismissed.
   return (
-    <View style={{ flex: 1, backgroundColor: '#111015' }} onLayout={handleRootLayout}>
+    <View style={{ flex: 1, backgroundColor: '#111015' }}>
       <ErrorBoundary
         boundaryName="App"
         fallbackMessage="A critical error occurred. Please restart the app."
