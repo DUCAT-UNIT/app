@@ -113,6 +113,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.section}>
+            {/* Developer Mode toggle hidden for release — uncomment to re-enable
             <SettingsOption
               iconName="asset"
               title="Developer Mode"
@@ -120,6 +121,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               rightText={advancedMode ? 'ON' : 'OFF'}
               testID="advanced-dev-mode-btn"
             />
+            */}
             <SettingsOption
               iconName="unit_logo"
               title="Turbo UNIT Default"
