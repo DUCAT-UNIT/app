@@ -41,7 +41,7 @@ export default function BiometricSetupModal({
               Biometric Authentication
             </Text>
             <Text style={[styles.text, { fontSize: sf(fontSizes.md), marginBottom: s(25), lineHeight: sf(22) }]}>
-              Do you want to use biometric authentication (FaceID or TouchID) for quick access to your wallet?
+              Use Face ID or Touch ID for quick and secure access to your wallet.
             </Text>
             <View style={[styles.buttons, { gap: s(12) }]}>
               <TouchableOpacity
@@ -52,17 +52,7 @@ export default function BiometricSetupModal({
                 }]}
                 onPress={onEnable}
               >
-                <Text style={[styles.buttonText, { fontSize: sf(fontSizes.md) }]}>Yes, Enable</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.buttonNo, {
-                  paddingVertical: s(spacing.md),
-                  paddingHorizontal: s(spacing.lg),
-                  borderRadius: s(radii.lg)
-                }]}
-                onPress={onSkip}
-              >
-                <Text style={[styles.buttonTextNo, { fontSize: sf(fontSizes.md) }]}>No, Thanks</Text>
+                <Text style={[styles.buttonText, { fontSize: sf(fontSizes.md) }]}>Continue</Text>
               </TouchableOpacity>
             </View>
           </View>

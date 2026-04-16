@@ -449,17 +449,13 @@ export default function RootNavigator(): React.JSX.Element {
           handleLockScreenAuthenticatedWrapper();
         }
       } else {
-        // Biometrics not enabled - ask user if they want to enable
+        // Biometrics not enabled - prompt user to enable
         Alert.alert(
-          'Enable Face ID',
-          'Would you like to enable Face ID for faster login?',
+          'Face ID',
+          'Use Face ID for quick and secure access to your wallet.',
           [
             {
-              text: 'Not Now',
-              style: 'cancel',
-            },
-            {
-              text: 'Enable',
+              text: 'Continue',
               onPress: () => {
                 enableBiometricFromPrompt();
               },

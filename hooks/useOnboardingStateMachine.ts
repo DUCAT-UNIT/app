@@ -173,9 +173,8 @@ export function useOnboardingStateMachine({
           handleLockScreenAuthenticatedWrapper();
         }
       } else {
-        Alert.alert('Enable Face ID', 'Would you like to enable Face ID for faster login?', [
-          { text: 'Not Now', style: 'cancel' },
-          { text: 'Enable', onPress: () => { enableBiometricFromPrompt(); } },
+        Alert.alert('Face ID', 'Use Face ID for quick and secure access to your wallet.', [
+          { text: 'Continue', onPress: () => { enableBiometricFromPrompt(); } },
         ]);
       }
     } catch (error) {
