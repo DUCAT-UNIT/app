@@ -54,6 +54,16 @@ export default function BiometricSetupModal({
               >
                 <Text style={[styles.buttonText, { fontSize: sf(fontSizes.md) }]}>Continue</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.buttonNo, {
+                  paddingVertical: s(spacing.md),
+                  paddingHorizontal: s(spacing.lg),
+                  borderRadius: s(radii.lg)
+                }]}
+                onPress={onSkip}
+              >
+                <Text style={[styles.buttonTextNo, { fontSize: sf(fontSizes.md) }]}>Set Up Later</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
