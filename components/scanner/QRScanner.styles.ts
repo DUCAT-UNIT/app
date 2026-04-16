@@ -102,21 +102,11 @@ export default StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,
-    marginBottom: 16,
   },
   permissionButtonText: {
     color: COLORS.WHITE,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'CabinetGrotesk-Bold',
-  },
-  cancelButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-  },
-  cancelButtonText: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Medium',
   },
 });

@@ -32,15 +32,12 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <View style={styles.permissionContainer}>
           <Icon name="qr_scan" size={64} color={COLORS.VERY_LIGHT_GRAY} />
-          <Text style={styles.permissionTitle}>Camera Permission Required</Text>
+          <Text style={styles.permissionTitle}>Camera Access</Text>
           <Text style={styles.permissionText}>
-            Please grant camera access to scan QR codes
+            DUCAT needs camera access to scan QR codes for sending Bitcoin.
           </Text>
           <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={styles.permissionButtonText}>Continue</Text>
           </TouchableOpacity>
         </View>
       </Modal>
