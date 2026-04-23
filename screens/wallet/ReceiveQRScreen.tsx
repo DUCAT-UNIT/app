@@ -23,6 +23,8 @@ import { RECEIVE_EVENTS } from '../../constants/analyticsEvents';
 interface ReceiveQRRouteParams {
   address: string;
   addressType?: string;
+  assetType?: 'BTC' | 'UNIT' | 'USDC';
+  networkLabel?: string;
 }
 
 /**
@@ -34,10 +36,17 @@ interface ReceiveQRScreenProps {
 }
 
 export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenProps): React.JSX.Element {
-  const { address, addressType = 'Native SegWit' } = route.params || {};
+  const { address, addressType = 'Native SegWit', assetType, networkLabel } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
   const { width, s, screenSize } = useResponsive();
   const { showSnackbar } = useNotifications();
+  const resolvedAssetType = assetType || (addressType === 'Taproot' ? 'UNIT' : 'BTC');
+  const title = resolvedAssetType === 'USDC' ? 'USDC address' : resolvedAssetType === 'UNIT' ? 'UNIT address' : 'Bitcoin address';
+  const subtitle = resolvedAssetType === 'USDC'
+    ? 'Only use this address to receive USDC on Ethereum Sepolia.'
+    : resolvedAssetType === 'UNIT'
+      ? 'Only use this address to receive UNIT.'
+      : 'Only use this address to receive Bitcoin.';
 
   useEffect(() => { analytics.track(RECEIVE_EVENTS.RECEIVE_SCREEN_VIEWED, { address_type: addressType }); }, [addressType]);
 
@@ -72,7 +81,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
     await Clipboard.setStringAsync(address);
     setJustCopied(true);
     setTimeout(() => setJustCopied(false), 2000);
-    const assetName = addressType === 'Taproot' ? 'UNIT' : 'BTC';
+    const assetName = resolvedAssetType;
     showSnackbar({
       message: `${assetName} address copied`,
       type: 'success',
@@ -94,7 +103,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
     <SafeAreaView style={styles.container} edges={['top']} testID="receive-qr-screen">
       {/* Network header bar */}
       <View style={[styles.networkBar, { paddingVertical: responsiveValues.networkBarPadding }]}>
-        <Text style={styles.networkText}>{NETWORK_EDITION_LABEL}</Text>
+        <Text style={styles.networkText}>{networkLabel || NETWORK_EDITION_LABEL}</Text>
       </View>
 
       <ScrollView
@@ -116,14 +125,12 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
           </TouchableOpacity>
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { fontSize: responsiveValues.titleSize, marginBottom: responsiveValues.titleMarginBottom }]}>
-              {addressType === 'Taproot' ? 'UNIT address' : 'Bitcoin address'}
+              {title}
             </Text>
           </View>
         </View>
         <Text style={[styles.subtitle, { fontSize: responsiveValues.subtitleSize, marginBottom: responsiveValues.subtitleMarginBottom }]}>
-          {addressType === 'Taproot'
-            ? 'Only use this address to receive UNIT.'
-            : 'Only use this address to receive Bitcoin.'}
+          {subtitle}
         </Text>
 
         {/* QR Code */}
@@ -134,9 +141,11 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
             backgroundColor="white"
             color="black"
             logo={
-              addressType === 'Taproot'
+              resolvedAssetType === 'UNIT'
                 ? require('../../assets/logos/unit-log.png')
-                : require('../../assets/logos/btc-logo.png')
+                : resolvedAssetType === 'BTC'
+                  ? require('../../assets/logos/btc-logo.png')
+                  : undefined
             }
             logoSize={responsiveValues.logoSize}
             logoBackgroundColor="white"
@@ -154,7 +163,7 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                {addressType === 'Taproot' ? 'UNIT' : addressType}
+                {networkLabel || (resolvedAssetType === 'USDC' ? 'Ethereum Sepolia' : resolvedAssetType === 'UNIT' ? 'UNIT' : addressType)}
               </Text>
               <Text style={styles.tapToCopyText}>
                 {justCopied ? 'Copied!' : 'Tap to copy'}

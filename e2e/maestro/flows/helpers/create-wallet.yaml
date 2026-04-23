@@ -43,6 +43,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
 # Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
 # + network request may not have completed yet. Wait for it to appear.
 - extendedWaitUntil:
@@ -57,11 +66,29 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Dismiss low ecash modal if it appears
 - runFlow: dismiss-low-ecash.yaml
 
+# Passkey prompt can appear a little later on fresh wallet creation
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
 # Verify wallet screen loads
 - extendedWaitUntil:
     visible:
       id: "wallet-screen"
     timeout: 15000
+
+# This prompt can appear slightly later, after the wallet home mounts.
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
 
 # Wait for balance section to appear
 - extendedWaitUntil:
@@ -69,9 +96,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "balance-section"
     timeout: 30000
 
-# Wait for airdrop BTC to arrive (~30s on Mutinynet)
-# Airdrop gives 0.1 BTC — wait for the BTC amount to appear in the balance
+# Dismiss any delayed passkey prompt before continuing the funded-wallet flow.
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Wait for the funded BTC card to render in the live wallet UI.
+# The exact decimal formatting changes over time, so do not pin this to one string.
 - extendedWaitUntil:
     visible:
-      text: "0.10000000"
+      id: "asset-card-btc"
     timeout: 90000

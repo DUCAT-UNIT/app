@@ -222,6 +222,10 @@ const borrowConfig: VaultOperationConfig<BorrowConfig, BorrowRequest, BorrowResu
   calculateLiquidationPrice: calculateBorrowLiquidationPrice,
 };
 
+interface UseBorrowVaultOptions {
+  deferSuccessTransition?: boolean;
+}
+
 /**
  * Result interface matching the original hook
  */
@@ -241,8 +245,11 @@ export interface UseBorrowVaultResult {
  *
  * Orchestrates the full borrow flow using the unified vault operation hook.
  */
-export function useBorrowVault(): UseBorrowVaultResult {
-  const result = useVaultOperation(borrowConfig);
+export function useBorrowVault(options: UseBorrowVaultOptions = {}): UseBorrowVaultResult {
+  const result = useVaultOperation({
+    ...borrowConfig,
+    deferSuccessTransition: options.deferSuccessTransition,
+  });
 
   // Map to original interface
   return useMemo(

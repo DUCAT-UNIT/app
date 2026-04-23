@@ -27,6 +27,8 @@
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_rSk5zW5YHryxVyiCH6GzeRtirw2CQMDCp7wYDsstp7cf",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
@@ -41,6 +43,8 @@
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_rSk5zW5YHryxVyiCH6GzeRtirw2CQMDCp7wYDsstp7cf",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     }

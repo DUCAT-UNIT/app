@@ -10,6 +10,7 @@ import { COLORS } from '../theme';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
 import { ERROR_EVENTS } from '../constants/analyticsEvents';
+import { startupDiagnostics } from '../services/startupDiagnostics';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -48,6 +49,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       ...(this.props.extraContext || {}),
     });
     analytics.track(ERROR_EVENTS.ERROR_BOUNDARY_TRIGGERED, {
+      boundary_name: this.props.boundaryName || 'ErrorBoundary',
+      error_message: error.message,
+    });
+    startupDiagnostics.recordFailure('error_boundary_triggered', {
       boundary_name: this.props.boundaryName || 'ErrorBoundary',
       error_message: error.message,
     });

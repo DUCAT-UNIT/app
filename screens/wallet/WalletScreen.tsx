@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
 import { Animated, RefreshControl, ScrollView, StyleSheet, TextStyle, TouchableOpacity, View, ViewStyle, Dimensions } from 'react-native';
 import Icon from '../../components/icons';
@@ -11,7 +12,7 @@ import WalletActions from '../../components/wallet/WalletActions';
 import WalletHeader,{ WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import { useCashu } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useBalance,useVaultData } from '../../contexts/WalletDataContext';
+import { useBalance,useEvmAssets,useVaultData } from '../../contexts/WalletDataContext';
 import { useAssetCardStyles } from '../../hooks/useAssetCardStyles';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -55,7 +56,10 @@ interface WalletScreenProps {
   onVaultPress: () => void;
   onRepayPress: () => void;
   onBorrowPress: () => void;
-  onAssetPress?: (asset: string) => void;
+  onBridgePress?: () => void;
+  onSwapPress?: (sourceAsset?: 'UNIT' | 'USDC') => void;
+  onRedeemPress?: () => void;
+  onAssetPress?: (asset: string, params?: object) => void;
   _sendAddressType?: 'taproot' | 'segwit';
   showZeroAssets: boolean;
   isPendingVaultTx?: boolean;
@@ -79,6 +83,12 @@ const WalletScreen = React.memo(function WalletScreen({
 }: WalletScreenProps): React.ReactElement {
   const { wallet: _wallet, currentAccount } = useWallet();
   const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
+  const {
+    evmBalances,
+    loadingEvmBalances: isEvmBalanceLoading,
+    isEvmConfigured: showSepoliaUsdcCard,
+    refreshEvmBalances,
+  } = useEvmAssets();
   const { btcPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
@@ -126,6 +136,18 @@ const WalletScreen = React.memo(function WalletScreen({
       usdValue: totalUnit,
     };
   }, [runesBalance, cashuBalance, btcPrice]);
+
+  const usdcTotals = React.useMemo(() => {
+    const parsedAmount = Number(evmBalances?.usdc || '0');
+    const amount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+    const btcEquivalent = btcPrice ? amount / btcPrice : 0;
+
+    return {
+      formatted: formatFiat(amount),
+      btcValue: formatBalance(btcEquivalent),
+      usdValue: amount,
+    };
+  }, [evmBalances?.usdc, btcPrice]);
 
   // Memoize formatted balances to avoid repeated toLocaleString() calls
   const formatted = useFormattedBalances({
@@ -178,11 +200,12 @@ const WalletScreen = React.memo(function WalletScreen({
       await Promise.all([
         fetchBalance(),
         refreshCashu(),
+        showSepoliaUsdcCard ? refreshEvmBalances().catch(() => undefined) : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchBalance, refreshCashu]);
+  }, [fetchBalance, refreshCashu, refreshEvmBalances, showSepoliaUsdcCard]);
 
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
@@ -219,6 +242,24 @@ const WalletScreen = React.memo(function WalletScreen({
   const handleUNITPress = useCallback(() => {
     onAssetPress?.('UNIT');
   }, [onAssetPress]);
+
+  const handleUsdcPress = useCallback(() => {
+    onAssetPress?.('USDC', {
+      initialEvmUsdcBalance: Number(evmBalances?.usdc || '0'),
+      initialEvmAddress: evmBalances?.address || '',
+    });
+  }, [evmBalances?.address, evmBalances?.usdc, onAssetPress]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!showSepoliaUsdcCard) {
+        return undefined;
+      }
+
+      refreshEvmBalances().catch(() => undefined);
+      return undefined;
+    }, [refreshEvmBalances, showSepoliaUsdcCard]),
+  );
 
   // Check if vault health is below minimum (160%)
   const isLowHealth = vaultHealthPercentage > 0 && vaultHealthPercentage < 160;
@@ -333,7 +374,21 @@ const WalletScreen = React.memo(function WalletScreen({
           />
         </View>
 
-
+        {showSepoliaUsdcCard && (
+          <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+            <AssetCard
+              assetName="USDC"
+              assetLogo="usdc_logo"
+              amountValue={isEvmBalanceLoading && !evmBalances ? '...' : `$${usdcTotals.formatted}`}
+              displayInBTC={showTotalInBTC}
+              btcValue={usdcTotals.btcValue}
+              usdValue={usdcTotals.usdValue}
+              styles={assetCardStyles}
+              onPress={handleUsdcPress}
+              testID="asset-card-usdc"
+            />
+          </View>
+        )}
         {/* DUCAT Card - Non-clickable */}
         {showZeroAssets && (
           <View style={{ paddingHorizontal: s(24) }}>
@@ -352,7 +407,6 @@ const WalletScreen = React.memo(function WalletScreen({
         )}
       </ScrollView>
 
-      {/* Liquidations disabled for App Store review
       {showLiquidations && (
         <Animated.View
           style={[
@@ -408,7 +462,6 @@ const WalletScreen = React.memo(function WalletScreen({
           color="#FFFFFF"
         />
       </TouchableOpacity>
-      */}
     </View>
   );
 });

@@ -6,6 +6,7 @@ export {
   borrowRoutes,
   borrowInputConfig,
   borrowConfirmConfig,
+  createBorrowConfirmConfig,
   borrowProcessingConfig,
 } from './borrowConfig';
 

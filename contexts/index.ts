@@ -8,7 +8,7 @@ export { useAuth, useOnboardingFlow } from './AuthContext';
 
 // Wallet context exports
 export { useWallet } from './WalletContext';
-export { useBalance, useVaultData } from './WalletDataContext';
+export { useBalance, useVaultData, useEvmAssets } from './WalletDataContext';
 
 // Navigation handlers
 export {

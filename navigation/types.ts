@@ -112,9 +112,25 @@ export type AuthStackParamList = {
  */
 export type WalletStackParamList = {
   WalletHome: undefined;
-  AssetDetail: { assetId: string; assetType: string };
+  AssetDetail: {
+    assetId?: string;
+    assetType: string;
+    advancedMode?: boolean;
+    initialEvmUsdcBalance?: number;
+    initialEvmAddress?: string;
+  };
   VaultDetail: undefined;
-  ReceiveQR: { addressType: 'segwit' | 'taproot' };
+  ReceiveQR: {
+    address: string;
+    addressType?: string;
+    assetType?: 'BTC' | 'UNIT' | 'USDC';
+    networkLabel?: string;
+  };
+  UnitBridge: { amount?: string; autoSwap?: boolean } | undefined;
+  SepoliaSwap: { sourceAsset?: 'UNIT' | 'USDC' } | undefined;
+  SepoliaSwapSummary: { sourceAsset: 'UNIT' | 'USDC'; amountIn: string } | undefined;
+  SepoliaRedeem: { amount?: string; sourceAsset?: 'USDC' | 'wUNIT'; maxInputAmount?: string } | undefined;
+  SepoliaSend: { asset?: 'USDC' | 'wUNIT' } | undefined;
   CashuReceive: { token?: string };
   RecoverMint: undefined;
   Preferences: undefined;

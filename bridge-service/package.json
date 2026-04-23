@@ -1,0 +1,21 @@
+{
+  "name": "unit-bridge-service",
+  "private": true,
+  "version": "0.1.0",
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.2.0",
+    "bip32": "^5.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^7.0.0",
+    "ethers": "^6.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/bridge-service/src/server.js"
+  }
+}

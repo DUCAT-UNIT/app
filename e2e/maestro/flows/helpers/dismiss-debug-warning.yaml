@@ -1,0 +1,40 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Expo dev-client warning toast can appear late and intercept bottom CTA taps.
+# Try dismissing it a few times from the close affordance on the right side.
+
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,84%"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,84%"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,84%"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "50%,50%"
+      - waitForAnimationToEnd

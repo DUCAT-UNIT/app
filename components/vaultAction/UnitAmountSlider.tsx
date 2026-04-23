@@ -32,6 +32,7 @@ export interface UnitAmountSliderProps {
   onValueChange: (value: number) => void;
   onLiveValueChange?: (value: number) => void;
   label?: string;
+  unitLabel?: 'UNIT' | 'USD';
   disabled?: boolean;
   /** Optional footer content to render inside the card (e.g., fee selector) */
   renderFooter?: () => React.ReactNode;
@@ -43,6 +44,8 @@ export interface UnitAmountSliderProps {
   sliderColor?: string;
   /** Hide the available amount in header */
   hideAvailable?: boolean;
+  /** Optional prefix for stable E2E selectors on editable controls */
+  testIDPrefix?: string;
 }
 
 const THUMB_SIZE = 24;
@@ -54,11 +57,13 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
   onValueChange,
   onLiveValueChange,
   label = 'Amount',
+  unitLabel = 'UNIT',
   disabled = false,
   renderFooter,
   attachedBottom = false,
   attachedTop = false,
   sliderColor = COLORS.PRIMARY_BLUE,
+  testIDPrefix,
 }: UnitAmountSliderProps): React.JSX.Element {
   const [width, setWidth] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
@@ -288,18 +293,27 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
                 onBlur={handleEditSubmit}
                 selectTextOnFocus
                 autoFocus
+                testID={testIDPrefix ? `${testIDPrefix}-input` : undefined}
               />
-              <Text style={styles.unitLabel}>UNIT</Text>
+              <Text style={styles.unitLabel}>{unitLabel}</Text>
             </View>
-            <Text style={styles.usdTextStatic}>Tap done when finished</Text>
+            <TouchableOpacity
+              onPress={handleEditSubmit}
+              activeOpacity={0.8}
+              style={styles.doneButton}
+              testID={testIDPrefix ? `${testIDPrefix}-done-btn` : undefined}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
             onPress={handleTapToEdit}
             activeOpacity={0.7}
             style={styles.valueContainer}
+            testID={testIDPrefix ? `${testIDPrefix}-display` : undefined}
             accessibilityRole="button"
-            accessibilityLabel={`Current amount: ${value.toFixed(2)} UNIT. Tap to edit`}
+            accessibilityLabel={`Current amount: ${value.toFixed(2)} ${unitLabel}. Tap to edit`}
             accessibilityHint="Opens keyboard to enter a specific amount"
           >
             <View style={styles.valueRow} accessibilityElementsHidden>
@@ -308,8 +322,9 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
                 style={styles.valueText}
                 animatedProps={unitAnimatedProps}
                 pointerEvents="none"
+                testID={testIDPrefix ? `${testIDPrefix}-value` : undefined}
               />
-              <Text style={styles.unitLabel}>UNIT</Text>
+              <Text style={styles.unitLabel}>{unitLabel}</Text>
             </View>
             <AnimatedTextInput
               editable={false}
@@ -450,11 +465,18 @@ const styles = StyleSheet.create({
     margin: 0,
     width: '100%',
   },
-  usdTextStatic: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 14,
-    textAlign: 'center',
+  doneButton: {
     marginBottom: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_BLUE,
+  },
+  doneButtonText: {
+    color: COLORS.PRIMARY_BLUE,
+    fontSize: 13,
+    fontWeight: '700',
   },
   sliderWrap: {
     height: 40,

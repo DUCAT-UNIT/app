@@ -13,6 +13,7 @@ import TouchableScale from '../common/TouchableScale';
 import { useNotifications } from '../../stores/notificationStore';
 import { getTxUrl } from '../../utils/constants';
 import { formatFiat, formatBTC } from '../../utils/formatters';
+import { formatVaultUsd } from '../../utils/vaultFaceValue';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 
 export type VaultActionType = 'create' | 'deposit' | 'withdraw' | 'borrow' | 'repay';
@@ -22,7 +23,9 @@ interface VaultActionSuccessProps {
   amount: number;
   usdValue: number;
   txid: string;
-  unit: 'BTC' | 'UNIT';
+  unit: 'BTC' | 'UNIT' | 'USD' | 'USDC' | 'wUNIT';
+  titleOverride?: string;
+  messageOverride?: string;
   onDone: () => void;
 }
 
@@ -41,7 +44,7 @@ const ACTION_CONFIG = {
   },
   borrow: {
     title: 'Borrow Complete!',
-    message: 'UNIT added to wallet. May take a few minutes to confirm.',
+    message: 'Borrow recorded. May take a few minutes to confirm.',
   },
   repay: {
     title: 'Repayment Complete!',
@@ -55,10 +58,16 @@ export default function VaultActionSuccess({
   usdValue,
   txid,
   unit,
+  titleOverride,
+  messageOverride,
   onDone,
 }: VaultActionSuccessProps) {
   const { showToast } = useNotifications();
-  const config = ACTION_CONFIG[actionType];
+  const config = {
+    ...ACTION_CONFIG[actionType],
+    title: titleOverride || ACTION_CONFIG[actionType].title,
+    message: messageOverride || ACTION_CONFIG[actionType].message,
+  };
 
   // Trigger haptic feedback on mount
   useEffect(() => {
@@ -90,7 +99,14 @@ export default function VaultActionSuccess({
   // Format amount based on unit
   const formattedAmount = unit === 'BTC'
     ? `${formatBTC(amount)} BTC`
-    : `${amount.toFixed(2)} UNIT`;
+    : unit === 'USD'
+      ? formatVaultUsd(amount)
+      : unit === 'USDC'
+        ? `${formatFiat(amount)} USDC`
+        : unit === 'wUNIT'
+          ? `${amount.toFixed(2)} wUNIT`
+          : `${amount.toFixed(2)} UNIT`;
+  const shouldShowUsdApproximation = unit !== 'USD' && unit !== 'USDC';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID={`vault-${actionType}-success-screen`}>
@@ -105,7 +121,9 @@ export default function VaultActionSuccess({
         {/* Success Message */}
         <Text style={styles.title}>{config.title}</Text>
         <Text style={styles.amount}>{formattedAmount}</Text>
-        <Text style={styles.amountUsd}>≈ ${formatFiat(usdValue)}</Text>
+        {shouldShowUsdApproximation && (
+          <Text style={styles.amountUsd}>≈ ${formatFiat(usdValue)}</Text>
+        )}
 
         {/* Transaction Links */}
         {txid && (

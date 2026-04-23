@@ -98,6 +98,9 @@ export interface VaultOperationConfig<TConfig, TRequest, TResult> {
   /** Whether this operation returns an issue txid (borrow/repay) or just vault txid */
   hasIssueTxid: boolean;
 
+  /** Keep the store in processing so a higher-level settlement wrapper can finish the flow */
+  deferSuccessTransition?: boolean;
+
   /** Hook to access the operation-specific store */
   useStore: () => VaultStore;
 

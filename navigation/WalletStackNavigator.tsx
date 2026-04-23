@@ -12,6 +12,11 @@ import VaultDetailScreenComponent from '../screens/wallet/VaultDetailScreen';
 import ReceiveQRScreenComponent from '../screens/wallet/ReceiveQRScreen';
 import CashuReceiveScreenComponent from '../screens/cashu/CashuReceiveScreen';
 import RecoverMintScreenComponent from '../screens/wallet/RecoverMintScreen';
+import BridgeScreenComponent from '../screens/bridge/BridgeScreen';
+import SwapScreenComponent from '../screens/bridge/SwapScreen';
+import SwapSummaryScreenComponent from '../screens/bridge/SwapSummaryScreen';
+import RedeemScreenComponent from '../screens/bridge/RedeemScreen';
+import SepoliaSendScreenComponent from '../screens/bridge/SepoliaSendScreen';
 import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
 import AboutScreenComponent from '../screens/settings/AboutScreen';
 import TermsOfServiceScreenComponent from '../screens/settings/TermsOfServiceScreen';
@@ -56,6 +61,31 @@ const CashuReceiveScreen: AnyComponent = withErrorBoundary(CashuReceiveScreenCom
 const RecoverMintScreen: AnyComponent = withErrorBoundary(RecoverMintScreenComponent, {
   boundaryName: 'RecoverMintScreen',
   fallbackMessage: 'Unable to recover from mint. Please try again.',
+});
+
+const BridgeScreen: AnyComponent = withErrorBoundary(BridgeScreenComponent, {
+  boundaryName: 'BridgeScreen',
+  fallbackMessage: 'Unable to load the Sepolia bridge screen. Please try again.',
+});
+
+const SwapScreen: AnyComponent = withErrorBoundary(SwapScreenComponent, {
+  boundaryName: 'SwapScreen',
+  fallbackMessage: 'Unable to load the Sepolia swap screen. Please try again.',
+});
+
+const SwapSummaryScreen: AnyComponent = withErrorBoundary(SwapSummaryScreenComponent, {
+  boundaryName: 'SwapSummaryScreen',
+  fallbackMessage: 'Unable to load the swap summary screen. Please try again.',
+});
+
+const RedeemScreen: AnyComponent = withErrorBoundary(RedeemScreenComponent, {
+  boundaryName: 'RedeemScreen',
+  fallbackMessage: 'Unable to load the redemption screen. Please try again.',
+});
+
+const SepoliaSendScreen: AnyComponent = withErrorBoundary(SepoliaSendScreenComponent, {
+  boundaryName: 'SepoliaSendScreen',
+  fallbackMessage: 'Unable to load the Sepolia send screen. Please try again.',
 });
 
 const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenComponent, {
@@ -215,6 +245,31 @@ export default function WalletStackNavigator(): React.JSX.Element {
       <Stack.Screen
         name="ReceiveQR"
         component={ReceiveQRScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="UnitBridge"
+        component={BridgeScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="SepoliaSwap"
+        component={SwapScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="SepoliaSwapSummary"
+        component={SwapSummaryScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="SepoliaRedeem"
+        component={RedeemScreen}
+        options={detailScreenOptions}
+      />
+      <Stack.Screen
+        name="SepoliaSend"
+        component={SepoliaSendScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen

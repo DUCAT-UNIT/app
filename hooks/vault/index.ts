@@ -28,12 +28,16 @@ export type {
 // Operation hooks
 export { useBorrowVault, useBorrow } from './useBorrowVault';
 export type { UseBorrowVaultResult } from './useBorrowVault';
+export { useBorrowToUsdcSettlement } from './useBorrowToUsdcSettlement';
+export type { UseBorrowToUsdcSettlementResult } from './useBorrowToUsdcSettlement';
 
 export { useDepositVault, useDeposit } from './useDepositVault';
 export type { UseDepositVaultResult } from './useDepositVault';
 
 export { useRepayVault, useRepay } from './useRepayVault';
 export type { UseRepayVaultResult } from './useRepayVault';
+export { useRepayFromUsdcSettlement } from './useRepayFromUsdcSettlement';
+export type { UseRepayFromUsdcSettlementResult } from './useRepayFromUsdcSettlement';
 
 export { useWithdrawVault, useWithdraw } from './useWithdrawVault';
 export type { UseWithdrawVaultResult } from './useWithdrawVault';

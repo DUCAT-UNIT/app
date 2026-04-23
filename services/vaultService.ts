@@ -16,6 +16,7 @@ export interface VaultHistoryTransaction {
   utxo_script?: string;
   liquidation_hash?: string;
   liquidation_threshold?: number;
+  compositeSettlement?: boolean;
 }
 
 export interface VaultData {

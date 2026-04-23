@@ -1,0 +1,20 @@
+{
+  "name": "unit-bridge-evm",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local-swap": "hardhat run scripts/deployLocalSwapStack.js --network localhost",
+    "fund:local-swap": "hardhat run scripts/fundLocalSwapAccount.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploySepolia.js --network sepolia",
+    "bootstrap:sepolia": "hardhat run scripts/bootstrapSepoliaPool.js --network sepolia",
+    "smoke:sepolia": "hardhat run scripts/smokeTestSepolia.js --network sepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.2.0",
+    "hardhat": "^2.24.3"
+  }
+}

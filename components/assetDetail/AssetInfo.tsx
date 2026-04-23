@@ -38,7 +38,7 @@ export interface VaultHealthData {
 }
 
 export interface AssetInfoProps {
-  assetType: 'BTC' | 'UNIT';
+  assetType: 'BTC' | 'UNIT' | 'USDC';
   balance: number;
   fiatValue: number;
   btcPrice: number | null;
@@ -69,14 +69,26 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
   return (
     <View style={[styles.assetInfoContainer, { paddingVertical: s(12), minHeight: s(180) }]}>
       <View style={[styles.iconContainer, { marginBottom: s(4) }]}>
-        <Icon
-          name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
-          size={s(60)}
-        />
+        {assetType === 'USDC' ? (
+          <View style={styles.badgedIconWrap}>
+            <Icon name="usdc_logo" size={s(60)} />
+            <View style={[styles.assetBadge, {
+              right: s(1),
+              bottom: s(0),
+            }]}>
+              <Icon name="eth_logo" size={s(14)} />
+            </View>
+          </View>
+        ) : (
+          <Icon
+            name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+            size={s(60)}
+          />
+        )}
       </View>
 
       <Text style={[styles.assetName, { fontSize: sf(16), marginBottom: s(12) }]}>
-        {assetType === 'BTC' ? 'Bitcoin' : 'UNIT'}
+        {assetType === 'BTC' ? 'Bitcoin' : assetType}
       </Text>
 
       <Text style={[styles.balanceAmount, { fontSize: sf(31), marginBottom: s(8) }]}>
@@ -102,6 +114,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconContainer: {},
+  badgedIconWrap: {
+    position: 'relative',
+  },
+  assetBadge: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.WHITE,
+    borderWidth: 1.5,
+    borderColor: '#2775CA',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   assetName: {
     fontWeight: '400',
     color: COLORS.SECONDARY_TEXT,

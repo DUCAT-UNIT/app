@@ -29,11 +29,16 @@ import { fetchVaultData,fetchVaultHistory } from '../../services/vaultService';
 import { createVaultWallet } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import {
+  extractVaultFinalizationPendingData,
+  extractVaultIssuePendingData,
+} from '../../services/vault/pendingIssueOutputs';
 import type {
 ProcessingStep,
 UseVaultOperationResult,
@@ -55,6 +60,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     operationName,
     needsReservation,
     hasIssueTxid,
+    deferSuccessTransition,
     useStore,
     validate,
     createConfig,
@@ -99,6 +105,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   const setPendingTransaction = usePendingVaultTransactionStore(
     (s) => s.setPendingTransaction
   );
+  const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
+  const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
   const showSnackbar = useNotificationStore((s) => s.showSnackbar);
 
   // Operation state
@@ -324,7 +332,9 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         setIssueTxid(txid);
       }
       setVaultTxid(resultVaultTxid);
-      setCurrentStep('success');
+      if (!deferSuccessTransition) {
+        setCurrentStep('success');
+      }
 
       // Track pending transaction
       const pendingTx = createPendingTransaction({
@@ -332,6 +342,66 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         result: { txid, vaultTxid: resultVaultTxid },
         taprootPubkey: wallet!.taprootPubkey || '',
       });
+
+      if (txid) {
+        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
+          request as {
+            issue_txhex?: string;
+            vault_txhex?: string;
+          },
+          wallet,
+          livePendingTransactions,
+        );
+
+        for (const spentInput of spentInputs) {
+          if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
+            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+          }
+        }
+
+        if (outputs.length > 0) {
+          await addPendingTransaction(
+            txid,
+            outputs,
+            'UNIT',
+            parentTxid,
+            pendingTx.unitAmt,
+            spentInputs,
+          );
+        }
+
+        const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+        const finalizationPendingData = extractVaultFinalizationPendingData(
+          request as {
+            issue_txhex?: string;
+            vault_txhex?: string;
+          },
+          wallet,
+          latestPendingTransactions,
+        );
+
+        for (const spentInput of finalizationPendingData.spentInputs) {
+          if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
+            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+          }
+        }
+
+        if (
+          resultVaultTxid !== txid &&
+          finalizationPendingData.outputs.length > 0
+        ) {
+          await addPendingTransaction(
+            resultVaultTxid,
+            finalizationPendingData.outputs,
+            'BTC',
+            finalizationPendingData.parentTxid,
+            undefined,
+            finalizationPendingData.spentInputs,
+          );
+        }
+      }
+
       await setPendingTransaction(pendingTx);
 
       // Show confirmation snackbar
@@ -349,7 +419,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, { operation: operationName });
 
       // Register vault TX for push-notification monitoring (fire-and-forget)
-      void watchTransaction(
+      watchTransaction(
         resultVaultTxid,
         wallet?.segwitAddress || '',
         'vault_operation'
@@ -384,6 +454,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     operationType,
     needsReservation,
     hasIssueTxid,
+    deferSuccessTransition,
     validate,
     createConfig,
     createRequest,
@@ -400,6 +471,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     updateProcessingStep,
     buildVaultProfileFromData,
     setPendingTransaction,
+    addPendingTransaction,
+    markUtxoAsSpent,
     showSnackbar,
   ]);
 

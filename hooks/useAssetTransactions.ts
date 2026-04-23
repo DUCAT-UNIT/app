@@ -120,6 +120,12 @@ export function useAssetTransactions(
 
   // Filter and process transactions using useMemo for instant updates
   const filteredTransactions = useMemo(() => {
+    if (assetType === 'USDC') {
+      transactionsProcessedRef.current = true;
+      filteredTxRef.current = [];
+      return filteredTxRef.current;
+    }
+
     if (!transactionHistory || !segwitAddress || !taprootAddress) {
       return filteredTxRef.current;
     }

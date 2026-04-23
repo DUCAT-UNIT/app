@@ -115,4 +115,20 @@ describe('AssetCard', () => {
     const { getByLabelText } = render(<AssetCard {...propsWithoutLabel} />);
     expect(getByLabelText(/Bitcoin/)).toBeTruthy();
   });
+
+  it('should support alternate brand logos for non-BTC assets', () => {
+    const { getByTestId, getByLabelText } = render(
+      <AssetCard
+        {...mockProps}
+        assetName="USDC"
+        assetLogo="usdc_logo"
+        amountLabel={undefined}
+        amountValue="100.00"
+        usdValue={100}
+      />,
+    );
+
+    expect(getByTestId('icon-usdc_logo', { includeHiddenElements: true })).toBeTruthy();
+    expect(getByLabelText(/USDC/)).toBeTruthy();
+  });
 });

@@ -5,8 +5,11 @@
 import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useBorrow } from '../../stores/borrowStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
+import { registerVaultSettlementHistory } from '../../services/vaultSettlementHistoryService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import { useWallet } from '../../contexts/WalletContext';
 
 import type { StackScreenProps } from '@react-navigation/stack';
 
@@ -20,7 +23,15 @@ type BorrowStackParamList = {
 type BorrowSuccessScreenProps = StackScreenProps<BorrowStackParamList, 'BorrowSuccess'>;
 
 export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccessScreenProps) {
-  const { txid: storeTxid, borrowAmount, reset } = useBorrow();
+  const { txid: storeTxid, borrowAmountUsd, reset } = useBorrow();
+  const { wallet } = useWallet();
+  const {
+    phase,
+    payoutAsset,
+    payoutAmount,
+    error: settlementError,
+    reset: resetSettlement,
+  } = useVaultSettlementStore();
 
   const txid = route.params?.txid || storeTxid || '';
 
@@ -28,14 +39,24 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
     if (txid) {
       analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, txid, {
         operation: 'borrow',
-        amount: borrowAmount,
-        unit: 'UNIT',
+        amount: borrowAmountUsd,
+        unit: 'USD',
       });
+    }
+
+    if (wallet?.taprootPubkey && txid && payoutAsset === 'USDC' && payoutAmount) {
+      registerVaultSettlementHistory({
+        vaultPubkey: wallet.taprootPubkey,
+        action: 'borrow_settled_to_usdc',
+        amountUsd: Number.parseFloat(payoutAmount) || borrowAmountUsd,
+        txid,
+      }).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDone = useCallback(() => {
+    resetSettlement();
     reset();
     navigation.getParent()?.reset({
       index: 0,
@@ -57,15 +78,37 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
         },
       ],
     });
-  }, [reset, navigation]);
+  }, [resetSettlement, reset, navigation]);
+
+  const successUnit = payoutAsset === 'USDC' ? 'USDC' : 'USD';
+  const successAmount =
+    payoutAsset === 'USDC' && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
+  const titleOverride =
+    payoutAsset === 'USDC'
+      ? 'USDC Received!'
+      : phase === 'pending_settlement'
+        ? 'Borrow Complete!'
+        : phase === 'needs_retry'
+          ? 'Borrow Complete!'
+          : undefined;
+  const messageOverride =
+    payoutAsset === 'USDC'
+      ? 'Borrow recorded and automatically settled to USDC on Sepolia.'
+      : phase === 'pending_settlement'
+        ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
+        : phase === 'needs_retry'
+          ? settlementError || 'Borrow recorded. Automatic USDC settlement needs retry.'
+          : undefined;
 
   return (
     <VaultActionSuccess
       actionType="borrow"
-      amount={borrowAmount}
-      usdValue={borrowAmount}
+      amount={successAmount}
+      usdValue={borrowAmountUsd}
       txid={txid}
-      unit="UNIT"
+      unit={successUnit}
+      titleOverride={titleOverride}
+      messageOverride={messageOverride}
       onDone={handleDone}
     />
   );

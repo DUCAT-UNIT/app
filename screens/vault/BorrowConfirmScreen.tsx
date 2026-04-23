@@ -2,12 +2,12 @@
  * BorrowConfirmScreenNew - Borrow confirm screen using generic VaultConfirmScreen
  */
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from './VaultConfirmScreen';
-import { borrowConfirmConfig } from './configs';
+import { createBorrowConfirmConfig } from './configs';
 import { useBorrow } from '../../stores/borrowStore';
-import { useBorrowVault } from '../../hooks/vault';
+import { useBorrowToUsdcSettlement } from '../../hooks/vault';
 
 interface BorrowConfirmScreenNewProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -15,12 +15,46 @@ interface BorrowConfirmScreenNewProps {
 
 export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScreenNewProps) {
   const store = useBorrow();
-  const vaultHook = useBorrowVault();
+  const vaultHook = useBorrowToUsdcSettlement();
+  const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (store.borrowAmountUsd <= 0) {
+      setEstimatedUsdcOut(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    vaultHook
+      .quoteBorrowToUsdc(store.borrowAmountUsd)
+      .then((quote) => {
+        if (!cancelled) {
+          setEstimatedUsdcOut(quote.estimatedUsdcOut);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEstimatedUsdcOut(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [store.borrowAmountUsd, vaultHook]);
+
+  const config = useMemo(
+    () => createBorrowConfirmConfig(estimatedUsdcOut),
+    [estimatedUsdcOut],
+  );
 
   return (
     <VaultConfirmScreen
       navigation={navigation}
-      config={borrowConfirmConfig}
+      config={config}
       store={store}
       vaultHook={vaultHook}
     />

@@ -10,7 +10,8 @@ import Icon from '../icons';
 import { VaultActivityListSkeleton } from './VaultSkeleton';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import type { PendingVaultTransaction } from '../../stores/pendingVaultTransactionStore';
-import { formatUnitAmount, formatBalance } from '../../utils/formatters';
+import { formatBalance } from '../../utils/formatters';
+import { formatVaultUsdFromSmallestUnits } from '../../utils/vaultFaceValue';
 import { useResponsive } from '../../hooks/useResponsive';
 import {
   INITIAL_LOAD_COUNT,
@@ -77,9 +78,8 @@ const PendingVaultTransactionItem = memo(function PendingVaultTransactionItem({
             <View style={[styles.column3, { marginRight: s(8) }]}>
               {transaction.unitAmt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
                   <Text style={[styles.transactionAmount, { color: unitColor, fontSize: sf(12) }]}>
-                    {formatUnitAmount(Math.abs(transaction.unitAmt))}
+                    {formatVaultUsdFromSmallestUnits(Math.abs(transaction.unitAmt))}
                   </Text>
                 </View>
               )}
@@ -168,9 +168,8 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
             <View style={[styles.column3, isHighlighted && { marginRight: 8 }]}>
               {effectiveUnitAmt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="unit_symbol" size={s(10)} color={unitColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
                   <Text style={[styles.transactionAmount, { color: unitColor, fontSize: sf(12) }]}>
-                    {formatUnitAmount(Math.abs(effectiveUnitAmt))}
+                    {formatVaultUsdFromSmallestUnits(Math.abs(effectiveUnitAmt))}
                   </Text>
                 </View>
               )}
@@ -237,16 +236,30 @@ export const VaultActivityList = memo(function VaultActivityList({
   }, [hasMore]);
 
   const renderItem = useCallback(({ item, index }: { item: VaultHistoryTransaction; index: number }) => {
-    // Find previous transaction using pre-computed map (O(1) instead of O(n))
+    // Find previous raw vault transaction while skipping synthetic settlement entries.
     const originalIndex = transactionIndexMap.get(item.timestamp) ?? index;
-    const previousTransaction = originalIndex < transactions.length - 1 ? transactions[originalIndex + 1] : null;
+    let previousTransaction: VaultHistoryTransaction | null = null;
+
+    if (!item.compositeSettlement) {
+      for (let cursor = originalIndex + 1; cursor < transactions.length; cursor += 1) {
+        const candidate = transactions[cursor];
+        if (!candidate?.compositeSettlement) {
+          previousTransaction = candidate;
+          break;
+        }
+      }
+    }
 
     return (
       <VaultTransactionItem
         transaction={item}
         previousTransaction={previousTransaction}
         isHighlighted={isTransactionHighlighted(item.timestamp, highlightedEventDate)}
-        onPress={onTransactionPress ? () => onTransactionPress(item, previousTransaction) : undefined}
+        onPress={
+          onTransactionPress && !item.compositeSettlement
+            ? () => onTransactionPress(item, previousTransaction)
+            : undefined
+        }
       />
     );
   }, [highlightedEventDate, onTransactionPress, transactions, transactionIndexMap]);

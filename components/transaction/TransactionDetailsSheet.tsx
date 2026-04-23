@@ -12,6 +12,7 @@ import { formatBalance, formatUnitAmount, formatFiat } from '../../utils/formatt
 import { getTxUrl, getOrdTxUrl } from '../../utils/constants';
 import { usePrice } from '../../stores/priceStore';
 import type { DisplayAssetType } from '../../types/assets';
+import { EVM_CONFIG } from '../../constants/evm';
 
 interface TransactionData {
   amount: number | bigint;
@@ -65,6 +66,10 @@ const getActionDescription = (txData: TransactionData): string => {
     const formatted = formatUnitAmount(absAmount);
     if (txData.isSent && txData.isReceived) return `Moved ${formatted} UNIT to self`;
     return txData.isSent ? `Sent ${formatted} UNIT` : `Received ${formatted} UNIT`;
+  } else if (txData.assetType === 'USDC') {
+    const formatted = formatFiat(absAmount, 2);
+    if (txData.isSent && txData.isReceived) return `Moved $${formatted} USDC to self`;
+    return txData.isSent ? `Sent $${formatted} USDC` : `Received $${formatted} USDC`;
   } else {
     const formatted = formatBalance(absAmount / 100_000_000);
     if (txData.isSent && txData.isReceived) return `Moved ${formatted} BTC to self`;
@@ -85,7 +90,14 @@ function DetailRow({ label, value, valueColor = COLORS.WHITE, icon, onPress }: D
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
       <View style={styles.detailValueContainer}>
-        {icon && <Icon name={icon as 'btc_symbol' | 'unit_symbol'} size={14} color={valueColor} style={styles.valueIcon} />}
+        {icon && (
+          <Icon
+            name={icon as 'btc_symbol' | 'unit_symbol' | 'usdc_logo'}
+            size={icon === 'usdc_logo' ? 16 : 14}
+            color={valueColor}
+            style={styles.valueIcon}
+          />
+        )}
         <Text style={[styles.detailValue, { color: valueColor }]}>{value}</Text>
         {onPress && <Icon name="external_link" size={14} color={COLORS.PRIMARY_BLUE} style={styles.linkIcon} />}
       </View>
@@ -124,6 +136,8 @@ export default function TransactionDetailsSheet({
     // Format amount based on asset type
     const formattedAmount = txData.assetType === 'UNIT'
       ? formatUnitAmount(absAmount)
+      : txData.assetType === 'USDC'
+        ? formatFiat(absAmount, 2)
       : formatBalance(absAmount / 100_000_000);
 
     // Calculate USD value for BTC transactions
@@ -155,7 +169,11 @@ export default function TransactionDetailsSheet({
   const openInExplorer = useCallback(async () => {
     if (!txid || !details) return;
     try {
-      const url = details.assetType === 'UNIT' ? getOrdTxUrl(txid) : getTxUrl(txid);
+      const url = details.assetType === 'UNIT'
+        ? getOrdTxUrl(txid)
+        : details.assetType === 'USDC'
+          ? `${EVM_CONFIG.explorerBaseUrl}/tx/${txid}`
+          : getTxUrl(txid);
       const supported = await Linking.canOpenURL(url);
       if (supported) {
         await Linking.openURL(url);
@@ -176,7 +194,7 @@ export default function TransactionDetailsSheet({
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Icon
-            name={details.assetType === 'UNIT' ? 'unit_logo' : 'btc_logo'}
+            name={details.assetType === 'UNIT' ? 'unit_logo' : details.assetType === 'USDC' ? 'usdc_logo' : 'btc_logo'}
             size={32}
           />
           <View style={styles.headerText}>
@@ -189,16 +207,22 @@ export default function TransactionDetailsSheet({
       {/* Action Summary */}
       <View style={styles.summarySection}>
         <View style={[styles.summaryCard, { borderColor: isPositiveAction ? COLORS.GREEN : COLORS.RED }]}>
-          <View style={styles.summaryAmountRow}>
-            <Icon
-              name={details.assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-              size={20}
-              color={amountColor}
-            />
+          {details.assetType === 'USDC' ? (
             <Text style={[styles.summaryAmount, { color: amountColor }]}>
-              {details.isSent && !details.isReceived ? '-' : '+'}{details.formattedAmount}
+              {details.isSent && !details.isReceived ? '-' : '+'}${details.formattedAmount}
             </Text>
-          </View>
+          ) : (
+            <View style={styles.summaryAmountRow}>
+              <Icon
+                name={details.assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+                size={20}
+                color={amountColor}
+              />
+              <Text style={[styles.summaryAmount, { color: amountColor }]}>
+                {details.isSent && !details.isReceived ? '-' : '+'}{details.formattedAmount}
+              </Text>
+            </View>
+          )}
           {details.usdValue && (
             <Text style={styles.summaryUsd}>≈ ${details.usdValue} USD</Text>
           )}
@@ -219,8 +243,8 @@ export default function TransactionDetailsSheet({
         {/* Asset Type */}
         <DetailRow
           label="Asset"
-          value={details.assetType === 'UNIT' ? 'UNIT' : 'Bitcoin'}
-          icon={details.assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+          value={details.assetType === 'UNIT' ? 'UNIT' : details.assetType === 'USDC' ? 'USDC on Sepolia' : 'Bitcoin'}
+          icon={details.assetType === 'UNIT' ? 'unit_symbol' : details.assetType === 'USDC' ? 'usdc_logo' : 'btc_symbol'}
         />
 
         {/* Network Fee (if available) */}

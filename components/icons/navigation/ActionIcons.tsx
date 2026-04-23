@@ -48,6 +48,72 @@ export const ActionIcons = {
     </Svg>
   ),
 
+  swap: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 8h12"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="m13 5 3 3-3 3"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="M20 16H8"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="m11 13-3 3 3 3"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </Svg>
+  ),
+
+  swap_vertical: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 4v13"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="m8.5 7.5 3.5-3.5 3.5 3.5"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="M12 20V7"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <Path
+        d="m15.5 16.5-3.5 3.5-3.5-3.5"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </Svg>
+  ),
+
   close: ({ width, height, color }: { width?: number; height?: number; color?: string }) => (
     <Svg width={width} height={height} viewBox="0 0 24 24" fill="none">
       <Path

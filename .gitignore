@@ -48,3 +48,4 @@ storybook-static
 # Test coverage
 coverage/
 coverage/
+bridge-service/data/

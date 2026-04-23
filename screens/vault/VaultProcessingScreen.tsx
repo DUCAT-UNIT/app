@@ -8,8 +8,10 @@ import { AppState,AppStateStatus,StyleSheet,Text,TouchableOpacity,View } from 'r
 import { ProcessingStepsList } from '../../components/vaultCreation';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
+import { getVaultSettlementStatusMessage } from '../../services/vaultSettlementService';
 import type { VaultProcessingScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
 
 const STEP_DURATION_MS = 1000; // Minimum 1 second per step
@@ -28,6 +30,7 @@ export default function VaultProcessingScreen({
 }: VaultProcessingScreenProps) {
   const { currentStep, error, vaultTxid: txid, reset } = store;
   const { isAuthenticated } = useAuth();
+  const { kind: settlementKind, phase: settlementPhase } = useVaultSettlementStore();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
 
@@ -123,6 +126,11 @@ export default function VaultProcessingScreen({
     navigation.navigate(config.routes.input);
   };
 
+  const statusMessage =
+    config.operationType === 'repay' && settlementKind === 'repay'
+      ? getVaultSettlementStatusMessage(settlementKind, settlementPhase, visualStep)
+      : config.getStatusMessage(visualStep);
+
   return (
     <View style={styles.container} testID={`vault-${config.operationType}-processing-screen`}>
       <View style={styles.content}>
@@ -153,7 +161,7 @@ export default function VaultProcessingScreen({
             <Text style={styles.errorText} accessibilityLabel={`Error: ${error}`}>{error}</Text>
           ) : (
             <Text style={styles.statusText}>
-              {config.getStatusMessage(visualStep)}
+              {statusMessage}
             </Text>
           )}
         </View>

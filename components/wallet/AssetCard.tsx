@@ -10,7 +10,7 @@ import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
 
-// E2E bypass: disable accessibilityElementsHidden so Maestro can see inner text
+// In dev builds, expose inner text so Maestro can drive the real UI reliably.
 import { isE2E } from '../../utils/e2e';
 
 // Constants
@@ -18,6 +18,35 @@ const CURRENCY_ICON_SIZE = 10;
 const ASSET_LOGO_SIZE = 36;
 const BTC_DECIMAL_PLACES = 8;
 const USD_DECIMAL_PLACES = 2;
+
+function AssetLogoBadge({ assetLogo }: { assetLogo: string }): React.JSX.Element {
+  if (assetLogo !== 'usdc_logo') {
+    return <Icon name={assetLogo} size={ASSET_LOGO_SIZE} />;
+  }
+
+  return (
+    <View style={{ width: ASSET_LOGO_SIZE, height: ASSET_LOGO_SIZE }}>
+      <Icon name="usdc_logo" size={ASSET_LOGO_SIZE} />
+      <View
+        style={{
+          position: 'absolute',
+          right: 1,
+          bottom: 1,
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          backgroundColor: COLORS.WHITE,
+          borderWidth: 1,
+          borderColor: '#2775CA',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon name="eth_logo" size={10} />
+      </View>
+    </View>
+  );
+}
 
 export interface AssetCardStyles {
   assetCard: ViewStyle;
@@ -67,6 +96,7 @@ const AssetCard = React.memo(function AssetCard({
 }: AssetCardProps) {
   const { s } = useResponsive();
   const CardWrapper = onPress ? TouchableOpacity : View;
+  const exposeInnerElements = __DEV__ || isE2E;
 
   // Format accessibility label
   const formattedBtcValue = typeof btcValue === 'number' ? formatBalance(btcValue, BTC_DECIMAL_PLACES) : btcValue;
@@ -79,15 +109,15 @@ const AssetCard = React.memo(function AssetCard({
       onPress={onPress}
       activeOpacity={0.7}
       testID={testID}
-      accessible={isE2E ? false : undefined}
-      accessibilityRole={isE2E ? undefined : (onPress ? "button" : undefined)}
-      accessibilityLabel={isE2E ? undefined : `${assetName}: ${amountValue}, value ${valueLabel}`}
-      accessibilityHint={isE2E ? undefined : (onPress ? `View ${assetName} details` : undefined)}
+      accessible={exposeInnerElements ? false : undefined}
+      accessibilityRole={exposeInnerElements ? undefined : (onPress ? "button" : undefined)}
+      accessibilityLabel={exposeInnerElements ? undefined : `${assetName}: ${amountValue}, value ${valueLabel}`}
+      accessibilityHint={exposeInnerElements ? undefined : (onPress ? `View ${assetName} details` : undefined)}
     >
-      <View style={styles.assetRow} accessibilityElementsHidden={!isE2E}>
+      <View style={styles.assetRow} accessibilityElementsHidden={!exposeInnerElements}>
         <View style={styles.assetLeft}>
           <View style={[styles.btcIcon, assetName !== 'Bitcoin' && styles.ducatIcon, { marginRight: s(9) }]}>
-            <Icon name={assetLogo} size={ASSET_LOGO_SIZE} />
+            <AssetLogoBadge assetLogo={assetLogo} />
           </View>
           <View style={styles.assetInfo}>
             <Text style={styles.assetName}>{assetName}</Text>
@@ -102,7 +132,7 @@ const AssetCard = React.memo(function AssetCard({
               )}
               <Text
                 style={[styles.assetAmount, customAmountStyle]}
-                testID={isE2E && testID ? `${testID}-amount` : undefined}
+                testID={testID ? `${testID}-amount` : undefined}
               >
                 {amountValue}
               </Text>

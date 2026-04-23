@@ -15,6 +15,12 @@ import { fetchWithTimeout } from '../../utils/api';
 // Initialize ECC library
 bitcoin.initEccLib(ecc);
 
+const txHexCache = new Map<string, string>();
+
+export function clearTransactionHexCache(): void {
+  txHexCache.clear();
+}
+
 /**
  * Fetch transaction hex from API with timeout
  * @param txid - Transaction ID
@@ -22,13 +28,20 @@ bitcoin.initEccLib(ecc);
  * @throws Error if request times out after 30 seconds
  */
 export async function fetchTransactionHex(txid: string): Promise<string> {
-  const response = await fetchWithTimeout(getTxHexUrl(txid), {}, 30000); // 30s timeout for blockchain API
+  const cached = txHexCache.get(txid);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetchWithTimeout(getTxHexUrl(txid), {}, 12000);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch transaction ${txid}: ${response.status} ${response.statusText}`);
   }
 
-  return await response.text();
+  const txHex = await response.text();
+  txHexCache.set(txid, txHex);
+  return txHex;
 }
 
 /**

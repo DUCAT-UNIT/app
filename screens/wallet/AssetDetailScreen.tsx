@@ -5,10 +5,12 @@
 
 import React,{ useCallback,useMemo,useRef,useState } from 'react';
 import {
+Alert,
 Animated,
 StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import {
 AssetAbout,
 AssetActionButtons,
@@ -24,7 +26,7 @@ import TransactionDetailsSheet from '../../components/transaction/TransactionDet
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useBalance,useTransactionHistory,useVaultData } from '../../contexts/WalletDataContext';
+import { useBalance,useEvmAssets,useTransactionHistory,useVaultData } from '../../contexts/WalletDataContext';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { useFuseEcash } from '../../hooks/useFuseEcash';
 import { usePriceChart } from '../../hooks/usePriceChart';
@@ -48,9 +50,11 @@ interface AssetDetailScreenProps {
     /** Route parameters */
     params?: {
       /** Type of asset to display (BTC or UNIT) */
-      assetType?: 'BTC' | 'UNIT';
+      assetType?: 'BTC' | 'UNIT' | 'USDC';
       /** Whether advanced mode is enabled for additional features */
       advancedMode?: boolean;
+      initialEvmUsdcBalance?: number;
+      initialEvmAddress?: string;
     };
   };
   /** Navigation object from React Navigation */
@@ -78,8 +82,211 @@ interface TokenData {
   isSelfClaim?: boolean;
 }
 
-function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
-  const { assetType = 'BTC', advancedMode = false } = route?.params || {};
+function AssetDetailScreen(props: AssetDetailScreenProps): React.JSX.Element {
+  const assetType = props.route?.params?.assetType || 'BTC';
+
+  if (assetType === 'USDC') {
+    return <UsdcAssetDetailScreen {...props} />;
+  }
+
+  return <BtcUnitAssetDetailScreen {...props} />;
+}
+
+function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
+  const {
+    advancedMode = false,
+    initialEvmUsdcBalance = 0,
+    initialEvmAddress = '',
+  } = route?.params || {};
+  const {
+    evmBalances,
+    usdcHistory,
+    loadingEvmBalances,
+    loadingUsdcHistory,
+    isEvmConfigured,
+    refreshEvmBalances,
+    refreshUsdcHistory,
+  } = useEvmAssets();
+  const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT'>('ACTIVITY');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1M');
+  const [isChartScrubbing, setIsChartScrubbing] = useState(false);
+  const [selectedRegularTx, setSelectedRegularTx] = useState<{
+    txid: string;
+    timestamp?: number;
+    confirmed: boolean;
+    txData: {
+      amount: number | bigint;
+      assetType: DisplayAssetType;
+      isSent: boolean;
+      isReceived: boolean;
+    };
+  } | null>(null);
+  const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const balanceLoadedRef = useRef(Boolean(initialEvmAddress));
+  const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart('USDC', selectedTimeframe);
+
+  const effectiveEvmUsdcBalance = Number(evmBalances?.usdc || initialEvmUsdcBalance || 0);
+  const effectiveEvmAddress = evmBalances?.address || initialEvmAddress;
+
+  if (!loadingEvmBalances || Boolean(effectiveEvmAddress)) {
+    balanceLoadedRef.current = true;
+  }
+
+  const isBalanceLoading = !balanceLoadedRef.current && loadingEvmBalances && !effectiveEvmAddress;
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshEvmBalances().catch(() => undefined);
+      if (selectedTab === 'ACTIVITY') {
+        refreshUsdcHistory().catch(() => undefined);
+      }
+      return undefined;
+    }, [refreshEvmBalances, refreshUsdcHistory, selectedTab]),
+  );
+
+  const handleActionPress = useCallback((action: 'send' | 'receive' | 'swap') => {
+    switch (action) {
+      case 'send':
+        navigation.navigate('SepoliaSend', { asset: 'USDC' });
+        break;
+      case 'receive':
+        if (!effectiveEvmAddress) {
+          Alert.alert('Address unavailable', 'Sepolia address is still loading.');
+          return;
+        }
+        navigation.navigate('ReceiveQR', {
+          address: effectiveEvmAddress,
+          addressType: 'Sepolia EVM',
+          assetType: 'USDC',
+          networkLabel: 'Ethereum Sepolia',
+        });
+        break;
+      case 'swap':
+        navigation.navigate('SepoliaSwap', { sourceAsset: 'USDC' });
+        break;
+    }
+  }, [effectiveEvmAddress, navigation]);
+
+  const handleTransactionPress = useCallback((tx: {
+    txid: string;
+    status?: { confirmed: boolean; block_time?: number };
+    txData?: { amount: number | bigint; assetType: string; isSent: boolean; isReceived: boolean };
+  }) => {
+    if (!tx.txData) {
+      return;
+    }
+
+    setSelectedRegularTx({
+      txid: tx.txid,
+      timestamp: tx.status?.block_time,
+      confirmed: tx.status?.confirmed ?? false,
+      txData: {
+        amount: tx.txData.amount,
+        assetType: tx.txData.assetType as DisplayAssetType,
+        isSent: tx.txData.isSent,
+        isReceived: tx.txData.isReceived,
+      },
+    });
+    setShowRegularTxDetails(true);
+  }, []);
+
+  return (
+    <>
+      <SafeAreaView style={styles.container} testID="asset-detail-screen">
+        <AssetHeader onBackPress={() => navigation.goBack()} />
+
+        <Animated.ScrollView
+          style={styles.scrollView}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false },
+          )}
+          scrollEventThrottle={16}
+          scrollEnabled={!isChartScrubbing}
+        >
+          <AssetInfo
+            assetType="USDC"
+            balance={effectiveEvmUsdcBalance}
+            fiatValue={effectiveEvmUsdcBalance}
+            btcPrice={null}
+            priceData={priceData}
+            priceDirection={priceDirection}
+            isLoading={isBalanceLoading}
+          />
+
+          <AssetActionButtons
+            onSendPress={() => handleActionPress('send')}
+            onReceivePress={() => handleActionPress('receive')}
+            onSwapPress={() => handleActionPress('swap')}
+            showSwap={isEvmConfigured}
+            showSend={isEvmConfigured}
+            showReceive={true}
+            advancedMode={advancedMode}
+          />
+
+          <AssetPriceChart
+            assetType="USDC"
+            priceData={priceData}
+            priceError={priceError}
+            priceLoading={priceLoading}
+            isPositive={priceDirection.isPositive}
+            selectedTimeframe={selectedTimeframe}
+            onTimeframeChange={setSelectedTimeframe}
+            onRetry={() => setPriceError(null)}
+            currentPrice={1}
+            onScrubStart={() => setIsChartScrubbing(true)}
+            onScrubEnd={() => setIsChartScrubbing(false)}
+          />
+
+          <AssetTabs
+            selectedTab={selectedTab}
+            onTabChange={(tab: string) => setSelectedTab(tab as 'ACTIVITY' | 'ABOUT')}
+            assetType="USDC"
+            advancedMode={advancedMode}
+          />
+
+          {selectedTab === 'ACTIVITY' ? (
+            <AssetActivityList
+              transactions={usdcHistory}
+              isLoading={loadingUsdcHistory}
+              onTransactionPress={handleTransactionPress as (tx: { txid: string; ecashToken?: boolean }) => void}
+              advancedMode={advancedMode}
+            />
+          ) : (
+            <AssetAbout assetType="USDC" evmAddress={effectiveEvmAddress} />
+          )}
+        </Animated.ScrollView>
+      </SafeAreaView>
+
+      <TransactionDetailsSheet
+        visible={showRegularTxDetails}
+        onClose={() => setShowRegularTxDetails(false)}
+        txid={selectedRegularTx?.txid ?? null}
+        timestamp={selectedRegularTx?.timestamp}
+        confirmed={selectedRegularTx?.confirmed ?? false}
+        txData={selectedRegularTx?.txData ?? null}
+      />
+    </>
+  );
+}
+
+function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
+  const {
+    assetType = 'BTC',
+    advancedMode = false,
+    initialEvmUsdcBalance = 0,
+    initialEvmAddress = '',
+  } = route?.params || {};
+  const {
+    evmBalances,
+    usdcHistory,
+    loadingEvmBalances,
+    loadingUsdcHistory,
+    isEvmConfigured: showSwapAction,
+    refreshEvmBalances,
+    refreshUsdcHistory,
+  } = useEvmAssets();
 
   const { segwitBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
@@ -137,7 +344,9 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const unitRunesAmount = getRunesAmount(runesBalance);
   const cashuDisplayAmount = (cashuBalance || 0) / 100;
   const totalUnitAmount = unitRunesAmount + cashuDisplayAmount;
-  const balance = assetType === 'BTC' ? segwitBalance : totalUnitAmount;
+  const effectiveEvmUsdcBalance = Number(evmBalances?.usdc || initialEvmUsdcBalance || 0);
+  const effectiveEvmAddress = evmBalances?.address || initialEvmAddress;
+  const balance = assetType === 'BTC' ? segwitBalance : assetType === 'UNIT' ? totalUnitAmount : effectiveEvmUsdcBalance;
   const fiatValue = assetType === 'BTC' ? balance * (btcPrice ?? 0) : balance * 1;
 
   // Loading states - only show loading on initial load, not background updates
@@ -147,7 +356,11 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const hasBtcData = segwitBalance !== null && segwitBalance !== undefined;
 
   // Mark as loaded once we have data
-  if ((assetType === 'UNIT' && hasUnitData) || (assetType === 'BTC' && hasBtcData)) {
+  if (
+    (assetType === 'UNIT' && hasUnitData)
+    || (assetType === 'BTC' && hasBtcData)
+    || (assetType === 'USDC' && (!loadingEvmBalances || Boolean(effectiveEvmAddress)))
+  ) {
     balanceLoadedRef.current = true;
   }
 
@@ -155,7 +368,9 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const isBalanceLoading = !balanceLoadedRef.current && (
     assetType === 'UNIT'
       ? loadingBalance || loadingCashu
-      : loadingBalance
+      : assetType === 'USDC'
+        ? loadingEvmBalances && !effectiveEvmAddress
+        : loadingBalance
   );
 
   // Extract stable wallet addresses using refs
@@ -173,18 +388,35 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const taprootAddress = taprootAddressRef.current;
 
   const isPositive = useMemo(() => priceDirection.isPositive, [priceDirection.isPositive]);
+  const historyAssetType: DisplayAssetType = assetType === 'USDC' ? 'BTC' : assetType;
 
   // Transaction filtering hook - cast transactionHistory to expected type
   const { transactions: filteredTransactions, isLoading: ecashLoading } = useAssetTransactions(
     (transactionHistory || []) as unknown as Parameters<typeof useAssetTransactions>[0],
-    assetType,
+    historyAssetType,
     segwitAddress,
     taprootAddress,
     advancedMode
   );
 
   // For activity list loading - useAssetTransactions handles all the logic
-  const isActivityLoading = ecashLoading;
+  const isActivityLoading = assetType === 'USDC' ? loadingUsdcHistory : ecashLoading;
+  const assetTransactions = assetType === 'USDC' ? usdcHistory : filteredTransactions;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (assetType === 'USDC' && selectedTab === 'ACTIVITY') {
+        refreshUsdcHistory().catch(() => undefined);
+      }
+
+      if (assetType !== 'USDC') {
+        return undefined;
+      }
+
+      refreshEvmBalances().catch(() => undefined);
+      return undefined;
+    }, [assetType, refreshEvmBalances, refreshUsdcHistory, selectedTab]),
+  );
 
   // Extracted operation hooks
   const { handleFusePress } = useFuseEcash({
@@ -207,20 +439,32 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
   const handleActionPress = useCallback((action: string) => {
     switch (action) {
       case 'send':
+        if (assetType === 'USDC') {
+          navigation.navigate('SepoliaSend', { asset: 'USDC' });
+          break;
+        }
         navigation.navigate('SendFlow', {
           screen: 'SendInput',
           params: { assetType: assetType.toLowerCase() }
         });
         break;
       case 'receive': {
-        const address = assetType === 'BTC' ? segwitAddress : taprootAddress;
-        if (!address) return;
+        const address = assetType === 'BTC' ? segwitAddress : assetType === 'UNIT' ? taprootAddress : effectiveEvmAddress;
+        if (!address) {
+          Alert.alert('Address unavailable', assetType === 'USDC' ? 'Sepolia address is still loading.' : 'Address is unavailable right now.');
+          return;
+        }
         navigation.navigate('ReceiveQR', {
           address,
-          addressType: assetType === 'BTC' ? 'Native SegWit' : 'Taproot',
+          addressType: assetType === 'BTC' ? 'Native SegWit' : assetType === 'UNIT' ? 'Taproot' : 'Sepolia EVM',
+          assetType,
+          networkLabel: assetType === 'USDC' ? 'Ethereum Sepolia' : undefined,
         });
         break;
       }
+      case 'swap':
+        navigation.navigate('SepoliaSwap', { sourceAsset: assetType === 'USDC' ? 'USDC' : 'UNIT' });
+        break;
       case 'consolidate':
         handleFusePress();
         break;
@@ -228,7 +472,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
         handleTurboPress();
         break;
     }
-  }, [assetType, navigation, segwitAddress, taprootAddress, handleFusePress, handleTurboPress]);
+  }, [assetType, navigation, segwitAddress, taprootAddress, effectiveEvmAddress, handleFusePress, handleTurboPress]);
 
   const handleCopyNotification = useCallback((message: string) => {
     showToast(message, 'success');
@@ -313,8 +557,12 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
           <AssetActionButtons
             onSendPress={() => handleActionPress('send')}
             onReceivePress={() => handleActionPress('receive')}
+            onSwapPress={() => handleActionPress('swap')}
             onConsolidatePress={() => handleActionPress('consolidate')}
             onTurboPress={() => handleActionPress('turbo')}
+            showSwap={showSwapAction}
+            showSend={assetType !== 'USDC' || showSwapAction}
+            showReceive={true}
             showConsolidate={assetType === 'UNIT'}
             advancedMode={advancedMode}
           />
@@ -328,7 +576,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             onRetry={() => setPriceError(null)}
-            currentPrice={btcPrice}
+            currentPrice={assetType === 'BTC' ? btcPrice : 1}
             onScrubStart={handleChartScrubStart}
             onScrubEnd={handleChartScrubEnd}
           />
@@ -342,7 +590,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
 
           {selectedTab === 'ACTIVITY' ? (
             <AssetActivityList
-              transactions={filteredTransactions}
+              transactions={assetTransactions}
               isLoading={isActivityLoading}
               onTransactionPress={handleTransactionPress as (tx: { txid: string; ecashToken?: boolean }) => void}
               advancedMode={advancedMode}
@@ -350,7 +598,7 @@ function AssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): 
           ) : selectedTab === 'TURBO' ? (
             <AssetTurboList />
           ) : (
-            <AssetAbout assetType={assetType} />
+            <AssetAbout assetType={assetType} evmAddress={assetType === 'USDC' ? effectiveEvmAddress : undefined} />
           )}
         </Animated.ScrollView>
       </SafeAreaView>

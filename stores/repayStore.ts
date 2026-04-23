@@ -12,6 +12,7 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import { protocolUnitToUsd, usdToProtocolUnitAmount } from '../utils/vaultFaceValue';
 import {
   createVaultOperationStore,
   computeVaultHealth,
@@ -32,8 +33,11 @@ export type RepayProcessingStep = ProcessingStep;
  */
 interface RepaySpecificState {
   // Form data
-  repayAmountUnit: number; // UNIT to repay (in UNIT, not cents)
-  availableUnitBalance: number; // Available UNIT balance for repay
+  repayAmountUnit: number; // Face-value USD shown to the user, settles as protocol UNIT 1:1
+  availableUsdcBalance: number; // Available Sepolia USDC that can be swapped back into UNIT for repay
+  availableDirectUnitBalance: number; // Spendable Mutinynet UNIT already in-wallet for direct repay resume
+  estimatedUsdcIn: string | null;
+  estimatedSepoliaFeeEth: string | null;
   issueTxid: string | null;
 }
 
@@ -43,7 +47,9 @@ interface RepaySpecificState {
 interface RepaySpecificActions {
   // Form actions
   setRepayAmountUnit: (amount: number) => void;
-  setAvailableUnitBalance: (balance: number) => void;
+  setAvailableUsdcBalance: (balance: number) => void;
+  setAvailableDirectUnitBalance: (balance: number) => void;
+  setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
   setIssueTxid: (txid: string | null) => void;
 
   // Repay-specific computed getters
@@ -60,7 +66,10 @@ type RepayExtension = RepaySpecificState & RepaySpecificActions;
 // Repay-specific initial state
 const repaySpecificInitialState: RepaySpecificState = {
   repayAmountUnit: 0,
-  availableUnitBalance: 0,
+  availableUsdcBalance: 0,
+  availableDirectUnitBalance: 0,
+  estimatedUsdcIn: null,
+  estimatedSepoliaFeeEth: null,
   issueTxid: null,
 };
 
@@ -76,9 +85,22 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
       set({ repayAmountUnit, error: null } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
-    setAvailableUnitBalance: (availableUnitBalance: number) => {
-      logger.debug('[RepayStore] setAvailableUnitBalance:', availableUnitBalance);
-      set({ availableUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    setAvailableUsdcBalance: (availableUsdcBalance: number) => {
+      logger.debug('[RepayStore] setAvailableUsdcBalance:', availableUsdcBalance);
+      set({ availableUsdcBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    },
+
+    setAvailableDirectUnitBalance: (availableDirectUnitBalance: number) => {
+      logger.debug('[RepayStore] setAvailableDirectUnitBalance:', availableDirectUnitBalance);
+      set({ availableDirectUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    },
+
+    setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => {
+      logger.debug('[RepayStore] setRepayQuote:', { estimatedUsdcIn, estimatedSepoliaFeeEth });
+      set({
+        estimatedUsdcIn,
+        estimatedSepoliaFeeEth,
+      } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
     setIssueTxid: (issueTxid: string | null) => {
@@ -112,9 +134,11 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
     },
 
     getMaxRepayable: () => {
-      const { currentUnitBorrowed, availableUnitBalance } = get();
-      // Can only repay up to the debt amount or available balance, whichever is smaller
-      return Math.min(currentUnitBorrowed, availableUnitBalance);
+      const { currentUnitBorrowed, availableUsdcBalance, availableDirectUnitBalance } = get();
+      // The repay can be funded by either direct released UNIT already in-wallet
+      // or by Sepolia USDC that will be swapped back into UNIT.
+      const availableRepayFunding = Math.max(availableUsdcBalance, availableDirectUnitBalance);
+      return Math.min(currentUnitBorrowed, availableRepayFunding);
     },
 
     // Override reset to include repay-specific state
@@ -139,7 +163,10 @@ export const useRepay = () => {
   const currentUnitBorrowed = useRepayStore((state) => state.currentUnitBorrowed);
   const currentBtcLocked = useRepayStore((state) => state.currentBtcLocked);
   const bitcoinPrice = useRepayStore((state) => state.bitcoinPrice);
-  const availableUnitBalance = useRepayStore((state) => state.availableUnitBalance);
+  const availableUsdcBalance = useRepayStore((state) => state.availableUsdcBalance);
+  const availableDirectUnitBalance = useRepayStore((state) => state.availableDirectUnitBalance);
+  const estimatedUsdcIn = useRepayStore((state) => state.estimatedUsdcIn);
+  const estimatedSepoliaFeeEth = useRepayStore((state) => state.estimatedSepoliaFeeEth);
   const currentStep = useRepayStore((state) => state.currentStep);
   const processingStep = useRepayStore((state) => state.processingStep);
   const loading = useRepayStore((state) => state.loading);
@@ -152,7 +179,9 @@ export const useRepay = () => {
   const setSelectedFeeRate = useRepayStore((state) => state.setSelectedFeeRate);
   const setCurrentVaultData = useRepayStore((state) => state.setCurrentVaultData);
   const setBitcoinPrice = useRepayStore((state) => state.setBitcoinPrice);
-  const setAvailableUnitBalance = useRepayStore((state) => state.setAvailableUnitBalance);
+  const setAvailableUsdcBalance = useRepayStore((state) => state.setAvailableUsdcBalance);
+  const setAvailableDirectUnitBalance = useRepayStore((state) => state.setAvailableDirectUnitBalance);
+  const setRepayQuote = useRepayStore((state) => state.setRepayQuote);
   const setCurrentStep = useRepayStore((state) => state.setCurrentStep);
   const setProcessingStep = useRepayStore((state) => state.setProcessingStep);
   const setLoading = useRepayStore((state) => state.setLoading);
@@ -163,6 +192,7 @@ export const useRepay = () => {
 
   // Compute derived values from reactive state
   const newDebt = Math.max(0, currentUnitBorrowed - repayAmountUnit);
+  const repayAmountUsd = protocolUnitToUsd(repayAmountUnit);
 
   // Use helper functions for health calculations
   const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
@@ -183,16 +213,25 @@ export const useRepay = () => {
   const newHealthStatus = getHealthStatus(newHealthFactor);
 
   // Can only repay up to the debt amount or available balance, whichever is smaller
-  const maxRepayable = Math.min(currentUnitBorrowed, availableUnitBalance);
+  const maxRepayable = Math.min(currentUnitBorrowed, Math.max(availableUsdcBalance, availableDirectUnitBalance));
+  const maxRepayableUsd = protocolUnitToUsd(maxRepayable);
+  const availableRepayBalanceUsd = protocolUnitToUsd(availableUsdcBalance);
+  const availableDirectUnitBalanceUsd = protocolUnitToUsd(availableDirectUnitBalance);
 
   return {
     // State
+    repayAmountUsd,
     repayAmountUnit,
     selectedFeeRate,
     currentUnitBorrowed,
     currentBtcLocked,
     bitcoinPrice,
-    availableUnitBalance,
+    availableRepayBalanceUsd,
+    availableUsdcBalance,
+    availableDirectUnitBalance,
+    availableDirectUnitBalanceUsd,
+    estimatedUsdcIn,
+    estimatedSepoliaFeeEth,
     currentStep,
     processingStep,
     loading,
@@ -201,6 +240,7 @@ export const useRepay = () => {
     vaultTxid,
 
     // Computed
+    protocolRepayAmount: usdToProtocolUnitAmount(repayAmountUsd),
     newDebt,
     healthFactor,
     newHealthFactor,
@@ -208,14 +248,19 @@ export const useRepay = () => {
     newLiquidationPrice,
     healthStatus,
     newHealthStatus,
+    maxRepayableUsd,
     maxRepayable,
 
     // Actions
+    setRepayAmountUsd: setRepayAmountUnit,
     setRepayAmountUnit,
+    setAvailableRepayBalanceUsd: setAvailableUsdcBalance,
+    setRepayQuote,
     setSelectedFeeRate,
     setCurrentVaultData,
     setBitcoinPrice,
-    setAvailableUnitBalance,
+    setAvailableUsdcBalance,
+    setAvailableDirectUnitBalance,
     setCurrentStep,
     setProcessingStep,
     setLoading,

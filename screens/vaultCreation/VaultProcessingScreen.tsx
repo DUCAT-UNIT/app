@@ -9,7 +9,9 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../../components/vaultCreation';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
+import { getVaultSettlementStatusMessage } from '../../services/vaultSettlementService';
 
 interface VaultProcessingScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -17,6 +19,7 @@ interface VaultProcessingScreenProps {
 
 export default function VaultProcessingScreen({ navigation }: VaultProcessingScreenProps) {
   const { processingStep, currentStep, error, txid } = useVaultCreation();
+  const { kind, phase } = useVaultSettlementStore();
 
   // Navigate to success screen when complete
   useEffect(() => {
@@ -55,27 +58,12 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
         {/* Status Message */}
         <View style={styles.statusContainer}>
           <Text style={styles.statusText}>
-            {getStatusMessage(processingStep)}
+            {getVaultSettlementStatusMessage(kind, phase, processingStep)}
           </Text>
         </View>
       </View>
     </SafeAreaView>
   );
-}
-
-function getStatusMessage(step: number): string {
-  switch (step) {
-    case 1:
-      return 'Preparing transaction...';
-    case 2:
-      return 'Connecting to network...';
-    case 3:
-      return 'Validating details...';
-    case 4:
-      return 'Finalizing vault creation...';
-    default:
-      return 'Processing...';
-  }
 }
 
 const styles = StyleSheet.create({

@@ -1,0 +1,231 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Fresh wallet -> open vault -> settle to USDC -> repay from USDC
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: "0.10000000"
+    timeout: 120000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 10000
+
+- tapOn:
+    id: "create-vault-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "btc-slider-max-btn"
+    timeout: 120000
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "btc-slider-max-btn"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "0.00000000"
+    commands:
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+      - tapOn:
+          id: "btc-slider-max-btn"
+      - waitForAnimationToEnd
+      - waitForAnimationToEnd
+
+- scrollUntilVisible:
+    element:
+      id: "unit-slider-max-btn"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "vault-create-borrow-usd-display"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+
+- tapOn:
+    id: "vault-create-borrow-usd-input"
+
+- eraseText
+- inputText: "100"
+
+- tapOn:
+    id: "vault-create-borrow-usd-done-btn"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    notVisible:
+      text: "Open debugger to view warnings."
+    timeout: 5000
+
+- tapOn:
+    id: "vault-create-continue-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-amounts-screen"
+    commands:
+      - tapOn:
+          id: "vault-create-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 15000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-create-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    notVisible:
+      text: "Open debugger to view warnings."
+    timeout: 5000
+
+- tapOn:
+    id: "vault-create-confirm-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-confirm-screen"
+    commands:
+      - tapOn:
+          id: "vault-create-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-success-screen"
+    timeout: 420000
+
+- assertVisible:
+    text: "Vault Created!"
+
+- tapOn:
+    id: "vault-success-done-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 30000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-repay-btn"
+    timeout: 30000
+
+- tapOn:
+    id: "wallet-repay-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 20000
+
+- tapOn:
+    id: "unit-slider-max-btn"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    notVisible:
+      text: "Open debugger to view warnings."
+    timeout: 5000
+
+- tapOn:
+    id: "vault-repay-continue-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-input-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-repay-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    notVisible:
+      text: "Open debugger to view warnings."
+    timeout: 5000
+
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-confirm-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 420000
+
+- assertVisible:
+    text: "Repayment Complete!"

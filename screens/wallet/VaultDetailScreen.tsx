@@ -10,10 +10,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultData, useBalance } from '../../contexts/WalletDataContext';
+import { useWallet } from '../../contexts/WalletContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { getRunesAmount } from '../../utils/runesHelper';
 import { usePendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
+import { loadVaultSettlementHistory } from '../../services/vaultSettlementHistoryService';
 import {
   VaultHeader,
   VaultInfo,
@@ -34,8 +36,10 @@ interface VaultDetailScreenProps {
 
 function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.Element {
   const { btcPrice } = usePrice();
+  const { wallet } = useWallet();
   const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT'>('ACTIVITY');
   const [refreshing, setRefreshing] = useState(false);
+  const [settlementTransactions, setSettlementTransactions] = useState<VaultHistoryTransaction[]>([]);
   // Transaction details sheet
   const [selectedTransaction, setSelectedTransaction] = useState<VaultHistoryTransaction | null>(null);
   const [previousTransaction, setPreviousTransaction] = useState<VaultHistoryTransaction | null>(null);
@@ -92,18 +96,42 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     fetchVaultTransactions();
   }, [fetchVault, fetchVaultTransactions]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadSettlementTransactions = async () => {
+      const history = await loadVaultSettlementHistory(wallet?.taprootPubkey);
+      if (!cancelled) {
+        setSettlementTransactions(history);
+      }
+    };
+
+    loadSettlementTransactions().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet?.taprootPubkey]);
+
+  const mergedVaultTransactions = React.useMemo(
+    () => [...settlementTransactions, ...vaultTransactions].sort((left, right) => right.timestamp - left.timestamp),
+    [settlementTransactions, vaultTransactions],
+  );
+
   // Note: Vault transaction confirmation check is now handled globally in WalletDataContext
   // This ensures snackbars are shown even when the user is not on this screen
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
+    const [_, __, settlementHistory] = await Promise.all([
       fetchVault(),
       fetchVaultTransactions(),
+      loadVaultSettlementHistory(wallet?.taprootPubkey),
     ]);
+    setSettlementTransactions(settlementHistory);
     setRefreshing(false);
-  }, [fetchVault, fetchVaultTransactions]);
+  }, [fetchVault, fetchVaultTransactions, wallet?.taprootPubkey]);
 
   // Memoized callbacks
   const handleBackPress = useCallback(() => {
@@ -187,7 +215,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
 
         {selectedTab === 'ACTIVITY' ? (
           <VaultActivityList
-            transactions={vaultTransactions}
+            transactions={mergedVaultTransactions}
             isLoading={showTransactionsLoading}
             onTransactionPress={handleTransactionPress}
             pendingTransaction={pendingTransaction}

@@ -12,6 +12,7 @@ import type { DisplayAssetType } from '../../types/assets';
 import { TURBO_MINT_ADDRESS } from '../../utils/constants';
 import { formatBalance } from '../../utils/formatters';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatFiat } from '../../utils/formatters';
 import { formatTransactionDate } from '../../utils/formatters/dates';
 import Icon from '../icons';
 import localStyles from './TransactionItem.styles';
@@ -89,7 +90,9 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     const absAmount = Math.abs(numericAmount);
     const formatted = assetType === 'UNIT'
       ? formatUnitAmount(absAmount)
-      : formatBalance(absAmount / 100000000);
+      : assetType === 'USDC'
+        ? formatFiat(absAmount, 2)
+        : formatBalance(absAmount / 100000000);
 
     // Format date once
     const date = formatTransactionDate(tx.status.block_time);
@@ -114,7 +117,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
       activeOpacity={0.7}
     >
       <View style={{ width: s(36), height: s(36), marginRight: s(12), marginLeft: 0, justifyContent: 'center', alignItems: 'center' }}>
-        <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : 'btc_logo')}
+        <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : assetType === 'USDC' ? 'usdc_logo' : 'btc_logo')}
           size={s(36)} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
       <View style={localStyles.txContentContainer}>
@@ -132,13 +135,19 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
             </View>
             <View style={styles.historyTxColumn3}>
               {numericAmount !== 0 && (
-                <View style={styles.balanceWithIcon}>
-                  <Icon name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-                    size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
+                assetType === 'USDC' ? (
                   <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
-                    {formattedAmount}
+                    ${formattedAmount}
                   </Text>
-                </View>
+                ) : (
+                  <View style={styles.balanceWithIcon}>
+                    <Icon name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+                      size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
+                    <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                      {formattedAmount}
+                    </Text>
+                  </View>
+                )
               )}
             </View>
           </View>

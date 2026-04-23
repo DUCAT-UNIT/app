@@ -51,6 +51,8 @@ export default function VaultConfirmScreen<
     handleConfirm,
     handleBack,
   } = useVaultConfirmScreen({ config, store, vaultHook }, navigation);
+  const isUsdPrimaryAmount = primaryAmount.unit === 'USD';
+  const isUnitPrimaryAmount = primaryAmount.unit === 'UNIT';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-confirm-screen`}>
@@ -79,17 +81,23 @@ export default function VaultConfirmScreen<
           <View style={styles.primarySection}>
             <Text style={styles.primaryLabel}>{getOperationLabel(config.operationType)}</Text>
             <View style={styles.amountRow}>
-              <Text style={styles.primaryAmount}>
-                {primaryAmount.unit === 'UNIT'
-                  ? primaryAmount.amount.toFixed(2)
-                  : primaryAmount.amount.toFixed(8)}
-              </Text>
-              <Icon
-                name={primaryAmount.unit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-                size={24}
-              />
+              {isUsdPrimaryAmount ? (
+                <Text style={styles.primaryAmount}>${formatFiat(primaryAmount.amount)}</Text>
+              ) : (
+                <>
+                  <Text style={styles.primaryAmount}>
+                    {isUnitPrimaryAmount
+                      ? primaryAmount.amount.toFixed(2)
+                      : primaryAmount.amount.toFixed(8)}
+                  </Text>
+                  <Icon
+                    name={isUnitPrimaryAmount ? 'unit_symbol' : 'btc_symbol'}
+                    size={24}
+                  />
+                </>
+              )}
             </View>
-            {primaryAmount.unit === 'UNIT' && (
+            {isUnitPrimaryAmount && (
               <Text style={styles.primaryUsd}>≈ ${formatFiat(primaryAmount.amount)}</Text>
             )}
           </View>
@@ -173,6 +181,8 @@ export default function VaultConfirmScreen<
 // Summary row component
 function SummaryRowView({ row }: { row: SummaryRow }) {
   const hasChange = row.showArrow && row.newValue !== undefined;
+  const showCurrentIcon = row.currentUnit === 'UNIT' || row.currentUnit === 'BTC';
+  const showNewIcon = row.newUnit === 'UNIT' || row.newUnit === 'BTC';
 
   return (
     <View style={styles.row}>
@@ -181,7 +191,7 @@ function SummaryRowView({ row }: { row: SummaryRow }) {
         <Text style={[styles.value, row.valueColor ? { color: row.valueColor } : undefined]}>
           {row.currentValue}
         </Text>
-        {row.currentUnit && (
+        {showCurrentIcon && (
           <Icon
             name={row.currentUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
             size={row.currentUnit === 'UNIT' ? 14 : 16}
@@ -194,7 +204,7 @@ function SummaryRowView({ row }: { row: SummaryRow }) {
             <Text style={[styles.valueHighlight, row.newValueColor ? { color: row.newValueColor } : undefined]}>
               {row.newValue}
             </Text>
-            {row.newUnit && (
+            {showNewIcon && (
               <Icon
                 name={row.newUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
                 size={row.newUnit === 'UNIT' ? 14 : 16}
@@ -210,11 +220,11 @@ function SummaryRowView({ row }: { row: SummaryRow }) {
 function getOperationLabel(operationType: string): string {
   switch (operationType) {
     case 'borrow':
-      return 'Borrow Amount';
+      return 'Borrow Value';
     case 'deposit':
       return 'Deposit Amount';
     case 'repay':
-      return 'Repay Amount';
+      return 'Repay Value';
     case 'withdraw':
       return 'Withdraw Amount';
     default:

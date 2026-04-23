@@ -1,5 +1,5 @@
 /**
- * VaultAmountsScreen - Enter BTC deposit and UNIT borrow amounts
+ * VaultAmountsScreen - Enter BTC deposit and face-value USD borrow amounts
  * Features: Sliders for input, VaultActionGauge for health display
  */
 
@@ -24,8 +24,14 @@ import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
-import { computeHealthFactor,computeLiquidationPrice,getOpCostOpen } from '../../utils/vaultUtils';
+import {
+  computeHealthFactor,
+  computeLiquidationPrice,
+  getOpCostOpen,
+  getOpCostRepay,
+} from '../../utils/vaultUtils';
 
 // Health-based slider colors (matching VaultActionGauge)
 const getHealthSliderColor = (health: number): string => {
@@ -34,6 +40,9 @@ const getHealthSliderColor = (health: number): string => {
   return '#59aa8a'; // green
 };
 
+const VAULT_SETTLEMENT_FEE_BUFFER_SATS = 5_000;
+const ESTIMATED_VAULT_SETTLEMENT_FEE_VBYTES = 250;
+
 interface VaultAmountsScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
 }
@@ -41,12 +50,12 @@ interface VaultAmountsScreenProps {
 export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenProps) {
   const {
     btcAmount,
-    unitAmount,
+    borrowAmountUsd,
     selectedFeeRate,
     setSelectedFeeRate,
     healthFactor,
     setBtcAmount,
-    setUnitAmount,
+    setBorrowAmountUsd,
     setBitcoinPrice,
     setCurrentStep,
     error,
@@ -70,7 +79,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   // Local preview states for real-time updates during drag
   const [previewBtcAmount, setPreviewBtcAmount] = useState(btcAmount);
-  const [previewUnitAmount, setPreviewUnitAmount] = useState(unitAmount);
+  const [previewBorrowAmountUsd, setPreviewBorrowAmountUsd] = useState(borrowAmountUsd);
 
   // Update bitcoin price in store when it changes
   useEffect(() => {
@@ -85,16 +94,24 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   }, [btcAmount]);
 
   useEffect(() => {
-    setPreviewUnitAmount(unitAmount);
-  }, [unitAmount]);
+    setPreviewBorrowAmountUsd(borrowAmountUsd);
+  }, [borrowAmountUsd]);
 
   // Calculate available BTC (balance minus fees)
   const availableBtc = useMemo(() => {
     if (!segwitBalance) return 0;
-    const feeCost = getOpCostOpen(selectedFeeRate) / 100_000_000;
-    const result = Math.max(segwitBalance - feeCost - 0.00001, 0);
-    return result; // Leave small buffer
-  }, [segwitBalance, selectedFeeRate]);
+    const openFeeCostSats = estimatedFeeSats;
+    const bridgeSettlementReserveSats =
+      BITCOIN_TX.RUNE_OUTPUT_AMOUNT +
+      selectedFeeRate * ESTIMATED_VAULT_SETTLEMENT_FEE_VBYTES +
+      VAULT_SETTLEMENT_FEE_BUFFER_SATS;
+    const futureRepayReserveSats = getOpCostRepay(selectedFeeRate, utxos);
+    const totalReservedBtc =
+      (openFeeCostSats + bridgeSettlementReserveSats + futureRepayReserveSats) / 100_000_000;
+
+    // Leave enough spendable BTC for the hidden bridge send and a later repay.
+    return Math.max(segwitBalance - totalReservedBtc, 0);
+  }, [estimatedFeeSats, segwitBalance, selectedFeeRate, utxos]);
 
   // Calculate max borrowable for preview BTC amount (at 160% minimum health)
   const previewMaxBorrowable = useMemo(() => {
@@ -106,9 +123,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   // Preview health calculation
   const previewHealth = useMemo(() => {
-    if (!btcPrice || previewBtcAmount <= 0 || previewUnitAmount <= 0) return 0;
-    return computeHealthFactor(previewBtcAmount, btcPrice, previewUnitAmount);
-  }, [previewBtcAmount, previewUnitAmount, btcPrice]);
+    if (!btcPrice || previewBtcAmount <= 0 || previewBorrowAmountUsd <= 0) return 0;
+    return computeHealthFactor(previewBtcAmount, btcPrice, previewBorrowAmountUsd);
+  }, [previewBtcAmount, previewBorrowAmountUsd, btcPrice]);
 
   // Check if health would be below minimum
   const healthBelowMin = previewHealth > 0 && previewHealth < 160;
@@ -116,28 +133,27 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   // Preview liquidation price calculation
   const previewLiquidationPrice = useMemo(() => {
     if (previewBtcAmount <= 0) return 0;
-    return computeLiquidationPrice(previewUnitAmount, previewBtcAmount);
-  }, [previewBtcAmount, previewUnitAmount]);
+    return computeLiquidationPrice(previewBorrowAmountUsd, previewBtcAmount);
+  }, [previewBtcAmount, previewBorrowAmountUsd]);
 
-  // Live update handlers - always reset UNIT when BTC changes
+  // Live update handlers - always reset the borrow face value when BTC changes
   const handleBtcLiveChange = useCallback((val: number) => {
     setPreviewBtcAmount(val);
-    // Always reset UNIT to 0 when BTC slider is touched
-    setPreviewUnitAmount(0);
-    setUnitAmount(0);
-  }, [setUnitAmount]);
+    setPreviewBorrowAmountUsd(0);
+    setBorrowAmountUsd(0);
+  }, [setBorrowAmountUsd]);
 
   const handleUnitLiveChange = useCallback((val: number) => {
-    setPreviewUnitAmount(val);
+    setPreviewBorrowAmountUsd(val);
   }, []);
 
   // Validation
   const canContinue = useMemo(() => {
-    if (btcAmount <= 0 || unitAmount <= 0) return false;
+    if (btcAmount <= 0 || borrowAmountUsd <= 0) return false;
     if (btcAmount > availableBtc) return false;
     if (healthFactor < 160) return false;
     return true;
-  }, [btcAmount, unitAmount, availableBtc, healthFactor]);
+  }, [btcAmount, borrowAmountUsd, availableBtc, healthFactor]);
 
   // Handle continue
   const handleContinue = useCallback(() => {
@@ -146,7 +162,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     navigation.navigate('VaultConfirm');
   }, [canContinue, setCurrentStep, navigation]);
 
-  const hasChanges = previewBtcAmount > 0 && previewUnitAmount > 0;
+  const hasChanges = previewBtcAmount > 0 && previewBorrowAmountUsd > 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="vault-amounts-screen">
@@ -173,7 +189,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
             currentHealth={0}
             newHealth={hasChanges ? previewHealth : undefined}
             showTransition={hasChanges}
-            hasNoDebt={previewUnitAmount <= 0}
+            hasNoDebt={previewBorrowAmountUsd <= 0}
           />
 
           {/* Liquidation Price */}
@@ -194,17 +210,20 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
               onValueChange={setBtcAmount}
               onLiveValueChange={handleBtcLiveChange}
               label="BTC to Deposit"
+              testIDPrefix="vault-create-btc"
               btcPrice={btcPrice ?? undefined}
               disabled={availableBtc <= 0}
               attachedBottom
             />
             <View style={previewBtcAmount <= 0 ? styles.disabledSection : undefined}>
               <UnitAmountSlider
-                value={unitAmount}
+                value={borrowAmountUsd}
                 maxValue={previewMaxBorrowable}
-                onValueChange={setUnitAmount}
+                onValueChange={setBorrowAmountUsd}
                 onLiveValueChange={handleUnitLiveChange}
-                label="UNIT to Borrow"
+                label="USD to Borrow"
+                unitLabel="USD"
+                testIDPrefix="vault-create-borrow-usd"
                 disabled={previewMaxBorrowable <= 0}
                 sliderColor={getHealthSliderColor(hasChanges ? previewHealth : 0)}
                 attachedTop

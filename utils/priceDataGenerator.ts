@@ -43,3 +43,32 @@ export function generateUnitPriceData(timeframe: PriceTimeframe): PriceDataPoint
 
   return data;
 }
+
+/**
+ * Generate fake USDC price data that stays very close to 1.00
+ */
+export function generateUsdcPriceData(timeframe: PriceTimeframe): PriceDataPoint[] {
+  const dataPoints = 60;
+  const data: PriceDataPoint[] = [];
+  const now = Date.now();
+
+  const intervals: Record<PriceTimeframe, number> = {
+    '1D': 24 * 60 * 60 * 1000 / dataPoints,
+    '1W': 7 * 24 * 60 * 60 * 1000 / dataPoints,
+    '1M': 30 * 24 * 60 * 60 * 1000 / dataPoints,
+    '1Y': 365 * 24 * 60 * 60 * 1000 / dataPoints,
+  };
+
+  const interval = intervals[timeframe] || intervals['1M'];
+  let currentPrice = 1.0;
+
+  for (let i = 0; i < dataPoints; i += 1) {
+    const timestamp = now - (dataPoints - i - 1) * interval;
+    const change = (Math.random() - 0.5) * 0.0012;
+    currentPrice += change;
+    currentPrice = Math.max(0.9985, Math.min(1.0015, currentPrice));
+    data.push([timestamp, currentPrice]);
+  }
+
+  return data;
+}

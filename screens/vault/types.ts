@@ -14,7 +14,7 @@ export type VaultOperationType = 'borrow' | 'deposit' | 'repay' | 'withdraw';
 /**
  * Asset type for the operation
  */
-export type VaultAssetType = 'BTC' | 'UNIT';
+export type VaultAssetType = 'BTC' | 'USD';
 
 /**
  * Common vault state from any store
@@ -51,9 +51,9 @@ export interface VaultStoreState {
 }
 
 export interface BorrowVaultStore extends VaultStoreState {
-  borrowAmount: number;
-  setBorrowAmount: (amount: number) => void;
-  maxBorrowable: number | null;
+  borrowAmountUsd: number;
+  setBorrowAmountUsd: (amount: number) => void;
+  maxBorrowableUsd: number | null;
 }
 
 export interface DepositVaultStore extends VaultStoreState {
@@ -64,11 +64,17 @@ export interface DepositVaultStore extends VaultStoreState {
 }
 
 export interface RepayVaultStore extends VaultStoreState {
-  repayAmountUnit: number;
-  setRepayAmountUnit: (amount: number) => void;
-  maxRepayable: number;
-  availableUnitBalance: number;
-  setAvailableUnitBalance: (balance: number) => void;
+  repayAmountUsd: number;
+  setRepayAmountUsd: (amount: number) => void;
+  maxRepayableUsd: number;
+  availableRepayBalanceUsd: number;
+  availableDirectUnitBalance: number;
+  availableDirectUnitBalanceUsd: number;
+  setAvailableRepayBalanceUsd: (balance: number) => void;
+  setAvailableDirectUnitBalance: (balance: number) => void;
+  estimatedUsdcIn: string | null;
+  estimatedSepoliaFeeEth: string | null;
+  setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
 }
 
 export interface WithdrawVaultStore extends VaultStoreState {
@@ -100,6 +106,8 @@ export interface AmountConfig {
   label: string;
   /** Whether slider uses UNIT (true) or BTC (false) */
   isUnitAmount: boolean;
+  /** Display unit label for the amount control */
+  displayUnitLabel?: 'UNIT' | 'USD';
   /** Whether to hide available balance on slider */
   hideAvailable?: boolean;
 }
@@ -215,7 +223,7 @@ export interface VaultConfirmScreenConfig<TStore extends VaultStoreState = Vault
   routes: VaultRoutes;
 
   /** Get primary amount from store */
-  getPrimaryAmount: (state: TStore) => { amount: number; unit: string };
+  getPrimaryAmount: (state: TStore) => { amount: number; unit: 'BTC' | 'USD' | 'UNIT' };
 
   /** Execute the operation */
   executeOperation: () => Promise<{ txid: string } | null>;

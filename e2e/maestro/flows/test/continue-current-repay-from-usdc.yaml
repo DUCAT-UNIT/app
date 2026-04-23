@@ -1,0 +1,93 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- runFlow: ../helpers/unlock-if-locked.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-success-screen"
+    commands:
+      - tapOn:
+          id: "vault-success-done-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 30000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-repay-btn"
+    timeout: 30000
+
+- tapOn:
+    id: "wallet-repay-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-input-screen"
+    timeout: 20000
+
+- tapOn:
+    id: "unit-slider-max-btn"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,86%"
+      - waitForAnimationToEnd
+
+- tapOn:
+    id: "vault-repay-continue-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-input-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-repay-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-confirm-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 420000
+
+- assertVisible:
+    text: "Repayment Complete!"

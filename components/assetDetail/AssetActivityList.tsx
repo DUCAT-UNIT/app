@@ -107,8 +107,8 @@ export const AssetActivityList = memo(function AssetActivityList({
     );
   }, [hasMore, handleLoadMore, transactions.length, visibleTransactions, s, sf]);
 
-  // Early returns for loading/empty states (after all hooks)
-  if (isLoading) {
+  // Only show the skeleton on the first empty load.
+  if (isLoading && transactions.length === 0) {
     return <AssetActivityListSkeleton />;
   }
 

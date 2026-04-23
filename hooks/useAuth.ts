@@ -20,6 +20,7 @@ import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
 import { AUTH_EVENTS } from '../constants/analyticsEvents';
 import { withTimeout } from '../utils/withTimeout';
+import { startupDiagnostics } from '../services/startupDiagnostics';
 
 // Native API calls (LocalAuthentication, PasskeyService) can hang indefinitely
 // on iPad in iPhone compatibility mode. Cap each at 5s with safe fallbacks.
@@ -100,6 +101,10 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   useEffect(() => {
     if (IS_IPAD_COMPAT_MODE) {
       logger.warn('[useAuth] Skipping biometric and passkey capability probes on iPad compatibility mode');
+      startupDiagnostics.recordWarning('ipad_compat_auth_probe_skipped', {
+        platform: Platform.OS,
+        is_pad: true,
+      });
       setIsBiometricSupported(false);
       setIsPasskeySupported(false);
       return;
@@ -152,6 +157,9 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
         operation: 'loadBiometricPreference',
         error: error instanceof Error ? error.message : String(error)
       });
+      startupDiagnostics.recordWarning('load_biometric_preference_failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Use default value (false)
     }
   }, []);
@@ -170,6 +178,9 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
       logger.warn('Failed to load passkey preference', {
         operation: 'loadPasskeyPreference',
         error: error instanceof Error ? error.message : String(error)
+      });
+      startupDiagnostics.recordWarning('load_passkey_preference_failed', {
+        error: error instanceof Error ? error.message : String(error),
       });
       // Use default value (false)
     }

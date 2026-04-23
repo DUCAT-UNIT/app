@@ -13,6 +13,20 @@ export function withTimeout<T>(
   const timeout = new Promise<T>((resolve) => {
     timer = setTimeout(() => {
       if (label) {
+        let startupAttemptId: string | null = null;
+
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const { startupDiagnostics } = require('../services/startupDiagnostics');
+          startupAttemptId = startupDiagnostics.getCurrentAttemptId();
+          startupDiagnostics.recordWarning('native_api_timeout', {
+            label,
+            timeout_ms: ms,
+          });
+        } catch {
+          // startup diagnostics unavailable — swallow
+        }
+
         try {
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { logger } = require('./logger');
@@ -23,7 +37,12 @@ export function withTimeout<T>(
         try {
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { analytics } = require('../services/analyticsService');
-          analytics.track('native_api_timeout', { label, timeout_ms: ms });
+          analytics.track('native_api_timeout', {
+            label,
+            timeout_ms: ms,
+            startup_attempt_id: startupAttemptId,
+          });
+          analytics.flush();
         } catch {
           // analytics unavailable — swallow
         }

@@ -1,0 +1,51 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Sepolia bridge surfaces - verify wallet shortcut card opens Bridge, Swap, and Redeem screens.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "wallet-sepolia-card"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn:
+    id: "wallet-sepolia-bridge-btn"
+- extendedWaitUntil:
+    visible:
+      id: "bridge-screen"
+    timeout: 10000
+- tapOn:
+    id: "bridge-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-sepolia-card"
+    timeout: 10000
+- tapOn:
+    id: "wallet-sepolia-swap-btn"
+- extendedWaitUntil:
+    visible:
+      id: "sepolia-swap-screen"
+    timeout: 10000
+- tapOn:
+    id: "sepolia-swap-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-sepolia-card"
+    timeout: 10000
+- tapOn:
+    id: "wallet-sepolia-redeem-btn"
+- extendedWaitUntil:
+    visible:
+      id: "sepolia-redeem-screen"
+    timeout: 10000
+- tapOn:
+    id: "sepolia-redeem-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

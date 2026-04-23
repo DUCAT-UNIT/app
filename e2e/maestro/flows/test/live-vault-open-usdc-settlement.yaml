@@ -1,0 +1,112 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live vault creation settlement regression
+# Creates a fresh funded wallet, opens a small vault, and expects the flow
+# to reach the success screen through the real UI path.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+# Scroll to vault card
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 10000
+- tapOn:
+    id: "create-vault-btn"
+
+# Amounts screen
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+# Deposit max BTC
+- extendedWaitUntil:
+    visible:
+      id: "btc-slider-max-btn"
+    timeout: 30000
+- tapOn:
+    id: "btc-slider-max-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Enter a small borrow amount to keep the live settlement lightweight
+- scrollUntilVisible:
+    element:
+      id: "unit-slider-max-btn"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- tapOn:
+    id: "vault-create-borrow-usd-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+- tapOn:
+    id: "vault-create-borrow-usd-input"
+- eraseText
+- inputText: "100"
+- tapOn:
+    id: "vault-create-borrow-usd-done-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Continue to confirm
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+- tapOn:
+    point: "50%,97%"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-amounts-screen"
+    commands:
+      - tapOn:
+          point: "50%,97%"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 15000
+
+# Confirm and sign
+- scrollUntilVisible:
+    element:
+      id: "vault-create-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+- tapOn:
+    point: "74%,96%"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-confirm-screen"
+    commands:
+      - tapOn:
+          point: "74%,96%"
+
+# Real Guardian + bridge + Sepolia settlement path
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-success-screen"
+    timeout: 420000
+
+- assertVisible:
+    text: "Vault Created!"

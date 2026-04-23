@@ -65,7 +65,13 @@ export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
 // Registry of known swap txids — persisted via AsyncStorage
 // Shows as "Swap" entries in history with UNIT amount
 const SWAP_TXIDS_KEY = '@ducat/swap_txids';
-interface SwapTxRecord { txid: string; unitAmount: number; timestamp: number }
+const SWAP_TXIDS_MIGRATION_V2_KEY = '@ducat/swap_txids_migrated_v2';
+interface SwapTxRecord {
+  txid: string;
+  unitAmount: number;
+  timestamp: number;
+  confirmed?: boolean;
+}
 let knownSwapTxids: SwapTxRecord[] = [];
 let swapTxidsLoaded = false;
 
@@ -76,15 +82,40 @@ async function loadSwapTxids(): Promise<SwapTxRecord[]> {
     if (stored) {
       knownSwapTxids = JSON.parse(stored) as SwapTxRecord[];
     }
+
+    const migrated = await AsyncStorage.getItem(SWAP_TXIDS_MIGRATION_V2_KEY);
+    if (!migrated) {
+      if (knownSwapTxids.length > 0) {
+        knownSwapTxids = knownSwapTxids.map((record) => ({
+          ...record,
+          // Legacy swap history stored display units. History UI expects smallest UNIT units.
+          unitAmount: Math.round(record.unitAmount * 100),
+        }));
+        await AsyncStorage.setItem(SWAP_TXIDS_KEY, JSON.stringify(knownSwapTxids));
+      }
+      await AsyncStorage.setItem(SWAP_TXIDS_MIGRATION_V2_KEY, '1');
+    }
   } catch { /* ignore */ }
   swapTxidsLoaded = true;
   return knownSwapTxids;
 }
 
-export async function registerSwapTxid(txid: string, unitAmount: number): Promise<void> {
+export async function registerSwapTxid(
+  txid: string,
+  unitAmount: number,
+  options?: {
+    confirmed?: boolean;
+    timestamp?: number;
+  },
+): Promise<void> {
   await loadSwapTxids();
   if (knownSwapTxids.some((s) => s.txid === txid)) return;
-  knownSwapTxids.push({ txid, unitAmount, timestamp: Date.now() });
+  knownSwapTxids.push({
+    txid,
+    unitAmount,
+    timestamp: options?.timestamp ?? Date.now(),
+    confirmed: options?.confirmed,
+  });
   try {
     await AsyncStorage.setItem(SWAP_TXIDS_KEY, JSON.stringify(knownSwapTxids));
   } catch { /* ignore */ }
@@ -488,12 +519,19 @@ export const fetchAllTransactionHistory = async (
           btcAmount: 0,
           unitAmount: swap.unitAmount,
         },
+        status: {
+          ...existing.status,
+          confirmed: swap.confirmed ?? existing.status.confirmed,
+        },
       });
     } else {
       // TX not yet in blockchain results — add synthetic entry
       txMap.set(swap.txid, {
         txid: swap.txid,
-        status: { confirmed: false, block_time: Math.floor(swap.timestamp / 1000) },
+        status: {
+          confirmed: swap.confirmed ?? false,
+          block_time: Math.floor(swap.timestamp / 1000),
+        },
         vaultTransaction: true,
         vaultData: {
           action: 'Swap',

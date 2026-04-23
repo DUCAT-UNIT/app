@@ -84,7 +84,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
       title: 'No debt',
-      description: 'You have no UNIT debt to repay or borrow against',
+      description: 'You have no outstanding debt to repay or borrow against',
       type: 'warning',
     });
   }, []);
@@ -113,8 +113,8 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
   const handleNoUnitPress = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
-      title: 'No UNIT available',
-      description: 'You need UNIT in your wallet to repay',
+      title: 'No balance available',
+      description: 'You need available balance in your wallet to repay',
       type: 'warning',
     });
   }, []);
@@ -348,10 +348,9 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
 
         {/* Debt Column with Borrow/Repay */}
         <View style={[styles.statColumn, { paddingHorizontal: s(16) }]}>
-          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>UNIT Debt</Text>
+          <Text style={[styles.statLabel, { fontSize: sf(14), marginBottom: s(4) }]}>Vault Debt</Text>
           <View style={[styles.statValueRow, { gap: s(4), marginBottom: s(12) }]}>
-            <Icon name="unit_symbol" size={s(18)} color={COLORS.WHITE} />
-            <Text style={[styles.statValue, { fontSize: sf(20) }]}>{formatFiat(totalDebt)}</Text>
+            <Text style={[styles.statValue, { fontSize: sf(20) }]}>{`$${formatFiat(totalDebt)}`}</Text>
           </View>
           <View style={[styles.buttonPair, { gap: s(8) }]}>
             <TouchableOpacity

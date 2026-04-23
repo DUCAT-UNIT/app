@@ -14,6 +14,8 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import { protocolUnitToUsd, usdToProtocolUnitAmount } from '../utils/vaultFaceValue';
+import type { VaultSettlementRequestedAsset } from './vaultSettlementStore';
 
 export type VaultCreationStep =
   | 'amounts' // Step 1: Enter BTC deposit and UNIT borrow amounts
@@ -33,6 +35,7 @@ interface VaultCreationState {
   // Form data
   btcAmount: number;
   unitAmount: number;
+  receiveAsset: VaultSettlementRequestedAsset;
   selectedFeeRate: number;
 
   // Calculated values (derived from form data and price)
@@ -44,6 +47,7 @@ interface VaultCreationState {
   loading: boolean;
   error: string | null;
   txid: string | null;
+  vaultTxid: string | null;
 
   // Hydration tracking
   _hasHydrated: boolean;
@@ -53,6 +57,7 @@ interface VaultCreationActions {
   // Form actions
   setBtcAmount: (amount: number) => void;
   setUnitAmount: (amount: number) => void;
+  setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void;
   setSelectedFeeRate: (rate: number) => void;
   setBitcoinPrice: (price: number | null) => void;
 
@@ -64,6 +69,7 @@ interface VaultCreationActions {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   setTxid: (txid: string | null) => void;
+  setVaultTxid: (txid: string | null) => void;
 
   // Computed getters
   getHealthFactor: () => number;
@@ -83,6 +89,7 @@ type VaultCreationStore = VaultCreationState & VaultCreationActions;
 const initialState: VaultCreationState = {
   btcAmount: 0,
   unitAmount: 0,
+  receiveAsset: 'USDC',
   selectedFeeRate: 1, // Default 1 sat/vB
   bitcoinPrice: null,
   currentStep: 'amounts',
@@ -90,6 +97,7 @@ const initialState: VaultCreationState = {
   loading: false,
   error: null,
   txid: null,
+  vaultTxid: null,
   _hasHydrated: false,
 };
 
@@ -108,6 +116,11 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
       setUnitAmount: (unitAmount) => {
         logger.debug('[VaultCreationStore] setUnitAmount:', unitAmount);
         set({ unitAmount, error: null });
+      },
+
+      setReceiveAsset: (receiveAsset) => {
+        logger.debug('[VaultCreationStore] setReceiveAsset:', receiveAsset);
+        set({ receiveAsset });
       },
 
       setSelectedFeeRate: (selectedFeeRate) => {
@@ -143,22 +156,28 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
         set({ txid });
       },
 
+      setVaultTxid: (vaultTxid) => {
+        logger.debug('[VaultCreationStore] setVaultTxid:', vaultTxid);
+        set({ vaultTxid });
+      },
+
       // Computed getters
       getHealthFactor: () => {
         const { btcAmount, unitAmount, bitcoinPrice } = get();
-        if (!bitcoinPrice || btcAmount <= 0 || unitAmount <= 0) return 0;
-        return computeHealthFactor(btcAmount, bitcoinPrice, unitAmount);
+        const protocolUnitAmount = usdToProtocolUnitAmount(unitAmount);
+        if (!bitcoinPrice || btcAmount <= 0 || protocolUnitAmount <= 0) return 0;
+        return computeHealthFactor(btcAmount, bitcoinPrice, protocolUnitAmount);
       },
 
       getLiquidationPrice: () => {
         const { btcAmount, unitAmount } = get();
         if (btcAmount <= 0) return 0;
-        return computeLiquidationPrice(unitAmount, btcAmount);
+        return computeLiquidationPrice(usdToProtocolUnitAmount(unitAmount), btcAmount);
       },
 
       getMaxBorrowable: () => {
         const { btcAmount, bitcoinPrice } = get();
-        return getMaxUnit(btcAmount, bitcoinPrice ?? undefined);
+        return protocolUnitToUsd(getMaxUnit(btcAmount, bitcoinPrice ?? undefined));
       },
 
       getHealthStatus: () => {
@@ -190,6 +209,7 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
       partialize: (state) => ({
         btcAmount: state.btcAmount,
         unitAmount: state.unitAmount,
+        receiveAsset: state.receiveAsset,
         selectedFeeRate: state.selectedFeeRate,
         currentStep: state.currentStep,
       }),
@@ -224,27 +244,37 @@ export const resetVaultCreationStore = () => {
  */
 export const useVaultCreation = () => {
   const store = useVaultCreationStore();
+  const protocolUnitAmount = usdToProtocolUnitAmount(store.unitAmount);
+  const maxBorrowableUsd = store.getMaxBorrowable();
+
   return {
     // State
     btcAmount: store.btcAmount,
+    borrowAmountUsd: store.unitAmount,
     unitAmount: store.unitAmount,
+    receiveAsset: store.receiveAsset,
     selectedFeeRate: store.selectedFeeRate,
     bitcoinPrice: store.bitcoinPrice,
     currentStep: store.currentStep,
     processingStep: store.processingStep,
     loading: store.loading,
     error: store.error,
-    txid: store.txid,
+      txid: store.txid,
+      vaultTxid: store.vaultTxid,
 
     // Computed
+    protocolUnitAmount,
     healthFactor: store.getHealthFactor(),
     liquidationPrice: store.getLiquidationPrice(),
+    maxBorrowableUsd,
     maxBorrowable: store.getMaxBorrowable(),
     healthStatus: store.getHealthStatus(),
 
     // Actions
     setBtcAmount: store.setBtcAmount,
+    setBorrowAmountUsd: store.setUnitAmount,
     setUnitAmount: store.setUnitAmount,
+    setReceiveAsset: store.setReceiveAsset,
     setSelectedFeeRate: store.setSelectedFeeRate,
     setBitcoinPrice: store.setBitcoinPrice,
     setCurrentStep: store.setCurrentStep,
@@ -252,6 +282,7 @@ export const useVaultCreation = () => {
     setLoading: store.setLoading,
     setError: store.setError,
     setTxid: store.setTxid,
+    setVaultTxid: store.setVaultTxid,
     reset: store.reset,
   };
 };

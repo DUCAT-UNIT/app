@@ -56,7 +56,7 @@ const WalletActions = React.memo(function WalletActions({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
       title: 'No debt',
-      description: 'You have no UNIT debt to repay or borrow against',
+      description: 'You have no outstanding debt to repay or borrow against',
       type: 'warning',
     });
   }, []);
@@ -80,7 +80,7 @@ const WalletActions = React.memo(function WalletActions({
         onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress}
         testID="wallet-repay-btn"
         accessibilityRole="button"
-        accessibilityLabel="Repay UNIT debt"
+        accessibilityLabel="Repay vault debt"
         accessibilityHint={isPendingVaultTx ? "Disabled while transaction is pending" : hasNoDebt ? "No debt to repay" : "Opens the repay screen"}
         accessibilityState={{ disabled: repayDisabled }}
       >
@@ -95,7 +95,7 @@ const WalletActions = React.memo(function WalletActions({
         onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress}
         testID="wallet-borrow-btn"
         accessibilityRole="button"
-        accessibilityLabel="Borrow UNIT"
+        accessibilityLabel="Borrow against vault"
         accessibilityHint={isPendingVaultTx ? "Disabled while transaction is pending" : hasNoDebt ? "No vault to borrow from" : isLowHealth ? "Vault health too low to borrow" : "Opens the borrow screen"}
         accessibilityState={{ disabled: borrowDisabled }}
       >

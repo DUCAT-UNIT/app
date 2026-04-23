@@ -11,22 +11,22 @@ const ABOUT_SECTIONS = [
   {
     title: 'What is a Vault?',
     content:
-      'A vault allows you to deposit BTC as collateral and borrow UNIT stablecoins against it. This lets you access liquidity without selling your Bitcoin.',
+      'A vault lets you deposit BTC as collateral and borrow dollar-denominated liquidity against it, without selling your Bitcoin.',
   },
   {
     title: 'Collateral Ratio',
     content:
-      'Your collateral ratio is the value of your BTC divided by your UNIT debt. A higher ratio means your vault is healthier and further from liquidation.',
+      'Your collateral ratio is the value of your BTC divided by your vault debt. A higher ratio means your vault is healthier and further from liquidation.',
   },
   {
     title: 'Liquidation',
     content:
-      'If your collateral ratio drops below 161%, your vault may be liquidated. This means your BTC collateral will be sold to repay your UNIT debt.',
+      'If your collateral ratio drops below 161%, your vault may be liquidated. This means your BTC collateral can be sold to repay your outstanding debt.',
   },
   {
     title: 'Managing Your Vault',
     content:
-      'You can deposit more BTC to increase your collateral ratio, or repay UNIT to reduce your debt. Both actions improve your vault health.',
+      'You can deposit more BTC to increase your collateral ratio, or repay debt to reduce what you owe. Both actions improve your vault health.',
   },
 ];
 

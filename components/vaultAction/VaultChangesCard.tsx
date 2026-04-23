@@ -9,6 +9,7 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { useResponsive } from '../../hooks/useResponsive';
+import { formatVaultUsd } from '../../utils/vaultFaceValue';
 
 interface ChangeRowProps {
   label: string;
@@ -134,8 +135,8 @@ export const VaultChangesCard = memo(function VaultChangesCard({
       {actionType === 'debt' && (
         <ChangeRow
           label="Debt"
-          beforeValue={`${currentDebt.toFixed(2)} UNIT`}
-          afterValue={`${newDebt.toFixed(2)} UNIT`}
+          beforeValue={formatVaultUsd(currentDebt)}
+          afterValue={formatVaultUsd(newDebt)}
           showChange={showChanges && debtChanged}
           afterColor={COLORS.WHITE}
         />

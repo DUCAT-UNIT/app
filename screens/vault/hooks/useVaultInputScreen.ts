@@ -6,7 +6,13 @@
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
 import { usePriceStore } from '../../../stores/priceStore';
-import { computeHealthFactor,computeLiquidationPrice,getOpCostOpen } from '../../../utils/vaultUtils';
+import {
+  computeHealthFactor,
+  computeLiquidationPrice,
+  getOpCostBorrow,
+  getOpCostDeposit,
+  getOpCostRepay,
+} from '../../../utils/vaultUtils';
 import type {
   AmountConfig,
   DepositVaultStore,
@@ -109,8 +115,21 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Calculate estimated fee
   const estimatedFeeSats = useMemo(() => {
-    return getOpCostOpen(store.selectedFeeRate, utxos);
-  }, [store.selectedFeeRate, utxos]);
+    switch (config.operationType) {
+      case 'borrow':
+        return getOpCostBorrow(store.selectedFeeRate, utxos);
+      case 'repay':
+        return getOpCostRepay(store.selectedFeeRate, utxos);
+      case 'deposit':
+        return getOpCostDeposit(store.selectedFeeRate, utxos);
+      case 'withdraw':
+        // Withdraw spends from the vault itself and does not require separate
+        // wallet sats funding.
+        return 0;
+      default:
+        return 0;
+    }
+  }, [config.operationType, store.selectedFeeRate, utxos]);
 
   // Check fee balance
   const hasSufficientBtc = btcBalanceSats >= estimatedFeeSats;

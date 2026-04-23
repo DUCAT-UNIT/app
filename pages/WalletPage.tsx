@@ -209,7 +209,16 @@ export default function WalletPage({ route }: WalletPageProps) {
               onVaultPress={handleVaultPress}
               onRepayPress={handleRepayPress}
               onBorrowPress={handleBorrowPress}
-              onAssetPress={(assetType) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', { assetType, advancedMode: settingsHandlers.advancedMode })}
+              onBridgePress={() => (navigation as { navigate: (screen: string) => void }).navigate('UnitBridge')}
+              onSwapPress={(sourceAsset?: 'UNIT' | 'USDC') => (
+                navigation as { navigate: (screen: string, params?: object) => void }
+              ).navigate('SepoliaSwap', sourceAsset ? { sourceAsset } : undefined)}
+              onRedeemPress={() => (navigation as { navigate: (screen: string) => void }).navigate('SepoliaRedeem')}
+              onAssetPress={(assetType, params) => (navigation as { navigate: (screen: string, params?: object) => void }).navigate('AssetDetail', {
+                assetType,
+                advancedMode: settingsHandlers.advancedMode,
+                ...(params || {}),
+              })}
               _sendAddressType={sendAddressType ?? undefined}
               showZeroAssets={settingsHandlers.showZeroAssets}
               isPendingVaultTx={isPendingVaultTx}

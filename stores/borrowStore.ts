@@ -6,6 +6,7 @@
  */
 
 import { logger } from '../utils/logger';
+import type { VaultSettlementRequestedAsset } from './vaultSettlementStore';
 import {
   computeHealthFactor,
   computeLiquidationPrice,
@@ -13,6 +14,7 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
+import { protocolUnitToUsd, usdToProtocolUnitAmount } from '../utils/vaultFaceValue';
 import {
   createVaultOperationStore,
   computeVaultHealth,
@@ -34,7 +36,8 @@ export type BorrowProcessingStep = ProcessingStep;
  */
 interface BorrowSpecificState {
   // Form data
-  borrowAmount: number; // Additional UNIT to borrow
+  borrowAmount: number; // Face-value USD shown to the user, settles as protocol UNIT 1:1
+  receiveAsset: VaultSettlementRequestedAsset;
   // Legacy field - some consumers may still use txid
   txid: string | null;
 }
@@ -45,6 +48,7 @@ interface BorrowSpecificState {
 interface BorrowSpecificActions {
   // Form actions
   setBorrowAmount: (amount: number) => void;
+  setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void;
 
   // Legacy action for backwards compatibility
   setTxid: (txid: string | null, vaultTxid?: string | null) => void;
@@ -63,6 +67,7 @@ type BorrowExtension = BorrowSpecificState & BorrowSpecificActions;
 // Borrow-specific initial state
 const borrowSpecificInitialState: BorrowSpecificState = {
   borrowAmount: 0,
+  receiveAsset: 'USDC',
   txid: null,
 };
 
@@ -76,6 +81,11 @@ export const useBorrowStore = createVaultOperationStore<BorrowExtension>(
     setBorrowAmount: (borrowAmount: number) => {
       logger.debug('[BorrowStore] setBorrowAmount:', borrowAmount);
       set({ borrowAmount, error: null } as Partial<CommonVaultState & CommonVaultActions & BorrowExtension>);
+    },
+
+    setReceiveAsset: (receiveAsset: VaultSettlementRequestedAsset) => {
+      logger.debug('[BorrowStore] setReceiveAsset:', receiveAsset);
+      set({ receiveAsset } as Partial<CommonVaultState & CommonVaultActions & BorrowExtension>);
     },
 
     // Legacy action for backwards compatibility
@@ -135,6 +145,7 @@ export const useBorrow = () => {
   // Subscribe to primitive state values - these are reactive
   const borrowAmount = useBorrowStore((state) => state.borrowAmount);
   const selectedFeeRate = useBorrowStore((state) => state.selectedFeeRate);
+  const receiveAsset = useBorrowStore((state) => state.receiveAsset);
   const currentUnitBorrowed = useBorrowStore((state) => state.currentUnitBorrowed);
   const currentBtcLocked = useBorrowStore((state) => state.currentBtcLocked);
   const bitcoinPrice = useBorrowStore((state) => state.bitcoinPrice);
@@ -147,6 +158,7 @@ export const useBorrow = () => {
 
   // Subscribe to actions (stable references)
   const setBorrowAmount = useBorrowStore((state) => state.setBorrowAmount);
+  const setReceiveAsset = useBorrowStore((state) => state.setReceiveAsset);
   const setSelectedFeeRate = useBorrowStore((state) => state.setSelectedFeeRate);
   const setCurrentVaultData = useBorrowStore((state) => state.setCurrentVaultData);
   const setBitcoinPrice = useBorrowStore((state) => state.setBitcoinPrice);
@@ -159,6 +171,7 @@ export const useBorrow = () => {
 
   // Compute derived values from reactive state
   const totalDebt = currentUnitBorrowed + borrowAmount;
+  const borrowAmountUsd = protocolUnitToUsd(borrowAmount);
 
   // Use helper functions for health calculations
   const { healthFactor, liquidationPrice, healthStatus } = computeVaultHealth(
@@ -175,10 +188,13 @@ export const useBorrow = () => {
 
   const maxTotal = getMaxUnit(currentBtcLocked, bitcoinPrice ?? undefined);
   const maxBorrowable = maxTotal !== null ? Math.max(0, maxTotal - currentUnitBorrowed) : null;
+  const maxBorrowableUsd = protocolUnitToUsd(maxBorrowable);
 
   return {
     // State
+    borrowAmountUsd,
     borrowAmount,
+    receiveAsset,
     selectedFeeRate,
     currentUnitBorrowed,
     currentBtcLocked,
@@ -191,17 +207,21 @@ export const useBorrow = () => {
     vaultTxid,
 
     // Computed
+    protocolBorrowAmount: usdToProtocolUnitAmount(borrowAmountUsd),
     totalDebt,
     healthFactor,
     newHealthFactor,
     liquidationPrice,
     newLiquidationPrice,
+    maxBorrowableUsd,
     maxBorrowable,
     healthStatus,
     newHealthStatus,
 
     // Actions
+    setBorrowAmountUsd: setBorrowAmount,
     setBorrowAmount,
+    setReceiveAsset,
     setSelectedFeeRate,
     setCurrentVaultData,
     setBitcoinPrice,

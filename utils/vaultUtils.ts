@@ -40,6 +40,62 @@ export function getOpCostOpen(feeRate: number, utxos?: Utxo[]): number {
   return txQuote.total_cost + vinAllowanceSats;
 }
 
+/**
+ * Calculates the estimated satoshi requirement for a vault borrow action.
+ * Includes UNIT postage, tx cost, and a VIN allowance for the user's sats inputs.
+ */
+export function getOpCostBorrow(feeRate: number, utxos?: Utxo[]): number {
+  const vinAllowanceSats = utxos
+    ? calculateVinAllowance(utxos, feeRate)
+    : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+
+  const txQuote = VaultAPI.borrow.get_quote({
+    borrow_amount: 0,
+    deposit_amount: 0,
+    tx_feerate: feeRate,
+    unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
+  } as never);
+
+  return txQuote.total_cost + vinAllowanceSats;
+}
+
+/**
+ * Calculates the estimated satoshi requirement for a vault repay action.
+ * Includes UNIT postage, tx cost, and a VIN allowance for the user's sats inputs.
+ */
+export function getOpCostRepay(feeRate: number, utxos?: Utxo[]): number {
+  const vinAllowanceSats = utxos
+    ? calculateVinAllowance(utxos, feeRate)
+    : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+
+  const txQuote = VaultAPI.repay.get_quote({
+    deposit_amount: 0,
+    repay_amount: 0,
+    tx_feerate: feeRate,
+    unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
+  } as never);
+
+  return txQuote.total_cost + vinAllowanceSats;
+}
+
+/**
+ * Calculates the estimated fee reserve needed for a vault deposit action.
+ * Deposit amount itself is handled separately by the input max; this helper only
+ * returns the fixed sats overhead that must remain available.
+ */
+export function getOpCostDeposit(feeRate: number, utxos?: Utxo[]): number {
+  const vinAllowanceSats = utxos
+    ? calculateVinAllowance(utxos, feeRate)
+    : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+
+  const txQuote = VaultAPI.deposit.get_quote({
+    deposit_amount: 0,
+    tx_feerate: feeRate,
+  } as never);
+
+  return txQuote.total_cost + vinAllowanceSats;
+}
+
 export interface Utxo {
   txid: string;
   vout: number;

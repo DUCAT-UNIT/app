@@ -1,0 +1,11 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployer": "0x332455E752Fb4A046046A2f130b8EA7E780D52A9",
+  "wunit": "0x139a26fec4786c83888bB2b25E39f656371ed307",
+  "pool": "0x463A9C573f8843540045E077170ee920A091d017",
+  "router": "0x3Da2e4bb5e5539194259D34F9cbc6D2b426A7E6A",
+  "sepoliaUsdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+  "amplification": 200,
+  "swapFeeBps": 4
+}

@@ -11,6 +11,7 @@ import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getC
 import { logger } from '../utils/logger';
 import { withTimeout } from '../utils/withTimeout';
 import { getWalletDerivationMode, setWalletDerivationMode } from './walletDerivationService';
+import { startupDiagnostics } from './startupDiagnostics';
 
 // Per-operation timeout for SecureStore reads during wallet load.
 // iPad in iPhone compatibility mode can stall individual SecureStore calls.
@@ -97,26 +98,45 @@ export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<
  */
 export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
   try {
+    startupDiagnostics.recordCheckpoint('wallet_storage_load_started');
+
     const accountIndex = await withTimeout(
       getCurrentAccount(), SECURESTORE_READ_TIMEOUT_MS, 0, 'getCurrentAccount',
     );
+    startupDiagnostics.recordCheckpoint('wallet_current_account_loaded', {
+      account_index: accountIndex,
+    });
+
     const derivationMode = await withTimeout(
       getWalletDerivationMode(), SECURESTORE_READ_TIMEOUT_MS, DEFAULT_WALLET_DERIVATION_MODE, 'getWalletDerivationMode',
     );
+    startupDiagnostics.recordCheckpoint('wallet_derivation_mode_loaded', {
+      account_index: accountIndex,
+      derivation_mode: derivationMode,
+    });
 
     // Try multi-account cache first (instant if in memory)
     const multiCached = await withTimeout(
       getMultiAccountCache(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getMultiAccountCache',
     );
     if (multiCached) {
+      startupDiagnostics.recordCheckpoint('wallet_multi_account_cache_hit', {
+        account_index: accountIndex,
+      });
       return { addresses: multiCached, accountIndex };
     }
+    startupDiagnostics.recordCheckpoint('wallet_multi_account_cache_miss', {
+      account_index: accountIndex,
+    });
 
     // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await withTimeout(
       getCachedAddresses(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getCachedAddresses',
     );
     if (cachedAddresses) {
+      startupDiagnostics.recordCheckpoint('wallet_cached_addresses_hit', {
+        account_index: accountIndex,
+      });
       // Populate multi-account cache for future fast switching (non-blocking with error logging)
       saveToMultiAccountCache(accountIndex, cachedAddresses).catch((error) => {
         logger.error('[walletService] Failed to save to multi-account cache during wallet load', {
@@ -126,21 +146,41 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       });
       return { addresses: cachedAddresses, accountIndex };
     }
+    startupDiagnostics.recordCheckpoint('wallet_cached_addresses_miss', {
+      account_index: accountIndex,
+    });
 
     // Cache miss - derive addresses (slow path - ~200ms)
     let addresses;
     try {
+      startupDiagnostics.recordCheckpoint('wallet_derivation_started', {
+        account_index: accountIndex,
+        derivation_mode: derivationMode,
+      });
       addresses = await withMnemonic(async (mnemonic: string) => {
         if (!mnemonic) {
           return null;
         }
         return deriveAddressesFromMnemonic(mnemonic, accountIndex, derivationMode);
       });
+      if (addresses) {
+        startupDiagnostics.recordCheckpoint('wallet_addresses_derived', {
+          account_index: accountIndex,
+        });
+      }
     } catch (error: unknown) {
       // "Mnemonic not found" means no wallet exists yet — return null instead of throwing
       const msg = error instanceof Error ? error.message : '';
       if (msg.includes('Mnemonic not found')) {
+        startupDiagnostics.recordWarning('wallet_mnemonic_missing', {
+          account_index: accountIndex,
+        });
         return { addresses: null, accountIndex };
+      }
+      if (msg.includes('Passkey wallet is locked')) {
+        startupDiagnostics.recordWarning('wallet_passkey_session_locked', {
+          account_index: accountIndex,
+        });
       }
       throw error;
     }
@@ -160,7 +200,11 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
     return { addresses, accountIndex };
   } catch (error: unknown) {
-    throw new Error('Failed to load wallet from storage: ' + (error as Error).message);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    startupDiagnostics.recordFailure('wallet_storage_load_failed', {
+      error: errorMessage,
+    });
+    throw new Error('Failed to load wallet from storage: ' + errorMessage);
   }
 };
 

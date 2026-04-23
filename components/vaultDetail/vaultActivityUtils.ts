@@ -26,8 +26,11 @@ export const formatDate = (timestamp: number): string => {
 export const formatAction = (action: string): string => {
   const actionMap: Record<string, string> = {
     'open': 'Open Vault',
+    'open_settled_to_usdc': 'Open Settled',
     'borrow': 'Borrow',
+    'borrow_settled_to_usdc': 'Borrow Settled',
     'repay': 'Repay',
+    'repay_from_usdc': 'Repay from USDC',
     'deposit': 'Deposit',
     'withdraw': 'Withdraw',
     'liquidate': 'Repossess',
@@ -44,8 +47,11 @@ export const formatAction = (action: string): string => {
 export const getActionColor = (action: string): string => {
   const colorMap: Record<string, string> = {
     'open': COLORS.SUCCESS_GREEN,
+    'open_settled_to_usdc': COLORS.SUCCESS_GREEN,
     'borrow': COLORS.SUCCESS_GREEN,
+    'borrow_settled_to_usdc': COLORS.SUCCESS_GREEN,
     'repay': COLORS.PRIMARY_BLUE,
+    'repay_from_usdc': COLORS.PRIMARY_BLUE,
     'deposit': COLORS.SUCCESS_GREEN,
     'withdraw': COLORS.RED,
     'liquidate': COLORS.PRIMARY_BLUE,
@@ -62,7 +68,15 @@ export const getActionColor = (action: string): string => {
  * Red: Open, Borrow, Repossess (debt added)
  */
 export const getUnitColor = (actionLower: string): string => {
-  if (actionLower === 'repay' || actionLower === 'swap') return COLORS.GREEN;
+  if (
+    actionLower === 'repay'
+    || actionLower === 'swap'
+    || actionLower === 'open_settled_to_usdc'
+    || actionLower === 'borrow_settled_to_usdc'
+    || actionLower === 'repay_from_usdc'
+  ) {
+    return COLORS.GREEN;
+  }
   return COLORS.RED;
 };
 

@@ -8,7 +8,7 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import PriceChart from '../charts/PriceChart';
 import { COLORS } from '../../theme';
-import { generateUnitPriceData, PriceTimeframe, PriceDataPoint } from '../../utils/priceDataGenerator';
+import { generateUnitPriceData, generateUsdcPriceData, PriceTimeframe, PriceDataPoint } from '../../utils/priceDataGenerator';
 import { formatFiat } from '../../utils/formatters';
 import { AssetChartSkeleton } from './AssetSkeleton';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -18,7 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TIMEFRAMES = ['1D', '1W', '1M', '1Y'];
 
 interface AssetPriceChartProps {
-  assetType: 'BTC' | 'UNIT';
+  assetType: 'BTC' | 'UNIT' | 'USDC';
   priceData: PriceDataPoint[] | null;
   priceError: string | null;
   priceLoading: boolean;
@@ -70,6 +70,13 @@ export const AssetPriceChart = memo(function AssetPriceChart({
   const unitData = useMemo(() => {
     if (assetType === 'UNIT') {
       return generateUnitPriceData(selectedTimeframe);
+    }
+    return null;
+  }, [assetType, selectedTimeframe]);
+
+  const usdcData = useMemo(() => {
+    if (assetType === 'USDC') {
+      return generateUsdcPriceData(selectedTimeframe);
     }
     return null;
   }, [assetType, selectedTimeframe]);
@@ -165,6 +172,31 @@ export const AssetPriceChart = memo(function AssetPriceChart({
             height={height}
           />
           {renderPriceChip(unitDisplayPrice, true)}
+        </View>
+        {renderTimeframeButtons(false)}
+      </View>
+    );
+  }
+
+  if (assetType === 'USDC') {
+    const usdcLastPrice = usdcData && usdcData.length > 0 ? usdcData[usdcData.length - 1][1] : 1.0;
+    const usdcDisplayPrice = scrubbedPrice ?? usdcLastPrice;
+
+    return (
+      <View style={{ paddingVertical: s(4), paddingHorizontal: s(24), marginTop: s(2) }}>
+        <View style={{ position: 'relative' }}>
+          <PriceChart
+            data={usdcData}
+            isPositive={true}
+            minBoundary={0.9975}
+            maxBoundary={1.0025}
+            onScrub={handleScrub}
+            onScrubStart={onScrubStart}
+            onScrubEnd={onScrubEnd}
+            width={chartWidth}
+            height={height}
+          />
+          {renderPriceChip(usdcDisplayPrice, true)}
         </View>
         {renderTimeframeButtons(false)}
       </View>

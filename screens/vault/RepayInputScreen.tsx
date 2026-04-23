@@ -4,8 +4,8 @@
 
 import { NavigationProp } from '@react-navigation/native';
 import React,{ useEffect,useMemo } from 'react';
-import { useBalance } from '../../contexts/WalletDataContext';
-import { useRepayVault } from '../../hooks/vault';
+import { useBalance, useEvmAssets } from '../../contexts/WalletDataContext';
+import { useRepayFromUsdcSettlement } from '../../hooks/vault';
 import { useRepay } from '../../stores/repayStore';
 import { getRunesAmount } from '../../utils/runesHelper';
 import VaultInputScreen from './VaultInputScreen';
@@ -17,25 +17,30 @@ interface RepayInputScreenNewProps {
 
 export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewProps) {
   const store = useRepay();
-  const { setAvailableUnitBalance } = store;
-  const { loadVaultData } = useRepayVault();
+  const { setAvailableRepayBalanceUsd, setAvailableDirectUnitBalance } = store;
+  const { loadVaultData } = useRepayFromUsdcSettlement();
   const { runesBalance } = useBalance();
+  const { evmBalances } = useEvmAssets();
 
-  // Get UNIT balance from runes for repay validation
-  const unitBalance = useMemo((): number => {
-    const runes = getRunesAmount(runesBalance);
-    // E2E bypass: Ord indexer on Mutinynet is intermittent — Runes balance may
-    // read as 0 even though UTXOs exist on-chain. Fall back to vault debt amount.
-    if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && runes === 0 && store.currentUnitBorrowed > 0) {
-      return store.currentUnitBorrowed;
-    }
-    return runes;
-  }, [runesBalance, store.currentUnitBorrowed]);
+  // Repay now sources from Sepolia USDC and swaps back into UNIT under the hood.
+  const repayBalanceUsd = useMemo((): number => {
+    const parsed = Number.parseFloat(evmBalances?.usdc || '0');
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [evmBalances?.usdc]);
 
-  // Sync UNIT balance to repay store for maxRepayable calculation
+  const directUnitBalanceUsd = useMemo((): number => {
+    const parsed = getRunesAmount(runesBalance);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [runesBalance]);
+
+  // Sync the currently repayable face value into the repay store.
   useEffect(() => {
-    setAvailableUnitBalance(unitBalance);
-  }, [unitBalance, setAvailableUnitBalance]);
+    setAvailableRepayBalanceUsd(repayBalanceUsd);
+  }, [repayBalanceUsd, setAvailableRepayBalanceUsd]);
+
+  useEffect(() => {
+    setAvailableDirectUnitBalance(directUnitBalanceUsd);
+  }, [directUnitBalanceUsd, setAvailableDirectUnitBalance]);
 
   return (
     <VaultInputScreen
@@ -43,7 +48,7 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
       config={repayInputConfig}
       store={store}
       loadVaultData={loadVaultData}
-      additionalData={{ unitBalance }}
+      additionalData={{ repayBalanceUsd, directUnitBalanceUsd }}
     />
   );
 }

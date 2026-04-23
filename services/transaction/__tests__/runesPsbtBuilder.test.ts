@@ -74,12 +74,13 @@ jest.mock('../../../utils/logger', () => ({
 // Mock fetch globally
 global.fetch = jest.fn();
 
-import { fetchTransactionHex, buildRunesPsbt } from '../runesPsbtBuilder';
+import { clearTransactionHexCache, fetchTransactionHex, buildRunesPsbt } from '../runesPsbtBuilder';
 import { encodeRunestone } from '../../../utils/runestoneEncoder';
 
 describe('runesPsbtBuilder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearTransactionHexCache();
     mockAddInput.mockClear();
     mockAddOutput.mockClear();
 

@@ -3,6 +3,7 @@
  */
 
 import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
+import { formatVaultUsd } from '../../../utils/vaultFaceValue';
 import { colors } from '../../../styles/theme';
 import type {
   RepayVaultStore,
@@ -24,21 +25,22 @@ export const repayRoutes = {
 
 export const repayInputConfig: VaultInputScreenConfig<
   RepayVaultStore,
-  { unitBalance?: number }
+  { repayBalanceUsd?: number; directUnitBalanceUsd?: number }
 > = {
   operationType: 'repay',
-  title: 'Repay UNIT',
-  asset: 'UNIT',
+  title: 'Repay USD',
+  asset: 'USD',
   routes: repayRoutes,
   checksMinHealth: false,
   changesActionType: 'debt',
 
   getAmountConfig: (store) => ({
-    value: store.repayAmountUnit,
-    setValue: store.setRepayAmountUnit,
-    maxValue: Math.max(0, Math.floor(store.maxRepayable || 0)),
-    label: 'UNIT to Repay',
+    value: store.repayAmountUsd,
+    setValue: store.setRepayAmountUsd,
+    maxValue: Math.max(0, Math.floor(store.maxRepayableUsd || 0)),
+    label: 'USD to Repay',
     isUnitAmount: true,
+    displayUnitLabel: 'USD',
     hideAvailable: true,
   }),
 
@@ -84,20 +86,28 @@ export const repayInputConfig: VaultInputScreenConfig<
     effectiveUnitBorrowed: number,
     _preview: VaultPreview,
     hasSufficientBtcForFees: boolean,
-    additionalData?: { unitBalance?: number }
+    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number }
   ): ValidationResult => {
     const warnings: string[] = [];
     const errors: string[] = [];
-    const unitBalance = additionalData?.unitBalance ?? 0;
+    const repayBalanceUsd = additionalData?.repayBalanceUsd ?? 0;
+    const directUnitBalanceUsd = additionalData?.directUnitBalanceUsd ?? 0;
+    const maxFundingUsd = Math.max(repayBalanceUsd, directUnitBalanceUsd);
 
     // Check repay exceeds debt
     if (amount > effectiveUnitBorrowed) {
-      errors.push(`Cannot repay more than your debt (${effectiveUnitBorrowed.toFixed(2)} UNIT)`);
+      errors.push(`Cannot repay more than your debt (${formatVaultUsd(effectiveUnitBorrowed)}).`);
     }
 
-    // Check repay exceeds balance
-    if (amount > unitBalance) {
-      errors.push(`Insufficient UNIT balance. You have ${unitBalance.toFixed(2)} UNIT available.`);
+    // Check repay exceeds available funding path
+    if (amount > maxFundingUsd) {
+      if (directUnitBalanceUsd > 0) {
+        errors.push(
+          `Insufficient repayable balance. You have ${formatVaultUsd(directUnitBalanceUsd)} in spendable UNIT or ${formatVaultUsd(repayBalanceUsd)} in Sepolia USDC.`,
+        );
+      } else {
+        errors.push(`Insufficient Sepolia USDC balance. You have ${formatVaultUsd(repayBalanceUsd)} available.`);
+      }
     }
 
     // Check fee balance
@@ -106,7 +116,7 @@ export const repayInputConfig: VaultInputScreenConfig<
     }
 
     return {
-      canContinue: amount > 0 && amount <= effectiveUnitBorrowed && amount <= unitBalance && hasSufficientBtcForFees,
+      canContinue: amount > 0 && amount <= effectiveUnitBorrowed && amount <= maxFundingUsd && hasSufficientBtcForFees,
       warnings,
       errors,
     };
@@ -115,7 +125,7 @@ export const repayInputConfig: VaultInputScreenConfig<
   getEmptyState: (
     _effectiveBtcLocked: number,
     effectiveUnitBorrowed: number,
-    additionalData?: { unitBalance?: number }
+    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number }
   ): EmptyStateConfig | null => {
     // No debt
     if (effectiveUnitBorrowed <= 0) {
@@ -126,13 +136,17 @@ export const repayInputConfig: VaultInputScreenConfig<
       };
     }
 
-    // No UNIT balance
-    if (additionalData?.unitBalance !== undefined && additionalData.unitBalance <= 0) {
+    // No repayable balance
+    if (
+      additionalData?.repayBalanceUsd !== undefined
+      && additionalData.repayBalanceUsd <= 0
+      && (additionalData?.directUnitBalanceUsd ?? 0) <= 0
+    ) {
       return {
         icon: 'alert-circle-outline',
         iconColor: colors.semantic.warning,
-        title: 'No UNIT Available',
-        subtitle: `You need UNIT to repay your debt of ${effectiveUnitBorrowed.toFixed(2)} UNIT.`,
+        title: 'No Repayable Balance',
+        subtitle: `You need either spendable UNIT or Sepolia USDC to repay your debt of ${formatVaultUsd(effectiveUnitBorrowed)}.`,
       };
     }
 
@@ -143,12 +157,12 @@ export const repayInputConfig: VaultInputScreenConfig<
 export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
   operationType: 'repay',
   title: 'Confirm Repay',
-  authMessage: 'Authenticate to repay UNIT',
+  authMessage: 'Authenticate to repay USD',
   routes: repayRoutes,
 
   getPrimaryAmount: (store) => ({
-    amount: store.repayAmountUnit,
-    unit: 'UNIT',
+    amount: store.repayAmountUsd,
+    unit: 'USD',
   }),
 
   executeOperation: async () => {
@@ -156,15 +170,27 @@ export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
   },
 
   getSummaryRows: (store, _btcPrice): SummaryRow[] => {
-    const newDebt = Math.max(0, store.currentUnitBorrowed - store.repayAmountUnit);
+    const newDebt = Math.max(0, store.currentUnitBorrowed - store.repayAmountUsd);
 
     return [
       {
+        label: 'Estimated USDC Spend',
+        currentValue: store.estimatedUsdcIn ? `${store.estimatedUsdcIn} USDC` : 'Refreshing…',
+      },
+      {
+        label: 'Sepolia Network Fee',
+        currentValue: store.estimatedSepoliaFeeEth ? `${store.estimatedSepoliaFeeEth} ETH` : 'Refreshing…',
+      },
+      ...(store.availableDirectUnitBalanceUsd >= store.repayAmountUsd
+        ? [{
+            label: 'Funding Path',
+            currentValue: 'Direct UNIT',
+          } satisfies SummaryRow]
+        : []),
+      {
         label: 'Debt',
-        currentValue: store.currentUnitBorrowed.toFixed(2),
-        currentUnit: 'UNIT',
-        newValue: newDebt.toFixed(2),
-        newUnit: 'UNIT',
+        currentValue: formatVaultUsd(store.currentUnitBorrowed),
+        newValue: formatVaultUsd(newDebt),
         showArrow: true,
       },
       {
@@ -194,8 +220,8 @@ export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
 
 export const repayProcessingConfig: VaultProcessingScreenConfig = {
   operationType: 'repay',
-  title: 'Repaying UNIT',
-  subtitle: 'Please wait while we process your repay request',
+  title: 'Repaying USD',
+  subtitle: 'Please wait while we swap USDC back into UNIT and settle the repay',
   errorSubtitle: 'An error occurred',
   routes: repayRoutes,
 

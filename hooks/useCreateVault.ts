@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { useVaultCreationStore } from '../stores/vaultCreationStore';
+import { useVaultCreation } from '../stores/vaultCreationStore';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { usePrice } from '../stores/priceStore';
@@ -20,10 +20,21 @@ import { computeLiquidationPrice, validateVaultParams } from '../utils/vaultUtil
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { logger } from '../utils/logger';
 import type { ProcessingStep } from '../stores/vaultCreationStore';
+import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { useNotificationStore } from '../stores/notificationStore';
+import {
+  extractVaultFinalizationPendingData,
+  extractVaultIssuePendingData,
+} from '../services/vault/pendingIssueOutputs';
 
 export interface CreateVaultParams {
   isMaxDeposit?: boolean;
   isMaxBorrow?: boolean;
+}
+
+export interface UseCreateVaultOptions {
+  deferSuccessTransition?: boolean;
 }
 
 export interface UseCreateVaultResult {
@@ -37,27 +48,36 @@ export interface UseCreateVaultResult {
   error: string | null;
   /** Transaction ID after successful creation */
   txid: string | null;
+  /** Vault transaction ID after successful creation */
+  vaultTxid: string | null;
 }
 
-export function useCreateVault(): UseCreateVaultResult {
+export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVaultResult {
   const { wallet } = useWallet();
   const { segwitBalance } = useBalance();
   const { btcPrice } = usePrice();
+  const setPendingTransaction = usePendingVaultTransactionStore((s) => s.setPendingTransaction);
+  const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
+  const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
+  const showSnackbar = useNotificationStore((s) => s.showSnackbar);
 
   const {
     btcAmount,
-    unitAmount,
+    borrowAmountUsd,
+    protocolUnitAmount,
     selectedFeeRate,
     loading,
     error,
     txid,
+    vaultTxid,
     setLoading,
     setError,
     setTxid,
+    setVaultTxid,
     setCurrentStep,
     setProcessingStep,
     reset,
-  } = useVaultCreationStore();
+  } = useVaultCreation();
 
   // Track if we're in the middle of an operation
   const operationInProgressRef = useRef(false);
@@ -92,7 +112,7 @@ export function useCreateVault(): UseCreateVaultResult {
       // Validate vault parameters
       const validation = validateVaultParams(
         btcAmount,
-        unitAmount,
+        protocolUnitAmount,
         btcPrice,
         segwitBalance // Available BTC balance from wallet
       );
@@ -117,10 +137,18 @@ export function useCreateVault(): UseCreateVaultResult {
           const fakeTxid = `e2e-vault-${Date.now().toString(16)}`;
           e2eVaultState.vaultCreated = true;
           e2eVaultState.btcLocked = btcAmount;
-          e2eVaultState.unitBorrowed = unitAmount;
+          e2eVaultState.unitBorrowed = protocolUnitAmount;
           setTxid(fakeTxid);
-          setCurrentStep('success');
-          logger.info('[useCreateVault] E2E bypass: vault created', { fakeTxid, btcAmount, unitAmount });
+          setVaultTxid(fakeTxid);
+          if (!options.deferSuccessTransition) {
+            setCurrentStep('success');
+          }
+          logger.info('[useCreateVault] E2E bypass: vault created', {
+            fakeTxid,
+            borrowAmountUsd,
+            btcAmount,
+            protocolUnitAmount,
+          });
           return fakeTxid;
         } finally {
           operationInProgressRef.current = false;
@@ -141,7 +169,7 @@ export function useCreateVault(): UseCreateVaultResult {
           taprootPubkey: wallet.taprootPubkey || '',
         });
 
-        const vaultConfig = createVaultConfig(unitAmount, btcAmount, selectedFeeRate);
+        const vaultConfig = createVaultConfig(protocolUnitAmount, btcAmount, selectedFeeRate);
 
         // Step 2: Connect to guardian and reserve UNIT
         updateProcessingStep(2);
@@ -160,7 +188,7 @@ export function useCreateVault(): UseCreateVaultResult {
         updateProcessingStep(3);
         logger.debug('[useCreateVault] Step 3: Creating vault request...');
 
-        const liquidationPrice = computeLiquidationPrice(unitAmount, btcAmount);
+        const liquidationPrice = computeLiquidationPrice(protocolUnitAmount, btcAmount);
 
         const vaultReq = await createVaultReqOpen(
           vaultWallet,
@@ -179,8 +207,80 @@ export function useCreateVault(): UseCreateVaultResult {
 
         const resultTxid = await guardianSendReqOpen(gclient, vaultReq);
 
+        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
+          vaultReq,
+          wallet,
+          livePendingTransactions,
+        );
+
+        for (const spentInput of spentInputs) {
+          if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
+            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+          }
+        }
+
+        if (outputs.length > 0) {
+          await addPendingTransaction(
+            resultTxid,
+            outputs,
+            'UNIT',
+            parentTxid,
+            Math.round(protocolUnitAmount * 100),
+            spentInputs,
+          );
+        }
+
+        const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+        const finalizationPendingData = extractVaultFinalizationPendingData(
+          vaultReq,
+          wallet,
+          latestPendingTransactions,
+        );
+
+        for (const spentInput of finalizationPendingData.spentInputs) {
+          if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
+            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+          }
+        }
+
+        if (
+          vaultReq.vault_txid !== resultTxid &&
+          finalizationPendingData.outputs.length > 0
+        ) {
+          await addPendingTransaction(
+            vaultReq.vault_txid,
+            finalizationPendingData.outputs,
+            'BTC',
+            finalizationPendingData.parentTxid,
+            undefined,
+            finalizationPendingData.spentInputs,
+          );
+        }
+
         setTxid(resultTxid);
-        setCurrentStep('success');
+        setVaultTxid(vaultReq.vault_txid);
+
+        await setPendingTransaction({
+          txid: resultTxid,
+          vaultTxid: vaultReq.vault_txid,
+          action: 'open',
+          btcAmt: Math.round(btcAmount * 100_000_000),
+          unitAmt: Math.round(protocolUnitAmount * 100),
+          timestamp: Date.now(),
+          vaultPubkey: wallet.taprootPubkey || '',
+        });
+
+        showSnackbar({
+          title: 'Vault transaction confirming',
+          description: 'Please wait for the block to get mined',
+          type: 'info',
+          duration: 7000,
+        });
+
+        if (!options.deferSuccessTransition) {
+          setCurrentStep('success');
+        }
 
         logger.info('[useCreateVault] Vault created successfully:', { txid: resultTxid });
         return resultTxid;
@@ -205,14 +305,21 @@ export function useCreateVault(): UseCreateVaultResult {
       wallet,
       btcPrice,
       btcAmount,
-      unitAmount,
+      borrowAmountUsd,
+      protocolUnitAmount,
       segwitBalance,
       selectedFeeRate,
       setLoading,
       setError,
       setTxid,
+      setVaultTxid,
       setCurrentStep,
       updateProcessingStep,
+      setPendingTransaction,
+      addPendingTransaction,
+      markUtxoAsSpent,
+      showSnackbar,
+      options.deferSuccessTransition,
     ]
   );
 
@@ -228,6 +335,7 @@ export function useCreateVault(): UseCreateVaultResult {
     isLoading: loading,
     error,
     txid,
+    vaultTxid,
   };
 }
 

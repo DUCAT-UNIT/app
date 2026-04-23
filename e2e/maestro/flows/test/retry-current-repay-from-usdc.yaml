@@ -1,0 +1,53 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-input-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-continue-btn"
+      - runFlow: ../helpers/dismiss-debug-warning.yaml
+      - runFlow:
+          when:
+            visible:
+              id: "vault-repay-input-screen"
+          commands:
+            - tapOn:
+                id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-confirm-screen"
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-repay-confirm-btn"
+    direction: DOWN
+    timeout: 5000
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- tapOn:
+    id: "vault-repay-confirm-btn"
+
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-confirm-screen"
+    commands:
+      - tapOn:
+          id: "vault-repay-confirm-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-success-screen"
+    timeout: 420000
+
+- assertVisible:
+    text: "Repayment Complete!"

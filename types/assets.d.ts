@@ -7,7 +7,7 @@
  * Asset type for display purposes (uppercase)
  * Used in UI components for displaying transaction/balance info
  */
-export type DisplayAssetType = 'BTC' | 'UNIT' | 'RUNE';
+export type DisplayAssetType = 'BTC' | 'UNIT' | 'RUNE' | 'USDC';
 
 /**
  * Asset type for send flow (lowercase, nullable)

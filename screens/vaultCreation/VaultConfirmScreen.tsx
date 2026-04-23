@@ -6,17 +6,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import React,{ useCallback,useMemo,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useState } from 'react';
 import { Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import { useBalance } from '../../contexts/WalletDataContext';
-import { useCreateVault } from '../../hooks/useCreateVault';
+import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
-import { useVaultCreationStore } from '../../stores/vaultCreationStore';
+import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
+import { formatVaultUsd } from '../../utils/vaultFaceValue';
 import { getOpCostOpen } from '../../utils/vaultUtils';
 
 interface VaultConfirmScreenProps {
@@ -24,22 +25,48 @@ interface VaultConfirmScreenProps {
 }
 
 export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenProps) {
-  // Use direct store subscription for reactive updates
-  const btcAmount = useVaultCreationStore((state) => state.btcAmount);
-  const unitAmount = useVaultCreationStore((state) => state.unitAmount);
-  const selectedFeeRate = useVaultCreationStore((state) => state.selectedFeeRate);
-  const error = useVaultCreationStore((state) => state.error);
-  const setCurrentStep = useVaultCreationStore((state) => state.setCurrentStep);
-  const getHealthFactor = useVaultCreationStore((state) => state.getHealthFactor);
-  const getLiquidationPrice = useVaultCreationStore((state) => state.getLiquidationPrice);
+  const {
+    btcAmount,
+    borrowAmountUsd,
+    selectedFeeRate,
+    error,
+    setCurrentStep,
+    healthFactor,
+    liquidationPrice,
+  } = useVaultCreation();
 
-  const healthFactor = getHealthFactor();
-  const liquidationPrice = getLiquidationPrice();
-
-  const { createVault, isLoading } = useCreateVault();
+  const { createVault, isLoading, quoteBorrowToUsdc } = useCreateVaultToUsdcSettlement();
   const { btcPrice } = usePrice();
   const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (borrowAmountUsd <= 0) {
+      setEstimatedUsdcOut(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    quoteBorrowToUsdc(borrowAmountUsd)
+      .then((quote) => {
+        if (!cancelled) {
+          setEstimatedUsdcOut(quote.estimatedUsdcOut);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEstimatedUsdcOut(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [borrowAmountUsd, quoteBorrowToUsdc]);
 
   // Calculate USD values
   const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
@@ -85,16 +112,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       setIsAuthenticating(false);
       setCurrentStep('processing');
       navigation.navigate('VaultProcessing');
-
-      const txid = await createVault();
-      if (txid) {
-        setCurrentStep('success');
-        navigation.navigate('VaultSuccess', { txid });
-      } else {
-        setCurrentStep('confirm');
-        navigation.goBack();
-        Alert.alert('Error', 'Failed to create vault. Please try again.');
-      }
+      await createVault();
     } catch (err) {
       setIsAuthenticating(false);
       setCurrentStep('confirm');
@@ -140,12 +158,19 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
           {/* Borrow Amount */}
           <View style={styles.row}>
-            <Text style={styles.label}>UNIT to Borrow</Text>
-            <View style={styles.changeRow}>
-              <Text style={styles.valueHighlight}>{unitAmount.toFixed(2)}</Text>
-              <Icon name="unit_symbol" size={14} />
-            </View>
+            <Text style={styles.label}>Debt to Add</Text>
+            <Text style={styles.valueHighlight}>{formatVaultUsd(borrowAmountUsd)}</Text>
           </View>
+
+          {estimatedUsdcOut && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.label}>Estimated USDC Received</Text>
+                <Text style={styles.valueHighlight}>{estimatedUsdcOut} USDC</Text>
+              </View>
+            </>
+          )}
 
           <View style={styles.divider} />
 
@@ -153,7 +178,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           <View style={styles.row}>
             <Text style={styles.label}>Health Factor</Text>
             <Text style={[styles.valueHighlight, { color: getHealthColor(healthFactor) }]}>
-              {unitAmount > 0 ? `${healthFactor}%` : '∞'}
+              {borrowAmountUsd > 0 ? `${healthFactor}%` : '∞'}
             </Text>
           </View>
 
@@ -302,11 +327,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
     color: colors.text.primary,
-  },
-  changeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
   },
   feeSection: {
     marginTop: spacing.lg,

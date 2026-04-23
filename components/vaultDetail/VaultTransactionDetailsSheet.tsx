@@ -8,8 +8,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native'
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import BottomSheet from '../common/BottomSheet';
-import { formatBalance, formatUnitAmount, formatFiat } from '../../utils/formatters';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 import { getOrdTxUrl } from '../../utils/constants';
+import {
+  formatVaultUsdFromSmallestUnits,
+} from '../../utils/vaultFaceValue';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 
 const LIQUIDATION_RATE = 1.5;
@@ -46,8 +49,11 @@ const getHealthColor = (health: number): string => {
 const formatAction = (action: string): string => {
   const actionMap: Record<string, string> = {
     'open': 'Open Vault',
-    'borrow': 'Borrow UNIT',
-    'repay': 'Repay UNIT',
+    'open_settled_to_usdc': 'Open Settled to USDC',
+    'borrow': 'Borrow Value',
+    'borrow_settled_to_usdc': 'Borrow Settled to USDC',
+    'repay': 'Repay Value',
+    'repay_from_usdc': 'Repay from USDC',
     'deposit': 'Deposit BTC',
     'withdraw': 'Withdraw BTC',
     'liquidate': 'Liquidation',
@@ -59,15 +65,21 @@ const formatAction = (action: string): string => {
 const getActionDescription = (action: string, btcAmt: number, unitAmt: number): string => {
   const actionLower = action.toLowerCase();
   const btcFormatted = formatBalance(Math.abs(btcAmt) / 100_000_000);
-  const unitFormatted = formatUnitAmount(Math.abs(unitAmt));
+  const debtFormatted = formatVaultUsdFromSmallestUnits(Math.abs(unitAmt));
 
   switch (actionLower) {
     case 'open':
       return `Opened vault with ${btcFormatted} BTC collateral`;
+    case 'open_settled_to_usdc':
+      return `Opened vault and settled ${debtFormatted} to USDC`;
     case 'borrow':
-      return `Borrowed ${unitFormatted} UNIT`;
+      return `Borrowed ${debtFormatted} against BTC collateral`;
+    case 'borrow_settled_to_usdc':
+      return `Borrowed and settled ${debtFormatted} to USDC`;
     case 'repay':
-      return `Repaid ${unitFormatted} UNIT`;
+      return `Repaid ${debtFormatted} of vault debt`;
+    case 'repay_from_usdc':
+      return `Repaid ${debtFormatted} from USDC settlement`;
     case 'deposit':
       return `Deposited ${btcFormatted} BTC`;
     case 'withdraw':
@@ -251,9 +263,8 @@ export default function VaultTransactionDetailsSheet({
         {/* Debt Change */}
         <ChangeRow
           label="Total Debt"
-          beforeValue={formatUnitAmount(details.before.debt)}
-          afterValue={formatUnitAmount(details.after.debt)}
-          icon="unit_symbol"
+          beforeValue={formatVaultUsdFromSmallestUnits(details.before.debt)}
+          afterValue={formatVaultUsdFromSmallestUnits(details.after.debt)}
           afterColor={details.after.debt < details.before.debt ? COLORS.GREEN : details.after.debt > details.before.debt ? COLORS.RED : COLORS.WHITE}
         />
 

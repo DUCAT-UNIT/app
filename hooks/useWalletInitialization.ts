@@ -4,8 +4,7 @@
 
 import { useState, useEffect, useCallback, MutableRefObject } from 'react';
 import { logger } from '../utils/logger';
-import { analytics } from '../services/analyticsService';
-import { STARTUP_EVENTS } from '../constants/analyticsEvents';
+import { startupDiagnostics } from '../services/startupDiagnostics';
 
 // Safety timeout — if wallet init hasn't resolved after 10s, give up and show
 // the error/retry screen instead of staying stuck on the splash screen forever.
@@ -52,14 +51,14 @@ export const useWalletInitialization = ({
         // Race against a timeout so the app never stays stuck on the splash screen.
         // Each sub-op is tracked individually so PostHog shows which one hung.
         const biometricPromise = loadBiometricPreference().then(() => {
-          analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-            gate: 'biometric_pref_loaded', elapsed_ms: Date.now() - t0,
+          startupDiagnostics.recordCheckpoint('biometric_pref_loaded', {
+            elapsed_ms: Date.now() - t0,
           });
         });
 
         const walletPromise = loadWallet().then((r) => {
-          analytics.track(STARTUP_EVENTS.STARTUP_CHECKPOINT, {
-            gate: 'wallet_loaded', elapsed_ms: Date.now() - t0,
+          startupDiagnostics.recordCheckpoint('wallet_loaded', {
+            elapsed_ms: Date.now() - t0,
             wallet_exists: r?.exists ?? false,
           });
           return r;
@@ -69,10 +68,12 @@ export const useWalletInitialization = ({
 
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => {
-            analytics.track(STARTUP_EVENTS.STARTUP_TIMEOUT, {
-              elapsed_ms: Date.now() - t0, timeout_ms: INIT_TIMEOUT_MS,
+            startupDiagnostics.recordFailure('wallet_initialization_timed_out', {
+              elapsed_ms: Date.now() - t0,
+              timeout_ms: INIT_TIMEOUT_MS,
+            }, {
+              timeout: true,
             });
-            analytics.flush(); // Force-send before we might get stuck
             reject(new Error('Wallet initialization timed out'));
           }, INIT_TIMEOUT_MS),
         );
@@ -95,18 +96,19 @@ export const useWalletInitialization = ({
           setIsAuthenticated(true);
         }
 
-        analytics.track(STARTUP_EVENTS.STARTUP_COMPLETE, {
-          elapsed_ms: Date.now() - t0, wallet_exists: result.exists,
+        startupDiagnostics.markComplete({
+          elapsed_ms: Date.now() - t0,
+          wallet_exists: result.exists,
         });
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to initialize wallet';
         logger.error('[useWalletInitialization] Wallet initialization failed', {
           error: errorMessage,
         });
-        analytics.track(STARTUP_EVENTS.STARTUP_TIMEOUT, {
-          elapsed_ms: Date.now() - t0, error: errorMessage,
+        startupDiagnostics.recordFailure('wallet_initialization_failed', {
+          elapsed_ms: Date.now() - t0,
+          error: errorMessage,
         });
-        analytics.flush();
         setSeedConfirmed(false);
         walletExistsRef.current = false;
         setIsAuthenticated(false);
@@ -156,6 +158,9 @@ export const useWalletInitialization = ({
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to initialize wallet';
       logger.error('[useWalletInitialization] Wallet initialization retry failed', {
+        error: errorMessage,
+      });
+      startupDiagnostics.recordFailure('wallet_initialization_retry_failed', {
         error: errorMessage,
       });
       setSeedConfirmed(false);

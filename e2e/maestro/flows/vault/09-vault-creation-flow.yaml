@@ -8,12 +8,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 
-# Wait for funded balance
-- extendedWaitUntil:
-    visible:
-      text: "0.10000000"
-    timeout: 30000
-
 # Scroll to vault card
 - scrollUntilVisible:
     element:
@@ -37,17 +31,37 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-amounts-screen"
     timeout: 10000
 
-# Select HALF BTC deposit
+# Use max BTC deposit from the real slider controls
 - tapOn:
-    id: "btc-slider-half-btn"
+    id: "btc-slider-max-btn"
 - waitForAnimationToEnd
 
-# Select QTR UNIT borrow
+# Prime the borrow slider, then edit down to a valid live USD amount
 - tapOn:
-    id: "unit-slider-quarter-btn"
+    id: "unit-slider-max-btn"
+- waitForAnimationToEnd
+- tapOn:
+    id: "vault-create-borrow-usd-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+- tapOn:
+    id: "vault-create-borrow-usd-input"
+- eraseText
+- inputText: "4900"
+- pressKey: Enter
 - waitForAnimationToEnd
 
 # Continue to confirm
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,92%"
+      - waitForAnimationToEnd
 - tapOn:
     id: "vault-create-continue-btn"
 
@@ -60,6 +74,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
     text: "Confirm Vault"
 
 # Confirm & Sign
+- runFlow:
+    when:
+      visible:
+        text: "Open debugger to view warnings."
+    commands:
+      - tapOn:
+          point: "92%,92%"
+      - waitForAnimationToEnd
 - tapOn:
     id: "vault-create-confirm-btn"
 

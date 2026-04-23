@@ -106,4 +106,10 @@ export const STARTUP_EVENTS = {
   STARTUP_TIMEOUT: 'startup_timeout',
   /** Fired per-checkpoint so we get partial data even if app crashes. */
   STARTUP_CHECKPOINT: 'startup_checkpoint',
+  /** Fired when a startup-specific warning or fallback occurs. */
+  STARTUP_WARNING: 'startup_warning',
+  /** Fired when startup fails for a non-timeout reason. */
+  STARTUP_FAILURE: 'startup_failure',
+  /** Fired on next launch if the previous attempt never completed. */
+  STARTUP_PREVIOUS_ATTEMPT_RECOVERED: 'startup_previous_attempt_recovered',
 } as const;

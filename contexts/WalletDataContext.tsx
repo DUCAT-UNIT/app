@@ -5,6 +5,7 @@
  */
 
 import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
+import { EvmAssetsProvider } from './EvmAssetsContext';
 import { usePolling } from '../hooks/usePolling';
 import { logger } from '../utils/logger';
 import { BalanceProvider, useBalance } from './BalanceContext';
@@ -19,6 +20,7 @@ export { useBalance, type BalanceDataValue } from './BalanceContext';
 export { useTransactionHistory, type TransactionHistoryValue } from './TransactionHistoryContext';
 export { useVaultData, type VaultDataValue } from './VaultContext';
 export { useEcashTokens, type EcashTokensValue } from './EcashTokensContext';
+export { useEvmAssets, type EvmAssetsValue } from './EvmAssetsContext';
 
 // Polling interval (milliseconds)
 const POLL_INTERVAL = 10000;
@@ -128,7 +130,9 @@ export const WalletDataProvider: React.FC<WalletDataProviderProps> = ({ children
       <VaultProvider>
         <TransactionHistoryProvider>
           <EcashTokensProvider>
-            <WalletDataCoordinator>{children}</WalletDataCoordinator>
+            <EvmAssetsProvider>
+              <WalletDataCoordinator>{children}</WalletDataCoordinator>
+            </EvmAssetsProvider>
           </EcashTokensProvider>
         </TransactionHistoryProvider>
       </VaultProvider>

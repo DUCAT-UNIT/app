@@ -3,7 +3,10 @@
  */
 
 import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
+import { formatVaultUsd } from '../../../utils/vaultFaceValue';
 import { colors } from '../../../styles/theme';
+import { useVaultSettlementStore } from '../../../stores/vaultSettlementStore';
+import { getVaultSettlementStatusMessage } from '../../../services/vaultSettlementService';
 import type {
   BorrowVaultStore,
   VaultInputScreenConfig,
@@ -24,18 +27,19 @@ export const borrowRoutes = {
 
 export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
   operationType: 'borrow',
-  title: 'Borrow UNIT',
-  asset: 'UNIT',
+  title: 'Borrow USD',
+  asset: 'USD',
   routes: borrowRoutes,
   checksMinHealth: true,
   changesActionType: 'debt',
 
   getAmountConfig: (store) => ({
-    value: store.borrowAmount,
-    setValue: store.setBorrowAmount,
-    maxValue: store.maxBorrowable !== null ? Math.max(0, Math.floor(store.maxBorrowable)) : 0,
-    label: 'UNIT to Borrow',
+    value: store.borrowAmountUsd,
+    setValue: store.setBorrowAmountUsd,
+    maxValue: store.maxBorrowableUsd !== null ? Math.max(0, Math.floor(store.maxBorrowableUsd)) : 0,
+    label: 'USD to Borrow',
     isUnitAmount: true,
+    displayUnitLabel: 'USD',
     hideAvailable: true,
   }),
 
@@ -107,78 +111,83 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
   },
 };
 
-export const borrowConfirmConfig: VaultConfirmScreenConfig<BorrowVaultStore> = {
-  operationType: 'borrow',
-  title: 'Confirm Borrow',
-  authMessage: 'Authenticate to borrow UNIT',
-  routes: borrowRoutes,
+export function createBorrowConfirmConfig(
+  estimatedUsdcOut?: string | null,
+): VaultConfirmScreenConfig<BorrowVaultStore> {
+  return {
+    operationType: 'borrow',
+    title: 'Confirm Borrow',
+    authMessage: 'Authenticate to borrow USD',
+    routes: borrowRoutes,
 
-  getPrimaryAmount: (store) => ({
-    amount: store.borrowAmount,
-    unit: 'UNIT',
-  }),
+    getPrimaryAmount: (store) => ({
+      amount: store.borrowAmountUsd,
+      unit: 'USD',
+    }),
 
-  executeOperation: async () => {
-    // This will be called from the hook
-    return null;
-  },
+    executeOperation: async () => {
+      return null;
+    },
 
-  getSummaryRows: (store, _btcPrice): SummaryRow[] => {
-    const totalDebt = store.currentUnitBorrowed + store.borrowAmount;
+    getSummaryRows: (store, _btcPrice): SummaryRow[] => {
+      const totalDebt = store.currentUnitBorrowed + store.borrowAmountUsd;
+      const rows: SummaryRow[] = [
+        {
+          label: 'Debt',
+          currentValue: formatVaultUsd(store.currentUnitBorrowed),
+          newValue: formatVaultUsd(totalDebt),
+          showArrow: true,
+        },
+      ];
 
-    return [
-      {
-        label: 'Debt',
-        currentValue: store.currentUnitBorrowed.toFixed(2),
-        currentUnit: 'UNIT',
-        newValue: totalDebt.toFixed(2),
-        newUnit: 'UNIT',
-        showArrow: true,
-      },
-      {
-        label: 'Collateral (unchanged)',
-        currentValue: store.currentBtcLocked.toFixed(8),
-        currentUnit: 'BTC',
-      },
-      {
-        label: 'Health Factor',
-        currentValue: store.healthFactor >= 999 ? '∞' : `${store.healthFactor.toFixed(0)}%`,
-        newValue: store.newHealthFactor >= 999 ? '∞' : `${store.newHealthFactor.toFixed(0)}%`,
-        showArrow: true,
-        valueColor: getHealthColor(store.healthFactor),
-        newValueColor: getHealthColor(store.newHealthFactor),
-      },
-      {
-        label: 'Liquidation Price',
-        currentValue: `$${store.liquidationPrice.toFixed(0)}`,
-        newValue: `$${store.newLiquidationPrice.toFixed(0)}`,
-        showArrow: true,
-        valueColor: colors.semantic.error,
-        newValueColor: colors.semantic.error,
-      },
-    ];
-  },
-};
+      if (estimatedUsdcOut) {
+        rows.push({
+          label: 'Estimated USDC Received',
+          currentValue: `${estimatedUsdcOut} USDC`,
+        });
+      }
+
+      rows.push(
+        {
+          label: 'Collateral (unchanged)',
+          currentValue: store.currentBtcLocked.toFixed(8),
+          currentUnit: 'BTC',
+        },
+        {
+          label: 'Health Factor',
+          currentValue: store.healthFactor >= 999 ? '∞' : `${store.healthFactor.toFixed(0)}%`,
+          newValue: store.newHealthFactor >= 999 ? '∞' : `${store.newHealthFactor.toFixed(0)}%`,
+          showArrow: true,
+          valueColor: getHealthColor(store.healthFactor),
+          newValueColor: getHealthColor(store.newHealthFactor),
+        },
+        {
+          label: 'Liquidation Price',
+          currentValue: `$${store.liquidationPrice.toFixed(0)}`,
+          newValue: `$${store.newLiquidationPrice.toFixed(0)}`,
+          showArrow: true,
+          valueColor: colors.semantic.error,
+          newValueColor: colors.semantic.error,
+        },
+      );
+
+      return rows;
+    },
+  };
+}
+
+export const borrowConfirmConfig: VaultConfirmScreenConfig<BorrowVaultStore> =
+  createBorrowConfirmConfig();
 
 export const borrowProcessingConfig: VaultProcessingScreenConfig = {
   operationType: 'borrow',
-  title: 'Borrowing UNIT',
+  title: 'Borrowing USD',
   subtitle: 'Please wait while we process your borrow request',
   errorSubtitle: 'An error occurred',
   routes: borrowRoutes,
 
   getStatusMessage: (step: number): string => {
-    switch (step) {
-      case 1:
-        return 'Preparing transaction...';
-      case 2:
-        return 'Connecting to network...';
-      case 3:
-        return 'Validating details...';
-      case 4:
-        return 'Finalizing borrow...';
-      default:
-        return 'Processing...';
-    }
+    const { kind, phase } = useVaultSettlementStore.getState();
+    return getVaultSettlementStatusMessage(kind, phase, step);
   },
 };

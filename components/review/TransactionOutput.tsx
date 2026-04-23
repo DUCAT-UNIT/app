@@ -23,7 +23,7 @@ export interface PSBTOutput {
 
 export interface SendIntent {
   assetType: AssetType;
-  amount: string;
+  amount: string | number;
   recipient: string;
   sourceAddress?: string;
 }
@@ -37,7 +37,7 @@ export interface TransactionOutputProps {
 
 export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPrice }: TransactionOutputProps) {
   const { s, sf } = useResponsive();
-  const unitAmount = sendIntent.assetType === 'UNIT' ? parseFloat(sendIntent.amount) : 0;
+  const unitAmount = sendIntent.assetType === 'UNIT' ? parseFloat(String(sendIntent.amount)) : 0;
   const isRuneOutput = sendIntent.assetType === 'UNIT' &&
     (output.type === 'recipient' || output.type === 'rune_return');
 
@@ -70,7 +70,7 @@ export function TransactionOutput({ output, sendIntent, runeUtxoBalance, btcPric
             </Text>
           </View>
         )}
-        {isRuneOutput && output.type === 'rune_return' && runeUtxoBalance && remainingUnit > 0 && (
+        {isRuneOutput && output.type === 'rune_return' && runeUtxoBalance > 0 && remainingUnit > 0 && (
           <View style={[styles.unitChip, { paddingHorizontal: s(8), paddingVertical: s(3), borderRadius: s(4), gap: s(4) }]}>
             <Icon name="unit_symbol" size={s(10)} color={COLORS.PRIMARY_BLUE} />
             <Text style={[styles.unitChipText, { fontSize: sf(10) }]}>

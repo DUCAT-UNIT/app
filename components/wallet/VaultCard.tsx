@@ -8,12 +8,12 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
-import { formatBalance, formatFiat } from '../../utils/formatters';
+import { formatBalance } from '../../utils/formatters';
+import { formatVaultUsd } from '../../utils/vaultFaceValue';
 
 // Constants
 const VAULT_LOGO_SIZE = 28;
 const CURRENCY_ICON_SIZE = 10;
-const DEBT_DECIMAL_PLACES = 2;
 const COLLATERAL_DECIMAL_PLACES = 8;
 const GRADIENT_START = { x: 0.5, y: 0 };
 const GRADIENT_END = { x: 0.5, y: 1 };
@@ -65,12 +65,6 @@ export default memo(function VaultCard({
   isPendingVaultTx = false,
   styles,
 }: VaultCardProps) {
-  // Memoize formatted values to avoid recalculation on every render
-  const formattedDebt = useMemo(
-    () => formatFiat(vaultDebt, DEBT_DECIMAL_PLACES),
-    [vaultDebt]
-  );
-
   const formattedCollateral = useMemo(
     () => formatBalance(vaultCollateral, COLLATERAL_DECIMAL_PLACES),
     [vaultCollateral]
@@ -84,8 +78,8 @@ export default memo(function VaultCard({
       disabled={!hasVault}
       testID="vault-card"
       accessibilityRole="button"
-      accessibilityLabel={hasVault ? `Vault with ${vaultHealthPercentage}% health, ${formattedDebt} UNIT debt, ${formattedCollateral} BTC collateral` : "No vault created"}
-      accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow UNIT"}
+      accessibilityLabel={hasVault ? `Vault with ${vaultHealthPercentage}% health, ${formatVaultUsd(vaultDebt)} debt, ${formattedCollateral} BTC collateral` : "No vault created"}
+      accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow dollar-denominated liquidity"}
       accessibilityState={{ disabled: !hasVault }}
     >
       <View style={styles.vaultIconContainer} accessibilityElementsHidden>
@@ -107,14 +101,8 @@ export default memo(function VaultCard({
           <View style={styles.vaultDetailRow}>
             <Text style={styles.vaultLabel}>Overall Debt</Text>
             <View style={styles.vaultValueContainer}>
-              <Icon
-                name="unit_symbol"
-                size={CURRENCY_ICON_SIZE}
-                color={COLORS.SECONDARY_TEXT}
-                style={styles.assetAmountIcon}
-              />
               <Text style={styles.assetAmount}>
-                {formattedDebt}
+                {formatVaultUsd(vaultDebt)}
               </Text>
             </View>
           </View>
@@ -157,7 +145,7 @@ export default memo(function VaultCard({
               testID="create-vault-btn"
               accessibilityRole="button"
               accessibilityLabel="Create vault"
-              accessibilityHint="Creates a new vault to borrow UNIT against your Bitcoin"
+              accessibilityHint="Creates a new vault to borrow dollar-denominated liquidity against your Bitcoin"
               accessibilityState={{ disabled: creatingVault }}
             >
               <Text style={styles.createVaultButtonText}>

@@ -150,6 +150,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
                 onValueChange={amountConfig.setValue}
                 onLiveValueChange={handleLiveValueChange}
                 label={amountConfig.label}
+                unitLabel={amountConfig.displayUnitLabel}
                 disabled={amountConfig.maxValue <= 0}
                 sliderColor={sliderColor}
                 hideAvailable={amountConfig.hideAvailable}
