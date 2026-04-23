@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import TouchableScale from '../common/TouchableScale';
+import { ReceiveAssetBadge } from '../vaultAction';
 import { useNotifications } from '../../stores/notificationStore';
 import { getTxUrl } from '../../utils/constants';
 import { formatFiat, formatBTC } from '../../utils/formatters';
@@ -107,6 +108,7 @@ export default function VaultActionSuccess({
           ? `${amount.toFixed(2)} wUNIT`
           : `${amount.toFixed(2)} UNIT`;
   const shouldShowUsdApproximation = unit !== 'USD' && unit !== 'USDC';
+  const receivesAssetBadge = unit === 'USDC' || unit === 'UNIT' || unit === 'wUNIT';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID={`vault-${actionType}-success-screen`}>
@@ -124,10 +126,16 @@ export default function VaultActionSuccess({
         {shouldShowUsdApproximation && (
           <Text style={styles.amountUsd}>≈ ${formatFiat(usdValue)}</Text>
         )}
+        {receivesAssetBadge && (
+          <View style={styles.badgeWrap}>
+            <ReceiveAssetBadge asset={unit as 'USDC' | 'UNIT' | 'wUNIT'} />
+          </View>
+        )}
 
         {/* Transaction Links */}
         {txid && (
           <View style={styles.linksContainer}>
+            <Text style={styles.linksTitle}>Transaction</Text>
             <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
               <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
               <Text style={styles.txId}>{truncatedTxid}</Text>
@@ -200,13 +208,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
+  badgeWrap: {
+    marginBottom: spacing.md,
+  },
   linksContainer: {
     marginTop: spacing.xl,
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     alignSelf: 'center',
+    minWidth: 250,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  linksTitle: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.text.secondary,
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   linkRow: {
     flexDirection: 'row',
