@@ -129,7 +129,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
   // Handle back navigation
   const handleBack = useCallback(() => {
-    setCurrentStep('amounts');
+    setCurrentStep('payout');
     navigation.goBack();
   }, [setCurrentStep, navigation]);
 

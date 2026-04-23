@@ -18,7 +18,7 @@ View,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import TouchableScale from '../../components/common/TouchableScale';
-import { AmountSlider,ReceiveAssetSelector,VaultActionGauge } from '../../components/vaultAction';
+import { AmountSlider,VaultActionGauge } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
@@ -50,7 +50,6 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     borrowAmountUsd,
     receiveAsset,
     selectedFeeRate,
-    setReceiveAsset,
     setSelectedFeeRate,
     healthFactor,
     setBtcAmount,
@@ -155,8 +154,8 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   // Handle continue
   const handleContinue = useCallback(() => {
     if (!canContinue) return;
-    setCurrentStep('confirm');
-    navigation.navigate('VaultConfirm');
+    setCurrentStep('payout');
+    navigation.navigate('VaultPayout');
   }, [canContinue, setCurrentStep, navigation]);
 
   const hasChanges = previewBtcAmount > 0 && previewBorrowAmountUsd > 0;
@@ -179,7 +178,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
               <Text style={styles.eyebrow}>Vault Setup</Text>
               <Text style={styles.title}>Create Vault</Text>
               <Text style={styles.subtitle}>
-                Lock BTC, mint face-value debt, and choose whether proceeds land as USDC on Sepolia or UNIT on Mutinynet.
+                Lock BTC and set the debt value for your new vault before reviewing how the position behaves.
               </Text>
             </View>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -206,15 +205,6 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
               </Text>
             </View>
           </View>
-
-          <View style={styles.selectorSection}>
-            <ReceiveAssetSelector
-              value={receiveAsset}
-              onChange={setReceiveAsset}
-              testIDPrefix="vault-create-receive-asset"
-            />
-          </View>
-
           {/* Connected Sliders - Deposit + Borrow as one unit */}
           <View style={styles.section}>
             <AmountSlider
@@ -347,7 +337,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  selectorSection: { marginTop: spacing.lg },
   section: { marginTop: spacing.md },
   disabledSection: { opacity: 0.4 },
   warning: {

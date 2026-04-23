@@ -10,9 +10,10 @@ import type { HealthStatus } from '../../utils/vaultUtils';
  */
 export type VaultOperationStep =
   | 'input'      // Step 1: Enter amount
-  | 'confirm'    // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success';   // Step 4: Transaction complete
+  | 'payout'     // Step 2: Choose payout asset
+  | 'confirm'    // Step 3: Review and confirm
+  | 'processing' // Step 4: Transaction in progress
+  | 'success';   // Step 5: Transaction complete
 
 /**
  * Processing substeps (1-4)

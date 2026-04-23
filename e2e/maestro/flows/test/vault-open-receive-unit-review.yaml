@@ -1,9 +1,12 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Smoke check for the new payout selector on vault creation.
-# Verifies that the selector renders and toggles cleanly on the vault amounts screen.
+# Smoke check for the dedicated payout step on vault creation.
+# Moves through the amounts screen and verifies the separate payout-choice screen renders.
 
 - runFlow: ../helpers/create-wallet.yaml
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
 
 - scrollUntilVisible:
     element:
@@ -23,20 +26,57 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-amounts-screen"
     timeout: 10000
 
-- scrollUntilVisible:
-    element:
-      id: "vault-create-receive-asset-unit-btn"
-    direction: DOWN
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- tapOn:
+    id: "btc-slider-max-btn"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "unit-slider-max-btn"
+
+- waitForAnimationToEnd
+
+- tapOn:
+    id: "vault-create-borrow-usd-display"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+
+- tapOn:
+    id: "vault-create-borrow-usd-input"
+
+- eraseText
+- inputText: "4848"
+- pressKey: Enter
+
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-debug-warning.yaml
+
+- tapOn:
+    id: "vault-create-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      text: "Where should we send your borrowed value?"
     timeout: 10000
 
 - assertVisible:
-    text: "Receive As"
+    id: "vault-create-payout-usdc-card"
 
 - assertVisible:
-    id: "vault-create-receive-asset-usdc-btn"
+    id: "vault-create-payout-unit-card"
 
 - tapOn:
-    id: "vault-create-receive-asset-unit-btn"
+    id: "vault-create-payout-unit-card"
 
-- assertVisible:
-    text: "UNIT"
+- tapOn:
+    id: "vault-create-payout-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-confirm-screen"
+    timeout: 10000

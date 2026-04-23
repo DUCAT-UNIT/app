@@ -149,6 +149,7 @@ export interface EmptyStateConfig {
  */
 export interface VaultRoutes {
   input: string;
+  selection?: string;
   confirm: string;
   processing: string;
   success: string;

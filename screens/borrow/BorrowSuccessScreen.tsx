@@ -15,6 +15,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 
 type BorrowStackParamList = {
   BorrowInput: undefined;
+  BorrowPayout: undefined;
   BorrowConfirm: undefined;
   BorrowProcessing: undefined;
   BorrowSuccess: { txid?: string };

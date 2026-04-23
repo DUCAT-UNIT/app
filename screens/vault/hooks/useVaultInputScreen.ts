@@ -234,9 +234,14 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   const handleContinue = useCallback(() => {
     if (!validation.canContinue) return;
+    if (config.routes.selection) {
+      store.setCurrentStep('payout');
+      navigation.navigate(config.routes.selection);
+      return;
+    }
     store.setCurrentStep('confirm');
     navigation.navigate(config.routes.confirm);
-  }, [validation.canContinue, store, navigation, config.routes.confirm]);
+  }, [validation.canContinue, store, navigation, config.routes.selection, config.routes.confirm]);
 
   const handleLiveValueChange = useCallback((val: number) => {
     setPreviewAmount(val);

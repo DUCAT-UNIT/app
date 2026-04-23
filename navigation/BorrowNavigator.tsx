@@ -8,6 +8,7 @@ import { COLORS } from '../theme';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import {
   BorrowInputScreen as BorrowInputScreenComponent,
+  BorrowPayoutScreen as BorrowPayoutScreenComponent,
   BorrowConfirmScreen as BorrowConfirmScreenComponent,
   BorrowProcessingScreen as BorrowProcessingScreenComponent,
   BorrowSuccessScreen as BorrowSuccessScreenComponent,
@@ -18,6 +19,7 @@ import type { BorrowStackParamList } from './types';
 type AnyComponent = React.ComponentType<any>;
 
 const BorrowInputScreen: AnyComponent = withErrorBoundary(BorrowInputScreenComponent, { boundaryName: 'BorrowInput', fallbackMessage: 'Unable to load borrow input. Please try again.' });
+const BorrowPayoutScreen: AnyComponent = withErrorBoundary(BorrowPayoutScreenComponent, { boundaryName: 'BorrowPayout', fallbackMessage: 'Unable to load borrow payout selection. Please try again.' });
 const BorrowConfirmScreen: AnyComponent = withErrorBoundary(BorrowConfirmScreenComponent, { boundaryName: 'BorrowConfirm', fallbackMessage: 'Unable to load borrow confirmation. Please try again.' });
 const BorrowProcessingScreen: AnyComponent = withErrorBoundary(BorrowProcessingScreenComponent, { boundaryName: 'BorrowProcessing', fallbackMessage: 'Unable to load borrow processing. Please try again.' });
 const BorrowSuccessScreen: AnyComponent = withErrorBoundary(BorrowSuccessScreenComponent, { boundaryName: 'BorrowSuccess', fallbackMessage: 'Unable to load borrow success. Please try again.' });
@@ -39,6 +41,7 @@ export default function BorrowNavigator(): React.JSX.Element {
       }}
     >
       <Stack.Screen name="BorrowInput" component={BorrowInputScreen} />
+      <Stack.Screen name="BorrowPayout" component={BorrowPayoutScreen} />
       <Stack.Screen name="BorrowConfirm" component={BorrowConfirmScreen} />
       <Stack.Screen name="BorrowProcessing" component={BorrowProcessingScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="BorrowSuccess" component={BorrowSuccessScreen} options={{ gestureEnabled: false }} />

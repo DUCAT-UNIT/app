@@ -31,6 +31,7 @@ export type SendStackParamList = {
  */
 export type VaultCreateStackParamList = {
   VaultAmounts: undefined;
+  VaultPayout: undefined;
   VaultConfirm: undefined;
   VaultProcessing: undefined;
   VaultSuccess: { txid?: string };
@@ -42,6 +43,7 @@ export type VaultCreateStackParamList = {
  */
 export type BorrowStackParamList = {
   BorrowInput: undefined;
+  BorrowPayout: undefined;
   BorrowConfirm: undefined;
   BorrowProcessing: undefined;
   BorrowSuccess: { txid?: string };

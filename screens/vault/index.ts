@@ -4,6 +4,7 @@
 
 // Borrow screens
 export { default as BorrowInputScreen } from './BorrowInputScreen';
+export { default as BorrowPayoutScreen } from './BorrowPayoutScreen';
 export { default as BorrowConfirmScreen } from './BorrowConfirmScreen';
 export { default as BorrowProcessingScreen } from './BorrowProcessingScreen';
 

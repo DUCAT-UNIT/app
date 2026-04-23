@@ -19,9 +19,10 @@ import type { VaultSettlementRequestedAsset } from './vaultSettlementStore';
 
 export type VaultCreationStep =
   | 'amounts' // Step 1: Enter BTC deposit and UNIT borrow amounts
-  | 'confirm' // Step 2: Review and confirm
-  | 'processing' // Step 3: Transaction in progress
-  | 'success'; // Step 4: Transaction complete
+  | 'payout' // Step 2: Choose payout asset
+  | 'confirm' // Step 3: Review and confirm
+  | 'processing' // Step 4: Transaction in progress
+  | 'success'; // Step 5: Transaction complete
 
 // ProcessingStep sourced from canonical vault store types
 import type { ProcessingStep } from './vault/vaultStoreTypes';

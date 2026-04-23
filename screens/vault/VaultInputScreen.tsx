@@ -18,9 +18,8 @@ View,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import TouchableScale from '../../components/common/TouchableScale';
-import { AmountSlider,ReceiveAssetSelector,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
+import { AmountSlider,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
-import type { VaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { useVaultInputScreen } from './hooks';
 import type { VaultInputScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
@@ -31,15 +30,6 @@ interface VaultInputScreenProps<TStore extends VaultStoreState, TAdditionalData 
   store: TStore;
   loadVaultData: () => void;
   additionalData?: TAdditionalData;
-}
-
-function hasReceiveAssetControls(
-  store: VaultStoreState,
-): store is VaultStoreState & {
-  receiveAsset: VaultSettlementRequestedAsset;
-  setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void;
-} {
-  return 'receiveAsset' in store && typeof (store as { setReceiveAsset?: unknown }).setReceiveAsset === 'function';
 }
 
 export default function VaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>({
@@ -124,8 +114,6 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
 
   // Determine if we should show the "no debt" indicator on gauge (for repay operation)
   const hasNoDebt = config.operationType === 'repay' && hasChanges && preview.newDebt === 0;
-  const supportsReceiveAssetSelection =
-    config.operationType === 'borrow' && hasReceiveAssetControls(store);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-input-screen`}>
@@ -156,16 +144,6 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
             showTransition={hasChanges}
             hasNoDebt={hasNoDebt}
           />
-
-          {supportsReceiveAssetSelection && (
-            <View style={styles.selectorSection}>
-              <ReceiveAssetSelector
-                value={store.receiveAsset}
-                onChange={store.setReceiveAsset}
-                testIDPrefix="vault-borrow-receive-asset"
-              />
-            </View>
-          )}
 
           {/* Slider with Fee Selector inside */}
           <View style={styles.section}>
@@ -310,7 +288,7 @@ function getHeaderEyebrow(operationType: VaultInputScreenConfig['operationType']
 function getHeaderSubtitle(operationType: VaultInputScreenConfig['operationType']): string {
   switch (operationType) {
     case 'borrow':
-      return 'Set the borrow size, then choose whether the proceeds settle to Sepolia USDC or stay as UNIT.';
+      return 'Set the borrow size and review the debt impact before choosing how to receive the proceeds.';
     case 'repay':
       return 'Reduce debt while reviewing the updated health and liquidation levels before you sign.';
     case 'deposit':
@@ -349,7 +327,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: spacing.xs,
   },
-  selectorSection: { marginTop: spacing.lg },
   section: { marginTop: spacing.lg },
   warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },

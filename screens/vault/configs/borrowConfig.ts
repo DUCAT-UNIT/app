@@ -20,6 +20,7 @@ import type {
 
 export const borrowRoutes = {
   input: 'BorrowInput',
+  selection: 'BorrowPayout',
   confirm: 'BorrowConfirm',
   processing: 'BorrowProcessing',
   success: 'BorrowSuccess',

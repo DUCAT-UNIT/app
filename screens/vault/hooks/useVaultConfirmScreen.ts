@@ -152,9 +152,9 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   }, [config, store, vaultHook, navigation]);
 
   const handleBack = useCallback(() => {
-    store.setCurrentStep('input');
+    store.setCurrentStep(config.routes.selection ? 'payout' : 'input');
     navigation.goBack();
-  }, [store, navigation]);
+  }, [config.routes.selection, store, navigation]);
 
   return {
     // Primary amount
