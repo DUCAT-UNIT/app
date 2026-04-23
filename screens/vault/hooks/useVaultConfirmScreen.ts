@@ -7,8 +7,15 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useCallback,useMemo,useState } from 'react';
 import { Alert } from 'react-native';
 import { useBalance } from '../../../contexts/WalletDataContext';
+import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
 import { usePrice } from '../../../stores/priceStore';
-import { getOpCostOpen } from '../../../utils/vaultUtils';
+import {
+  getOpCostBorrow,
+  getOpCostDeposit,
+  getOpCostOpen,
+  getOpCostRepay,
+  getVaultSettlementReserveSats,
+} from '../../../utils/vaultUtils';
 import type {
   SummaryRow,
   VaultConfirmScreenConfig,
@@ -48,6 +55,12 @@ interface UseVaultConfirmScreenResult {
   handleBack: () => void;
 }
 
+function getReceiveAssetIfPresent(store: VaultStoreState): VaultSettlementRequestedAsset | null {
+  return 'receiveAsset' in store
+    ? ((store as { receiveAsset?: VaultSettlementRequestedAsset }).receiveAsset ?? null)
+    : null;
+}
+
 export function useVaultConfirmScreen<TStore extends VaultStoreState, THook extends VaultOperationHookState>(
   options: UseVaultConfirmScreenOptions<TStore, THook>,
   navigation: VaultScreenNavigationProp
@@ -63,11 +76,35 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
 
   // Summary rows from config
   const summaryRows = config.getSummaryRows(store, btcPrice);
+  const selectedFeeRate = store.selectedFeeRate;
+  const receiveAsset = getReceiveAssetIfPresent(store);
 
   // Dynamic fee calculation
   const estimatedFeeSats = useMemo(() => {
-    return getOpCostOpen(store.selectedFeeRate, utxos);
-  }, [store.selectedFeeRate, utxos]);
+    let baseFee = 0;
+    switch (config.operationType) {
+      case 'borrow':
+        baseFee = getOpCostBorrow(selectedFeeRate, utxos);
+        break;
+      case 'repay':
+        baseFee = getOpCostRepay(selectedFeeRate, utxos);
+        break;
+      case 'deposit':
+        baseFee = getOpCostDeposit(selectedFeeRate, utxos);
+        break;
+      case 'withdraw':
+        baseFee = 0;
+        break;
+      default:
+        baseFee = getOpCostOpen(selectedFeeRate, utxos);
+        break;
+    }
+    const settlementReserve =
+      config.operationType === 'borrow' && receiveAsset === 'USDC'
+        ? getVaultSettlementReserveSats(selectedFeeRate)
+        : 0;
+    return baseFee + settlementReserve;
+  }, [config.operationType, receiveAsset, selectedFeeRate, utxos]);
 
   const feeUsdValue = btcPrice ? (estimatedFeeSats / 100_000_000) * btcPrice : 0;
 
@@ -129,7 +166,7 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
     // Fees
     estimatedFeeSats,
     feeUsdValue,
-    selectedFeeRate: store.selectedFeeRate,
+    selectedFeeRate,
 
     // State
     isAuthenticating,

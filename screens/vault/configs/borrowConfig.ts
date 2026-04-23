@@ -113,6 +113,7 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
 
 export function createBorrowConfirmConfig(
   estimatedUsdcOut?: string | null,
+  receiveAsset: 'USDC' | 'UNIT' = 'USDC',
 ): VaultConfirmScreenConfig<BorrowVaultStore> {
   return {
     operationType: 'borrow',
@@ -138,12 +139,22 @@ export function createBorrowConfirmConfig(
           newValue: formatVaultUsd(totalDebt),
           showArrow: true,
         },
+        {
+          label: 'Receive As',
+          currentValue: receiveAsset,
+          badgeAsset: receiveAsset,
+        },
       ];
 
-      if (estimatedUsdcOut) {
+      if (receiveAsset === 'USDC' && estimatedUsdcOut) {
         rows.push({
           label: 'Estimated USDC Received',
           currentValue: `${estimatedUsdcOut} USDC`,
+        });
+      } else if (receiveAsset === 'UNIT') {
+        rows.push({
+          label: 'Estimated UNIT Received',
+          currentValue: `${store.borrowAmountUsd.toFixed(2)} UNIT`,
         });
       }
 

@@ -18,19 +18,19 @@ View,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import TouchableScale from '../../components/common/TouchableScale';
-import { AmountSlider,VaultActionGauge } from '../../components/vaultAction';
+import { AmountSlider,ReceiveAssetSelector,VaultActionGauge } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
-import { BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import {
   computeHealthFactor,
   computeLiquidationPrice,
   getOpCostOpen,
   getOpCostRepay,
+  getVaultSettlementReserveSats,
 } from '../../utils/vaultUtils';
 
 // Health-based slider colors (matching VaultActionGauge)
@@ -40,9 +40,6 @@ const getHealthSliderColor = (health: number): string => {
   return '#59aa8a'; // green
 };
 
-const VAULT_SETTLEMENT_FEE_BUFFER_SATS = 5_000;
-const ESTIMATED_VAULT_SETTLEMENT_FEE_VBYTES = 250;
-
 interface VaultAmountsScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
 }
@@ -51,7 +48,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   const {
     btcAmount,
     borrowAmountUsd,
+    receiveAsset,
     selectedFeeRate,
+    setReceiveAsset,
     setSelectedFeeRate,
     healthFactor,
     setBtcAmount,
@@ -102,16 +101,14 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     if (!segwitBalance) return 0;
     const openFeeCostSats = estimatedFeeSats;
     const bridgeSettlementReserveSats =
-      BITCOIN_TX.RUNE_OUTPUT_AMOUNT +
-      selectedFeeRate * ESTIMATED_VAULT_SETTLEMENT_FEE_VBYTES +
-      VAULT_SETTLEMENT_FEE_BUFFER_SATS;
+      receiveAsset === 'USDC' ? getVaultSettlementReserveSats(selectedFeeRate) : 0;
     const futureRepayReserveSats = getOpCostRepay(selectedFeeRate, utxos);
     const totalReservedBtc =
       (openFeeCostSats + bridgeSettlementReserveSats + futureRepayReserveSats) / 100_000_000;
 
     // Leave enough spendable BTC for the hidden bridge send and a later repay.
     return Math.max(segwitBalance - totalReservedBtc, 0);
-  }, [estimatedFeeSats, segwitBalance, selectedFeeRate, utxos]);
+  }, [estimatedFeeSats, receiveAsset, segwitBalance, selectedFeeRate, utxos]);
 
   // Calculate max borrowable for preview BTC amount (at 160% minimum health)
   const previewMaxBorrowable = useMemo(() => {
@@ -178,7 +175,13 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Create Vault</Text>
+            <View style={styles.headerCopy}>
+              <Text style={styles.eyebrow}>Vault Setup</Text>
+              <Text style={styles.title}>Create Vault</Text>
+              <Text style={styles.subtitle}>
+                Lock BTC, mint face-value debt, and choose whether proceeds land as USDC on Sepolia or UNIT on Mutinynet.
+              </Text>
+            </View>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={colors.text.secondary} />
             </TouchableOpacity>
@@ -194,12 +197,22 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
           {/* Liquidation Price */}
           <View style={styles.liquidationPrice}>
-            <Text style={styles.liquidationLabel}>Liquidation Price</Text>
-            <Text style={styles.liquidationValue}>
-              {previewLiquidationPrice > 0 && previewLiquidationPrice !== Infinity
-                ? `$${previewLiquidationPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : 'None'}
-            </Text>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricLabel}>Liquidation Price</Text>
+              <Text style={styles.metricValue}>
+                {previewLiquidationPrice > 0 && previewLiquidationPrice !== Infinity
+                  ? `$${previewLiquidationPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : 'None'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.selectorSection}>
+            <ReceiveAssetSelector
+              value={receiveAsset}
+              onChange={setReceiveAsset}
+              testIDPrefix="vault-create-receive-asset"
+            />
           </View>
 
           {/* Connected Sliders - Deposit + Borrow as one unit */}
@@ -282,28 +295,59 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.sm,
+    gap: spacing.md,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  eyebrow: {
+    color: colors.brand.primary,
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  liquidationPrice: {
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  liquidationLabel: {
+  subtitle: {
+    color: colors.text.secondary,
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
-    color: colors.text.tertiary,
+    lineHeight: 20,
+    marginTop: spacing.xs,
   },
-  liquidationValue: {
-    fontSize: fontSizes.md,
+  liquidationPrice: {
+    marginTop: spacing.md,
+  },
+  metricCard: {
+    backgroundColor: colors.bg.secondary,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    alignSelf: 'center',
+    minWidth: 180,
+    alignItems: 'center',
+    gap: 2,
+  },
+  metricLabel: {
+    fontSize: 12,
     fontFamily: fonts.medium,
     color: colors.text.secondary,
   },
+  metricValue: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  selectorSection: { marginTop: spacing.lg },
   section: { marginTop: spacing.md },
   disabledSection: { opacity: 0.4 },
   warning: {

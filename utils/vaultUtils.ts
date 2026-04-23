@@ -6,7 +6,7 @@
 import { VaultAPI } from '@ducat-unit/client-sdk';
 import type { VaultOpenConfig } from '@ducat-unit/client-sdk/vault';
 import * as Crypto from 'expo-crypto';
-import { VAULT_CONFIG } from './constants';
+import { BITCOIN_TX, VAULT_CONFIG } from './constants';
 
 /**
  * Generates a random vault name/tag
@@ -76,6 +76,20 @@ export function getOpCostRepay(feeRate: number, utxos?: Utxo[]): number {
   } as never);
 
   return txQuote.total_cost + vinAllowanceSats;
+}
+
+/**
+ * Estimates the additional sats reserve required to bridge freshly issued UNIT
+ * for the auto-settle-to-USDC path.
+ */
+export function getVaultSettlementReserveSats(feeRate: number): number {
+  const estimatedSettlementVbytes = 250;
+  const settlementBufferSats = 5_000;
+  return (
+    BITCOIN_TX.RUNE_OUTPUT_AMOUNT +
+    feeRate * estimatedSettlementVbytes +
+    settlementBufferSats
+  );
 }
 
 /**

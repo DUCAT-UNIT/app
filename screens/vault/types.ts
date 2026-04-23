@@ -4,6 +4,7 @@
  */
 
 import type { NavigationProp } from '@react-navigation/native';
+import type { VaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
 import type { HealthStatus } from '../../utils/vaultUtils';
 
 /**
@@ -52,7 +53,9 @@ export interface VaultStoreState {
 
 export interface BorrowVaultStore extends VaultStoreState {
   borrowAmountUsd: number;
+  receiveAsset: VaultSettlementRequestedAsset;
   setBorrowAmountUsd: (amount: number) => void;
+  setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void;
   maxBorrowableUsd: number | null;
 }
 
@@ -244,6 +247,7 @@ export interface SummaryRow {
   showArrow?: boolean;
   valueColor?: string;
   newValueColor?: string;
+  badgeAsset?: VaultSettlementRequestedAsset;
 }
 
 /**

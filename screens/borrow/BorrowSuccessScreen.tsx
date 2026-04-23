@@ -80,12 +80,23 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
     });
   }, [resetSettlement, reset, navigation]);
 
-  const successUnit = payoutAsset === 'USDC' ? 'USDC' : 'USD';
+  const successUnit =
+    payoutAsset === 'USDC'
+      ? 'USDC'
+      : payoutAsset === 'UNIT'
+        ? 'UNIT'
+        : payoutAsset === 'wUNIT'
+          ? 'wUNIT'
+        : 'USD';
   const successAmount =
-    payoutAsset === 'USDC' && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
+    payoutAsset && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
   const titleOverride =
     payoutAsset === 'USDC'
       ? 'USDC Received!'
+      : payoutAsset === 'UNIT'
+        ? 'UNIT Received!'
+        : payoutAsset === 'wUNIT'
+          ? 'wUNIT Received!'
       : phase === 'pending_settlement'
         ? 'Borrow Complete!'
         : phase === 'needs_retry'
@@ -94,6 +105,10 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
   const messageOverride =
     payoutAsset === 'USDC'
       ? 'Borrow recorded and automatically settled to USDC on Sepolia.'
+      : payoutAsset === 'UNIT'
+        ? 'Borrow recorded and issued as UNIT on Mutinynet.'
+        : payoutAsset === 'wUNIT'
+          ? 'Borrow recorded. Auto-swap could not clear safely, so you received wUNIT on Sepolia instead.'
       : phase === 'pending_settlement'
         ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
         : phase === 'needs_retry'

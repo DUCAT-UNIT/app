@@ -19,7 +19,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 type VaultSuccessScreenProps = StackScreenProps<VaultCreateStackParamList, 'VaultSuccess'>;
 
 export default function VaultSuccessScreen({ navigation, route }: VaultSuccessScreenProps) {
-  const { txid: storeTxid, btcAmount, reset } = useVaultCreation();
+  const { txid: storeTxid, btcAmount, borrowAmountUsd, reset } = useVaultCreation();
   const { wallet } = useWallet();
   const {
     phase,
@@ -65,12 +65,25 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
     });
   }, [resetSettlement, reset, navigation]);
 
-  const successUnit = payoutAsset === 'USDC' ? 'USDC' : 'BTC';
+  const successUnit =
+    payoutAsset === 'USDC'
+      ? 'USDC'
+      : payoutAsset === 'UNIT'
+        ? 'UNIT'
+        : payoutAsset === 'wUNIT'
+          ? 'wUNIT'
+        : 'BTC';
   const successAmount =
-    payoutAsset === 'USDC' && payoutAmount ? Number.parseFloat(payoutAmount) || btcAmountSats : btcAmountSats;
+    payoutAsset && payoutAmount
+      ? Number.parseFloat(payoutAmount) || btcAmountSats
+      : btcAmountSats;
   const titleOverride =
     payoutAsset === 'USDC'
       ? 'Vault Created!'
+      : payoutAsset === 'UNIT'
+        ? 'UNIT Received!'
+        : payoutAsset === 'wUNIT'
+          ? 'wUNIT Received!'
       : phase === 'pending_settlement'
         ? 'Vault Created!'
         : phase === 'needs_retry'
@@ -79,6 +92,10 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
   const messageOverride =
     payoutAsset === 'USDC'
       ? 'BTC collateral is locked and the issued UNIT settled to USDC on Sepolia.'
+      : payoutAsset === 'UNIT'
+        ? 'BTC collateral is locked and the issued UNIT is now available in your wallet.'
+        : payoutAsset === 'wUNIT'
+          ? 'BTC collateral is locked. Auto-swap could not clear safely, so the issued UNIT was credited as wUNIT on Sepolia.'
       : phase === 'pending_settlement'
         ? 'Vault created. Sepolia settlement is still processing in the background.'
         : phase === 'needs_retry'
@@ -89,7 +106,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
     <VaultActionSuccess
       actionType="create"
       amount={successAmount}
-      usdValue={btcUsdValue}
+      usdValue={payoutAsset === 'UNIT' || payoutAsset === 'wUNIT' ? borrowAmountUsd : btcUsdValue}
       txid={txid}
       unit={successUnit}
       titleOverride={titleOverride}

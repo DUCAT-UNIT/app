@@ -21,7 +21,7 @@ export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScre
   useEffect(() => {
     let cancelled = false;
 
-    if (store.borrowAmountUsd <= 0) {
+    if (store.borrowAmountUsd <= 0 || store.receiveAsset !== 'USDC') {
       setEstimatedUsdcOut(null);
       return () => {
         cancelled = true;
@@ -44,11 +44,11 @@ export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScre
     return () => {
       cancelled = true;
     };
-  }, [store.borrowAmountUsd, vaultHook]);
+  }, [store.borrowAmountUsd, store.receiveAsset, vaultHook]);
 
   const config = useMemo(
-    () => createBorrowConfirmConfig(estimatedUsdcOut),
-    [estimatedUsdcOut],
+    () => createBorrowConfirmConfig(estimatedUsdcOut, store.receiveAsset),
+    [estimatedUsdcOut, store.receiveAsset],
   );
 
   return (

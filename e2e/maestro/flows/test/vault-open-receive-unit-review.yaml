@@ -1,0 +1,42 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Smoke check for the new payout selector on vault creation.
+# Verifies that the selector renders and toggles cleanly on the vault amounts screen.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+
+- extendedWaitUntil:
+    visible:
+      id: "create-vault-btn"
+    timeout: 10000
+- tapOn:
+    id: "create-vault-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-amounts-screen"
+    timeout: 10000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-create-receive-asset-unit-btn"
+    direction: DOWN
+    timeout: 10000
+
+- assertVisible:
+    text: "Receive As"
+
+- assertVisible:
+    id: "vault-create-receive-asset-usdc-btn"
+
+- tapOn:
+    id: "vault-create-receive-asset-unit-btn"
+
+- assertVisible:
+    text: "UNIT"

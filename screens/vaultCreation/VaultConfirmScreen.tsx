@@ -11,6 +11,7 @@ import { Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
+import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
@@ -18,7 +19,7 @@ import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
 import { formatVaultUsd } from '../../utils/vaultFaceValue';
-import { getOpCostOpen } from '../../utils/vaultUtils';
+import { getOpCostOpen, getVaultSettlementReserveSats } from '../../utils/vaultUtils';
 
 interface VaultConfirmScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -28,6 +29,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   const {
     btcAmount,
     borrowAmountUsd,
+    receiveAsset,
     selectedFeeRate,
     error,
     setCurrentStep,
@@ -44,7 +46,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   useEffect(() => {
     let cancelled = false;
 
-    if (borrowAmountUsd <= 0) {
+    if (borrowAmountUsd <= 0 || receiveAsset !== 'USDC') {
       setEstimatedUsdcOut(null);
       return () => {
         cancelled = true;
@@ -66,17 +68,21 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
     return () => {
       cancelled = true;
     };
-  }, [borrowAmountUsd, quoteBorrowToUsdc]);
+  }, [borrowAmountUsd, quoteBorrowToUsdc, receiveAsset]);
 
   // Calculate USD values
   const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
 
   // Dynamic fee calculation based on UTXOs and selected rate
   const estimatedFee = useMemo(() => {
-    return getOpCostOpen(selectedFeeRate, utxos);
-  }, [selectedFeeRate, utxos]);
+    const openFee = getOpCostOpen(selectedFeeRate, utxos);
+    return receiveAsset === 'USDC'
+      ? openFee + getVaultSettlementReserveSats(selectedFeeRate)
+      : openFee;
+  }, [receiveAsset, selectedFeeRate, utxos]);
 
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
+  const payoutMeta = getReceiveAssetMeta(receiveAsset);
 
   // Handle confirm with biometric authentication
   const handleConfirm = useCallback(async () => {
@@ -136,7 +142,10 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Confirm Vault</Text>
+          <View style={styles.headerCopy}>
+            <Text style={styles.eyebrow}>Review</Text>
+            <Text style={styles.title}>Confirm Vault</Text>
+          </View>
           <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={24} color={colors.text.secondary} />
           </TouchableOpacity>
@@ -156,18 +165,45 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
           <View style={styles.divider} />
 
+          <View style={styles.routeCard}>
+            <View style={styles.routeCopy}>
+              <Text style={styles.routeLabel}>Payout Route</Text>
+              <Text style={styles.routeText}>{payoutMeta.note}</Text>
+            </View>
+            <ReceiveAssetBadge asset={receiveAsset} />
+          </View>
+
+          <View style={styles.divider} />
+
           {/* Borrow Amount */}
           <View style={styles.row}>
             <Text style={styles.label}>Debt to Add</Text>
             <Text style={styles.valueHighlight}>{formatVaultUsd(borrowAmountUsd)}</Text>
           </View>
 
-          {estimatedUsdcOut && (
+          <View style={styles.divider} />
+
+          <View style={styles.row}>
+            <Text style={styles.label}>Receive As</Text>
+            <ReceiveAssetBadge asset={receiveAsset} size="sm" />
+          </View>
+
+          {receiveAsset === 'USDC' && estimatedUsdcOut && (
             <>
               <View style={styles.divider} />
               <View style={styles.row}>
                 <Text style={styles.label}>Estimated USDC Received</Text>
                 <Text style={styles.valueHighlight}>{estimatedUsdcOut} USDC</Text>
+              </View>
+            </>
+          )}
+
+          {receiveAsset === 'UNIT' && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.label}>Estimated UNIT Received</Text>
+                <Text style={styles.valueHighlight}>{borrowAmountUsd.toFixed(2)} UNIT</Text>
               </View>
             </>
           )}
@@ -269,6 +305,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
+  headerCopy: {
+    gap: 2,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: colors.brand.primary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
@@ -312,16 +358,45 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border.default,
     marginVertical: spacing.md,
   },
+  routeCard: {
+    backgroundColor: colors.bg.tertiary,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  routeCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  routeLabel: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  routeText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    lineHeight: 17,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    gap: spacing.md,
   },
   label: {
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
+    flex: 1,
   },
   valueHighlight: {
     fontSize: fontSizes.md,

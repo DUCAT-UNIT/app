@@ -18,8 +18,9 @@ View,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import TouchableScale from '../../components/common/TouchableScale';
-import { AmountSlider,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
+import { AmountSlider,ReceiveAssetSelector,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
+import type { VaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { useVaultInputScreen } from './hooks';
 import type { VaultInputScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
@@ -30,6 +31,15 @@ interface VaultInputScreenProps<TStore extends VaultStoreState, TAdditionalData 
   store: TStore;
   loadVaultData: () => void;
   additionalData?: TAdditionalData;
+}
+
+function hasReceiveAssetControls(
+  store: VaultStoreState,
+): store is VaultStoreState & {
+  receiveAsset: VaultSettlementRequestedAsset;
+  setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void;
+} {
+  return 'receiveAsset' in store && typeof (store as { setReceiveAsset?: unknown }).setReceiveAsset === 'function';
 }
 
 export default function VaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>({
@@ -114,6 +124,8 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
 
   // Determine if we should show the "no debt" indicator on gauge (for repay operation)
   const hasNoDebt = config.operationType === 'repay' && hasChanges && preview.newDebt === 0;
+  const supportsReceiveAssetSelection =
+    config.operationType === 'borrow' && hasReceiveAssetControls(store);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-input-screen`}>
@@ -121,7 +133,11 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header} accessibilityRole="header">
-            <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+            <View style={styles.headerCopy}>
+              <Text style={styles.eyebrow}>{getHeaderEyebrow(config.operationType)}</Text>
+              <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+              <Text style={styles.subtitle}>{getHeaderSubtitle(config.operationType)}</Text>
+            </View>
             <TouchableOpacity
               onPress={handleClose}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -140,6 +156,16 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
             showTransition={hasChanges}
             hasNoDebt={hasNoDebt}
           />
+
+          {supportsReceiveAssetSelection && (
+            <View style={styles.selectorSection}>
+              <ReceiveAssetSelector
+                value={store.receiveAsset}
+                onChange={store.setReceiveAsset}
+                testIDPrefix="vault-borrow-receive-asset"
+              />
+            </View>
+          )}
 
           {/* Slider with Fee Selector inside */}
           <View style={styles.section}>
@@ -266,6 +292,36 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
   );
 }
 
+function getHeaderEyebrow(operationType: VaultInputScreenConfig['operationType']): string {
+  switch (operationType) {
+    case 'borrow':
+      return 'Vault Borrow';
+    case 'repay':
+      return 'Vault Repay';
+    case 'deposit':
+      return 'Vault Collateral';
+    case 'withdraw':
+      return 'Vault Withdrawal';
+    default:
+      return 'Vault Action';
+  }
+}
+
+function getHeaderSubtitle(operationType: VaultInputScreenConfig['operationType']): string {
+  switch (operationType) {
+    case 'borrow':
+      return 'Set the borrow size, then choose whether the proceeds settle to Sepolia USDC or stay as UNIT.';
+    case 'repay':
+      return 'Reduce debt while reviewing the updated health and liquidation levels before you sign.';
+    case 'deposit':
+      return 'Add more BTC collateral and preview how much more buffer it adds to your vault.';
+    case 'withdraw':
+      return 'Remove BTC carefully while keeping the vault above the required health threshold.';
+    default:
+      return 'Adjust the vault position and review the impact before signing.';
+  }
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
@@ -276,8 +332,24 @@ const styles = StyleSheet.create({
   noVaultSubtext: { color: colors.text.secondary, fontSize: fontSizes.md, textAlign: 'center' },
   closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.sm, gap: spacing.md },
+  headerCopy: { flex: 1, gap: 2 },
+  eyebrow: {
+    color: colors.brand.primary,
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
   title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
+  subtitle: {
+    color: colors.text.secondary,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    lineHeight: 20,
+    marginTop: spacing.xs,
+  },
+  selectorSection: { marginTop: spacing.lg },
   section: { marginTop: spacing.lg },
   warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },

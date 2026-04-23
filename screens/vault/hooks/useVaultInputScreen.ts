@@ -5,6 +5,7 @@
 
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
+import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
 import { usePriceStore } from '../../../stores/priceStore';
 import {
   computeHealthFactor,
@@ -12,6 +13,7 @@ import {
   getOpCostBorrow,
   getOpCostDeposit,
   getOpCostRepay,
+  getVaultSettlementReserveSats,
 } from '../../../utils/vaultUtils';
 import type {
   AmountConfig,
@@ -79,6 +81,12 @@ const getHealthSliderColor = (health: number): string => {
   return '#59aa8a'; // green
 };
 
+function getReceiveAssetIfPresent(store: VaultStoreState): VaultSettlementRequestedAsset | null {
+  return 'receiveAsset' in store
+    ? ((store as { receiveAsset?: VaultSettlementRequestedAsset }).receiveAsset ?? null)
+    : null;
+}
+
 export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>(
   options: UseVaultInputScreenOptions<TStore, TAdditionalData>,
   navigation: VaultScreenNavigationProp
@@ -112,12 +120,14 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // BTC balance for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
+  const receiveAsset = getReceiveAssetIfPresent(store);
 
   // Calculate estimated fee
   const estimatedFeeSats = useMemo(() => {
     switch (config.operationType) {
       case 'borrow':
-        return getOpCostBorrow(store.selectedFeeRate, utxos);
+        return getOpCostBorrow(store.selectedFeeRate, utxos) +
+          (receiveAsset === 'USDC' ? getVaultSettlementReserveSats(store.selectedFeeRate) : 0);
       case 'repay':
         return getOpCostRepay(store.selectedFeeRate, utxos);
       case 'deposit':
@@ -129,7 +139,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
       default:
         return 0;
     }
-  }, [config.operationType, store.selectedFeeRate, utxos]);
+  }, [config.operationType, receiveAsset, store.selectedFeeRate, utxos]);
 
   // Check fee balance
   const hasSufficientBtc = btcBalanceSats >= estimatedFeeSats;

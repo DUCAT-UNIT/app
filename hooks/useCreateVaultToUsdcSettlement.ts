@@ -3,6 +3,7 @@ import { useCreateVault, type CreateVaultParams, type UseCreateVaultResult } fro
 import { useVaultCreation, useVaultCreationStore } from '../stores/vaultCreationStore';
 import { useVaultSettlementStore } from '../stores/vaultSettlementStore';
 import { useIssuedUnitSettlement } from './vault/useIssuedUnitSettlement';
+import { formatVaultSettlementAmountInput } from '../services/vaultSettlementService';
 
 export interface UseCreateVaultToUsdcSettlementResult extends UseCreateVaultResult {
   quoteBorrowToUsdc: (amountUsd: number) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
@@ -11,13 +12,19 @@ export interface UseCreateVaultToUsdcSettlementResult extends UseCreateVaultResu
 
 export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlementResult {
   const rawCreateVault = useCreateVault({ deferSuccessTransition: true });
-  const { borrowAmountUsd, setCurrentStep } = useVaultCreation();
-  const { startOperation, setPhase, setIssueResult, reset: resetSettlement } = useVaultSettlementStore();
+  const { borrowAmountUsd, receiveAsset, setCurrentStep } = useVaultCreation();
+  const {
+    startOperation,
+    setPhase,
+    setIssueResult,
+    completeSettlement,
+    reset: resetSettlement,
+  } = useVaultSettlementStore();
   const { quoteBorrowToUsdc, settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
 
   const createVault = useCallback(
     async (params?: CreateVaultParams) => {
-      startOperation('open', borrowAmountUsd);
+      startOperation('open', borrowAmountUsd, receiveAsset);
       setPhase('issuing_vault');
 
       const issueTxid = await rawCreateVault.createVault(params);
@@ -27,7 +34,11 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
 
       const latestVaultCreationState = useVaultCreationStore.getState();
       setIssueResult(issueTxid, latestVaultCreationState.vaultTxid);
-      await settleIssuedUnitToUsdc('open', borrowAmountUsd);
+      if (receiveAsset === 'UNIT') {
+        completeSettlement('UNIT', formatVaultSettlementAmountInput(borrowAmountUsd));
+      } else {
+        await settleIssuedUnitToUsdc('open', borrowAmountUsd);
+      }
       setCurrentStep('success');
 
       return issueTxid;
@@ -35,9 +46,11 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
     [
       startOperation,
       borrowAmountUsd,
+      receiveAsset,
       setPhase,
       rawCreateVault,
       setIssueResult,
+      completeSettlement,
       settleIssuedUnitToUsdc,
       setCurrentStep,
     ],

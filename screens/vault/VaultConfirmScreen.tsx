@@ -9,6 +9,7 @@ import { ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
+import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
 import { useVaultConfirmScreen } from './hooks/useVaultConfirmScreen';
@@ -53,6 +54,8 @@ export default function VaultConfirmScreen<
   } = useVaultConfirmScreen({ config, store, vaultHook }, navigation);
   const isUsdPrimaryAmount = primaryAmount.unit === 'USD';
   const isUnitPrimaryAmount = primaryAmount.unit === 'UNIT';
+  const selectedPayoutRow = summaryRows.find((row) => row.badgeAsset);
+  const payoutMeta = selectedPayoutRow?.badgeAsset ? getReceiveAssetMeta(selectedPayoutRow.badgeAsset) : null;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-confirm-screen`}>
@@ -63,7 +66,10 @@ export default function VaultConfirmScreen<
       >
         {/* Header */}
         <View style={styles.header} accessibilityRole="header">
-          <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+          <View style={styles.headerCopy}>
+            <Text style={styles.eyebrow}>Review</Text>
+            <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+          </View>
           <TouchableOpacity
             onPress={handleBack}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -101,6 +107,19 @@ export default function VaultConfirmScreen<
               <Text style={styles.primaryUsd}>≈ ${formatFiat(primaryAmount.amount)}</Text>
             )}
           </View>
+
+          {payoutMeta && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.routeCard}>
+                <View style={styles.routeCopy}>
+                  <Text style={styles.routeLabel}>Payout Route</Text>
+                  <Text style={styles.routeText}>{payoutMeta.note}</Text>
+                </View>
+                <ReceiveAssetBadge asset={payoutMeta.label as 'USDC' | 'UNIT'} />
+              </View>
+            </>
+          )}
 
           <View style={styles.divider} />
 
@@ -183,36 +202,41 @@ function SummaryRowView({ row }: { row: SummaryRow }) {
   const hasChange = row.showArrow && row.newValue !== undefined;
   const showCurrentIcon = row.currentUnit === 'UNIT' || row.currentUnit === 'BTC';
   const showNewIcon = row.newUnit === 'UNIT' || row.newUnit === 'BTC';
+  const showsBadge = !!row.badgeAsset;
 
   return (
     <View style={styles.row}>
       <Text style={styles.label}>{row.label}</Text>
-      <View style={styles.changeRow}>
-        <Text style={[styles.value, row.valueColor ? { color: row.valueColor } : undefined]}>
-          {row.currentValue}
-        </Text>
-        {showCurrentIcon && (
-          <Icon
-            name={row.currentUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-            size={row.currentUnit === 'UNIT' ? 14 : 16}
-            color={hasChange ? colors.text.secondary : undefined}
-          />
-        )}
-        {hasChange && (
-          <>
-            <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-            <Text style={[styles.valueHighlight, row.newValueColor ? { color: row.newValueColor } : undefined]}>
-              {row.newValue}
-            </Text>
-            {showNewIcon && (
-              <Icon
-                name={row.newUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
-                size={row.newUnit === 'UNIT' ? 14 : 16}
-              />
-            )}
-          </>
-        )}
-      </View>
+      {showsBadge ? (
+        <ReceiveAssetBadge asset={row.badgeAsset!} size="sm" />
+      ) : (
+        <View style={styles.changeRow}>
+          <Text style={[styles.value, row.valueColor ? { color: row.valueColor } : undefined]}>
+            {row.currentValue}
+          </Text>
+          {showCurrentIcon && (
+            <Icon
+              name={row.currentUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+              size={row.currentUnit === 'UNIT' ? 14 : 16}
+              color={hasChange ? colors.text.secondary : undefined}
+            />
+          )}
+          {hasChange && (
+            <>
+              <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
+              <Text style={[styles.valueHighlight, row.newValueColor ? { color: row.newValueColor } : undefined]}>
+                {row.newValue}
+              </Text>
+              {showNewIcon && (
+                <Icon
+                  name={row.newUnit === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
+                  size={row.newUnit === 'UNIT' ? 14 : 16}
+                />
+              )}
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -249,6 +273,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
+  },
+  headerCopy: {
+    gap: 2,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: colors.brand.primary,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   title: {
     fontSize: fontSizes.xxl,
@@ -293,16 +327,45 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border.default,
     marginVertical: spacing.md,
   },
+  routeCard: {
+    backgroundColor: colors.bg.tertiary,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  routeCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  routeLabel: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+  },
+  routeText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text.secondary,
+    lineHeight: 17,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    gap: spacing.md,
   },
   label: {
     fontSize: fontSizes.md,
     fontFamily: fonts.regular,
     color: colors.text.secondary,
+    flex: 1,
   },
   value: {
     fontSize: fontSizes.md,
