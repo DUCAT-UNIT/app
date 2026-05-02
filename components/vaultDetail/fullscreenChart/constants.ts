@@ -7,13 +7,6 @@ import { Dimensions } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Drawer width
-export const DRAWER_WIDTH = 280;
-
-// Chart margins
-export const LEFT_MARGIN = 50;
-export const RIGHT_MARGIN = 0;
-
 // Portrait dimensions (no rotation)
 export const PORTRAIT_WIDTH = SCREEN_WIDTH;
 export const PORTRAIT_HEIGHT = SCREEN_HEIGHT;

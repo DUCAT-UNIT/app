@@ -57,7 +57,7 @@ export function useAddressInput({
       } else if (assetType === 'unit') {
         const isTaproot = cleanText.toLowerCase().startsWith(taprootPrefix);
         if (!isTaproot) {
-          setAddressError('UNIT requires Taproot (bc1p/tb1p)');
+          setAddressError(`UNIT requires Mutinynet Taproot (${taprootPrefix}...)`);
         } else {
           onAddressTypeChange('taproot');
           setIsValidAddress(true);

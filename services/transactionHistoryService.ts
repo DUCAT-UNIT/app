@@ -35,6 +35,7 @@ export interface Transaction {
     block_time: number;
     block_height?: number;
     block_hash?: string;
+    failed?: boolean;
   };
   vin?: TransactionInput[];
   vout?: TransactionOutput[];

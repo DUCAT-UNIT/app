@@ -12,7 +12,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 interface AssetTabsProps {
   selectedTab: string;
   onTabChange: (tab: string) => void;
-  assetType: 'BTC' | 'UNIT' | 'USDC';
+  assetType: 'BTC' | 'UNIT' | 'USDC' | 'ETH';
   advancedMode?: boolean;
 }
 

@@ -13,7 +13,7 @@ let posthogClient: PostHog | null = null;
 let initAttempted = false;
 
 function getClient(): PostHog | null {
-  if (isE2E) return null;
+  if (isE2E()) return null;
   if (posthogClient) return posthogClient;
   if (initAttempted) return null;
 

@@ -14,8 +14,13 @@ import * as crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
-import { getCurrentCashuAccount,withProofLock } from './cashuProofManager';
-import { BlindingData,CashuProof } from './crypto';
+import {
+  getCurrentCashuAccount,
+  loadProofs,
+  saveProofs,
+  withProofLock,
+} from './cashuProofManager';
+import type { BlindingData,CashuProof } from './crypto';
 
 const PENDING_SWAP_KEY = 'cashu_pending_swap';
 
@@ -49,6 +54,20 @@ export interface PendingSwapTransaction {
   status: 'pending' | 'swapped' | 'completed' | 'failed';
   taprootAddress?: string | null;
 }
+
+export interface RecoveredSwapProofs {
+  recovered: true;
+  changeProofs: CashuProof[];
+  sendProofs: CashuProof[];
+}
+
+type SwapResponse = NonNullable<PendingSwapTransaction['swapResponse']>;
+type UnblindSignatures = (
+  signatures: SwapResponse['signatures'],
+  blindingData: BlindingData[],
+  keys: Record<string, string>,
+  keysetId: string,
+) => CashuProof[];
 
 /**
  * Save a pending swap transaction before calling the mint
@@ -173,16 +192,73 @@ export const loadPendingSwap = async (): Promise<PendingSwapTransaction | null> 
   }
 };
 
+export function recoverSwapProofsFromTransaction(
+  pendingTxn: PendingSwapTransaction,
+  unblindSignatures: UnblindSignatures,
+): RecoveredSwapProofs {
+  if (pendingTxn.status !== 'swapped' || !pendingTxn.swapResponse) {
+    throw new Error('Pending swap is not recoverable');
+  }
+
+  const allNewProofs = unblindSignatures(
+    pendingTxn.swapResponse.signatures,
+    pendingTxn.blindingData,
+    pendingTxn.keys,
+    pendingTxn.swapResponse.signatures[0]?.id || pendingTxn.keysetId
+  );
+
+  const changeProofs = allNewProofs.filter(
+    proof => pendingTxn.secretTypeMap[proof.secret] === 'change'
+  );
+  const sendProofs = allNewProofs.filter(
+    proof => pendingTxn.secretTypeMap[proof.secret] === 'p2pk' ||
+             pendingTxn.secretTypeMap[proof.secret] === 'send'
+  );
+
+  logger.info('[SwapRecovery] Recovered proofs from pending swap', {
+    id: pendingTxn.id,
+    totalProofs: allNewProofs.length,
+    changeProofs: changeProofs.length,
+    sendProofs: sendProofs.length,
+  });
+
+  return {
+    recovered: true,
+    changeProofs,
+    sendProofs,
+  };
+}
+
+export async function persistRecoveredSwapChangeProofs(
+  recovery: RecoveredSwapProofs,
+): Promise<void> {
+  await withProofLock(async () => {
+    const existingProofs = await loadProofs();
+    const existingSecrets = new Set(existingProofs.map(p => p.secret));
+
+    const newChangeProofs = recovery.changeProofs.filter(
+      p => !existingSecrets.has(p.secret)
+    );
+
+    if (newChangeProofs.length > 0) {
+      const combined = [...existingProofs, ...newChangeProofs];
+      await saveProofs(combined);
+      logger.info('[SwapRecovery] Added recovered change proofs to wallet', {
+        count: newChangeProofs.length,
+        totalAmount: newChangeProofs.reduce((sum, p) => sum + p.amount, 0),
+      });
+    } else {
+      logger.info('[SwapRecovery] Change proofs already in wallet, skipping');
+    }
+  });
+}
+
 /**
  * Attempt to recover from a pending swap transaction
  * Returns the recovered change proofs if successful
  * Note: sendProofs includes both 'p2pk' and regular 'send' proofs (tokens for recipient)
  */
-export const recoverPendingSwap = async (): Promise<{
-  recovered: boolean;
-  changeProofs: CashuProof[];
-  sendProofs: CashuProof[];
-} | null> => {
+export const recoverPendingSwap = async (): Promise<RecoveredSwapProofs | null> => {
   try {
     const pendingTxn = await loadPendingSwap();
 
@@ -203,36 +279,7 @@ export const recoverPendingSwap = async (): Promise<{
 
       // Import unblind function
       const { unblindSignatures } = await import('./crypto');
-
-      // Unblind the signatures to get the proofs
-      const allNewProofs = unblindSignatures(
-        pendingTxn.swapResponse.signatures,
-        pendingTxn.blindingData,
-        pendingTxn.keys,
-        pendingTxn.swapResponse.signatures[0]?.id || pendingTxn.keysetId
-      );
-
-      // Split into change proofs and send proofs (includes both 'p2pk' and 'send' types)
-      const changeProofs = allNewProofs.filter(
-        proof => pendingTxn.secretTypeMap[proof.secret] === 'change'
-      );
-      const sendProofs = allNewProofs.filter(
-        proof => pendingTxn.secretTypeMap[proof.secret] === 'p2pk' ||
-                 pendingTxn.secretTypeMap[proof.secret] === 'send'
-      );
-
-      logger.info('[SwapRecovery] Recovered proofs from pending swap', {
-        id: pendingTxn.id,
-        totalProofs: allNewProofs.length,
-        changeProofs: changeProofs.length,
-        sendProofs: sendProofs.length,
-      });
-
-      return {
-        recovered: true,
-        changeProofs,
-        sendProofs,
-      };
+      return recoverSwapProofsFromTransaction(pendingTxn, unblindSignatures);
     }
 
     // Status is 'completed' or 'failed' - just clear
@@ -259,33 +306,7 @@ export const checkAndRecoverSwaps = async (): Promise<void> => {
     const recovery = await recoverPendingSwap();
 
     if (recovery && recovery.recovered) {
-      // Import proof manager to save recovered proofs
-      const { loadProofs } = await import('./cashuProofManager');
-
-      // Wrap the entire read-check-write in the proof lock to prevent race conditions
-      // with concurrent proof operations (e.g., a send or receive in progress)
-      await withProofLock(async () => {
-        // Check if change proofs already exist (avoid duplicates)
-        const existingProofs = await loadProofs();
-        const existingSecrets = new Set(existingProofs.map(p => p.secret));
-
-        const newChangeProofs = recovery.changeProofs.filter(
-          p => !existingSecrets.has(p.secret)
-        );
-
-        if (newChangeProofs.length > 0) {
-          // Use saveProofs directly to avoid double-locking through addProofs
-          const { saveProofs } = await import('./cashuProofManager');
-          const combined = [...existingProofs, ...newChangeProofs];
-          await saveProofs(combined);
-          logger.info('[SwapRecovery] Added recovered change proofs to wallet', {
-            count: newChangeProofs.length,
-            totalAmount: newChangeProofs.reduce((sum, p) => sum + p.amount, 0),
-          });
-        } else {
-          logger.info('[SwapRecovery] Change proofs already in wallet, skipping');
-        }
-      });
+      await persistRecoveredSwapChangeProofs(recovery);
 
       // Clear the pending swap now that recovery is complete
       await clearPendingSwap();

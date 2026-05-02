@@ -14,7 +14,7 @@ jest.mock('../../utils/apiClient', () => ({
 }));
 
 jest.mock('../../utils/e2e', () => ({
-  isE2E: false,
+  isE2E: jest.fn(() => false),
 }));
 
 // Pull the mocked implementations after jest.mock declarations
@@ -24,6 +24,7 @@ import {
   registerPushToken,
   unregisterPushToken,
   sendLocalNotification,
+  watchTransaction,
   initializePushNotifications,
 } from '../pushNotificationService';
 
@@ -305,6 +306,45 @@ describe('sendLocalNotification', () => {
   });
 });
 
+// ─── watchTransaction ───────────────────────────────────────────────────────
+
+describe('watchTransaction', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    mockGetExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[watch-token]' });
+    mockPostJSON.mockResolvedValue(undefined);
+  });
+
+  it('should include network: "mutinynet" in watch-tx registrations', async () => {
+    await watchTransaction('txid1234567890', 'tb1pMY_ADDRESS', 'liquidation');
+
+    expect(mockPostJSON).toHaveBeenCalledWith(
+      'https://notifications.ducatprotocol.com/api/watch-tx',
+      {
+        txid: 'txid1234567890',
+        token: 'ExponentPushToken[watch-token]',
+        walletAddress: 'tb1pMY_ADDRESS',
+        type: 'liquidation',
+        network: 'mutinynet',
+      }
+    );
+  });
+
+  it('humanizes backend watch labels before registration', async () => {
+    await watchTransaction('vaulttxid1234567890', 'tb1pMY_ADDRESS', 'vault_operation');
+
+    expect(mockPostJSON).toHaveBeenCalledWith(
+      'https://notifications.ducatprotocol.com/api/watch-tx',
+      expect.objectContaining({
+        txid: 'vaulttxid1234567890',
+        type: 'vault transaction',
+        network: 'mutinynet',
+      })
+    );
+  });
+});
+
 // ─── initializePushNotifications ─────────────────────────────────────────────
 
 describe('initializePushNotifications', () => {
@@ -386,7 +426,7 @@ describe('E2E mode bypasses', () => {
     let getTokenE2E!: () => Promise<string | null>;
 
     jest.isolateModules(() => {
-      jest.doMock('../../utils/e2e', () => ({ isE2E: true }));
+      jest.doMock('../../utils/e2e', () => ({ isE2E: jest.fn(() => true) }));
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       ({ getExpoPushToken: getTokenE2E } = require('../pushNotificationService'));
     });
@@ -400,7 +440,7 @@ describe('E2E mode bypasses', () => {
     let registerE2E!: (token: string, walletAddress: string) => Promise<void>;
 
     jest.isolateModules(() => {
-      jest.doMock('../../utils/e2e', () => ({ isE2E: true }));
+      jest.doMock('../../utils/e2e', () => ({ isE2E: jest.fn(() => true) }));
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       ({ registerPushToken: registerE2E } = require('../pushNotificationService'));
     });
@@ -413,7 +453,7 @@ describe('E2E mode bypasses', () => {
     let sendE2E!: (params: { title: string; body: string; data?: Record<string, unknown> }) => Promise<void>;
 
     jest.isolateModules(() => {
-      jest.doMock('../../utils/e2e', () => ({ isE2E: true }));
+      jest.doMock('../../utils/e2e', () => ({ isE2E: jest.fn(() => true) }));
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       ({ sendLocalNotification: sendE2E } = require('../pushNotificationService'));
     });
@@ -426,7 +466,7 @@ describe('E2E mode bypasses', () => {
     let initE2E!: (walletAddress: string) => Promise<string | null>;
 
     jest.isolateModules(() => {
-      jest.doMock('../../utils/e2e', () => ({ isE2E: true }));
+      jest.doMock('../../utils/e2e', () => ({ isE2E: jest.fn(() => true) }));
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       ({ initializePushNotifications: initE2E } = require('../pushNotificationService'));
     });

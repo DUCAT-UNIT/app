@@ -6,6 +6,7 @@
  */
 
 import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
+import { InteractionManager } from 'react-native';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMelt } from '../hooks/useCashuMelt';
 import { useCashuMint } from '../hooks/useCashuMint';
@@ -26,6 +27,7 @@ import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 import { analytics } from '../services/analyticsService';
 import { CASHU_EVENTS } from '../constants/analyticsEvents';
+import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
 export interface PendingMint {
@@ -114,6 +116,8 @@ interface CashuProviderProps {
 
 export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
+  const { isAuthenticated } = useAuthSession();
+  const activeWallet = isAuthenticated ? wallet : null;
   const [isLoading, setIsLoading] = useState(false);
   const prevWalletRef = useRef<typeof wallet | null>(null);
 
@@ -124,7 +128,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     error,
     setError,
     fetchBalance,
-  } = useCashuBalance({ wallet });
+  } = useCashuBalance({ wallet: activeWallet });
 
   // Mint operations
   const {
@@ -146,7 +150,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const {
     receive,
     send,
-  } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: wallet?.taprootAddress });
+  } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: activeWallet?.taprootAddress });
 
   /**
    * Add an externally-created mint quote to the pending mints list.
@@ -176,13 +180,13 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
   // Track wallet for reference (account switch reset is handled by useAccountSwitcher)
   useEffect(() => {
-    prevWalletRef.current = wallet;
-  }, [wallet]);
+    prevWalletRef.current = activeWallet;
+  }, [activeWallet]);
 
   // Check for and recover any pending swap/mint/turbo transactions on startup
   const recoveryChecked = useRef(false);
   useEffect(() => {
-    if (recoveryChecked.current || !wallet?.taprootAddress) {
+    if (recoveryChecked.current || !activeWallet?.taprootAddress) {
       return;
     }
     recoveryChecked.current = true;
@@ -237,9 +241,17 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       }
     };
 
-    runRecovery();
-    return () => { cancelled = true; };
-  }, [wallet?.taprootAddress, fetchBalance]);
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!cancelled) {
+        runRecovery();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      task.cancel();
+    };
+  }, [activeWallet?.taprootAddress, fetchBalance]);
 
   /**
    * Clear all Cashu proofs (for testing/reset)
@@ -384,5 +396,3 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     </CashuBalanceContext.Provider>
   );
 };
-
-export default CashuProvider;

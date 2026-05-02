@@ -95,6 +95,15 @@ module.exports = {
     },
   },
   testEnvironment: 'node',
+  testPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/coverage/',
+    '<rootDir>/ios/',
+    '<rootDir>/android/',
+    '<rootDir>/bridge-service/',
+    '<rootDir>/evm/',
+    '<rootDir>/tmp/',
+  ],
   // resetMocks: false — mocks persist across tests within a file. This is intentional:
   // jest.setup.js configures global mocks (SecureStore, logger, etc.) that must survive
   // between tests. Individual test files use beforeEach/clearAllMocks for isolation.
@@ -103,6 +112,6 @@ module.exports = {
     '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|@noble/secp256k1)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|@noble/.*|@scure/.*|@cmdcode/.*|@scrow/.*|@ducat-unit/.*)',
   ],
 };

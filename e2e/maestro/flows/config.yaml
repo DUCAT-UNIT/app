@@ -1,11 +1,10 @@
 flows:
-  - "auth/*"
-  - "ecash/*"
-  - "send/*"
-  - "settings/*"
-  - "vault/*"
-  - "wallet/*"
-  - "test/*"
+  - "auth/*.yaml"
+  - "ecash/*.yaml"
+  - "send/*.yaml"
+  - "settings/*.yaml"
+  - "vault/*.yaml"
+  - "wallet/*.yaml"
 
 executionOrder:
   continueOnFailure: true

@@ -3,6 +3,7 @@ import { useBalance, useTransactionHistory } from '../../contexts/WalletDataCont
 import { useWallet } from '../../contexts/WalletContext';
 import { requestRedemption } from '../../services/evmBridgeService';
 import { getRedemptionStatus } from '../../services/bridgeApiService';
+import { getBoolean, SettingKeys } from '../../services/settingsService';
 import { createVaultWallet } from '../../services/vaultWalletService';
 import { VAULT_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
@@ -20,7 +21,8 @@ const RELEASED_UNIT_TIMEOUT_MS = 180_000;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
   });
 }
 
@@ -104,6 +106,13 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           requiredUsdcIn: '0',
           estimatedSepoliaFeeEth: '0',
         };
+      }
+
+      const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+      if (!usdcFeaturesEnabled) {
+        setRepayStoreQuote(null, null);
+        setRepayQuote(null, null);
+        throw new Error('Not enough spendable UNIT to repay this amount.');
       }
 
       logger.debug('[VaultRepayFromUsdc] Quoting repay', {
@@ -190,16 +199,26 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
 
     setIsSettling(true);
     setError(null);
-    startOperation('repay', repayAmountUsd);
-    logger.debug('[VaultRepayFromUsdc] Starting repay settlement', {
-      currentAccount,
-      repayAmountUsd,
-      destinationTaprootAddress: wallet.taprootAddress,
-    });
 
     try {
-      const quote = await quoteRepayFromUsdc(repayAmountUsd);
       const canRepayDirectly = await hasSpendableDirectUnitBalance(repayAmountUsd);
+      const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+      if (!canRepayDirectly && !usdcFeaturesEnabled) {
+        throw new Error('Not enough spendable UNIT to repay this amount.');
+      }
+
+      const requestedPayoutAsset = canRepayDirectly ? 'UNIT' : 'USDC';
+      startOperation('repay', repayAmountUsd, requestedPayoutAsset);
+      logger.debug('[VaultRepayFromUsdc] Starting repay settlement', {
+        currentAccount,
+        repayAmountUsd,
+        requestedPayoutAsset,
+        destinationTaprootAddress: wallet.taprootAddress,
+      });
+
+      const quote = canRepayDirectly
+        ? { requiredUsdcIn: '0', estimatedSepoliaFeeEth: '0' }
+        : await quoteRepayFromUsdc(repayAmountUsd);
       const amountInput = formatVaultSettlementAmountInput(repayAmountUsd);
       logger.debug('[VaultRepayFromUsdc] Quote locked for execution', {
         currentAccount,
@@ -284,14 +303,16 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         vaultTxid: result.vaultTxid,
       });
 
-      completeSettlement('USDC', quote.requiredUsdcIn);
+      completeSettlement(requestedPayoutAsset, quote.requiredUsdcIn);
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to repay from USDC';
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         scope: 'useRepayFromUsdcSettlement',
       });
-      markNeedsRetry(message);
+      if (!message.includes('Not enough spendable UNIT')) {
+        markNeedsRetry(message);
+      }
       setError(message);
       return null;
     } finally {

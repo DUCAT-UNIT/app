@@ -32,7 +32,8 @@ interface BridgeIntentUnconfirmedUtxo {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
   });
 }
 
@@ -40,11 +41,8 @@ function isUnitAvailabilityError(error: unknown): boolean {
   return error instanceof Error && error.message === ERRORS.NO_UNIT_BALANCE;
 }
 
-function isPendingSettlementError(error: unknown): boolean {
-  return (
-    isUnitAvailabilityError(error) ||
-    (error instanceof Error && error.message === 'Bridge settlement is still processing.')
-  );
+function isBridgeSettlementPendingError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Bridge settlement is still processing.';
 }
 
 function getUnitIntentInputs(intent: SendIntent): Array<{ txid: string; vout: number }> {
@@ -93,6 +91,15 @@ function getRuneChangeAmount(intent: SendIntent): number {
     : intent.runeUtxo?.runeAmount || 0;
 
   return totalRuneInput - intent.amount;
+}
+
+function buildVaultBridgeClientRequestId(
+  kind: VaultSettlementKind,
+  accountIndex: number,
+  amountInput: string,
+): string {
+  const safeAmount = amountInput.replace(/[^0-9a-zA-Z]+/g, '_');
+  return `vault_${kind}_${accountIndex}_${safeAmount}_${Date.now()}`;
 }
 
 interface ExtractPendingOutputsResult {
@@ -178,6 +185,7 @@ export function useIssuedUnitSettlement() {
 
   const setQuote = useVaultSettlementStore((state) => state.setQuote);
   const setPhase = useVaultSettlementStore((state) => state.setPhase);
+  const setBridgeClientRequestId = useVaultSettlementStore((state) => state.setBridgeClientRequestId);
   const setBridgeIntent = useVaultSettlementStore((state) => state.setBridgeIntent);
   const setBridgeSendTxid = useVaultSettlementStore((state) => state.setBridgeSendTxid);
   const completeSettlement = useVaultSettlementStore((state) => state.completeSettlement);
@@ -243,14 +251,22 @@ export function useIssuedUnitSettlement() {
       const amountInput = formatVaultSettlementAmountInput(faceValueUsd);
       const quote = await quoteBorrowToUsdc(faceValueUsd);
       const sepoliaAccount = await deriveSepoliaAccount(currentAccount);
+      let bridgeIntentId: string | undefined;
+      let broadcastedBridgeSendTxid: string | null = null;
 
       try {
         setPhase('creating_bridge');
+        const bridgeClientRequestId =
+          useVaultSettlementStore.getState().bridgeClientRequestId ||
+          buildVaultBridgeClientRequestId(kind, currentAccount, amountInput);
+        setBridgeClientRequestId(bridgeClientRequestId);
         const intent = await createBridgeIntent({
           amount: amountInput,
           autoSwap: true,
+          clientRequestId: bridgeClientRequestId,
           sepoliaRecipient: sepoliaAccount.address,
         });
+        bridgeIntentId = intent.id;
         setBridgeIntent(intent.id, intent.depositAddress);
 
         setPhase('building_bridge_send');
@@ -259,8 +275,6 @@ export function useIssuedUnitSettlement() {
         if (inputsToLock.length > 0) {
           await markUtxosAsSpent(inputsToLock);
         }
-
-          let broadcastedBridgeSendTxid: string | null = null;
 
         try {
           setPhase('signing_bridge_send');
@@ -324,7 +338,7 @@ export function useIssuedUnitSettlement() {
             settledIntent.fulfilledAmount ||
             (payoutAsset === 'USDC' ? quote.estimatedUsdcOut : amountInput);
 
-          completeSettlement(payoutAsset, payoutAmount);
+          completeSettlement(payoutAsset, payoutAmount, settledIntent.sepoliaTxHash || null);
 
           return {
             status: 'settled',
@@ -346,16 +360,18 @@ export function useIssuedUnitSettlement() {
           message,
         });
 
-        if (isPendingSettlementError(error)) {
+        if (isBridgeSettlementPendingError(error)) {
           markPendingSettlement(message);
           showSnackbar({
             title: 'USDC settlement still processing',
-            description: 'The vault action succeeded. Sepolia settlement is still catching up.',
+            description: 'The vault action succeeded. USDC settlement is still catching up.',
             type: 'info',
             duration: 7000,
           });
           return {
             status: 'pending_settlement',
+            ...(bridgeIntentId ? { bridgeIntentId } : {}),
+            ...(broadcastedBridgeSendTxid ? { bridgeSendTxid: broadcastedBridgeSendTxid } : {}),
             error: message,
           };
         }
@@ -369,6 +385,8 @@ export function useIssuedUnitSettlement() {
         });
         return {
           status: 'needs_retry',
+          ...(bridgeIntentId ? { bridgeIntentId } : {}),
+          ...(broadcastedBridgeSendTxid ? { bridgeSendTxid: broadcastedBridgeSendTxid } : {}),
           error: message,
         };
       }
@@ -378,6 +396,7 @@ export function useIssuedUnitSettlement() {
       quoteBorrowToUsdc,
       currentAccount,
       setPhase,
+      setBridgeClientRequestId,
       setBridgeIntent,
       buildBridgeSendIntent,
       markUtxosAsSpent,

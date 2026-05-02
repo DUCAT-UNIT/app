@@ -30,6 +30,10 @@ import type {
 } from '../utils/pendingTransactionsUtils';
 
 import type { UtxoRef } from '../types/assets';
+import {
+  operationJournalId,
+  useOperationJournalStore,
+} from './operationJournalStore';
 
 export interface PendingTransactionOutput {
   address: string;
@@ -94,6 +98,57 @@ const initialState: PendingTransactionsState = {
   spentUtxos: new Set(),
   currentAccount: 0,
 };
+
+function sendJournalScope(assetType: 'BTC' | 'UNIT'): string {
+  return assetType === 'UNIT' ? 'unit-send' : 'btc-send';
+}
+
+function sendJournalLabel(assetType: 'BTC' | 'UNIT'): string {
+  return assetType === 'UNIT' ? 'UNIT send submitted' : 'BTC send submitted';
+}
+
+function sendJournalKind(assetType: 'BTC' | 'UNIT'): 'btc_send' | 'unit_send' {
+  return assetType === 'UNIT' ? 'unit_send' : 'btc_send';
+}
+
+function recordPendingSendJournal(
+  accountIndex: number,
+  transaction: PendingTransaction,
+): void {
+  const now = transaction.timestamp || Date.now();
+  const id = operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid);
+
+  useOperationJournalStore.getState().recordOperation({
+    id,
+    accountIndex,
+    kind: sendJournalKind(transaction.assetType),
+    stage: 'pending',
+    label: sendJournalLabel(transaction.assetType),
+    idempotencyKey: `${sendJournalScope(transaction.assetType)}:${accountIndex}:${transaction.txid}`,
+    retrySafety: 'unsafe_until_checked',
+    txids: [transaction.txid],
+    asset: transaction.assetType,
+    amount: transaction.sentAmount === undefined ? null : String(transaction.sentAmount),
+    recipient: transaction.outputs[0]?.address ?? null,
+    recoveryAction: 'Wait for Mutinynet confirmation before spending the same funds again.',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+function markPendingSendConfirmed(accountIndex: number, transaction: PendingTransaction): void {
+  useOperationJournalStore.getState().markConfirmed(
+    operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid),
+    transaction.txid,
+  );
+}
+
+function markPendingSendFailed(accountIndex: number, transaction: PendingTransaction, reason: string): void {
+  useOperationJournalStore.getState().markFailed(
+    operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid),
+    reason,
+  );
+}
 
 // Storage helpers
 const getStorageKey = (accountIndex: number, type: 'txs' | 'spent'): string => {
@@ -161,7 +216,13 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       const txsKey = getStorageKey(accountIndex, 'txs');
       const stored = await SecureStore.getItemAsync(txsKey);
       if (stored) {
-        set({ pendingTransactions: JSON.parse(stored) });
+        const pendingTransactions = JSON.parse(stored) as Record<string, PendingTransaction>;
+        set({ pendingTransactions });
+        Object.values(pendingTransactions).forEach((transaction) => {
+          if (transaction.status === 'pending') {
+            recordPendingSendJournal(accountIndex, transaction);
+          }
+        });
       }
     } catch (error: unknown) {
       logger.error('Error loading pending transactions:', {
@@ -215,6 +276,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
     set({ pendingTransactions: updated });
     await savePendingTransactions(updated, currentAccount);
+    recordPendingSendJournal(currentAccount, newTx);
 
     logger.info('[addPendingTransaction] Pending transactions after add:', {
       totalCount: Object.keys(updated).length,
@@ -255,6 +317,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
     await savePendingTransactions(updated, currentAccount);
     await saveSpentUtxos(updatedSpentUtxos, currentAccount);
+    if (confirmedTx) {
+      markPendingSendConfirmed(currentAccount, confirmedTx);
+    }
   },
 
   // Invalidate transaction and all children
@@ -287,6 +352,13 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
         type: 'error',
         action,
         message,
+      });
+
+      invalidated.forEach((invalidatedTxid) => {
+        const invalidatedTx = pendingTransactions[invalidatedTxid];
+        if (invalidatedTx) {
+          markPendingSendFailed(currentAccount, invalidatedTx, reason);
+        }
       });
     }
 
@@ -393,8 +465,6 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
  */
 export const usePendingTxs = () =>
   usePendingTransactionsStore((state) => state.pendingTransactions);
-export const useSpentUtxos = () =>
-  usePendingTransactionsStore((state) => state.spentUtxos);
 
 /**
  * Reset store to initial state (useful for testing)

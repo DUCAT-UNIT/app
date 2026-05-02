@@ -66,8 +66,9 @@ export const useWalletInitialization = ({
 
         const initPromise = Promise.all([biometricPromise, walletPromise]);
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => {
             startupDiagnostics.recordFailure('wallet_initialization_timed_out', {
               elapsed_ms: Date.now() - t0,
               timeout_ms: INIT_TIMEOUT_MS,
@@ -75,10 +76,15 @@ export const useWalletInitialization = ({
               timeout: true,
             });
             reject(new Error('Wallet initialization timed out'));
-          }, INIT_TIMEOUT_MS),
-        );
+          }, INIT_TIMEOUT_MS);
+          (timeoutId as { unref?: () => void }).unref?.();
+        });
 
-        const [, result] = await Promise.race([initPromise, timeoutPromise]);
+        const [, result] = await Promise.race([initPromise, timeoutPromise]).finally(() => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+        });
 
         if (!result || typeof result.exists !== 'boolean') {
           throw new Error('Wallet initialization returned an invalid result');
@@ -133,14 +139,20 @@ export const useWalletInitialization = ({
         loadWallet(),
       ]);
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
           () => reject(new Error('Wallet initialization timed out')),
           INIT_TIMEOUT_MS,
-        ),
-      );
+        );
+        (timeoutId as { unref?: () => void }).unref?.();
+      });
 
-      const [, result] = await Promise.race([initPromise, timeoutPromise]);
+      const [, result] = await Promise.race([initPromise, timeoutPromise]).finally(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
 
       if (!result || typeof result.exists !== 'boolean') {
         throw new Error('Wallet initialization returned an invalid result');

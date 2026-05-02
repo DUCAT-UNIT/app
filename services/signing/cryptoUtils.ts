@@ -400,29 +400,3 @@ export async function withSigningContext<T>(
     return operation(mnemonic, accountIndex, derivationMode);
   });
 }
-
-/**
- * Convert witness stack to script witness format
- * Properly serializes witness elements with compact size prefixes
- */
-export function witnessToScriptWitness(witness: Buffer[]): Buffer {
-  let size = varIntSize(witness.length);
-  for (const item of witness) {
-    size += varIntSize(item.length) + item.length;
-  }
-
-  const buffer = Buffer.allocUnsafe(size);
-  let offset = 0;
-
-  // Write witness stack count
-  offset = writeVarInt(buffer, witness.length, offset);
-
-  // Write each witness element
-  for (const item of witness) {
-    offset = writeVarInt(buffer, item.length, offset);
-    item.copy(buffer, offset);
-    offset += item.length;
-  }
-
-  return buffer;
-}

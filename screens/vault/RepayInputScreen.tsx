@@ -4,6 +4,7 @@
 
 import { NavigationProp } from '@react-navigation/native';
 import React,{ useEffect,useMemo } from 'react';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance, useEvmAssets } from '../../contexts/WalletDataContext';
 import { useRepayFromUsdcSettlement } from '../../hooks/vault';
 import { useRepay } from '../../stores/repayStore';
@@ -21,12 +22,15 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
   const { loadVaultData } = useRepayFromUsdcSettlement();
   const { runesBalance } = useBalance();
   const { evmBalances } = useEvmAssets();
+  const { settingsHandlers } = useSettingsHandlers();
+  const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
 
-  // Repay now sources from Sepolia USDC and swaps back into UNIT under the hood.
+  // USDC repay is developer-gated. Default users repay only with spendable UNIT.
   const repayBalanceUsd = useMemo((): number => {
+    if (!allowUsdc) return 0;
     const parsed = Number.parseFloat(evmBalances?.usdc || '0');
     return Number.isFinite(parsed) ? parsed : 0;
-  }, [evmBalances?.usdc]);
+  }, [allowUsdc, evmBalances?.usdc]);
 
   const directUnitBalanceUsd = useMemo((): number => {
     const parsed = getRunesAmount(runesBalance);
@@ -48,7 +52,7 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
       config={repayInputConfig}
       store={store}
       loadVaultData={loadVaultData}
-      additionalData={{ repayBalanceUsd, directUnitBalanceUsd }}
+      additionalData={{ repayBalanceUsd, directUnitBalanceUsd, allowUsdc }}
     />
   );
 }

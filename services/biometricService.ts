@@ -158,12 +158,21 @@ export const authenticateWithBiometrics = async (
       disableDeviceFallback: true,
     });
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const result = await Promise.race([
       authPromise,
-      new Promise<LocalAuthentication.LocalAuthenticationResult>((_, reject) =>
-        setTimeout(() => reject(new Error('Biometric authentication timed out')), BIOMETRIC_AUTH_TIMEOUT_MS)
-      ),
-    ]);
+      new Promise<LocalAuthentication.LocalAuthenticationResult>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Biometric authentication timed out')),
+          BIOMETRIC_AUTH_TIMEOUT_MS,
+        );
+        (timeoutId as { unref?: () => void }).unref?.();
+      }),
+    ]).finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    });
 
     // SECURITY: Record attempt for rate limiting
     await recordBiometricAttempt(result.success);

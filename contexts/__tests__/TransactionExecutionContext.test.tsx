@@ -165,14 +165,48 @@ describe('TransactionExecutionContext', () => {
     );
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
+    let txid: string | null = null;
     await act(async () => {
-      await result.current!.signIntent();
+      txid = await result.current!.signIntent();
     });
 
+    expect(txid).toBe('mock_txid');
     expect(mockSetIntentStep).toHaveBeenCalledWith('signing');
     expect(TransactionService.signIntent).toHaveBeenCalledWith(mockIntent, 0);
     expect(mockSetSendIntent).toHaveBeenCalledWith(mockSignedIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('broadcasting');
+  });
+
+  it('returns null from signIntent when broadcast fails after signing', async () => {
+    (TransactionService.signIntent as jest.Mock).mockResolvedValue({
+      signedTxHex: 'signed_hex',
+      txid: 'signed_but_not_broadcast_txid',
+    });
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    let txid: string | null = 'unexpected';
+    await act(async () => {
+      txid = await result.current!.signIntent();
+    });
+
+    expect(txid).toBeNull();
+    expect(mockShowSnackbar).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+    expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
+    expect(mockSetSendIntent).not.toHaveBeenCalledWith(null);
   });
 
   it('should bypass signing and broadcasting for E2E mock PSBT intent', async () => {

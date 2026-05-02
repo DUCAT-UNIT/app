@@ -61,7 +61,7 @@ export interface VaultStoreContext {
  * Extension function type: receives set, get, and common context; returns extra state/actions.
  * The returned object is merged on top of the common state/actions, so it can override `reset`.
  */
-export type VaultStoreExtension<TExtension extends {}> = (
+export type VaultStoreExtension<TExtension extends object> = (
   set: StoreApi<CommonVaultState & CommonVaultActions & TExtension>['setState'],
   get: StoreApi<CommonVaultState & CommonVaultActions & TExtension>['getState'],
   context: VaultStoreContext
@@ -75,8 +75,7 @@ export type VaultStoreExtension<TExtension extends {}> = (
  * @param extension - Optional function returning additional state/actions
  * @returns A Zustand store hook
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export function createVaultOperationStore<TExtension extends {} = {}>(
+export function createVaultOperationStore<TExtension extends object = object>(
   operationType: VaultOperationType,
   extension?: VaultStoreExtension<TExtension>
 ): UseBoundStore<StoreApi<CommonVaultState & CommonVaultActions & TExtension>> {

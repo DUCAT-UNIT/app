@@ -471,5 +471,3 @@ const styles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
   },
 });
-
-export default VaultHealthGauge;

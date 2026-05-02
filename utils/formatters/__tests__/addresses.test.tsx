@@ -73,24 +73,24 @@ describe('truncateTxid', () => {
 });
 
 describe('looksLikeBitcoinAddress', () => {
-  it('should return true for legacy addresses', () => {
-    expect(looksLikeBitcoinAddress('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')).toBe(true);
+  it('should return true for Mutinynet legacy addresses', () => {
+    expect(looksLikeBitcoinAddress('mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn')).toBe(true);
   });
 
-  it('should return true for P2SH addresses', () => {
-    expect(looksLikeBitcoinAddress('3J98t1WpEZ73CNmYviecrnyiWrnqRhWNLy')).toBe(true);
+  it('should return true for Mutinynet P2SH addresses', () => {
+    expect(looksLikeBitcoinAddress('2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br')).toBe(true);
   });
 
-  it('should return true for bech32 SegWit addresses', () => {
-    expect(looksLikeBitcoinAddress('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe(true);
+  it('should return false for mainnet bech32 SegWit addresses', () => {
+    expect(looksLikeBitcoinAddress('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe(false);
   });
 
-  it('should return true for testnet addresses', () => {
+  it('should return true for Mutinynet bech32 addresses', () => {
     expect(looksLikeBitcoinAddress('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx')).toBe(true);
   });
 
-  it('should return true for regtest addresses', () => {
-    expect(looksLikeBitcoinAddress('bcrt1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe(true);
+  it('should return false for regtest addresses', () => {
+    expect(looksLikeBitcoinAddress('bcrt1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe(false);
   });
 
   it('should return false for too short addresses', () => {
@@ -118,27 +118,31 @@ describe('looksLikeBitcoinAddress', () => {
 });
 
 describe('getAddressType', () => {
-  it('should identify legacy addresses', () => {
-    expect(getAddressType('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')).toBe('legacy');
+  it('should return unknown for mainnet legacy addresses', () => {
+    expect(getAddressType('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')).toBe('unknown');
   });
 
-  it('should identify P2SH addresses as segwit', () => {
-    expect(getAddressType('3J98t1WpEZ73CNmYviecrnyiWrnqRhWNLy')).toBe('segwit');
+  it('should identify Mutinynet legacy addresses', () => {
+    expect(getAddressType('mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn')).toBe('legacy');
   });
 
-  it('should identify bech32 SegWit addresses (bc1q)', () => {
-    expect(getAddressType('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe('segwit');
+  it('should identify Mutinynet P2SH addresses as legacy', () => {
+    expect(getAddressType('2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br')).toBe('legacy');
   });
 
-  it('should identify testnet SegWit addresses (tb1q)', () => {
+  it('should return unknown for mainnet bech32 SegWit addresses (bc1q)', () => {
+    expect(getAddressType('bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq')).toBe('unknown');
+  });
+
+  it('should identify Mutinynet SegWit addresses (tb1q)', () => {
     expect(getAddressType('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx')).toBe('segwit');
   });
 
-  it('should identify Taproot addresses (bc1p)', () => {
-    expect(getAddressType('bc1pxwww0ct9ue7e8tdnlmug5m2tamfn7q06sahstg39ys4c9f3340qqxrdu9k')).toBe('taproot');
+  it('should return unknown for mainnet Taproot addresses (bc1p)', () => {
+    expect(getAddressType('bc1pxwww0ct9ue7e8tdnlmug5m2tamfn7q06sahstg39ys4c9f3340qqxrdu9k')).toBe('unknown');
   });
 
-  it('should identify testnet Taproot addresses (tb1p)', () => {
+  it('should identify Mutinynet Taproot addresses (tb1p)', () => {
     expect(getAddressType('tb1pxwww0ct9ue7e8tdnlmug5m2tamfn7q06sahstg39ys4c9f3340qqxrdu9k')).toBe('taproot');
   });
 

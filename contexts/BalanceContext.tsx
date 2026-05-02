@@ -6,6 +6,7 @@
 import React, { createContext, ReactNode, useContext } from 'react';
 import { useBalanceData, UseBalanceDataReturn } from '../hooks/useBalanceData';
 import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
 export type BalanceDataValue = UseBalanceDataReturn;
@@ -26,9 +27,10 @@ interface BalanceProviderProps {
 
 export const BalanceProvider: React.FC<BalanceProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
+  const { isAuthenticated } = useAuthSession();
   const { getUnconfirmedBalance, getUnconfirmedUTXOs } = usePendingTransactionsStore();
 
-  const balance = useBalanceData(wallet, getUnconfirmedBalance, getUnconfirmedUTXOs);
+  const balance = useBalanceData(isAuthenticated ? wallet : null, getUnconfirmedBalance, getUnconfirmedUTXOs);
 
   return <BalanceCtx.Provider value={balance}>{children}</BalanceCtx.Provider>;
 };

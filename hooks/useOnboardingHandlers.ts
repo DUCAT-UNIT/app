@@ -82,7 +82,7 @@ export function useOnboardingHandlers({
       // Show passkey modal immediately after setup completes
       // Skip in __DEV__ mode — passkey requires native WebAuthn dialog
       // which blocks Maestro/simulator automation
-      if (!isE2E) {
+      if (!isE2E()) {
         logger.debug('[OnboardingHandlers] Showing passkey migration modal');
         showPasskeyMigrationPromptGlobal(capturedPin);
       } else {

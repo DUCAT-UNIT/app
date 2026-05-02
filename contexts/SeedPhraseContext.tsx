@@ -12,7 +12,7 @@ import { withMnemonic } from '../services/secureStorageService';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { setBoolean, SettingKeys } from '../services/settingsService';
 import { ERRORS } from '../utils/messages';
-import { useAuth } from './AuthContext';
+import { useAuthSession } from './AuthContext';
 import { notify } from '../utils/notify';
 
 interface SeedPhraseContextValue {
@@ -47,7 +47,7 @@ interface SeedPhraseProviderProps {
 }
 
 export const SeedPhraseProvider: React.FC<SeedPhraseProviderProps> = ({ children, setIsAuthenticated }) => {
-  const { biometricEnabled } = useAuth();
+  const { biometricEnabled } = useAuthSession();
   const [viewingSeedPhrase, setViewingSeedPhrase] = useState(false);
   const [seedPhraseWords, setSeedPhraseWords] = useState<string[]>([]);
   const [seedPhraseVisible, setSeedPhraseVisible] = useState(false);

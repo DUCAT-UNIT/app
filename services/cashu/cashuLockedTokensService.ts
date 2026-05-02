@@ -77,7 +77,13 @@ export const saveSentLockedToken = async (
   taprootAddress: string | null = null
 ): Promise<void> => {
   try {
-    logger.info('Saving sent locked token', { recipient, amount, txid, shortUrl, taprootAddress });
+    logger.info('Saving sent locked token', {
+      recipient,
+      amount,
+      txid,
+      hasShortUrl: Boolean(shortUrl),
+      taprootAddress,
+    });
 
     // Load existing tokens
     const existingTokens = await getSentLockedTokens();
@@ -212,14 +218,13 @@ export const clearSentLockedTokens = async (): Promise<void> => {
  * Returns the ducat:// deeplink directly without shortening
  */
 export const generateTurboDeeplink = async (token: string, _recipient: string, _amount: number): Promise<string> => {
-  logger.debug('[TurboDeeplink] Generating deeplink with token:', token.substring(0, 50) + '...');
-  logger.debug('[TurboDeeplink] Token starts with:', token.substring(0, 10));
+  logger.debug('[TurboDeeplink] Generating deeplink for locked token', { tokenLength: token.length });
 
   // Try to shorten using Ducat server first
   try {
     const { shortenCashuToken } = await import('../urlShortener');
     const shortUrl = await shortenCashuToken(token);
-    logger.debug('[TurboDeeplink] Shortened URL from Ducat server:', shortUrl);
+    logger.debug('[TurboDeeplink] Shortened URL from Ducat server', { shortUrlLength: shortUrl.length });
     return shortUrl;
   } catch (error: unknown) {
     logger.error('[TurboDeeplink] Failed to shorten with Ducat server', { error });

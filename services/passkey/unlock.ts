@@ -23,15 +23,15 @@ const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
  * The PASSKEY.TIMEOUT_MS in the request is a hint to the OS and not always enforced.
  */
 const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('Passkey authentication timed out — please try again or use your PIN')),
-        PASSKEY_NATIVE_TIMEOUT_MS,
-      ),
-    ),
-  ]);
+  new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Passkey authentication timed out — please try again or use your PIN')),
+      PASSKEY_NATIVE_TIMEOUT_MS,
+    );
+    (timeout as { unref?: () => void }).unref?.();
+
+    promise.then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
 
 import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';

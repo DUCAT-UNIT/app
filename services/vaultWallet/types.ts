@@ -3,7 +3,6 @@
  */
 
 import type { WalletConfig } from '@ducat-unit/client-sdk';
-import * as bitcoin from 'bitcoinjs-lib';
 import { API, VAULT_CONFIG } from '../../utils/constants';
 import { APP_NETWORK_CONFIG } from '../../utils/networkConfig';
 
@@ -20,22 +19,6 @@ export const WALLET_CFG: WalletConfig = {
     vault: VAULT_CONFIG.TOKEN_POSTAGE,
   },
 };
-
-/**
- * Internal PSBT cache type for low-level signing operations.
- * bitcoinjs-lib exposes __CACHE for advanced use cases like Taproot signing.
- */
-export interface PsbtCache {
-  __TX: bitcoin.Transaction & {
-    hashForWitnessV1(
-      inputIndex: number,
-      scripts: Buffer[],
-      values: bigint[],
-      sighashType: number,
-      leafHash?: Buffer
-    ): Buffer;
-  };
-}
 
 export interface MobileWalletInfo {
   segwitAddress: string;

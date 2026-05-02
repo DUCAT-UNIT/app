@@ -112,6 +112,17 @@ describe('Vault Utils', () => {
       expect(() => readVarInt(buffer, 0)).toThrow('64-bit varint not supported');
     });
 
+    it('should reject out-of-bounds offsets', () => {
+      const buffer = Buffer.from([0x05]);
+      expect(() => readVarInt(buffer, -1)).toThrow('Varint offset out of bounds');
+      expect(() => readVarInt(buffer, 1)).toThrow('Varint offset out of bounds');
+    });
+
+    it('should reject truncated multi-byte varints', () => {
+      expect(() => readVarInt(Buffer.from([0xfd, 0x01]), 0)).toThrow('Truncated 16-bit varint');
+      expect(() => readVarInt(Buffer.from([0xfe, 0x01, 0x02, 0x03]), 0)).toThrow('Truncated 32-bit varint');
+    });
+
     it('should read varint at offset', () => {
       const buffer = Buffer.from([0x00, 0x00, 0x10]); // varint at offset 2
       const result = readVarInt(buffer, 2);
@@ -133,6 +144,68 @@ describe('Vault Utils', () => {
       const result = extractOpReturnFromTxHex('invalidhex');
       expect(result).toContain('error:');
     });
+
+    it('should extract OP_RETURN from a non-witness raw transaction', () => {
+      const p2wpkhScript = `0014${'11'.repeat(20)}`;
+      const txHex = [
+        '01000000',
+        '01',
+        '00'.repeat(32),
+        '00000000',
+        '00',
+        'ffffffff',
+        '02',
+        'e803000000000000',
+        '16',
+        p2wpkhScript,
+        '0000000000000000',
+        '03',
+        '6a5d01',
+        '00000000',
+      ].join('');
+
+      expect(extractOpReturnFromTxHex(txHex)).toBe('6a5d01');
+    });
+
+    it('should extract OP_RETURN from a witness raw transaction', () => {
+      const txHex = [
+        '02000000',
+        '0001',
+        '01',
+        '11'.repeat(32),
+        '01000000',
+        '00',
+        'ffffffff',
+        '01',
+        '0000000000000000',
+        '03',
+        '6a5d02',
+        '01',
+        '00',
+        '00000000',
+      ].join('');
+
+      expect(extractOpReturnFromTxHex(txHex)).toBe('6a5d02');
+    });
+
+    it('should return null when no OP_RETURN output exists', () => {
+      const p2wpkhScript = `0014${'11'.repeat(20)}`;
+      const txHex = [
+        '01000000',
+        '01',
+        '00'.repeat(32),
+        '00000000',
+        '00',
+        'ffffffff',
+        '01',
+        'e803000000000000',
+        '16',
+        p2wpkhScript,
+        '00000000',
+      ].join('');
+
+      expect(extractOpReturnFromTxHex(txHex)).toBeNull();
+    });
   });
 
   describe('checkBatchAllowed', () => {
@@ -141,9 +214,9 @@ describe('Vault Utils', () => {
       expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(true);
     });
 
-    it('should return true for native segwit mainnet address (bc1q)', () => {
+    it('should return false for native segwit mainnet address (bc1q)', () => {
       const wallet = createMockWalletForBatchCheck('bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4');
-      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(true);
+      expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
 
     it('should return false for taproot address (tb1p)', () => {
@@ -182,6 +255,10 @@ describe('Vault Utils', () => {
 
     it('should handle master_id with i0 suffix', () => {
       expect(normalizeMasterId('abc123i0')).toBe('abc123i0');
+    });
+
+    it('should only treat a trailing inscription index as already normalized', () => {
+      expect(normalizeMasterId('mix123')).toBe('mix123i0');
     });
   });
 
@@ -276,6 +353,23 @@ describe('Vault Utils', () => {
       expect(result?.utxo.value).toBe(100000);
     });
 
+    it('should return null for malformed utxo references', () => {
+      const baseTx: MockVaultHistoryTx = {
+        transaction_id: 'abc123',
+        utxo: 'abc123:not-a-vout',
+        amount_borrowed: 1000,
+        oracle_price: 50000,
+        timestamp: 1234567890,
+        action: 'Open',
+        vault_amount: 100000,
+      };
+
+      expect(computeVaultPrevoutFromTx(baseTx)).toBeNull();
+      expect(computeVaultPrevoutFromTx({ ...baseTx, utxo: 'abc123:-1' })).toBeNull();
+      expect(computeVaultPrevoutFromTx({ ...baseTx, utxo: 'abc123:0:extra' })).toBeNull();
+      expect(computeVaultPrevoutFromTx({ ...baseTx, utxo: ':0' })).toBeNull();
+    });
+
     it('should handle missing optional fields', () => {
       const tx: MockVaultHistoryTx = {
         transaction_id: 'abc123',
@@ -337,7 +431,7 @@ describe('Vault Utils', () => {
       const vaultInfo = {
         creation_account: 'acct',
         guard_pubkey: 'guard',
-        master_id: 'masterid5',
+        master_id: 'masteri5',
       };
       const vaultPrevout = {
         rdata: {} as any,
@@ -345,7 +439,7 @@ describe('Vault Utils', () => {
       };
 
       const profile = buildVaultProfile(vaultPubkey, vaultInfo, vaultPrevout);
-      expect(profile.master_id).toBe('masterid5'); // Already has i, no change
+      expect(profile.master_id).toBe('masteri5'); // Already has trailing index, no change
     });
   });
 });
@@ -767,7 +861,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10000 }]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -799,7 +893,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn().mockResolvedValue([]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -830,7 +924,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn(),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -861,7 +955,7 @@ describe('Vault Request Creation', () => {
           },
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -894,7 +988,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10000 }]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -929,7 +1023,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn().mockResolvedValue([]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -959,7 +1053,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn(),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -1210,7 +1304,7 @@ describe('Vault Request Creation', () => {
           rune_utxos: jest.fn().mockResolvedValue([{ txid: 'unit_utxo', vout: 0, amount: 5000 }]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -1244,7 +1338,7 @@ describe('Vault Request Creation', () => {
           sats_utxos: jest.fn().mockResolvedValue([]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 
@@ -1271,7 +1365,7 @@ describe('Vault Request Creation', () => {
           rune_utxos: jest.fn().mockResolvedValue([]),
         },
         acct: {
-          sats: { address: 'bc1qtest' },
+          sats: { address: 'tb1qtest' },
         },
       };
 

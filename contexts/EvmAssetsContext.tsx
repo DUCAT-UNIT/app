@@ -8,27 +8,39 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import { EVM_CONFIG } from '../constants/evm';
+import { InteractionManager } from 'react-native';
+import { isEvmBridgeConfigured, isSepoliaRpcConfigured } from '../constants/evm';
 import { usePolling } from '../hooks/usePolling';
 import {
+  fetchSepoliaEthHistory,
   fetchSepoliaTokenHistory,
   getEvmBalances,
   type EvmBalances,
   type SepoliaAssetHistoryItem,
 } from '../services/evmBridgeService';
+import { reconcileSubmittedEvmTransactionCheckpoints } from '../services/evmTransactionCheckpointService';
+import { refreshPersistedVaultSettlementStatus } from '../services/vaultSettlementService';
+import { useEvmTransactionCheckpointStore } from '../stores/evmTransactionCheckpointStore';
+import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
+import { backfillEvmHistoryFromCheckpoints } from '../utils/evmCheckpointDisplay';
+import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
-const BALANCE_POLL_INTERVAL_MS = 5_000;
-const HISTORY_POLL_INTERVAL_MS = 15_000;
+const BALANCE_POLL_INTERVAL_MS = 15_000;
+const HISTORY_POLL_INTERVAL_MS = 45_000;
 
 export interface EvmAssetsValue {
   evmBalances: EvmBalances | null;
   usdcHistory: SepoliaAssetHistoryItem[];
+  ethHistory: SepoliaAssetHistoryItem[];
   loadingEvmBalances: boolean;
   loadingUsdcHistory: boolean;
+  loadingEthHistory: boolean;
+  isSepoliaConfigured: boolean;
   isEvmConfigured: boolean;
   refreshEvmBalances: () => Promise<void>;
   refreshUsdcHistory: () => Promise<void>;
+  refreshEthHistory: () => Promise<void>;
 }
 
 const EvmAssetsContext = createContext<EvmAssetsValue | undefined>(undefined);
@@ -47,35 +59,43 @@ interface EvmAssetsProviderProps {
 
 export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }) => {
   const { wallet, currentAccount } = useWallet();
-  const isEvmConfigured = Boolean(
-    EVM_CONFIG.rpcUrl
-    && EVM_CONFIG.bridgeApiBaseUrl
-    && EVM_CONFIG.wunitAddress
-    && EVM_CONFIG.bridgeRouterAddress
-    && EVM_CONFIG.stablePoolAddress,
-  );
+  const { isAuthenticated } = useAuthSession();
+  const evmCheckpoints = useEvmTransactionCheckpointStore((state) => state.checkpoints);
+  const usdcFeaturesEnabled = useUsdcFeatureFlagStore((state) => state.enabled);
+  const activeWallet = isAuthenticated ? wallet : null;
+  const isSepoliaConfigured = usdcFeaturesEnabled && isSepoliaRpcConfigured();
+  const isEvmConfigured = usdcFeaturesEnabled && isEvmBridgeConfigured();
 
   const [evmBalances, setEvmBalances] = useState<EvmBalances | null>(null);
   const [usdcHistory, setUsdcHistory] = useState<SepoliaAssetHistoryItem[]>([]);
+  const [ethHistory, setEthHistory] = useState<SepoliaAssetHistoryItem[]>([]);
   const [loadingEvmBalances, setLoadingEvmBalances] = useState(false);
   const [loadingUsdcHistory, setLoadingUsdcHistory] = useState(false);
+  const [loadingEthHistory, setLoadingEthHistory] = useState(false);
   const accountRef = useRef(currentAccount);
   const balanceInFlightRef = useRef(false);
   const historyInFlightRef = useRef(false);
+  const ethHistoryInFlightRef = useRef(false);
   const balancesLoadedRef = useRef(false);
   const historyLoadedRef = useRef(false);
+  const ethHistoryLoadedRef = useRef(false);
+  const initialHistoryTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const settlementRecoveryTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const settlementRecoveryKeyRef = useRef<string | null>(null);
+  const evmCheckpointRecoveryTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const evmCheckpointRecoveryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     accountRef.current = currentAccount;
   }, [currentAccount]);
 
   const refreshEvmBalances = useCallback(async () => {
-    if (!wallet || !isEvmConfigured || balanceInFlightRef.current) {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || balanceInFlightRef.current) {
       return;
     }
 
     balanceInFlightRef.current = true;
-    const shouldShowLoading = !balancesLoadedRef.current && !evmBalances;
+    const shouldShowLoading = !balancesLoadedRef.current;
     if (shouldShowLoading) {
       setLoadingEvmBalances(true);
     }
@@ -96,15 +116,15 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
         setLoadingEvmBalances(false);
       }
     }
-  }, [currentAccount, evmBalances, isEvmConfigured, wallet]);
+  }, [activeWallet, currentAccount, isSepoliaConfigured, usdcFeaturesEnabled]);
 
   const refreshUsdcHistory = useCallback(async () => {
-    if (!wallet || !isEvmConfigured || historyInFlightRef.current) {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || historyInFlightRef.current) {
       return;
     }
 
     historyInFlightRef.current = true;
-    const shouldShowLoading = !historyLoadedRef.current && usdcHistory.length === 0;
+    const shouldShowLoading = !historyLoadedRef.current;
     if (shouldShowLoading) {
       setLoadingUsdcHistory(true);
     }
@@ -125,55 +145,243 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
         setLoadingUsdcHistory(false);
       }
     }
-  }, [currentAccount, isEvmConfigured, usdcHistory.length, wallet]);
+  }, [activeWallet, currentAccount, isSepoliaConfigured, usdcFeaturesEnabled]);
+
+  const refreshEthHistory = useCallback(async () => {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || ethHistoryInFlightRef.current) {
+      return;
+    }
+
+    ethHistoryInFlightRef.current = true;
+    const shouldShowLoading = !ethHistoryLoadedRef.current;
+    if (shouldShowLoading) {
+      setLoadingEthHistory(true);
+    }
+
+    try {
+      const nextHistory = await fetchSepoliaEthHistory(currentAccount);
+      if (accountRef.current === currentAccount) {
+        setEthHistory(nextHistory);
+        ethHistoryLoadedRef.current = true;
+      }
+    } catch {
+      if (accountRef.current === currentAccount && !ethHistoryLoadedRef.current) {
+        setEthHistory([]);
+      }
+    } finally {
+      ethHistoryInFlightRef.current = false;
+      if (accountRef.current === currentAccount && shouldShowLoading) {
+        setLoadingEthHistory(false);
+      }
+    }
+  }, [activeWallet, currentAccount, isSepoliaConfigured, usdcFeaturesEnabled]);
 
   useEffect(() => {
-    if (!wallet || !isEvmConfigured) {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured) {
+      initialHistoryTaskRef.current?.cancel();
+      initialHistoryTaskRef.current = null;
+      settlementRecoveryTaskRef.current?.cancel();
+      settlementRecoveryTaskRef.current = null;
+      settlementRecoveryKeyRef.current = null;
+      evmCheckpointRecoveryTaskRef.current?.cancel();
+      evmCheckpointRecoveryTaskRef.current = null;
+      evmCheckpointRecoveryKeyRef.current = null;
       setEvmBalances(null);
       setUsdcHistory([]);
+      setEthHistory([]);
       setLoadingEvmBalances(false);
       setLoadingUsdcHistory(false);
+      setLoadingEthHistory(false);
       balanceInFlightRef.current = false;
       historyInFlightRef.current = false;
+      ethHistoryInFlightRef.current = false;
       balancesLoadedRef.current = false;
       historyLoadedRef.current = false;
+      ethHistoryLoadedRef.current = false;
       return;
     }
 
     refreshEvmBalances().catch(() => undefined);
-    refreshUsdcHistory().catch(() => undefined);
-  }, [currentAccount, isEvmConfigured, refreshEvmBalances, refreshUsdcHistory, wallet]);
+
+    initialHistoryTaskRef.current?.cancel();
+    initialHistoryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      refreshUsdcHistory().catch(() => undefined);
+      refreshEthHistory().catch(() => undefined);
+    });
+
+    return () => {
+      initialHistoryTaskRef.current?.cancel();
+      initialHistoryTaskRef.current = null;
+    };
+  }, [activeWallet, currentAccount, isSepoliaConfigured, refreshEvmBalances, refreshEthHistory, refreshUsdcHistory, usdcFeaturesEnabled]);
+
+  useEffect(() => {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || !isEvmConfigured) {
+      settlementRecoveryTaskRef.current?.cancel();
+      settlementRecoveryTaskRef.current = null;
+      settlementRecoveryKeyRef.current = null;
+      return undefined;
+    }
+
+    const recoveryKey = `${currentAccount}:${activeWallet.taprootAddress || ''}`;
+    if (settlementRecoveryKeyRef.current === recoveryKey) {
+      return undefined;
+    }
+
+    settlementRecoveryKeyRef.current = recoveryKey;
+    let cancelled = false;
+
+    settlementRecoveryTaskRef.current?.cancel();
+    settlementRecoveryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      refreshPersistedVaultSettlementStatus()
+        .then((result) => {
+          if (cancelled) {
+            return;
+          }
+
+          if (result.status === 'settled' || result.status === 'ready_to_repay') {
+            refreshEvmBalances().catch(() => undefined);
+            refreshUsdcHistory().catch(() => undefined);
+            refreshEthHistory().catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
+    });
+
+    return () => {
+      cancelled = true;
+      settlementRecoveryTaskRef.current?.cancel();
+      settlementRecoveryTaskRef.current = null;
+    };
+  }, [
+    activeWallet,
+    activeWallet?.taprootAddress,
+    currentAccount,
+    isEvmConfigured,
+    isSepoliaConfigured,
+    refreshEvmBalances,
+    refreshEthHistory,
+    refreshUsdcHistory,
+    usdcFeaturesEnabled,
+  ]);
+
+  useEffect(() => {
+    if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured) {
+      evmCheckpointRecoveryTaskRef.current?.cancel();
+      evmCheckpointRecoveryTaskRef.current = null;
+      evmCheckpointRecoveryKeyRef.current = null;
+      return undefined;
+    }
+
+    const recoveryKey = `${currentAccount}:${activeWallet.taprootAddress || ''}:evm-checkpoints`;
+    if (evmCheckpointRecoveryKeyRef.current === recoveryKey) {
+      return undefined;
+    }
+
+    evmCheckpointRecoveryKeyRef.current = recoveryKey;
+    let cancelled = false;
+
+    evmCheckpointRecoveryTaskRef.current?.cancel();
+    evmCheckpointRecoveryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      reconcileSubmittedEvmTransactionCheckpoints()
+        .then((result) => {
+          if (cancelled) {
+            return;
+          }
+
+          if (result.confirmed > 0 || result.failed > 0) {
+            refreshEvmBalances().catch(() => undefined);
+            refreshUsdcHistory().catch(() => undefined);
+            refreshEthHistory().catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
+    });
+
+    return () => {
+      cancelled = true;
+      evmCheckpointRecoveryTaskRef.current?.cancel();
+      evmCheckpointRecoveryTaskRef.current = null;
+    };
+  }, [
+    activeWallet,
+    activeWallet?.taprootAddress,
+    currentAccount,
+    isSepoliaConfigured,
+    refreshEvmBalances,
+    refreshEthHistory,
+    refreshUsdcHistory,
+    usdcFeaturesEnabled,
+  ]);
 
   usePolling({
     onPoll: refreshEvmBalances,
     interval: BALANCE_POLL_INTERVAL_MS,
-    enabled: Boolean(wallet && isEvmConfigured),
+    enabled: Boolean(activeWallet && usdcFeaturesEnabled && isSepoliaConfigured),
     immediate: false,
   });
 
   usePolling({
     onPoll: refreshUsdcHistory,
     interval: HISTORY_POLL_INTERVAL_MS,
-    enabled: Boolean(wallet && isEvmConfigured),
+    enabled: Boolean(activeWallet && usdcFeaturesEnabled && isSepoliaConfigured),
     immediate: false,
   });
 
+  usePolling({
+    onPoll: refreshEthHistory,
+    interval: HISTORY_POLL_INTERVAL_MS,
+    enabled: Boolean(activeWallet && usdcFeaturesEnabled && isSepoliaConfigured),
+    immediate: false,
+  });
+
+  const displayUsdcHistory = useMemo(
+    () => usdcFeaturesEnabled ? backfillEvmHistoryFromCheckpoints(
+      usdcHistory,
+      evmCheckpoints,
+      'USDC',
+      currentAccount,
+      evmBalances?.address,
+    ) : [],
+    [currentAccount, evmBalances?.address, evmCheckpoints, usdcFeaturesEnabled, usdcHistory],
+  );
+
+  const displayEthHistory = useMemo(
+    () => usdcFeaturesEnabled ? backfillEvmHistoryFromCheckpoints(
+      ethHistory,
+      evmCheckpoints,
+      'ETH',
+      currentAccount,
+      evmBalances?.address,
+    ) : [],
+    [currentAccount, ethHistory, evmBalances?.address, evmCheckpoints, usdcFeaturesEnabled],
+  );
+
   const value = useMemo<EvmAssetsValue>(() => ({
-    evmBalances,
-    usdcHistory,
+    evmBalances: usdcFeaturesEnabled ? evmBalances : null,
+    usdcHistory: displayUsdcHistory,
+    ethHistory: displayEthHistory,
     loadingEvmBalances,
     loadingUsdcHistory,
-    isEvmConfigured,
+    loadingEthHistory,
+    isSepoliaConfigured: usdcFeaturesEnabled && isSepoliaConfigured,
+    isEvmConfigured: usdcFeaturesEnabled && isEvmConfigured,
     refreshEvmBalances,
     refreshUsdcHistory,
+    refreshEthHistory,
   }), [
     evmBalances,
-    usdcHistory,
+    displayUsdcHistory,
+    displayEthHistory,
     loadingEvmBalances,
     loadingUsdcHistory,
+    loadingEthHistory,
+    isSepoliaConfigured,
     isEvmConfigured,
     refreshEvmBalances,
     refreshUsdcHistory,
+    refreshEthHistory,
+    usdcFeaturesEnabled,
   ]);
 
   return (

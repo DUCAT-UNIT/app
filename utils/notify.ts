@@ -241,5 +241,3 @@ export const notify = {
     notify.error(message);
   },
 };
-
-export default notify;

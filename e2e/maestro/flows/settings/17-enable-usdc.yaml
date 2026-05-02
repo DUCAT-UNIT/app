@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Enable USDC - Verify hidden Sepolia surfaces are unlocked only through developer settings.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- assertNotVisible:
+    id: "asset-card-usdc"
+- assertNotVisible:
+    id: "asset-card-eth"
+
+- runFlow: ../helpers/enable-usdc.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "asset-card-usdc"
+    direction: DOWN
+    timeout: 15000
+- assertVisible:
+    id: "asset-card-eth"
+- assertVisible:
+    id: "asset-card-usdc"

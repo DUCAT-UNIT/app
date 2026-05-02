@@ -1,0 +1,64 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Sepolia USDC Send Validation - Verify ERC-20 send surface validates recipient input without signing.
+
+- runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "asset-card-usdc"
+    direction: DOWN
+    timeout: 15000
+    centerElement: true
+
+- tapOn:
+    text: "Sepolia USDC"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "wallet-screen"
+    commands:
+      - tapOn:
+          id: "asset-card-usdc"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+
+- assertVisible:
+    text: "Sepolia USDC"
+
+- tapOn:
+    id: "asset-detail-send-btn"
+- extendedWaitUntil:
+    visible:
+      id: "sepolia-send-screen"
+    timeout: 10000
+
+- assertVisible:
+    text: "Send Sepolia USDC"
+- assertVisible:
+    id: "sepolia-send-recipient-input"
+- assertVisible:
+    id: "sepolia-send-amount-focus-target"
+- assertVisible:
+    text: "Network fee"
+- assertVisible:
+    id: "sepolia-send-submit-btn"
+
+- tapOn:
+    id: "sepolia-send-recipient-input"
+- inputText: "not-an-ethereum-address"
+- hideKeyboard
+- assertVisible:
+    id: "sepolia-send-recipient-error"
+
+- tapOn:
+    id: "sepolia-send-amount-focus-target"
+- inputText: "1"
+- hideKeyboard
+- assertVisible:
+    text: "Enter a valid Ethereum address."

@@ -16,6 +16,13 @@ interface AssetAboutProps {
   evmAddress?: string;
 }
 
+function getAssetDisplayName(assetType: string): string {
+  if (assetType === 'BTC') return 'Bitcoin';
+  if (assetType === 'ETH') return 'Sepolia ETH';
+  if (assetType === 'USDC') return 'Sepolia USDC';
+  return assetType;
+}
+
 export function AssetAbout({ assetType, evmAddress }: AssetAboutProps) {
   const { s, sf } = useResponsive();
   const openLink = useCallback(async (url: string) => {
@@ -41,7 +48,7 @@ export function AssetAbout({ assetType, evmAddress }: AssetAboutProps) {
           fontWeight: '600',
           color: COLORS.WHITE,
           marginBottom: s(8),
-        }}>About {assetType === 'BTC' ? 'Bitcoin' : assetType}</Text>
+        }}>About {getAssetDisplayName(assetType)}</Text>
         <Text style={{
           fontSize: sf(14),
           color: COLORS.SECONDARY_TEXT,
@@ -51,7 +58,9 @@ export function AssetAbout({ assetType, evmAddress }: AssetAboutProps) {
             ? 'Bitcoin is a decentralized digital currency that can be transferred on the peer-to-peer bitcoin network. Bitcoin transactions are verified by network nodes through cryptography and recorded in a public distributed ledger called a blockchain.'
             : assetType === 'UNIT'
               ? 'UNIT is designed to be a BTC-backed Collateralised Debt Position (CDP), programmed to be soft-pegged to the USD at 1.01 to 1.04 UNIT per USD before transaction costs, to finance responsible lending and leverage.'
-              : 'USDC is a USD-denominated stablecoin. In this wallet it is tracked on Ethereum Sepolia and can be swapped against wUNIT through the Sepolia stable pool.'
+              : assetType === 'ETH'
+                ? 'Sepolia ETH is testnet Ether used to pay gas on Ethereum Sepolia. It has no production monetary value, but the app needs it to send Sepolia USDC, send wUNIT, execute swaps, and request redemptions.'
+                : 'Sepolia USDC is a USD-denominated test token tracked on Ethereum Sepolia. It can be swapped against wUNIT through the Sepolia stable pool.'
           }
         </Text>
       </View>
@@ -110,7 +119,7 @@ export function AssetAbout({ assetType, evmAddress }: AssetAboutProps) {
         </View>
       )}
 
-      {assetType === 'USDC' && (
+      {(assetType === 'USDC' || assetType === 'ETH') && (
         <View style={{
           backgroundColor: COLORS.CARD_BG,
           borderRadius: s(12),
@@ -143,29 +152,31 @@ export function AssetAbout({ assetType, evmAddress }: AssetAboutProps) {
             </TouchableOpacity>
           ) : null}
 
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => openLink(`${EVM_CONFIG.explorerBaseUrl}/token/${EVM_CONFIG.usdcAddress}`)}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View>
-              <Text style={{
-                fontSize: sf(14),
-                color: COLORS.SECONDARY_TEXT,
-                marginBottom: s(4),
-              }}>USDC contract</Text>
-              <Text style={{
-                fontSize: sf(14),
-                fontWeight: '600',
-                color: COLORS.WHITE,
-              }}>{`${EVM_CONFIG.usdcAddress.slice(0, 8)}...${EVM_CONFIG.usdcAddress.slice(-6)}`}</Text>
-            </View>
-            <Icon name="external_link" size={16} color={COLORS.PRIMARY_BLUE} />
-          </TouchableOpacity>
+          {assetType === 'USDC' && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => openLink(`${EVM_CONFIG.explorerBaseUrl}/token/${EVM_CONFIG.usdcAddress}`)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View>
+                <Text style={{
+                  fontSize: sf(14),
+                  color: COLORS.SECONDARY_TEXT,
+                  marginBottom: s(4),
+                }}>Sepolia USDC contract</Text>
+                <Text style={{
+                  fontSize: sf(14),
+                  fontWeight: '600',
+                  color: COLORS.WHITE,
+                }}>{`${EVM_CONFIG.usdcAddress.slice(0, 8)}...${EVM_CONFIG.usdcAddress.slice(-6)}`}</Text>
+              </View>
+              <Icon name="external_link" size={16} color={COLORS.PRIMARY_BLUE} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>

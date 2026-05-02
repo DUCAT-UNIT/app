@@ -257,5 +257,3 @@ const styles = StyleSheet.create({
     aspectRatio: 1.5,
   },
 });
-
-export default VaultActionGauge;

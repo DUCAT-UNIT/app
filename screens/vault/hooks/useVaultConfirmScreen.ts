@@ -4,8 +4,9 @@
  */
 
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useCallback,useMemo,useState } from 'react';
+import { useCallback,useMemo,useRef,useState } from 'react';
 import { Alert } from 'react-native';
+import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../../contexts/WalletDataContext';
 import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
 import { usePrice } from '../../../stores/priceStore';
@@ -16,6 +17,8 @@ import {
   getOpCostRepay,
   getVaultSettlementReserveSats,
 } from '../../../utils/vaultUtils';
+import { isE2E } from '../../../utils/e2e';
+import { dismissVaultActionFlow } from '../navigation';
 import type {
   SummaryRow,
   VaultConfirmScreenConfig,
@@ -47,11 +50,13 @@ interface UseVaultConfirmScreenResult {
 
   // State
   isAuthenticating: boolean;
+  isSubmitting: boolean;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   handleConfirm: () => Promise<void>;
+  handleClose: () => void;
   handleBack: () => void;
 }
 
@@ -68,8 +73,12 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   const { config, store, vaultHook } = options;
 
   const { btcPrice } = usePrice();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const confirmInFlightRef = useRef(false);
 
   // Primary amount from config
   const primaryAmount = config.getPrimaryAmount(store);
@@ -77,7 +86,8 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   // Summary rows from config
   const summaryRows = config.getSummaryRows(store, btcPrice);
   const selectedFeeRate = store.selectedFeeRate;
-  const receiveAsset = getReceiveAssetIfPresent(store);
+  const storedReceiveAsset = getReceiveAssetIfPresent(store);
+  const receiveAsset = usdcFeaturesEnabled ? storedReceiveAsset : storedReceiveAsset ? 'UNIT' : null;
 
   // Dynamic fee calculation
   const estimatedFeeSats = useMemo(() => {
@@ -110,16 +120,20 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
 
   // Handle confirm with biometric authentication
   const handleConfirm = useCallback(async () => {
+    if (confirmInFlightRef.current) {
+      return;
+    }
+
+    confirmInFlightRef.current = true;
+    setIsSubmitting(true);
+
     try {
       setIsAuthenticating(true);
-
-      // Skip biometric auth in E2E mode
-      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      if (!isE2E && hasHardware && isEnrolled) {
+      if (!isE2E() && hasHardware && isEnrolled) {
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: config.authMessage,
           fallbackLabel: 'Use PIN',
@@ -132,6 +146,8 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
             Alert.alert('Authentication Failed', 'Please try again');
           }
           setIsAuthenticating(false);
+          setIsSubmitting(false);
+          confirmInFlightRef.current = false;
           return;
         }
       }
@@ -148,13 +164,21 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
     } catch (err) {
       setIsAuthenticating(false);
       Alert.alert('Error', `Failed to complete ${config.operationType}. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+      confirmInFlightRef.current = false;
     }
   }, [config, store, vaultHook, navigation]);
 
   const handleBack = useCallback(() => {
-    store.setCurrentStep(config.routes.selection ? 'payout' : 'input');
+    store.setCurrentStep(config.routes.selection && usdcFeaturesEnabled ? 'payout' : 'input');
     navigation.goBack();
-  }, [config.routes.selection, store, navigation]);
+  }, [config.routes.selection, store, navigation, usdcFeaturesEnabled]);
+
+  const handleClose = useCallback(() => {
+    store.reset();
+    dismissVaultActionFlow(navigation);
+  }, [store, navigation]);
 
   return {
     // Primary amount
@@ -170,11 +194,13 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
 
     // State
     isAuthenticating,
+    isSubmitting,
     isLoading: vaultHook.isLoading,
     error: store.error,
 
     // Actions
     handleConfirm,
+    handleClose,
     handleBack,
   };
 }

@@ -1,0 +1,358 @@
+:root {
+  color-scheme: dark;
+  --bg: #090a0d;
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-strong: rgba(255, 255, 255, 0.075);
+  --ink: #f5f5f7;
+  --muted: rgba(245, 245, 247, 0.62);
+  --line: rgba(255, 255, 255, 0.10);
+  --accent: #1858e4;
+  --green: #59aa8a;
+  --red: #d04c68;
+  --orange: #f5a623;
+  --blue: #77a7ff;
+  --shadow: rgba(0, 0, 0, 0.34);
+  font-family: CabinetGrotesk, "Avenir Next", Avenir, "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(24, 88, 228, 0.20), transparent 28rem),
+    radial-gradient(circle at 86% 0%, rgba(89, 170, 138, 0.12), transparent 24rem),
+    linear-gradient(145deg, #111216 0%, #08090c 58%, #111316 100%);
+  color: var(--ink);
+}
+
+body::before {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+
+button {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #08090c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0.85rem 1.2rem;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.56;
+}
+
+.shell {
+  margin: 0 auto;
+  max-width: 1180px;
+  padding: 40px 20px 64px;
+  position: relative;
+}
+
+.hero {
+  align-items: stretch;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-family: CabinetGrotesk, "Avenir Next", Avenir, "Helvetica Neue", sans-serif;
+  font-size: clamp(2.6rem, 6vw, 4.8rem);
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  margin: 0;
+  max-width: 780px;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.6;
+  max-width: 690px;
+}
+
+.hero-card,
+.panel,
+.metric,
+.warning-strip {
+  backdrop-filter: blur(22px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 22px 60px var(--shadow);
+}
+
+.hero-card {
+  align-content: space-between;
+  border-radius: 30px;
+  display: grid;
+  gap: 18px;
+  justify-items: start;
+  padding: 24px;
+}
+
+.metric-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 22px 0;
+}
+
+.metric {
+  border-radius: 24px;
+  min-height: 136px;
+  padding: 18px;
+}
+
+.metric span,
+.field-label,
+.ready-card span,
+th,
+.muted,
+small {
+  color: var(--muted);
+}
+
+.metric strong {
+  display: block;
+  font-family: CabinetGrotesk, "Avenir Next", Avenir, "Helvetica Neue", sans-serif;
+  font-size: clamp(1.35rem, 3vw, 2.15rem);
+  line-height: 1;
+  margin-top: 18px;
+  overflow-wrap: anywhere;
+}
+
+.panel {
+  border-radius: 28px;
+  margin-top: 16px;
+  padding: 22px;
+}
+
+.panel-title {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.warning-strip {
+  background: rgba(245, 166, 35, 0.10);
+  border-color: rgba(245, 166, 35, 0.32);
+  border-radius: 20px;
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+  padding: 14px 16px;
+}
+
+.warning-strip span {
+  color: #f6c16d;
+}
+
+.readiness-grid,
+.health-grid,
+.field-grid,
+.address-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ready-card,
+.health-card,
+.field,
+.snapshot-row {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.ready-card {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.health-card {
+  min-height: 128px;
+}
+
+.health-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.health-card p,
+.empty {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+
+.health-ok {
+  border-color: rgba(120, 208, 145, 0.42);
+}
+
+.health-warning {
+  border-color: rgba(243, 168, 83, 0.48);
+}
+
+.health-error {
+  border-color: rgba(255, 113, 104, 0.46);
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field-value {
+  overflow-wrap: anywhere;
+}
+
+.field.good .field-value {
+  color: var(--green);
+}
+
+.field.warn .field-value {
+  color: var(--orange);
+}
+
+.pill {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.73rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 0.36rem 0.62rem;
+  text-transform: uppercase;
+}
+
+.pill-ready,
+.pill-ok,
+.pill-configured {
+  color: var(--green);
+}
+
+.pill-degraded,
+.pill-warning,
+.pill-incomplete {
+  color: var(--orange);
+}
+
+.pill-error,
+.pill-unconfigured,
+.pill-missing {
+  color: var(--red);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 720px;
+  width: 100%;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 10px;
+  text-align: left;
+}
+
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+.error-box {
+  background: rgba(255, 113, 104, 0.12);
+  border: 1px solid rgba(255, 113, 104, 0.42);
+  border-radius: 18px;
+  color: #ffb8b3;
+  margin-bottom: 14px;
+  padding: 14px;
+  overflow-wrap: anywhere;
+}
+
+.snapshot-list {
+  display: grid;
+  gap: 10px;
+}
+
+.snapshot-row {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr 1.4fr;
+}
+
+@media (max-width: 940px) {
+  .hero,
+  .metric-grid,
+  .readiness-grid,
+  .health-grid,
+  .field-grid,
+  .address-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 24px 14px 48px;
+  }
+
+  .hero,
+  .metric-grid,
+  .readiness-grid,
+  .health-grid,
+  .field-grid,
+  .address-list,
+  .snapshot-row {
+    grid-template-columns: 1fr;
+  }
+
+  .panel,
+  .hero-card,
+  .metric {
+    border-radius: 22px;
+  }
+}

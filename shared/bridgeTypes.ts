@@ -90,11 +90,6 @@ export interface CreateBridgeIntentResponse {
   intent: BridgeIntent;
 }
 
-export interface QuoteSwapRequest {
-  tokenIn: 'USDC' | 'wUNIT';
-  amountIn: string;
-}
-
 export interface SwapQuote {
   tokenIn: 'USDC' | 'wUNIT';
   tokenOut: 'USDC' | 'wUNIT';

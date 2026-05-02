@@ -8,6 +8,7 @@ import { useRepay } from '../../stores/repayStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { registerVaultSettlementHistory } from '../../services/vaultSettlementHistoryService';
 
@@ -25,6 +26,7 @@ type RepaySuccessScreenProps = StackScreenProps<RepayStackParamList, 'RepaySucce
 export default function RepaySuccessScreen({ navigation, route }: RepaySuccessScreenProps) {
   const { vaultTxid: storeVaultTxid, repayAmountUsd, reset } = useRepay();
   const { wallet } = useWallet();
+  const { settingsHandlers } = useSettingsHandlers();
   const {
     kind,
     payoutAsset,
@@ -80,13 +82,15 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
     });
   }, [resetSettlement, reset, navigation]);
 
-  const repaidFromUsdc = kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
+  const repaidFromUsdc = settingsHandlers.usdcFeaturesEnabled && kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
   const successUnit = repaidFromUsdc ? 'USDC' : 'USD';
   const successAmount = repaidFromUsdc ? Number.parseFloat(payoutAmount) || repayAmountUsd : repayAmountUsd;
   const titleOverride = repaidFromUsdc ? 'Repayment Complete!' : undefined;
   const messageOverride = repaidFromUsdc
-    ? 'USDC was swapped back into UNIT and the released UNIT repaid your vault on Mutinynet.'
-    : settlementError || undefined;
+    ? 'Sepolia USDC was swapped back into UNIT and the released UNIT repaid your vault on Mutinynet.'
+    : settingsHandlers.usdcFeaturesEnabled
+      ? settlementError || undefined
+      : undefined;
 
   return (
     <VaultActionSuccess

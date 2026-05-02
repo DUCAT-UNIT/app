@@ -39,12 +39,10 @@ export interface BtcSufficiencyResult {
 }
 
 // Transaction size constants (matching transactionCalculationService and vaultUtils)
-export const BASE_TX_SIZE = 10;
 export const P2WPKH_INPUT_SIZE = 68;  // Native SegWit input
 export const P2TR_INPUT_SIZE = 57;    // Taproot input
 export const P2SH_INPUT_SIZE = 108;   // P2SH input
 export const P2PKH_INPUT_SIZE = 148;  // Legacy input
-export const P2WPKH_OUTPUT_SIZE = 31;
 export const DEFAULT_FEE_RATE = 1; // sats per vbyte
 
 // Buffer percentage for fee safety margin (10%)

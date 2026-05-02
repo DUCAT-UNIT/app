@@ -4,15 +4,15 @@
  */
 
 import { NavigationContainer,NavigationContainerRef,Route } from '@react-navigation/native';
-import { CardStyleInterpolators,createStackNavigator,StackNavigationOptions } from '@react-navigation/stack';
+import { createStackNavigator,StackNavigationOptions } from '@react-navigation/stack';
 import React,{ createRef,useCallback,useEffect,useRef } from 'react';
-import { ActivityIndicator,Alert,Keyboard,StyleSheet,Text,View } from 'react-native';
-import AnnouncementModal from '../components/AnnouncementModal';
+import { ActivityIndicator,Alert,InteractionManager,Keyboard,StyleSheet,Text,View } from 'react-native';
 import BiometricSetupModal from '../components/BiometricSetupModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import LockScreen from '../screens/auth/LockScreen';
+import VaultSuccessPreviewScreenComponent from '../screens/dev/VaultSuccessPreviewScreen';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import {
 authenticateWithBiometrics,
@@ -32,8 +32,8 @@ WithdrawNavigator,
 
 import {
 useAirdrop,
-useAuth,
 useAuthFlowHandlers,
+useAuthSession,
 useBalance,
 useCashuOperations,
 useOnboardingFlow,
@@ -47,12 +47,10 @@ import { useNotifications as useNotificationsPush } from '../hooks/useNotificati
 import type { NotificationDataType } from '../hooks/useNotifications';
 import * as Notifications from 'expo-notifications';
 import { isE2E } from '../utils/e2e';
-import { deleteWalletData } from '../services/secureStorageService';
-import { resetOnboardingState } from '../utils/onboardingHelpers';
+import { performFullWalletReset } from '../services/walletResetService';
 
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
-import { useRemoteConfigStore } from '../stores/remoteConfigStore';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import { logger } from '../utils/logger';
@@ -65,15 +63,6 @@ import type { RootNavigatorParamList } from './types';
 type AnyComponent = React.ComponentType<any>;
 
 const Stack = createStackNavigator<RootNavigatorParamList>();
-
-// No animation options for instant screen transitions
-const noAnimationOptions: StackNavigationOptions = {
-  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
-  transitionSpec: {
-    open: { animation: 'timing', config: { duration: 0 } },
-    close: { animation: 'timing', config: { duration: 0 } },
-  },
-};
 
 // Bubble zoom animation for vault action flows (Repay, Borrow, Deposit, Withdraw)
 const bubbleZoomOptions: StackNavigationOptions = {
@@ -107,6 +96,11 @@ const bubbleZoomOptions: StackNavigationOptions = {
 const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, {
   boundaryName: 'PinSetupScreen',
   fallbackMessage: 'Unable to load PIN setup. Please restart the app.',
+});
+
+const VaultSuccessPreviewScreen: AnyComponent = withErrorBoundary(VaultSuccessPreviewScreenComponent, {
+  boundaryName: 'VaultSuccessPreviewScreen',
+  fallbackMessage: 'Unable to load success preview. Please try again.',
 });
 
 // Create linking config once
@@ -152,21 +146,21 @@ const PinChangeOverlay = React.memo(function PinChangeOverlay({
   );
 });
 
-interface LockScreenOverlayProps {
+interface LockScreenRouteProps {
   onAuthenticated: () => Promise<void>;
   showFaceIdButton: boolean;
   onFaceIdPress: () => Promise<void>;
   onResetWallet: () => void;
 }
 
-const LockScreenOverlay = React.memo(function LockScreenOverlay({
+const LockScreenRoute = React.memo(function LockScreenRoute({
   onAuthenticated,
   showFaceIdButton,
   onFaceIdPress,
   onResetWallet,
-}: LockScreenOverlayProps): React.JSX.Element {
+}: LockScreenRouteProps): React.JSX.Element {
   return (
-    <View style={styles.lockOverlay}>
+    <View style={styles.lockScreenContainer}>
       <MutinynetBanner />
       <LockScreen
         onAuthenticated={onAuthenticated}
@@ -178,10 +172,7 @@ const LockScreenOverlay = React.memo(function LockScreenOverlay({
   );
 });
 
-interface TokenVerificationOverlayProps {}
-
 const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(
-  _props: TokenVerificationOverlayProps,
 ): React.JSX.Element {
   return (
     <View style={styles.loadingOverlay}>
@@ -196,6 +187,8 @@ const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(
 export default function RootNavigator(): React.JSX.Element {
   // Track current route name for navigation state change logging
   const currentRouteNameRef = useRef('');
+  const pendingScreenLogTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const pendingInactivityResetRef = useRef(false);
 
   const onNavigationStateChange = useCallback((): void => {
     const previousRouteName = currentRouteNameRef.current;
@@ -203,9 +196,19 @@ export default function RootNavigator(): React.JSX.Element {
     currentRouteNameRef.current = currentRoute?.name || '';
 
     if (previousRouteName !== currentRouteNameRef.current && currentRouteNameRef.current) {
-      logger.screen(currentRouteNameRef.current, {} as LogContext);
-      analytics.screen(currentRouteNameRef.current);
+      pendingScreenLogTaskRef.current?.cancel();
+      const nextRouteName = currentRouteNameRef.current;
+      pendingScreenLogTaskRef.current = InteractionManager.runAfterInteractions(() => {
+        logger.screen(nextRouteName, {} as LogContext);
+        analytics.screen(nextRouteName);
+      });
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      pendingScreenLogTaskRef.current?.cancel();
+    };
   }, []);
   const { shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay } = useNavigationState();
 
@@ -216,7 +219,7 @@ export default function RootNavigator(): React.JSX.Element {
     setIsAuthenticated,
     setBiometricEnabled,
     resetAuth,
-  } = useAuth();
+  } = useAuthSession();
   const { wallet, switchAccount, resetWallet } = useWallet();
   const { seedConfirmedRef, setSeedConfirmed } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
@@ -256,7 +259,7 @@ export default function RootNavigator(): React.JSX.Element {
 
   // Deep notification response listener — handles taps when app was killed/backgrounded
   useEffect(() => {
-    if (isE2E) return;
+    if (isE2E()) return;
 
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as
@@ -269,27 +272,6 @@ export default function RootNavigator(): React.JSX.Element {
 
     return () => subscription.remove();
   }, [handleNotificationResponse]);
-
-  // Remote config store — announcement + network change
-  const announcement = useRemoteConfigStore((s) => s.config.announcement);
-  const dismissedIds = useRemoteConfigStore((s) => s.dismissedAnnouncementIds);
-  const dismissAnnouncement = useRemoteConfigStore((s) => s.dismissAnnouncement);
-  const pendingNetworkChange = useRemoteConfigStore((s) => s.pendingNetworkChange);
-  const [sessionDismissedAnn, setSessionDismissedAnn] = React.useState(false);
-  const showAnnouncement = announcement.enabled
-    && !!announcement.id
-    && !!announcement.title
-    && !sessionDismissedAnn
-    && (announcement.showMode !== 'once' || !dismissedIds.includes(announcement.id));
-
-  // Show alert when server pushes a network change
-  const networkAlertShown = useRef(false);
-  useEffect(() => {
-    if (pendingNetworkChange && !networkAlertShown.current) {
-      networkAlertShown.current = true;
-      Alert.alert('Network Changed', 'Please restart the app to apply changes.');
-    }
-  }, [pendingNetworkChange]);
 
   // Turbo snackbar queue (must be before token processor — provides checkQueuedSnackbars)
   const { checkQueuedSnackbars } = useTurboSnackbarQueue({
@@ -472,11 +454,11 @@ export default function RootNavigator(): React.JSX.Element {
   const handleResetWalletFromLockScreen = useCallback(async () => {
     logger.warn('[RootNavigator] Wallet reset from lock screen initiated');
     try {
-      await deleteWalletData();
-      await resetOnboardingState();
-      await resetWallet();
-      resetAuth();
-      setSeedConfirmed(false);
+      await performFullWalletReset({
+        resetWallet,
+        resetAuth,
+        setSeedConfirmed,
+      });
       analytics.track('wallet_reset_from_lock_screen');
       analytics.reset();
     } catch (error) {
@@ -494,9 +476,22 @@ export default function RootNavigator(): React.JSX.Element {
     isBiometricSupported,
     biometricEnabled,
     isProcessing: turboIsProcessing,
+    inactivityTimeoutMs: settingsHandlers.autoLockTimeoutMs,
     onLock: handleLock,
     onAuthenticateUser: handleBiometricAuth,
   });
+
+  const handleRootTouchStart = useCallback(() => {
+    if (!isAuthenticated || shouldShowAuth || shouldShowLockOverlay || pendingInactivityResetRef.current) {
+      return;
+    }
+
+    pendingInactivityResetRef.current = true;
+    requestAnimationFrame(() => {
+      pendingInactivityResetRef.current = false;
+      resetInactivityTimer();
+    });
+  }, [isAuthenticated, resetInactivityTimer, shouldShowAuth, shouldShowLockOverlay]);
 
 
   // Handle passkey enabled - show biometric setup prompt only if not already enabled
@@ -513,11 +508,7 @@ export default function RootNavigator(): React.JSX.Element {
   return (
     <View
       style={styles.container}
-      onTouchStart={() => {
-        if (isAuthenticated) {
-          resetInactivityTimer();
-        }
-      }}
+      onTouchStart={shouldShowLockOverlay || shouldShowAuth ? undefined : handleRootTouchStart}
     >
       <NavigationContainer linking={linking} ref={navigationRef} onStateChange={onNavigationStateChange}>
         <Stack.Navigator
@@ -529,6 +520,17 @@ export default function RootNavigator(): React.JSX.Element {
         >
           {shouldShowAuth ? (
             <Stack.Screen name="Auth" component={AuthStack} />
+          ) : shouldShowLockOverlay ? (
+            <Stack.Screen name="LockScreen">
+              {() => (
+                <LockScreenRoute
+                  onAuthenticated={handleLockScreenAuthenticatedWrapper}
+                  showFaceIdButton={isBiometricSupported}
+                  onFaceIdPress={handleBiometricAuth}
+                  onResetWallet={handleResetWalletFromLockScreen}
+                />
+              )}
+            </Stack.Screen>
           ) : (
             <React.Fragment>
               <Stack.Screen name="Main" component={MainTabs} />
@@ -566,6 +568,13 @@ export default function RootNavigator(): React.JSX.Element {
                 component={WithdrawNavigator}
                 options={bubbleZoomOptions}
               />
+              {__DEV__ && (
+                <Stack.Screen
+                  name="VaultSuccessPreview"
+                  component={VaultSuccessPreviewScreen}
+                  options={{ presentation: 'modal' }}
+                />
+              )}
             </React.Fragment>
           )}
         </Stack.Navigator>
@@ -579,16 +588,6 @@ export default function RootNavigator(): React.JSX.Element {
             onCancel={handleCancelPinChange}
             fetchBalance={fetchBalance}
             showToast={showToast}
-          />
-        )}
-
-        {/* Lock Screen Overlay - keeps MainTabs mounted for instant unlock */}
-        {shouldShowLockOverlay && (
-          <LockScreenOverlay
-            onAuthenticated={handleLockScreenAuthenticatedWrapper}
-            showFaceIdButton={isBiometricSupported}
-            onFaceIdPress={handleBiometricAuth}
-            onResetWallet={handleResetWalletFromLockScreen}
           />
         )}
 
@@ -617,23 +616,6 @@ export default function RootNavigator(): React.JSX.Element {
           />
         )}
 
-        {/* Announcement Modal (server-driven popup) */}
-        {showAnnouncement &&
-          isAuthenticated &&
-          !shouldShowPinOverlay &&
-          !shouldShowLockOverlay && (
-            <AnnouncementModal
-              visible
-              announcement={announcement}
-              onDismiss={() => {
-                setSessionDismissedAnn(true);
-                if (announcement.showMode === 'once') {
-                  dismissAnnouncement(announcement.id);
-                }
-              }}
-            />
-          )}
-
         {/* Token Verification Loading Overlay */}
         {isVerifyingToken && <TokenVerificationOverlay />}
       </NavigationContainer>
@@ -654,14 +636,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
   },
-  lockOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  lockScreenContainer: {
+    flex: 1,
     backgroundColor: COLORS.DARK_BG,
-    zIndex: 900,
   },
   loadingOverlay: {
     position: 'absolute',

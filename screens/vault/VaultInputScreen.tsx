@@ -44,6 +44,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
     effectiveBtcLocked,
     effectiveUnitBorrowed,
     isInitializing,
+    isContinuing,
     btcPrice,
 
     // Amount state
@@ -114,6 +115,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
 
   // Determine if we should show the "no debt" indicator on gauge (for repay operation)
   const hasNoDebt = config.operationType === 'repay' && hasChanges && preview.newDebt === 0;
+  const continueDisabled = !validation.canContinue || isContinuing;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-input-screen`}>
@@ -121,13 +123,10 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
         <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header} accessibilityRole="header">
-            <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>{getHeaderEyebrow(config.operationType)}</Text>
-              <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
-              <Text style={styles.subtitle}>{getHeaderSubtitle(config.operationType)}</Text>
-            </View>
+            <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
             <TouchableOpacity
               onPress={handleClose}
+              style={styles.headerCloseButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               accessibilityRole="button"
               accessibilityLabel="Close"
@@ -248,21 +247,29 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
         {/* Footer */}
         <View style={styles.footer}>
           <TouchableScale
-            style={[styles.continueBtn, !validation.canContinue && styles.continueBtnDisabled]}
+            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
             onPress={handleContinue}
-            disabled={!validation.canContinue}
+            disabled={continueDisabled}
             testID={`vault-${config.operationType}-continue-btn`}
             accessibilityRole="button"
-            accessibilityLabel="Continue to review"
+            accessibilityLabel={isContinuing ? "Preparing review" : "Continue to review"}
             accessibilityHint={`Review ${config.title} details before confirming`}
-            accessibilityState={{ disabled: !validation.canContinue }}
+            accessibilityState={{ disabled: continueDisabled, busy: isContinuing }}
+            pressLockMs={700}
           >
-            <Text
-              style={[styles.continueBtnText, !validation.canContinue && styles.continueBtnTextDisabled]}
-              accessibilityElementsHidden
-            >
-              Continue
-            </Text>
+            {isContinuing ? (
+              <View style={styles.busyButtonContent}>
+                <ActivityIndicator size="small" color={colors.text.white} />
+                <Text style={styles.continueBtnText} accessibilityElementsHidden>Preparing...</Text>
+              </View>
+            ) : (
+              <Text
+                style={[styles.continueBtnText, !validation.canContinue && styles.continueBtnTextDisabled]}
+                accessibilityElementsHidden
+              >
+                Continue
+              </Text>
+            )}
           </TouchableScale>
         </View>
       </KeyboardAvoidingView>
@@ -270,63 +277,26 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
   );
 }
 
-function getHeaderEyebrow(operationType: VaultInputScreenConfig['operationType']): string {
-  switch (operationType) {
-    case 'borrow':
-      return 'Vault Borrow';
-    case 'repay':
-      return 'Vault Repay';
-    case 'deposit':
-      return 'Vault Collateral';
-    case 'withdraw':
-      return 'Vault Withdrawal';
-    default:
-      return 'Vault Action';
-  }
-}
-
-function getHeaderSubtitle(operationType: VaultInputScreenConfig['operationType']): string {
-  switch (operationType) {
-    case 'borrow':
-      return 'Set the borrow size and review the debt impact before choosing how to receive the proceeds.';
-    case 'repay':
-      return 'Reduce debt while reviewing the updated health and liquidation levels before you sign.';
-    case 'deposit':
-      return 'Add more BTC collateral and preview how much more buffer it adds to your vault.';
-    case 'withdraw':
-      return 'Remove BTC carefully while keeping the vault above the required health threshold.';
-    default:
-      return 'Adjust the vault position and review the impact before signing.';
-  }
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg.primary },
   flex: { flex: 1 },
-  scroll: { padding: spacing.lg, paddingBottom: 120 },
+  scroll: { padding: spacing.md, paddingBottom: 120 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md, padding: spacing.xl },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
   noVaultSubtext: { color: colors.text.secondary, fontSize: fontSizes.md, textAlign: 'center' },
   closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.sm, gap: spacing.md },
-  headerCopy: { flex: 1, gap: 2 },
-  eyebrow: {
-    color: colors.brand.primary,
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  headerCloseButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -10,
+    zIndex: 10,
   },
   title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
-  subtitle: {
-    color: colors.text.secondary,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    lineHeight: 20,
-    marginTop: spacing.xs,
-  },
   section: { marginTop: spacing.lg },
   warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
   warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
@@ -337,4 +307,5 @@ const styles = StyleSheet.create({
   continueBtnDisabled: { backgroundColor: colors.bg.tertiary },
   continueBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
   continueBtnTextDisabled: { color: colors.text.tertiary },
+  busyButtonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
 });

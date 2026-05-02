@@ -3,9 +3,9 @@
 # Usage: ./e2e/maestro/run-parallel.sh
 #
 # Suite distribution:
-#   Sim 1: auth (8) + ecash (4)     = 12 tests
-#   Sim 2: wallet (15) + send (16)  = 31 tests
-#   Sim 3: settings (20) + vault (19) = 39 tests
+#   Sim 1: auth (8) + ecash (5)       = 13 tests
+#   Sim 2: wallet (17) + send (9)     = 26 tests
+#   Sim 3: settings (17) + vault (9)  = 26 tests
 
 set +e
 

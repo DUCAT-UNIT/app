@@ -2,6 +2,56 @@
 
 Helper scripts for the DUCAT wallet project.
 
+## Doctor
+
+Validate local tooling and project invariants before running the heavier quality gate.
+
+```bash
+npm run doctor
+```
+
+Checks:
+
+- Node 22.x and npm 10+
+- `package-lock.json` and installed dependencies
+- Required npm quality scripts
+- Mutinynet-only app network guards
+- Production E2E bypass guard
+- Removed remote config service/store
+- Optional native tools for Maestro, Xcode, and EAS
+
+## Live Integration Doctor
+
+Validate that the machine is ready to run funded Mutinynet/Sepolia Maestro flows.
+
+```bash
+npm run doctor:live
+```
+
+This is intentionally stricter than `npm run doctor`. It fails unless:
+
+- `EXPO_PUBLIC_APP_NETWORK` is unset or `mutinynet`
+- Sepolia RPC, bridge API, wUNIT, router, UNIT/USDC pool, and USDC config are valid
+- `DUCAT_LIVE_E2E_FUNDED_MUTINYNET=1`, `DUCAT_LIVE_E2E_FUNDED_SEPOLIA=1`, and `DUCAT_LIVE_E2E_BRIDGE_FUNDED=1` acknowledge funded fixtures
+- Maestro, simulator tooling, and `node_modules` are present
+- Sepolia RPC, bridge `/health`, and Mutinynet Esplora probes succeed
+
+For script-only validation without network/tool probes:
+
+```bash
+DUCAT_LIVE_DOCTOR_OFFLINE=1 DUCAT_LIVE_DOCTOR_SKIP_TOOLING=1 npm run doctor:live
+```
+
+## Quality Gate
+
+Run the same gate enforced by CI:
+
+```bash
+npm run verify
+```
+
+This runs doctor, typecheck, lint, dead-code detection, Maestro flow validation, and Jest with coverage thresholds.
+
 ## Refactor Progress Tracker
 
 Track and update refactoring progress in `REFACTOR.md`.

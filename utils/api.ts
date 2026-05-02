@@ -3,7 +3,8 @@
  */
 
 /**
- * Fetch with timeout and optional external abort signal
+ * Centralized low-level fetch with timeout and optional external abort signal.
+ * Product code should normally call apiClient helpers instead of this directly.
  * @param url - The URL to fetch
  * @param options - Fetch options (can include external signal)
  * @param timeout - Timeout in milliseconds (default: 10000)
@@ -16,14 +17,17 @@ export const fetchWithTimeout = async (
 ): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+  (timeoutId as { unref?: () => void }).unref?.();
 
   // If an external signal is provided, link it to our controller
   const externalSignal = options.signal;
+  let externalAbortListener: (() => void) | undefined;
   if (externalSignal) {
     if (externalSignal.aborted) {
       controller.abort();
     } else {
-      externalSignal.addEventListener('abort', () => controller.abort());
+      externalAbortListener = () => controller.abort();
+      externalSignal.addEventListener('abort', externalAbortListener, { once: true });
     }
   }
 
@@ -35,6 +39,9 @@ export const fetchWithTimeout = async (
     return response;
   } finally {
     clearTimeout(timeoutId);
+    if (externalSignal && externalAbortListener) {
+      externalSignal.removeEventListener('abort', externalAbortListener);
+    }
   }
 };
 

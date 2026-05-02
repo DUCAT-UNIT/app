@@ -31,9 +31,6 @@ export type PasskeyDerivationVersion =
 // giving us deterministic cryptographic output that syncs via iCloud Keychain.
 export const PRF_SALT = new Uint8Array(Buffer.from('ducat-wallet-prf-v1', 'utf8'));
 
-// Export for backward compatibility
-export const PASSKEY_STORAGE_KEYS = PASSKEY_KEYS;
-
 export const derivationVersionForPrf = (prfEnabled: boolean): PasskeyDerivationVersion => (
   prfEnabled ? PASSKEY_DERIVATION_VERSION.PRF_V5 : PASSKEY_DERIVATION_VERSION.LEGACY_V4
 );

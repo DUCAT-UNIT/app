@@ -4,9 +4,17 @@
  */
 
 import { Linking, AppState, NativeEventSubscription, AppStateStatus } from 'react-native';
+import { getStateFromPath as getDefaultStateFromPath } from '@react-navigation/native';
 import type { LinkingOptions } from '@react-navigation/native';
 import { logger } from '../../utils/logger';
+import {
+  E2E_ENABLE_USDC_URL_PREFIX,
+  E2E_RESET_SETTINGS_URL_PREFIX,
+  enableUsdcFeaturesForE2E,
+  resetNonSecretE2ESettings,
+} from '../e2eSettingsResetService';
 import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
+import type { RootNavigatorParamList } from '../../navigation/types';
 
 interface URLEvent {
   url: string;
@@ -49,6 +57,23 @@ const extractTokenFromParam = (url: string): string | null => {
   } catch (error: unknown) {
     logger.error('[TURBO] Failed to decode base64 token:', { message: (error as Error).message });
     return null;
+  }
+};
+
+const isE2EControlUrl = (url: string): boolean => {
+  return url.startsWith('ducat://e2e/');
+};
+
+const processE2EControlUrl = async (url: string): Promise<void> => {
+  if (!isE2EControlUrl(url)) return;
+
+  if (url.startsWith(E2E_RESET_SETTINGS_URL_PREFIX)) {
+    await resetNonSecretE2ESettings();
+    return;
+  }
+
+  if (url.startsWith(E2E_ENABLE_USDC_URL_PREFIX)) {
+    await enableUsdcFeaturesForE2E(url);
   }
 };
 
@@ -134,13 +159,26 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
 /**
  * Handle URL event (app is open, deeplink tapped)
  */
-const onReceiveURL = async (event: URLEvent): Promise<void> => {
+const onReceiveURL = async (
+  event: URLEvent,
+  listener?: (url: string) => void,
+): Promise<void> => {
   const url = event?.url;
   logger.debug('[TURBO] URL event received:', { urlPreview: url?.substring(0, 100) });
 
   // Process Turbo URLs
   if (url && (url.includes('ducat://turbo/') || url.includes('unit?'))) {
     await processUrlAndStoreToken(url);
+    return;
+  }
+
+  if (url && isE2EControlUrl(url)) {
+    await processE2EControlUrl(url);
+    return;
+  }
+
+  if (url && listener) {
+    listener(url);
   }
 };
 
@@ -173,22 +211,26 @@ const createAppStateHandler = () => {
 /**
  * Linking configuration for React Navigation
  */
-export const createLinkingConfig = (): LinkingOptions<object> => ({
-  prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
-  config: {
-    screens: {
-      Main: {
-        screens: {
-          Wallet: {
-            path: 'wallet',
+const linkingConfig: LinkingOptions<RootNavigatorParamList>['config'] = {
+  screens: {
+    VaultSuccessPreview: 'preview/vault-success',
+    Main: {
+      screens: {
+        WalletTab: {
+          screens: {
+            WalletHome: 'wallet',
           },
         },
       },
-      NotFound: '*',
     },
   },
+};
 
-  subscribe(_listener: unknown) {
+export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> => ({
+  prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
+  config: linkingConfig,
+
+  subscribe(listener) {
     // Initialize processed tokens storage
     initializeTokenStorage();
 
@@ -201,6 +243,13 @@ export const createLinkingConfig = (): LinkingOptions<object> => ({
           processUrlAndStoreToken(initialUrl).catch((error) => {
             logger.error('[TURBO] Failed to process initial URL:', { error: error instanceof Error ? error.message : String(error) });
           });
+        } else if (isE2EControlUrl(initialUrl)) {
+          processE2EControlUrl(initialUrl).catch((error) => {
+            logger.error('[TURBO] Failed to process E2E control URL:', { error: error instanceof Error ? error.message : String(error) });
+          });
+          return;
+        } else {
+          listener(initialUrl);
         }
       } else {
         logger.debug('[TURBO] No initial URL');
@@ -211,7 +260,9 @@ export const createLinkingConfig = (): LinkingOptions<object> => ({
 
     // Listen for URL events (app already open)
     logger.debug('[TURBO] Registering URL listener');
-    const urlSubscription = Linking.addEventListener('url', onReceiveURL);
+    const urlSubscription = Linking.addEventListener('url', (event) => {
+      void onReceiveURL(event, listener);
+    });
 
     // Handle app state changes
     const handleAppStateChange = createAppStateHandler();
@@ -227,8 +278,12 @@ export const createLinkingConfig = (): LinkingOptions<object> => ({
   getStateFromPath(path: string, _options: unknown) {
     logger.debug('[TURBO] getStateFromPath:', { pathPreview: path?.substring(0, 100) });
 
+    if (!path) {
+      return undefined;
+    }
+
     // Check for Turbo token URLs
-    const isTurboUrl = path && (
+    const isTurboUrl = (
       path.includes('ducat://turbo/') ||
       (path.includes('unit?') && path.includes('t='))
     );
@@ -242,6 +297,13 @@ export const createLinkingConfig = (): LinkingOptions<object> => ({
       return undefined; // Return undefined to prevent navigation, let async processing handle token
     }
 
-    return undefined; // Use default behavior
+    if (isE2EControlUrl(path)) {
+      processE2EControlUrl(path).catch((error) => {
+        logger.error('[TURBO] Failed to process E2E control path:', { error: error instanceof Error ? error.message : String(error) });
+      });
+      return undefined;
+    }
+
+    return getDefaultStateFromPath(path, linkingConfig);
   },
 });

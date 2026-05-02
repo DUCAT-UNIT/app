@@ -12,7 +12,7 @@
  */
 
 // Core utilities and constants
-export { isPasskeySupported, PASSKEY_STORAGE_KEYS, PASSKEY_KEYS } from './core';
+export { isPasskeySupported, PASSKEY_KEYS } from './core';
 
 // Wallet creation functions
 export { createWalletWithPasskey, addPasskeyToExistingWallet } from './creation';

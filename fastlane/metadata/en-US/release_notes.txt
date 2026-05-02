@@ -1,0 +1,1 @@
+DUCAT 0.0.2 improves the Mutinynet wallet experience with a cleaner Sepolia ETH and Sepolia USDC send flow, stronger amount slider interaction, and clearer receive QR codes with asset-specific icons. It also includes UI hardening and stability fixes across send, receive, and Sepolia asset handling.

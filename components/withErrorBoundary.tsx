@@ -44,5 +44,3 @@ export const withErrorBoundary = <P extends object>(
 
   return ComponentWithErrorBoundary;
 };
-
-export default withErrorBoundary;

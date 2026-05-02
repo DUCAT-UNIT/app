@@ -12,10 +12,17 @@ import { EVM_CONFIG, EVM_DECIMALS } from '../constants/evm';
 import { trackRedemption } from './bridgeApiService';
 import { getSepoliaProvider, withSepoliaSigner } from './evmWalletService';
 import type { SwapQuote, TrackRedemptionRequest } from '../shared/bridgeTypes';
+import {
+  useEvmTransactionCheckpointStore,
+  type EvmTransactionCheckpointInput,
+} from '../stores/evmTransactionCheckpointStore';
 import type { DisplayAssetType } from '../types/assets';
+import { getJSON } from '../utils/apiClient';
+import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../utils/bitcoin';
 import { logger } from '../utils/logger';
 
 export type SepoliaAsset = 'USDC' | 'wUNIT';
+export type SepoliaTransferAsset = SepoliaAsset | 'ETH';
 export type CrossChainSwapAsset = 'UNIT' | 'USDC';
 
 export interface EvmBalances {
@@ -40,6 +47,7 @@ export interface RedemptionExecutionResult {
   redeemedAmount: string;
   sourceAsset: SepoliaAsset;
   preparationSwap?: SwapExecutionResult;
+  trackRedemptionError?: string;
 }
 
 export interface CrossChainSwapQuote {
@@ -58,6 +66,58 @@ export interface CrossChainSwapLimit {
   reserveUsdc: string;
 }
 
+export interface UnitUsdcPoolQuoteSample {
+  amountIn: string;
+  unitToUsdcOut: string;
+  unitToUsdcImpactBps: number;
+  usdcToUnitOut: string;
+  usdcToUnitImpactBps: number;
+}
+
+export interface UnitUsdcPoolWalletState {
+  address: string;
+  eth: string;
+  usdc: string;
+  wunit: string;
+  stablePoolUsdcAllowance: string;
+  stablePoolWunitAllowance: string;
+  bridgeRouterWunitAllowance: string;
+  canSwapUsdcSample: boolean;
+  canSwapUnitSample: boolean;
+  canRedeemUnitSample: boolean;
+}
+
+export interface UnitUsdcPoolDashboard {
+  checkedAt: number;
+  status: 'ready' | 'degraded' | 'unconfigured' | 'error';
+  readiness: {
+    sepoliaRpc: boolean;
+    bridgeApi: boolean;
+    usdc: boolean;
+    wunit: boolean;
+    stablePool: boolean;
+    bridgeRouter: boolean;
+    poolContracts: boolean;
+    bridgeContracts: boolean;
+  };
+  contracts: {
+    usdcAddress: string;
+    wunitAddress: string;
+    stablePoolAddress: string;
+    bridgeRouterAddress: string;
+  };
+  reserves: {
+    usdc: string;
+    wunit: string;
+  } | null;
+  impliedUnitPriceUsdc: string | null;
+  imbalanceBps: number | null;
+  maxInputAmount: string | null;
+  quoteSamples: UnitUsdcPoolQuoteSample[];
+  wallet: UnitUsdcPoolWalletState | null;
+  error: string | null;
+}
+
 export interface CrossChainSwapExecutionEstimate {
   totalGasUnits: string;
   totalFeeEth: string;
@@ -65,19 +125,46 @@ export interface CrossChainSwapExecutionEstimate {
   feePaymentAsset: 'ETH';
   requiresUsdcApproval: boolean;
   requiresWunitApproval: boolean;
+  walletAddress: string;
+  ethBalance: string;
+  requiredEth: string;
+  usdcBalance: string;
+  wunitBalance: string;
+  requiredUsdcAmount: string;
+  expectedWunitAmount: string;
+  hasEnoughUsdc: boolean;
+  hasEnoughEth: boolean;
+  canExecute: boolean;
+  blockingReasons: string[];
 }
 
 export interface SepoliaTokenTransferEstimate {
   gasUnits: string;
   totalFeeEth: string;
   gasPriceGwei: string;
+  walletAddress: string;
+  assetBalance: string;
+  ethBalance: string;
+  requiredAssetAmount: string;
+  requiredEth: string;
+  hasEnoughAsset: boolean;
+  hasEnoughEth: boolean;
+  canExecute: boolean;
+  blockingReasons: string[];
 }
 
 export interface SepoliaTokenTransferResult {
   txHash: string;
   amount: string;
-  token: SepoliaAsset;
+  token: SepoliaTransferAsset;
   recipient: string;
+}
+
+export interface RedemptionExecutionEstimate extends CrossChainSwapExecutionEstimate {
+  sourceAsset: SepoliaAsset;
+  requiredSourceAmount: string;
+  sourceBalance: string;
+  hasEnoughSource: boolean;
 }
 
 export interface SepoliaAssetHistoryItem {
@@ -85,6 +172,7 @@ export interface SepoliaAssetHistoryItem {
   status: {
     confirmed: boolean;
     block_time?: number;
+    failed?: boolean;
   };
   txData: {
     amount: number;
@@ -92,6 +180,23 @@ export interface SepoliaAssetHistoryItem {
     isSent: boolean;
     isReceived: boolean;
   };
+}
+
+export type EvmExecutionErrorKind =
+  | 'user_rejected'
+  | 'insufficient_funds'
+  | 'allowance_race'
+  | 'replacement_transaction'
+  | 'reverted'
+  | 'timeout'
+  | 'rpc_unavailable'
+  | 'unknown';
+
+export interface EvmExecutionErrorClassification {
+  kind: EvmExecutionErrorKind;
+  retryable: boolean;
+  userMessage: string;
+  rawMessage: string;
 }
 
 const ERC20_ABI = [
@@ -118,6 +223,29 @@ const FALLBACK_USDC_APPROVAL_GAS = 55_000n;
 const FALLBACK_SWAP_GAS = 240_000n;
 const FALLBACK_WUNIT_APPROVAL_GAS = 55_000n;
 const FALLBACK_REDEMPTION_GAS = 220_000n;
+const FALLBACK_ERC20_TRANSFER_GAS = 65_000n;
+const FALLBACK_ETH_TRANSFER_GAS = 21_000n;
+const SEPOLIA_BLOCKSCOUT_API_BASE_URL = 'https://eth-sepolia.blockscout.com/api/v2';
+
+interface BlockscoutAddressRef {
+  hash?: string | null;
+}
+
+interface BlockscoutTransactionItem {
+  hash?: string | null;
+  status?: string | null;
+  result?: string | null;
+  value?: string | number | bigint | null;
+  timestamp?: string | null;
+  block_number?: number | null;
+  block?: number | null;
+  from?: BlockscoutAddressRef | null;
+  to?: BlockscoutAddressRef | null;
+}
+
+interface BlockscoutTransactionsResponse {
+  items?: BlockscoutTransactionItem[];
+}
 
 function assertBridgeContractsConfigured(): void {
   if (!EVM_CONFIG.wunitAddress || !EVM_CONFIG.bridgeRouterAddress || !EVM_CONFIG.stablePoolAddress) {
@@ -127,7 +255,14 @@ function assertBridgeContractsConfigured(): void {
 
 function getTokenConfig(token: SepoliaAsset): { address: string; index: number; opposite: SepoliaAsset } {
   if (token === 'wUNIT') {
+    if (!EVM_CONFIG.wunitAddress) {
+      throw new Error('Sepolia wUNIT contract is not configured');
+    }
     return { address: EVM_CONFIG.wunitAddress, index: 0, opposite: 'USDC' };
+  }
+
+  if (!EVM_CONFIG.usdcAddress) {
+    throw new Error('Sepolia USDC contract is not configured');
   }
 
   return { address: EVM_CONFIG.usdcAddress, index: 1, opposite: 'wUNIT' };
@@ -176,7 +311,27 @@ async function ensureAllowance(
       spender,
     });
     const approval = await tokenContract.approve(spender, MaxUint256);
-    const receipt = await approval.wait(EVM_CONFIG.confirmations);
+    recordSubmittedEvmTx({
+      accountIndex,
+      kind: 'approval',
+      txHash: approval.hash,
+      asset: token,
+      amount: formatUnits(amount, EVM_DECIMALS),
+      spender,
+      recipient: null,
+      tokenIn: null,
+      tokenOut: null,
+      releaseId: null,
+      destinationTaprootAddress: null,
+    });
+    let receipt: { hash?: string } | null;
+    try {
+      receipt = await approval.wait(EVM_CONFIG.confirmations);
+      markConfirmedEvmTx(approval.hash, receipt?.hash || approval.hash);
+    } catch (error) {
+      markFailedEvmTx(approval.hash, error);
+      throw error;
+    }
     logger.debug('[SepoliaBridge] Approval confirmed', {
       token,
       owner: wallet.address,
@@ -198,16 +353,326 @@ async function estimateGasOrFallback(
   }
 }
 
-export async function getEvmBalances(accountIndex: number): Promise<EvmBalances> {
-  assertBridgeContractsConfigured();
+function parsePositiveAmountUnits(
+  amount: string,
+  decimals: number,
+  asset: SepoliaTransferAsset,
+): bigint {
+  const normalized = amount.trim();
+  if (!/^\d+(\.\d+)?$/.test(normalized)) {
+    throw new Error(`Enter a valid ${asset} amount`);
+  }
 
+  let amountUnits: bigint;
+  try {
+    amountUnits = parseUnits(normalized, decimals);
+  } catch {
+    throw new Error(`Enter a valid ${asset} amount`);
+  }
+
+  if (amountUnits <= 0n) {
+    throw new Error(`Enter a ${asset} amount greater than zero`);
+  }
+
+  return amountUnits;
+}
+
+function getTransferDecimals(asset: SepoliaTransferAsset): number {
+  return asset === 'ETH' ? 18 : EVM_DECIMALS;
+}
+
+function formatTransferAmount(amountUnits: bigint, asset: SepoliaTransferAsset): string {
+  return asset === 'ETH'
+    ? formatEther(amountUnits)
+    : formatUnits(amountUnits, EVM_DECIMALS);
+}
+
+function buildBlockingReasons(checks: Array<{ passed: boolean; message: string }>): string[] {
+  return checks
+    .filter((check) => !check.passed)
+    .map((check) => check.message);
+}
+
+function assertCanExecutePreflight(
+  canExecute: boolean,
+  blockingReasons: string[],
+  fallbackMessage: string,
+): void {
+  if (canExecute) {
+    return;
+  }
+
+  throw new Error(blockingReasons.length > 0 ? blockingReasons.join(' ') : fallbackMessage);
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function getErrorCode(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'string' || typeof code === 'number' ? String(code) : '';
+  }
+  return '';
+}
+
+export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClassification {
+  const rawMessage = getErrorMessage(error);
+  const code = getErrorCode(error).toLowerCase();
+  const message = rawMessage.toLowerCase();
+
+  if (
+    code === 'action_rejected' ||
+    message.includes('user rejected') ||
+    message.includes('user denied') ||
+    message.includes('request rejected')
+  ) {
+    return {
+      kind: 'user_rejected',
+      retryable: true,
+      userMessage: 'Transaction was rejected before submission. Review and try again when ready.',
+      rawMessage,
+    };
+  }
+
+  if (
+    message.includes('insufficient funds') ||
+    message.includes('not enough sepolia eth') ||
+    message.includes('not enough usdc') ||
+    message.includes('not enough wunit')
+  ) {
+    return {
+      kind: 'insufficient_funds',
+      retryable: false,
+      userMessage: rawMessage,
+      rawMessage,
+    };
+  }
+
+  if (
+    message.includes('allowance') ||
+    message.includes('transfer amount exceeds allowance') ||
+    message.includes('erc20: insufficient allowance')
+  ) {
+    return {
+      kind: 'allowance_race',
+      retryable: true,
+      userMessage: 'Token allowance changed while submitting. Refresh balances and retry the approval/swap.',
+      rawMessage,
+    };
+  }
+
+  if (
+    message.includes('replacement transaction underpriced') ||
+    message.includes('nonce too low') ||
+    message.includes('already known') ||
+    message.includes('transaction replaced')
+  ) {
+    return {
+      kind: 'replacement_transaction',
+      retryable: true,
+      userMessage: 'Sepolia nonce state changed while submitting. Refresh the wallet state and retry.',
+      rawMessage,
+    };
+  }
+
+  if (
+    code === 'call_exception' ||
+    message.includes('execution reverted') ||
+    message.includes('transaction reverted') ||
+    message.includes('reverted on-chain')
+  ) {
+    return {
+      kind: 'reverted',
+      retryable: false,
+      userMessage: 'Sepolia transaction reverted. Check pool liquidity, allowances, and contract readiness before retrying.',
+      rawMessage,
+    };
+  }
+
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return {
+      kind: 'timeout',
+      retryable: true,
+      userMessage: 'Sepolia RPC timed out. The transaction may still be pending; check pending activity before retrying.',
+      rawMessage,
+    };
+  }
+
+  if (
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('rpc') ||
+    message.includes('503') ||
+    message.includes('429')
+  ) {
+    return {
+      kind: 'rpc_unavailable',
+      retryable: true,
+      userMessage: 'Sepolia RPC is unavailable or rate limited. Wait briefly, check pending activity, and retry.',
+      rawMessage,
+    };
+  }
+
+  return {
+    kind: 'unknown',
+    retryable: true,
+    userMessage: rawMessage || 'Sepolia execution failed. Check pending activity and retry.',
+    rawMessage,
+  };
+}
+
+function recordSubmittedEvmTx(input: EvmTransactionCheckpointInput): void {
+  useEvmTransactionCheckpointStore.getState().recordSubmitted(input);
+}
+
+function markConfirmedEvmTx(txHash: string, receiptTxHash?: string | null): void {
+  useEvmTransactionCheckpointStore.getState().markConfirmed(txHash, receiptTxHash);
+}
+
+function markFailedEvmTx(txHash: string, error: unknown): void {
+  useEvmTransactionCheckpointStore.getState().markFailed(txHash, getErrorMessage(error));
+}
+
+function getEventLogIndex(event: EventLog): number | null {
+  const eventWithIndexes = event as unknown as { index?: unknown; logIndex?: unknown };
+  if (typeof eventWithIndexes.index === 'number') {
+    return eventWithIndexes.index;
+  }
+  if (typeof eventWithIndexes.logIndex === 'number') {
+    return eventWithIndexes.logIndex;
+  }
+  return null;
+}
+
+function getTransferEventKey(event: EventLog, from: string, to: string, amount: bigint): string {
+  const logIndex = getEventLogIndex(event);
+  if (logIndex !== null) {
+    return `${event.transactionHash}:${logIndex}`;
+  }
+
+  return `${event.transactionHash}:${event.blockNumber}:${from}:${to}:${amount.toString()}`;
+}
+
+function parseBlockscoutTimestamp(timestamp?: string | null): number | undefined {
+  if (!timestamp) {
+    return undefined;
+  }
+
+  const millis = Date.parse(timestamp);
+  if (!Number.isFinite(millis)) {
+    return undefined;
+  }
+
+  return Math.floor(millis / 1000);
+}
+
+function getBlockscoutAddressHash(address?: BlockscoutAddressRef | null): string {
+  return typeof address?.hash === 'string' ? address.hash.toLowerCase() : '';
+}
+
+function parseBlockscoutWei(value: BlockscoutTransactionItem['value']): bigint {
+  if (typeof value === 'bigint') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return BigInt(Math.trunc(value));
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    return BigInt(value);
+  }
+  return 0n;
+}
+
+function assertMutinynetTaprootDestination(destinationTaprootAddress: string): string {
+  const trimmed = destinationTaprootAddress.trim();
+  const validation = validateBitcoinAddress(trimmed);
+  if (!validation.valid) {
+    throw new Error(validation.error || 'Enter a valid Mutinynet Taproot address');
+  }
+  if (validation.type !== 'taproot') {
+    throw new Error(`Redemption destination must be a Mutinynet Taproot address (${TAPROOT_ADDRESS_PREFIX}...).`);
+  }
+
+  return trimmed;
+}
+
+function isConfiguredHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function getUnitUsdcPoolReadiness(): UnitUsdcPoolDashboard['readiness'] {
+  const sepoliaRpc = isConfiguredHttpUrl(EVM_CONFIG.rpcUrl);
+  const bridgeApi = isConfiguredHttpUrl(EVM_CONFIG.bridgeApiBaseUrl);
+  const usdc = isAddress(EVM_CONFIG.usdcAddress);
+  const wunit = isAddress(EVM_CONFIG.wunitAddress);
+  const stablePool = isAddress(EVM_CONFIG.stablePoolAddress);
+  const bridgeRouter = isAddress(EVM_CONFIG.bridgeRouterAddress);
+  const poolContracts = sepoliaRpc && usdc && wunit && stablePool;
+
+  return {
+    sepoliaRpc,
+    bridgeApi,
+    usdc,
+    wunit,
+    stablePool,
+    bridgeRouter,
+    poolContracts,
+    bridgeContracts: poolContracts && bridgeApi && bridgeRouter,
+  };
+}
+
+function getUnitUsdcPoolContracts(): UnitUsdcPoolDashboard['contracts'] {
+  return {
+    usdcAddress: EVM_CONFIG.usdcAddress,
+    wunitAddress: EVM_CONFIG.wunitAddress,
+    stablePoolAddress: EVM_CONFIG.stablePoolAddress,
+    bridgeRouterAddress: EVM_CONFIG.bridgeRouterAddress,
+  };
+}
+
+function formatDashboardNumber(value: number, decimals = 6): string {
+  if (!Number.isFinite(value)) return '0';
+  const trimmed = value.toFixed(decimals).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  return trimmed || '0';
+}
+
+function calculateQuoteImpactBps(amountInUnits: bigint, amountOutUnits: bigint): number {
+  if (amountInUnits <= 0n) return 0;
+  return Number(((amountInUnits - amountOutUnits) * 10_000n) / amountInUnits);
+}
+
+function calculateImbalanceBps(reserveWunit: bigint, reserveUsdc: bigint): number {
+  const total = reserveWunit + reserveUsdc;
+  if (total <= 0n) return 0;
+  return Number(((reserveUsdc - reserveWunit) * 10_000n) / total);
+}
+
+function calculateImpliedUnitPriceUsdc(reserveWunit: bigint, reserveUsdc: bigint): string | null {
+  if (reserveWunit <= 0n) return null;
+  const wunit = Number(formatUnits(reserveWunit, EVM_DECIMALS));
+  const usdc = Number(formatUnits(reserveUsdc, EVM_DECIMALS));
+  return formatDashboardNumber(usdc / wunit, 6);
+}
+
+export async function getEvmBalances(accountIndex: number): Promise<EvmBalances> {
   return withSepoliaSigner(accountIndex, async (wallet, provider) => {
-    const usdc = new Contract(EVM_CONFIG.usdcAddress, ERC20_ABI, provider);
-    const wunit = new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, provider);
+    const usdc = EVM_CONFIG.usdcAddress
+      ? new Contract(EVM_CONFIG.usdcAddress, ERC20_ABI, provider)
+      : null;
+    const wunit = EVM_CONFIG.wunitAddress
+      ? new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, provider)
+      : null;
     const [ethBalance, usdcBalance, wunitBalance] = await Promise.all([
       provider.getBalance(wallet.address),
-      usdc.balanceOf(wallet.address) as Promise<bigint>,
-      wunit.balanceOf(wallet.address) as Promise<bigint>,
+      usdc ? usdc.balanceOf(wallet.address) as Promise<bigint> : Promise.resolve(0n),
+      wunit ? wunit.balanceOf(wallet.address) as Promise<bigint> : Promise.resolve(0n),
     ]);
 
     return {
@@ -225,7 +690,7 @@ export async function quoteSwap(
 ): Promise<SwapQuote> {
   assertBridgeContractsConfigured();
 
-  const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
+  const amountInUnits = parsePositiveAmountUnits(amountIn, EVM_DECIMALS, tokenIn);
   const { index, opposite } = getTokenConfig(tokenIn);
   const provider = getSepoliaProvider();
   const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, provider);
@@ -278,23 +743,169 @@ export async function getCrossChainSwapLimit(): Promise<CrossChainSwapLimit> {
   };
 }
 
+export async function getUnitUsdcPoolDashboard(
+  accountIndex?: number,
+): Promise<UnitUsdcPoolDashboard> {
+  const readiness = getUnitUsdcPoolReadiness();
+  const contracts = getUnitUsdcPoolContracts();
+  const checkedAt = Date.now();
+
+  if (!readiness.poolContracts) {
+    return {
+      checkedAt,
+      status: 'unconfigured',
+      readiness,
+      contracts,
+      reserves: null,
+      impliedUnitPriceUsdc: null,
+      imbalanceBps: null,
+      maxInputAmount: null,
+      quoteSamples: [],
+      wallet: null,
+      error: 'Sepolia RPC, USDC, wUNIT, and stable pool contracts must be configured to read the UNIT/USDC pool.',
+    };
+  }
+
+  try {
+    const provider = getSepoliaProvider();
+    const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, provider);
+    const sampleAmounts = ['1', '10', '100'];
+    const balances = (await pool.getBalances()) as bigint[];
+    const reserveWunit = balances[0] ?? 0n;
+    const reserveUsdc = balances[1] ?? 0n;
+
+    const quoteSamples = await Promise.all(sampleAmounts.map(async (amountIn) => {
+      const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
+      const [unitToUsdcOut, usdcToUnitOut] = await Promise.all([
+        pool.quoteSwap(0, amountInUnits) as Promise<bigint>,
+        pool.quoteSwap(1, amountInUnits) as Promise<bigint>,
+      ]);
+
+      return {
+        amountIn,
+        unitToUsdcOut: formatUnits(unitToUsdcOut, EVM_DECIMALS),
+        unitToUsdcImpactBps: calculateQuoteImpactBps(amountInUnits, unitToUsdcOut),
+        usdcToUnitOut: formatUnits(usdcToUnitOut, EVM_DECIMALS),
+        usdcToUnitImpactBps: calculateQuoteImpactBps(amountInUnits, usdcToUnitOut),
+      };
+    }));
+
+    let wallet: UnitUsdcPoolWalletState | null = null;
+    if (typeof accountIndex === 'number') {
+      wallet = await withSepoliaSigner(accountIndex, async (signer, signerProvider) => {
+        const usdc = new Contract(EVM_CONFIG.usdcAddress, ERC20_ABI, signer);
+        const wunit = new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, signer);
+        const sampleUnits = parseUnits(sampleAmounts[0], EVM_DECIMALS);
+        const [
+          ethBalance,
+          usdcBalance,
+          wunitBalance,
+          stablePoolUsdcAllowance,
+          stablePoolWunitAllowance,
+          bridgeRouterWunitAllowance,
+        ] = await Promise.all([
+          signerProvider.getBalance(signer.address) as Promise<bigint>,
+          usdc.balanceOf(signer.address) as Promise<bigint>,
+          wunit.balanceOf(signer.address) as Promise<bigint>,
+          usdc.allowance(signer.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
+          wunit.allowance(signer.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
+          EVM_CONFIG.bridgeRouterAddress
+            ? wunit.allowance(signer.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>
+            : Promise.resolve(0n),
+        ]);
+
+        return {
+          address: signer.address,
+          eth: formatEther(ethBalance),
+          usdc: formatUnits(usdcBalance, EVM_DECIMALS),
+          wunit: formatUnits(wunitBalance, EVM_DECIMALS),
+          stablePoolUsdcAllowance: formatUnits(stablePoolUsdcAllowance, EVM_DECIMALS),
+          stablePoolWunitAllowance: formatUnits(stablePoolWunitAllowance, EVM_DECIMALS),
+          bridgeRouterWunitAllowance: formatUnits(bridgeRouterWunitAllowance, EVM_DECIMALS),
+          canSwapUsdcSample: usdcBalance >= sampleUnits && stablePoolUsdcAllowance >= sampleUnits,
+          canSwapUnitSample: wunitBalance >= sampleUnits && stablePoolWunitAllowance >= sampleUnits,
+          canRedeemUnitSample: wunitBalance >= sampleUnits && bridgeRouterWunitAllowance >= sampleUnits,
+        };
+      });
+    }
+
+    return {
+      checkedAt,
+      status: readiness.bridgeContracts ? 'ready' : 'degraded',
+      readiness,
+      contracts,
+      reserves: {
+        wunit: formatUnits(reserveWunit, EVM_DECIMALS),
+        usdc: formatUnits(reserveUsdc, EVM_DECIMALS),
+      },
+      impliedUnitPriceUsdc: calculateImpliedUnitPriceUsdc(reserveWunit, reserveUsdc),
+      imbalanceBps: calculateImbalanceBps(reserveWunit, reserveUsdc),
+      maxInputAmount: formatUnits(reserveWunit < reserveUsdc ? reserveWunit : reserveUsdc, EVM_DECIMALS),
+      quoteSamples,
+      wallet,
+      error: readiness.bridgeContracts ? null : 'Pool is readable, but full bridge/redemption config is incomplete.',
+    };
+  } catch (error: unknown) {
+    logger.warn('[SepoliaBridge] Failed to load UNIT/USDC pool dashboard', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      checkedAt,
+      status: 'error',
+      readiness,
+      contracts,
+      reserves: null,
+      impliedUnitPriceUsdc: null,
+      imbalanceBps: null,
+      maxInputAmount: null,
+      quoteSamples: [],
+      wallet: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function executeSwap(
   accountIndex: number,
   tokenIn: SepoliaAsset,
   amountIn: string,
+  expectedMinimumAmountOut?: string,
 ): Promise<SwapExecutionResult> {
   assertBridgeContractsConfigured();
 
-  const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
+  const amountInUnits = parsePositiveAmountUnits(amountIn, EVM_DECIMALS, tokenIn);
   const quoted = await quoteSwap(tokenIn, amountIn);
-  const minimumAmountOutUnits = parseUnits(quoted.minimumAmountOut, EVM_DECIMALS);
   const { index, opposite } = getTokenConfig(tokenIn);
+  const quotedAmountOutUnits = parseUnits(quoted.amountOut, EVM_DECIMALS);
+  const quotedMinimumAmountOutUnits = parseUnits(quoted.minimumAmountOut, EVM_DECIMALS);
+  const expectedMinimumAmountOutUnits = expectedMinimumAmountOut
+    ? parsePositiveAmountUnits(expectedMinimumAmountOut, EVM_DECIMALS, opposite)
+    : 0n;
+  if (expectedMinimumAmountOutUnits > 0n && quotedAmountOutUnits < expectedMinimumAmountOutUnits) {
+    throw new Error(
+      `Swap quote changed. Expected at least ${formatUnits(expectedMinimumAmountOutUnits, EVM_DECIMALS)} ${opposite}, current quote returns ${quoted.amountOut} ${opposite}. Refresh the quote and try again.`,
+    );
+  }
+  const minimumAmountOutUnits =
+    expectedMinimumAmountOutUnits > quotedMinimumAmountOutUnits
+      ? expectedMinimumAmountOutUnits
+      : quotedMinimumAmountOutUnits;
   logger.debug('[SepoliaBridge] Starting swap', {
     accountIndex,
     tokenIn,
     amountIn,
     quotedAmountOut: quoted.amountOut,
     minimumAmountOut: quoted.minimumAmountOut,
+  });
+
+  await withSepoliaSigner(accountIndex, async (wallet) => {
+    const tokenInContract = new Contract(getTokenConfig(tokenIn).address, ERC20_ABI, wallet);
+    const tokenInBalance = (await tokenInContract.balanceOf(wallet.address)) as bigint;
+    if (tokenInBalance < amountInUnits) {
+      throw new Error(
+        `Not enough ${tokenIn}. Need ${formatTransferAmount(amountInUnits, tokenIn)}, available ${formatTransferAmount(tokenInBalance, tokenIn)}.`,
+      );
+    }
   });
 
   const approvalTxHash = await ensureAllowance(
@@ -309,7 +920,27 @@ export async function executeSwap(
     const beforeBalance = (await tokenOut.balanceOf(wallet.address)) as bigint;
     const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, wallet);
     const swapTx = await pool.swap(index, amountInUnits, minimumAmountOutUnits, wallet.address);
-    const receipt = await swapTx.wait(EVM_CONFIG.confirmations);
+    recordSubmittedEvmTx({
+      accountIndex,
+      kind: 'swap',
+      txHash: swapTx.hash,
+      asset: null,
+      amount: amountIn,
+      spender: EVM_CONFIG.stablePoolAddress,
+      recipient: wallet.address,
+      tokenIn,
+      tokenOut: opposite,
+      releaseId: null,
+      destinationTaprootAddress: null,
+    });
+    let receipt: { hash?: string } | null;
+    try {
+      receipt = await swapTx.wait(EVM_CONFIG.confirmations);
+      markConfirmedEvmTx(swapTx.hash, receipt?.hash || swapTx.hash);
+    } catch (error) {
+      markFailedEvmTx(swapTx.hash, error);
+      throw error;
+    }
     const afterBalance = (await tokenOut.balanceOf(wallet.address)) as bigint;
     logger.debug('[SepoliaBridge] Swap confirmed', {
       accountIndex,
@@ -340,7 +971,8 @@ export async function estimateUsdcToUnitSwapExecution(
 ): Promise<CrossChainSwapExecutionEstimate> {
   assertBridgeContractsConfigured();
 
-  const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
+  const normalizedDestination = assertMutinynetTaprootDestination(destinationTaprootAddress);
+  const amountInUnits = parsePositiveAmountUnits(amountIn, EVM_DECIMALS, 'USDC');
   const quoted = await quoteSwap('USDC', amountIn);
   const minimumAmountOutUnits = parseUnits(quoted.minimumAmountOut, EVM_DECIMALS);
   const redemptionAmountUnits = parseUnits(quoted.amountOut, EVM_DECIMALS);
@@ -350,11 +982,12 @@ export async function estimateUsdcToUnitSwapExecution(
     const wunit = new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, wallet);
     const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, wallet);
     const router = new Contract(EVM_CONFIG.bridgeRouterAddress, ROUTER_ABI, wallet);
-    const [usdcAllowance, wunitAllowance, usdcBalance, wunitBalance, feeData] = await Promise.all([
+    const [usdcAllowance, wunitAllowance, usdcBalance, wunitBalance, ethBalance, feeData] = await Promise.all([
       usdc.allowance(wallet.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
       wunit.allowance(wallet.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>,
       usdc.balanceOf(wallet.address) as Promise<bigint>,
       wunit.balanceOf(wallet.address) as Promise<bigint>,
+      provider.getBalance(wallet.address),
       provider.getFeeData(),
     ]);
 
@@ -397,9 +1030,9 @@ export async function estimateUsdcToUnitSwapExecution(
         ? await estimateGasOrFallback(
             () =>
               router.requestRedemption.estimateGas(
-                id(`${wallet.address}:${destinationTaprootAddress}:estimate`),
+                id(`${wallet.address}:${normalizedDestination}:estimate`),
                 redemptionAmountUnits,
-                destinationTaprootAddress,
+                normalizedDestination,
               ) as Promise<bigint>,
             FALLBACK_REDEMPTION_GAS,
           )
@@ -409,6 +1042,18 @@ export async function estimateUsdcToUnitSwapExecution(
     const totalGasUnits = gasSegments.reduce((sum, value) => sum + value, 0n);
     const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
     const totalFeeWei = totalGasUnits * feePerGas;
+    const hasEnoughUsdc = usdcBalance >= amountInUnits;
+    const hasEnoughEth = ethBalance >= totalFeeWei;
+    const blockingReasons = buildBlockingReasons([
+      {
+        passed: hasEnoughUsdc,
+        message: `Not enough USDC. Need ${formatUnits(amountInUnits, EVM_DECIMALS)}, available ${formatUnits(usdcBalance, EVM_DECIMALS)}.`,
+      },
+      {
+        passed: hasEnoughEth,
+        message: `Not enough Sepolia ETH for approvals, swap, and redemption gas. Need ${formatEther(totalFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+      },
+    ]);
 
     return {
       totalGasUnits: totalGasUnits.toString(),
@@ -417,6 +1062,17 @@ export async function estimateUsdcToUnitSwapExecution(
       feePaymentAsset: 'ETH',
       requiresUsdcApproval,
       requiresWunitApproval,
+      walletAddress: wallet.address,
+      ethBalance: formatEther(ethBalance),
+      requiredEth: formatEther(totalFeeWei),
+      usdcBalance: formatUnits(usdcBalance, EVM_DECIMALS),
+      wunitBalance: formatUnits(wunitBalance, EVM_DECIMALS),
+      requiredUsdcAmount: formatUnits(amountInUnits, EVM_DECIMALS),
+      expectedWunitAmount: formatUnits(redemptionAmountUnits, EVM_DECIMALS),
+      hasEnoughUsdc,
+      hasEnoughEth,
+      canExecute: blockingReasons.length === 0,
+      blockingReasons,
     };
   });
 }
@@ -424,7 +1080,7 @@ export async function estimateUsdcToUnitSwapExecution(
 export async function quoteUsdcForExactWunit(amountOut: string): Promise<string> {
   assertBridgeContractsConfigured();
 
-  const targetOutUnits = parseUnits(amountOut, EVM_DECIMALS);
+  const targetOutUnits = parsePositiveAmountUnits(amountOut, EVM_DECIMALS, 'wUNIT');
   let low = targetOutUnits;
   let high = targetOutUnits;
 
@@ -462,13 +1118,26 @@ export async function requestRedemption(
 ): Promise<RedemptionExecutionResult> {
   assertBridgeContractsConfigured();
 
-  const redemptionAmountUnits = parseUnits(amount, EVM_DECIMALS);
+  const normalizedDestination = assertMutinynetTaprootDestination(destinationTaprootAddress);
+  const redemptionAmountUnits = parsePositiveAmountUnits(amount, EVM_DECIMALS, 'wUNIT');
   let preparationSwap: SwapExecutionResult | undefined;
   let redeemAmountUnits = redemptionAmountUnits;
+  let latestBalances: EvmBalances | undefined;
+  const initialPreflight = await estimateRedemptionExecution(
+    accountIndex,
+    amount,
+    normalizedDestination,
+    sourceAsset,
+  );
+  assertCanExecutePreflight(
+    initialPreflight.canExecute,
+    initialPreflight.blockingReasons,
+    'Redemption preflight failed. Refresh balances and try again.',
+  );
   logger.debug('[SepoliaBridge] Starting redemption request', {
     accountIndex,
     amount,
-    destinationTaprootAddress,
+    destinationTaprootAddress: normalizedDestination,
     sourceAsset,
     maxSourceAmount,
   });
@@ -482,8 +1151,8 @@ export async function requestRedemption(
       maxSourceAmount,
     });
     if (maxSourceAmount) {
-      const maxSourceAmountUnits = parseUnits(maxSourceAmount, EVM_DECIMALS);
-      const quotedUsdcAmountUnits = parseUnits(usdcAmount, EVM_DECIMALS);
+      const maxSourceAmountUnits = parsePositiveAmountUnits(maxSourceAmount, EVM_DECIMALS, 'USDC');
+      const quotedUsdcAmountUnits = parsePositiveAmountUnits(usdcAmount, EVM_DECIMALS, 'USDC');
       if (quotedUsdcAmountUnits > maxSourceAmountUnits) {
         throw new Error(
           `This redemption now needs ${usdcAmount} USDC, which exceeds your entered amount of ${maxSourceAmount} USDC. Refresh the quote or reduce the size.`,
@@ -492,6 +1161,7 @@ export async function requestRedemption(
     }
     preparationSwap = await executeSwap(accountIndex, 'USDC', usdcAmount);
     const postSwapBalances = await getEvmBalances(accountIndex);
+    latestBalances = postSwapBalances;
     const postSwapWunitUnits = parseUnits(postSwapBalances.wunit, EVM_DECIMALS);
     logger.debug('[SepoliaBridge] Post-swap balances before redemption', {
       accountIndex,
@@ -506,6 +1176,30 @@ export async function requestRedemption(
     redeemAmountUnits = redemptionAmountUnits;
   }
 
+  latestBalances = latestBalances || await getEvmBalances(accountIndex);
+  const availableWunitUnits = parseUnits(latestBalances.wunit, EVM_DECIMALS);
+  if (availableWunitUnits < redeemAmountUnits) {
+    throw new Error(
+      `Not enough wUNIT. Need ${formatUnits(redeemAmountUnits, EVM_DECIMALS)}, available ${latestBalances.wunit}.`,
+    );
+  }
+
+  const burnEstimate = sourceAsset === 'wUNIT'
+    ? initialPreflight
+    : await estimateRedemptionExecution(
+        accountIndex,
+        formatUnits(redeemAmountUnits, EVM_DECIMALS),
+        normalizedDestination,
+        'wUNIT',
+      );
+  const availableEthWei = parseUnits(latestBalances.eth, 18);
+  const requiredFeeWei = parseUnits(burnEstimate.totalFeeEth, 18);
+  if (availableEthWei < requiredFeeWei) {
+    throw new Error(
+      `Not enough Sepolia ETH for redemption gas. Need ${burnEstimate.totalFeeEth} ETH, available ${latestBalances.eth} ETH.`,
+    );
+  }
+
   const approvalTxHash = await ensureAllowance(
     accountIndex,
     'wUNIT',
@@ -515,21 +1209,41 @@ export async function requestRedemption(
 
   return withSepoliaSigner(accountIndex, async (wallet) => {
     const router = new Contract(EVM_CONFIG.bridgeRouterAddress, ROUTER_ABI, wallet);
-    const releaseId = id(`${wallet.address}:${destinationTaprootAddress}:${Date.now()}`);
+    const releaseId = id(`${wallet.address}:${normalizedDestination}:${Date.now()}`);
     logger.debug('[SepoliaBridge] Broadcasting redemption', {
       accountIndex,
       wallet: wallet.address,
       releaseId,
       redeemAmount: formatUnits(redeemAmountUnits, EVM_DECIMALS),
-      destinationTaprootAddress,
+      destinationTaprootAddress: normalizedDestination,
       approvalTxHash,
     });
     const requestTx = await router.requestRedemption(
       releaseId,
       redeemAmountUnits,
-      destinationTaprootAddress,
+      normalizedDestination,
     );
-    const receipt = await requestTx.wait(EVM_CONFIG.confirmations);
+    recordSubmittedEvmTx({
+      accountIndex,
+      kind: 'redemption',
+      txHash: requestTx.hash,
+      asset: 'wUNIT',
+      amount: formatUnits(redeemAmountUnits, EVM_DECIMALS),
+      spender: EVM_CONFIG.bridgeRouterAddress,
+      recipient: null,
+      tokenIn: 'wUNIT',
+      tokenOut: 'UNIT',
+      releaseId,
+      destinationTaprootAddress: normalizedDestination,
+    });
+    let receipt: { hash?: string } | null;
+    try {
+      receipt = await requestTx.wait(EVM_CONFIG.confirmations);
+      markConfirmedEvmTx(requestTx.hash, receipt?.hash || requestTx.hash);
+    } catch (error) {
+      markFailedEvmTx(requestTx.hash, error);
+      throw error;
+    }
     logger.debug('[SepoliaBridge] Redemption confirmed', {
       accountIndex,
       wallet: wallet.address,
@@ -540,13 +1254,25 @@ export async function requestRedemption(
     const payload: TrackRedemptionRequest = {
       id: releaseId,
       requester: wallet.address,
-      destinationTaprootAddress,
+      destinationTaprootAddress: normalizedDestination,
       amount: formatUnits(redeemAmountUnits, EVM_DECIMALS),
       sourceAsset,
       burnTxHash: receipt?.hash || requestTx.hash,
     };
 
-    await trackRedemption(payload);
+    let trackRedemptionError: string | undefined;
+    try {
+      await trackRedemption(payload);
+    } catch (error) {
+      trackRedemptionError = getErrorMessage(error);
+      logger.warn('[SepoliaBridge] Redemption burn confirmed but bridge API tracking failed', {
+        accountIndex,
+        wallet: wallet.address,
+        releaseId,
+        burnTxHash: payload.burnTxHash,
+        error: trackRedemptionError,
+      });
+    }
 
     return {
       releaseId,
@@ -556,6 +1282,7 @@ export async function requestRedemption(
       preparationSwap: preparationSwap
         ? { ...preparationSwap, approvalTxHash: preparationSwap.approvalTxHash || approvalTxHash }
         : undefined,
+      trackRedemptionError,
     };
   });
 }
@@ -564,12 +1291,20 @@ export async function executeUsdcToUnitSwap(
   accountIndex: number,
   amountIn: string,
   destinationTaprootAddress: string,
+  expectedMinimumWunitOut?: string,
 ): Promise<RedemptionExecutionResult> {
-  const preparationSwap = await executeSwap(accountIndex, 'USDC', amountIn);
+  const normalizedDestination = assertMutinynetTaprootDestination(destinationTaprootAddress);
+  const preflight = await estimateUsdcToUnitSwapExecution(accountIndex, amountIn, normalizedDestination);
+  assertCanExecutePreflight(
+    preflight.canExecute,
+    preflight.blockingReasons,
+    'USDC to UNIT swap preflight failed. Refresh balances and try again.',
+  );
+  const preparationSwap = await executeSwap(accountIndex, 'USDC', amountIn, expectedMinimumWunitOut);
   const redemption = await requestRedemption(
     accountIndex,
     preparationSwap.amountOut,
-    destinationTaprootAddress,
+    normalizedDestination,
     'wUNIT',
   );
 
@@ -580,60 +1315,285 @@ export async function executeUsdcToUnitSwap(
   };
 }
 
+export async function estimateRedemptionExecution(
+  accountIndex: number,
+  amount: string,
+  destinationTaprootAddress: string,
+  sourceAsset: SepoliaAsset = 'wUNIT',
+): Promise<RedemptionExecutionEstimate> {
+  assertBridgeContractsConfigured();
+
+  const normalizedDestination = assertMutinynetTaprootDestination(destinationTaprootAddress);
+  if (sourceAsset === 'USDC') {
+    const requiredUsdcIn = await quoteUsdcForExactWunit(amount);
+    const estimate = await estimateUsdcToUnitSwapExecution(
+      accountIndex,
+      requiredUsdcIn,
+      normalizedDestination,
+    );
+
+    return {
+      ...estimate,
+      sourceAsset,
+      requiredSourceAmount: requiredUsdcIn,
+      sourceBalance: estimate.usdcBalance,
+      hasEnoughSource: estimate.hasEnoughUsdc,
+    };
+  }
+
+  const redemptionAmountUnits = parsePositiveAmountUnits(amount, EVM_DECIMALS, 'wUNIT');
+
+  return withSepoliaSigner(accountIndex, async (wallet, provider) => {
+    const wunit = new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, wallet);
+    const router = new Contract(EVM_CONFIG.bridgeRouterAddress, ROUTER_ABI, wallet);
+    const [wunitAllowance, wunitBalance, ethBalance, feeData] = await Promise.all([
+      wunit.allowance(wallet.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>,
+      wunit.balanceOf(wallet.address) as Promise<bigint>,
+      provider.getBalance(wallet.address),
+      provider.getFeeData(),
+    ]);
+
+    const requiresWunitApproval = wunitAllowance < redemptionAmountUnits;
+    const gasSegments: bigint[] = [];
+
+    if (requiresWunitApproval) {
+      gasSegments.push(
+        await estimateGasOrFallback(
+          () => wunit.approve.estimateGas(EVM_CONFIG.bridgeRouterAddress, MaxUint256) as Promise<bigint>,
+          FALLBACK_WUNIT_APPROVAL_GAS,
+        ),
+      );
+    }
+
+    gasSegments.push(
+      !requiresWunitApproval && wunitBalance >= redemptionAmountUnits
+        ? await estimateGasOrFallback(
+            () =>
+              router.requestRedemption.estimateGas(
+                id(`${wallet.address}:${normalizedDestination}:estimate`),
+                redemptionAmountUnits,
+                normalizedDestination,
+              ) as Promise<bigint>,
+            FALLBACK_REDEMPTION_GAS,
+          )
+        : FALLBACK_REDEMPTION_GAS,
+    );
+
+    const totalGasUnits = gasSegments.reduce((sum, value) => sum + value, 0n);
+    const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
+    const totalFeeWei = totalGasUnits * feePerGas;
+    const hasEnoughSource = wunitBalance >= redemptionAmountUnits;
+    const hasEnoughEth = ethBalance >= totalFeeWei;
+    const blockingReasons = buildBlockingReasons([
+      {
+        passed: hasEnoughSource,
+        message: `Not enough wUNIT. Need ${formatUnits(redemptionAmountUnits, EVM_DECIMALS)}, available ${formatUnits(wunitBalance, EVM_DECIMALS)}.`,
+      },
+      {
+        passed: hasEnoughEth,
+        message: `Not enough Sepolia ETH for approval and redemption gas. Need ${formatEther(totalFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+      },
+    ]);
+
+    return {
+      totalGasUnits: totalGasUnits.toString(),
+      totalFeeEth: formatEther(totalFeeWei),
+      gasPriceGwei: formatUnits(feePerGas, 'gwei'),
+      feePaymentAsset: 'ETH',
+      requiresUsdcApproval: false,
+      requiresWunitApproval,
+      walletAddress: wallet.address,
+      ethBalance: formatEther(ethBalance),
+      requiredEth: formatEther(totalFeeWei),
+      usdcBalance: '0',
+      wunitBalance: formatUnits(wunitBalance, EVM_DECIMALS),
+      requiredUsdcAmount: '0',
+      expectedWunitAmount: formatUnits(redemptionAmountUnits, EVM_DECIMALS),
+      hasEnoughUsdc: true,
+      hasEnoughEth,
+      canExecute: blockingReasons.length === 0,
+      blockingReasons,
+      sourceAsset,
+      requiredSourceAmount: amount,
+      sourceBalance: formatUnits(wunitBalance, EVM_DECIMALS),
+      hasEnoughSource,
+    };
+  });
+}
+
 export async function estimateSepoliaTokenTransfer(
   accountIndex: number,
-  token: SepoliaAsset,
+  token: SepoliaTransferAsset,
   recipient: string,
   amount: string,
 ): Promise<SepoliaTokenTransferEstimate> {
-  assertBridgeContractsConfigured();
-
   if (!isAddress(recipient)) {
     throw new Error('Enter a valid Ethereum address');
   }
 
-  const amountUnits = parseUnits(amount, EVM_DECIMALS);
+  const amountUnits = parsePositiveAmountUnits(amount, getTransferDecimals(token), token);
 
   return withSepoliaSigner(accountIndex, async (wallet, provider) => {
-    const tokenContract = new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
-    const [gasEstimate, feeData] = await Promise.all([
-      tokenContract.transfer.estimateGas(recipient, amountUnits) as Promise<bigint>,
+    const tokenContract = token === 'ETH'
+      ? null
+      : new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
+    const [gasEstimate, feeData, ethBalance, tokenBalance] = await Promise.all([
+      token === 'ETH'
+        ? estimateGasOrFallback(
+            () => wallet.estimateGas({ to: recipient, value: amountUnits }),
+            FALLBACK_ETH_TRANSFER_GAS,
+          )
+        : estimateGasOrFallback(
+            () => tokenContract!.transfer.estimateGas(recipient, amountUnits) as Promise<bigint>,
+            FALLBACK_ERC20_TRANSFER_GAS,
+          ),
       provider.getFeeData(),
+      provider.getBalance(wallet.address),
+      token === 'ETH'
+        ? Promise.resolve(amountUnits)
+        : tokenContract!.balanceOf(wallet.address) as Promise<bigint>,
     ]);
 
     const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
     const totalFeeWei = gasEstimate * feePerGas;
+    const requiredEthWei = token === 'ETH' ? amountUnits + totalFeeWei : totalFeeWei;
+    const hasEnoughAsset = token === 'ETH' ? ethBalance >= amountUnits : tokenBalance >= amountUnits;
+    const hasEnoughEth = ethBalance >= requiredEthWei;
+    const blockingReasons = token === 'ETH'
+      ? buildBlockingReasons([
+          {
+            passed: hasEnoughEth,
+            message: `Not enough Sepolia ETH. Need ${formatEther(requiredEthWei)} ETH including gas, available ${formatEther(ethBalance)} ETH.`,
+          },
+        ])
+      : buildBlockingReasons([
+          {
+            passed: hasEnoughAsset,
+            message: `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`,
+          },
+          {
+            passed: hasEnoughEth,
+            message: `Not enough Sepolia ETH for gas. Need ${formatEther(totalFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+          },
+        ]);
 
     return {
       gasUnits: gasEstimate.toString(),
       totalFeeEth: formatEther(totalFeeWei),
       gasPriceGwei: formatUnits(feePerGas, 'gwei'),
+      walletAddress: wallet.address,
+      assetBalance: token === 'ETH' ? formatEther(ethBalance) : formatTransferAmount(tokenBalance, token),
+      ethBalance: formatEther(ethBalance),
+      requiredAssetAmount: formatTransferAmount(amountUnits, token),
+      requiredEth: formatEther(requiredEthWei),
+      hasEnoughAsset,
+      hasEnoughEth,
+      canExecute: blockingReasons.length === 0,
+      blockingReasons,
     };
   });
 }
 
 export async function sendSepoliaToken(
   accountIndex: number,
-  token: SepoliaAsset,
+  token: SepoliaTransferAsset,
   recipient: string,
   amount: string,
 ): Promise<SepoliaTokenTransferResult> {
-  assertBridgeContractsConfigured();
-
   if (!isAddress(recipient)) {
     throw new Error('Enter a valid Ethereum address');
   }
 
-  const amountUnits = parseUnits(amount, EVM_DECIMALS);
+  const amountUnits = parsePositiveAmountUnits(amount, getTransferDecimals(token), token);
 
-  return withSepoliaSigner(accountIndex, async (wallet) => {
+  if (token === 'ETH') {
+    return withSepoliaSigner(accountIndex, async (wallet, provider) => {
+      const [gasEstimate, feeData, ethBalance] = await Promise.all([
+        estimateGasOrFallback(
+          () => wallet.estimateGas({ to: recipient, value: amountUnits }),
+          FALLBACK_ETH_TRANSFER_GAS,
+        ),
+        provider.getFeeData(),
+        provider.getBalance(wallet.address),
+      ]);
+      const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
+      const estimatedFeeWei = gasEstimate * feePerGas;
+      const requiredWei = amountUnits + estimatedFeeWei;
+
+      if (ethBalance < requiredWei) {
+        throw new Error(
+          `Not enough Sepolia ETH. Need ${formatEther(requiredWei)} ETH including estimated gas, available ${formatEther(ethBalance)} ETH.`,
+        );
+      }
+
+      const transferTx = await wallet.sendTransaction({ to: recipient, value: amountUnits });
+      recordSubmittedEvmTx({
+        accountIndex,
+        kind: 'transfer',
+        txHash: transferTx.hash,
+        asset: 'ETH',
+        amount: formatTransferAmount(amountUnits, token),
+        spender: null,
+        recipient,
+        tokenIn: 'ETH',
+        tokenOut: null,
+        releaseId: null,
+        destinationTaprootAddress: null,
+      });
+
+      return {
+        txHash: transferTx.hash,
+        amount: formatTransferAmount(amountUnits, token),
+        token,
+        recipient,
+      };
+    });
+  }
+
+  return withSepoliaSigner(accountIndex, async (wallet, provider) => {
     const tokenContract = new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
+    const [tokenBalance, gasEstimate, feeData, ethBalance] = await Promise.all([
+      tokenContract.balanceOf(wallet.address) as Promise<bigint>,
+      estimateGasOrFallback(
+        () => tokenContract.transfer.estimateGas(recipient, amountUnits) as Promise<bigint>,
+        FALLBACK_ERC20_TRANSFER_GAS,
+      ),
+      provider.getFeeData(),
+      provider.getBalance(wallet.address),
+    ]);
+    const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
+    const estimatedFeeWei = gasEstimate * feePerGas;
+
+    if (tokenBalance < amountUnits) {
+      throw new Error(
+        `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`,
+      );
+    }
+
+    if (ethBalance < estimatedFeeWei) {
+      throw new Error(
+        `Not enough Sepolia ETH for gas. Need ${formatEther(estimatedFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+      );
+    }
+
     const transferTx = await tokenContract.transfer(recipient, amountUnits);
-    const receipt = await transferTx.wait(EVM_CONFIG.confirmations);
+    recordSubmittedEvmTx({
+      accountIndex,
+      kind: 'transfer',
+      txHash: transferTx.hash,
+      asset: token,
+      amount: formatTransferAmount(amountUnits, token),
+      spender: null,
+      recipient,
+      tokenIn: token,
+      tokenOut: null,
+      releaseId: null,
+      destinationTaprootAddress: null,
+    });
 
     return {
-      txHash: receipt?.hash || transferTx.hash,
-      amount,
+      txHash: transferTx.hash,
+      amount: formatTransferAmount(amountUnits, token),
       token,
       recipient,
     };
@@ -644,8 +1604,6 @@ export async function fetchSepoliaTokenHistory(
   accountIndex: number,
   token: SepoliaAsset,
 ): Promise<SepoliaAssetHistoryItem[]> {
-  assertBridgeContractsConfigured();
-
   return withSepoliaSigner(accountIndex, async (wallet, provider) => {
     const tokenContract = new Contract(getTokenConfig(token).address, ERC20_ABI, provider);
     const latestBlock = await provider.getBlockNumber();
@@ -658,12 +1616,20 @@ export async function fetchSepoliaTokenHistory(
     ]) as [EventLog[], EventLog[]];
 
     const grouped = new Map<string, { sent: bigint; received: bigint; blockNumber: number }>();
+    const seenEventKeys = new Set<string>();
 
     [...incomingEvents, ...outgoingEvents].forEach((event) => {
       const from = String(event.args?.[0] ?? '').toLowerCase();
       const to = String(event.args?.[1] ?? '').toLowerCase();
       const value = event.args?.[2];
       const amount = typeof value === 'bigint' ? value : BigInt(String(value ?? '0'));
+      const eventKey = getTransferEventKey(event, from, to, amount);
+
+      if (seenEventKeys.has(eventKey)) {
+        return;
+      }
+      seenEventKeys.add(eventKey);
+
       const current = grouped.get(event.transactionHash) ?? {
         sent: 0n,
         received: 0n,
@@ -699,7 +1665,11 @@ export async function fetchSepoliaTokenHistory(
     return [...grouped.entries()]
       .map(([txid, entry]) => {
         const netAmount = entry.received - entry.sent;
-        const absoluteAmount = Number(formatUnits(netAmount < 0n ? -netAmount : netAmount, EVM_DECIMALS));
+        const isSelfTransfer = entry.sent > 0n && entry.sent === entry.received;
+        const displayAmount = isSelfTransfer
+          ? entry.sent
+          : netAmount < 0n ? -netAmount : netAmount;
+        const absoluteAmount = Number(formatUnits(displayAmount, EVM_DECIMALS));
         return {
           txid,
           status: {
@@ -709,12 +1679,64 @@ export async function fetchSepoliaTokenHistory(
           txData: {
             amount: absoluteAmount,
             assetType: displayAssetType,
-            isSent: entry.sent > entry.received,
-            isReceived: entry.received > entry.sent,
+            isSent: isSelfTransfer || entry.sent > entry.received,
+            isReceived: isSelfTransfer || entry.received > entry.sent,
           },
         };
       })
       .filter((item) => item.txData.amount > 0)
+      .sort((left, right) => (right.status.block_time ?? 0) - (left.status.block_time ?? 0));
+  });
+}
+
+export async function fetchSepoliaEthHistory(accountIndex: number): Promise<SepoliaAssetHistoryItem[]> {
+  return withSepoliaSigner(accountIndex, async (wallet) => {
+    const walletAddress = wallet.address.toLowerCase();
+    const url = `${SEPOLIA_BLOCKSCOUT_API_BASE_URL}/addresses/${wallet.address}/transactions`;
+    const payload = await getJSON<BlockscoutTransactionsResponse>(url, {
+      description: 'Fetch Sepolia ETH transaction history',
+      timeout: 8_000,
+      dedupeKey: `sepolia-eth-history:${accountIndex}:${wallet.address}`,
+      cacheKey: `sepolia-eth-history:${accountIndex}:${wallet.address}`,
+      cacheTtlMs: 20_000,
+      staleOnError: true,
+      circuitKey: 'blockscout:sepolia-eth-history',
+    });
+    const items = Array.isArray(payload.items) ? payload.items : [];
+
+    return items
+      .map((item): SepoliaAssetHistoryItem | null => {
+        const txid = typeof item.hash === 'string' ? item.hash : '';
+        const valueWei = parseBlockscoutWei(item.value);
+        const from = getBlockscoutAddressHash(item.from);
+        const to = getBlockscoutAddressHash(item.to);
+        const isSent = from === walletAddress;
+        const isReceived = to === walletAddress;
+
+        if (!txid || valueWei <= 0n || (!isSent && !isReceived)) {
+          return null;
+        }
+
+        const failed = item.status === 'error' || item.result === 'error';
+        const blockNumber = typeof item.block_number === 'number'
+          ? item.block_number
+          : typeof item.block === 'number' ? item.block : null;
+
+        return {
+          txid,
+          status: {
+            confirmed: !failed && blockNumber !== null,
+            block_time: parseBlockscoutTimestamp(item.timestamp),
+          },
+          txData: {
+            amount: Number(formatEther(valueWei)),
+            assetType: 'ETH',
+            isSent,
+            isReceived,
+          },
+        };
+      })
+      .filter((item): item is SepoliaAssetHistoryItem => item !== null)
       .sort((left, right) => (right.status.block_time ?? 0) - (left.status.block_time ?? 0));
   });
 }

@@ -11,6 +11,7 @@ import { decodeToken,encodeToken } from '../services/cashu/crypto';
 import { hasP2PKProofs } from '../services/cashu/p2pk';
 import type { SnackbarParams } from '../stores/notificationStore';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
+import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../utils/bitcoin';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 
@@ -50,6 +51,16 @@ interface TokenEntry {
   proofs: Proof[];
 }
 
+function classifyQrPayload(data: string): string {
+  const lower = data.toLowerCase();
+  if (lower.startsWith('cashu')) return 'cashu_token';
+  if (lower.startsWith('bitcoin:')) return 'bitcoin_uri';
+  if (lower.startsWith('tb1') || lower.startsWith('bc1')) return 'bitcoin_address';
+  if (lower.includes('ducat://turbo/') || lower.includes('unit?')) return 'turbo_url';
+  if (data.startsWith('{') || data.startsWith('[')) return 'json';
+  return 'unknown';
+}
+
 /**
  * Hook for handling various QR code formats
  */
@@ -62,25 +73,40 @@ export function useQRCodeHandler({
   const tokenStore = useTokenProcessingStore();
 
   const handleQRScan = useCallback(async (data: string) => {
-    logger.debug('[useQRCodeHandler] QR scanned:', data);
-    logger.debug('[useQRCodeHandler] Data length:', data.length);
-    logger.debug('[useQRCodeHandler] First 100 chars:', data.substring(0, 100));
+    const trimmedData = data.trim();
+    const lowerData = trimmedData.toLowerCase();
+    logger.debug('[useQRCodeHandler] QR scanned', {
+      length: trimmedData.length,
+      kind: classifyQrPayload(trimmedData),
+    });
 
-    // Handle Bitcoin addresses
-    if (data.startsWith('bitcoin:') || data.startsWith('tb1') || data.startsWith('bc1')) {
+    // Handle Bitcoin addresses and BIP21 URIs. Mainnet-looking addresses are
+    // routed through validation so the user sees the explicit Mutinynet error.
+    if (lowerData.startsWith('bitcoin:') || lowerData.startsWith('tb1') || lowerData.startsWith('bc1')) {
       // Extract address from BIP21 URI if present (bitcoin:address?amount=...)
-      let address = data;
-      if (data.toLowerCase().startsWith('bitcoin:')) {
-        address = data.replace(/^bitcoin:/i, '').split('?')[0];
+      let address = trimmedData;
+      if (lowerData.startsWith('bitcoin:')) {
+        address = trimmedData.replace(/^bitcoin:/i, '').split('?')[0].trim();
+      }
+
+      // Close scanner FIRST before any navigation/snackbar to prevent race conditions
+      setShowQRScanner(false);
+
+      const validation = validateBitcoinAddress(address);
+      if (!validation.valid) {
+        showSnackbar({
+          type: 'error',
+          action: 'send',
+          description: validation.error || 'Invalid Bitcoin address',
+        });
+        return;
       }
 
       // Determine asset type based on address type
-      // Taproot (tb1p/bc1p) addresses default to UNIT, segwit defaults to BTC
-      const isTaproot = address.startsWith('tb1p') || address.startsWith('bc1p');
+      // Mutinynet Taproot addresses default to UNIT, segwit defaults to BTC.
+      const lowerAddress = address.toLowerCase();
+      const isTaproot = lowerAddress.startsWith(TAPROOT_ADDRESS_PREFIX);
       const assetType = isTaproot ? 'unit' : 'btc';
-
-      // Close scanner FIRST before any navigation to prevent race conditions
-      setShowQRScanner(false);
 
       // Navigate to send flow - address is passed via route params, not the store
       // Don't call resetSendFlow here as it would clear the prefilled address
@@ -92,17 +118,17 @@ export function useQRCodeHandler({
     }
 
     // Handle Cashu tokens
-    if (data.startsWith('cashu')) {
+    if (trimmedData.startsWith('cashu')) {
       try {
         // Check if this is a P2PK locked token (Turbo)
-        const isP2PKToken = hasP2PKProofs(data);
+        const isP2PKToken = hasP2PKProofs(trimmedData);
 
         if (isP2PKToken) {
           // This is a Turbo token - check if already processed
           logger.debug('[useQRCodeHandler] P2PK token detected, checking if already processed');
 
           // Check if already processed using the token store
-          const alreadyProcessed = await tokenStore.isTokenProcessed(data);
+          const alreadyProcessed = await tokenStore.isTokenProcessed(trimmedData);
           if (alreadyProcessed) {
             logger.debug('[useQRCodeHandler] Token already processed, showing error');
             setShowQRScanner(false);
@@ -116,7 +142,7 @@ export function useQRCodeHandler({
 
           // Store token in store for processing
           logger.debug('[useQRCodeHandler] Processing new token');
-          tokenStore.setPendingToken(data);
+          tokenStore.setPendingToken(trimmedData);
 
           // Close scanner immediately
           setShowQRScanner(false);
@@ -131,7 +157,7 @@ export function useQRCodeHandler({
         notify.token.checking();
 
         // Decode and analyze the token
-        const decoded = decodeToken(data) as DecodedToken;
+        const decoded = decodeToken(trimmedData) as DecodedToken;
         const { proofs, amount } = decoded;
 
         // Check which proofs are spent
@@ -197,7 +223,7 @@ export function useQRCodeHandler({
         } else {
           // All proofs unspent - claim directly
           notify.token.claiming();
-          const result = await receiveCashuToken(data);
+          const result = await receiveCashuToken(trimmedData);
           showSnackbar({
             type: 'success',
             action: 'claim',
@@ -217,18 +243,21 @@ export function useQRCodeHandler({
     }
 
     // Handle JSON proofs format
-    if (data.startsWith('{') || data.startsWith('[')) {
+    if (trimmedData.startsWith('{') || trimmedData.startsWith('[')) {
       // Close scanner first
       setShowQRScanner(false);
       try {
-        const parsed = JSON.parse(data) as { token?: TokenEntry[]; proofs?: Proof[] };
-        logger.debug('[useQRCodeHandler] Parsed JSON:', parsed);
+        const parsed = JSON.parse(trimmedData) as { token?: TokenEntry[]; proofs?: Proof[] };
+        logger.debug('[useQRCodeHandler] Parsed JSON token payload', {
+          hasTokenEntries: Array.isArray(parsed.token),
+          hasProofs: Array.isArray(parsed.proofs) || Array.isArray(parsed),
+        });
 
         // If it's already a proper token object with proofs, encode it
         if (parsed.token && Array.isArray(parsed.token)) {
           const firstEntry = parsed.token[0];
           const encoded = encodeToken(firstEntry.proofs, firstEntry.mint);
-          logger.debug('[useQRCodeHandler] Encoded token:', { tokenStart: encoded.substring(0, 50) });
+          logger.debug('[useQRCodeHandler] Encoded token', { tokenLength: encoded.length });
 
           notify.token.claiming();
           const result = await receiveCashuToken(encoded);
@@ -263,19 +292,19 @@ export function useQRCodeHandler({
     }
 
     // Handle Turbo URL formats
-    if (data.includes('ducat://turbo/') || data.includes('unit?')) {
+    if (trimmedData.includes('ducat://turbo/') || trimmedData.includes('unit?')) {
       try {
         let token = null;
 
         // Check if this is the ducat://turbo/ format
-        const turboMatch = data.match(/ducat:\/\/turbo\/([^/?#]+)/);
+        const turboMatch = trimmedData.match(/ducat:\/\/turbo\/([^/?#]+)/);
         if (turboMatch && turboMatch[1]) {
           token = turboMatch[1];
           logger.debug('[useQRCodeHandler] Extracted token from ducat:// URL');
         }
         // Check if this is a direct token link with base64 encoded token
         else {
-          const tokenMatch = data.match(/[?&]t=([^&]+)/);
+          const tokenMatch = trimmedData.match(/[?&]t=([^&]+)/);
           if (tokenMatch && tokenMatch[1]) {
             // Decode URL-safe base64
             let base64Token = tokenMatch[1]
@@ -315,11 +344,12 @@ export function useQRCodeHandler({
 
     // Unknown format - close scanner and notify
     setShowQRScanner(false);
-    logger.debug('[useQRCodeHandler] Unknown QR format:', { data });
+    logger.debug('[useQRCodeHandler] Unknown QR format', {
+      length: trimmedData.length,
+      kind: classifyQrPayload(trimmedData),
+    });
     notify.token.unknownFormat();
   }, [navigation, receiveCashuToken, showSnackbar, setShowQRScanner, tokenStore]);
 
   return handleQRScan;
 }
-
-export default useQRCodeHandler;

@@ -2,10 +2,11 @@
  * RepayConfirmScreenNew - Repay confirm screen using generic VaultConfirmScreen
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from './VaultConfirmScreen';
-import { repayConfirmConfig } from './configs';
+import { createRepayConfirmConfig } from './configs';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useRepay } from '../../stores/repayStore';
 import { useRepayFromUsdcSettlement } from '../../hooks/vault';
 
@@ -18,12 +19,22 @@ export default function RepayConfirmScreenNew({ navigation }: RepayConfirmScreen
   const { repayAmountUsd, setRepayQuote } = store;
   const vaultHook = useRepayFromUsdcSettlement();
   const { quoteRepayFromUsdc } = vaultHook;
+  const { settingsHandlers } = useSettingsHandlers();
+  const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
+  const config = useMemo(() => createRepayConfirmConfig(allowUsdc), [allowUsdc]);
 
   useEffect(() => {
     let cancelled = false;
 
     if (repayAmountUsd <= 0) {
       setRepayQuote(null, null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!allowUsdc) {
+      setRepayQuote('0', '0');
       return () => {
         cancelled = true;
       };
@@ -39,12 +50,12 @@ export default function RepayConfirmScreenNew({ navigation }: RepayConfirmScreen
     return () => {
       cancelled = true;
     };
-  }, [quoteRepayFromUsdc, repayAmountUsd, setRepayQuote]);
+  }, [allowUsdc, quoteRepayFromUsdc, repayAmountUsd, setRepayQuote]);
 
   return (
     <VaultConfirmScreen
       navigation={navigation}
-      config={repayConfirmConfig}
+      config={config}
       store={store}
       vaultHook={vaultHook}
     />

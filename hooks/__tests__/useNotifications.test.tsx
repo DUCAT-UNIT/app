@@ -33,7 +33,7 @@ jest.mock('../../services/pushNotificationService', () => ({
 
 // Mock e2e utility — default to non-E2E mode
 jest.mock('../../utils/e2e', () => ({
-  isE2E: false,
+  isE2E: jest.fn(() => false),
 }));
 
 // Mock logger

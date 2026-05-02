@@ -52,16 +52,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "passkey-skip-btn"
 
-# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
-# + network request may not have completed yet. Wait for it to appear.
-- extendedWaitUntil:
-    visible:
-      text: "Get Started"
-    timeout: 30000
+# Airdrop and post-create transitions are intentionally non-blocking:
+# on slow networks the modal can arrive late, and with short autolock settings
+# the app can lock before the modal appears. Do not make specific modal copy a
+# hard precondition for every runtime flow.
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- runFlow: unlock-if-locked.yaml
 
-# Accept airdrop — tapping "Get Started" dismisses the airdrop success modal
-# The airdrop funds the wallet with BTC on Mutinynet automatically
+# Accept airdrop if it appeared. Tapping "Get Started" dismisses the success modal.
 - runFlow: dismiss-airdrop.yaml
+- runFlow: unlock-if-locked.yaml
 
 # Dismiss low ecash modal if it appears
 - runFlow: dismiss-low-ecash.yaml
@@ -111,3 +112,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "asset-card-btc"
     timeout: 90000
+
+# Force defaults again now that the authenticated settings provider is mounted.
+# This updates live auto-lock/feature-flag state, not only persisted storage.
+- openLink: "ducat://e2e/reset-settings"
+- runFlow: unlock-if-locked.yaml
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000

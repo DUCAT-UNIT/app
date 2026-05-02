@@ -4,9 +4,8 @@
  */
 
 import { useMemo } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthPinFlow, useAuthSession, useOnboardingFlow } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useOnboardingFlow } from '../contexts/AuthContext';
 
 interface UseNavigationStateReturn {
   shouldShowAuth: boolean;
@@ -18,7 +17,8 @@ interface UseNavigationStateReturn {
  * Hook to determine navigation state
  */
 export function useNavigationState(): UseNavigationStateReturn {
-  const { isAuthenticated, changingPin, settingUpPin, showPinEntry } = useAuth();
+  const { isAuthenticated } = useAuthSession();
+  const { changingPin, settingUpPin, showPinEntry } = useAuthPinFlow();
   const { wallet } = useWallet();
   const { seedConfirmed } = useOnboardingFlow();
 

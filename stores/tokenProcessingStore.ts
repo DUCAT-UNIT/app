@@ -58,6 +58,15 @@ const initialState: TokenProcessingState = {
   walletReloadCallback: null,
 };
 
+let tokenCheckTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearTokenCheckTimer(): void {
+  if (tokenCheckTimer) {
+    clearTimeout(tokenCheckTimer);
+    tokenCheckTimer = null;
+  }
+}
+
 export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) => ({
   ...initialState,
 
@@ -117,6 +126,7 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
 
   unregisterTokenCheckCallback: () => {
     logger.debug('[TokenProcessingStore] Unregistering token check callback');
+    clearTokenCheckTimer();
     set({ tokenCheckCallback: null });
   },
 
@@ -125,7 +135,12 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
     if (tokenCheckCallback) {
       logger.debug('[TokenProcessingStore] Triggering token check');
       // Small delay to ensure state is updated
-      setTimeout(() => tokenCheckCallback(), 50);
+      clearTokenCheckTimer();
+      tokenCheckTimer = setTimeout(() => {
+        tokenCheckTimer = null;
+        get().tokenCheckCallback?.();
+      }, 50);
+      (tokenCheckTimer as { unref?: () => void }).unref?.();
     }
   },
 
@@ -149,6 +164,7 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
 
   reset: () => {
     logger.debug('[TokenProcessingStore] Resetting state');
+    clearTokenCheckTimer();
     set(initialState);
   },
 }));

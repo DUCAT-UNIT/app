@@ -24,6 +24,7 @@ import PrivacyPolicyScreenComponent from '../screens/settings/PrivacyPolicyScree
 import PreferencesScreenComponent from '../screens/settings/PreferencesScreen';
 import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
+import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { COLORS } from '../theme';
 
 import type { WalletStackParamList } from './types';
@@ -65,12 +66,12 @@ const RecoverMintScreen: AnyComponent = withErrorBoundary(RecoverMintScreenCompo
 
 const BridgeScreen: AnyComponent = withErrorBoundary(BridgeScreenComponent, {
   boundaryName: 'BridgeScreen',
-  fallbackMessage: 'Unable to load the Sepolia bridge screen. Please try again.',
+  fallbackMessage: 'Unable to load the USDC bridge screen. Please try again.',
 });
 
 const SwapScreen: AnyComponent = withErrorBoundary(SwapScreenComponent, {
   boundaryName: 'SwapScreen',
-  fallbackMessage: 'Unable to load the Sepolia swap screen. Please try again.',
+  fallbackMessage: 'Unable to load the USDC swap screen. Please try again.',
 });
 
 const SwapSummaryScreen: AnyComponent = withErrorBoundary(SwapSummaryScreenComponent, {
@@ -85,7 +86,7 @@ const RedeemScreen: AnyComponent = withErrorBoundary(RedeemScreenComponent, {
 
 const SepoliaSendScreen: AnyComponent = withErrorBoundary(SepoliaSendScreenComponent, {
   boundaryName: 'SepoliaSendScreen',
-  fallbackMessage: 'Unable to load the Sepolia send screen. Please try again.',
+  fallbackMessage: 'Unable to load the USDC send screen. Please try again.',
 });
 
 const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenComponent, {
@@ -122,6 +123,32 @@ const AdvancedScreen: AnyComponent = withErrorBoundary(AdvancedScreenComponent, 
   boundaryName: 'AdvancedScreen',
   fallbackMessage: 'Unable to load advanced settings. Please try again.',
 });
+
+function withUsdcFeatureGate(Component: AnyComponent): AnyComponent {
+  return function UsdcFeatureGate(props: {
+    navigation: { goBack: () => void };
+  }): React.ReactElement | null {
+    const { settingsHandlers } = useSettingsHandlers();
+
+    React.useEffect(() => {
+      if (!settingsHandlers.usdcFeaturesEnabled) {
+        props.navigation.goBack();
+      }
+    }, [props.navigation, settingsHandlers.usdcFeaturesEnabled]);
+
+    if (!settingsHandlers.usdcFeaturesEnabled) {
+      return null;
+    }
+
+    return <Component {...props} />;
+  };
+}
+
+const GatedBridgeScreen = withUsdcFeatureGate(BridgeScreen);
+const GatedSwapScreen = withUsdcFeatureGate(SwapScreen);
+const GatedSwapSummaryScreen = withUsdcFeatureGate(SwapSummaryScreen);
+const GatedRedeemScreen = withUsdcFeatureGate(RedeemScreen);
+const GatedSepoliaSendScreen = withUsdcFeatureGate(SepoliaSendScreen);
 
 
 const Stack = createStackNavigator<WalletStackParamList>();
@@ -249,27 +276,27 @@ export default function WalletStackNavigator(): React.JSX.Element {
       />
       <Stack.Screen
         name="UnitBridge"
-        component={BridgeScreen}
+        component={GatedBridgeScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen
         name="SepoliaSwap"
-        component={SwapScreen}
+        component={GatedSwapScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen
         name="SepoliaSwapSummary"
-        component={SwapSummaryScreen}
+        component={GatedSwapSummaryScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen
         name="SepoliaRedeem"
-        component={RedeemScreen}
+        component={GatedRedeemScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen
         name="SepoliaSend"
-        component={SepoliaSendScreen}
+        component={GatedSepoliaSendScreen}
         options={detailScreenOptions}
       />
       <Stack.Screen

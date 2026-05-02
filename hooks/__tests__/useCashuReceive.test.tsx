@@ -527,6 +527,45 @@ describe('useCashuReceive', () => {
 
       // No additional calls after unmount
     });
+
+    it('should not overlap mint status checks while a previous check is still running', async () => {
+      let resolveCheck: (value: { completed: boolean }) => void = () => undefined;
+      mockProps.checkAndCompleteMint.mockImplementation(() => new Promise((resolve) => {
+        resolveCheck = resolve;
+      }));
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current!.handleStartMint();
+      });
+
+      act(() => {
+        result.current!.setMode('mint');
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+        jest.advanceTimersByTime(3000);
+      });
+
+      expect(mockProps.checkAndCompleteMint).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveCheck({ completed: false });
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(3000);
+      });
+
+      expect(mockProps.checkAndCompleteMint).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('handleReceiveToken success callback', () => {

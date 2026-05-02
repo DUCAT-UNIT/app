@@ -28,9 +28,23 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
   const totalSteps = 5;
   const hasStarted = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentStepRef = useRef(currentStep);
+  const currentMessageRef = useRef(currentMessage);
 
   // Get store actions
   const { startProcessing, updateProgress, completeProcessing, failProcessing } = useTurboProcessingStore();
+
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+    currentMessageRef.current = currentMessage;
+  }, [currentStep, currentMessage]);
+
+  const clearProcessingTimeout = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
   // Prevent back navigation while processing
   useEffect(() => {
@@ -52,11 +66,14 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
 
     // Set a timeout to detect if we get stuck
     timeoutRef.current = setTimeout(async () => {
-      logger.error('Token creation timeout - stuck on step:', { step: currentStep, message: currentMessage });
+      logger.error('Token creation timeout - stuck on step:', {
+        step: currentStepRef.current,
+        message: currentMessageRef.current,
+      });
       await failProcessing();
       Alert.alert(
         'Error',
-        `Token creation timed out at: ${currentMessage}. Please check your balance and try again.`,
+        `Token creation timed out at: ${currentMessageRef.current}. Please check your balance and try again.`,
         [
           {
             text: 'OK',
@@ -65,6 +82,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         ]
       );
     }, 60000); // 60 second timeout
+    (timeoutRef.current as { unref?: () => void }).unref?.();
 
     const createToken = async () => {
       try {
@@ -84,9 +102,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
             shortfall: amountInSmallestUnits - availableBalance,
           });
 
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
+          clearProcessingTimeout();
           await failProcessing();
 
           // Navigate back to amount input with params to show insufficient sheet
@@ -140,7 +156,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
           const { generateTurboDeeplink, saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
 
           shortUrl = await generateTurboDeeplink(token, sendRecipient, amountInSmallestUnits);
-          logger.info('Generated short URL:', { shortUrl });
+          logger.info('Generated short URL', { shortUrlLength: shortUrl.length });
 
           await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null, shortUrl, wallet?.taprootAddress);
           logger.info('Token saved to storage with short URL');
@@ -151,9 +167,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         }
 
         // Clear timeout on success
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
+        clearProcessingTimeout();
 
         // Mark processing as complete
         await completeProcessing();
@@ -173,9 +187,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         logger.error('Failed to create Turbo token:', { error: errorMessage });
 
         // Clear timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
+        clearProcessingTimeout();
 
         // Mark processing as failed
         await failProcessing();
@@ -198,9 +210,7 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
 
     // Cleanup timeout on unmount
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearProcessingTimeout();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, startProcessing, updateProgress, completeProcessing, failProcessing]);

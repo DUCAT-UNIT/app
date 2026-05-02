@@ -38,6 +38,7 @@ export function AssetActionButtons({
         <TouchableOpacity
           style={[styles.actionButton, { minWidth: s(62) }]}
           onPress={onSendPress}
+          testID="asset-detail-send-btn"
         >
           <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
             <Icon name="send" size={s(19)} color={COLORS.DARK_BG} />
@@ -50,6 +51,7 @@ export function AssetActionButtons({
         <TouchableOpacity
           style={[styles.actionButton, { minWidth: s(62) }]}
           onPress={onReceivePress}
+          testID="asset-detail-receive-btn"
         >
           <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
             <Icon name="receive" size={s(19)} color={COLORS.DARK_BG} />

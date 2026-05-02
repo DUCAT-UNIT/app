@@ -5,7 +5,10 @@
 
 import React from 'react';
 import {
+  Alert,
+  Modal,
   Text,
+  TextInput,
   View,
   TouchableOpacity,
   ScrollView,
@@ -14,11 +17,26 @@ import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
-import { useRemoteConfigStore } from '../../stores/remoteConfigStore';
 import { analytics } from '../../services/analyticsService';
 import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
+import { USDC_FEATURE_PASSWORD } from '../../constants/settings';
 import { logger } from '../../utils/logger';
+import {
+  useOperationJournalStore,
+  type OperationJournalEntry,
+} from '../../stores/operationJournalStore';
 import { styles } from './AdvancedScreen.styles';
+
+const canonicalizeUsdcPassword = (password: string): string =>
+  password
+    .trim()
+    .normalize('NFKC')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLocaleLowerCase('en-US');
+
+const isUsdcPasswordMatch = (password: string): boolean =>
+  canonicalizeUsdcPassword(password) === canonicalizeUsdcPassword(USDC_FEATURE_PASSWORD);
 
 /**
  * Props for the AdvancedScreen component
@@ -68,13 +86,19 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers?.advancedMode || false;
   const ecashThreshold = settingsHandlers?.ecashThreshold || 10000;
-
-  // Remote config store (developer-only section)
-  const configVersion = useRemoteConfigStore((s) => s.config.version);
-  const configNetworkId = useRemoteConfigStore((s) => s.config.network.id);
-  const configIsLoading = useRemoteConfigStore((s) => s.isLoading);
-  const refreshConfig = useRemoteConfigStore((s) => s.refresh);
-  const resetOverrides = useRemoteConfigStore((s) => s.resetOverrides);
+  const usdcFeaturesEnabled = settingsHandlers?.usdcFeaturesEnabled || false;
+  const operationEntries = useOperationJournalStore((state) => state.entries);
+  const clearTerminalOperations = useOperationJournalStore((state) => state.clearTerminalOlderThan);
+  const [showUsdcPasswordPrompt, setShowUsdcPasswordPrompt] = React.useState(false);
+  const [usdcPassword, setUsdcPassword] = React.useState('');
+  const [usdcPasswordError, setUsdcPasswordError] = React.useState<string | null>(null);
+  const [usdcPasswordSubmitting, setUsdcPasswordSubmitting] = React.useState(false);
+  const activeOperationCount = operationEntries.filter((entry) =>
+    entry.stage === 'pending' ||
+    entry.stage === 'submit' ||
+    entry.stage === 'auth' ||
+    entry.stage === 'recoverable'
+  ).length;
 
   // Format threshold display value
   const getThresholdDisplay = (): string => {
@@ -98,6 +122,91 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
     });
   };
 
+  const handleUsdcFeaturePress = (): void => {
+    if (usdcFeaturesEnabled) {
+      Alert.alert(
+        'Disable USDC?',
+        'This hides USDC cards, vault USDC payout, and UNIT swap entry points.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disable',
+            style: 'destructive',
+            onPress: () => {
+              void settingsHandlers.handleDisableUsdcFeatures();
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    setUsdcPassword('');
+    setUsdcPasswordError(null);
+    setShowUsdcPasswordPrompt(true);
+  };
+
+  const handleCancelUsdcPassword = (): void => {
+    if (usdcPasswordSubmitting) return;
+    setShowUsdcPasswordPrompt(false);
+    setUsdcPassword('');
+    setUsdcPasswordError(null);
+  };
+
+  const enableUsdcWithPassword = React.useCallback(async (
+    password: string,
+    options: { showError: boolean } = { showError: true },
+  ): Promise<void> => {
+    if (usdcPasswordSubmitting) return;
+
+    setUsdcPasswordError(null);
+    setUsdcPasswordSubmitting(true);
+    const enabled = await settingsHandlers.handleEnableUsdcFeatures(
+      isUsdcPasswordMatch(password) ? USDC_FEATURE_PASSWORD : password,
+    );
+    setUsdcPasswordSubmitting(false);
+
+    if (enabled) {
+      setShowUsdcPasswordPrompt(false);
+      setUsdcPassword('');
+      setUsdcPasswordError(null);
+    } else if (options.showError) {
+      setUsdcPasswordError('Incorrect password. Enter the developer password exactly.');
+    }
+  }, [settingsHandlers, usdcPasswordSubmitting]);
+
+  const handleSubmitUsdcPassword = async (): Promise<void> => {
+    await enableUsdcWithPassword(usdcPassword);
+  };
+
+  const handleUsdcPasswordChange = (nextPassword: string): void => {
+    setUsdcPassword(nextPassword);
+    if (isUsdcPasswordMatch(nextPassword)) {
+      void enableUsdcWithPassword(nextPassword, { showError: false });
+    }
+  };
+
+  React.useEffect(() => {
+    if (!usdcFeaturesEnabled || !showUsdcPasswordPrompt) return;
+    setShowUsdcPasswordPrompt(false);
+    setUsdcPassword('');
+    setUsdcPasswordError(null);
+  }, [showUsdcPasswordPrompt, usdcFeaturesEnabled]);
+
+  const handleClearCompletedOperations = (): void => {
+    Alert.alert(
+      'Clear completed operations?',
+      'This only removes confirmed or failed journal entries. Pending and recoverable operations stay visible.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          onPress: () => clearTerminalOperations(0),
+        },
+      ],
+    );
+  };
+
   logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
 
   return (
@@ -113,7 +222,6 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           <View style={styles.section}>
-            {/* Developer Mode toggle hidden for release — uncomment to re-enable
             <SettingsOption
               iconName="asset"
               title="Developer Mode"
@@ -121,7 +229,6 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               rightText={advancedMode ? 'ON' : 'OFF'}
               testID="advanced-dev-mode-btn"
             />
-            */}
             <SettingsOption
               iconName="unit_logo"
               title="Turbo UNIT Default"
@@ -131,60 +238,171 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
             />
             {/* Account selection only visible in developer mode */}
             {advancedMode && (
-              <SettingsOption
-                iconName="switch_account"
-                title="Select Account"
-                onPress={onSwitchAccount}
-                testID="advanced-switch-account-btn"
-              />
+              <>
+                <SettingsOption
+                  iconName="asset"
+                  title="Enable USDC"
+                  onPress={handleUsdcFeaturePress}
+                  rightText={usdcFeaturesEnabled ? 'ON' : 'OFF'}
+                  testID="advanced-enable-usdc-btn"
+                />
+                <SettingsOption
+                  iconName="switch_account"
+                  title="Select Account"
+                  onPress={onSwitchAccount}
+                  testID="advanced-switch-account-btn"
+                />
+                <OperationJournalPanel
+                  entries={operationEntries}
+                  activeCount={activeOperationCount}
+                  onClearCompleted={handleClearCompletedOperations}
+                />
+              </>
             )}
           </View>
-
-          {/* Remote Config section — only visible in developer mode */}
-          {advancedMode && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Remote Config</Text>
-              <SettingsOption
-                iconName="asset"
-                title="Config Version"
-                onPress={() => {
-                  logger.debug('[AdvancedScreen] Config version pressed');
-                }}
-                rightText={configVersion}
-                testID="advanced-config-version"
-              />
-              <SettingsOption
-                iconName="asset"
-                title="Network"
-                onPress={() => {
-                  logger.debug('[AdvancedScreen] Network ID pressed');
-                }}
-                rightText={configNetworkId}
-                testID="advanced-config-network"
-              />
-              <SettingsOption
-                iconName="asset"
-                title="Force Refresh"
-                onPress={() => {
-                  refreshConfig().catch(() => {});
-                }}
-                rightText={configIsLoading ? 'Loading...' : ''}
-                testID="advanced-config-refresh-btn"
-              />
-              <SettingsOption
-                iconName="asset"
-                title="Reset Overrides"
-                onPress={resetOverrides}
-                testID="advanced-config-reset-btn"
-              />
-            </View>
-          )}
-
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showUsdcPasswordPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelUsdcPassword}
+      >
+        <View style={styles.passwordModalBackdrop} accessible={false}>
+          <View style={styles.passwordModalCard} testID="enable-usdc-password-modal">
+            <Text style={styles.passwordModalTitle}>Enable USDC</Text>
+            <Text style={styles.passwordModalBody}>
+              Enter the developer password to reveal USDC cards, vault USDC payout, and swap entry points.
+            </Text>
+            <TextInput
+              value={usdcPassword}
+              onChangeText={handleUsdcPasswordChange}
+              secureTextEntry
+              autoCapitalize="none"
+              keyboardType="ascii-capable"
+              autoCorrect={false}
+              autoComplete="off"
+              textContentType="none"
+              returnKeyType="done"
+              onSubmitEditing={() => { void handleSubmitUsdcPassword(); }}
+              placeholder="Developer password"
+              placeholderTextColor="#777"
+              style={styles.passwordInput}
+              testID="enable-usdc-password-input"
+              accessibilityLabel="Enable USDC password"
+              editable={!usdcPasswordSubmitting}
+            />
+            {usdcPasswordError ? (
+              <Text style={styles.passwordErrorText} testID="enable-usdc-password-error">
+                {usdcPasswordError}
+              </Text>
+            ) : null}
+            <View style={styles.passwordModalActions}>
+              <TouchableOpacity
+                style={[styles.passwordModalButton, styles.passwordModalSecondaryButton]}
+                onPress={handleCancelUsdcPassword}
+                disabled={usdcPasswordSubmitting}
+                testID="enable-usdc-cancel-btn"
+              >
+                <Text style={styles.passwordModalSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.passwordModalButton, styles.passwordModalPrimaryButton]}
+                onPress={() => { void handleSubmitUsdcPassword(); }}
+                disabled={usdcPasswordSubmitting}
+                testID="enable-usdc-confirm-btn"
+              >
+                <Text style={styles.passwordModalPrimaryText}>
+                  {usdcPasswordSubmitting ? 'Checking...' : 'Enable'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenLayout>
   );
 });
+
+function shortHash(value: string): string {
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+function formatOperationKind(kind: string): string {
+  return kind
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatUpdatedAt(timestamp: number): string {
+  const elapsedMs = Date.now() - timestamp;
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return 'just now';
+  const elapsedSeconds = Math.floor(elapsedMs / 1000);
+  if (elapsedSeconds < 60) return `${elapsedSeconds}s ago`;
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m ago`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h ago`;
+  return `${Math.floor(elapsedHours / 24)}d ago`;
+}
+
+function OperationJournalPanel({
+  entries,
+  activeCount,
+  onClearCompleted,
+}: {
+  entries: OperationJournalEntry[];
+  activeCount: number;
+  onClearCompleted: () => void;
+}): React.ReactElement {
+  const recentEntries = entries.slice(0, 5);
+
+  return (
+    <View style={styles.journalPanel} testID="advanced-operation-journal-panel">
+      <View style={styles.journalHeader}>
+        <View>
+          <Text style={styles.journalTitle}>Operation Journal</Text>
+          <Text style={styles.journalSubtitle}>
+            {entries.length} saved · {activeCount} active or recoverable
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onClearCompleted}
+          style={styles.journalClearButton}
+          testID="advanced-operation-journal-clear-completed-btn"
+        >
+          <Text style={styles.journalClearText}>Clear completed</Text>
+        </TouchableOpacity>
+      </View>
+
+      {recentEntries.length === 0 ? (
+        <Text style={styles.journalEmptyText}>No pending or recent operations.</Text>
+      ) : (
+        recentEntries.map((entry) => (
+          <View key={entry.id} style={styles.journalEntry} testID="advanced-operation-journal-entry">
+            <View style={styles.journalEntryTopRow}>
+              <Text style={styles.journalEntryTitle}>{formatOperationKind(entry.kind)}</Text>
+              <Text style={styles.journalEntryStage}>{entry.stage}</Text>
+            </View>
+            <Text style={styles.journalEntryLabel}>{entry.label}</Text>
+            <Text style={styles.journalEntryMeta}>
+              {formatUpdatedAt(entry.updatedAt)} · {entry.retrySafety.replace(/_/g, ' ')}
+            </Text>
+            {entry.txids[0] ? (
+              <Text style={styles.journalEntryMeta}>Tx {shortHash(entry.txids[0])}</Text>
+            ) : null}
+            {entry.recoveryAction ? (
+              <Text style={styles.journalRecoveryText}>{entry.recoveryAction}</Text>
+            ) : null}
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
 
 // Individual settings option component
 const SettingsOption = React.memo(function SettingsOption({

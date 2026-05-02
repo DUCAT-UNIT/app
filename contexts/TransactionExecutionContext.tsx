@@ -12,6 +12,7 @@ import { usePendingTransactionsStore, usePendingTxs } from '../stores/pendingTra
 import { useWallet } from './WalletContext';
 import { useTransactionSigning, useTransactionBroadcast } from '../hooks/transaction';
 import type { SnackbarParams } from '../stores/notificationStore';
+import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 
 interface BroadcastOptions {
@@ -140,7 +141,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   const signIntent = useCallback(
     async (options: SignOptions = {}): Promise<string | null> => {
       // E2E bypass: skip real signing/broadcasting for mock intents
-      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && sendIntent?.psbt === 'e2e-mock-psbt') {
+      if (isE2E() && sendIntent?.psbt === 'e2e-mock-psbt') {
         const fakeTxid = `e2e-send-${Date.now().toString(16)}`;
         logger.info('[signIntent] E2E bypass: fake txid', { fakeTxid });
         setBroadcastedTxid(fakeTxid);
@@ -152,8 +153,8 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
       if (!result) return null;
 
       // Automatically broadcast after signing
-      await broadcast(result.signedIntent, options);
-      return result.txid;
+      const broadcastTxid = await broadcast(result.signedIntent, options);
+      return broadcastTxid;
     },
     [signTransaction, broadcast, sendIntent, setBroadcastedTxid, setIntentStep]
   );

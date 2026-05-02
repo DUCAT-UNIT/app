@@ -20,8 +20,8 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
   LogBox.ignoreAllLogs(true);
 }
 
-import React, { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { InteractionManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
@@ -34,13 +34,19 @@ import * as ecc from '@bitcoinerlab/secp256k1';
 import { analytics } from './services/analyticsService';
 import { ONBOARDING_EVENTS } from './constants/analyticsEvents';
 import { startupDiagnostics } from './services/startupDiagnostics';
+import {
+  E2E_RESET_SETTINGS_URL_PREFIX,
+  hasConfiguredE2EBypass,
+  resetNonSecretE2ESettings,
+} from './services/e2eSettingsResetService';
 
 // Startup timing — capture t0 as early as possible
 const startupT0 = Date.now();
-void startupDiagnostics.beginAttempt();
+startupDiagnostics.beginAttempt().catch(() => undefined);
 
 // Contexts
 import { AuthProvider } from './contexts/AuthContext';
+import { useAuthSession, useOnboardingFlow } from './contexts/AuthContext';
 import { WalletProvider, useWallet } from './contexts/WalletContext';
 import { usePendingTransactionsStore } from './stores/pendingTransactionsStore';
 import { WalletDataProvider } from './contexts/WalletDataContext';
@@ -57,15 +63,17 @@ import AppNavigator from './navigation/AppNavigator';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
+import SplashScreen from './screens/SplashScreen';
 
-import { useRemoteConfigStore } from './stores/remoteConfigStore';
 import { validateNetworkConfig } from './utils/bitcoin';
 import { NETWORK_DISPLAY_NAME } from './utils/constants';
 import { logger } from './utils/logger';
+import { useWalletInitialization } from './hooks/useWalletInitialization';
+import { COLORS } from './theme';
 
 // Keep the native splash screen visible until we explicitly hide it.
 // If this races with Expo internals, log and continue rather than crashing startup.
-void ExpoSplashScreen.preventAutoHideAsync().catch((error: unknown) => {
+ExpoSplashScreen.preventAutoHideAsync().catch((error: unknown) => {
   logger.warn('[App] Failed to prevent native splash auto-hide', {
     error: error instanceof Error ? error.message : String(error),
   });
@@ -114,22 +122,35 @@ if (!__DEV__) {
 
 // Inner component to access wallet and notification contexts
 function AppProviders({ children }: { children: React.ReactNode }) {
-  const { currentAccount } = useWallet();
+  const { wallet, currentAccount } = useWallet();
   const startAutoRefresh = usePriceStore((state) => state.startAutoRefresh);
   const loadFromStorage = usePendingTransactionsStore((state) => state.loadFromStorage);
 
   // Start BTC price auto-refresh on mount
   useEffect(() => {
-    const cleanup = startAutoRefresh();
-    return cleanup;
+    let cleanup: (() => void) | undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      cleanup = startAutoRefresh();
+    });
+
+    return () => {
+      task.cancel();
+      cleanup?.();
+    };
   }, [startAutoRefresh]);
 
   // Load pending transactions from storage when account changes
   useEffect(() => {
-    if (currentAccount !== undefined && currentAccount !== null) {
-      loadFromStorage(currentAccount);
+    if (wallet && currentAccount !== undefined && currentAccount !== null) {
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadFromStorage(currentAccount);
+      });
+
+      return () => task.cancel();
     }
-  }, [currentAccount, loadFromStorage]);
+
+    return undefined;
+  }, [wallet, currentAccount, loadFromStorage]);
 
   return (
     <CashuProvider>
@@ -138,6 +159,61 @@ function AppProviders({ children }: { children: React.ReactNode }) {
       </WalletDataProvider>
     </CashuProvider>
   );
+}
+
+function InitializationErrorScreen({
+  initializationError,
+  retryInitialization,
+}: {
+  initializationError: string;
+  retryInitialization: () => Promise<void>;
+}) {
+  return (
+    <View style={localStyles.errorContainer}>
+      <Text style={localStyles.errorTitle}>Unable To Access Wallet</Text>
+      <Text style={localStyles.errorMessage}>
+        The app could not read wallet data securely. Retry before creating or importing a new wallet.
+      </Text>
+      <Text style={localStyles.errorDetails}>{initializationError}</Text>
+      <TouchableOpacity style={localStyles.retryButton} onPress={() => { retryInitialization(); }}>
+        <Text style={localStyles.retryButtonText}>Retry</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function AppInitializationGate({ children }: { children: React.ReactNode }) {
+  const { wallet, loadWallet } = useWallet();
+  const { loadBiometricPreference, setIsAuthenticated } = useAuthSession();
+  const { setSeedConfirmed } = useOnboardingFlow();
+  const walletExistsRef = useRef(!!wallet);
+
+  useEffect(() => {
+    walletExistsRef.current = !!wallet;
+  }, [wallet]);
+
+  const { isLoading, initializationError, retryInitialization } = useWalletInitialization({
+    loadWallet,
+    loadBiometricPreference,
+    setSeedConfirmed,
+    setIsAuthenticated,
+    walletExistsRef,
+  });
+
+  if (isLoading) {
+    return <SplashScreen mode="launch" />;
+  }
+
+  if (initializationError) {
+    return (
+      <InitializationErrorScreen
+        initializationError={initializationError}
+        retryInitialization={retryInitialization}
+      />
+    );
+  }
+
+  return <AppProviders>{children}</AppProviders>;
 }
 
 // Font loading timeout (ms) — proceed without custom fonts rather than hang forever
@@ -154,6 +230,20 @@ export default function App() {
 
   // Timeout: if fonts don't load within 5s, proceed anyway
   const [fontTimedOut, setFontTimedOut] = useState(false);
+  useEffect(() => {
+    if (!__DEV__ && !hasConfiguredE2EBypass()) return undefined;
+
+    if (typeof Linking.addEventListener !== 'function') return undefined;
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (url?.startsWith(E2E_RESET_SETTINGS_URL_PREFIX)) {
+        void resetNonSecretE2ESettings();
+      }
+    });
+
+    return () => subscription?.remove?.();
+  }, []);
+
   useEffect(() => {
     if (fontsLoaded) {
       startupDiagnostics.recordCheckpoint('fonts_loaded', {
@@ -177,52 +267,32 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [fontsLoaded]);
 
-  // Remote config initialization (has its own 3s timeout built in)
-  const [configReady, setConfigReady] = useState(false);
-  useEffect(() => {
-    let timedOut = false;
-    const markReady = () => {
-      if (!configReady) {
-        startupDiagnostics.recordCheckpoint('config_ready', {
-          elapsed_ms: Date.now() - startupT0,
-          timed_out: timedOut,
-        });
-      }
-      setConfigReady(true);
-    };
-    // Safety timeout — never block app load for more than 5s
-    const safetyTimer = setTimeout(() => { timedOut = true; markReady(); }, 5000);
-    useRemoteConfigStore
-      .getState()
-      .initialize()
-      .then(markReady)
-      .catch(markReady)
-      .finally(() => clearTimeout(safetyTimer));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Analytics: set super properties and track app open on mount
   useEffect(() => {
-    analytics.setSuperProperties({
-      app_version: Constants.expoConfig?.version ?? 'unknown',
-      build_number: Application.nativeBuildVersion ?? 'unknown',
-      bundle_id: Application.applicationId ?? 'unknown',
-      network: NETWORK_DISPLAY_NAME,
-      platform: Platform.OS,
-      os_version: Platform.Version?.toString() ?? 'unknown',
-      device_brand: Device.brand ?? 'unknown',
-      device_model: Device.modelName ?? 'unknown',
-      device_name: Device.deviceName ?? 'unknown',
-      device_type: Device.deviceType?.toString() ?? 'unknown',
-      is_device: Device.isDevice ?? false,
+    const task = InteractionManager.runAfterInteractions(() => {
+      analytics.setSuperProperties({
+        app_version: Constants.expoConfig?.version ?? 'unknown',
+        build_number: Application.nativeBuildVersion ?? 'unknown',
+        bundle_id: Application.applicationId ?? 'unknown',
+        network: NETWORK_DISPLAY_NAME,
+        platform: Platform.OS,
+        os_version: Platform.Version?.toString() ?? 'unknown',
+        device_brand: Device.brand ?? 'unknown',
+        device_model: Device.modelName ?? 'unknown',
+        device_name: Device.deviceName ?? 'unknown',
+        device_type: Device.deviceType?.toString() ?? 'unknown',
+        is_device: Device.isDevice ?? false,
+      });
+      analytics.track(ONBOARDING_EVENTS.APP_OPENED);
+      // Reset stale vault creation form data on app launch
+      // (persisted amounts/fee rates may be outdated after restart)
+      useVaultCreationStore.getState().reset();
     });
-    analytics.track(ONBOARDING_EVENTS.APP_OPENED);
-    // Reset stale vault creation form data on app launch
-    // (persisted amounts/fee rates may be outdated after restart)
-    useVaultCreationStore.getState().reset();
+
+    return () => task.cancel();
   }, []);
 
-  const appReady = (fontsLoaded || fontTimedOut) && configReady;
+  const appReady = fontsLoaded || fontTimedOut;
 
   // Hide native splash once app is ready — useEffect ensures it fires after render
   useEffect(() => {
@@ -234,7 +304,7 @@ export default function App() {
     }
   }, [appReady]);
 
-  // Safety watchdog: if appReady never fires (e.g. both timeouts fail),
+  // Safety watchdog: if appReady never fires (e.g. font loading stalls),
   // force-hide the native splash after 8s so the app never gets stuck.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -259,9 +329,9 @@ export default function App() {
         <AuthProvider>
           <ResponsiveProvider>
             <WalletProvider>
-              <AppProviders>
+              <AppInitializationGate>
                 <AppNavigator />
-              </AppProviders>
+              </AppInitializationGate>
             </WalletProvider>
           </ResponsiveProvider>
         </AuthProvider>
@@ -269,3 +339,45 @@ export default function App() {
     </View>
   );
 }
+
+const localStyles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    backgroundColor: COLORS.DARK_BG,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  errorTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 28,
+    fontFamily: 'CabinetGrotesk-Bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    color: COLORS.LIGHT_GRAY,
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorDetails: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: COLORS.PRIMARY_BLUE,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});

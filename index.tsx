@@ -1,7 +1,11 @@
 import { registerRootComponent } from 'expo';
 import React from 'react';
+import { enableFreeze, enableScreens } from 'react-native-screens';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+
+enableScreens(true);
+enableFreeze(true);
 
 // Wrap App with ErrorBoundary only
 // WalletProvider and other context providers are in App.js

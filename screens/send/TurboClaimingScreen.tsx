@@ -7,7 +7,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationProp, RouteProp } from '@react-navigation/native';
 import { COLORS } from '../../theme';
-import { useWallet } from '../../contexts/WalletContext';
 import { logger } from '../../utils/logger';
 
 /**
@@ -27,12 +26,25 @@ interface TurboClaimingScreenProps {
 
 export default function TurboClaimingScreen({ navigation, route }: TurboClaimingScreenProps): React.JSX.Element {
   const { tokenString } = route.params;
-  const { wallet } = useWallet();
   const [currentMessage, setCurrentMessage] = useState('Starting...');
   const [currentStep, setCurrentStep] = useState(0);
   const totalSteps = 3;
   const hasStarted = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentStepRef = useRef(currentStep);
+  const currentMessageRef = useRef(currentMessage);
+
+  useEffect(() => {
+    currentStepRef.current = currentStep;
+    currentMessageRef.current = currentMessage;
+  }, [currentStep, currentMessage]);
+
+  const clearClaimTimeout = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
   // Start token claiming when screen mounts
   useEffect(() => {
@@ -41,11 +53,15 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
 
     // Set a timeout to detect if we get stuck
     timeoutRef.current = setTimeout(() => {
-      logger.error('Token claiming timeout - stuck on step:', { step: currentStep, message: currentMessage });
+      logger.error('Token claiming timeout - stuck on step:', {
+        step: currentStepRef.current,
+        message: currentMessageRef.current,
+      });
       navigation.navigate('Wallet', {
-        claimError: `Token claiming timed out at: ${currentMessage}. Please try again.`,
+        claimError: `Token claiming timed out at: ${currentMessageRef.current}. Please try again.`,
       });
     }, 30000); // 30 second timeout
+    (timeoutRef.current as { unref?: () => void }).unref?.();
 
     const claimToken = async () => {
       const txn = logger.startTransaction('turbo_claim_screen');
@@ -226,9 +242,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
         }
 
         // Clear timeout on success
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
+        clearClaimTimeout();
 
         logger.cashu('claim_screen_success', {
           step: 'UI_CLAIM',
@@ -255,9 +269,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
         txn.finish('error');
 
         // Clear timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
+        clearClaimTimeout();
 
         logger.cashu('claim_screen_navigate_error', {
           step: 'UI_CLAIM',
@@ -278,11 +290,9 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
 
     // Cleanup timeout on unmount
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearClaimTimeout();
     };
-  }, [navigation, tokenString, wallet?.taprootAddress, currentStep, currentMessage]);
+  }, [navigation, tokenString]);
 
   return (
     <View style={localStyles.container} testID="turbo-claiming-screen">

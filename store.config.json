@@ -1,0 +1,84 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "0.0.2",
+    "copyright": "Ducat Protocol Inc. 2026",
+    "release": {
+      "automaticRelease": false
+    },
+    "info": {
+      "en-US": {
+        "description": "Ducat Wallet is a professional developer tool for engineers building on the Ducat Protocol.\nDesigned for seamless integration, Ducat Wallet provides a complete interface for connecting services, inspecting protocol interactions, and validating implementations in real-time.\nFeatures:\n\nConnect directly to Ducat Protocol infrastructure\nMonitor and inspect transactions\nDebug and validate service integrations\nView protocol responses and data in real-time\nStreamlined interface optimized for developer workflows\n\nBuilt for developers who need reliable, direct access to Ducat Protocol from their mobile device.",
+        "keywords": [
+          "developer",
+          "protocol",
+          "wallet",
+          "blockchain",
+          "integration",
+          "API",
+          "debug",
+          "Ducat"
+        ],
+        "marketingUrl": "https://ducatprotocol.com",
+        "supportUrl": "https://ducatprotocol.com",
+        "title": "Ducat Wallet",
+        "subtitle": "Decentralised Credit Platform",
+        "privacyPolicyUrl": "https://docs.google.com/document/d/1uuaEzUMUFY5gsek_09IB_S5LoNcwze7i/edit?usp=sharing&ouid=117617322463806095506&rtpof=true&sd=true",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7253.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7261.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7255.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7256.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7257.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7259.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7260.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7263.PNG",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/IMG_7264.PNG"
+          ]
+        },
+        "releaseNotes": "DUCAT 0.0.2 improves the Mutinynet wallet with hardened BTC price resolution, liquidation vault loading that no longer depends on a single price source, cleaner Sepolia ETH and Sepolia USDC send flows, stronger amount slider interaction, and clearer receive QR codes with asset-specific icons."
+      }
+    },
+    "categories": [
+      "DEVELOPER_TOOLS"
+    ],
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "THIRTEEN_PLUS",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": false,
+      "parentalControls": false,
+      "userGeneratedContent": false,
+      "ageRatingOverride": "NONE"
+    },
+    "review": {
+      "firstName": "Lucas",
+      "lastName": "Rodriguez Benitez",
+      "email": "lucas@ducatprotocol.com",
+      "phone": "+34673759979",
+      "demoRequired": false,
+      "notes": "Ducat Wallet is a professional developer tool for engineers building on the Ducat Protocol.\nDesigned for seamless integration, Ducat Wallet provides a complete interface for connecting services, inspecting protocol interactions, and validating implementations in real-time.\nFeatures:\n\nConnect directly to Ducat Protocol infrastructure\nMonitor and inspect transactions\nDebug and validate service integrations\nView protocol responses and data in real-time\nStreamlined interface optimized for developer workflows\n\nBuilt for developers who need reliable, direct access to Ducat Protocol from their mobile device.\n\n  DEMO WALLET SETUP\n  1. Tap \"Import Wallet\"\n  2. Enter this 12-word seed phrase:\nshuffle spoil what boil where govern wonder quiz breeze suit village any\n  3. Set PIN: 123456\n  4. Skip biometric prompt if shown\n\n  This wallet is pre-loaded with BTC and UNIT balances, an active vault with deposited BTC collateral and borrowed UNIT, and full transaction history. Every feature is immediately visible.\n\n  FEATURES VISIBLE ON IMPORT\n  • Home: BTC and UNIT balances with recent activity\n  • Receive: Deposit address + QR code\n  • Send: Full send flow (enter address + amount)\n  • Vault tab: Active vault — deposited BTC collateral, borrowed UNIT, health factor\n  • Activity: Complete transaction history\n  • Settings: Biometric unlock, passkey backup, seed phrase export\n\n  DISCLAIMERS\n  • All assets (BTC, UNIT) are development tokens with zero real-world monetary value\n  • Self-custody wallet only — NOT an exchange, brokerage, or ICO\n  • No trading, swaps, fiat ramps, or token sales in the app\n  • \"Vault\" is a collateral-management tool in a sandboxed environment\n  • iPhone-only. All wallet data stored on-device via Secure Enclave/Keychain\n\n  ---\n  Resolution Center Response\n\n  Thank you for your review. We've addressed each point:\n\n  2.3.3 — SCREENSHOTS: iPad screenshots removed. App is now iPhone-only.\n\n  2.1 — DEMO WALLET: No account needed. Tap \"Import Wallet\" and enter:\nshuffle spoil what boil where govern wonder quiz breeze suit village any\n  Set PIN: 123456. This wallet has pre-loaded BTC and UNIT balances, an active vault, and transaction history — every feature is immediately accessible.\n\n  2.1/3.1.5 — NOT AN EXCHANGE:\n  • Self-custody wallet — users hold private keys on-device, we never take custody\n  • No trading, swapping, or fiat on/off ramps\n  • No token sale or ICO\n  • All assets are development tokens with zero real-world monetary value\n  • \"Vault\" is a collateral-management demo, not a financial product\n\n  Happy to provide additional information. Thank you."
+    }
+  }
+}

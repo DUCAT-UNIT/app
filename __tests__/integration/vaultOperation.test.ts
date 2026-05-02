@@ -41,9 +41,11 @@ jest.mock('../../services/vaultOperationsService', () => ({
 // Vault service
 const mockFetchVaultData = jest.fn();
 const mockFetchVaultHistory = jest.fn();
+const mockFetchLatestVaultHistoryTransaction = jest.fn();
 jest.mock('../../services/vaultService', () => ({
   fetchVaultData: (...args: unknown[]) => mockFetchVaultData(...args),
   fetchVaultHistory: (...args: unknown[]) => mockFetchVaultHistory(...args),
+  fetchLatestVaultHistoryTransaction: (...args: unknown[]) => mockFetchLatestVaultHistoryTransaction(...args),
 }));
 
 // Vault wallet service
@@ -233,9 +235,11 @@ function buildConfig(): VaultOperationConfig<FakeConfig, FakeRequest, FakeResult
 function setupHappyPath(): void {
   // Vault data + profile
   mockFetchVaultData.mockResolvedValue({
+    vaultId: 'v1',
     vaultInfo: { vaultId: 'v1', collateral: 50_000_000, debt: 1000 },
   });
   mockFetchVaultHistory.mockResolvedValue([{ txid: 'hist-tx-1', rawTx: '0200...' }]);
+  mockFetchLatestVaultHistoryTransaction.mockResolvedValue({ txid: 'hist-tx-1', rawTx: '0200...' });
   mockComputeVaultPrevoutFromTx.mockReturnValue({ txid: 'hist-tx-1', vout: 0, value: 50_000_000 });
   mockBuildVaultProfile.mockReturnValue({
     acct_id: 'acct-1',
@@ -398,6 +402,7 @@ describe('useVaultOperation integration', () => {
 
   it('should fail when vault history is empty', async () => {
     mockFetchVaultHistory.mockResolvedValue([]);
+    mockFetchLatestVaultHistoryTransaction.mockResolvedValue(null);
 
     const { result } = renderHook(() => useVaultOperation(buildConfig()));
 

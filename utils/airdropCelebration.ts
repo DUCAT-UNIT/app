@@ -58,11 +58,12 @@ export async function playConfettiSound(soundRef: Audio.Sound | null): Promise<v
     await sound.playAsync();
 
     // Stop after 3 seconds
-    setTimeout(async () => {
+    const stopTimer = setTimeout(async () => {
       if (sound) {
         await sound.stopAsync();
       }
     }, 3000);
+    stopTimer.unref?.();
   } catch (error: unknown) {
     // Silent fail in production, log in development
     if (__DEV__) {
@@ -129,6 +130,7 @@ export function triggerConfettiHaptics(): NodeJS.Timeout[] {
         Haptics.selectionAsync();
       }
     }, delay);
+    timeoutId.unref?.();
 
     timeoutIds.push(timeoutId);
   }

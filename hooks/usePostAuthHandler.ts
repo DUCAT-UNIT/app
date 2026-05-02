@@ -1,7 +1,7 @@
 import { useCallback, MutableRefObject } from 'react';
 import { setBiometricEnabled as persistBiometricEnabled } from '../services/biometricService';
 import { notify } from '../utils/notify';
-import { deleteWalletData } from '../services/secureStorageService';
+import { performFullWalletReset } from '../services/walletResetService';
 import { logger } from '../utils/logger';
 import {
   deleteSetting,
@@ -91,14 +91,14 @@ export function usePostAuthHandler({
     const pendingWalletDelete = await getBoolean(SettingKeys.PENDING_WALLET_DELETE, false);
     if (pendingWalletDelete) {
       await deleteSetting(SettingKeys.PENDING_WALLET_DELETE);
-      // Trigger wallet deletion
       try {
-        await deleteWalletData();
-        resetWallet();
+        await performFullWalletReset({
+          resetWallet,
+          resetAuth,
+        });
         if (walletExists && walletExists.current !== undefined) {
           walletExists.current = false;
         }
-        resetAuth();
         notify.wallet.deleted();
       } catch (error: unknown) {
         logger.error('[usePostAuthHandler] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });

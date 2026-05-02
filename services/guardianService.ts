@@ -4,7 +4,7 @@
  */
 
 import { GuardianSocket, type ChainNetwork } from '@ducat-unit/client-sdk';
-import { API, VAULT_CONFIG } from '../utils/constants';
+import { API, NETWORK_CONFIG, VAULT_CONFIG } from '../utils/constants';
 import { logger } from '../utils/logger';
 
 type GuardianSocketClient = GuardianSocket & {
@@ -29,7 +29,10 @@ export async function createGuardianClient(
   params: GuardianClientParams
 ): Promise<GuardianSocketClient> {
   const url = params.url || API.GUARDIAN_WS;
-  const network = params.network || 'mutiny';
+  const network = params.network || NETWORK_CONFIG.vaultSdkNetwork;
+  if (network !== NETWORK_CONFIG.vaultSdkNetwork) {
+    throw new Error(`DUCAT mobile is Mutinynet-only. Unsupported Guardian network "${network}".`);
+  }
 
   logger.debug(`[GuardianService] Creating new guardian client for ${url}`);
 
@@ -41,6 +44,7 @@ export async function createGuardianClient(
       (client as GuardianSocketClient).isConnected = false;
       reject(new Error('Guardian connection timeout'));
     }, 30_000); // 30 second connection timeout
+    (timeout as { unref?: () => void }).unref?.();
 
     client.once('error', (error: unknown) => {
       clearTimeout(timeout);
@@ -131,11 +135,17 @@ export async function withGuardianTimeout<T>(
   operation: Promise<T>,
   timeoutMs: number = VAULT_CONFIG.TX_TIMEOUT
 ): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => {
+    timeoutId = setTimeout(() => {
       reject(new Error('Guardian operation timeout'));
     }, timeoutMs);
+    (timeoutId as { unref?: () => void }).unref?.();
   });
 
-  return Promise.race([operation, timeoutPromise]);
+  return Promise.race([operation, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
 }

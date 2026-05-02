@@ -149,7 +149,7 @@ export function usePasskeyCreation({
 
       // Step 4: Offer passkey backup first (most important for wallet recovery)
       // Biometric setup will be offered after passkey decision, or in Settings
-      if (showPasskeyMigrationPrompt && !isE2E) {
+      if (showPasskeyMigrationPrompt && !isE2E()) {
         analytics.track(ONBOARDING_EVENTS.PASSKEY_SETUP_OFFERED);
         showPasskeyMigrationPrompt(pin);
       } else if (biometricSupported) {

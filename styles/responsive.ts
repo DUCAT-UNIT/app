@@ -24,11 +24,3 @@ export function getDeviceConfig(width: number): DeviceConfig {
   if (width <= 410) return DEVICE_CONFIGS[3];
   return DEVICE_CONFIGS[4];
 }
-
-export function getScreenSize(width: number): ScreenSize {
-  return getDeviceConfig(width).size;
-}
-
-export function getScale(width: number): number {
-  return getDeviceConfig(width).scale;
-}

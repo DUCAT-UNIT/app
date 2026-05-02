@@ -4,8 +4,8 @@
  */
 
 import { CommonActions,NavigationProp,RouteProp,useIsFocused } from '@react-navigation/native';
-import React,{ useEffect } from 'react';
-import { ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import React,{ useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
@@ -63,8 +63,13 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   } = useReviewScreenData();
 
   const selectedFeeRate = useSendFlowStore((state) => state.selectedFeeRate);
+  const resetSendFlow = useSendFlowStore((state) => state.resetSendFlow);
   const { cancelIntent } = useTransactionBuild();
   const isFocused = useIsFocused();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const submitUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isBusy = isSubmitting || isCancelling;
 
   // Track review screen viewed on mount
   useEffect(() => {
@@ -82,10 +87,17 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   // is still mounted in the stack behind ProcessingScreen. Without the isFocused check,
   // this effect would call goBack() and disrupt navigation to ConfirmationScreen.
   useEffect(() => {
-    if (!sendIntent && isFocused) {
+    if (!sendIntent && isFocused && !isCancelling) {
       navigation.goBack();
     }
-  }, [sendIntent, navigation, isFocused]);
+  }, [sendIntent, navigation, isFocused, isCancelling]);
+
+  useEffect(() => () => {
+    if (submitUnlockTimerRef.current) {
+      clearTimeout(submitUnlockTimerRef.current);
+      submitUnlockTimerRef.current = null;
+    }
+  }, []);
 
   // Don't render if no sendIntent
   if (!sendIntent) {
@@ -93,6 +105,8 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   }
 
   const handleConfirm = () => {
+    if (isBusy) return;
+    setIsSubmitting(true);
     // Navigate to processing screen to sign and broadcast
     navigation.navigate('Processing', {
       fromScreen: 'Review',
@@ -104,11 +118,26 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       cashuMint,
       quoteId,
     });
+    if (submitUnlockTimerRef.current) {
+      clearTimeout(submitUnlockTimerRef.current);
+    }
+    submitUnlockTimerRef.current = setTimeout(() => {
+      submitUnlockTimerRef.current = null;
+      setIsSubmitting(false);
+    }, 1200);
+    (submitUnlockTimerRef.current as { unref?: () => void }).unref?.();
   };
 
   const handleCancel = async () => {
+    if (isBusy) return;
+    setIsCancelling(true);
     // Release locked UTXOs before dismissing
-    await cancelIntent();
+    try {
+      await cancelIntent();
+    } finally {
+      resetSendFlow();
+      setIsCancelling(false);
+    }
 
     // Dismiss the send flow modal by navigating to Main
     // This works regardless of the modal stack depth
@@ -121,6 +150,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   };
 
   const handleBackPress = async () => {
+    if (isBusy) return;
     // For Turbo flow, there's no screen to go back to, so cancel instead
     if (isTurbo) {
       await handleCancel();
@@ -129,8 +159,13 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       // Order matters: goBack() before cancelIntent() prevents the
       // useEffect (!sendIntent && isFocused) from triggering a second goBack()
       // which would dismiss the entire modal stack.
+      setIsCancelling(true);
       navigation.goBack();
-      await cancelIntent();
+      try {
+        await cancelIntent();
+      } finally {
+        setIsCancelling(false);
+      }
     }
   };
 
@@ -144,6 +179,7 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       }]}>
         <TouchableOpacity
           onPress={handleBackPress}
+          disabled={isBusy}
           style={[localStyles.backButton, {
             padding: s(8),
             marginRight: s(12)
@@ -219,9 +255,16 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
             borderRadius: s(10)
           }]}
           onPress={handleCancel}
+          disabled={isBusy}
+          lockWhilePending
+          pressLockMs={700}
           testID="review-cancel-btn"
         >
-          <Text style={[localStyles.cancelButtonText, { fontSize: sf(15) }]}>Cancel</Text>
+          {isCancelling ? (
+            <ActivityIndicator size="small" color={COLORS.VERY_LIGHT_GRAY} />
+          ) : (
+            <Text style={[localStyles.cancelButtonText, { fontSize: sf(15) }]}>Cancel</Text>
+          )}
         </TouchableScale>
 
         <TouchableScale
@@ -230,9 +273,18 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
             borderRadius: s(10)
           }]}
           onPress={handleConfirm}
+          disabled={isBusy}
+          pressLockMs={700}
           testID="review-confirm-btn"
         >
-          <Text style={[localStyles.confirmButtonText, { fontSize: sf(15) }]}>Confirm and Sign</Text>
+          {isSubmitting ? (
+            <View style={localStyles.busyButtonContent}>
+              <ActivityIndicator size="small" color={COLORS.VERY_LIGHT_GRAY} />
+              <Text style={[localStyles.confirmButtonText, { fontSize: sf(15) }]}>Preparing...</Text>
+            </View>
+          ) : (
+            <Text style={[localStyles.confirmButtonText, { fontSize: sf(15) }]}>Confirm and Sign</Text>
+          )}
         </TouchableScale>
       </View>
     </View>
@@ -295,5 +347,11 @@ const localStyles = StyleSheet.create({
   confirmButtonText: {
     fontWeight: '500',
     color: COLORS.VERY_LIGHT_GRAY,
+  },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });

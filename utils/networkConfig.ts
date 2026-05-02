@@ -1,8 +1,7 @@
-import * as bitcoin from 'bitcoinjs-lib';
 import type { Network } from 'bitcoinjs-lib';
 import type { ChainNetwork } from '@ducat-unit/client-sdk';
 
-export type AppNetworkId = 'mutinynet' | 'mainnet';
+export type AppNetworkId = 'mutinynet';
 
 export interface RuneIdentifier {
   block: bigint;
@@ -84,33 +83,13 @@ function getBigIntEnv(name: string): bigint | undefined {
   }
 }
 
-function requireEnv(name: string, networkId: AppNetworkId): string {
-  const value = getEnv(name);
-  if (!value) {
-    throw new Error(`Missing required ${name} for ${networkId} configuration`);
+function assertMutinynetOnlyConfig(): void {
+  const configured = getEnv('EXPO_PUBLIC_APP_NETWORK');
+  if (configured && configured !== 'mutinynet') {
+    throw new Error(
+      `DUCAT mobile is Mutinynet-only. Unsupported EXPO_PUBLIC_APP_NETWORK value "${configured}".`
+    );
   }
-
-  return value;
-}
-
-function requireBigIntEnv(name: string, networkId: AppNetworkId): bigint {
-  const value = getBigIntEnv(name);
-  if (value === undefined) {
-    throw new Error(`Missing required ${name} for ${networkId} configuration`);
-  }
-
-  return value;
-}
-
-function resolveAppNetworkId(): AppNetworkId {
-  const configured = getEnv('EXPO_PUBLIC_APP_NETWORK') ?? 'mutinynet';
-  if (configured === 'mutinynet' || configured === 'mainnet') {
-    return configured;
-  }
-
-  throw new Error(
-    `Unsupported EXPO_PUBLIC_APP_NETWORK value "${configured}". Expected "mutinynet" or "mainnet".`
-  );
 }
 
 function buildAddressPrefixes(
@@ -131,6 +110,7 @@ function buildAddressPrefixes(
 }
 
 function resolveMutinynetConfig(): AppNetworkConfig {
+  assertMutinynetOnlyConfig();
   const unitLabel = getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•RUNE';
 
   return {
@@ -176,55 +156,4 @@ function resolveMutinynetConfig(): AppNetworkConfig {
   };
 }
 
-function resolveMainnetConfig(): AppNetworkConfig {
-  const networkId: AppNetworkId = 'mainnet';
-
-  return {
-    id: networkId,
-    displayName: 'Mainnet',
-    editionLabel: 'Mainnet Edition',
-    isTestNetwork: false,
-    bitcoinjs: bitcoin.networks.bitcoin,
-    coinType: 0,
-    vaultSdkNetwork: 'main',
-    addressPrefixes: buildAddressPrefixes('bc', ['3', '1'], 'testnet', 'tb', ['2', 'm', 'n']),
-    api: {
-      explorerBaseUrl: getEnv('EXPO_PUBLIC_EXPLORER_URL') ?? 'https://mempool.space',
-      esploraApiUrl: getEnv('EXPO_PUBLIC_ESPLORA_API_URL') ?? 'https://mempool.space/api',
-      ordUrl: requireEnv('EXPO_PUBLIC_ORD_API_URL', networkId),
-      guardianWs: requireEnv('EXPO_PUBLIC_GUARDIAN_WS_URL', networkId),
-      quoteServer: getEnv('EXPO_PUBLIC_QUOTE_SERVER_URL') ?? 'https://quote.ducatprotocol.com',
-      priceServer: getEnv('EXPO_PUBLIC_PRICE_SERVER_URL') ?? 'https://price.ducatprotocol.com',
-      vaultUrl: getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.ducatprotocol.com/api',
-      phoneUrl: getEnv('EXPO_PUBLIC_PHONE_URL') ?? 'https://phone.ducatprotocol.com',
-      coingeckoUrl: 'https://api.coingecko.com/api/v3',
-      feeRecommendationsUrl:
-        getEnv('EXPO_PUBLIC_FEE_RECOMMENDATIONS_URL') ??
-        'https://mempool.space/api/v1/fees/recommended',
-      faucetUrl: null,
-      faucetNetwork: null,
-    },
-    protocol: {
-      masterContractId: requireEnv('EXPO_PUBLIC_MASTER_CONTRACT_ID', networkId),
-      turboMintAddress: getEnv('EXPO_PUBLIC_TURBO_MINT_ADDRESS') ?? null,
-    },
-    runes: {
-      unitId: {
-        block: requireBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK', networkId),
-        tx: requireBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX', networkId),
-      },
-      unitLabel: getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•RUNE',
-    },
-  };
-}
-
-function resolveAppNetworkConfig(): AppNetworkConfig {
-  switch (resolveAppNetworkId()) {
-    case 'mutinynet':
-      return resolveMutinynetConfig();
-    case 'mainnet':
-      return resolveMainnetConfig();
-  }
-}
-
-export const APP_NETWORK_CONFIG = resolveAppNetworkConfig();
+export const APP_NETWORK_CONFIG = resolveMutinynetConfig();

@@ -5,6 +5,7 @@
 
 import { getAddressUtxoUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { getJSON } from '../utils/apiClient';
 
 // Transaction size calculation constants
 const BASE_TX_SIZE = 10;
@@ -53,8 +54,15 @@ export const calculateTransactionFee = (
  * @returns Array of confirmed UTXOs
  */
 export const fetchUtxosForAddress = async (address: string): Promise<UTXO[]> => {
-  const response = await fetch(getAddressUtxoUrl(address));
-  const utxos = await response.json() as UTXO[];
+  const utxos = await getJSON<UTXO[]>(getAddressUtxoUrl(address), {
+    timeout: 8000,
+    retryOptions: { maxRetries: 1 },
+    dedupeKey: `utxos:${address}`,
+    cacheKey: `utxos:${address}`,
+    cacheTtlMs: 10_000,
+    staleOnError: true,
+    circuitKey: 'mutinynet-utxos',
+  });
   return utxos.filter((u) => u.status.confirmed);
 };
 

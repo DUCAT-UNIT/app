@@ -5,12 +5,6 @@
 import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
 
 /**
- * Bitcoin dust limit in satoshis
- * Outputs below this amount are considered "dust" and may not be relayed by nodes
- */
-export const DUST_LIMIT_SATS = 546 as const;
-
-/**
  * Default fee rate for wallet transactions (sats per virtual byte)
  */
 export const DEFAULT_FEE_RATE_SAT_PER_VBYTE = 1 as const;
@@ -26,18 +20,6 @@ export const MIN_FEE_RATE = 1 as const;
  * Safety check to prevent accidental high fees
  */
 export const MAX_FEE_RATE = 1000 as const;
-
-/**
- * Transaction size estimates (in virtual bytes)
- * Used for fee calculation
- */
-export const TX_SIZE = {
-  BASE: 10, // Base transaction overhead
-  P2WPKH_INPUT: 68, // SegWit input size
-  P2WPKH_OUTPUT: 31, // SegWit output size
-  P2TR_INPUT: 58, // Taproot input size (slightly smaller)
-  P2TR_OUTPUT: 43, // Taproot output size
-} as const;
 
 /**
  * BIP44 derivation path constants
@@ -86,38 +68,3 @@ export function getDerivationPathForType(
   if (type === 'segwit') return paths.SEGWIT(accountIndex);
   return paths.TAPROOT(accountIndex);
 }
-
-/**
- * Bitcoin network magic numbers
- */
-export const NETWORK = {
-  MAINNET_BIP32_PUBLIC: 0x0488b21e,
-  MAINNET_BIP32_PRIVATE: 0x0488ade4,
-  TESTNET_BIP32_PUBLIC: 0x043587cf,
-  TESTNET_BIP32_PRIVATE: 0x04358394,
-} as const;
-
-/**
- * Transaction confirmation targets
- */
-export const CONFIRMATION_TARGET = {
-  URGENT: 1, // Next block
-  NORMAL: 3, // ~30 minutes
-  ECONOMY: 6, // ~1 hour
-} as const;
-
-/**
- * Satoshis per Bitcoin
- */
-export const SATS_PER_BTC = 100_000_000 as const;
-
-/**
- * Minimum amount for sends (in satoshis)
- * Prevents accidental dust sends
- */
-export const MIN_SEND_AMOUNT = 1000 as const;
-
-// Type exports for use in other files
-export type TxSizeConfig = typeof TX_SIZE;
-export type NetworkConfig = typeof NETWORK;
-export type ConfirmationTargetConfig = typeof CONFIRMATION_TARGET;

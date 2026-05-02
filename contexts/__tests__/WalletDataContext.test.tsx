@@ -11,14 +11,36 @@ import { usePolling } from '../../hooks/usePolling';
 import { useBalanceData } from '../../hooks/useBalanceData';
 import { useTransactionHistoryFetch } from '../../hooks/useTransactionHistoryFetch';
 import { useVaultDataFetch } from '../../hooks/useVaultDataFetch';
+import { runWalletReconciliationCycle } from '../../services/reconciliationWorker';
+import { useEvmAssets } from '../EvmAssetsContext';
 
 // Mock all dependencies
+jest.mock('../AuthContext', () => ({
+  useAuthSession: jest.fn(() => ({ isAuthenticated: true })),
+}));
 jest.mock('../WalletContext');
 jest.mock('../../stores/pendingTransactionsStore');
 jest.mock('../../hooks/usePolling');
 jest.mock('../../hooks/useBalanceData');
 jest.mock('../../hooks/useTransactionHistoryFetch');
 jest.mock('../../hooks/useVaultDataFetch');
+jest.mock('../../services/reconciliationWorker', () => ({
+  runWalletReconciliationCycle: jest.fn(() => Promise.resolve({
+    skipped: false,
+    evmCheckpoints: null,
+    vaultSettlement: null,
+    refreshed: [],
+    errors: [],
+  })),
+}));
+jest.mock('../EvmAssetsContext', () => {
+  const React = require('react');
+  return {
+    EvmAssetsProvider: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    useEvmAssets: jest.fn(),
+  };
+});
 const mockUseCashuBalanceState = jest.fn();
 jest.mock('../CashuContext', () => ({
   useCashuBalanceState: () => mockUseCashuBalanceState(),
@@ -121,6 +143,20 @@ describe('WalletDataContext', () => {
     fetchVaultTransactions: jest.fn(),
   };
 
+  const mockEvmAssets = {
+    evmBalances: null,
+    usdcHistory: [],
+    ethHistory: [],
+    loadingEvmBalances: false,
+    loadingUsdcHistory: false,
+    loadingEthHistory: false,
+    isSepoliaConfigured: true,
+    isEvmConfigured: true,
+    refreshEvmBalances: jest.fn(),
+    refreshUsdcHistory: jest.fn(),
+    refreshEthHistory: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet });
@@ -128,6 +164,7 @@ describe('WalletDataContext', () => {
     (useBalanceData as jest.Mock).mockReturnValue(mockBalance);
     (useTransactionHistoryFetch as jest.Mock).mockReturnValue(mockHistory);
     (useVaultDataFetch as jest.Mock).mockReturnValue(mockVault);
+    (useEvmAssets as jest.Mock).mockReturnValue(mockEvmAssets);
     (usePolling as jest.Mock).mockImplementation(() => {});
     mockUseCashuBalanceState.mockReturnValue({
       balance: 0,
@@ -253,7 +290,19 @@ describe('WalletDataContext', () => {
 
       expect(usePolling).toHaveBeenCalledWith({
         onPoll: expect.any(Function),
-        interval: 10000,
+        interval: 15000,
+        enabled: true,
+        immediate: false,
+      });
+      expect(usePolling).toHaveBeenCalledWith({
+        onPoll: expect.any(Function),
+        interval: 45000,
+        enabled: true,
+        immediate: false,
+      });
+      expect(usePolling).toHaveBeenCalledWith({
+        onPoll: expect.any(Function),
+        interval: 30000,
         enabled: true,
         immediate: false,
       });
@@ -267,23 +316,35 @@ describe('WalletDataContext', () => {
 
       expect(usePolling).toHaveBeenCalledWith({
         onPoll: expect.any(Function),
-        interval: 10000,
+        interval: 15000,
+        enabled: false,
+        immediate: false,
+      });
+      expect(usePolling).toHaveBeenCalledWith({
+        onPoll: expect.any(Function),
+        interval: 45000,
+        enabled: false,
+        immediate: false,
+      });
+      expect(usePolling).toHaveBeenCalledWith({
+        onPoll: expect.any(Function),
+        interval: 30000,
         enabled: false,
         immediate: false,
       });
     });
 
     it('should fetch balance and vault on poll', () => {
-      let pollCallback: () => void;
-      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => void }) => {
-        pollCallback = onPoll;
+      const pollCallbacks: Record<number, Array<() => void>> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = [...(pollCallbacks[interval] ?? []), onPoll];
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
       renderHook(() => useBalance(), { wrapper });
 
       act(() => {
-        pollCallback();
+        pollCallbacks[15000]?.forEach((callback) => callback());
       });
 
       expect(mockBalance.fetchBalance).toHaveBeenCalled();
@@ -292,9 +353,9 @@ describe('WalletDataContext', () => {
 
     it('should fetch transaction history on every poll', () => {
       jest.useFakeTimers();
-      let pollCallback: () => void;
-      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => void }) => {
-        pollCallback = onPoll;
+      const pollCallbacks: Record<number, Array<() => void>> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = [...(pollCallbacks[interval] ?? []), onPoll];
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
@@ -305,37 +366,62 @@ describe('WalletDataContext', () => {
 
       // First poll - should fetch history
       act(() => {
-        pollCallback();
+        pollCallbacks[45000]?.[0]?.();
       });
       expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(1);
 
       // Second poll - should fetch history again (no throttling)
       act(() => {
-        pollCallback();
+        pollCallbacks[45000]?.[0]?.();
       });
       expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(2);
 
       // Third poll - should fetch history again
       act(() => {
-        pollCallback();
+        pollCallbacks[45000]?.[0]?.();
       });
       expect(mockHistory.fetchTransactionHistory).toHaveBeenCalledTimes(3);
 
       jest.useRealTimers();
     });
 
-    it('should not poll when wallet is null', () => {
-      (useWallet as jest.Mock).mockReturnValue({ wallet: null });
-      let pollCallback: () => void;
-      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => void }) => {
-        pollCallback = onPoll;
+    it('should run reconciliation after balances are loaded', () => {
+      const pollCallbacks: Record<number, Array<() => void>> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = [...(pollCallbacks[interval] ?? []), onPoll];
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
       renderHook(() => useBalance(), { wrapper });
 
       act(() => {
-        pollCallback();
+        pollCallbacks[30000]?.forEach((callback) => callback());
+      });
+
+      expect(runWalletReconciliationCycle).toHaveBeenCalledWith(expect.objectContaining({
+        enabled: true,
+        fetchBalance: mockBalance.fetchBalance,
+        fetchVault: mockVault.fetchVault,
+        fetchVaultTransactions: mockVault.fetchVaultTransactions,
+        fetchTransactionHistory: mockHistory.fetchTransactionHistory,
+        refreshEvmBalances: mockEvmAssets.refreshEvmBalances,
+        refreshUsdcHistory: mockEvmAssets.refreshUsdcHistory,
+        refreshEthHistory: mockEvmAssets.refreshEthHistory,
+      }));
+    });
+
+    it('should not poll when wallet is null', () => {
+      (useWallet as jest.Mock).mockReturnValue({ wallet: null });
+      const pollCallbacks: Record<number, Array<() => void>> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = [...(pollCallbacks[interval] ?? []), onPoll];
+      });
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
+      renderHook(() => useBalance(), { wrapper });
+
+      act(() => {
+        pollCallbacks[15000]?.forEach((callback) => callback());
       });
 
       expect(mockBalance.fetchBalance).not.toHaveBeenCalled();
@@ -551,9 +637,9 @@ describe('WalletDataContext', () => {
         fetchBalance: jest.fn(),
       });
 
-      let pollCallback: () => void;
-      (usePolling as jest.Mock).mockImplementation(({ onPoll }: { onPoll: () => void }) => {
-        pollCallback = onPoll;
+      const pollCallbacks: Record<number, () => void> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = onPoll;
       });
 
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
@@ -562,7 +648,8 @@ describe('WalletDataContext', () => {
       jest.clearAllMocks();
 
       act(() => {
-        pollCallback();
+        pollCallbacks[15000]?.();
+        pollCallbacks[45000]?.();
       });
 
       // Should fetch balance and vault but not history

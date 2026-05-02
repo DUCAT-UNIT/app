@@ -78,6 +78,3 @@ export const COLORS = {
   // Transparent
   TRANSPARENT: 'transparent',
 } as const;
-
-// Type for color keys
-export type ColorKey = keyof typeof COLORS;

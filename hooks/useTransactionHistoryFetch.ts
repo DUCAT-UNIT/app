@@ -27,6 +27,7 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
   const prevHashRef = useRef<string>('');
   // Track whether we've ever loaded data (to avoid setting loading=false when already false)
   const hasLoadedOnceRef = useRef(false);
+  const historyFetchInFlightRef = useRef(false);
 
   /**
    * Fetch transaction history in background
@@ -37,10 +38,11 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
     const taprootAddress = wallet?.taprootAddress;
     const vaultPubkey = wallet?.taprootPubkey;
 
-    if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
+    if (!segwitAddress || !taprootAddress || !vaultPubkey || historyFetchInFlightRef.current) return;
 
+    historyFetchInFlightRef.current = true;
     try {
-      // Only show loading spinner on first fetch (no cached data yet)
+      // Only show loading spinner on the first load when no cached data exists.
       if (!hasLoadedOnceRef.current) {
         setLoadingTransactionHistory(true);
       }
@@ -71,6 +73,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
         hasLoadedOnceRef.current = true;
         setLoadingTransactionHistory(false);
       }
+    } finally {
+      historyFetchInFlightRef.current = false;
     }
   }, [wallet]);
 

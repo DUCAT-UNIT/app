@@ -1,9 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": ["App.tsx"],
-  "project": ["**/*.{ts,tsx}"],
+  "project": ["**/*.{ts,tsx}", "!bridge-service/**", "!evm/**", "!web/pool-dashboard/**"],
   "ignore": ["**/__tests__/**", "**/*.test.*"],
+  "ignoreFiles": [
+    "infra/cloudflare-worker-apple-app-site-association.js",
+    "metro.config.js",
+    "styles/screens/index.ts"
+  ],
   "ignoreDependencies": [
+    "buffer",
+    "react-dom",
     "@types/*",
     "@jest/globals",
     "jest",
@@ -16,5 +23,30 @@
     "universal-test-renderer",
     "sharp"
   ],
+  "ignoreBinaries": [
+    "maestro",
+    "xcrun",
+    "tail",
+    "react-native-bundle-visualizer",
+    "e2e/maestro/scripts/run-iphone16pro.sh"
+  ],
+  "workspaces": {
+    "bridge-service": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts", "../shared/**/*.ts"],
+      "ignore": ["src/__tests__/**"]
+    },
+    "evm": {
+      "entry": ["hardhat.config.js", "scripts/**/*.js", "test/**/*.js"],
+      "project": ["**/*.js"],
+      "ignore": ["artifacts/**", "cache/**", "node_modules/**"],
+      "ignoreDependencies": ["@openzeppelin/contracts"]
+    },
+    "web/pool-dashboard": {
+      "entry": ["src/main.ts", "vite.config.ts"],
+      "project": ["src/**/*.ts", "vite.config.ts"],
+      "ignore": ["dist/**", "node_modules/**"]
+    }
+  },
   "ignoreExportsUsedInFile": true
 }

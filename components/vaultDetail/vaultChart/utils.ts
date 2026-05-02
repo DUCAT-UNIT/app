@@ -6,7 +6,6 @@
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import type { BitcoinData, VaultEvent, SeriesItem, ReferenceLine, PriceTimeframe } from './types';
 import { INTERVAL_CONFIG } from './types';
-import { getHealthColorFromValue } from '../../../utils/vaultUtils';
 
 /**
  * Transform transactions to vault events format
@@ -26,7 +25,7 @@ export function transformToEvents(transactions: VaultHistoryTransaction[]): Vaul
 /**
  * Binary search for closest BTC price by timestamp (in seconds)
  */
-export function getBitcoinPriceByTimestamp(bitcoinData: BitcoinData[], targetTimestamp: number): number {
+function getBitcoinPriceByTimestamp(bitcoinData: BitcoinData[], targetTimestamp: number): number {
   if (bitcoinData.length === 0) return 50000; // fallback
 
   let left = 0;
@@ -64,7 +63,7 @@ export function getBitcoinPriceByTimestamp(bitcoinData: BitcoinData[], targetTim
 /**
  * Get closest transaction before a timestamp (transactions sorted descending by timestamp)
  */
-export function getClosestTransactionBefore(
+function getClosestTransactionBefore(
   transactions: VaultHistoryTransaction[],
   timestamp: number
 ): VaultHistoryTransaction | undefined {
@@ -79,7 +78,7 @@ export function getClosestTransactionBefore(
 /**
  * Get transactions between two timestamps (transactions sorted descending by timestamp)
  */
-export function getTransactionsBetween(
+function getTransactionsBetween(
   transactions: VaultHistoryTransaction[],
   timestampStart: number,
   timestampEnd: number
@@ -100,7 +99,7 @@ export function getTransactionsBetween(
 /**
  * Compute health percentage from transaction
  */
-export function computeHealthPercent(tx: VaultHistoryTransaction, btcPrice: number): number {
+function computeHealthPercent(tx: VaultHistoryTransaction, btcPrice: number): number {
   const { vault_amount, amount_borrowed } = tx;
   const value = Math.floor((((vault_amount / 100_000_000) * btcPrice) / (amount_borrowed / 100)) * 100);
   return Math.min(value, 500);
@@ -173,58 +172,4 @@ export function createEventSeries(
   }
 
   return { series, referenceLines };
-}
-
-/**
- * Get health color based on value.
- * Delegates to the canonical getHealthColorFromValue from vaultUtils,
- * with null handling for chart data that may lack a health value.
- */
-export function getHealthColor(health: number | null): string {
-  if (!health) return '#808080'; // SECONDARY_TEXT gray
-  return getHealthColorFromValue(health);
-}
-
-/**
- * Get health chip background with 10% opacity
- */
-export function getHealthChipBg(health: number | null): string {
-  if (!health) return 'rgba(128, 128, 128, 0.1)';
-  if (health <= 160) return 'rgba(208, 76, 104, 0.1)';
-  if (health <= 200) return 'rgba(253, 227, 123, 0.1)';
-  return 'rgba(89, 170, 138, 0.1)';
-}
-
-/**
- * Format action string for display
- */
-export function formatAction(action: string): string {
-  return action.charAt(0).toUpperCase() + action.slice(1);
-}
-
-/**
- * Format timestamp to readable date
- */
-export function formatDate(timestamp: number): string {
-  const date = new Date(timestamp * 1000);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/**
- * Format satoshis to BTC
- */
-export function formatBtc(sats: number): string {
-  return (sats / 100_000_000).toFixed(8);
-}
-
-/**
- * Format cents to UNIT
- */
-export function formatUnit(cents: number): string {
-  return (cents / 100).toFixed(2);
 }

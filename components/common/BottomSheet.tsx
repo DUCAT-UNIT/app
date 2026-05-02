@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
+import { isE2E } from '../../utils/e2e';
 import { logger } from '../../utils/logger';
 
 interface BottomSheetProps {
@@ -113,9 +114,7 @@ export default function BottomSheet({
   // E2E bypass: render as View overlay instead of Modal so elements are
   // accessible to Maestro (React Native Modal creates a separate UIWindow
   // on iOS that Maestro's XCUITest queries cannot reach)
-  const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
-
-  if (isE2E) {
+  if (isE2E()) {
     if (!visible) return null;
     return (
       <View style={styles.e2eOverlay}>

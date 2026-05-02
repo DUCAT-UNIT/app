@@ -158,7 +158,7 @@ export function useTurboMintCompletion({
               if (!token) {
                 throw new Error('sendP2PKToken returned no token');
               }
-              logger.debug('[useTurboMintCompletion] P2PK token created:', token.substring(0, 50));
+              logger.debug('[useTurboMintCompletion] P2PK token created', { tokenLength: token.length });
 
               // SECURITY: Save token in recovery state IMMEDIATELY after creation.
               // If app crashes before saveSentLockedToken, recovery can re-save.
@@ -167,7 +167,7 @@ export function useTurboMintCompletion({
               // Generate shortened URL for the token
               const shortUrl = await shortenCashuToken(token);
               if (!mountedRef.current) return;
-              logger.debug('[useTurboMintCompletion] Generated short URL:', shortUrl);
+              logger.debug('[useTurboMintCompletion] Generated short URL', { shortUrlLength: shortUrl.length });
               setTurboDeeplink(shortUrl);
 
               // Store the sent P2PK token

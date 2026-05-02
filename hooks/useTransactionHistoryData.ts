@@ -7,12 +7,16 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { useCallback,useEffect,useMemo,useRef } from 'react';
 import { Linking } from 'react-native';
+import { EVM_CONFIG } from '../constants/evm';
 import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
-import { useEcashTokens,useTransactionHistory } from '../contexts/WalletDataContext';
+import { useEcashTokens,useEvmAssets,useTransactionHistory } from '../contexts/WalletDataContext';
+import { useWallet } from '../contexts/WalletContext';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { calculateTransactionAmount,Transaction } from '../services/transactionHistoryService';
+import { useEvmTransactionCheckpointStore } from '../stores/evmTransactionCheckpointStore';
 import { usePendingTxs } from '../stores/pendingTransactionsStore';
 import { getOrdTxUrl,getTxUrl } from '../utils/constants';
+import { mapEvmCheckpointToHistoryItem } from '../utils/evmCheckpointDisplay';
 import { logger } from '../utils/logger';
 import {
 findSelfClaimedTokenIds,
@@ -63,8 +67,19 @@ export function useTransactionHistoryData(
   const { transactionHistory: rawTransactionHistory, loadingTransactionHistory, fetchTransactionHistory } =
     useTransactionHistory();
   const transactionHistory = rawTransactionHistory as Transaction[];
+  const {
+    usdcHistory,
+    ethHistory,
+    loadingUsdcHistory,
+    loadingEthHistory,
+    refreshUsdcHistory,
+    refreshEthHistory,
+  } = useEvmAssets();
   const { settingsHandlers } = useSettingsHandlers();
   const advancedMode = settingsHandlers.advancedMode;
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const { currentAccount } = useWallet();
+  const evmCheckpoints = useEvmTransactionCheckpointStore((state) => state.checkpoints);
 
   // Get pending transactions from store
   const pendingTransactions = usePendingTxs();
@@ -88,16 +103,28 @@ export function useTransactionHistoryData(
 
     // Trigger background refresh to ensure data is fresh
     fetchTransactionHistory();
+    if (usdcFeaturesEnabled) {
+      refreshUsdcHistory();
+      refreshEthHistory();
+    }
     if (advancedMode) {
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHistorySheet]);
 
-  // Loading is only true when both transaction history AND ecash tokens are loading
-  // and we have no data to show yet
-  const loading = (loadingTransactionHistory && transactionHistory.length === 0) ||
-    (advancedMode && loadingEcashTokens && ecashTokens.length === 0);
+  const visibleUsdcHistory = usdcFeaturesEnabled ? usdcHistory : [];
+  const visibleEthHistory = usdcFeaturesEnabled ? ethHistory : [];
+  const hasAnyLoadedHistory = transactionHistory.length > 0
+    || ecashTokens.length > 0
+    || visibleUsdcHistory.length > 0
+    || visibleEthHistory.length > 0;
+  const loading = !hasAnyLoadedHistory && (
+    loadingTransactionHistory
+    || (usdcFeaturesEnabled && loadingUsdcHistory)
+    || (usdcFeaturesEnabled && loadingEthHistory)
+    || (advancedMode && loadingEcashTokens)
+  );
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {
@@ -188,14 +215,54 @@ export function useTransactionHistoryData(
       confirmedTxids
     ) as ProcessedTransaction[];
 
-    return mergeAndSortTransactions(pendingTxs, regularTxs, ecashTxs) as unknown as ProcessedTransaction[];
-  }, [transactionHistory, ecashTokens, segwitAddress, taprootAddress, currentPubkeyHex, pendingTransactions]);
+    const indexedEvmTxids = new Set([...visibleUsdcHistory, ...visibleEthHistory].map((tx) => tx.txid.toLowerCase()));
+    const checkpointTxs = usdcFeaturesEnabled
+      ? evmCheckpoints
+        .filter((checkpoint) => checkpoint.accountIndex === currentAccount)
+        .map((checkpoint) => mapEvmCheckpointToHistoryItem(checkpoint))
+        .filter((tx): tx is NonNullable<ReturnType<typeof mapEvmCheckpointToHistoryItem>> => (
+          tx !== null && !indexedEvmTxids.has(tx.txid.toLowerCase())
+        ))
+      : [];
+
+    const evmTxs = [...visibleUsdcHistory, ...visibleEthHistory, ...checkpointTxs].map((tx) => ({
+      ...tx,
+      status: {
+        confirmed: tx.status.confirmed,
+        block_time: tx.status.block_time ?? 0,
+        failed: tx.status.failed,
+      },
+      timestamp: tx.status.block_time,
+      isPending: !tx.status.confirmed && !tx.status.failed,
+      txData: {
+        ...tx.txData,
+        numericAmount: tx.txData.amount,
+      },
+    })) as ProcessedTransaction[];
+
+    return mergeAndSortTransactions(pendingTxs, regularTxs, ecashTxs, evmTxs) as unknown as ProcessedTransaction[];
+  }, [
+    transactionHistory,
+    ecashTokens,
+    segwitAddress,
+    taprootAddress,
+    currentPubkeyHex,
+    pendingTransactions,
+    visibleUsdcHistory,
+    visibleEthHistory,
+    usdcFeaturesEnabled,
+    evmCheckpoints,
+    currentAccount,
+  ]);
 
   // Open transaction in blockchain explorer
   const openTxInExplorer = useCallback(async (txid: string, assetType: string): Promise<void> => {
     try {
-      // Use ord explorer for UNIT transactions, regular explorer for BTC
-      const url = assetType === 'UNIT' ? getOrdTxUrl(txid) : getTxUrl(txid);
+      const url = assetType === 'UNIT'
+        ? getOrdTxUrl(txid)
+        : assetType === 'USDC' || assetType === 'ETH'
+          ? `${EVM_CONFIG.explorerBaseUrl}/tx/${txid}`
+          : getTxUrl(txid);
 
       const supported = await Linking.canOpenURL(url);
       if (supported) {

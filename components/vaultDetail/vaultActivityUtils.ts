@@ -30,7 +30,7 @@ export const formatAction = (action: string): string => {
     'borrow': 'Borrow',
     'borrow_settled_to_usdc': 'Borrow Settled',
     'repay': 'Repay',
-    'repay_from_usdc': 'Repay from USDC',
+    'repay_from_usdc': 'Repay from Sepolia USDC',
     'deposit': 'Deposit',
     'withdraw': 'Withdraw',
     'liquidate': 'Repossess',
@@ -39,27 +39,6 @@ export const formatAction = (action: string): string => {
     'swap': 'Swap',
   };
   return actionMap[action.toLowerCase()] || action;
-};
-
-/**
- * Get color for action type
- */
-export const getActionColor = (action: string): string => {
-  const colorMap: Record<string, string> = {
-    'open': COLORS.SUCCESS_GREEN,
-    'open_settled_to_usdc': COLORS.SUCCESS_GREEN,
-    'borrow': COLORS.SUCCESS_GREEN,
-    'borrow_settled_to_usdc': COLORS.SUCCESS_GREEN,
-    'repay': COLORS.PRIMARY_BLUE,
-    'repay_from_usdc': COLORS.PRIMARY_BLUE,
-    'deposit': COLORS.SUCCESS_GREEN,
-    'withdraw': COLORS.RED,
-    'liquidate': COLORS.PRIMARY_BLUE,
-    'repo': COLORS.PRIMARY_BLUE,
-    'repossess': COLORS.PRIMARY_BLUE,
-    'swap': COLORS.SUCCESS_GREEN,
-  };
-  return colorMap[action.toLowerCase()] || COLORS.WHITE;
 };
 
 /**

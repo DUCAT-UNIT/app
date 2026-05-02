@@ -10,6 +10,7 @@ import TotalBalanceSection,{ TotalBalanceSectionStyles } from '../../components/
 import VaultCard,{ VaultCardStyles } from '../../components/wallet/VaultCard';
 import WalletActions from '../../components/wallet/WalletActions';
 import WalletHeader,{ WalletHeaderStyles } from '../../components/wallet/WalletHeader';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance,useEvmAssets,useVaultData } from '../../contexts/WalletDataContext';
@@ -27,8 +28,6 @@ import { getRunesAmount } from '../../utils/runesHelper';
 
 // Constants
 const VAULT_CREATION_RETRY_TIMEOUT = 2000;
-// Minimum collateral for withdraw (in BTC) - covers taproot input (~58vB) + outputs (~86vB) + overhead at ~10sat/vB
-const MIN_WITHDRAW_COLLATERAL = 0.00002; // ~2000 sats
 
 /**
  * Style object for WalletScreen - combines all child component styles
@@ -86,12 +85,14 @@ const WalletScreen = React.memo(function WalletScreen({
   const {
     evmBalances,
     loadingEvmBalances: isEvmBalanceLoading,
-    isEvmConfigured: showSepoliaUsdcCard,
+    isSepoliaConfigured,
     refreshEvmBalances,
   } = useEvmAssets();
-  const { btcPrice } = usePrice();
+  const { btcPrice, ethPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
 
   const handleToggleBTCDisplay = useCallback(() => setShowTotalInBTC(prev => !prev), [setShowTotalInBTC]);
@@ -149,6 +150,19 @@ const WalletScreen = React.memo(function WalletScreen({
     };
   }, [evmBalances?.usdc, btcPrice]);
 
+  const ethTotals = React.useMemo(() => {
+    const parsedAmount = Number(evmBalances?.eth || '0');
+    const amount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+    const usdValue = ethPrice ? amount * ethPrice : 0;
+    const btcEquivalent = btcPrice && ethPrice ? usdValue / btcPrice : 0;
+
+    return {
+      formatted: `${formatBalance(amount, 6)} ETH`,
+      btcValue: formatBalance(btcEquivalent),
+      usdValue,
+    };
+  }, [btcPrice, ethPrice, evmBalances?.eth]);
+
   // Memoize formatted balances to avoid repeated toLocaleString() calls
   const formatted = useFormattedBalances({
     totalBalanceBTC,
@@ -200,12 +214,14 @@ const WalletScreen = React.memo(function WalletScreen({
       await Promise.all([
         fetchBalance(),
         refreshCashu(),
-        showSepoliaUsdcCard ? refreshEvmBalances().catch(() => undefined) : Promise.resolve(),
+        usdcFeaturesEnabled && isSepoliaConfigured
+          ? refreshEvmBalances().catch(() => undefined)
+          : Promise.resolve(),
       ]);
     } finally {
       setRefreshing(false);
     }
-  }, [fetchBalance, refreshCashu, refreshEvmBalances, showSepoliaUsdcCard]);
+  }, [fetchBalance, refreshCashu, refreshEvmBalances, isSepoliaConfigured, usdcFeaturesEnabled]);
 
   // Prevent multiple rapid clicks on create vault button
   const [creatingVault, setCreatingVault] = React.useState(false);
@@ -250,27 +266,28 @@ const WalletScreen = React.memo(function WalletScreen({
     });
   }, [evmBalances?.address, evmBalances?.usdc, onAssetPress]);
 
+  const handleEthPress = useCallback(() => {
+    onAssetPress?.('ETH', {
+      initialEvmEthBalance: Number(evmBalances?.eth || '0'),
+      initialEvmAddress: evmBalances?.address || '',
+    });
+  }, [evmBalances?.address, evmBalances?.eth, onAssetPress]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!showSepoliaUsdcCard) {
+      if (!usdcFeaturesEnabled || !isSepoliaConfigured) {
         return undefined;
       }
 
       refreshEvmBalances().catch(() => undefined);
       return undefined;
-    }, [refreshEvmBalances, showSepoliaUsdcCard]),
+    }, [refreshEvmBalances, isSepoliaConfigured, usdcFeaturesEnabled]),
   );
 
   // Check if vault health is below minimum (160%)
   const isLowHealth = vaultHealthPercentage > 0 && vaultHealthPercentage < 160;
   // Check if there's no debt (can't repay/borrow)
   const hasNoDebt = vaultDebt === 0;
-  // Check if total wallet BTC is too low for withdraw (not vault collateral)
-  const totalWalletBTC = (segwitBalance || 0) + (taprootBalance || 0);
-  // Check if wallet has no funds to send (neither BTC nor UNIT)
-  const totalUnitBalance = getRunesAmount(runesBalance) + ((cashuBalance || 0) / 100);
-  const hasInsufficientFunds = totalWalletBTC < MIN_WITHDRAW_COLLATERAL && totalUnitBalance <= 0;
-
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Total Balance label and Settings Icon */}
@@ -302,7 +319,6 @@ const WalletScreen = React.memo(function WalletScreen({
         isPendingVaultTx={isPendingVaultTx}
         isLowHealth={isLowHealth}
         hasNoDebt={hasNoDebt}
-        hasInsufficientFunds={hasInsufficientFunds}
         onRepayPress={onRepayPress}
         onBorrowPress={onBorrowPress}
         onSendPress={onSendPress}
@@ -374,20 +390,35 @@ const WalletScreen = React.memo(function WalletScreen({
           />
         </View>
 
-        {showSepoliaUsdcCard && (
-          <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
-            <AssetCard
-              assetName="USDC"
-              assetLogo="usdc_logo"
-              amountValue={isEvmBalanceLoading && !evmBalances ? '...' : `$${usdcTotals.formatted}`}
-              displayInBTC={showTotalInBTC}
-              btcValue={usdcTotals.btcValue}
-              usdValue={usdcTotals.usdValue}
-              styles={assetCardStyles}
-              onPress={handleUsdcPress}
-              testID="asset-card-usdc"
-            />
-          </View>
+        {usdcFeaturesEnabled && (
+          <>
+            <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+              <AssetCard
+                assetName="Sepolia ETH"
+                assetLogo="eth_logo"
+                amountValue={isEvmBalanceLoading && !evmBalances ? '...' : ethTotals.formatted}
+                displayInBTC={showTotalInBTC}
+                btcValue={ethTotals.btcValue}
+                usdValue={ethTotals.usdValue}
+                styles={assetCardStyles}
+                onPress={handleEthPress}
+                testID="asset-card-eth"
+              />
+            </View>
+            <View style={{ paddingHorizontal: s(24), marginBottom: s(8) }}>
+              <AssetCard
+                assetName="Sepolia USDC"
+                assetLogo="usdc_logo"
+                amountValue={isEvmBalanceLoading && !evmBalances ? '...' : `$${usdcTotals.formatted}`}
+                displayInBTC={showTotalInBTC}
+                btcValue={usdcTotals.btcValue}
+                usdValue={usdcTotals.usdValue}
+                styles={assetCardStyles}
+                onPress={handleUsdcPress}
+                testID="asset-card-usdc"
+              />
+            </View>
+          </>
         )}
         {/* DUCAT Card - Non-clickable */}
         {showZeroAssets && (

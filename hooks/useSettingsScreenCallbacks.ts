@@ -4,7 +4,6 @@
  */
 
 import { Alert } from 'react-native';
-import { logger } from '../utils/logger';
 import type { ExtendedNavigation } from '../navigation/types';
 
 interface SettingsHandlers {
@@ -64,17 +63,9 @@ export function useSettingsScreenCallbacks({
       onClose: () => navigation.goBack(),
       onFaceIdToggle: settingsHandlers.handleFaceIdToggle,
       onChangePin: settingsHandlers.handleChangePin,
-      onAutoLockToggle: () => {
-        logger.info('Auto lock toggle pressed - feature not yet available');
-        Alert.alert(
-          'Coming Soon',
-          'Auto-lock functionality will be available in a future update.'
-        );
-      },
       onViewSeedPhrase: settingsHandlers.handleViewSeedPhrase,
       onDeleteWallet: settingsHandlers.handleDeleteWallet,
       faceIdEnabled: biometricEnabled,
-      autoLockEnabled: false,
     });
   };
 

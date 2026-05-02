@@ -406,5 +406,3 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
     </Modal>
   );
 });
-
-export default FullscreenVaultChart;

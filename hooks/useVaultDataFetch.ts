@@ -7,20 +7,30 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
 import { e2eVaultState } from '../utils/e2eVaultState';
+import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+import { usePriceStore } from '../stores/priceStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 export interface UseVaultDataFetchReturn {
   vaultData: VaultData | null;
   loadingVault: boolean;
+  vaultIsRefreshing: boolean;
+  vaultLastUpdated: number | null;
+  vaultIsStale: boolean;
   vaultError: string | null;
   fetchVault: () => Promise<void>;
   resetVaultData: () => void;
   // Vault transactions (cached like BTC transaction history)
   vaultTransactions: VaultHistoryTransaction[];
   loadingVaultTransactions: boolean;
+  vaultTransactionsIsRefreshing: boolean;
+  vaultTransactionsLastUpdated: number | null;
+  vaultTransactionsIsStale: boolean;
   fetchVaultTransactions: () => Promise<void>;
 }
+
+const VAULT_STALE_AFTER_MS = 60_000;
 
 /**
  * Deep equality check for vault data
@@ -31,21 +41,33 @@ function isVaultDataEqual(prev: VaultData | null, next: VaultData | null): boole
   if (!prev || !next) return false;
 
   return (
+    prev.vaultId === next.vaultId &&
     prev.totalCollateral === next.totalCollateral &&
     prev.totalDebt === next.totalDebt &&
-    prev.vaultTag === next.vaultTag
+    prev.vaultTag === next.vaultTag &&
+    prev.currentPrice === next.currentPrice
   );
 }
+
+const seedBtcPriceFromVault = (data: VaultData | null): void => {
+  if (typeof data?.currentPrice === 'number') {
+    usePriceStore.getState().setFallbackBtcPrice(data.currentPrice);
+  }
+};
 
 export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataFetchReturn {
   // Vault data state
   const [vaultData, setVaultData] = useState<VaultData | null>(null);
   const [loadingVault, setLoadingVault] = useState(false);
+  const [vaultIsRefreshing, setVaultIsRefreshing] = useState(false);
+  const [vaultLastUpdated, setVaultLastUpdated] = useState<number | null>(null);
   const [vaultError, setVaultError] = useState<string | null>(null);
 
   // Vault transactions state (cached like BTC transaction history)
   const [vaultTransactions, setVaultTransactions] = useState<VaultHistoryTransaction[]>([]);
   const [loadingVaultTransactions, setLoadingVaultTransactions] = useState(false);
+  const [vaultTransactionsIsRefreshing, setVaultTransactionsIsRefreshing] = useState(false);
+  const [vaultTransactionsLastUpdated, setVaultTransactionsLastUpdated] = useState<number | null>(null);
 
   // Keep a ref to previous vault data for comparison
   const prevVaultDataRef = useRef<VaultData | null>(null);
@@ -53,6 +75,8 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const prevVaultTransactionsRef = useRef<VaultHistoryTransaction[]>([]);
   const vaultLoadedOnceRef = useRef(false);
   const vaultTxLoadedOnceRef = useRef(false);
+  const vaultFetchInFlightRef = useRef(false);
+  const vaultTxFetchInFlightRef = useRef(false);
 
   // Reset refs when wallet pubkey changes
   useEffect(() => {
@@ -70,18 +94,21 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const fetchVault = useCallback(async (): Promise<void> => {
     const vaultPubkey = wallet?.taprootPubkey;
 
-    if (!vaultPubkey) {
+    if (!vaultPubkey || vaultFetchInFlightRef.current) {
       return;
     }
 
+    vaultFetchInFlightRef.current = true;
     try {
       // Only show loading on first fetch — avoids flicker on poll cycles
       if (!vaultLoadedOnceRef.current) {
         setLoadingVault(true);
+      } else {
+        setVaultIsRefreshing(true);
       }
 
       // E2E bypass: return fake vault data when vault was "created" via bypass
-      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && e2eVaultState.vaultCreated) {
+      if (isE2E() && e2eVaultState.vaultCreated) {
         const fakeData: VaultData = {
           vaultId: 'e2e-vault-001',
           vaultTag: 'e2e-test',
@@ -111,6 +138,9 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
           prevVaultDataRef.current = fakeData;
           setVaultData(fakeData);
         }
+        seedBtcPriceFromVault(fakeData);
+        setVaultLastUpdated(Date.now());
+        setVaultError(null);
         if (!vaultLoadedOnceRef.current) {
           vaultLoadedOnceRef.current = true;
           setLoadingVault(false);
@@ -119,12 +149,24 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
       }
 
       const data = await fetchVaultData(vaultPubkey);
+      seedBtcPriceFromVault(data);
+
+      if (data === null && prevVaultDataRef.current !== null) {
+        setVaultError('Failed to fetch vault data');
+        if (!vaultLoadedOnceRef.current) {
+          vaultLoadedOnceRef.current = true;
+          setLoadingVault(false);
+        }
+        return;
+      }
 
       // Only update state if vault data has actually changed
       if (!isVaultDataEqual(prevVaultDataRef.current, data)) {
         prevVaultDataRef.current = data;
         setVaultData(data);
       }
+      setVaultLastUpdated(Date.now());
+      setVaultError(null);
 
       if (!vaultLoadedOnceRef.current) {
         vaultLoadedOnceRef.current = true;
@@ -137,6 +179,9 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         vaultLoadedOnceRef.current = true;
         setLoadingVault(false);
       }
+    } finally {
+      vaultFetchInFlightRef.current = false;
+      setVaultIsRefreshing(false);
     }
   }, [wallet]);
 
@@ -147,14 +192,17 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const fetchVaultTransactions = useCallback(async (): Promise<void> => {
     const vaultPubkey = wallet?.taprootPubkey;
 
-    if (!vaultPubkey) {
+    if (!vaultPubkey || vaultTxFetchInFlightRef.current) {
       return;
     }
 
+    vaultTxFetchInFlightRef.current = true;
     try {
       // Only show loading on first fetch, not background refreshes
       if (!vaultTxLoadedOnceRef.current) {
         setLoadingVaultTransactions(true);
+      } else {
+        setVaultTransactionsIsRefreshing(true);
       }
 
       const transactions = await fetchVaultHistory(vaultPubkey);
@@ -172,6 +220,7 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         prevVaultTransactionsRef.current = transactions;
         setVaultTransactions(transactions);
       }
+      setVaultTransactionsLastUpdated(Date.now());
 
       if (!vaultTxLoadedOnceRef.current) {
         vaultTxLoadedOnceRef.current = true;
@@ -183,6 +232,9 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         vaultTxLoadedOnceRef.current = true;
         setLoadingVaultTransactions(false);
       }
+    } finally {
+      vaultTxFetchInFlightRef.current = false;
+      setVaultTransactionsIsRefreshing(false);
     }
   }, [wallet]);
 
@@ -192,23 +244,48 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   const resetVaultData = useCallback((): void => {
     setVaultData(null);
     setVaultTransactions([]);
+    setVaultIsRefreshing(false);
+    setVaultLastUpdated(null);
+    setVaultTransactionsIsRefreshing(false);
+    setVaultTransactionsLastUpdated(null);
     prevVaultDataRef.current = null;
     prevVaultTransactionsRef.current = [];
     vaultLoadedOnceRef.current = false;
     vaultTxLoadedOnceRef.current = false;
+    vaultFetchInFlightRef.current = false;
+    vaultTxFetchInFlightRef.current = false;
   }, []);
 
   return useMemo(() => ({
     // State
     vaultData,
     loadingVault,
+    vaultIsRefreshing,
+    vaultLastUpdated,
+    vaultIsStale: vaultLastUpdated !== null && Date.now() - vaultLastUpdated > VAULT_STALE_AFTER_MS,
     vaultError,
     // Vault transactions
     vaultTransactions,
     loadingVaultTransactions,
+    vaultTransactionsIsRefreshing,
+    vaultTransactionsLastUpdated,
+    vaultTransactionsIsStale: vaultTransactionsLastUpdated !== null && Date.now() - vaultTransactionsLastUpdated > VAULT_STALE_AFTER_MS,
     // Functions
     fetchVault,
     resetVaultData,
     fetchVaultTransactions,
-  }), [vaultData, loadingVault, vaultError, vaultTransactions, loadingVaultTransactions, fetchVault, resetVaultData, fetchVaultTransactions]);
+  }), [
+    vaultData,
+    loadingVault,
+    vaultIsRefreshing,
+    vaultLastUpdated,
+    vaultError,
+    vaultTransactions,
+    loadingVaultTransactions,
+    vaultTransactionsIsRefreshing,
+    vaultTransactionsLastUpdated,
+    fetchVault,
+    resetVaultData,
+    fetchVaultTransactions,
+  ]);
 }

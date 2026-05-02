@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import TouchableScale from '../common/TouchableScale';
@@ -15,6 +15,7 @@ interface ReceiveAssetStepProps {
   onBack: () => void;
   onContinue: () => void;
   testIDPrefix?: string;
+  allowUsdc?: boolean;
 }
 
 type OptionMeta = {
@@ -22,19 +23,17 @@ type OptionMeta = {
   subtitle: string;
   description: string;
   icon: 'usdc_logo' | 'unit_logo';
-  recommended?: boolean;
   bullets: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string }>;
 };
 
 const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
   USDC: {
-    title: 'Receive as USDC',
+    title: 'Receive as Sepolia USDC',
     subtitle: 'Cash out',
-    description: "We'll automatically convert and settle to USDC after issuance.",
+    description: "We'll automatically convert and settle to Sepolia USDC after issuance.",
     icon: 'usdc_logo',
-    recommended: true,
     bullets: [
-      { icon: 'wallet-outline', label: 'Receive USDC in your wallet' },
+      { icon: 'wallet-outline', label: 'Receive Sepolia USDC in your wallet' },
       { icon: 'shield-checkmark-outline', label: 'Best for cash out or holding stable value' },
       { icon: 'swap-horizontal-outline', label: 'Simple and direct' },
     ],
@@ -59,7 +58,16 @@ export function ReceiveAssetStep({
   onBack,
   onContinue,
   testIDPrefix,
+  allowUsdc = false,
 }: ReceiveAssetStepProps): React.JSX.Element {
+  const [expandedAsset, setExpandedAsset] = useState<VaultSettlementRequestedAsset | null>(value);
+  const availableAssets: VaultSettlementRequestedAsset[] = allowUsdc ? ['USDC', 'UNIT'] : ['UNIT'];
+
+  const handleSelect = (asset: VaultSettlementRequestedAsset) => {
+    onChange(asset);
+    setExpandedAsset(asset);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
@@ -79,70 +87,86 @@ export function ReceiveAssetStep({
 
         <View style={styles.header}>
           <Text style={styles.stepLabel}>Step 2 of 3</Text>
-          <Text style={styles.title}>Where should we send your borrowed value?</Text>
+          <Text style={styles.title}>How do you want to receive your loan?</Text>
           <Text style={styles.subtitle}>
-            Choose how you&apos;d like to receive{' '}
-            <Text style={styles.subtitleAmount}>{formatVaultUsd(amountUsd)}</Text>
-            {' '}in value.
+            {allowUsdc ? 'Choose Sepolia USDC or UNIT' : 'You will receive UNIT'} for{' '}
+            <Text style={styles.subtitleAmount}>{formatVaultUsd(amountUsd)}</Text>.
           </Text>
         </View>
 
         <View style={styles.cardList}>
-          {(['USDC', 'UNIT'] as VaultSettlementRequestedAsset[]).map((asset) => {
+          {availableAssets.map((asset) => {
             const option = OPTIONS[asset];
             const isSelected = value === asset;
+            const isExpanded = isSelected && expandedAsset === asset;
             return (
-              <TouchableScale
-                key={asset}
-                style={[styles.optionCard, isSelected && styles.optionCardSelected]}
-                onPress={() => onChange(asset)}
-                testID={testIDPrefix ? `${testIDPrefix}-${asset.toLowerCase()}-card` : undefined}
-              >
-                <View style={styles.optionTopRow}>
-                  <View style={styles.optionIdentity}>
-                    <View style={[styles.optionIconWrap, isSelected && styles.optionIconWrapSelected]}>
-                      <Icon name={option.icon} size={26} />
-                    </View>
-                    <View style={styles.optionIdentityCopy}>
-                      <View style={styles.optionTitleRow}>
+              <View key={asset} style={[styles.optionCard, isSelected && styles.optionCardSelected]}>
+                <TouchableScale
+                  style={styles.optionButton}
+                  onPress={() => handleSelect(asset)}
+                  testID={testIDPrefix ? `${testIDPrefix}-${asset.toLowerCase()}-card` : undefined}
+                >
+                  <View style={styles.optionTopRow}>
+                    <View style={styles.optionIdentity}>
+                      <View style={[styles.optionIconWrap, isSelected && styles.optionIconWrapSelected]}>
+                        <Icon name={option.icon} size={24} />
+                      </View>
+                      <View style={styles.optionIdentityCopy}>
                         <Text style={[styles.optionTitle, isSelected && styles.optionTitleSelected]}>
                           {option.title}
                         </Text>
-                        {option.recommended && (
-                          <View style={styles.recommendedBadge}>
-                            <Text style={styles.recommendedText}>Recommended</Text>
-                          </View>
-                        )}
+                        <Text style={[styles.optionSubtitle, isSelected && styles.optionSubtitleSelected]}>
+                          {option.subtitle}
+                        </Text>
                       </View>
-                      <Text style={[styles.optionSubtitle, isSelected && styles.optionSubtitleSelected]}>
-                        {option.subtitle}
-                      </Text>
+                    </View>
+                    <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
+                      {isSelected && <Ionicons name="checkmark" size={18} color={colors.brand.primary} />}
                     </View>
                   </View>
-                  <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
-                    {isSelected && <Ionicons name="checkmark" size={18} color={colors.brand.primary} />}
-                  </View>
-                </View>
+                </TouchableScale>
 
-                <Text style={[styles.optionDescription, isSelected && styles.optionDescriptionSelected]}>
-                  {option.description}
-                </Text>
+                {isSelected && (
+                  <TouchableOpacity
+                    onPress={() => setExpandedAsset(isExpanded ? null : asset)}
+                    style={styles.detailsButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={isExpanded ? `Hide ${asset} details` : `Show ${asset} details`}
+                  >
+                    <Text style={styles.detailsButtonText}>
+                      {isExpanded ? 'Hide details' : 'View details'}
+                    </Text>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={colors.text.secondary}
+                    />
+                  </TouchableOpacity>
+                )}
 
-                <View style={styles.bulletList}>
-                  {option.bullets.map((bullet) => (
-                    <View key={`${asset}-${bullet.label}`} style={styles.bulletRow}>
-                      <Ionicons
-                        name={bullet.icon}
-                        size={19}
-                        color={isSelected ? colors.text.primary : colors.text.secondary}
-                      />
-                      <Text style={[styles.bulletText, isSelected && styles.bulletTextSelected]}>
-                        {bullet.label}
-                      </Text>
+                {isExpanded && (
+                  <View style={styles.detailsPanel}>
+                    <Text style={[styles.optionDescription, isSelected && styles.optionDescriptionSelected]}>
+                      {option.description}
+                    </Text>
+
+                    <View style={styles.bulletList}>
+                      {option.bullets.map((bullet) => (
+                        <View key={`${asset}-${bullet.label}`} style={styles.bulletRow}>
+                          <Ionicons
+                            name={bullet.icon}
+                            size={16}
+                            color={isSelected ? colors.text.primary : colors.text.secondary}
+                          />
+                          <Text style={[styles.bulletText, isSelected && styles.bulletTextSelected]}>
+                            {bullet.label}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
-                  ))}
-                </View>
-              </TouchableScale>
+                  </View>
+                )}
+              </View>
             );
           })}
         </View>
@@ -175,25 +199,26 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   header: {
-    gap: spacing.sm,
+    gap: spacing.xs,
     marginBottom: spacing.xl,
   },
   stepLabel: {
     color: colors.brand.primary,
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.sm,
     fontFamily: fonts.bold,
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   title: {
     color: colors.text.white,
-    fontSize: 28,
-    lineHeight: 38,
+    fontSize: fontSizes.xl,
+    lineHeight: 34,
     fontFamily: fonts.bold,
   },
   subtitle: {
     color: colors.text.secondary,
-    fontSize: fontSizes.lg,
-    lineHeight: 28,
+    fontSize: fontSizes.sm,
+    lineHeight: 21,
     fontFamily: fonts.regular,
   },
   subtitleAmount: {
@@ -205,31 +230,34 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     backgroundColor: '#161b22',
-    borderRadius: radii.xxl,
-    borderWidth: 1.5,
+    borderRadius: radii.lg,
+    borderWidth: 1,
     borderColor: colors.border.default,
-    padding: spacing.lg,
-    gap: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
   },
   optionCardSelected: {
     borderColor: colors.brand.primary,
-    boxShadow: '0 0 0 1px rgba(24,88,228,0.3)',
+    backgroundColor: '#171f2a',
+  },
+  optionButton: {
+    paddingVertical: spacing.xs,
   },
   optionTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
   },
   optionIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
     flex: 1,
   },
   optionIconWrap: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     borderRadius: radii.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -242,15 +270,9 @@ const styles = StyleSheet.create({
     gap: 4,
     flex: 1,
   },
-  optionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
   optionTitle: {
     color: colors.text.white,
-    fontSize: fontSizes.xl,
+    fontSize: fontSizes.lg,
     fontFamily: fonts.bold,
   },
   optionTitleSelected: {
@@ -258,27 +280,15 @@ const styles = StyleSheet.create({
   },
   optionSubtitle: {
     color: colors.text.primary,
-    fontSize: fontSizes.lg,
-    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
   },
   optionSubtitleSelected: {
     color: colors.text.primary,
   },
-  recommendedBadge: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: radii.full,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 6,
-  },
-  recommendedText: {
-    color: colors.text.white,
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    textTransform: 'uppercase',
-  },
   selectionCircle: {
-    width: 38,
-    height: 38,
+    width: 32,
+    height: 32,
     borderRadius: radii.full,
     borderWidth: 2,
     borderColor: colors.border.light,
@@ -291,26 +301,45 @@ const styles = StyleSheet.create({
   },
   optionDescription: {
     color: colors.text.primary,
-    fontSize: fontSizes.lg,
-    lineHeight: 32,
+    fontSize: fontSizes.md,
+    lineHeight: 22,
     fontFamily: fonts.regular,
   },
   optionDescriptionSelected: {
     color: colors.text.primary,
   },
+  detailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    paddingVertical: 4,
+  },
+  detailsButtonText: {
+    color: colors.text.secondary,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+  },
+  detailsPanel: {
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
   bulletList: {
-    gap: spacing.md,
+    gap: spacing.xs,
   },
   bulletRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   bulletText: {
     flex: 1,
     color: colors.text.primary,
-    fontSize: fontSizes.lg,
-    lineHeight: 28,
+    fontSize: fontSizes.sm,
+    lineHeight: 20,
     fontFamily: fonts.regular,
   },
   bulletTextSelected: {
@@ -318,22 +347,20 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
     backgroundColor: colors.bg.primary,
   },
   continueButton: {
     backgroundColor: colors.text.white,
-    borderRadius: radii.xxl,
-    paddingVertical: spacing.md + 2,
+    borderRadius: radii.xl,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   continueText: {
     color: colors.bg.primary,
-    fontSize: fontSizes.lg,
+    fontSize: fontSizes.md,
     fontFamily: fonts.bold,
   },
 });
-
-export default ReceiveAssetStep;

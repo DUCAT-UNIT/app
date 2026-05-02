@@ -1,6 +1,7 @@
 import { NavigationProp } from '@react-navigation/native';
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { ReceiveAssetStep } from '../../components/vaultAction';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 
 interface VaultPayoutScreenProps {
@@ -9,6 +10,14 @@ interface VaultPayoutScreenProps {
 
 export default function VaultPayoutScreen({ navigation }: VaultPayoutScreenProps): React.JSX.Element {
   const { borrowAmountUsd, receiveAsset, setReceiveAsset, setCurrentStep } = useVaultCreation();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+
+  useEffect(() => {
+    if (!usdcFeaturesEnabled && receiveAsset !== 'UNIT') {
+      setReceiveAsset('UNIT');
+    }
+  }, [receiveAsset, setReceiveAsset, usdcFeaturesEnabled]);
 
   const handleBack = useCallback(() => {
     setCurrentStep('amounts');
@@ -23,11 +32,12 @@ export default function VaultPayoutScreen({ navigation }: VaultPayoutScreenProps
   return (
     <ReceiveAssetStep
       amountUsd={borrowAmountUsd}
-      value={receiveAsset}
+      value={usdcFeaturesEnabled ? receiveAsset : 'UNIT'}
       onChange={setReceiveAsset}
       onBack={handleBack}
       onContinue={handleContinue}
       testIDPrefix="vault-create-payout"
+      allowUsdc={usdcFeaturesEnabled}
     />
   );
 }

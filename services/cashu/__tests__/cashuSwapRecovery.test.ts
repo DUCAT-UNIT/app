@@ -8,6 +8,8 @@ import {
   updateSwapWithResponse,
   clearPendingSwap,
   loadPendingSwap,
+  persistRecoveredSwapChangeProofs,
+  recoverSwapProofsFromTransaction,
   recoverPendingSwap,
   checkAndRecoverSwaps,
   PendingSwapTransaction,
@@ -35,7 +37,7 @@ const mockAddProofs = jest.fn();
 const mockLoadProofs = jest.fn();
 const mockSaveProofs = jest.fn();
 const mockWithProofLock = jest.fn(async (fn: () => Promise<unknown>) => fn());
-const mockGetCurrentCashuAccount = jest.fn(() => null);
+const mockGetCurrentCashuAccount = jest.fn<string | null, []>(() => null);
 
 // Use jest.mock with factory - mock-prefixed variables are allowed
 jest.mock('../crypto', () => ({
@@ -77,6 +79,7 @@ describe('cashuSwapRecovery', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    mockGetCurrentCashuAccount.mockReturnValue(null);
   });
 
   describe('savePendingSwap', () => {
@@ -164,6 +167,26 @@ describe('cashuSwapRecovery', () => {
 
     it('should do nothing if no pending swap', async () => {
       await updateSwapWithResponse({ signatures: [] });
+
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should not update a pending swap that belongs to a different Cashu account', async () => {
+      mockGetCurrentCashuAccount.mockReturnValue('tb1pcurrent');
+      const pendingTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+        status: 'pending',
+        taprootAddress: 'tb1pother',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
+
+      await updateSwapWithResponse({ signatures: [{ C_: 'sig1' }] });
 
       expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
     });
@@ -286,11 +309,7 @@ describe('cashuSwapRecovery', () => {
       expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
     });
 
-    it('should attempt to recover proofs from swapped status', async () => {
-      // Note: This test verifies the storage retrieval and status checking works.
-      // The actual unblindSignatures call uses dynamic import which can't be
-      // mocked in Jest without experimental features. The recovery logic is
-      // tested indirectly through the full flow in cashuWalletService.test.ts.
+    it('should recover and split proofs from swapped status', () => {
       const swappedTxn: PendingSwapTransaction = {
         id: 'swap_123',
         timestamp: Date.now(),
@@ -308,16 +327,28 @@ describe('cashuSwapRecovery', () => {
           ],
         },
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(swappedTxn));
+      mockUnblindSignatures.mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C2', id: 'keyset1' },
+        { amount: 16, secret: 'new3', C: 'C3', id: 'keyset1' },
+      ]);
 
-      // The function will attempt recovery but may return null if dynamic import
-      // can't be mocked (Jest limitation with await import())
-      const result = await recoverPendingSwap();
+      const result = recoverSwapProofsFromTransaction(swappedTxn, mockUnblindSignatures);
 
-      // If dynamic import mock worked, we'd have a result
-      // If not, result is null (error caught in try/catch)
-      // Either way, the function handled the swapped state correctly
-      expect(SecureStore.getItemAsync).toHaveBeenCalledWith('cashu_pending_swap');
+      expect(mockUnblindSignatures).toHaveBeenCalledWith(
+        swappedTxn.swapResponse!.signatures,
+        swappedTxn.blindingData,
+        swappedTxn.keys,
+        'keyset1',
+      );
+      expect(result).toEqual({
+        recovered: true,
+        changeProofs: [{ amount: 32, secret: 'new2', C: 'C2', id: 'keyset1' }],
+        sendProofs: [
+          { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
+          { amount: 16, secret: 'new3', C: 'C3', id: 'keyset1' },
+        ],
+      });
     });
 
     it('should return null for swapped status without swapResponse', async () => {
@@ -403,9 +434,89 @@ describe('cashuSwapRecovery', () => {
       expect(result).toBeNull();
     });
 
-    // Note: Lines 190-213 use dynamic import (await import('./crypto')) which cannot be mocked
-    // in Jest without --experimental-vm-modules flag. The recovery logic is tested indirectly
-    // through the error handling test above and through integration tests.
+    it('should fall back to keysetId when the mint response signature lacks an id', () => {
+      const swappedTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'fallback-keyset',
+        secretTypeMap: { new2: 'change' },
+        status: 'swapped',
+        swapResponse: {
+          signatures: [{ C_: 'sig1', amount: 32 }],
+        },
+      };
+      mockUnblindSignatures.mockReturnValue([
+        { amount: 32, secret: 'new2', C: 'C2', id: 'fallback-keyset' },
+      ]);
+
+      const result = recoverSwapProofsFromTransaction(swappedTxn, mockUnblindSignatures);
+
+      expect(mockUnblindSignatures).toHaveBeenCalledWith(
+        swappedTxn.swapResponse!.signatures,
+        swappedTxn.blindingData,
+        swappedTxn.keys,
+        'fallback-keyset',
+      );
+      expect(result?.changeProofs).toEqual([
+        { amount: 32, secret: 'new2', C: 'C2', id: 'fallback-keyset' },
+      ]);
+    });
+
+    it('should reject non-swapped transactions in the pure recovery helper', () => {
+      const pendingTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+        status: 'pending',
+      };
+
+      expect(() => recoverSwapProofsFromTransaction(pendingTxn, mockUnblindSignatures)).toThrow(
+        'Pending swap is not recoverable',
+      );
+    });
+  });
+
+  describe('persistRecoveredSwapChangeProofs', () => {
+    it('should persist recovered non-duplicate change proofs to wallet', async () => {
+      mockLoadProofs.mockResolvedValue([
+        { amount: 10, secret: 'existing', C: 'Cold', id: 'keyset1' },
+      ]);
+      mockSaveProofs.mockResolvedValue(undefined);
+
+      await persistRecoveredSwapChangeProofs({
+        recovered: true,
+        changeProofs: [{ amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' }],
+        sendProofs: [],
+      });
+
+      expect(mockWithProofLock).toHaveBeenCalled();
+      expect(mockSaveProofs).toHaveBeenCalledWith([
+        { amount: 10, secret: 'existing', C: 'Cold', id: 'keyset1' },
+        { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
+      ]);
+    });
+
+    it('should skip duplicate recovered change proofs', async () => {
+      mockLoadProofs.mockResolvedValue([
+        { amount: 64, secret: 'existing_secret', C: 'C1', id: 'keyset1' },
+      ]);
+
+      await persistRecoveredSwapChangeProofs({
+        recovered: true,
+        changeProofs: [{ amount: 64, secret: 'existing_secret', C: 'C1', id: 'keyset1' }],
+        sendProofs: [],
+      });
+
+      expect(mockWithProofLock).toHaveBeenCalled();
+      expect(mockSaveProofs).not.toHaveBeenCalled();
+    });
   });
 
   describe('checkAndRecoverSwaps', () => {
@@ -415,10 +526,7 @@ describe('cashuSwapRecovery', () => {
       expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     });
 
-    it('should attempt to recover change proofs to wallet', async () => {
-      // Note: This test verifies the storage operations work correctly.
-      // The actual recovery with unblindSignatures uses dynamic import
-      // which can't be easily mocked in Jest.
+    it('should attempt recovery for swapped transactions', async () => {
       const swappedTxn: PendingSwapTransaction = {
         id: 'swap_123',
         timestamp: Date.now(),
@@ -436,41 +544,10 @@ describe('cashuSwapRecovery', () => {
       mockUnblindSignatures.mockReturnValue([
         { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
       ]);
-      mockLoadProofs.mockResolvedValue([]);
-      mockAddProofs.mockResolvedValue(undefined);
 
       await checkAndRecoverSwaps();
 
-      // Verify storage was read
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith('cashu_pending_swap');
-    });
-
-    it('should skip duplicate proofs', async () => {
-      const swappedTxn: PendingSwapTransaction = {
-        id: 'swap_123',
-        timestamp: Date.now(),
-        inputProofs: mockInputProofs,
-        blindingData: mockBlindingData,
-        keys: mockKeys,
-        keysetId: 'keyset1',
-        secretTypeMap: { 'existing_secret': 'change' },
-        status: 'swapped',
-        swapResponse: {
-          signatures: [{ C_: 'sig1', id: 'keyset1', amount: 64 }],
-        },
-      };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(swappedTxn));
-      mockUnblindSignatures.mockReturnValue([
-        { amount: 64, secret: 'existing_secret', C: 'C1', id: 'keyset1' },
-      ]);
-      mockLoadProofs.mockResolvedValue([
-        { amount: 64, secret: 'existing_secret', C: 'C1', id: 'keyset1' },
-      ]);
-
-      await checkAndRecoverSwaps();
-
-      // Should not add proofs since they already exist
-      expect(mockAddProofs).not.toHaveBeenCalled();
     });
 
 
@@ -480,8 +557,28 @@ describe('cashuSwapRecovery', () => {
       await expect(checkAndRecoverSwaps()).resolves.not.toThrow();
     });
 
-    // Note: Lines 245-269 use dynamic import (await import('./cashuProofManager')) which cannot
-    // be mocked in Jest without --experimental-vm-modules flag. The proof management logic is
-    // tested indirectly through the error handling test above.
+    it('should absorb proof persistence errors during recovery check', async () => {
+      const swappedTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: { new1: 'change' },
+        status: 'swapped',
+        swapResponse: {
+          signatures: [{ C_: 'sig1', id: 'keyset1', amount: 64 }],
+        },
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(swappedTxn));
+      mockUnblindSignatures.mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
+      ]);
+      mockLoadProofs.mockResolvedValue([]);
+      mockSaveProofs.mockRejectedValue(new Error('write failed'));
+
+      await expect(checkAndRecoverSwaps()).resolves.not.toThrow();
+    });
   });
 });

@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Dispatch,SetStateAction,useEffect,useState } from 'react';
 import { API,API_KEYS } from '../utils/constants';
 import { formatFiat } from '../utils/formatters';
+import { getWithRetry } from '../utils/apiClient';
 
 const CACHE_KEY_PREFIX = 'btc_price_cache_';
 const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -175,13 +176,15 @@ export function usePriceChart(assetType: string, selectedTimeframe: Timeframe): 
       }
 
       try {
-        const response = await fetch(
+        const response = await getWithRetry(
           `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
           {
             headers: {
               'accept': 'application/json',
               'x-cg-demo-api-key': API_KEYS.COINGECKO
-            }
+            },
+            timeout: 8000,
+            retryOptions: { maxRetries: 0 },
           }
         );
 

@@ -3,7 +3,7 @@
  * Handles Cashu receive operations (mint and token receive)
  */
 
-import { useState, useCallback, useEffect, Dispatch, SetStateAction } from 'react';
+import { useState, useCallback, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
 import { logger } from '../utils/logger';
@@ -56,16 +56,37 @@ export function useCashuReceive({
   const [isLoading, setIsLoading] = useState(false);
   const [pasteValue, setPasteValue] = useState('');
   const [justCopied, setJustCopied] = useState(false);
+  const mountedRef = useRef(true);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+        copyResetTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Poll for deposit confirmation
   useEffect(() => {
     if (!mintQuote || mode !== 'mint') return;
 
+    let stopped = false;
+    let checkInFlight = false;
     const interval = setInterval(async () => {
+      if (checkInFlight) {
+        return;
+      }
+
+      checkInFlight = true;
       try {
         const result = await checkAndCompleteMint(mintQuote.quoteId);
-        if (result.completed) {
+        if (!stopped && result.completed) {
           clearInterval(interval);
+          stopped = true;
           Alert.alert(
             'Success!',
             `Minted ${result.amount} sats worth of Cashu tokens`,
@@ -74,10 +95,16 @@ export function useCashuReceive({
         }
       } catch (error: unknown) {
         logger.error('Error checking mint:', { error: error instanceof Error ? error.message : String(error) });
+      } finally {
+        checkInFlight = false;
       }
     }, 3000);
+    (interval as { unref?: () => void }).unref?.();
 
-    return () => clearInterval(interval);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
   }, [mintQuote, mode, checkAndCompleteMint, navigation]);
 
   const handleStartMint = useCallback(async (): Promise<void> => {
@@ -90,12 +117,16 @@ export function useCashuReceive({
     setIsLoading(true);
     try {
       const quote = await startMint(amountNum);
-      setMintQuote(quote);
+      if (mountedRef.current) {
+        setMintQuote(quote);
+      }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create mint quote');
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [amount, startMint]);
 
@@ -118,7 +149,9 @@ export function useCashuReceive({
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to receive token');
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [pasteValue, receive, navigation]);
 
@@ -154,15 +187,29 @@ export function useCashuReceive({
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert('Error', errorMessage || 'Failed to create mint quote');
     } finally {
-      setIsLoading(false);
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [amount, startMint, navigation]);
 
   const handleCopyAddress = useCallback(async (address: string | undefined, setStringAsync: (value: string) => Promise<boolean>): Promise<void> => {
     if (address) {
       await setStringAsync(address);
+      if (!mountedRef.current) {
+        return;
+      }
       setJustCopied(true);
-      setTimeout(() => setJustCopied(false), 2000);
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null;
+        if (mountedRef.current) {
+          setJustCopied(false);
+        }
+      }, 2000);
+      (copyResetTimerRef.current as { unref?: () => void }).unref?.();
     }
   }, []);
 

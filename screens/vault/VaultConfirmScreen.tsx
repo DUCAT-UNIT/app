@@ -5,7 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { ActivityIndicator,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
@@ -47,13 +47,16 @@ export default function VaultConfirmScreen<
     feeUsdValue,
     selectedFeeRate,
     isAuthenticating,
+    isSubmitting,
     isLoading,
     error,
     handleConfirm,
+    handleClose,
     handleBack,
   } = useVaultConfirmScreen({ config, store, vaultHook }, navigation);
   const isUsdPrimaryAmount = primaryAmount.unit === 'USD';
   const isUnitPrimaryAmount = primaryAmount.unit === 'UNIT';
+  const isBusy = isLoading || isAuthenticating || isSubmitting;
   const selectedPayoutRow = summaryRows.find((row) => row.badgeAsset);
   const payoutMeta = selectedPayoutRow?.badgeAsset ? getReceiveAssetMeta(selectedPayoutRow.badgeAsset) : null;
 
@@ -71,11 +74,12 @@ export default function VaultConfirmScreen<
             <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
           </View>
           <TouchableOpacity
-            onPress={handleBack}
+            onPress={handleClose}
+            style={styles.closeButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             accessibilityRole="button"
             accessibilityLabel="Close"
-            accessibilityHint="Go back to the previous screen"
+            accessibilityHint={`Close ${config.title} screen`}
           >
             <Ionicons name="close" size={24} color={colors.text.secondary} />
           </TouchableOpacity>
@@ -167,27 +171,37 @@ export default function VaultConfirmScreen<
         <TouchableScale
           style={styles.backButton}
           onPress={handleBack}
-          disabled={isLoading || isAuthenticating}
+          disabled={isBusy}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           accessibilityHint="Return to the previous screen to modify the amount"
-          accessibilityState={{ disabled: isLoading || isAuthenticating }}
+          accessibilityState={{ disabled: isBusy }}
+          pressLockMs={700}
         >
           <Text style={styles.backText} accessibilityElementsHidden>Back</Text>
         </TouchableScale>
 
         <TouchableScale
-          style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
+          style={[styles.confirmButton, isBusy && styles.buttonDisabled]}
           onPress={handleConfirm}
-          disabled={isLoading || isAuthenticating}
+          disabled={isBusy}
           testID={`vault-${config.operationType}-confirm-btn`}
           accessibilityRole="button"
-          accessibilityLabel={isAuthenticating ? "Authenticating with biometrics" : "Confirm and sign transaction"}
+          accessibilityLabel={isBusy ? "Preparing transaction" : "Confirm and sign transaction"}
           accessibilityHint="Authenticate to sign and broadcast the transaction"
-          accessibilityState={{ disabled: isLoading || isAuthenticating }}
+          accessibilityState={{ disabled: isBusy, busy: isBusy }}
+          lockWhilePending
+          pressLockMs={900}
         >
-          {isAuthenticating ? (
-            <Ionicons name="finger-print" size={20} color={colors.text.white} accessibilityElementsHidden />
+          {isBusy ? (
+            isAuthenticating ? (
+              <Ionicons name="finger-print" size={20} color={colors.text.white} accessibilityElementsHidden />
+            ) : (
+              <View style={styles.busyButtonContent}>
+                <ActivityIndicator size="small" color={colors.text.white} />
+                <Text style={styles.confirmText} accessibilityElementsHidden>Preparing...</Text>
+              </View>
+            )
           ) : (
             <Text style={styles.confirmText} accessibilityElementsHidden>Confirm & Sign</Text>
           )}
@@ -276,6 +290,14 @@ const styles = StyleSheet.create({
   },
   headerCopy: {
     gap: 2,
+  },
+  closeButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -10,
+    zIndex: 10,
   },
   eyebrow: {
     fontSize: 11,
@@ -467,6 +489,12 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
     color: colors.text.white,
+  },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   buttonDisabled: {
     opacity: 0.6,

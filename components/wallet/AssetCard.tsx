@@ -96,7 +96,7 @@ const AssetCard = React.memo(function AssetCard({
 }: AssetCardProps) {
   const { s } = useResponsive();
   const CardWrapper = onPress ? TouchableOpacity : View;
-  const exposeInnerElements = __DEV__ || isE2E;
+  const exposeInnerElements = __DEV__ || isE2E();
 
   // Format accessibility label
   const formattedBtcValue = typeof btcValue === 'number' ? formatBalance(btcValue, BTC_DECIMAL_PLACES) : btcValue;

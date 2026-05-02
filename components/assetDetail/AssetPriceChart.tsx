@@ -18,7 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TIMEFRAMES = ['1D', '1W', '1M', '1Y'];
 
 interface AssetPriceChartProps {
-  assetType: 'BTC' | 'UNIT' | 'USDC';
+  assetType: 'BTC' | 'UNIT' | 'USDC' | 'ETH';
   priceData: PriceDataPoint[] | null;
   priceError: string | null;
   priceLoading: boolean;
@@ -151,6 +151,10 @@ export const AssetPriceChart = memo(function AssetPriceChart({
 
   // Calculate chart width accounting for 24px padding on each side
   const chartWidth = width ?? (SCREEN_WIDTH - s(24) * 2);
+
+  if (assetType === 'ETH') {
+    return null;
+  }
 
   // For UNIT, use generated data
   if (assetType === 'UNIT') {

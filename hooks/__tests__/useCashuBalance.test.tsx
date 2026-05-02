@@ -33,6 +33,23 @@ import { logger } from '../../utils/logger';
 
 const mockGetBalance = getBalance as jest.Mock;
 const mockSetCurrentAccount = setCurrentAccount as jest.Mock;
+const activeWallet = {
+  taprootAddress: 'tb1p123...',
+  segwitAddress: 'bc1q...',
+  segwitPubkey: 'pub1',
+  taprootPubkey: 'pub2',
+} as WalletAddresses;
+
+async function renderActiveCashuBalance() {
+  const hook = renderHook(() => useCashuBalance({ wallet: activeWallet }));
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  jest.clearAllTimers();
+  mockGetBalance.mockClear();
+  return hook;
+}
 
 // Helper to render hooks
 function renderHook<T>(hook: () => T) {
@@ -74,10 +91,8 @@ describe('useCashuBalance', () => {
   });
 
   it('should call setCurrentAccount when wallet changes', async () => {
-    const wallet = { taprootAddress: 'tb1p123...', segwitAddress: 'bc1q...', segwitPubkey: 'pub1', taprootPubkey: 'pub2' } as WalletAddresses;
-
     await act(async () => {
-      renderHook(() => useCashuBalance({ wallet }));
+      renderHook(() => useCashuBalance({ wallet: activeWallet }));
       await Promise.resolve();
     });
 
@@ -94,10 +109,8 @@ describe('useCashuBalance', () => {
   });
 
   it('should fetch balance on initial load when wallet exists', async () => {
-    const wallet = { taprootAddress: 'tb1p123...', segwitAddress: 'bc1q...', segwitPubkey: 'pub1', taprootPubkey: 'pub2' } as WalletAddresses;
-
     await act(async () => {
-      renderHook(() => useCashuBalance({ wallet }));
+      renderHook(() => useCashuBalance({ wallet: activeWallet }));
       await Promise.resolve();
       await Promise.resolve(); // Allow async initAccount to run
     });
@@ -107,7 +120,7 @@ describe('useCashuBalance', () => {
 
   it('should handle fetchBalance with fullLoad=true', async () => {
     mockGetBalance.mockResolvedValue(500);
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
+    const { result } = await renderActiveCashuBalance();
 
     let returnedBalance;
     await act(async () => {
@@ -125,12 +138,7 @@ describe('useCashuBalance', () => {
     mockGetBalance.mockReset();
     mockGetBalance.mockResolvedValueOnce(50).mockResolvedValueOnce(100);
 
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
-
-    // Wait for initial effect to run
-    await act(async () => {
-      await Promise.resolve();
-    });
+    const { result } = await renderActiveCashuBalance();
 
     // Reset mocks to clear both call history and implementation queue
     mockGetBalance.mockReset();
@@ -146,8 +154,8 @@ describe('useCashuBalance', () => {
   });
 
   it('should handle fetchBalance errors', async () => {
+    const { result } = await renderActiveCashuBalance();
     mockGetBalance.mockRejectedValue(new Error('Network error'));
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
 
     await act(async () => {
       await result.current!.fetchBalance(true);
@@ -157,8 +165,8 @@ describe('useCashuBalance', () => {
   });
 
   it('should handle non-Error thrown from fetchBalance', async () => {
+    const { result } = await renderActiveCashuBalance();
     mockGetBalance.mockRejectedValue('string error');
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
 
     await act(async () => {
       await result.current!.fetchBalance(true);
@@ -170,7 +178,7 @@ describe('useCashuBalance', () => {
 
   it('should handle fetchBalance with default fullLoad parameter', async () => {
     mockGetBalance.mockResolvedValue(300);
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
+    const { result } = await renderActiveCashuBalance();
 
     let returnedBalance;
     await act(async () => {
@@ -188,6 +196,17 @@ describe('useCashuBalance', () => {
     expect(usePolling).toHaveBeenCalledWith(
       expect.objectContaining({
         interval: 10000,
+        enabled: false,
+        immediate: false,
+      })
+    );
+
+    (usePolling as jest.Mock).mockClear();
+    renderHook(() => useCashuBalance({ wallet: activeWallet }));
+
+    expect(usePolling).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interval: 10000,
         enabled: true,
         immediate: false,
       })
@@ -195,8 +214,9 @@ describe('useCashuBalance', () => {
   });
 
   it('should load full balance in background after quick load', async () => {
+    const { result } = await renderActiveCashuBalance();
+    mockGetBalance.mockReset();
     mockGetBalance.mockResolvedValueOnce(25).mockResolvedValueOnce(100);
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
 
     await act(async () => {
       await result.current!.fetchBalance(false);
@@ -216,8 +236,7 @@ describe('useCashuBalance', () => {
   });
 
   it('should handle background fetch error gracefully', async () => {
-    mockGetBalance.mockResolvedValueOnce(25).mockRejectedValueOnce(new Error('Background error'));
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
+    const { result } = await renderActiveCashuBalance();
 
     // Reset mocks to clear both call history and implementation queue
     mockGetBalance.mockReset();
@@ -239,7 +258,7 @@ describe('useCashuBalance', () => {
   });
 
   it('should handle non-Error thrown during background fetch', async () => {
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
+    const { result } = await renderActiveCashuBalance();
 
     // Reset mocks
     mockGetBalance.mockReset();
@@ -258,9 +277,32 @@ describe('useCashuBalance', () => {
     expect(logger.error).toHaveBeenCalledWith('Failed to fetch full Cashu balance', { error: 'background string error' });
   });
 
+  it('should cancel background full balance load on unmount', async () => {
+    const { result, unmount } = await renderActiveCashuBalance();
+    mockGetBalance.mockReset();
+    mockGetBalance.mockResolvedValueOnce(25).mockResolvedValueOnce(100);
+
+    await act(async () => {
+      await result.current!.fetchBalance(false);
+    });
+
+    expect(getBalance).toHaveBeenCalledWith(false);
+
+    act(() => {
+      unmount();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(200);
+      await Promise.resolve();
+    });
+
+    expect(getBalance).not.toHaveBeenCalledWith(true);
+  });
+
   it('should return current balance on fetch error', async () => {
+    const { result } = await renderActiveCashuBalance();
     mockGetBalance.mockResolvedValue(200);
-    const { result } = renderHook(() => useCashuBalance({ wallet: null }));
 
     // Wait for initial balance to be set
     await act(async () => {
@@ -294,7 +336,7 @@ describe('useCashuBalance', () => {
       mockGetBalance.mockReset();
       mockGetBalance.mockResolvedValue(100);
 
-      const { result } = renderHook(() => useCashuBalance({ wallet: null }));
+      const { result } = await renderActiveCashuBalance();
 
       // Verify subscribeToProofChanges was called
       expect(subscribeToProofChanges).toHaveBeenCalled();
@@ -319,7 +361,7 @@ describe('useCashuBalance', () => {
       const mockUnsubscribe = jest.fn();
       (subscribeToProofChanges as jest.Mock).mockImplementation(() => mockUnsubscribe);
 
-      const { unmount } = renderHook(() => useCashuBalance({ wallet: null }));
+      const { unmount } = await renderActiveCashuBalance();
 
       await act(async () => {
         await Promise.resolve();

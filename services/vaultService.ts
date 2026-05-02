@@ -91,12 +91,79 @@ interface VaultHistoryResponse {
   history: VaultHistoryTransaction[];
 }
 
-export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHistoryTransaction[]> => {
-  try {
-    if (!vaultPubkey) {
-      return [];
-    }
+const vaultHistoryInFlight = new Map<string, Promise<VaultHistoryTransaction[]>>();
+const vaultDataInFlight = new Map<string, Promise<VaultData | null>>();
+const vaultLatestHistoryInFlight = new Map<string, Promise<VaultHistoryTransaction | undefined>>();
 
+export interface FetchVaultDataOptions {
+  /**
+   * Latest transaction is useful for debug/detail callers, but it requires a
+   * second validator request. Keep the default fast for first-paint vault UI.
+   */
+  includeLatestTransaction?: boolean;
+}
+
+const isValidPrice = (price: unknown): price is number => (
+  typeof price === 'number'
+  && Number.isFinite(price)
+  && price > 0
+  && price < 10_000_000
+);
+
+const firstValidPrice = (...prices: unknown[]): number | undefined => prices.find(isValidPrice);
+
+async function dedupeInFlight<T>(
+  requests: Map<string, Promise<T>>,
+  key: string,
+  loader: () => Promise<T>
+): Promise<T> {
+  const existing = requests.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const request = loader();
+  requests.set(key, request);
+
+  try {
+    return await request;
+  } finally {
+    if (requests.get(key) === request) {
+      requests.delete(key);
+    }
+  }
+}
+
+export async function fetchLatestVaultHistoryTransaction(
+  vaultId: string,
+  lookbackDays = 30
+): Promise<VaultHistoryTransaction | undefined> {
+  return dedupeInFlight(
+    vaultLatestHistoryInFlight,
+    `${vaultId}:${lookbackDays}`,
+    async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const lookbackStart = now - lookbackDays * 24 * 60 * 60;
+
+      const vaultHistoryResponse = await postWithRetry(
+        `${API.VAULT}/vault_history_tx`,
+        {
+          vault_id: vaultId,
+          timestamp_start: lookbackStart,
+          timestamp_end: now,
+          pagination: { limit: 1, offset: 0 },
+        },
+        { description: 'Fetch latest vault transaction' }
+      );
+
+      const vaultHistoryData = await vaultHistoryResponse.json() as VaultHistoryResponse;
+      return vaultHistoryData.history?.[0];
+    }
+  );
+}
+
+const fetchVaultHistoryUncached = async (vaultPubkey: string): Promise<VaultHistoryTransaction[]> => {
+  try {
     // Step 1: Get vault list to retrieve vault_id
     const vaultListResponse = await postWithRetry(
       `${API.VAULT}/vault_list`,
@@ -144,13 +211,23 @@ export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHisto
   }
 };
 
-export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | null> => {
-  try {
-    if (!vaultPubkey) {
-      logger.debug('[VaultService] fetchVaultData: No vaultPubkey provided');
-      return null;
-    }
+export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHistoryTransaction[]> => {
+  if (!vaultPubkey) {
+    return [];
+  }
 
+  return dedupeInFlight(
+    vaultHistoryInFlight,
+    vaultPubkey,
+    () => fetchVaultHistoryUncached(vaultPubkey)
+  );
+};
+
+const fetchVaultDataUncached = async (
+  vaultPubkey: string,
+  options: FetchVaultDataOptions = {}
+): Promise<VaultData | null> => {
+  try {
     logger.debug('[VaultService] Fetching vault data for pubkey:', { vaultPubkey });
 
     // Step 1: Get vault list to retrieve vault_id
@@ -193,22 +270,23 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
     const vaultTag = firstVault.vault_tag;
     logger.debug('[VaultService] Using vault:', { vault_id: vaultId, vault_tag: vaultTag });
 
-    // Step 2: Get vault history to retrieve transaction details
-    const now = Math.floor(Date.now() / 1000);
-    const thirtyDaysAgo = now - 30 * 24 * 60 * 60;
-
-    const vaultHistoryResponse = await postWithRetry(
-      `${API.VAULT}/vault_history_tx`,
-      {
-        vault_id: vaultId,
-        timestamp_start: thirtyDaysAgo,
-        timestamp_end: now,
-        pagination: { limit: 250, offset: 0 },
-      },
-      { description: 'Fetch vault data history' }
+    const listOraclePrice = firstValidPrice(vaultListData.current_price, firstVault.oracle_price);
+    const latestHistoryTransaction = (options.includeLatestTransaction || !listOraclePrice)
+      ? await fetchLatestVaultHistoryTransaction(vaultId)
+      : undefined;
+    const oraclePrice = firstValidPrice(
+      listOraclePrice,
+      latestHistoryTransaction?.oracle_price
     );
 
-    const vaultHistoryData = await vaultHistoryResponse.json() as VaultHistoryResponse;
+    if (!oraclePrice) {
+      logger.error('[VaultService] Invalid oracle price in vault data', {
+        vaultId,
+        oracle_price: firstVault.oracle_price,
+        current_price: vaultListData.current_price,
+        latest_history_oracle_price: latestHistoryTransaction?.oracle_price,
+      });
+    }
 
     // Validate required fields for vault operations before constructing VaultInfo
     const requiredFields = {
@@ -228,22 +306,10 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
         vaultId,
         missingFields,
       });
-      return null;
-    }
-
-    // Validate numeric fields to prevent health factor computation with bad data
-    const oraclePrice = firstVault.oracle_price ?? vaultListData.current_price;
-    if (!oraclePrice || oraclePrice <= 0) {
-      logger.error('[VaultService] Invalid oracle price in vault data', {
-        vaultId,
-        oracle_price: firstVault.oracle_price,
-        current_price: vaultListData.current_price,
-      });
-      throw new Error('Invalid oracle price data from vault API');
     }
 
     // Construct full VaultInfo for borrow/deposit/repay/withdraw operations
-    const vaultInfo: VaultInfo = {
+    const vaultInfo: VaultInfo | undefined = missingFields.length === 0 && oraclePrice ? {
       vault_id: firstVault.vault_id,
       vault_tag: firstVault.vault_tag,
       vault_pubkey: requiredFields.vault_pubkey!,
@@ -256,11 +322,11 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       liquidation_hash: firstVault.liquidation_hash || '',
       liquidation_price: firstVault.liquidation_price || 0,
       oracle_price: oraclePrice,
-      oracle_timestamp: firstVault.oracle_timestamp || 0,
+      oracle_timestamp: firstVault.oracle_timestamp || latestHistoryTransaction?.timestamp || 0,
       utxo: requiredFields.utxo!,
-      vault_last_action: firstVault.vault_last_action || '',
+      vault_last_action: firstVault.vault_last_action || latestHistoryTransaction?.action || '',
       vault_version: firstVault.vault_version || 1,
-    };
+    } : undefined;
 
     // Build the vault data object
     const vaultData: VaultData = {
@@ -268,21 +334,20 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
-      currentPrice: vaultListData.current_price,
-      vaultInfo,
+      currentPrice: oraclePrice,
+      ...(vaultInfo ? { vaultInfo } : {}),
     };
 
     // Add latest transaction if history exists
-    if (vaultHistoryData.history && vaultHistoryData.history.length > 0) {
-      const latestTransaction = vaultHistoryData.history[0];
+    if (latestHistoryTransaction) {
       vaultData.latestTransaction = {
-        amountBorrowed: latestTransaction.amount_borrowed,
-        vaultAmount: latestTransaction.vault_amount,
-        btcAmount: latestTransaction.btc_amt,
-        unitAmt: latestTransaction.unit_amt,
-        oraclePrice: latestTransaction.oracle_price,
-        timestamp: latestTransaction.timestamp,
-        action: latestTransaction.action,
+        amountBorrowed: latestHistoryTransaction.amount_borrowed,
+        vaultAmount: latestHistoryTransaction.vault_amount,
+        btcAmount: latestHistoryTransaction.btc_amt,
+        unitAmt: latestHistoryTransaction.unit_amt,
+        oraclePrice: firstValidPrice(latestHistoryTransaction.oracle_price, oraclePrice) ?? 0,
+        timestamp: latestHistoryTransaction.timestamp,
+        action: latestHistoryTransaction.action,
       };
     }
 
@@ -290,7 +355,8 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
       vaultTag,
       totalDebt: firstVault.unit_borrowed,
       totalCollateral: firstVault.btc_locked,
-      hasVaultInfo: !!vaultInfo.creation_account,
+      currentPrice: oraclePrice,
+      hasVaultInfo: !!vaultInfo?.creation_account,
     });
 
     return vaultData;
@@ -298,4 +364,21 @@ export const fetchVaultData = async (vaultPubkey: string): Promise<VaultData | n
     logger.warn('[VaultService] Error fetching vault data:', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
+};
+
+export const fetchVaultData = async (
+  vaultPubkey: string,
+  options: FetchVaultDataOptions = {}
+): Promise<VaultData | null> => {
+  if (!vaultPubkey) {
+    logger.debug('[VaultService] fetchVaultData: No vaultPubkey provided');
+    return null;
+  }
+
+  const cacheKey = `${vaultPubkey}:${options.includeLatestTransaction ? 'latest' : 'fast'}`;
+  return dedupeInFlight(
+    vaultDataInFlight,
+    cacheKey,
+    () => fetchVaultDataUncached(vaultPubkey, options)
+  );
 };

@@ -3,9 +3,7 @@
  * Defines the navigation structure and param lists for the entire app
  */
 
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import type { CompositeScreenProps,NavigatorScreenParams } from '@react-navigation/native';
-import type { StackScreenProps } from '@react-navigation/stack';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 
 // Re-export types from types/assets.d.ts
 export type { AddressTypeParam,AssetTypeParam } from '../types/assets';
@@ -88,13 +86,15 @@ export type WithdrawStackParamList = {
  */
 export type RootNavigatorParamList = {
   Auth: undefined;
-  Main: undefined;
+  LockScreen: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   SendFlow: NavigatorScreenParams<SendStackParamList> | undefined;
   VaultCreateFlow: NavigatorScreenParams<VaultCreateStackParamList> | undefined;
   BorrowFlow: NavigatorScreenParams<BorrowStackParamList> | undefined;
   DepositFlow: NavigatorScreenParams<DepositStackParamList> | undefined;
   RepayFlow: NavigatorScreenParams<RepayStackParamList> | undefined;
   WithdrawFlow: NavigatorScreenParams<WithdrawStackParamList> | undefined;
+  VaultSuccessPreview: undefined;
 };
 
 /**
@@ -119,20 +119,21 @@ export type WalletStackParamList = {
     assetType: string;
     advancedMode?: boolean;
     initialEvmUsdcBalance?: number;
+    initialEvmEthBalance?: number;
     initialEvmAddress?: string;
   };
   VaultDetail: undefined;
   ReceiveQR: {
     address: string;
     addressType?: string;
-    assetType?: 'BTC' | 'UNIT' | 'USDC';
+    assetType?: 'BTC' | 'UNIT' | 'USDC' | 'ETH';
     networkLabel?: string;
   };
   UnitBridge: { amount?: string; autoSwap?: boolean } | undefined;
   SepoliaSwap: { sourceAsset?: 'UNIT' | 'USDC' } | undefined;
   SepoliaSwapSummary: { sourceAsset: 'UNIT' | 'USDC'; amountIn: string } | undefined;
   SepoliaRedeem: { amount?: string; sourceAsset?: 'USDC' | 'wUNIT'; maxInputAmount?: string } | undefined;
-  SepoliaSend: { asset?: 'USDC' | 'wUNIT' } | undefined;
+  SepoliaSend: { asset?: 'USDC' | 'wUNIT' | 'ETH' } | undefined;
   CashuReceive: { token?: string };
   RecoverMint: undefined;
   Preferences: undefined;
@@ -151,40 +152,6 @@ export type WalletStackParamList = {
 export type MainTabParamList = {
   WalletTab: NavigatorScreenParams<WalletStackParamList>;
 };
-
-/**
- * Screen Props Types
- * Type helpers for screen component props
- */
-
-// Root Navigator screen props
-export type RootNavigatorScreenProps<T extends keyof RootNavigatorParamList> =
-  StackScreenProps<RootNavigatorParamList, T>;
-
-// Auth Stack screen props
-export type AuthStackScreenProps<T extends keyof AuthStackParamList> =
-  StackScreenProps<AuthStackParamList, T>;
-
-// Main Tab screen props
-export type MainTabScreenProps<T extends keyof MainTabParamList> =
-  BottomTabScreenProps<MainTabParamList, T>;
-
-// Wallet Stack screen props (composite with tab navigator)
-export type WalletStackScreenProps<T extends keyof WalletStackParamList> =
-  CompositeScreenProps<
-    StackScreenProps<WalletStackParamList, T>,
-    CompositeScreenProps<
-      BottomTabScreenProps<MainTabParamList>,
-      StackScreenProps<RootNavigatorParamList>
-    >
-  >;
-
-// Send Stack screen props
-export type SendStackScreenProps<T extends keyof SendStackParamList> =
-  CompositeScreenProps<
-    StackScreenProps<SendStackParamList, T>,
-    StackScreenProps<RootNavigatorParamList>
-  >;
 
 /**
  * Extended navigation interface for hooks

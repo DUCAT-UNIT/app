@@ -3,6 +3,8 @@
  * Functions for formatting Bitcoin addresses and transaction IDs
  */
 
+import { APP_NETWORK_CONFIG } from '../networkConfig';
+
 export type AddressType = 'legacy' | 'segwit' | 'taproot' | 'unknown';
 
 /**
@@ -67,9 +69,8 @@ export function looksLikeBitcoinAddress(address: string | null | undefined): boo
     return false;
   }
 
-  // Check for valid Bitcoin address prefixes
-  const validPrefixes = ['1', '3', 'bc1', 'tb1', 'bcrt1'];
-  return validPrefixes.some((prefix) => address.startsWith(prefix));
+  // This app is Mutinynet-only; avoid generic mainnet/regtest prefix matches.
+  return APP_NETWORK_CONFIG.addressPrefixes.all.some((prefix) => address.toLowerCase().startsWith(prefix));
 }
 
 /**
@@ -82,19 +83,17 @@ export function getAddressType(address: string | null | undefined): AddressType 
     return 'unknown';
   }
 
-  if (address.startsWith('1')) {
+  const lowerAddress = address.toLowerCase();
+
+  if (APP_NETWORK_CONFIG.addressPrefixes.legacy.some(prefix => lowerAddress.startsWith(prefix))) {
     return 'legacy';
   }
 
-  if (address.startsWith('3')) {
+  if (lowerAddress.startsWith(APP_NETWORK_CONFIG.addressPrefixes.segwit)) {
     return 'segwit';
   }
 
-  if (address.startsWith('bc1q') || address.startsWith('tb1q')) {
-    return 'segwit';
-  }
-
-  if (address.startsWith('bc1p') || address.startsWith('tb1p')) {
+  if (lowerAddress.startsWith(APP_NETWORK_CONFIG.addressPrefixes.taproot)) {
     return 'taproot';
   }
 

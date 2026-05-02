@@ -3,11 +3,14 @@
  * Features: 4-step progress tracker, animated indicators
  */
 
-import React, { useEffect } from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../../components/vaultCreation';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useIssuedUnitSettlement } from '../../hooks/vault/useIssuedUnitSettlement';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
@@ -18,8 +21,12 @@ interface VaultProcessingScreenProps {
 }
 
 export default function VaultProcessingScreen({ navigation }: VaultProcessingScreenProps) {
-  const { processingStep, currentStep, error, txid } = useVaultCreation();
-  const { kind, phase } = useVaultSettlementStore();
+  const { processingStep, currentStep, error, txid, setCurrentStep } = useVaultCreation();
+  const { settingsHandlers } = useSettingsHandlers();
+  const { kind, phase, faceValueUsd } = useVaultSettlementStore();
+  const { settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
+  const [isRetryingSettlement, setIsRetryingSettlement] = useState(false);
+  const isSettlementRetryNeeded = !error && kind === 'open' && phase === 'needs_retry' && faceValueUsd > 0;
 
   // Navigate to success screen when complete
   useEffect(() => {
@@ -34,6 +41,40 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
       navigation.navigate('VaultConfirm');
     }
   }, [error, currentStep, navigation]);
+
+  const handleRetrySettlement = useCallback(async () => {
+    if (isRetryingSettlement || kind !== 'open' || faceValueUsd <= 0) {
+      return;
+    }
+
+    setIsRetryingSettlement(true);
+    try {
+      const settlement = await settleIssuedUnitToUsdc('open', faceValueUsd);
+      const canComplete =
+        settlement.status === 'settled' ||
+        (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+      if (canComplete) {
+        setCurrentStep('success');
+      }
+    } catch (retryError) {
+      const message = retryError instanceof Error
+        ? retryError.message
+        : 'Unable to retry settlement';
+      useNotificationStore.getState().showSnackbar({
+        title: 'Settlement retry failed',
+        description: message,
+        type: 'error',
+      });
+    } finally {
+      setIsRetryingSettlement(false);
+    }
+  }, [
+    faceValueUsd,
+    isRetryingSettlement,
+    kind,
+    setCurrentStep,
+    settleIssuedUnitToUsdc,
+  ]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="vault-create-processing-screen">
@@ -58,9 +99,27 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
         {/* Status Message */}
         <View style={styles.statusContainer}>
           <Text style={styles.statusText}>
-            {getVaultSettlementStatusMessage(kind, phase, processingStep)}
+            {getVaultSettlementStatusMessage(kind, phase, processingStep, settingsHandlers.usdcFeaturesEnabled)}
           </Text>
         </View>
+
+        {isSettlementRetryNeeded && (
+          <TouchableOpacity
+            style={[
+              styles.backButton,
+              isRetryingSettlement && styles.disabledButton,
+            ]}
+            onPress={handleRetrySettlement}
+            disabled={isRetryingSettlement}
+            accessibilityRole="button"
+            accessibilityLabel="Retry settlement"
+            accessibilityHint="Retries USDC settlement without creating another vault"
+          >
+            <Text style={styles.backButtonText}>
+              {isRetryingSettlement ? 'Retrying...' : 'Retry settlement'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -104,5 +163,21 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
+  },
+  backButton: {
+    backgroundColor: colors.bg.tertiary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  backButtonText: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
   },
 });

@@ -1,4 +1,4 @@
-import { getBridgeStatus, getRedemptionStatus } from './bridgeApiService';
+import { getBridgeIntentByClientRequestId, getBridgeStatus, getRedemptionStatus } from './bridgeApiService';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -6,7 +6,13 @@ import {
 } from './evmBridgeService';
 import { logger } from '../utils/logger';
 import type { BridgeIntent, RedemptionRequest } from '../shared/bridgeTypes';
-import type { VaultSettlementKind, VaultSettlementPhase } from '../stores/vaultSettlementStore';
+import { useSwapDiagnosticsStore } from '../stores/swapDiagnosticsStore';
+import {
+  useVaultSettlementStore,
+  type VaultSettlementKind,
+  type VaultSettlementPhase,
+  type VaultSettlementPayoutAsset,
+} from '../stores/vaultSettlementStore';
 
 const BRIDGE_POLL_INTERVAL_MS = 4_000;
 // Live Mutinynet -> Sepolia settlement needs at least one Mutinynet confirmation,
@@ -19,8 +25,13 @@ const REDEMPTION_RELEASE_TIMEOUT_MS = 360_000;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
   });
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function formatVaultSettlementAmountInput(amountUsd: number): string {
@@ -67,20 +78,63 @@ export async function waitForBridgeSettlement(
   timeoutMs = BRIDGE_SETTLEMENT_TIMEOUT_MS,
 ): Promise<BridgeIntent> {
   const deadline = Date.now() + timeoutMs;
+  const pollId = useSwapDiagnosticsStore.getState().startPoll({
+    id: `bridge:${intentId}`,
+    kind: 'bridge_settlement',
+    label: 'Bridge settlement',
+    subject: intentId,
+    intervalMs: BRIDGE_POLL_INTERVAL_MS,
+    timeoutMs,
+  });
 
   while (Date.now() < deadline) {
-    const intent = await getBridgeStatus(intentId);
+    let intent: BridgeIntent;
+    try {
+      intent = await getBridgeStatus(intentId);
+    } catch (error: unknown) {
+      useSwapDiagnosticsStore.getState().completePoll(pollId, {
+        status: 'error',
+        lastError: getErrorMessage(error),
+      });
+      throw error;
+    }
+
+    useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+      lastStatus: intent.status,
+      metadata: {
+        autoSwap: intent.autoSwap,
+        confirmations: intent.confirmations ?? null,
+        depositTxid: intent.depositTxid ?? null,
+        payoutAsset: intent.payoutAsset ?? null,
+        payoutAmount: intent.payoutAmount ?? null,
+        sepoliaTxHash: intent.sepoliaTxHash ?? null,
+        requiresManualRecovery: intent.requiresManualRecovery ?? null,
+      },
+    });
+
     if (
       intent.status === 'fulfilled' ||
       intent.status === 'minted_no_swap' ||
       intent.status === 'failed'
     ) {
+      useSwapDiagnosticsStore.getState().completePoll(pollId, {
+        status: intent.status === 'failed' ? 'error' : 'success',
+        lastStatus: intent.status,
+        lastMessage: intent.status === 'failed'
+          ? 'Bridge settlement failed'
+          : 'Bridge settlement completed',
+        lastError: intent.error ?? null,
+      });
       return intent;
     }
 
     await delay(BRIDGE_POLL_INTERVAL_MS);
   }
 
+  useSwapDiagnosticsStore.getState().completePoll(pollId, {
+    status: 'timeout',
+    lastMessage: 'Bridge settlement is still processing',
+  });
   logger.warn('[VaultSettlement] Bridge settlement timed out', {
     intentId,
     timeoutMs,
@@ -93,16 +147,56 @@ export async function waitForRedemptionRelease(
   timeoutMs = REDEMPTION_RELEASE_TIMEOUT_MS,
 ): Promise<RedemptionRequest> {
   const deadline = Date.now() + timeoutMs;
+  const pollId = useSwapDiagnosticsStore.getState().startPoll({
+    id: `redemption:${redemptionId}`,
+    kind: 'redemption_release',
+    label: 'Redemption release',
+    subject: redemptionId,
+    intervalMs: REDEMPTION_POLL_INTERVAL_MS,
+    timeoutMs,
+  });
 
   while (Date.now() < deadline) {
-    const redemption = await getRedemptionStatus(redemptionId);
+    let redemption: RedemptionRequest;
+    try {
+      redemption = await getRedemptionStatus(redemptionId);
+    } catch (error: unknown) {
+      useSwapDiagnosticsStore.getState().completePoll(pollId, {
+        status: 'error',
+        lastError: getErrorMessage(error),
+      });
+      throw error;
+    }
+
+    useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+      lastStatus: redemption.status,
+      metadata: {
+        sourceAsset: redemption.sourceAsset,
+        amount: redemption.amount,
+        burnTxHash: redemption.burnTxHash ?? null,
+        releaseTxid: redemption.releaseTxid ?? null,
+      },
+    });
+
     if (redemption.status === 'released' || redemption.status === 'failed') {
+      useSwapDiagnosticsStore.getState().completePoll(pollId, {
+        status: redemption.status === 'failed' ? 'error' : 'success',
+        lastStatus: redemption.status,
+        lastMessage: redemption.status === 'failed'
+          ? 'Redemption release failed'
+          : 'Redemption release completed',
+        lastError: redemption.error ?? null,
+      });
       return redemption;
     }
 
     await delay(REDEMPTION_POLL_INTERVAL_MS);
   }
 
+  useSwapDiagnosticsStore.getState().completePoll(pollId, {
+    status: 'timeout',
+    lastMessage: 'Released UNIT is still processing',
+  });
   logger.warn('[VaultSettlement] Redemption release timed out', {
     redemptionId,
     timeoutMs,
@@ -110,10 +204,293 @@ export async function waitForRedemptionRelease(
   throw new Error('Released UNIT is still processing.');
 }
 
+export type VaultSettlementRefreshStatus =
+  | 'idle'
+  | 'pending'
+  | 'settled'
+  | 'ready_to_repay'
+  | 'needs_retry'
+  | 'error';
+
+export interface VaultSettlementRefreshResult {
+  status: VaultSettlementRefreshStatus;
+  message: string;
+  lastStatus?: string;
+}
+
+function recordOneShotSettlementPoll(input: {
+  kind: 'bridge_settlement' | 'redemption_release';
+  label: string;
+  subject: string;
+  lastStatus?: string | null;
+  lastMessage?: string | null;
+  lastError?: string | null;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+  terminalStatus: 'success' | 'error' | 'stopped';
+}): void {
+  const pollId = useSwapDiagnosticsStore.getState().startPoll({
+    id: `${input.kind}:refresh:${input.subject}:${Date.now()}`,
+    kind: input.kind,
+    label: input.label,
+    subject: input.subject,
+    intervalMs: null,
+    timeoutMs: null,
+  });
+  useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+    lastStatus: input.lastStatus,
+    lastMessage: input.lastMessage,
+    lastError: input.lastError,
+    metadata: input.metadata,
+  });
+  useSwapDiagnosticsStore.getState().completePoll(pollId, {
+    status: input.terminalStatus,
+    lastStatus: input.lastStatus,
+    lastMessage: input.lastMessage,
+    lastError: input.lastError,
+    metadata: input.metadata,
+  });
+}
+
+function bridgePayoutAsset(intent: BridgeIntent): VaultSettlementPayoutAsset {
+  return intent.payoutAsset || (intent.status === 'fulfilled' ? 'USDC' : 'wUNIT');
+}
+
+async function refreshPersistedBridgeIntent(intentId: string): Promise<VaultSettlementRefreshResult> {
+  let intent: BridgeIntent;
+  try {
+    intent = await getBridgeStatus(intentId);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    recordOneShotSettlementPoll({
+      kind: 'bridge_settlement',
+      label: 'Bridge settlement refresh',
+      subject: intentId,
+      lastError: message,
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'error',
+      message,
+    };
+  }
+
+  const metadata = {
+    autoSwap: intent.autoSwap,
+    confirmations: intent.confirmations ?? null,
+    depositTxid: intent.depositTxid ?? null,
+    payoutAsset: intent.payoutAsset ?? null,
+    payoutAmount: intent.payoutAmount ?? null,
+    sepoliaTxHash: intent.sepoliaTxHash ?? null,
+    requiresManualRecovery: intent.requiresManualRecovery ?? null,
+  };
+
+  if (intent.status === 'failed') {
+    const message = intent.error || 'Bridge settlement failed';
+    useVaultSettlementStore.getState().markNeedsRetry(message);
+    recordOneShotSettlementPoll({
+      kind: 'bridge_settlement',
+      label: 'Bridge settlement refresh',
+      subject: intentId,
+      lastStatus: intent.status,
+      lastError: message,
+      metadata,
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'needs_retry',
+      message,
+      lastStatus: intent.status,
+    };
+  }
+
+  if (intent.status === 'fulfilled' || intent.status === 'minted_no_swap') {
+    const payoutAsset = bridgePayoutAsset(intent);
+    const payoutAmount = intent.payoutAmount || intent.fulfilledAmount || null;
+    useVaultSettlementStore.getState().completeSettlement(
+      payoutAsset,
+      payoutAmount,
+      intent.sepoliaTxHash || null,
+    );
+    recordOneShotSettlementPoll({
+      kind: 'bridge_settlement',
+      label: 'Bridge settlement refresh',
+      subject: intentId,
+      lastStatus: intent.status,
+      lastMessage: 'Bridge settlement completed',
+      metadata,
+      terminalStatus: 'success',
+    });
+    return {
+      status: 'settled',
+      message: 'Bridge settlement completed.',
+      lastStatus: intent.status,
+    };
+  }
+
+  useVaultSettlementStore.getState().setPhase('waiting_bridge_fulfillment');
+  recordOneShotSettlementPoll({
+    kind: 'bridge_settlement',
+    label: 'Bridge settlement refresh',
+    subject: intentId,
+    lastStatus: intent.status,
+    lastMessage: 'Bridge settlement is still processing',
+    metadata,
+    terminalStatus: 'stopped',
+  });
+  return {
+    status: 'pending',
+    message: 'Bridge settlement is still processing.',
+    lastStatus: intent.status,
+  };
+}
+
+async function refreshPersistedBridgeClientRequest(
+  clientRequestId: string,
+): Promise<VaultSettlementRefreshResult> {
+  let intent: BridgeIntent | null;
+  try {
+    intent = await getBridgeIntentByClientRequestId(clientRequestId);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    recordOneShotSettlementPoll({
+      kind: 'bridge_settlement',
+      label: 'Bridge intent lookup refresh',
+      subject: clientRequestId,
+      lastError: message,
+      metadata: { clientRequestId },
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'error',
+      message,
+    };
+  }
+
+  if (!intent) {
+    recordOneShotSettlementPoll({
+      kind: 'bridge_settlement',
+      label: 'Bridge intent lookup refresh',
+      subject: clientRequestId,
+      lastMessage: 'Bridge intent is not indexed by client request id yet',
+      metadata: { clientRequestId },
+      terminalStatus: 'stopped',
+    });
+    return {
+      status: 'pending',
+      message: 'Bridge intent is not indexed by client request id yet.',
+    };
+  }
+
+  useVaultSettlementStore.getState().setBridgeIntent(intent.id, intent.depositAddress);
+  return refreshPersistedBridgeIntent(intent.id);
+}
+
+async function refreshPersistedRedemption(redemptionId: string): Promise<VaultSettlementRefreshResult> {
+  let redemption: RedemptionRequest;
+  try {
+    redemption = await getRedemptionStatus(redemptionId);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    recordOneShotSettlementPoll({
+      kind: 'redemption_release',
+      label: 'Redemption release refresh',
+      subject: redemptionId,
+      lastError: message,
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'error',
+      message,
+    };
+  }
+
+  const metadata = {
+    sourceAsset: redemption.sourceAsset,
+    amount: redemption.amount,
+    burnTxHash: redemption.burnTxHash ?? null,
+    releaseTxid: redemption.releaseTxid ?? null,
+  };
+
+  if (redemption.status === 'failed') {
+    const message = redemption.error || 'UNIT release failed';
+    useVaultSettlementStore.getState().markNeedsRetry(message);
+    recordOneShotSettlementPoll({
+      kind: 'redemption_release',
+      label: 'Redemption release refresh',
+      subject: redemptionId,
+      lastStatus: redemption.status,
+      lastError: message,
+      metadata,
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'needs_retry',
+      message,
+      lastStatus: redemption.status,
+    };
+  }
+
+  if (redemption.status === 'released') {
+    useVaultSettlementStore.getState().setPhase('repaying_vault');
+    recordOneShotSettlementPoll({
+      kind: 'redemption_release',
+      label: 'Redemption release refresh',
+      subject: redemptionId,
+      lastStatus: redemption.status,
+      lastMessage: 'Released UNIT is ready for vault repay',
+      metadata,
+      terminalStatus: 'success',
+    });
+    return {
+      status: 'ready_to_repay',
+      message: 'Released UNIT is ready. Return to the repay flow to finish vault repayment.',
+      lastStatus: redemption.status,
+    };
+  }
+
+  useVaultSettlementStore.getState().setPhase('waiting_redemption_release');
+  recordOneShotSettlementPoll({
+    kind: 'redemption_release',
+    label: 'Redemption release refresh',
+    subject: redemptionId,
+    lastStatus: redemption.status,
+    lastMessage: 'Redemption release is still processing',
+    metadata,
+    terminalStatus: 'stopped',
+  });
+  return {
+    status: 'pending',
+    message: 'Redemption release is still processing.',
+    lastStatus: redemption.status,
+  };
+}
+
+export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSettlementRefreshResult> {
+  const { bridgeClientRequestId, bridgeIntentId, redemptionId } = useVaultSettlementStore.getState();
+
+  if (redemptionId) {
+    return refreshPersistedRedemption(redemptionId);
+  }
+
+  if (bridgeIntentId) {
+    return refreshPersistedBridgeIntent(bridgeIntentId);
+  }
+
+  if (bridgeClientRequestId) {
+    return refreshPersistedBridgeClientRequest(bridgeClientRequestId);
+  }
+
+  return {
+    status: 'idle',
+    message: 'No persisted bridge or redemption settlement is available to refresh.',
+  };
+}
+
 export function getVaultSettlementStatusMessage(
   kind: VaultSettlementKind | null,
   phase: VaultSettlementPhase,
   fallbackStep: number,
+  includeSepoliaCopy = true,
 ): string {
   if (phase === 'idle' || phase === 'quoting' || phase === 'issuing_vault') {
     switch (fallbackStep) {
@@ -138,7 +515,7 @@ export function getVaultSettlementStatusMessage(
 
   switch (phase) {
     case 'creating_bridge':
-      return 'Preparing Sepolia settlement...';
+      return includeSepoliaCopy ? 'Preparing Sepolia settlement...' : 'Preparing USDC settlement...';
     case 'building_bridge_send':
       return 'Preparing UNIT bridge send...';
     case 'signing_bridge_send':
@@ -146,9 +523,9 @@ export function getVaultSettlementStatusMessage(
     case 'broadcasting_bridge_send':
       return 'Broadcasting the bridge send...';
     case 'waiting_bridge_fulfillment':
-      return 'Waiting for USDC settlement on Sepolia...';
+      return includeSepoliaCopy ? 'Waiting for Sepolia USDC settlement...' : 'Waiting for USDC settlement...';
     case 'swapping_repay':
-      return 'Swapping USDC into UNIT on Sepolia...';
+      return includeSepoliaCopy ? 'Swapping Sepolia USDC into UNIT on Sepolia...' : 'Swapping USDC into UNIT...';
     case 'waiting_redemption_release':
       return 'Waiting for released UNIT on Mutinynet...';
     case 'repaying_vault':
@@ -158,7 +535,7 @@ export function getVaultSettlementStatusMessage(
     case 'pending_settlement':
       return 'Settlement is still processing in the background.';
     case 'needs_retry':
-      return 'Settlement needs operator retry.';
+      return 'Settlement needs retry.';
     default:
       return 'Processing...';
   }

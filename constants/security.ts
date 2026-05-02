@@ -37,27 +37,6 @@ export const CRYPTO = {
 } as const;
 
 /**
- * Session timeout (for auto-lock)
- */
-export const SESSION = {
-  // Time before auto-lock (in milliseconds)
-  TIMEOUT_MS: 5 * 60 * 1000, // 5 minutes
-  TIMEOUT_MINUTES: 5,
-
-  // Background timeout (when app goes to background)
-  BACKGROUND_TIMEOUT_MS: 1 * 60 * 1000, // 1 minute
-} as const;
-
-/**
- * Biometric authentication
- */
-export const BIOMETRIC = {
-  PROMPT_MESSAGE: 'Authenticate to access your wallet',
-  FALLBACK_LABEL: 'Use PIN',
-  CANCEL_LABEL: 'Cancel',
-} as const;
-
-/**
  * Passkey authentication (WebAuthn)
  */
 export const PASSKEY = {
@@ -83,21 +62,3 @@ export const PASSKEY = {
   AUTH_PROMPT: 'Authenticate to unlock wallet',
   RECOVER_PROMPT: 'Authenticate to recover wallet',
 } as const;
-
-/**
- * Secure storage keys versions
- * Increment when changing storage schema
- */
-export const STORAGE_VERSION = {
-  MNEMONIC: 'v1',
-  PIN: 'v1',
-  ACCOUNT: 'v1',
-} as const;
-
-// Type exports for use in other files
-export type PinConfig = typeof PIN;
-export type CryptoConfig = typeof CRYPTO;
-export type SessionConfig = typeof SESSION;
-export type BiometricConfig = typeof BIOMETRIC;
-export type PasskeyConfig = typeof PASSKEY;
-export type StorageVersionConfig = typeof STORAGE_VERSION;

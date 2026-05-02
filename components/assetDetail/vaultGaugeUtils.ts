@@ -124,21 +124,3 @@ export const getMarkerColor = (activePath: keyof PathSettings | '', isLiquidated
   }
   return '#59aa8a';
 };
-
-/**
- * Calculate marker position on the gauge arc
- */
-export const calculateMarkerPosition = (
-  mappedValue: number,
-  dynamicRadius: number
-): { x: number; y: number } => {
-  const angleInDegrees = 180 - mappedValue * 1.8;
-  const angleInRadians = (angleInDegrees * Math.PI) / 180;
-  const centerX = SVG_SIZE / 2;
-  const centerY = SVG_SIZE / 2 + 5;
-
-  return {
-    x: centerX + dynamicRadius * Math.cos(angleInRadians),
-    y: centerY - dynamicRadius * Math.sin(angleInRadians),
-  };
-};

@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import React,{ useEffect,useState } from 'react';
 import { ActivityIndicator,Animated,StyleSheet,Text,View } from 'react-native';
 import { COLORS } from '../theme';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSession } from '../contexts/AuthContext';
 
 // Components
 import MutinynetBanner from '../components/MutinynetBanner';
@@ -24,7 +24,6 @@ import EcashConversionModal from '../components/settings/EcashConversionModal';
 import { DepositSheet,WithdrawSheet } from '../components/transfer/TransferSheet';
 
 // Contexts
-import { useOnboardingFlow } from '../contexts/AuthContext';
 import { useCashu } from '../contexts/CashuContext';
 import { useAccountSwitcherContext,useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
@@ -69,8 +68,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const styles = require('../styles').default;
 
   // Context consumption
-  const { isAuthenticated } = useAuth();
-  const { resetInactivityTimer } = useOnboardingFlow();
+  const { isAuthenticated } = useAuthSession();
   const { settingsHandlers, biometricEnabled } = useSettingsHandlers();
   const { setShowAccountPicker, switchingAccount } = useAccountSwitcherContext();
   const { runesBalance, segwitBalance, taprootBalance } = useBalance();
@@ -192,7 +190,7 @@ export default function WalletPage({ route }: WalletPageProps) {
 
   return (
     <>
-      <View style={localStyles.container} onTouchStart={resetInactivityTimer}>
+      <View style={localStyles.container}>
         <MutinynetBanner />
         <View style={localStyles.contentArea}>
           {/* Wallet Screen */}

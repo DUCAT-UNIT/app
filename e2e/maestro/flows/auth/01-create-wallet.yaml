@@ -39,15 +39,41 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Wait for airdrop modal — passkey flow is fast so AirdropContext's 3s delay
-# + network request may not have completed yet
-- extendedWaitUntil:
-    visible:
-      text: "Get Started"
-    timeout: 30000
+# Skip passkey migration if prompted
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+# Airdrop is not mandatory for auth coverage. Slow network/faucet responses
+# should not fail the wallet creation smoke test.
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- runFlow: ../helpers/unlock-if-locked.yaml
+
+# Passkey prompt can appear just after wallet state is committed.
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
 
 # Dismiss airdrop modal if it appears
 - runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow: ../helpers/unlock-if-locked.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
 
 # Dismiss low ecash modal if it appears
 - runFlow: ../helpers/dismiss-low-ecash.yaml

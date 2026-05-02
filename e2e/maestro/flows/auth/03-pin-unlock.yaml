@@ -9,7 +9,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Kill and relaunch the app (without clearing state - wallet persists in SecureStore)
 - stopApp
 - launchApp
-- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+- openLink: "${MAESTRO_EXPO_DEV_CLIENT_URL}"
 
 # Lock screen should appear (wallet exists, seedConfirmed=true, not authenticated)
 - extendedWaitUntil:

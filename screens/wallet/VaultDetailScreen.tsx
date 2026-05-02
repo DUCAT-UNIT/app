@@ -78,6 +78,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
   // Only show loading skeleton if we haven't loaded data yet
   const showVaultLoading = loadingVault && !vaultLoadedRef.current;
   const showTransactionsLoading = loadingVaultTransactions && !transactionsLoadedRef.current;
+  const effectiveBtcPrice = btcPrice || vaultData?.currentPrice || 0;
 
   // Calculate vault health metrics
   const {
@@ -86,15 +87,19 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     vaultDebt,
     vaultCollateral,
   } = useWalletCalculations({
-    btcPrice,
+    btcPrice: effectiveBtcPrice,
     vaultData,
   });
 
-  // Load vault data and transactions on mount (data is cached in context)
+  // Load missing vault data on mount; cached context data should paint immediately.
   useEffect(() => {
-    fetchVault();
-    fetchVaultTransactions();
-  }, [fetchVault, fetchVaultTransactions]);
+    if (!vaultData) {
+      fetchVault();
+    }
+    if (vaultTransactions.length === 0) {
+      fetchVaultTransactions();
+    }
+  }, [fetchVault, fetchVaultTransactions, vaultData, vaultTransactions.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,7 +199,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
         <VaultInfo
           totalDebt={vaultDebt}
           totalCollateral={vaultCollateral}
-          currentPrice={btcPrice || 0}
+          currentPrice={effectiveBtcPrice}
           healthPercentage={vaultHealthPercentage}
           healthColor={vaultHealthColor}
           isLoading={showVaultLoading}

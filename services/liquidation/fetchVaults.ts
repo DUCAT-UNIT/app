@@ -6,18 +6,21 @@
  */
 
 import { logger } from '../../utils/logger';
+import { fetchWithTimeout } from '../../utils/api';
 import { LIQ_VALIDATOR_URL, COIN_SIZE } from './constants';
 import type { ValidatorLiquidatedVault, ExtendedVaultProfile } from './types';
+
+const LIQUIDATION_FETCH_TIMEOUT_MS = 12_000;
 
 /**
  * Fetch all liquidatable vaults from the validator indexer.
  */
 export async function fetchLiquidatableVaults(): Promise<ValidatorLiquidatedVault[]> {
   try {
-    const response = await fetch(`${LIQ_VALIDATOR_URL}/api/liquidated`, {
+    const response = await fetchWithTimeout(`${LIQ_VALIDATOR_URL}/api/liquidated`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-    });
+    }, LIQUIDATION_FETCH_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(`Liquidation API error: ${response.status}`);
@@ -41,10 +44,10 @@ export async function fetchLiquidatableVaults(): Promise<ValidatorLiquidatedVaul
 export async function fetchVaultsByIds(ids: string[]): Promise<ValidatorLiquidatedVault[]> {
   try {
     const params = ids.map(id => `id=${encodeURIComponent(id)}`).join('&');
-    const response = await fetch(`${LIQ_VALIDATOR_URL}/api/vault?${params}`, {
+    const response = await fetchWithTimeout(`${LIQ_VALIDATOR_URL}/api/vault?${params}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-    });
+    }, LIQUIDATION_FETCH_TIMEOUT_MS);
 
     if (!response.ok) {
       throw new Error(`Vault API error: ${response.status}`);

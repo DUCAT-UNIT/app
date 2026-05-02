@@ -80,6 +80,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const hasAutoOpenedRef = React.useRef(false);
+  const autoOpenTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     receiveSheetOpacity,
@@ -130,16 +131,25 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     if (showReceiveSheet && autoOpenQR && preSelectedAddress && preSelectedType && !hasAutoOpenedRef.current) {
       hasAutoOpenedRef.current = true;
       // Delay to ensure animation is ready
-      setTimeout(() => {
+      autoOpenTimerRef.current = setTimeout(() => {
+        autoOpenTimerRef.current = null;
         setShowQrModal(true);
         setSelectedAddress(preSelectedAddress);
         setSelectedType(preSelectedType);
         prepareQrAnimation();
       }, 50);
+      (autoOpenTimerRef.current as { unref?: () => void }).unref?.();
     } else if (!showReceiveSheet) {
       // Reset when sheet closes
       hasAutoOpenedRef.current = false;
     }
+
+    return () => {
+      if (autoOpenTimerRef.current) {
+        clearTimeout(autoOpenTimerRef.current);
+        autoOpenTimerRef.current = null;
+      }
+    };
   }, [showReceiveSheet, autoOpenQR, preSelectedAddress, preSelectedType, prepareQrAnimation]);
 
   const handleQrPress = (address: string, type: string): void => {

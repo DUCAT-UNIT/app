@@ -6,7 +6,7 @@
 import React, { useRef, useCallback } from 'react';
 
 // Contexts
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthSession } from '../contexts/AuthContext';
 import { useWallet } from '../contexts/WalletContext';
 import { useBalance, useTransactionHistory as useTransactionHistoryContext } from '../contexts/WalletDataContext';
 
@@ -27,7 +27,6 @@ export default function AppNavigator(): React.JSX.Element {
   const {
     wallet,
     currentAccount,
-    loadWallet,
   } = useWallet();
   const { fetchBalance } = useBalance();
   const historyContext = useTransactionHistoryContext();
@@ -42,8 +41,7 @@ export default function AppNavigator(): React.JSX.Element {
   const {
     isBiometricSupported,
     setIsAuthenticated,
-    loadBiometricPreference,
-  } = useAuth();
+  } = useAuthSession();
 
   // Hooks
   const { sendTransactionConfirmedNotification } = useNotificationsHook();
@@ -66,8 +64,6 @@ export default function AppNavigator(): React.JSX.Element {
       fetchBalance={fetchBalance}
       fetchTransactionHistory={fetchTransactionHistory}
       setIsAuthenticated={setIsAuthenticated}
-      loadWallet={loadWallet}
-      loadBiometricPreference={loadBiometricPreference}
       isBiometricSupported={isBiometricSupported}
       walletExists={walletExists}
     />

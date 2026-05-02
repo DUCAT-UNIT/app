@@ -4,6 +4,7 @@
  * Supports pause/resume and synchronized intervals
  */
 
+import { AppState, type AppStateStatus } from 'react-native';
 import { useEffect, useRef, useCallback } from 'react';
 
 interface UsePollingOptions {
@@ -21,14 +22,24 @@ interface UsePollingReturn {
 export const usePolling = ({ onPoll, interval, enabled = true, immediate = true }: UsePollingOptions): UsePollingReturn => {
   const savedCallback = useRef(onPoll);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   // Update callback ref when it changes (avoids stale closures)
   useEffect(() => {
     savedCallback.current = onPoll;
   }, [onPoll]);
 
-  const startPolling = useCallback(() => {
-    if (!enabled) return;
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((triggerImmediate = immediate) => {
+    if (!enabled || appStateRef.current !== 'active') return;
+
+    stopPolling();
 
     const safeInvoke = () => {
       try {
@@ -43,24 +54,35 @@ export const usePolling = ({ onPoll, interval, enabled = true, immediate = true 
     };
 
     // Execute immediately if requested
-    if (immediate) {
+    if (triggerImmediate) {
       safeInvoke();
     }
 
     // Start interval
     intervalRef.current = setInterval(safeInvoke, interval);
-  }, [interval, enabled, immediate]);
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
+    (intervalRef.current as { unref?: () => void }).unref?.();
+  }, [enabled, immediate, interval, stopPolling]);
 
   useEffect(() => {
     startPolling();
     return stopPolling;
+  }, [startPolling, stopPolling]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (nextState === 'active') {
+        startPolling(previousState !== 'active');
+      } else {
+        stopPolling();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, [startPolling, stopPolling]);
 
   return { startPolling, stopPolling };

@@ -17,8 +17,8 @@ import {
   startDerivedKeyCacheLifecycle,
   stopDerivedKeyCacheLifecycle,
 } from '../utils/wallet/keyDerivation';
+import { isE2E } from '../utils/e2e';
 
-const IS_E2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 const INACTIVITY_TIMEOUT = __DEV__ ? 600 * 1000 : 30 * 1000; // 10 min dev, 30s prod
 
 interface UseAppLifecycleParams {
@@ -28,6 +28,7 @@ interface UseAppLifecycleParams {
   isBiometricSupported: boolean;
   biometricEnabled: boolean;
   isProcessing?: boolean;
+  inactivityTimeoutMs?: number;
   onLock: () => void;
   onAuthenticateUser: () => void;
 }
@@ -43,17 +44,21 @@ export function useAppLifecycle({
   isBiometricSupported,
   biometricEnabled,
   isProcessing = false,
+  inactivityTimeoutMs = INACTIVITY_TIMEOUT,
   onLock,
   onAuthenticateUser,
 }: UseAppLifecycleParams): UseAppLifecycleReturn {
   const appState = useRef<AppStateStatus>(AppState.currentState);
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasInBackground = useRef(false);
+  const lastResetAtRef = useRef(0);
 
   // Use refs for callbacks and state to avoid stale closures in timers
   const onLockRef = useRef(onLock);
   const onAuthenticateUserRef = useRef(onAuthenticateUser);
   const isProcessingRef = useRef(isProcessing);
+  const isBiometricSupportedRef = useRef(isBiometricSupported);
+  const biometricEnabledRef = useRef(biometricEnabled);
 
   // Keep refs updated
   useEffect(() => {
@@ -68,11 +73,26 @@ export function useAppLifecycle({
     isProcessingRef.current = isProcessing;
   }, [isProcessing]);
 
-  // Screen capture protection disabled — allows screenshots and screen recordings
-  // Re-enable for production/mainnet if needed
   useEffect(() => {
-    // Ensure screen capture is allowed
-    void ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+    isBiometricSupportedRef.current = isBiometricSupported;
+  }, [isBiometricSupported]);
+
+  useEffect(() => {
+    biometricEnabledRef.current = biometricEnabled;
+  }, [biometricEnabled]);
+
+  // Protect wallet screens from screenshots/recordings. E2E keeps capture enabled so
+  // Maestro and test diagnostics can still inspect the UI.
+  useEffect(() => {
+    const configureScreenCapture = isE2E()
+      ? ScreenCapture.allowScreenCaptureAsync
+      : ScreenCapture.preventScreenCaptureAsync;
+
+    configureScreenCapture().catch(() => {});
+
+    return () => {
+      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+    };
   }, []);
 
   // Handle app state changes (background/foreground)
@@ -97,7 +117,7 @@ export function useAppLifecycle({
       }
 
       // Lock when coming back to active AND we were in background (skip in E2E)
-      if (nextAppState === 'active' && wasInBackground.current && !IS_E2E) {
+      if (nextAppState === 'active' && wasInBackground.current && !isE2E()) {
         logger.debug('[useAppLifecycle] Coming back to active from background');
         wasInBackground.current = false; // Reset flag
 
@@ -109,7 +129,7 @@ export function useAppLifecycle({
           // Skip on iPad — iPhone compatibility mode can cause the native biometric
           // dialog to hang or render incorrectly, leading to a frozen UI.
           // iPad users will see the PIN screen and can tap the Face ID button manually.
-          if (isBiometricSupported && biometricEnabled && !IS_IPAD) {
+          if (isBiometricSupportedRef.current && biometricEnabledRef.current && !IS_IPAD) {
             logger.debug('[useAppLifecycle] Triggering biometric auth');
             onAuthenticateUserRef.current();
           }
@@ -125,12 +145,7 @@ export function useAppLifecycle({
       subscription.remove();
       stopDerivedKeyCacheLifecycle();
     };
-  }, [
-    isBiometricSupported,
-    biometricEnabled,
-    walletExists,
-    seedConfirmedRef,
-  ]); // onLock and onAuthenticateUser use refs to avoid stale closures
+  }, [walletExists, seedConfirmedRef]); // auth and biometric state use refs to avoid listener churn
 
   // Inactivity timer - locks wallet after inactivity
   const startInactivityTimer = useCallback(() => {
@@ -150,10 +165,15 @@ export function useAppLifecycle({
       // Lock the wallet after inactivity timeout
       logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
       onLockRef.current();
-    }, INACTIVITY_TIMEOUT);
-  }, []); // No deps needed - uses ref for latest callback
+    }, Math.max(1000, inactivityTimeoutMs));
+  }, [inactivityTimeoutMs]); // Callback refs supply latest lock/auth state.
 
   const resetInactivityTimer = useCallback(() => {
+    const now = Date.now();
+    if (lastResetAtRef.current > 0 && now - lastResetAtRef.current < 1000) {
+      return;
+    }
+    lastResetAtRef.current = now;
     // Restart timer when user interacts
     startInactivityTimer();
   }, [startInactivityTimer]);

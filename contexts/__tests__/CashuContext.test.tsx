@@ -5,7 +5,20 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 
+let mockWallet: { address?: string; taprootAddress?: string } | null = { address: 'tb1ptest' };
+let mockIsAuthenticated = true;
+const mockRunAfterInteractions = jest.fn((callback: () => void) => {
+  callback();
+  return { cancel: jest.fn() };
+});
+
 // Mock dependencies BEFORE imports
+jest.mock('react-native', () => ({
+  InteractionManager: {
+    runAfterInteractions: (callback: () => void) => mockRunAfterInteractions(callback),
+  },
+}));
+
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -60,8 +73,19 @@ jest.mock('../../utils/notify', () => ({
   },
 }));
 
+const mockAnalyticsTrack = jest.fn();
+jest.mock('../../services/analyticsService', () => ({
+  analytics: {
+    track: (...args: unknown[]) => mockAnalyticsTrack(...args),
+  },
+}));
+
 jest.mock('../WalletContext', () => ({
-  useWallet: () => ({ wallet: { address: 'tb1ptest' } }),
+  useWallet: () => ({ wallet: mockWallet }),
+}));
+
+jest.mock('../AuthContext', () => ({
+  useAuthSession: () => ({ isAuthenticated: mockIsAuthenticated }),
 }));
 
 // Create mock functions that can be accessed in tests
@@ -69,6 +93,14 @@ const mockSetBalance = jest.fn();
 const mockSetError = jest.fn();
 const mockFetchBalance = jest.fn();
 const mockSetPendingMints = jest.fn();
+const mockStartMint = jest.fn();
+const mockCheckAndCompleteMint = jest.fn();
+const mockRemovePendingMint = jest.fn();
+const mockAutoMint = jest.fn();
+const mockStartMelt = jest.fn();
+const mockFinishMelt = jest.fn();
+const mockReceive = jest.fn();
+const mockSend = jest.fn();
 
 // Configurable pending mints for testing
 let mockPendingMints: Array<{ quoteId: string; amount: number }> = [];
@@ -87,25 +119,25 @@ jest.mock('../../hooks/useCashuBalance', () => ({
 jest.mock('../../hooks/useCashuMint', () => ({
   useCashuMint: () => ({
     pendingMints: mockPendingMints,
-    startMint: jest.fn(),
-    checkAndCompleteMint: jest.fn(),
-    removePendingMint: jest.fn(),
-    autoMint: jest.fn(),
+    startMint: mockStartMint,
+    checkAndCompleteMint: mockCheckAndCompleteMint,
+    removePendingMint: mockRemovePendingMint,
+    autoMint: mockAutoMint,
     setPendingMints: mockSetPendingMints,
   }),
 }));
 
 jest.mock('../../hooks/useCashuMelt', () => ({
   useCashuMelt: () => ({
-    startMelt: jest.fn(),
-    finishMelt: jest.fn(),
+    startMelt: mockStartMelt,
+    finishMelt: mockFinishMelt,
   }),
 }));
 
 jest.mock('../../hooks/useCashuSendReceive', () => ({
   useCashuSendReceive: () => ({
-    receive: jest.fn(),
-    send: jest.fn(),
+    receive: mockReceive,
+    send: mockSend,
   }),
 }));
 
@@ -119,6 +151,17 @@ const mockClearWallet = clearWallet as jest.Mock;
 describe('CashuContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWallet = { address: 'tb1ptest' };
+    mockIsAuthenticated = true;
+    mockPendingMints = [];
+    mockFetchBalance.mockResolvedValue(undefined);
+    mockStartMint.mockResolvedValue({ quote: 'mint-quote' });
+    mockCheckAndCompleteMint.mockResolvedValue({ completed: false });
+    mockAutoMint.mockResolvedValue({ quote: 'auto-mint-quote' });
+    mockStartMelt.mockResolvedValue({ quote: 'melt-quote' });
+    mockFinishMelt.mockResolvedValue({ paid: true });
+    mockReceive.mockResolvedValue({ amount: 100 });
+    mockSend.mockResolvedValue({ token: 'cashu-token' });
   });
 
   describe('useCashu', () => {
@@ -582,16 +625,18 @@ describe('CashuContext', () => {
     });
 
     it('should run recovery on startup when wallet has taprootAddress', async () => {
-      // Create a fresh provider with taprootAddress
-      jest.unmock('../WalletContext');
-      jest.doMock('../WalletContext', () => ({
-        useWallet: () => ({ wallet: { taprootAddress: 'tb1ptest123' } }),
-      }));
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1ptest123' };
+      mockRecoverUnclaimedMintQuotes.mockResolvedValue({
+        recovered: 1,
+        totalAmountRecovered: 250,
+      });
+      mockRecoverPendingTurboSend.mockResolvedValue({
+        recovered: true,
+        recipient: 'tb1precoveredrecipient',
+        amount: 250,
+        token: 'cashu-token',
+      });
 
-      // Re-import to get updated mock
-      jest.resetModules();
-
-      // The recovery runs on mount, just verify it doesn't throw
       act(() => {
         create(
           <CashuProvider>
@@ -600,10 +645,36 @@ describe('CashuContext', () => {
         );
       });
 
-      // Wait for async recovery
       await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await Promise.resolve();
+        await Promise.resolve();
       });
+
+      expect(mockRunAfterInteractions).toHaveBeenCalled();
+      expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should not run startup recovery without an authenticated taproot wallet', async () => {
+      mockWallet = null;
+      mockIsAuthenticated = false;
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(mockRunAfterInteractions).not.toHaveBeenCalled();
+      expect(mockCheckAndRecoverSwaps).not.toHaveBeenCalled();
     });
 
     it('should handle mint recovery with recovered quotes', async () => {
@@ -741,6 +812,72 @@ describe('CashuContext', () => {
 
       // Should still call fetchBalance even after recovery error
       expect(mockFetchBalance).toHaveBeenCalled();
+    });
+  });
+
+  describe('tracked operation wrappers', () => {
+    it('tracks mint, receive, send, and melt operations', async () => {
+      mockCheckAndCompleteMint.mockResolvedValue({ completed: true, amount: 123 });
+      let contextValue: CashuContextValue | null = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await contextValue!.startMint(100);
+        await contextValue!.checkAndCompleteMint('quote-1');
+        await contextValue!.receive('cashu-token');
+        await contextValue!.send(50);
+        await contextValue!.startMelt('tb1qdest', 25);
+        await contextValue!.finishMelt('melt-quote', 30);
+      });
+
+      expect(mockStartMint).toHaveBeenCalledWith(100);
+      expect(mockCheckAndCompleteMint).toHaveBeenCalledWith('quote-1');
+      expect(mockReceive).toHaveBeenCalledWith('cashu-token');
+      expect(mockSend).toHaveBeenCalledWith(50);
+      expect(mockStartMelt).toHaveBeenCalledWith('tb1qdest', 25);
+      expect(mockFinishMelt).toHaveBeenCalledWith('melt-quote', 30);
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_mint_started', { amount: 100 });
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_mint_completed', { amount: 123 });
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_token_received');
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_token_sent', { amount: 50 });
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_melt_started', { amount: 25 });
+      expect(mockAnalyticsTrack).toHaveBeenCalledWith('cashu_melt_completed', { amount: 30 });
+    });
+
+    it('does not track mint completion when quote polling remains incomplete', async () => {
+      mockCheckAndCompleteMint.mockResolvedValue({ completed: false, amount: 123 });
+      let contextValue: CashuContextValue | null = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await contextValue!.checkAndCompleteMint('quote-2');
+      });
+
+      expect(mockAnalyticsTrack).not.toHaveBeenCalledWith('cashu_mint_completed', expect.anything());
     });
   });
 });

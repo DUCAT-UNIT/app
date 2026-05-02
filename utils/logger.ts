@@ -6,23 +6,90 @@
 // Determine if we're in development mode
 const isDev = __DEV__;
 
-// Keys that should never appear in log output
-const SENSITIVE_KEYS = new Set([
-  'mnemonic', 'privatekey', 'secret', 'seed', 'password', 'pin', 'passphrase',
-]);
+// Keys and payload shapes that should never appear in log output.
+const SENSITIVE_KEY_PATTERNS = [
+  /mnemonic/i,
+  /private.*key/i,
+  /secret/i,
+  /seed/i,
+  /password/i,
+  /^pin/i,
+  /passphrase/i,
+  /cashu.*token/i,
+  /^token$/i,
+  /tokenstring/i,
+  /^proofs?$/i,
+  /psbt/i,
+  /^raw/i,
+  /rawtx/i,
+  /txhex/i,
+];
+const SENSITIVE_STRING_PATTERNS = [
+  /^cashu[AB]/i,
+  /^ducat:\/\//i,
+  /^cHNidP/i,
+  /^[0-9a-f]{120,}$/i,
+];
+const MAX_LOG_STRING_LENGTH = 500;
+const MAX_SANITIZE_DEPTH = 4;
 
-function sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+function sanitizeString(value: string, key?: string): string {
+  if ((key && isSensitiveKey(key)) || SENSITIVE_STRING_PATTERNS.some((pattern) => pattern.test(value))) {
+    return '[REDACTED]';
+  }
+
+  if (value.length > MAX_LOG_STRING_LENGTH) {
+    return `${value.substring(0, MAX_LOG_STRING_LENGTH)}...[truncated]`;
+  }
+
+  return value;
+}
+
+function sanitizeValue(value: unknown, key?: string, depth = 0): unknown {
+  if (typeof value === 'string') {
+    return sanitizeString(value, key);
+  }
+
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: sanitizeString(value.message),
+    };
+  }
+
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+
+  if (key && isSensitiveKey(key)) {
+    return '[REDACTED]';
+  }
+
+  if (depth >= MAX_SANITIZE_DEPTH) {
+    return '[TruncatedObject]';
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeValue(item, undefined, depth + 1));
+  }
+
   const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(context)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
-      sanitized[key] = '[REDACTED]';
-    } else if (typeof value === 'string' && value.length > 500) {
-      sanitized[key] = value.substring(0, 500) + '...[truncated]';
-    } else {
-      sanitized[key] = value;
-    }
+  for (const [childKey, childValue] of Object.entries(value as Record<string, unknown>)) {
+    sanitized[childKey] = sanitizeValue(childValue, childKey, depth + 1);
   }
   return sanitized;
+}
+
+function sanitizeContext(context: LogContext): LogContext {
+  return sanitizeValue(context) as LogContext;
+}
+
+function sanitizeArgs(args: unknown[]): unknown[] {
+  return args.map((arg) => sanitizeValue(arg));
 }
 
 export type LogContext = Record<string, unknown>;
@@ -44,7 +111,7 @@ export const logger = {
    */
   debug: (message: string, ...args: unknown[]): void => {
     if (isDev) {
-      console.log(`[DEBUG] ${message}`, ...args);
+      console.log(`[DEBUG] ${message}`, ...sanitizeArgs(args));
     }
   },
 
@@ -55,7 +122,7 @@ export const logger = {
    */
   info: (message: string, context: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[INFO] ${message}`, context);
+      console.log(`[INFO] ${message}`, sanitizeContext(context));
     }
   },
 
@@ -66,7 +133,7 @@ export const logger = {
    */
   warn: (message: string, context: LogContext = {}): void => {
     if (isDev) {
-      console.warn(`[WARN] ${message}`, context);
+      console.warn(`[WARN] ${message}`, sanitizeContext(context));
     }
   },
 
@@ -76,14 +143,15 @@ export const logger = {
    * @param context - Additional context
    */
   error: (error: Error | string | unknown, context: LogContext = {}): void => {
+    const sanitizedError = sanitizeValue(error);
     const sanitizedContext = sanitizeContext(context);
     if (isDev) {
       // Use console.warn in dev to avoid triggering the red error overlay
       // Errors are still clearly labeled [ERROR] in the log output
-      console.warn('[ERROR]', error, sanitizedContext);
+      console.warn('[ERROR]', sanitizedError, sanitizedContext);
     } else {
       // Production: log to console.error so crash reporters (e.g. EAS Updates) can capture
-      console.error('[ERROR]', error instanceof Error ? error.message : error, sanitizedContext);
+      console.error('[ERROR]', sanitizedError, sanitizedContext);
     }
   },
 
@@ -97,7 +165,7 @@ export const logger = {
       console.log(`[TRANSACTION] ${step}`, {
         step,
         timestamp: new Date().toISOString(),
-        ...data,
+        ...sanitizeContext(data),
       });
     }
   },
@@ -112,7 +180,7 @@ export const logger = {
       console.warn(`[SECURITY] ${event}`, {
         event,
         timestamp: new Date().toISOString(),
-        ...data,
+        ...sanitizeContext(data),
       });
     } else {
       // Production: always log security events so crash reporters can capture
@@ -131,7 +199,7 @@ export const logger = {
    */
   screen: (screenName: string, params: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[SCREEN] ${screenName}`, params);
+      console.log(`[SCREEN] ${screenName}`, sanitizeContext(params));
     }
   },
 
@@ -143,7 +211,7 @@ export const logger = {
    */
   action: (action: string, category = 'user_action', data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[ACTION] ${category}: ${action}`, data);
+      console.log(`[ACTION] ${category}: ${action}`, sanitizeContext(data));
     }
   },
 
@@ -154,7 +222,7 @@ export const logger = {
    */
   wallet: (operation: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[WALLET] ${operation}`, data);
+      console.log(`[WALLET] ${operation}`, sanitizeContext(data));
     }
   },
 
@@ -165,7 +233,7 @@ export const logger = {
    */
   cashu: (operation: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[CASHU] ${operation}`, data);
+      console.log(`[CASHU] ${operation}`, sanitizeContext(data));
     }
   },
 
@@ -189,7 +257,7 @@ export const logger = {
    */
   auth: (event: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[AUTH] ${event}`, data);
+      console.log(`[AUTH] ${event}`, sanitizeContext(data));
     }
   },
 
@@ -212,7 +280,7 @@ export const logger = {
    */
   turbo: (operation: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[TURBO] ${operation}`, data);
+      console.log(`[TURBO] ${operation}`, sanitizeContext(data));
     }
   },
 
@@ -223,7 +291,7 @@ export const logger = {
    */
   vault: (operation: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[VAULT] ${operation}`, data);
+      console.log(`[VAULT] ${operation}`, sanitizeContext(data));
     }
   },
 
@@ -234,7 +302,7 @@ export const logger = {
    */
   onboarding: (step: string, data: LogContext = {}): void => {
     if (isDev) {
-      console.log(`[ONBOARDING] ${step}`, data);
+      console.log(`[ONBOARDING] ${step}`, sanitizeContext(data));
     }
   },
 

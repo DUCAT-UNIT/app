@@ -22,7 +22,9 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { createBridgeIntent } from '../../services/bridgeApiService';
 import { authenticateWithBiometrics } from '../../services/biometricService';
+import { reconcileSubmittedEvmTransactionCheckpoints } from '../../services/evmTransactionCheckpointService';
 import {
+  classifyEvmExecutionError,
   estimateUsdcToUnitSwapExecution,
   executeUsdcToUnitSwap,
   getCrossChainSwapLimit,
@@ -35,6 +37,7 @@ import {
 } from '../../services/evmBridgeService';
 import { createUnitIntent as createUnitIntentService } from '../../services/transaction';
 import type { BridgeIntent } from '../../shared/bridgeTypes';
+import { useEvmTransactionCheckpointStore } from '../../stores/evmTransactionCheckpointStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { useSendFlow } from '../../stores/sendFlowStore';
 import { registerSwapTxid } from '../../services/transactionHistoryService';
@@ -42,6 +45,12 @@ import { useNotifications } from '../../stores/notificationStore';
 import { COLORS } from '../../theme';
 import { logger } from '../../utils/logger';
 import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
+import {
+  describeEvmRecoveryCheckpoint,
+  formatEvmCheckpointReconciliationSummary,
+  selectSwapRecoveryCheckpoint,
+  shortEvmTxHash,
+} from '../../utils/evmCheckpointRecovery';
 import type { UtxoRef } from '../../types/assets';
 
 interface SwapSummaryScreenProps {
@@ -106,6 +115,19 @@ function toUnitSmallestUnits(value: string): number {
   return Math.round(numeric * 100);
 }
 
+function isQuoteWorseThanMinimum(
+  nextQuote: CrossChainSwapQuote,
+  previousQuote: CrossChainSwapQuote,
+): boolean {
+  const nextAmountOut = Number(nextQuote.amountOut);
+  const previousMinimumOut = Number(previousQuote.minimumAmountOut);
+  return (
+    Number.isFinite(nextAmountOut) &&
+    Number.isFinite(previousMinimumOut) &&
+    nextAmountOut < previousMinimumOut
+  );
+}
+
 function getUnitBalanceValue(
   runesBalance: Array<{ amount?: string | number } | unknown> | null | undefined,
 ): number {
@@ -167,6 +189,7 @@ export default function SwapSummaryScreen({
   const { showToast } = useNotifications();
   const { cancelIntent, setSendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
+  const evmCheckpoints = useEvmTransactionCheckpointStore((state) => state.checkpoints);
   const getUnconfirmedUTXOs = usePendingTransactionsStore((state) => state.getUnconfirmedUTXOs);
   const getSpentUtxos = usePendingTransactionsStore((state) => state.getSpentUtxos);
   const markUtxosAsSpent = usePendingTransactionsStore((state) => state.markUtxosAsSpent);
@@ -208,6 +231,10 @@ export default function SwapSummaryScreen({
   const [bridgeIntent, setBridgeIntent] = useState<BridgeIntent | null>(null);
   const [bridgePreparationState, setBridgePreparationState] = useState<BridgePreparationState>('idle');
   const [bridgePreparationError, setBridgePreparationError] = useState<string | null>(null);
+  const [swapLoadError, setSwapLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [checkpointReconciling, setCheckpointReconciling] = useState(false);
+  const [checkpointRecoveryMessage, setCheckpointRecoveryMessage] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const bridgeIntentPrepKeyRef = useRef<string | null>(null);
   const bridgeSendBuildKeyRef = useRef<string | null>(null);
@@ -240,6 +267,7 @@ export default function SwapSummaryScreen({
     const load = async (): Promise<void> => {
       try {
         setLoading(true);
+        setSwapLoadError(null);
         const [nextQuote, nextLimit, balances] = await Promise.all([
           quoteUnitUsdcSwap(sourceAsset, amountIn),
           getCrossChainSwapLimit(),
@@ -268,11 +296,10 @@ export default function SwapSummaryScreen({
         } else if (active) {
           setEstimate(null);
         }
-      } catch {
+      } catch (error) {
         if (active) {
-          setQuote(null);
-          setLimit(null);
           setEstimate(null);
+          setSwapLoadError(error instanceof Error ? error.message : 'Unable to load the live swap quote and costs.');
         }
       } finally {
         if (active) {
@@ -286,7 +313,7 @@ export default function SwapSummaryScreen({
     return () => {
       active = false;
     };
-  }, [amountIn, currentAccount, isBridgeDirection, sourceAsset, wallet?.taprootAddress]);
+  }, [amountIn, currentAccount, isBridgeDirection, reloadNonce, sourceAsset, wallet?.taprootAddress]);
 
   useEffect(() => {
     if (!isBridgeDirection || !amountIn || Number(amountIn) <= 0 || !sepoliaAddress) {
@@ -531,19 +558,49 @@ export default function SwapSummaryScreen({
   const insufficientEth =
     !isBridgeDirection
     && estimate !== null
-    && Number(estimate.totalFeeEth) > 0
-    && Number(ethBalance) < Number(estimate.totalFeeEth);
-  const routeLabel = isBridgeDirection ? 'UNIT → wUNIT → USDC' : 'USDC → wUNIT → UNIT';
+    && estimate.hasEnoughEth === false;
+  const insufficientSource =
+    !isBridgeDirection
+    && estimate !== null
+    && estimate.hasEnoughUsdc === false;
+  const swapPreflightBlocked = !isBridgeDirection && estimate !== null && !estimate.canExecute;
+  const swapBlockingReasons = !isBridgeDirection ? estimate?.blockingReasons ?? [] : [];
+  const routeLabel = isBridgeDirection ? 'UNIT → wUNIT → Sepolia USDC' : 'Sepolia USDC → wUNIT → UNIT';
   const receiveLabel = isBridgeDirection ? 'Estimated receive' : 'You receive';
   const bridgeReviewReady =
     isBridgeDirection
     && bridgePreparationState === 'ready'
     && !!bridgeIntent
     && !!reviewSendIntent;
+  const swapRecoveryCheckpoint = useMemo(() => {
+    if (isBridgeDirection) {
+      return null;
+    }
+
+    return selectSwapRecoveryCheckpoint(
+      evmCheckpoints,
+      currentAccount,
+      amountIn,
+      wallet?.taprootAddress,
+      quote?.amountOut,
+    );
+  }, [amountIn, currentAccount, evmCheckpoints, isBridgeDirection, quote?.amountOut, wallet?.taprootAddress]);
+  const swapRecoveryCopy = useMemo(
+    () => (swapRecoveryCheckpoint ? describeEvmRecoveryCheckpoint(swapRecoveryCheckpoint, 'swap') : null),
+    [swapRecoveryCheckpoint],
+  );
+  const canOpenRedeemRecovery = Boolean(
+    swapRecoveryCheckpoint
+    && wallet?.taprootAddress
+    && (
+      swapRecoveryCheckpoint.kind === 'redemption'
+      || (swapRecoveryCheckpoint.kind === 'swap' && swapRecoveryCheckpoint.status === 'confirmed')
+    ),
+  );
 
   const title = isBridgeDirection ? 'Review bridge + swap' : 'Review swap + redeem';
   const description = isBridgeDirection
-    ? 'Review the full UNIT send, bridge route, and estimated USDC output before you sign.'
+    ? 'Review the full UNIT send, bridge route, and estimated Sepolia USDC output before you sign.'
     : 'This executes on Sepolia now, then burns wUNIT to release canonical UNIT back to Mutinynet.';
 
   const confirmButtonLabel = useMemo(() => {
@@ -570,6 +627,10 @@ export default function SwapSummaryScreen({
     return `${formatEthAmount(estimate.totalFeeEth)} paid in ETH`;
   }, [estimate]);
 
+  useEffect(() => {
+    setCheckpointRecoveryMessage(null);
+  }, [swapRecoveryCheckpoint?.status, swapRecoveryCheckpoint?.txHash]);
+
   const handleBack = (): void => {
     if (isBridgeDirection) {
       Promise.resolve(cancelIntent()).catch(() => undefined);
@@ -577,9 +638,67 @@ export default function SwapSummaryScreen({
     navigation.goBack();
   };
 
+  const handleRetryLoad = (): void => {
+    setReloadNonce((current) => current + 1);
+  };
+
+  const handleReconcileEvmCheckpoints = async (): Promise<void> => {
+    if (checkpointReconciling) {
+      return;
+    }
+
+    try {
+      setCheckpointReconciling(true);
+      const result = await reconcileSubmittedEvmTransactionCheckpoints();
+      setCheckpointRecoveryMessage(formatEvmCheckpointReconciliationSummary(result));
+    } catch (error) {
+      Alert.alert(
+        'Status check failed',
+        error instanceof Error ? error.message : 'Unable to check Sepolia transactions.',
+      );
+    } finally {
+      setCheckpointReconciling(false);
+    }
+  };
+
+  const handleOpenRedeemRecovery = (): void => {
+    const redeemAmount = swapRecoveryCheckpoint?.kind === 'redemption'
+      ? swapRecoveryCheckpoint.amount
+      : quote?.amountOut;
+
+    navigation.navigate('SepoliaRedeem', {
+      sourceAsset: 'wUNIT',
+      ...(redeemAmount ? { amount: redeemAmount } : {}),
+    });
+  };
+
   const handleConfirm = async (): Promise<void> => {
     if (!quote) {
       return;
+    }
+
+    let signingQuote = quote;
+    try {
+      setLoading(true);
+      const latestQuote = await quoteUnitUsdcSwap(sourceAsset, amountIn);
+      setQuote(latestQuote);
+      signingQuote = latestQuote;
+
+      if (isQuoteWorseThanMinimum(latestQuote, quote)) {
+        Alert.alert(
+          'Quote changed',
+          `The pool now returns ${formatTokenAmount(latestQuote.amountOut)} ${destinationAsset}, below the prior minimum of ${formatTokenAmount(quote.minimumAmountOut)} ${destinationAsset}. Review the updated quote before signing.`,
+        );
+        return;
+      }
+    } catch (error) {
+      Alert.alert(
+        'Quote refresh failed',
+        error instanceof Error ? error.message : 'Refresh the quote and try again before signing.',
+      );
+      return;
+    } finally {
+      setLoading(false);
     }
 
     if (isBridgeDirection) {
@@ -604,7 +723,7 @@ export default function SwapSummaryScreen({
         const txid = await signIntent();
 
         if (!txid) {
-          throw new Error('Unable to sign and broadcast the bridge transaction.');
+          throw new Error('The bridge send was not broadcast. No UNIT transfer was submitted to the bridge deposit address.');
         }
 
         await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
@@ -632,10 +751,12 @@ export default function SwapSummaryScreen({
       return;
     }
 
-    if (insufficientEth) {
+    if (swapPreflightBlocked) {
       Alert.alert(
-        'Not enough ETH',
-        `This swap needs about ${formatEthAmount(estimate?.totalFeeEth || '0')} in Sepolia ETH for gas.`,
+        'Swap preflight failed',
+        swapBlockingReasons.length > 0
+          ? swapBlockingReasons.join('\n')
+          : 'Refresh the quote and balances before signing.',
       );
       return;
     }
@@ -650,13 +771,18 @@ export default function SwapSummaryScreen({
 
     try {
       setExecuting(true);
-      const result = await executeUsdcToUnitSwap(currentAccount, amountIn, wallet.taprootAddress);
+      const result = await executeUsdcToUnitSwap(
+        currentAccount,
+        amountIn,
+        wallet.taprootAddress,
+        signingQuote.minimumAmountOut,
+      );
       await registerSwapTxid(result.burnTxHash, toUnitSmallestUnits(result.redeemedAmount), { confirmed: true });
       await fetchTransactionHistory();
       showToast('Swap submitted', 'success');
       navigation.navigate('AssetDetail', { assetType: 'UNIT' });
     } catch (error) {
-      Alert.alert('Swap failed', error instanceof Error ? error.message : 'Unable to execute swap');
+      Alert.alert('Swap failed', classifyEvmExecutionError(error).userMessage);
     } finally {
       setExecuting(false);
     }
@@ -687,6 +813,8 @@ export default function SwapSummaryScreen({
             {!isBridgeDirection && estimate && (
               <>
                 <SummaryRow label="Current pool max" value={`${formatTokenAmount(maxInputAmount)} ${sourceAsset}`} />
+                <SummaryRow label="Sepolia USDC balance" value={`${formatTokenAmount(estimate.usdcBalance)} USDC`} />
+                <SummaryRow label="Expected wUNIT" value={`${formatTokenAmount(estimate.expectedWunitAmount)} wUNIT`} />
                 <SummaryRow label="Gas units" value={formatGasUnits(estimate.totalGasUnits)} />
                 <SummaryRow label="Gas price" value={`${estimate.gasPriceGwei} gwei`} />
               </>
@@ -764,6 +892,21 @@ export default function SwapSummaryScreen({
           </View>
         )}
 
+        {swapLoadError && (
+          <View style={styles.warningCard} testID="cross-chain-swap-load-error-card">
+            <Text style={styles.warningTitle}>Swap quote unavailable</Text>
+            <Text style={styles.warningBody}>{swapLoadError}</Text>
+            <TouchableOpacity
+              style={styles.inlineRetryButton}
+              onPress={handleRetryLoad}
+              disabled={loading}
+              testID="cross-chain-swap-retry-btn"
+            >
+              <Text style={styles.inlineRetryButtonText}>{loading ? 'Retrying…' : 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {!isBridgeDirection && (
           <View style={styles.noteCard}>
             <Text style={styles.noteTitle}>Sepolia ETH balance</Text>
@@ -774,12 +917,61 @@ export default function SwapSummaryScreen({
           </View>
         )}
 
+        {!isBridgeDirection && swapRecoveryCheckpoint && swapRecoveryCopy && (
+          <View style={styles.warningCard} testID="cross-chain-swap-recovery-card">
+            <Text style={styles.warningTitle}>{swapRecoveryCopy.title}</Text>
+            <Text style={styles.warningBody}>{swapRecoveryCopy.body}</Text>
+            <Text style={styles.warningBody}>Status: {swapRecoveryCheckpoint.status}</Text>
+            <Text style={styles.warningBody}>Tx: {shortEvmTxHash(swapRecoveryCheckpoint.txHash)}</Text>
+            {swapRecoveryCheckpoint.amount && (
+              <Text style={styles.warningBody}>Amount: {formatTokenAmount(swapRecoveryCheckpoint.amount)}</Text>
+            )}
+            {checkpointRecoveryMessage && (
+              <Text style={styles.warningBody} testID="cross-chain-swap-recovery-message">
+                {checkpointRecoveryMessage}
+              </Text>
+            )}
+            <View style={styles.recoveryActionRow}>
+              <TouchableOpacity
+                style={[styles.recoveryActionButton, checkpointReconciling && styles.recoveryActionButtonDisabled]}
+                onPress={handleReconcileEvmCheckpoints}
+                disabled={checkpointReconciling}
+                testID="cross-chain-swap-recovery-reconcile-btn"
+              >
+                {checkpointReconciling ? (
+                  <ActivityIndicator color={COLORS.DARK_BG} />
+                ) : (
+                  <Text style={styles.recoveryActionButtonText}>Check status</Text>
+                )}
+              </TouchableOpacity>
+              {canOpenRedeemRecovery && (
+                <TouchableOpacity
+                  style={styles.recoverySecondaryButton}
+                  onPress={handleOpenRedeemRecovery}
+                  testID="cross-chain-swap-recovery-open-redeem-btn"
+                >
+                  <Text style={styles.recoverySecondaryButtonText}>Open Redeem</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
         {exceedsMax && (
           <View style={styles.warningCard}>
             <Text style={styles.warningTitle}>Swap too large</Text>
             <Text style={styles.warningBody}>
               Current max size is {formatTokenAmount(maxInputAmount)} {sourceAsset}. Reduce the amount before signing.
             </Text>
+          </View>
+        )}
+
+        {!isBridgeDirection && swapBlockingReasons.length > 0 && (
+          <View style={styles.warningCard} testID="cross-chain-swap-readiness-card">
+            <Text style={styles.warningTitle}>Sepolia preflight blocked</Text>
+            {swapBlockingReasons.map((reason) => (
+              <Text key={reason} style={styles.warningBody}>{reason}</Text>
+            ))}
           </View>
         )}
 
@@ -806,12 +998,14 @@ export default function SwapSummaryScreen({
               || executing
               || exceedsMax
               || insufficientEth
+              || insufficientSource
+              || swapPreflightBlocked
               || !quote
               || (isBridgeDirection && !bridgeReviewReady)
             ) && styles.primaryButtonDisabled,
           ]}
           onPress={handleConfirm}
-          disabled={loading || executing || exceedsMax || insufficientEth || !quote || (isBridgeDirection && !bridgeReviewReady)}
+          disabled={loading || executing || exceedsMax || insufficientEth || insufficientSource || swapPreflightBlocked || !quote || (isBridgeDirection && !bridgeReviewReady)}
           testID="cross-chain-swap-summary-confirm-btn"
         >
           {executing ? (
@@ -981,6 +1175,51 @@ const styles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
     fontSize: 13,
     lineHeight: 19,
+  },
+  inlineRetryButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: COLORS.WHITE,
+    marginTop: 4,
+  },
+  inlineRetryButtonText: {
+    color: COLORS.DARK_BG,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  recoveryActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+  recoveryActionButton: {
+    backgroundColor: COLORS.WHITE,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  recoveryActionButtonDisabled: {
+    opacity: 0.6,
+  },
+  recoveryActionButtonText: {
+    color: COLORS.DARK_BG,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  recoverySecondaryButton: {
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+  },
+  recoverySecondaryButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 13,
+    fontWeight: '700',
   },
   loadingRow: {
     flexDirection: 'row',

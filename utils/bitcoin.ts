@@ -15,11 +15,13 @@ import {
 import { APP_NETWORK_CONFIG } from './networkConfig';
 
 // Initialize BIP32
+if (typeof bitcoin.initEccLib === 'function') {
+  bitcoin.initEccLib(ecc);
+}
 const bip32 = BIP32Factory(ecc);
 
-export const BITCOIN_NETWORK: Network = APP_NETWORK_CONFIG.bitcoinjs;
-// Backward-compatible alias while the codebase finishes migrating to generic naming.
-export const MUTINYNET_NETWORK: Network = BITCOIN_NETWORK;
+export const MUTINYNET_NETWORK: Network = APP_NETWORK_CONFIG.bitcoinjs;
+const BITCOIN_NETWORK = MUTINYNET_NETWORK;
 
 const EXPECTED_NETWORK_CONFIG = {
   name: APP_NETWORK_CONFIG.id,
@@ -220,8 +222,8 @@ export const extractPubkeyFromTaprootAddress = (address: string): string => {
   const trimmedAddress = address.trim();
 
   const lowerAddress = trimmedAddress.toLowerCase();
-  if (!lowerAddress.startsWith('tb1p') && !lowerAddress.startsWith('bc1p')) {
-    throw new Error('Address must be a Taproot address (tb1p... or bc1p...)');
+  if (!lowerAddress.startsWith(TAPROOT_ADDRESS_PREFIX)) {
+    throw new Error(`Address must be a Mutinynet Taproot address (${TAPROOT_ADDRESS_PREFIX}...)`);
   }
 
   try {

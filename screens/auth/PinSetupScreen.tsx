@@ -6,9 +6,8 @@
 
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import React,{ useState } from 'react';
-import { Animated,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
-import TouchableScale from '../../components/common/TouchableScale';
+import React,{ memo,useCallback,useRef,useState } from 'react';
+import { Animated,Pressable,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
 import { analytics } from '../../services/analyticsService';
@@ -47,6 +46,27 @@ interface PinSetupScreenProps {
   fetchBalance: () => void;
 }
 
+interface KeypadButtonProps {
+  digit: string;
+  onPress: (digit: string) => void;
+  keySize: number;
+  fontSize: number;
+}
+
+const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontSize }: KeypadButtonProps): React.JSX.Element {
+  const handlePress = useCallback(() => onPress(digit), [digit, onPress]);
+  return (
+    <Pressable
+      style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
+      onPressIn={handlePress}
+      hitSlop={8}
+      testID={`pin-keypad-${digit}`}
+    >
+      <Text style={[styles.lockKeyText, { fontSize }]}>{digit}</Text>
+    </Pressable>
+  );
+});
+
 export default function PinSetupScreen({
   // State
   changingPin,
@@ -65,6 +85,8 @@ export default function PinSetupScreen({
   const [pinError, setPinError] = useState('');
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const shakeAnimation = useState(new Animated.Value(0))[0];
+  const pinRef = useRef('');
+  const confirmPinRef = useRef('');
 
   const shakeError = (): void => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -78,8 +100,9 @@ export default function PinSetupScreen({
 
   const handlePinDigit = async (digit: string): Promise<void> => {
     if (pinStep === 'enter') {
-      if (pin.length < 6) {
-        const newPin = pin + digit;
+      if (pinRef.current.length < 6) {
+        const newPin = pinRef.current + digit;
+        pinRef.current = newPin;
         setPin(newPin);
         if (newPin.length === 6) {
           // Move to confirmation step
@@ -89,17 +112,18 @@ export default function PinSetupScreen({
       }
     } else {
       // Confirmation step
-      if (confirmPin.length < 6) {
-        const newConfirmPin = confirmPin + digit;
+      if (confirmPinRef.current.length < 6) {
+        const newConfirmPin = confirmPinRef.current + digit;
+        confirmPinRef.current = newConfirmPin;
         setConfirmPin(newConfirmPin);
         if (newConfirmPin.length === 6) {
           // Check if PINs match
-          if (newConfirmPin === pin) {
+          if (newConfirmPin === pinRef.current) {
             // Save PIN and finish setup
             if (changingPin) {
               // Use atomic PIN change operation to prevent lockout
               const PasskeyService = await import('../../services/passkey');
-              const result = await PasskeyService.atomicPinChangeWithPasskey(pin);
+              const result = await PasskeyService.atomicPinChangeWithPasskey(pinRef.current);
 
               if (result.success) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -114,7 +138,7 @@ export default function PinSetupScreen({
               }
             } else {
               // Initial wallet creation - just save PIN normally
-              savePin(pin).then(async (success) => {
+              savePin(pinRef.current).then(async (success) => {
                 logger.auth('savePin result', { success, isBiometricSupported });
                 if (success) {
                   // Initial wallet creation or import
@@ -126,7 +150,7 @@ export default function PinSetupScreen({
                     // No biometric support, complete setup
                     logger.auth('No biometric support (isBiometricSupported=false), completing setup without prompt');
                     // Pass the PIN back to parent for potential passkey migration
-                    onPinSetupComplete(pin);
+                    onPinSetupComplete(pinRef.current);
                   }
                   // Fetch balance in background
                   if (fetchBalance) {
@@ -136,6 +160,8 @@ export default function PinSetupScreen({
                   shakeError();
                   setPinError(ERRORS.PIN_SAVE_FAILED);
                   // Reset entire PIN process
+                  pinRef.current = '';
+                  confirmPinRef.current = '';
                   setPin('');
                   setConfirmPin('');
                   setPinStep('enter');
@@ -146,6 +172,8 @@ export default function PinSetupScreen({
                 });
                 shakeError();
                 setPinError(ERRORS.PIN_SAVE_FAILED);
+                pinRef.current = '';
+                confirmPinRef.current = '';
                 setPin('');
                 setConfirmPin('');
                 setPinStep('enter');
@@ -155,6 +183,8 @@ export default function PinSetupScreen({
             shakeError();
             setPinError(ERRORS.PINS_DO_NOT_MATCH);
             // Reset entire PIN process so user starts fresh
+            pinRef.current = '';
+            confirmPinRef.current = '';
             setPin('');
             setConfirmPin('');
             setPinStep('enter');
@@ -166,9 +196,11 @@ export default function PinSetupScreen({
 
   const handlePinDelete = (): void => {
     if (pinStep === 'enter') {
-      setPin(pin.slice(0, -1));
+      pinRef.current = pinRef.current.slice(0, -1);
+      setPin(pinRef.current);
     } else {
-      setConfirmPin(confirmPin.slice(0, -1));
+      confirmPinRef.current = confirmPinRef.current.slice(0, -1);
+      setConfirmPin(confirmPinRef.current);
     }
     setPinError('');
   };
@@ -186,10 +218,10 @@ export default function PinSetupScreen({
       // Complete setup regardless of biometric result
       // Pass the PIN back to parent for potential passkey migration
       analytics.track(ONBOARDING_EVENTS.BIOMETRIC_ENABLED);
-      onPinSetupComplete(pin);
+      onPinSetupComplete(pinRef.current);
     } catch (error: unknown) {
       await persistBiometricEnabled(false);
-      onPinSetupComplete(pin);
+      onPinSetupComplete(pinRef.current);
     }
   };
 
@@ -198,7 +230,7 @@ export default function PinSetupScreen({
     await persistBiometricEnabled(false);
     analytics.track(ONBOARDING_EVENTS.BIOMETRIC_SKIPPED);
     // Pass the PIN back to parent for potential passkey migration
-    onPinSetupComplete(pin);
+    onPinSetupComplete(pinRef.current);
   };
 
   const currentPin = pinStep === 'confirm' ? confirmPin : pin;
@@ -264,25 +296,27 @@ export default function PinSetupScreen({
           ].map((row, rowIndex) => (
             <View key={rowIndex} style={[styles.lockKeypadRow, { marginBottom: s(spacing.lg), gap: keypadGap }]}>
               {row.map((num) => (
-                <TouchableScale
+                <KeypadButton
                   key={num}
-                  style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
-                  onPress={() => handlePinDigit(String(num))}
-                  testID={`pin-keypad-${num}`}
-                >
-                  <Text style={[styles.lockKeyText, { fontSize: keyTextSize }]}>{num}</Text>
-                </TouchableScale>
+                  digit={String(num)}
+                  onPress={handlePinDigit}
+                  keySize={keySize}
+                  fontSize={keyTextSize}
+                />
               ))}
             </View>
           ))}
           <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
             <View style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} />
-            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={() => handlePinDigit('0')} testID="pin-keypad-0">
-              <Text style={[styles.lockKeyText, { fontSize: keyTextSize }]}>0</Text>
-            </TouchableScale>
-            <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePinDelete} haptic={false} testID="pin-keypad-delete">
+            <KeypadButton digit="0" onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
+            <Pressable
+              style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
+              onPressIn={handlePinDelete}
+              hitSlop={8}
+              testID="pin-keypad-delete"
+            >
               <Icon name="delete" size={iconSize} color={COLORS.WHITE} />
-            </TouchableScale>
+            </Pressable>
           </View>
         </View>
       </View>

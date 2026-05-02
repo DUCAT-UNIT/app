@@ -43,7 +43,6 @@ export {
   signTaprootKeyPath,
   getXOnlyPubkey,
   withSigningContext,
-  witnessToScriptWitness,
   validateSighashType,
 } from './cryptoUtils';
 
@@ -51,12 +50,7 @@ export {
 export type {
   SignatureData,
   PsbtFieldData,
-  PsbtSigningOptions,
   WitnessData,
   AddressTypeInfo,
-  MobileWalletInfo,
   PsbtCache,
-  PsbtWithCache,
-  SigningContext,
-  VaultSigningContext,
 } from './types';

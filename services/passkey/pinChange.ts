@@ -16,15 +16,15 @@ const { getRandomValues } = require('react-native-quick-crypto');
 const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
 
 const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('Passkey authentication timed out — please try again')),
-        PASSKEY_NATIVE_TIMEOUT_MS,
-      ),
-    ),
-  ]);
+  new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Passkey authentication timed out — please try again')),
+      PASSKEY_NATIVE_TIMEOUT_MS,
+    );
+    (timeout as { unref?: () => void }).unref?.();
+
+    promise.then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
 
 import {
   PASSKEY_DERIVATION_VERSION,
@@ -113,10 +113,12 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
     };
 
     // Timeout protection via Promise.race: guarantees rollback on timeout
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         reject(new Error('PIN change timed out after 30 seconds'));
       }, PIN_CHANGE_TIMEOUT_MS);
+      (timeoutId as { unref?: () => void }).unref?.();
     });
 
     const pinChangeWork = async (): Promise<PinChangeResult> => {
@@ -136,7 +138,11 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
     };
 
     try {
-      return await Promise.race([pinChangeWork(), timeoutPromise]);
+      return await Promise.race([pinChangeWork(), timeoutPromise]).finally(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
     } catch (error: unknown) {
       // Rollback on any failure (including timeout)
       try {

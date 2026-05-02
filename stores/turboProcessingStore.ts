@@ -8,7 +8,8 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
 
-const STORAGE_KEY = 'turbo_processing_state';
+export const TURBO_PROCESSING_STORAGE_KEY = 'turbo_processing_state';
+export const TURBO_PROCESSING_EXPIRY_MS = 5 * 60 * 1000;
 
 export interface TurboProcessingState {
   isProcessing: boolean;
@@ -49,6 +50,75 @@ const initialState: TurboProcessingState = {
   startedAt: null,
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function stringField(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function optionalStringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function optionalPositiveNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function toPersistedState(state: TurboProcessingStore | TurboProcessingState): TurboProcessingState {
+  return {
+    isProcessing: state.isProcessing,
+    sendAmount: state.sendAmount,
+    sendRecipient: state.sendRecipient,
+    currentStep: state.currentStep,
+    currentMessage: state.currentMessage,
+    startedAt: state.startedAt,
+    mintQuoteId: state.mintQuoteId,
+    mintAmount: state.mintAmount,
+    turboRecipient: state.turboRecipient,
+  };
+}
+
+export function normalizeTurboProcessingState(
+  value: unknown,
+  now = Date.now(),
+): TurboProcessingState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const startedAt = typeof value.startedAt === 'number' && Number.isFinite(value.startedAt)
+    ? value.startedAt
+    : null;
+  if (value.isProcessing !== true || !startedAt || now - startedAt > TURBO_PROCESSING_EXPIRY_MS) {
+    return null;
+  }
+
+  const sendAmount = stringField(value.sendAmount).trim();
+  const sendRecipient = stringField(value.sendRecipient).trim();
+  if (!sendAmount || !sendRecipient) {
+    return null;
+  }
+
+  const currentStep = typeof value.currentStep === 'number' && Number.isFinite(value.currentStep) && value.currentStep >= 0
+    ? Math.floor(value.currentStep)
+    : 0;
+  const currentMessage = stringField(value.currentMessage).trim() || 'Restoring Turbo send...';
+
+  return {
+    isProcessing: true,
+    sendAmount,
+    sendRecipient,
+    currentStep,
+    currentMessage,
+    startedAt,
+    mintQuoteId: optionalStringField(value.mintQuoteId),
+    mintAmount: optionalPositiveNumber(value.mintAmount),
+    turboRecipient: optionalStringField(value.turboRecipient),
+  };
+}
+
 export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) => ({
   ...initialState,
 
@@ -69,7 +139,7 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
     // Persist to storage immediately
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await AsyncStorage.setItem(TURBO_PROCESSING_STORAGE_KEY, JSON.stringify(toPersistedState(state)));
     } catch (error) {
       logger.error('[TurboProcessingStore] Failed to persist state:', { error });
     }
@@ -79,15 +149,15 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
   updateProgress: async (step, message) => {
     const currentState = get();
-    const newState = {
-      ...currentState,
+    const newState: TurboProcessingState = {
+      ...toPersistedState(currentState),
       currentStep: step,
       currentMessage: message,
     };
 
     // Persist progress
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+      await AsyncStorage.setItem(TURBO_PROCESSING_STORAGE_KEY, JSON.stringify(newState));
     } catch (error) {
       logger.error('[TurboProcessingStore] Failed to persist progress:', { error });
     }
@@ -100,7 +170,7 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
     // Clear persisted state
     try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY);
     } catch (error) {
       logger.error('[TurboProcessingStore] Failed to clear state:', { error });
     }
@@ -113,7 +183,7 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
     // Clear persisted state
     try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY);
     } catch (error) {
       logger.error('[TurboProcessingStore] Failed to clear state:', { error });
     }
@@ -123,15 +193,14 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
   loadPersistedState: async () => {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await AsyncStorage.getItem(TURBO_PROCESSING_STORAGE_KEY);
       if (stored) {
-        const state = JSON.parse(stored) as TurboProcessingState;
+        const state = normalizeTurboProcessingState(JSON.parse(stored));
         logger.debug('[TurboProcessingStore] Loaded persisted state:', state);
 
-        // Check if the transaction is too old (> 5 minutes)
-        if (state.startedAt && Date.now() - state.startedAt > 5 * 60 * 1000) {
-          logger.debug('[TurboProcessingStore] Persisted state too old, clearing');
-          await AsyncStorage.removeItem(STORAGE_KEY);
+        if (!state) {
+          logger.debug('[TurboProcessingStore] Persisted state invalid or too old, clearing');
+          await AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY);
           return null;
         }
 
@@ -146,11 +215,10 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
 
   clearState: async () => {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY);
     } catch (error) {
       logger.error('[TurboProcessingStore] Failed to clear state:', { error });
     }
     set(initialState);
   },
 }));
-

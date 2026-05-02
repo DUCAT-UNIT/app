@@ -1,0 +1,61 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Sepolia asset actions - verify the wallet exposes Sepolia USDC through the asset card, not a broad liquidity shortcut card.
+
+- runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "asset-card-usdc"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "asset-card-usdc"
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+
+- assertVisible:
+    text: "Sepolia USDC"
+- assertVisible:
+    id: "asset-detail-receive-btn"
+- assertVisible:
+    id: "asset-detail-swap-btn"
+
+- tapOn:
+    id: "asset-detail-receive-btn"
+- extendedWaitUntil:
+    visible:
+      id: "receive-qr-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Sepolia USDC address"
+- assertVisible:
+    text: "Only use this address to receive Sepolia USDC on Ethereum Sepolia."
+- tapOn:
+    id: "receive-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "asset-detail-swap-btn"
+- extendedWaitUntil:
+    visible:
+      id: "sepolia-swap-screen"
+    timeout: 10000
+- assertVisible:
+    id: "cross-chain-swap-amount-input"
+- assertVisible:
+    id: "cross-chain-swap-submit-btn"
+- tapOn:
+    id: "sepolia-swap-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000

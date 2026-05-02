@@ -6,17 +6,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import React,{ useCallback,useEffect,useMemo,useState } from 'react';
-import { Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { isE2E } from '../../utils/e2e';
 import { formatFiat } from '../../utils/formatters';
 import { formatVaultUsd } from '../../utils/vaultFaceValue';
 import { getOpCostOpen, getVaultSettlementReserveSats } from '../../utils/vaultUtils';
@@ -40,13 +42,19 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   const { createVault, isLoading, quoteBorrowToUsdc } = useCreateVaultToUsdcSettlement();
   const { btcPrice } = usePrice();
   const { utxos } = useBalance();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const effectiveReceiveAsset = usdcFeaturesEnabled ? receiveAsset : 'UNIT';
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
+  const confirmInFlightRef = useRef(false);
+  const isBusy = isLoading || isAuthenticating || isSubmitting;
 
   useEffect(() => {
     let cancelled = false;
 
-    if (borrowAmountUsd <= 0 || receiveAsset !== 'USDC') {
+    if (borrowAmountUsd <= 0 || effectiveReceiveAsset !== 'USDC') {
       setEstimatedUsdcOut(null);
       return () => {
         cancelled = true;
@@ -68,7 +76,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
     return () => {
       cancelled = true;
     };
-  }, [borrowAmountUsd, quoteBorrowToUsdc, receiveAsset]);
+  }, [borrowAmountUsd, quoteBorrowToUsdc, effectiveReceiveAsset]);
 
   // Calculate USD values
   const btcUsdValue = btcPrice ? btcAmount * btcPrice : 0;
@@ -76,27 +84,31 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   // Dynamic fee calculation based on UTXOs and selected rate
   const estimatedFee = useMemo(() => {
     const openFee = getOpCostOpen(selectedFeeRate, utxos);
-    return receiveAsset === 'USDC'
+    return effectiveReceiveAsset === 'USDC'
       ? openFee + getVaultSettlementReserveSats(selectedFeeRate)
       : openFee;
-  }, [receiveAsset, selectedFeeRate, utxos]);
+  }, [effectiveReceiveAsset, selectedFeeRate, utxos]);
 
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
-  const payoutMeta = getReceiveAssetMeta(receiveAsset);
+  const payoutMeta = getReceiveAssetMeta(effectiveReceiveAsset);
 
   // Handle confirm with biometric authentication
   const handleConfirm = useCallback(async () => {
+    if (confirmInFlightRef.current) {
+      return;
+    }
+
+    confirmInFlightRef.current = true;
+    setIsSubmitting(true);
+
     try {
       setIsAuthenticating(true);
-
-      // Skip biometric auth in E2E mode
-      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
 
       // Check if biometrics are available
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      if (!isE2E && hasHardware && isEnrolled) {
+      if (!isE2E() && hasHardware && isEnrolled) {
         // Authenticate with biometrics
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Authenticate to create vault',
@@ -124,14 +136,22 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       setCurrentStep('confirm');
       if (navigation.canGoBack()) navigation.goBack();
       Alert.alert('Error', 'Failed to create vault. Please try again.');
+    } finally {
+      setIsAuthenticating(false);
+      setIsSubmitting(false);
+      confirmInFlightRef.current = false;
     }
   }, [createVault, setCurrentStep, navigation]);
 
   // Handle back navigation
   const handleBack = useCallback(() => {
-    setCurrentStep('payout');
+    if (isBusy) {
+      return;
+    }
+
+    setCurrentStep(usdcFeaturesEnabled ? 'payout' : 'amounts');
     navigation.goBack();
-  }, [setCurrentStep, navigation]);
+  }, [isBusy, setCurrentStep, navigation, usdcFeaturesEnabled]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="vault-create-confirm-screen">
@@ -146,7 +166,11 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
             <Text style={styles.eyebrow}>Review</Text>
             <Text style={styles.title}>Confirm Vault</Text>
           </View>
-          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <TouchableOpacity
+            onPress={handleBack}
+            disabled={isBusy}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons name="close" size={24} color={colors.text.secondary} />
           </TouchableOpacity>
         </View>
@@ -170,7 +194,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
               <Text style={styles.routeLabel}>Payout Route</Text>
               <Text style={styles.routeText}>{payoutMeta.note}</Text>
             </View>
-            <ReceiveAssetBadge asset={receiveAsset} />
+            <ReceiveAssetBadge asset={effectiveReceiveAsset} />
           </View>
 
           <View style={styles.divider} />
@@ -185,20 +209,20 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
           <View style={styles.row}>
             <Text style={styles.label}>Receive As</Text>
-            <ReceiveAssetBadge asset={receiveAsset} size="sm" />
+            <ReceiveAssetBadge asset={effectiveReceiveAsset} size="sm" />
           </View>
 
-          {receiveAsset === 'USDC' && estimatedUsdcOut && (
+          {effectiveReceiveAsset === 'USDC' && estimatedUsdcOut && (
             <>
               <View style={styles.divider} />
               <View style={styles.row}>
-                <Text style={styles.label}>Estimated USDC Received</Text>
+                <Text style={styles.label}>Estimated Sepolia USDC Received</Text>
                 <Text style={styles.valueHighlight}>{estimatedUsdcOut} USDC</Text>
               </View>
             </>
           )}
 
-          {receiveAsset === 'UNIT' && (
+          {effectiveReceiveAsset === 'UNIT' && (
             <>
               <View style={styles.divider} />
               <View style={styles.row}>
@@ -256,22 +280,33 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
       {/* Footer */}
       <View style={styles.footer}>
-        <TouchableScale
-          style={styles.backButton}
-          onPress={handleBack}
-          disabled={isLoading || isAuthenticating}
-        >
-          <Text style={styles.backText}>Back</Text>
-        </TouchableScale>
+          <TouchableScale
+            style={styles.backButton}
+            onPress={handleBack}
+            disabled={isBusy}
+            pressLockMs={700}
+          >
+            <Text style={styles.backText}>Back</Text>
+          </TouchableScale>
 
-        <TouchableScale
-          style={[styles.confirmButton, (isLoading || isAuthenticating) && styles.buttonDisabled]}
+          <TouchableScale
+          style={[styles.confirmButton, isBusy && styles.buttonDisabled]}
           onPress={handleConfirm}
-          disabled={isLoading || isAuthenticating}
+          disabled={isBusy}
           testID="vault-create-confirm-btn"
+          accessibilityRole="button"
+          accessibilityLabel={isBusy ? 'Preparing vault creation' : 'Confirm and sign vault creation'}
+          accessibilityState={{ disabled: isBusy, busy: isBusy }}
+          lockWhilePending
+          pressLockMs={900}
         >
           {isAuthenticating ? (
             <Ionicons name="finger-print" size={20} color={colors.text.white} />
+          ) : isSubmitting || isLoading ? (
+            <View style={styles.busyButtonContent}>
+              <ActivityIndicator size="small" color={colors.text.white} />
+              <Text style={styles.confirmText}>Preparing...</Text>
+            </View>
           ) : (
             <Text style={styles.confirmText}>Confirm & Sign</Text>
           )}
@@ -491,5 +526,11 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
 });

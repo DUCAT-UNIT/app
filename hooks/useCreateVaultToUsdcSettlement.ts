@@ -4,6 +4,7 @@ import { useVaultCreation, useVaultCreationStore } from '../stores/vaultCreation
 import { useVaultSettlementStore } from '../stores/vaultSettlementStore';
 import { useIssuedUnitSettlement } from './vault/useIssuedUnitSettlement';
 import { formatVaultSettlementAmountInput } from '../services/vaultSettlementService';
+import { getBoolean, SettingKeys } from '../services/settingsService';
 
 export interface UseCreateVaultToUsdcSettlementResult extends UseCreateVaultResult {
   quoteBorrowToUsdc: (amountUsd: number) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
@@ -24,7 +25,10 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
 
   const createVault = useCallback(
     async (params?: CreateVaultParams) => {
-      startOperation('open', borrowAmountUsd, receiveAsset);
+      const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+      const requestedReceiveAsset = usdcFeaturesEnabled ? receiveAsset : 'UNIT';
+
+      startOperation('open', borrowAmountUsd, requestedReceiveAsset);
       setPhase('issuing_vault');
 
       const issueTxid = await rawCreateVault.createVault(params);
@@ -34,10 +38,16 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
 
       const latestVaultCreationState = useVaultCreationStore.getState();
       setIssueResult(issueTxid, latestVaultCreationState.vaultTxid);
-      if (receiveAsset === 'UNIT') {
+      if (requestedReceiveAsset === 'UNIT') {
         completeSettlement('UNIT', formatVaultSettlementAmountInput(borrowAmountUsd));
       } else {
-        await settleIssuedUnitToUsdc('open', borrowAmountUsd);
+        const settlement = await settleIssuedUnitToUsdc('open', borrowAmountUsd);
+        const canComplete =
+          settlement.status === 'settled' ||
+          (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+        if (!canComplete) {
+          return issueTxid;
+        }
       }
       setCurrentStep('success');
 

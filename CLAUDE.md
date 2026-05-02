@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ducat Wallet — a non-custodial Bitcoin/Runes mobile wallet built with React Native (Expo SDK 54). Supports BTC (SegWit + Taproot), UNIT (Runes token), Cashu e-cash (Turbo UNIT), vault operations (deposit/borrow/repay/withdraw), liquidation (claim + auto-swap), push notifications, remote config, and WebAuthn passkey backup.
+Ducat Wallet — a non-custodial Bitcoin/Runes mobile wallet built with React Native (Expo SDK 54). Supports BTC (SegWit + Taproot), UNIT (Runes token), Cashu e-cash (Turbo UNIT), vault operations (deposit/borrow/repay/withdraw), liquidation (claim + auto-swap), push notifications, and WebAuthn passkey backup.
 
 **Network:** Mutinynet testnet (not mainnet).
 
@@ -60,7 +60,7 @@ constants/      → Analytics events, bitcoin config, security
 
 **React Context** (12 providers) for session-scoped state: `AuthContext`, `WalletContext`, `WalletDataContext` (coordinator wrapping `BalanceContext`, `VaultContext`, `TransactionHistoryContext`, `EcashTokensContext`), `CashuContext`, `TransactionBuildContext`, `TransactionExecutionContext`, `ResponsiveContext`, `NavigationHandlersContext`, `SeedPhraseContext`, `AirdropContext`.
 
-**Zustand** (15 stores) for persistent/global state: price data, send flow, vault creation, borrow/deposit/repay/withdraw operations, notifications, display preferences, pending transactions, turbo processing, liquidation flow, ecash threshold sheet, remote config.
+**Zustand** stores for persistent/global state: price data, send flow, vault creation, borrow/deposit/repay/withdraw operations, notifications, display preferences, pending transactions, turbo processing, liquidation flow, and ecash threshold sheet.
 
 Provider hierarchy is in `App.tsx` — ErrorBoundary → AuthProvider → ResponsiveProvider → WalletProvider → (PendingTransactions, Cashu, WalletData) → AppNavigator.
 
@@ -81,7 +81,6 @@ Provider hierarchy is in `App.tsx` — ErrorBoundary → AuthProvider → Respon
 - **Turbo:** `services/turbo/` — TurboUNIT P2PK token processing and linking
 - **Analytics:** `services/analyticsService.ts` — PostHog wrapper (55+ events, privacy guards)
 - **Push:** `services/pushNotificationService.ts` — Expo push token registration, local notifications
-- **Remote Config:** `services/remoteConfigService.ts` — Server config fetch + AsyncStorage cache
 
 ### Amount Units Convention
 
@@ -129,7 +128,7 @@ UNIT amounts flow through the codebase in different units depending on layer:
 - UNIT rune has divisibility=2 (1 UNIT = 100 raw Runes cents)
 - MAX BTC send: fee is deducted from send amount when draining entire balance (no change output)
 - Vault PSBT signing requires `setPendingVaultSigningOperation()` security context
-- Swap PSBTs signed separately with `signPsbtRaw` + `skipOutputValidation` to avoid vault template checks
+- Swap PSBTs signed separately with `signPsbtRaw` and a bounded external-spend policy
 
 ## Infrastructure
 

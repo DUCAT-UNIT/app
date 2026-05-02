@@ -49,11 +49,11 @@ const getHealthColor = (health: number): string => {
 const formatAction = (action: string): string => {
   const actionMap: Record<string, string> = {
     'open': 'Open Vault',
-    'open_settled_to_usdc': 'Open Settled to USDC',
+    'open_settled_to_usdc': 'Open Settled to Sepolia USDC',
     'borrow': 'Borrow Value',
-    'borrow_settled_to_usdc': 'Borrow Settled to USDC',
+    'borrow_settled_to_usdc': 'Borrow Settled to Sepolia USDC',
     'repay': 'Repay Value',
-    'repay_from_usdc': 'Repay from USDC',
+    'repay_from_usdc': 'Repay from Sepolia USDC',
     'deposit': 'Deposit BTC',
     'withdraw': 'Withdraw BTC',
     'liquidate': 'Liquidation',
@@ -71,15 +71,15 @@ const getActionDescription = (action: string, btcAmt: number, unitAmt: number): 
     case 'open':
       return `Opened vault with ${btcFormatted} BTC collateral`;
     case 'open_settled_to_usdc':
-      return `Opened vault and settled ${debtFormatted} to USDC`;
+      return `Opened vault and settled ${debtFormatted} to Sepolia USDC`;
     case 'borrow':
       return `Borrowed ${debtFormatted} against BTC collateral`;
     case 'borrow_settled_to_usdc':
-      return `Borrowed and settled ${debtFormatted} to USDC`;
+      return `Borrowed and settled ${debtFormatted} to Sepolia USDC`;
     case 'repay':
       return `Repaid ${debtFormatted} of vault debt`;
     case 'repay_from_usdc':
-      return `Repaid ${debtFormatted} from USDC settlement`;
+      return `Repaid ${debtFormatted} from Sepolia USDC settlement`;
     case 'deposit':
       return `Deposited ${btcFormatted} BTC`;
     case 'withdraw':

@@ -83,7 +83,7 @@ describe('logger', () => {
       // In dev mode, logger.error uses console.warn to avoid red error overlay
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[ERROR]',
-        error,
+        { name: 'Error', message: 'Test error' },
         { context: 'test' }
       );
     });

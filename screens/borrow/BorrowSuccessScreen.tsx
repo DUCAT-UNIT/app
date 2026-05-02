@@ -3,12 +3,13 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
+import VaultActionSuccess, { buildVaultSuccessTxItems } from '../../components/vault/VaultActionSuccess';
 import { useBorrow } from '../../stores/borrowStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
 import { registerVaultSettlementHistory } from '../../services/vaultSettlementHistoryService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../contexts/WalletContext';
 
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -26,15 +27,20 @@ type BorrowSuccessScreenProps = StackScreenProps<BorrowStackParamList, 'BorrowSu
 export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccessScreenProps) {
   const { txid: storeTxid, borrowAmountUsd, reset } = useBorrow();
   const { wallet } = useWallet();
+  const { settingsHandlers } = useSettingsHandlers();
   const {
     phase,
     payoutAsset,
     payoutAmount,
+    sepoliaTxHash,
     error: settlementError,
     reset: resetSettlement,
   } = useVaultSettlementStore();
 
   const txid = route.params?.txid || storeTxid || '';
+  const showUsdcSettlementCopy = settingsHandlers.usdcFeaturesEnabled;
+  const showUsdcPayout = showUsdcSettlementCopy && payoutAsset === 'USDC';
+  const showWrappedUnitPayout = showUsdcSettlementCopy && payoutAsset === 'wUNIT';
 
   useEffect(() => {
     if (txid) {
@@ -82,21 +88,21 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
   }, [resetSettlement, reset, navigation]);
 
   const successUnit =
-    payoutAsset === 'USDC'
+    showUsdcPayout
       ? 'USDC'
       : payoutAsset === 'UNIT'
         ? 'UNIT'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'wUNIT'
         : 'USD';
   const successAmount =
-    payoutAsset && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
+    (showUsdcPayout || showWrappedUnitPayout || payoutAsset === 'UNIT') && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
   const titleOverride =
-    payoutAsset === 'USDC'
-      ? 'USDC Received!'
+    showUsdcPayout
+      ? 'Sepolia USDC Received!'
       : payoutAsset === 'UNIT'
         ? 'UNIT Received!'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'wUNIT Received!'
       : phase === 'pending_settlement'
         ? 'Borrow Complete!'
@@ -104,17 +110,26 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
           ? 'Borrow Complete!'
           : undefined;
   const messageOverride =
-    payoutAsset === 'USDC'
-      ? 'Borrow recorded and automatically settled to USDC on Sepolia.'
+    showUsdcPayout
+      ? 'Borrow recorded and automatically settled to Sepolia USDC.'
       : payoutAsset === 'UNIT'
         ? 'Borrow recorded and issued as UNIT on Mutinynet.'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'Borrow recorded. Auto-swap could not clear safely, so you received wUNIT on Sepolia instead.'
       : phase === 'pending_settlement'
-        ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
-        : phase === 'needs_retry'
-          ? settlementError || 'Borrow recorded. Automatic USDC settlement needs retry.'
+        ? showUsdcSettlementCopy
+          ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
+          : 'Borrow recorded. Settlement is still processing in the background.'
+      : phase === 'needs_retry'
+          ? showUsdcSettlementCopy
+            ? settlementError || 'Borrow recorded. Automatic Sepolia USDC settlement needs retry.'
+            : 'Borrow recorded. Automatic settlement needs retry.'
           : undefined;
+  const txItems = buildVaultSuccessTxItems({
+    mutinynetTxid: txid,
+    sepoliaTxHash,
+    includeSepolia: showUsdcPayout,
+  });
 
   return (
     <VaultActionSuccess
@@ -125,6 +140,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
       unit={successUnit}
       titleOverride={titleOverride}
       messageOverride={messageOverride}
+      txItems={txItems}
       onDone={handleDone}
     />
   );

@@ -10,8 +10,8 @@ import type {
   VaultWallet,
 } from '@ducat-unit/client-sdk';
 import { Buffer } from 'buffer';
+import { SEGWIT_ADDRESS_PREFIX } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import { varIntSize } from '../../utils/wallet/cryptoHelpers';
 
 /**
  * Vault operation mutex — serializes vault operations to prevent concurrent
@@ -49,12 +49,22 @@ export interface Utxo {
  * Read a varint from buffer
  */
 export function readVarInt(buffer: Buffer, offset: number): { value: number; bytesRead: number } {
+  if (!Number.isInteger(offset) || offset < 0 || offset >= buffer.length) {
+    throw new Error('Varint offset out of bounds');
+  }
+
   const first = buffer[offset];
   if (first < 0xfd) {
     return { value: first, bytesRead: 1 };
   } else if (first === 0xfd) {
+    if (offset + 2 >= buffer.length) {
+      throw new Error('Truncated 16-bit varint');
+    }
     return { value: buffer.readUInt16LE(offset + 1), bytesRead: 3 };
   } else if (first === 0xfe) {
+    if (offset + 4 >= buffer.length) {
+      throw new Error('Truncated 32-bit varint');
+    }
     return { value: buffer.readUInt32LE(offset + 1), bytesRead: 5 };
   } else {
     throw new Error('64-bit varint not supported');
@@ -79,23 +89,23 @@ export function extractOpReturnFromTxHex(txHex: string | undefined): string | nu
 
     // Skip inputs
     const inputCount = readVarInt(txBuffer, offset);
-    offset += varIntSize(inputCount.value);
+    offset += inputCount.bytesRead;
     for (let i = 0; i < inputCount.value; i++) {
       offset += 32; // txid
       offset += 4;  // vout
       const scriptLen = readVarInt(txBuffer, offset);
-      offset += varIntSize(scriptLen.value) + scriptLen.value;
+      offset += scriptLen.bytesRead + scriptLen.value;
       offset += 4;  // sequence
     }
 
     // Read outputs
     const outputCount = readVarInt(txBuffer, offset);
-    offset += varIntSize(outputCount.value);
+    offset += outputCount.bytesRead;
 
     for (let i = 0; i < outputCount.value; i++) {
       offset += 8; // value (8 bytes)
       const scriptLen = readVarInt(txBuffer, offset);
-      offset += varIntSize(scriptLen.value);
+      offset += scriptLen.bytesRead;
       const scriptPubKey = txBuffer.slice(offset, offset + scriptLen.value);
       offset += scriptLen.value;
 
@@ -118,7 +128,7 @@ export function checkBatchAllowed(wallet: VaultWallet): boolean {
   try {
     const satsAddress = wallet.acct?.sats?.address || '';
     const lowerAddress = satsAddress.toLowerCase();
-    return lowerAddress.startsWith('tb1q') || lowerAddress.startsWith('bc1q');
+    return lowerAddress.startsWith(SEGWIT_ADDRESS_PREFIX);
   } catch (error: unknown) {
     logger.warn('[VaultOps] Failed to check batch allowed', { error: error instanceof Error ? error.message : String(error) });
     return false;
@@ -130,7 +140,7 @@ export function checkBatchAllowed(wallet: VaultWallet): boolean {
  */
 export function normalizeMasterId(masterId: string): string {
   if (!masterId) return '';
-  return masterId.includes('i') ? masterId : `${masterId}i0`;
+  return /i\d+$/.test(masterId) ? masterId : `${masterId}i0`;
 }
 
 /**
@@ -207,12 +217,25 @@ export function computeVaultPrevoutFromTx(tx: {
     vault_action: normalizeVaultAction(tx.action),
   };
 
-  const [, vout] = tx.utxo.split(':');
+  const [utxoTxid, voutRaw, ...extraParts] = tx.utxo.split(':');
+  const vout = Number(voutRaw);
+  if (
+    !utxoTxid ||
+    extraParts.length > 0 ||
+    !Number.isInteger(vout) ||
+    vout < 0
+  ) {
+    logger.warn('[VaultOps] Cannot compute VaultPrevout: malformed utxo reference', {
+      utxo: tx.utxo,
+    });
+    return null;
+  }
+
   const utxo: BaseUtxo = {
     value: tx.vault_amount,
     script: tx.utxo_script || '',
     txid: tx.transaction_id,
-    vout: Number(vout) || 0,
+    vout,
   };
 
   return { rdata, utxo };

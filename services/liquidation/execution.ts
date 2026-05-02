@@ -45,6 +45,7 @@ import {
 import { fetchVaultHistory } from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { getAvailableCollateralBtc } from './calculations';
+import { SWAP_PSBT_FEE_BUFFER_BPS, SWAP_PSBT_MIN_FEE_BUFFER_SATS } from './constants';
 import {
   fetchSwapPsbt,
   createSwapPayload,
@@ -214,7 +215,7 @@ export async function executeLiquidation(
 
     logger.debug('[Liquidation] UTXOs', {
       totalAvailable: allUtxos.length,
-      selected: utxos.length,
+      selected: utxos?.length ?? 0,
       totalCost: txQuote.total_cost,
     });
 
@@ -233,6 +234,7 @@ export async function executeLiquidation(
     // ── Step 8a: Extract change UTXO from psbt2 for swap ──
     let swapPsbtHex: string | undefined;
     let swapData: Awaited<ReturnType<typeof fetchSwapPsbt>> = null;
+    let maxSwapSpendSats = 0;
 
     if (enableSwap) {
       try {
@@ -260,9 +262,14 @@ export async function executeLiquidation(
 
         // Check if change UTXO covers swap, otherwise add extra UTXOs
         const swapAmountSats = Math.floor(swapBtcAmount * 100_000_000);
-        const needExtra = swapAmountSats > changeUtxo.value;
+        const swapFeeBufferSats = Math.max(
+          SWAP_PSBT_MIN_FEE_BUFFER_SATS,
+          Math.ceil((swapAmountSats * SWAP_PSBT_FEE_BUFFER_BPS) / 10_000),
+        );
+        maxSwapSpendSats = swapAmountSats + swapFeeBufferSats;
+        const needExtra = maxSwapSpendSats > changeUtxo.value;
         const extraUtxos = needExtra
-          ? select_sat_utxos(remainingUtxos, swapAmountSats - changeUtxo.value)
+          ? select_sat_utxos(remainingUtxos, maxSwapSpendSats - changeUtxo.value)
           : [];
 
         // Fetch swap PSBT from faucet API
@@ -282,6 +289,7 @@ export async function executeLiquidation(
         if (swapData) {
           logger.info('[Liquidation] Swap PSBT received', {
             userInputs: swapData.user_input_indices,
+            maxSpendSats: maxSwapSpendSats,
           });
         } else {
           logger.warn('[Liquidation] Swap PSBT not available, proceeding without swap');
@@ -340,12 +348,18 @@ export async function executeLiquidation(
         const swapManifest: Record<string, number[]> = {
           [wallet.acct.sats.address]: swapData.user_input_indices,
         };
-        // Use signPsbtRaw with skipOutputValidation — swap outputs go to faucet, not our addresses
+        // Swap PSBTs include faucet outputs, so bound net wallet spend instead of
+        // requiring every output to be one of our addresses.
         const signedSwapPsbt = await signPsbtRaw(swapData.psbt, swapManifest, {
           recipient: wallet.acct.sats.address,
-          skipOutputValidation: true,
+          allowOpReturn: true,
+          externalSpend: {
+            returnAddresses: [wallet.acct.sats.address, wallet.acct.vault.address],
+            requiredOutputAddresses: [wallet.acct.vault.address],
+            maxSpendSats: maxSwapSpendSats,
+          },
         });
-        swapPsbtHex = finalizeSwapPsbt(signedSwapPsbt);
+        swapPsbtHex = finalizeSwapPsbt(signedSwapPsbt, wallet.acct.vault.address);
         logger.info('[Liquidation] Swap PSBT signed and finalized', {
           hexLength: swapPsbtHex.length,
         });
@@ -384,7 +398,7 @@ export async function executeLiquidation(
     }
     logger.info('[Liquidation] Guardian response', {
       txid,
-      fullResponse: JSON.stringify(guardRes),
+      responseKeys: Object.keys(guardRes),
     });
 
     progress('Liquidation complete!');

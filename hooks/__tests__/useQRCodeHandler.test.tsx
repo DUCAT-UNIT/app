@@ -148,16 +148,20 @@ describe('useQRCodeHandler', () => {
   });
 
   describe('Bitcoin addresses', () => {
+    const validSegwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
+    const validTaprootAddress = 'tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2';
+    const mainnetSegwitAddress = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+
     it('should handle bitcoin: addresses', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('bitcoin:bc1qtest123');
+        await result.current!(`bitcoin:${validSegwitAddress}`);
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'SendInput',
-        params: { assetType: 'btc', prefillAddress: 'bc1qtest123' },
+        params: { assetType: 'btc', prefillAddress: validSegwitAddress },
       });
     });
 
@@ -165,25 +169,41 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('tb1qtest123');
+        await result.current!(validSegwitAddress);
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'SendInput',
-        params: { assetType: 'btc', prefillAddress: 'tb1qtest123' },
+        params: { assetType: 'btc', prefillAddress: validSegwitAddress },
       });
     });
 
-    it('should handle bc1 addresses', async () => {
+    it('should default Mutinynet taproot addresses to UNIT', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('bc1qtest123');
+        await result.current!(validTaprootAddress);
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'SendInput',
-        params: { assetType: 'btc', prefillAddress: 'bc1qtest123' },
+        params: { assetType: 'unit', prefillAddress: validTaprootAddress },
+      });
+    });
+
+    it('should reject mainnet bc1 addresses', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!(mainnetSegwitAddress);
+      });
+
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'send',
+        description: expect.stringContaining('Mainnet address detected'),
       });
     });
 
@@ -191,7 +211,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('bitcoin:bc1qtest');
+        await result.current!(`bitcoin:${validSegwitAddress}`);
       });
 
       expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
@@ -201,13 +221,13 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('bitcoin:bc1qtest?amount=0.001');
+        await result.current!(`bitcoin:${validSegwitAddress}?amount=0.001`);
       });
 
       // Implementation strips the query params from the address
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'SendInput',
-        params: { assetType: 'btc', prefillAddress: 'bc1qtest' },
+        params: { assetType: 'btc', prefillAddress: validSegwitAddress },
       });
     });
   });

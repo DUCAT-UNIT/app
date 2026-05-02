@@ -152,7 +152,7 @@ export async function createVaultReqOpen(
     }
 
     if (__DEV__) {
-      // Detailed debug logging for development only — includes PSBT hex, txids, witnesses
+      // Development-only structural diagnostics. Do not log raw tx/PSBT/witness material.
       logger.debug('[VaultOps] issue_txid from SDK:', { txid: vaultReq.issue_txid });
       logger.debug('[VaultOps] vault_txid from SDK:', { txid: vaultReq.vault_txid });
 
@@ -167,8 +167,10 @@ export async function createVaultReqOpen(
         logger.warn('[VaultOps] Could not recompute txids:', { error: txidError instanceof Error ? txidError.message : String(txidError) });
       }
 
-      logger.debug('[VaultOps] issue_txhex (first 200 chars):', { rawtx: vaultReq.issue_txhex?.substring(0, 200) });
-      logger.debug('[VaultOps] vault_txhex (first 200 chars):', { rawtx: vaultReq.vault_txhex?.substring(0, 200) });
+      logger.debug('[VaultOps] issue/vault txhex present:', {
+        hasIssueTxhex: Boolean(vaultReq.issue_txhex),
+        hasVaultTxhex: Boolean(vaultReq.vault_txhex),
+      });
 
       const vaultTxOpReturn = extractOpReturnFromTxHex(vaultReq.vault_txhex);
       logger.debug('[VaultOps] OP_RETURN in issue_txhex from SDK:', { opReturn: issueTxOpReturn });
@@ -212,23 +214,20 @@ export async function createVaultReqOpen(
       }
 
       if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
-        logger.debug('[VaultOps] sats_inputs:', JSON.stringify(vaultReq.sats_inputs.map(inp => ({
-          txid: inp.txid,
-          vout: inp.vout,
-          value: inp.value,
-          witnessLength: inp.witness?.length,
-          witness: inp.witness,
-        }))));
+        logger.debug('[VaultOps] sats_inputs:', {
+          count: vaultReq.sats_inputs.length,
+          totalValue: vaultReq.sats_inputs.reduce((sum, inp) => sum + Number(inp.value || 0), 0),
+          witnessLengths: vaultReq.sats_inputs.map(inp => inp.witness?.length ?? 0),
+        });
       }
 
       if (vaultReq.connect_input) {
-        logger.debug('[VaultOps] connect_input:', JSON.stringify({
+        logger.debug('[VaultOps] connect_input:', {
           txid: vaultReq.connect_input.txid,
           vout: vaultReq.connect_input.vout,
           value: vaultReq.connect_input.value,
           witnessLength: vaultReq.connect_input.witness?.length,
-          witness: vaultReq.connect_input.witness,
-        }));
+        });
       }
     }
 
@@ -274,7 +273,7 @@ export async function guardianSendReqOpen(
     logger.error('[VaultOps] Failed to submit vault request:', {
       message: errorMessage,
       stack: errorStack,
-      rawError: JSON.stringify(error, Object.getOwnPropertyNames(error || {}))
+      errorName: error instanceof Error ? error.name : typeof error,
     });
     throw error;
   }

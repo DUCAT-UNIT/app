@@ -6,6 +6,7 @@
 import { OracleAPI, type PriceQuote } from '@ducat-unit/client-sdk';
 import { API } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { getJSON } from '../utils/apiClient';
 
 // Maximum age for oracle price quotes (5 minutes in seconds)
 export const MAX_QUOTE_AGE_SECONDS = 300;
@@ -66,11 +67,18 @@ export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQu
  */
 export async function fetchCurrentPrice(): Promise<number> {
   try {
-    const response = await fetch(`${API.PRICE_SERVER}/api/price/latest`);
-    if (!response.ok) {
-      throw new Error(`Price API returned status ${response.status}`);
-    }
-    const data = await response.json();
+    const data = await getJSON<{ price?: number; curr_price?: number }>(
+      `${API.PRICE_SERVER}/api/price/latest`,
+      {
+        timeout: 8000,
+        retryOptions: { maxRetries: 1 },
+        dedupeKey: 'oracle-current-btc-price',
+        cacheKey: 'oracle-current-btc-price',
+        cacheTtlMs: 30_000,
+        staleOnError: true,
+        circuitKey: 'oracle-current-btc-price',
+      }
+    );
     const price = data.price || data.curr_price;
     if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0 || price > 10_000_000) {
       throw new Error(`Invalid oracle price: ${price}`);

@@ -1,23 +1,31 @@
 /**
  * Price Store (Zustand)
- * Manages BTC price data and fetching
+ * Manages BTC and ETH price data and fetching
  *
  * MIGRATION: Replaces PriceContext
  * Benefits: No provider needed, auto-refresh built-in, selective re-renders
  */
 
 import { create } from 'zustand';
-import { fetchBtcPrice as fetchBtcPriceService } from '../services/balanceService';
+import { AppState, AppStateStatus } from 'react-native';
+import {
+  fetchBtcPrice as fetchBtcPriceService,
+  fetchEthPrice as fetchEthPriceService,
+} from '../services/balanceService';
 import { logger } from '../utils/logger';
 
 interface PriceState {
   btcPrice: number | null;
+  ethPrice: number | null;
   loadingBtcPrice: boolean;
+  loadingEthPrice: boolean;
   lastFetchTime: number | null;
 }
 
 interface PriceActions {
   fetchBtcPrice: () => Promise<void>;
+  fetchEthPrice: () => Promise<void>;
+  setFallbackBtcPrice: (price: number) => void;
   startAutoRefresh: () => () => void;
 }
 
@@ -25,11 +33,22 @@ type PriceStore = PriceState & PriceActions;
 
 // Store the interval ID outside the store to prevent it from being serialized
 let refreshInterval: NodeJS.Timeout | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
+let currentAppState: AppStateStatus = AppState.currentState;
+
+const isValidUsdPrice = (price: unknown): price is number => (
+  typeof price === 'number'
+  && Number.isFinite(price)
+  && price > 0
+  && price < 10_000_000
+);
 
 export const usePriceStore = create<PriceStore>((set, get) => ({
   // State
   btcPrice: null,
+  ethPrice: null,
   loadingBtcPrice: false,
+  loadingEthPrice: false,
   lastFetchTime: null,
 
   // Actions
@@ -40,16 +59,47 @@ export const usePriceStore = create<PriceStore>((set, get) => ({
     try {
       set({ loadingBtcPrice: true });
       const price = await fetchBtcPriceService();
-      set({
-        btcPrice: price,
-        lastFetchTime: Date.now(),
-      });
+      if (isValidUsdPrice(price)) {
+        set({
+          btcPrice: price,
+          lastFetchTime: Date.now(),
+        });
+      }
     } catch (error) {
       logger.debug('Failed to fetch BTC price', { error: error instanceof Error ? error.message : String(error) });
-      set({ btcPrice: null });
     } finally {
       set({ loadingBtcPrice: false });
+    };
+  },
+
+  fetchEthPrice: async () => {
+    if (get().loadingEthPrice) return;
+
+    try {
+      set({ loadingEthPrice: true });
+      const price = await fetchEthPriceService();
+      if (isValidUsdPrice(price)) {
+        set({
+          ethPrice: price,
+          lastFetchTime: Date.now(),
+        });
+      }
+    } catch (error) {
+      logger.debug('Failed to fetch ETH price', { error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      set({ loadingEthPrice: false });
     }
+  },
+
+  setFallbackBtcPrice: (price: number) => {
+    if (!isValidUsdPrice(price) || get().btcPrice !== null) {
+      return;
+    }
+
+    set({
+      btcPrice: price,
+      lastFetchTime: Date.now(),
+    });
   },
 
   // Start auto-refresh every 60 seconds, returns cleanup function
@@ -57,31 +107,66 @@ export const usePriceStore = create<PriceStore>((set, get) => ({
     // Clear any existing interval
     if (refreshInterval) {
       clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+    if (appStateSubscription) {
+      appStateSubscription.remove();
+      appStateSubscription = null;
     }
 
-    // Fetch immediately
-    get().fetchBtcPrice();
+    const startRefreshLoop = () => {
+      if (refreshInterval || currentAppState !== 'active') {
+        return;
+      }
 
-    // Then refresh every 60 seconds
-    refreshInterval = setInterval(() => {
       get().fetchBtcPrice();
-    }, 60000);
+      get().fetchEthPrice();
+      refreshInterval = setInterval(() => {
+        if (currentAppState === 'active') {
+          get().fetchBtcPrice();
+          get().fetchEthPrice();
+        }
+      }, 60000);
+      refreshInterval.unref?.();
+    };
 
-    // Return cleanup function
-    return () => {
+    const stopRefreshLoop = () => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
         refreshInterval = null;
       }
+    }
+
+    startRefreshLoop();
+
+    appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      const wasInactive = currentAppState !== 'active';
+      currentAppState = nextState;
+
+      if (nextState === 'active') {
+        stopRefreshLoop();
+        startRefreshLoop();
+
+        if (wasInactive) {
+          get().fetchBtcPrice();
+          get().fetchEthPrice();
+        }
+        return;
+      }
+
+      stopRefreshLoop();
+    });
+
+    // Return cleanup function
+    return () => {
+      stopRefreshLoop();
+      if (appStateSubscription) {
+        appStateSubscription.remove();
+        appStateSubscription = null;
+      }
     };
   },
 }));
-
-/**
- * Selector hooks for granular subscriptions
- */
-export const useBtcPrice = () => usePriceStore((state) => state.btcPrice);
-export const useLoadingBtcPrice = () => usePriceStore((state) => state.loadingBtcPrice);
 
 /**
  * Reset store to initial state (useful for testing)
@@ -92,10 +177,17 @@ export const resetPriceStore = () => {
     clearInterval(refreshInterval);
     refreshInterval = null;
   }
+  if (appStateSubscription) {
+    appStateSubscription.remove();
+    appStateSubscription = null;
+  }
+  currentAppState = AppState.currentState;
 
   usePriceStore.setState({
     btcPrice: null,
+    ethPrice: null,
     loadingBtcPrice: false,
+    loadingEthPrice: false,
     lastFetchTime: null,
   });
 };
@@ -107,7 +199,10 @@ export const usePrice = () => {
   const store = usePriceStore();
   return {
     btcPrice: store.btcPrice,
+    ethPrice: store.ethPrice,
     loadingBtcPrice: store.loadingBtcPrice,
+    loadingEthPrice: store.loadingEthPrice,
     fetchBtcPrice: store.fetchBtcPrice,
+    fetchEthPrice: store.fetchEthPrice,
   };
 };

@@ -8,10 +8,11 @@ import * as bitcoin from 'bitcoinjs-lib';
 import type { BaseUtxo } from '@ducat-unit/client-sdk';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
-import { postJSON } from '../../utils/apiClient';
+import { getWithRetry, postJSON } from '../../utils/apiClient';
 import { broadcastTransaction } from '../transactionBroadcastService';
 import { API } from '../../utils/constants';
 import { FAUCET_SWAP_URL, UNIT_TO_BTC_RATE } from './constants';
+import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
 import type {
   SwapUtxo,
   SwapPsbtPayload,
@@ -50,7 +51,7 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
       ordinals_address: payload.ordinals_address,
       btc_price: payload.btc_price,
       vault_id: payload.vault_id?.substring(0, 16),
-      utxos: JSON.stringify(payload.utxos.slice(0, 3)),
+      utxo_count_logged: Math.min(payload.utxos.length, 3),
     });
 
     const response = await postJSON<SwapPsbtResponse>(FAUCET_SWAP_URL, payload, {
@@ -61,7 +62,8 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
     if (!response.success || !response.data) {
       logger.warn('[SwapService] Swap PSBT request failed', {
         error: response.error,
-        rawResponse: JSON.stringify(response).substring(0, 300),
+        success: response.success,
+        hasData: Boolean(response.data),
       });
       return null;
     }
@@ -90,7 +92,7 @@ export function finalizeSwapPsbt(
   signedPsbtBase64: string,
   expectedPaymentAddress?: string
 ): string {
-  const psbt = bitcoin.Psbt.fromBase64(signedPsbtBase64);
+  const psbt = bitcoin.Psbt.fromBase64(signedPsbtBase64, { network: MUTINYNET_NETWORK });
 
   // Basic validation: ensure all inputs are properly signed
   psbt.finalizeAllInputs();
@@ -194,18 +196,61 @@ export async function waitForMempool(
   maxAttempts = 30,
   intervalMs = 5000,
 ): Promise<boolean> {
+  const pollId = useSwapDiagnosticsStore.getState().startPoll({
+    id: `liquidation-mempool:${txid}`,
+    kind: 'liquidation_mempool',
+    label: 'Liquidation repo mempool wait',
+    subject: txid,
+    intervalMs,
+    timeoutMs: maxAttempts * intervalMs,
+  });
+
   for (let i = 0; i < maxAttempts; i++) {
     try {
-      const response = await fetch(`${API.BASE}/tx/${txid}`);
+      const response = await getWithRetry(`${API.BASE}/tx/${txid}`, {
+        timeout: 8000,
+        retryOptions: { maxRetries: 0 },
+        dedupeKey: `liquidation-mempool:${txid}`,
+        circuitKey: 'liquidation-mempool',
+      });
+      const httpStatus = typeof response.status === 'number' ? response.status : null;
+      useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+        lastStatus: response.ok ? 'found' : httpStatus ? `http_${httpStatus}` : 'not_found',
+        metadata: {
+          httpStatus,
+          attempt: i + 1,
+          maxAttempts,
+        },
+      });
       if (response.ok) {
         logger.debug('[SwapService] TX found in mempool', { txid: txid.substring(0, 8) });
+        useSwapDiagnosticsStore.getState().completePoll(pollId, {
+          status: 'success',
+          lastStatus: 'found',
+          lastMessage: 'Repo transaction found in mempool',
+        });
         return true;
       }
-    } catch {
+    } catch (error: unknown) {
+      useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+        lastStatus: 'network_error',
+        lastError: error instanceof Error ? error.message : String(error),
+        metadata: {
+          attempt: i + 1,
+          maxAttempts,
+        },
+      });
       // Not found yet, keep polling
     }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, intervalMs);
+      (timer as { unref?: () => void }).unref?.();
+    });
   }
+  useSwapDiagnosticsStore.getState().completePoll(pollId, {
+    status: 'timeout',
+    lastMessage: 'Repo transaction was not found in mempool',
+  });
   logger.warn('[SwapService] TX not found in mempool after timeout', { txid: txid.substring(0, 8) });
   return false;
 }

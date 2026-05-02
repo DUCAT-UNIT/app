@@ -8,6 +8,11 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
 import type { VaultHistoryTransaction } from '../services/vaultService';
+import {
+  mapVaultActionToJournalKind,
+  operationJournalId,
+  useOperationJournalStore,
+} from './operationJournalStore';
 
 export type VaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'repo';
 
@@ -47,6 +52,55 @@ const initialState: PendingVaultTransactionState = {
   currentAccount: 0,
 };
 
+function vaultJournalTxid(tx: PendingVaultTransaction): string {
+  return tx.vaultTxid || tx.txid;
+}
+
+function vaultJournalLabel(action: VaultAction): string {
+  switch (action) {
+    case 'open':
+      return 'Vault open submitted';
+    case 'borrow':
+      return 'Vault borrow submitted';
+    case 'repay':
+      return 'Vault repay submitted';
+    case 'deposit':
+      return 'Vault deposit submitted';
+    case 'withdraw':
+      return 'Vault withdraw submitted';
+    default:
+      return 'Vault liquidation submitted';
+  }
+}
+
+function recordPendingVaultJournal(accountIndex: number, tx: PendingVaultTransaction): void {
+  const txid = vaultJournalTxid(tx);
+  useOperationJournalStore.getState().recordOperation({
+    id: operationJournalId('vault', accountIndex, txid),
+    accountIndex,
+    kind: mapVaultActionToJournalKind(tx.action),
+    stage: 'pending',
+    label: vaultJournalLabel(tx.action),
+    idempotencyKey: `vault:${accountIndex}:${tx.action}:${txid}`,
+    retrySafety: 'unsafe_until_checked',
+    txids: tx.vaultTxid ? [tx.txid, tx.vaultTxid] : [tx.txid],
+    asset: tx.unitAmt > 0 ? 'UNIT' : 'BTC',
+    amount: tx.unitAmt > 0 ? String(tx.unitAmt) : String(tx.btcAmt),
+    recipient: tx.vaultPubkey,
+    recoveryAction: 'Wait for vault confirmation before submitting another vault operation.',
+    createdAt: tx.timestamp,
+    updatedAt: tx.timestamp,
+  });
+}
+
+function markPendingVaultConfirmed(accountIndex: number, tx: PendingVaultTransaction): void {
+  const txid = vaultJournalTxid(tx);
+  useOperationJournalStore.getState().markConfirmed(
+    operationJournalId('vault', accountIndex, txid),
+    txid,
+  );
+}
+
 export const usePendingVaultTransactionStore = create<PendingVaultTransactionStore>((set, get) => ({
   ...initialState,
 
@@ -70,6 +124,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
         const oneHourAgo = Date.now() - 60 * 60 * 1000;
         if (tx.timestamp > oneHourAgo) {
           set({ pendingTransaction: tx });
+          recordPendingVaultJournal(accountIndex, tx);
           logger.info('[PendingVaultTx] Loaded pending vault transaction', {
             txid: tx.txid.slice(0, 16) + '...',
             action: tx.action,
@@ -98,6 +153,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     });
 
     set({ pendingTransaction: tx });
+    recordPendingVaultJournal(currentAccount, tx);
 
     try {
       await SecureStore.setItemAsync(getStorageKey(currentAccount), JSON.stringify(tx));
@@ -119,6 +175,9 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     }
 
     set({ pendingTransaction: null });
+    if (pendingTransaction) {
+      markPendingVaultConfirmed(currentAccount, pendingTransaction);
+    }
 
     try {
       await SecureStore.deleteItemAsync(getStorageKey(currentAccount));

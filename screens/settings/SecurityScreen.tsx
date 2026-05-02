@@ -5,6 +5,7 @@
 
 import React, { useEffect } from 'react';
 import {
+  Alert,
   Text,
   View,
   TouchableOpacity,
@@ -17,6 +18,7 @@ import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers, useAuthFlowHandlers } from '../../contexts/NavigationHandlersContext';
 import { analytics } from '../../services/analyticsService';
 import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
+import { AUTO_LOCK_TIMEOUT_OPTIONS, formatAutoLockTimeout } from '../../constants/settings';
 
 // Get device dimensions for responsive sizing
 const { width: SCREEN_WIDTH } = require('react-native').Dimensions.get('window');
@@ -62,6 +64,8 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
     handleChangePin: rawChangePin,
     handleViewSeedPhrase: onViewSeedPhrase,
     handleDeleteWallet: onDeleteWallet,
+    autoLockTimeoutMs,
+    handleAutoLockTimeoutChange,
   } = settingsHandlers;
 
   const faceIdEnabled = biometricEnabled;
@@ -75,6 +79,26 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
     analytics.track(SETTINGS_EVENTS.SECURITY_SETTING_CHANGED, { setting: 'pin_change' });
     rawChangePin();
   }, [rawChangePin]);
+
+  const onAutoLockPress = React.useCallback(() => {
+    Alert.alert(
+      'Auto-Lock Time',
+      'Choose how long the app can stay idle before it locks.',
+      [
+        ...AUTO_LOCK_TIMEOUT_OPTIONS.map((option) => ({
+          text: option.label,
+          onPress: () => {
+            analytics.track(SETTINGS_EVENTS.SECURITY_SETTING_CHANGED, {
+              setting: 'auto_lock_timeout',
+              new_value: option.value,
+            });
+            handleAutoLockTimeoutChange(option.value);
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
+  }, [handleAutoLockTimeoutChange]);
 
   useEffect(() => { analytics.track(SETTINGS_EVENTS.SETTINGS_OPENED, { screen: 'security' }); }, []);
 
@@ -117,6 +141,13 @@ const SecurityScreen = React.memo(function SecurityScreen({ route }: SecurityScr
               testID="security-biometric-btn"
             />
             <SettingsOption iconName="pin" title="Change PIN" onPress={onChangePin} testID="security-change-pin-btn" />
+            <SettingsOption
+              iconName="pin"
+              title="Auto-Lock"
+              onPress={onAutoLockPress}
+              rightText={formatAutoLockTimeout(autoLockTimeoutMs)}
+              testID="security-auto-lock-btn"
+            />
             <SettingsOption
               iconName="recovery_phrase"
               title="Backup Wallet"

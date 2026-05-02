@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import Icon from '../components/icons';
 import { useBackgroundSplash } from '../hooks/useBackgroundSplash';
 import styles from '../styles';
+import { isE2E } from '../utils/e2e';
 
 type PointerEvents = 'auto' | 'none' | 'box-none' | 'box-only';
 
@@ -65,8 +66,9 @@ function BackgroundSplashScreen(): React.JSX.Element {
 
 export default function SplashScreen({
   mode = 'launch',
-}: SplashScreenProps): React.JSX.Element {
+}: SplashScreenProps): React.JSX.Element | null {
   if (mode === 'background') {
+    if (__DEV__ || isE2E()) return null;
     return <BackgroundSplashScreen />;
   }
 

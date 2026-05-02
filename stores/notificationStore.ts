@@ -54,6 +54,10 @@ type NotificationStore = NotificationState & NotificationActions;
 let snackbarTimeout: NodeJS.Timeout | null = null;
 let dismissCooldown = false;
 
+function unrefTimer(timer: NodeJS.Timeout): void {
+  timer.unref?.();
+}
+
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
   // State
   snackbar: null,
@@ -127,6 +131,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         set({ snackbar: null });
         snackbarTimeout = null;
       }, duration);
+      unrefTimer(snackbarTimeout);
     }
   },
 
@@ -149,9 +154,10 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
     // Add cooldown period - block new snackbars for 500ms
     dismissCooldown = true;
-    setTimeout(() => {
+    const cooldownTimer = setTimeout(() => {
       dismissCooldown = false;
     }, 500);
+    unrefTimer(cooldownTimer);
   },
 
   /**
@@ -166,11 +172,6 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     });
   },
 }));
-
-/**
- * Selector hooks for granular subscriptions
- */
-export const useSnackbar = () => useNotificationStore((state) => state.snackbar);
 
 /**
  * Reset store to initial state (useful for testing)

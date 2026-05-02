@@ -49,6 +49,7 @@ export function withTimeout<T>(
       }
       resolve(fallback);
     }, ms);
+    (timer as { unref?: () => void }).unref?.();
   });
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));

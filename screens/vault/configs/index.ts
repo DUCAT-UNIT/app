@@ -5,7 +5,6 @@
 export {
   borrowRoutes,
   borrowInputConfig,
-  borrowConfirmConfig,
   createBorrowConfirmConfig,
   borrowProcessingConfig,
 } from './borrowConfig';
@@ -20,8 +19,8 @@ export {
 export {
   repayRoutes,
   repayInputConfig,
-  repayConfirmConfig,
-  repayProcessingConfig,
+  createRepayConfirmConfig,
+  createRepayProcessingConfig,
 } from './repayConfig';
 
 export {

@@ -25,6 +25,23 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
   const [balance, setBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const balanceRef = useRef(0);  // Track balance for error fallback without causing dependency loops
+  const mountedRef = useRef(true);
+  const backgroundLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBackgroundLoadTimer = useCallback(() => {
+    if (backgroundLoadTimerRef.current) {
+      clearTimeout(backgroundLoadTimerRef.current);
+      backgroundLoadTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearBackgroundLoadTimer();
+    };
+  }, [clearBackgroundLoadTimer]);
 
   // Keep ref in sync with state (for error fallback return value)
   useEffect(() => {
@@ -32,38 +49,57 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
   }, [balance]);
 
   const fetchBalance = useCallback(async (fullLoad = true) => {
+    if (!wallet?.taprootAddress) {
+      if (mountedRef.current) {
+        setBalance(0);
+        setError(null);
+      }
+      return 0;
+    }
+
     try {
       if (!fullLoad) {
         // Fast initial load - only first 25 proofs
         const quickBalance = await getBalance(false);
-        setBalance(quickBalance);
-        setError(null);
+        if (mountedRef.current) {
+          setBalance(quickBalance);
+          setError(null);
+        }
 
         // Load full balance in background
-        setTimeout(async () => {
+        clearBackgroundLoadTimer();
+        backgroundLoadTimerRef.current = setTimeout(async () => {
+          backgroundLoadTimerRef.current = null;
           try {
             const fullBalance = await getBalance(true);
-            setBalance(fullBalance);
+            if (mountedRef.current) {
+              setBalance(fullBalance);
+            }
           } catch (err: unknown) {
             logger.error('Failed to fetch full Cashu balance', { error: err instanceof Error ? err.message : String(err) });
           }
         }, 100);
+        (backgroundLoadTimerRef.current as { unref?: () => void }).unref?.();
 
         return quickBalance;
       } else {
         // Full load
         const newBalance = await getBalance(true);
-        setBalance(newBalance);
-        setError(null);
+        if (mountedRef.current) {
+          setBalance(newBalance);
+          setError(null);
+        }
         return newBalance;
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to fetch Cashu balance', { error: errorMessage });
-      setError(errorMessage);
+      if (mountedRef.current) {
+        setError(errorMessage);
+      }
       return balanceRef.current;  // Use ref instead of state to avoid dependency loop
     }
-  }, []);  // Empty deps - uses ref for fallback value, avoiding the balance dependency
+  }, [wallet?.taprootAddress, clearBackgroundLoadTimer]);  // Safe: only changes on account/auth transitions
 
   // Update cashu account when wallet changes
   // Reset balance to 0 immediately, then set account and fetch correct balance
@@ -76,9 +112,9 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         await setCurrentAccount(wallet.taprootAddress);
         fetchBalance(false);
       };
-      initAccount().catch((error: unknown) => {
+      initAccount().catch((initError: unknown) => {
         logger.error('[useCashuBalance] Failed to initialize Cashu account', {
-          error: error instanceof Error ? error.message : String(error),
+          error: initError instanceof Error ? initError.message : String(initError),
         });
       });
     }
@@ -88,19 +124,25 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
   usePolling({
     onPoll: fetchBalance,
     interval: 10000,
-    enabled: true,
+    enabled: Boolean(wallet?.taprootAddress),
     immediate: false,
   });
 
   // Subscribe to proof changes to trigger immediate balance refresh
   useEffect(() => {
+    if (!wallet?.taprootAddress) {
+      setBalance(0);
+      setError(null);
+      return;
+    }
+
     const unsubscribe = subscribeToProofChanges(() => {
       logger.debug('[useCashuBalance] Proof change detected, refreshing balance');
       fetchBalance(true);
     });
 
     return unsubscribe;
-  }, [fetchBalance]);
+  }, [fetchBalance, wallet?.taprootAddress]);
 
   return {
     balance,

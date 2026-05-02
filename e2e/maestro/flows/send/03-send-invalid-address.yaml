@@ -10,6 +10,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 
 # Wait for wallet actions to load
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: "wallet-actions"
@@ -19,6 +20,19 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "wallet-withdraw-btn"
 - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        text: "Enter PIN"
+    commands:
+      - runFlow: ../helpers/enter-pin-lock.yaml
+      - extendedWaitUntil:
+          visible:
+            id: "wallet-actions"
+          timeout: 10000
+      - tapOn:
+          id: "wallet-withdraw-btn"
+      - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "withdraw-btc"

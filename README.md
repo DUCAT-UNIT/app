@@ -41,9 +41,9 @@ Browse available liquidation vaults, invest BTC to claim collateral at a discoun
 
 Real-time alerts for transaction confirmations, vault health warnings (<200%, <170%), and liquidation opportunities. Backend on EC2 with Expo Push API delivery.
 
-### Remote Config
+### Mutinynet-Only Runtime
 
-Server-controlled app settings at `config.ducatprotocol.com`. Supports announcements (banner text, hero image, CTA), network switching, and feature flags.
+The mobile app is hard-locked to Mutinynet. Remote network config, server-driven announcements, and runtime network switching are intentionally not part of the app.
 
 ### Analytics
 
@@ -97,8 +97,7 @@ app/
 |   +-- vaultWallet/     # Guardian WebSocket, PSBT binary utils
 |   +-- analyticsService # PostHog wrapper with privacy guards
 |   +-- pushNotificationService # Expo push token + local notifications
-|   +-- remoteConfigService     # Server config fetch + cache
-+-- stores/              # Zustand persistent state (15 stores)
++-- stores/              # Zustand persistent state
 +-- styles/              # Centralized StyleSheet + responsive scaling
 +-- utils/               # Pure utilities (formatters, bitcoin, crypto)
 ```
@@ -107,7 +106,7 @@ app/
 
 **React Context** (12 providers) for session-scoped state. Provider hierarchy in `App.tsx`: ErrorBoundary -> Auth -> UI -> Responsive -> Wallet -> (PendingTransactions, Cashu, WalletData) -> AppNavigator.
 
-**Zustand** (15 stores) for persistent/global state: price, send flow, vault creation, borrow/deposit/repay/withdraw, display preferences, pending transactions, liquidation flow, ecash threshold, remote config.
+**Zustand** stores for persistent/global state: price, send flow, vault creation, borrow/deposit/repay/withdraw, display preferences, pending transactions, liquidation flow, ecash threshold, and Turbo processing.
 
 **Polling**: Unified 10s poll cycle in `WalletDataCoordinator`. All data contexts memoize return values and skip state updates when data hasn't changed to prevent re-render cascades.
 
@@ -124,8 +123,8 @@ app/
 | Crypto | `react-native-quick-crypto` (PBKDF2, HKDF, AES-256-GCM) |
 | Analytics | PostHog (`posthog-react-native`), 55+ events, EU cloud |
 | Push | `expo-notifications`, Expo Push API, EC2 backend |
-| State | React Context (12) + Zustand (15 stores) |
-| Testing | Jest (94+ suites), Maestro E2E (59 flows) |
+| State | React Context + Zustand stores |
+| Testing | Jest (220 suites), Maestro E2E (65 product flows) |
 
 ## Security
 
@@ -159,7 +158,6 @@ Mnemonic -> HKDF(passkey_id + PIN) -> AES-256-GCM -> iCloud Keychain
 |---------|--------|---------|
 | Cashu Mint | `cashu-mint.ducatprotocol.com` | E-cash mint/melt operations |
 | Push Server | `notifications.ducatprotocol.com` | Push token registry + event watchers |
-| Remote Config | `config.ducatprotocol.com` | App configuration + announcements |
 | Faucet | `faucet.ducatprotocol.com` | Testnet BTC/UNIT faucet + swap API |
 | URL Shortener | `go.ducatprotocol.com` | Cashu token deep links |
 | Validator | `validator.ducatprotocol.com` | Vault state + liquidation API |
@@ -190,28 +188,32 @@ Throttling: max 1 alert per category per hour per device.
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 22.x and npm 10+
 - Xcode 15+ (iOS)
 - EAS CLI (`npm install -g eas-cli`)
+- Maestro CLI for local E2E runs
 
 ### Installation
 
 ```bash
 git clone https://github.com/DUCAT-UNIT/app.git
 cd app/app
-npm install
-npx expo start
+npm ci
+npm run doctor
+npm run start
 ```
 
 ### Development
 
 ```bash
-npx expo start                    # Dev server
-npx expo run:ios                  # iOS simulator
-jest                              # Unit tests
-jest --coverage                   # With coverage
-maestro test e2e/maestro/flows/   # E2E tests (requires simulator)
-tsc --noEmit                      # Type check
+npm run start                     # Dev server
+npm run ios                       # iOS simulator
+npm test                          # Unit tests
+npm run test:coverage             # With coverage
+npm run doctor                    # Local environment and Mutinynet invariant checks
+npm run e2e                       # E2E product suites (requires simulator)
+npm run verify                    # Doctor + typecheck + lint + deadcode + E2E config validation + Jest coverage
+npm run typecheck                 # Type check
 ```
 
 ### Production Build
@@ -224,7 +226,7 @@ eas build --platform ios --profile production --auto-submit  # Build + submit
 
 ### Environment
 
-The app operates on **Mutinynet** (Bitcoin signet testnet). Network configuration is in `utils/networkConfig.ts`.
+The app operates on **Mutinynet** (Bitcoin signet testnet). Network configuration is in `utils/networkConfig.ts`, and non-Mutinynet `EXPO_PUBLIC_APP_NETWORK` values fail at app config and runtime config load. Sepolia EVM settings are optional bridge/swap support and do not change the Bitcoin app network.
 
 ```
 ESPLORA_URL:  https://mutinynet.com/api
@@ -235,21 +237,26 @@ CASHU_MINT:   https://cashu-mint.ducatprotocol.com
 
 ## Testing
 
-**Unit Tests**: 94+ Jest suites covering services, hooks, contexts, and utilities. Co-located in `__tests__/` directories. Coverage target: 70% statements/functions/lines, 60% branches.
+**Unit Tests**: 220 Jest suites covering services, hooks, contexts, stores, components, and utilities. Co-located in `__tests__/` directories.
 
-**E2E Tests**: 59 Maestro YAML flows across 6 suites:
-- Auth (6): PIN setup, biometric, lock/unlock
-- Settings (16): preferences, security, advanced, wallet deletion
-- Wallet (14): balances, asset detail, transaction history
+**Coverage Gate**: `npm run verify` enforces Jest coverage thresholds after unit tests. Current verified coverage: statements 89.47%, branches 79.61%, functions 87.38%, lines 90.33%.
+
+**E2E Tests**: 65 maintained Maestro product flows across 6 suites, plus separate live/ad-hoc flows under `e2e/maestro/flows/test`:
+- Auth (8): wallet create/import, PIN setup/unlock, lockout, auto-lock
+- Settings (17): preferences, security, advanced, diagnostics, wallet deletion
+- Wallet (17): balances, receive, asset detail, transaction history, Sepolia surfaces, liquidation dashboard
 - Send (9): BTC/UNIT send, turbo, address input, review
 - Ecash (5): cashu mint, send/receive, token details
 - Vault (9): create, deposit, borrow, repay, withdraw
 
 ```bash
-maestro test e2e/maestro/flows/auth/       # Auth suite
-maestro test e2e/maestro/flows/settings/   # Settings suite
-maestro test e2e/maestro/flows/wallet/     # Wallet suite
-bash e2e/maestro/run-all-sequential.sh     # All suites
+npm run e2e:auth       # Auth suite
+npm run e2e:settings   # Settings suite
+npm run e2e:wallet     # Wallet suite
+npm run e2e            # All maintained product suites
+npm run doctor:live    # Validate funded Mutinynet/Sepolia live-run prerequisites
+npm run e2e:live       # doctor:live, then long-running live/ad-hoc flows
+npm run e2e:validate   # Validate maintained Maestro suite references and docs count
 ```
 
 ## Troubleshooting

@@ -14,6 +14,10 @@ import { logger } from '../../utils/logger';
 import { MASTER_CONTRACT_ID, WALLET_CFG, MobileWalletInfo } from './types';
 import { createMobileWalletAPI } from './walletApi';
 
+const PROTOCOL_CONTRACT_CACHE_TTL_MS = 10 * 60 * 1000;
+let cachedProtocolContract: { contract: ProtocolProfile; fetchedAt: number } | null = null;
+let protocolContractInFlight: Promise<ProtocolProfile> | null = null;
+
 // Re-export types
 export type { MobileWalletInfo, SignatureData, PsbtFieldData } from './types';
 export { MASTER_CONTRACT_ID, WALLET_CFG } from './types';
@@ -45,16 +49,45 @@ export { createMobileWalletAPI } from './walletApi';
  * Fetches the protocol contract from the ord server
  */
 export async function fetchProtocolContract(): Promise<ProtocolProfile> {
-  logger.debug('[VaultWalletService] Fetching protocol contract...');
-
-  const res = await OracleAPI.proto.fetch_master_ctx(API.ORD_URL, MASTER_CONTRACT_ID);
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch protocol: ${res.error}`);
+  const now = Date.now();
+  if (cachedProtocolContract && now - cachedProtocolContract.fetchedAt < PROTOCOL_CONTRACT_CACHE_TTL_MS) {
+    return cachedProtocolContract.contract;
   }
 
-  logger.debug('[VaultWalletService] Protocol contract fetched');
-  return res.data;
+  if (protocolContractInFlight) {
+    return protocolContractInFlight;
+  }
+
+  logger.debug('[VaultWalletService] Fetching protocol contract...');
+
+  protocolContractInFlight = (async () => {
+    const res = await OracleAPI.proto.fetch_master_ctx(API.ORD_URL, MASTER_CONTRACT_ID);
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch protocol: ${res.error}`);
+    }
+
+    cachedProtocolContract = {
+      contract: res.data,
+      fetchedAt: Date.now(),
+    };
+    logger.debug('[VaultWalletService] Protocol contract fetched');
+    return res.data;
+  })();
+
+  try {
+    return await protocolContractInFlight;
+  } finally {
+    protocolContractInFlight = null;
+  }
+}
+
+export function prefetchProtocolContract(): void {
+  void fetchProtocolContract().catch((error: unknown) => {
+    logger.debug('[VaultWalletService] Protocol contract prefetch failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 }
 
 /**

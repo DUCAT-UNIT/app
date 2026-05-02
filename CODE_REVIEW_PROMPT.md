@@ -6,7 +6,7 @@ Use this prompt with Claude Code (or any LLM with codebase access) to perform a 
 
 ## Prompt
 
-You are reviewing **Ducat Wallet**, a non-custodial Bitcoin/Runes mobile wallet built with React Native (Expo SDK 54). The app supports BTC (SegWit + Taproot), UNIT (Runes token), Cashu e-cash (Turbo UNIT), vault operations, liquidation, push notifications, remote config, and PostHog analytics. It runs on Mutinynet testnet.
+You are reviewing **Ducat Wallet**, a non-custodial Bitcoin/Runes mobile wallet built with React Native (Expo SDK 54). The app supports BTC (SegWit + Taproot), UNIT (Runes token), Cashu e-cash (Turbo UNIT), vault operations, liquidation, push notifications, and PostHog analytics. It runs on Mutinynet testnet.
 
 Read `CLAUDE.md` first for architecture context, then perform a comprehensive code review covering every area below. For each finding, provide the file path, line number, severity (critical/high/medium/low), and a concrete fix.
 
@@ -24,7 +24,7 @@ Read `CLAUDE.md` first for architecture context, then perform a comprehensive co
 **Transaction Security:**
 - Review `services/transaction/btcTransaction.ts` — PSBT construction, input validation
 - Review `services/transaction/utxoSelection.ts` — dust limit handling, fee calculation edge cases
-- Review `services/signing/psbtService.ts` — signing context validation, `skipOutputValidation` usage
+- Review `services/signing/psbtService.ts` — signing context validation and external-spend limits
 - Review `services/vaultWallet/signingContext.ts` — PSBT template verification
 - Check: Can a malicious PSBT be injected via deep link or navigation params?
 - Check: Are all transaction amounts validated before signing?

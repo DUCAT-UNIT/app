@@ -5,6 +5,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "wallet-screen"
     timeout: 15000
+- runFlow: unlock-if-locked.yaml
 
 # Dismiss modals that may appear after wallet loads
 - runFlow: dismiss-low-ecash.yaml
@@ -19,6 +20,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - tapOn:
     id: "wallet-settings-btn"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "wallet-screen"
+    commands:
+      - tapOn:
+          id: "wallet-settings-btn"
 - extendedWaitUntil:
     visible:
       id: "settings-screen"

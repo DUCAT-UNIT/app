@@ -98,6 +98,7 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
         set({ intentStep: 'idle' });
         resetTimer = null;
       }, 10000);
+      (resetTimer as { unref?: () => void }).unref?.();
     } else {
       set({ intentStep: step });
     }
@@ -120,15 +121,6 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
     set(initialState);
   },
 }));
-
-/**
- * Selector hooks for granular subscriptions
- */
-export const useIntentStep = () => useSendFlowStore((state) => state.intentStep);
-export const useSendAssetType = () => useSendFlowStore((state) => state.sendAssetType);
-export const useSendAmount = () => useSendFlowStore((state) => state.sendAmount);
-export const useSendRecipient = () => useSendFlowStore((state) => state.sendRecipient);
-export const useTurboEnabled = () => useSendFlowStore((state) => state.turboEnabled);
 
 /**
  * Reset store to initial state (useful for testing)

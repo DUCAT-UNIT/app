@@ -27,6 +27,20 @@ jest.mock('../../vaultWallet/signingContext');
 jest.mock('../../vault/utils');
 jest.mock('../../vaultService');
 jest.mock('../calculations');
+jest.mock('../swapService', () => ({
+  fetchSwapPsbt: jest.fn().mockResolvedValue(null),
+  createSwapPayload: jest.fn((payload) => ({
+    utxos: payload.extraUtxos ? [payload.changeUtxo, ...payload.extraUtxos] : [],
+    amt_to_transfer: payload.swapBtcAmount,
+    unit_amt: Math.round(payload.swapClaimedUnit * 100),
+    payment_address: payload.paymentAddress,
+    ordinals_address: payload.ordinalsAddress,
+    btc_price: payload.btcPrice,
+    vault_id: payload.vaultTxId,
+  })),
+  calculateSwapBtcAmount: jest.fn(() => 0.001),
+  finalizeSwapPsbt: jest.fn(() => 'swap_tx_hex'),
+}));
 
 jest.mock('@ducat-unit/client-sdk', () => ({
   CONST: {
@@ -61,6 +75,15 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
   PSBT: {
     decode: jest.fn(),
     encode: jest.fn(),
+    parse: jest.fn(() => ({})),
+    extract: {
+      utxo: jest.fn(() => ({
+        txid: 'change-txid-001',
+        vout: 1,
+        value: 200_000,
+        script: '0014change',
+      })),
+    },
   },
   hash160: jest.fn(() => 'abc123'),
   taptweak_pubkey: jest.fn(() => 'def456'),
@@ -122,8 +145,11 @@ import {
 } from '../../vaultWallet/signingContext';
 import { buildVaultProfile, computeVaultPrevoutFromTx } from '../../vault/utils';
 import { fetchVaultHistory } from '../../vaultService';
+import { signPsbtRaw } from '../../signing';
 import { getAvailableCollateralBtc } from '../calculations';
+import { fetchSwapPsbt, finalizeSwapPsbt } from '../swapService';
 import { VaultAPI, select_sat_utxos } from '@ducat-unit/client-sdk';
+import { PSBT } from '@ducat-unit/client-sdk/util';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -267,9 +293,12 @@ const mockComputeVaultPrevoutFromTx = computeVaultPrevoutFromTx as jest.MockedFu
   typeof computeVaultPrevoutFromTx
 >;
 const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
+const mockSignPsbtRaw = signPsbtRaw as jest.MockedFunction<typeof signPsbtRaw>;
 const mockGetAvailableCollateralBtc = getAvailableCollateralBtc as jest.MockedFunction<
   typeof getAvailableCollateralBtc
 >;
+const mockFetchSwapPsbt = fetchSwapPsbt as jest.MockedFunction<typeof fetchSwapPsbt>;
+const mockFinalizeSwapPsbt = finalizeSwapPsbt as jest.MockedFunction<typeof finalizeSwapPsbt>;
 const mockSelectSatUtxos = select_sat_utxos as jest.MockedFunction<typeof select_sat_utxos>;
 const mockVaultApiRepoLiquidGetCtx = VaultAPI.repo.liquidation.get_ctx as jest.MockedFunction<
   typeof VaultAPI.repo.liquidation.get_ctx
@@ -350,6 +379,9 @@ describe('executeLiquidation', () => {
     mockVaultApiRepoCreatePsbt1.mockReturnValue('raw_psbt1_base64');
     mockVaultApiRepoCreatePsbt2.mockReturnValue('raw_psbt2_base64');
     mockVaultApiRepoCreateReq.mockReturnValue({ liquid_psbt: 'signed_psbt1_base64', liquid_txid: 'signed_psbt2_base64' } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
+    mockFetchSwapPsbt.mockResolvedValue(null);
+    mockSignPsbtRaw.mockResolvedValue('signed_swap_psbt_base64');
+    mockFinalizeSwapPsbt.mockReturnValue('swap_tx_hex');
     mockSetPendingVaultSigningOperation.mockImplementation(() => undefined);
     mockClearPendingVaultSigningOperation.mockImplementation(() => undefined);
     mockGetGuardianClient.mockResolvedValue(mockGuardian as unknown as ReturnType<typeof getGuardianClient> extends Promise<infer T> ? T : never);
@@ -574,6 +606,67 @@ describe('executeLiquidation', () => {
         'signed_psbt1_base64',
         'signed_psbt2_base64'
       );
+    });
+
+    it('should sign swap PSBTs with bounded external spend validation', async () => {
+      mockFetchSwapPsbt.mockResolvedValue({
+        psbt: 'swap_psbt_base64',
+        message: 'ok',
+        inputs: {},
+        outputs: {},
+        user_input_indices: [0],
+      } as unknown as Awaited<ReturnType<typeof fetchSwapPsbt>>);
+
+      const result = await executeLiquidation(makeParams());
+
+      expect(mockSignPsbtRaw).toHaveBeenCalledWith(
+        'swap_psbt_base64',
+        { 'tb1qsegwit000000000000000000000000000000': [0] },
+        {
+          recipient: 'tb1qsegwit000000000000000000000000000000',
+          allowOpReturn: true,
+          externalSpend: {
+            returnAddresses: [
+              'tb1qsegwit000000000000000000000000000000',
+              'tb1ptaproot00000000000000000000000000000',
+            ],
+            requiredOutputAddresses: ['tb1ptaproot00000000000000000000000000000'],
+            maxSpendSats: 110_000,
+          },
+        }
+      );
+      expect(mockFinalizeSwapPsbt).toHaveBeenCalledWith(
+        'signed_swap_psbt_base64',
+        'tb1ptaproot00000000000000000000000000000'
+      );
+      expect(result.swapPsbtHex).toBe('swap_tx_hex');
+    });
+
+    it('should select extra swap UTXOs when change covers swap amount but not fee buffer', async () => {
+      const repoUtxo = { txid: 'repo-utxo', vout: 0, value: 100_000, script: '0014repo' };
+      const extraUtxo = { txid: 'extra-utxo', vout: 1, value: 25_000, script: '0014extra' };
+      const changeUtxo = { txid: 'change-utxo', vout: 1, value: 104_000, script: '0014change' };
+      mockWallet.fetch.sats_utxos.mockResolvedValue([repoUtxo, extraUtxo]);
+      mockSelectSatUtxos.mockImplementation((_utxos, amount) => {
+        if (amount === 5000) {
+          return [repoUtxo] as unknown as ReturnType<typeof select_sat_utxos>;
+        }
+        if (amount === 6000) {
+          return [extraUtxo] as unknown as ReturnType<typeof select_sat_utxos>;
+        }
+        return [] as unknown as ReturnType<typeof select_sat_utxos>;
+      });
+      (PSBT.extract.utxo as jest.Mock).mockReturnValueOnce(changeUtxo);
+
+      await executeLiquidation(makeParams());
+
+      expect(mockSelectSatUtxos).toHaveBeenCalledWith([extraUtxo], 6000);
+      expect(mockFetchSwapPsbt).toHaveBeenCalledWith(expect.objectContaining({
+        utxos: [
+          changeUtxo,
+          extraUtxo,
+        ],
+      }));
     });
 
     it('should attach contract_id and network from wallet to the request', async () => {
@@ -821,15 +914,13 @@ describe('executeLiquidation', () => {
       expect(result.error).toBe('Insufficient funds for liquidation');
     });
 
-    it('should return success:false when select_sat_utxos returns null (TypeError from logger.debug access)', async () => {
-      // The code calls utxos.length inside logger.debug BEFORE the null-guard check,
-      // so null causes a TypeError rather than reaching the explicit error message.
+    it('should return insufficient funds when select_sat_utxos returns null', async () => {
       mockSelectSatUtxos.mockReturnValue(null as unknown as ReturnType<typeof select_sat_utxos>);
 
       const result = await executeLiquidation(makeParams());
 
       expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
+      expect(result.error).toBe('Insufficient funds for liquidation');
     });
 
     it('should not call setPendingVaultSigningOperation when UTXOs are insufficient', async () => {

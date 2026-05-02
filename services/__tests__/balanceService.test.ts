@@ -7,6 +7,7 @@ import {
   fetchWalletBalances,
   fetchUtxos,
   fetchBtcPrice,
+  fetchEthPrice,
 } from '../balanceService';
 
 // Mock dependencies
@@ -20,6 +21,10 @@ jest.mock('../../utils/constants', () => ({
   getAddressUrl: jest.fn((address: string) => `https://api.example.com/address/${address}`),
   getAddressUtxoUrl: jest.fn((address: string) => `https://api.example.com/address/${address}/utxo`),
   getOrdAddressUrl: jest.fn((address: string) => `https://api.example.com/ord/address/${address}`),
+  API: {
+    PRICE_SERVER: 'https://price.example.com',
+    COINGECKO: 'https://api.example.com/coingecko',
+  },
   API_KEYS: {
     COINGECKO: undefined, // No API key by default in tests
   },
@@ -38,6 +43,7 @@ const { getJSON, fetchParallel } = jest.requireMock('../../utils/apiClient') as 
 describe('balanceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.requireMock('../../utils/constants').API_KEYS.COINGECKO = undefined;
   });
 
   describe('fetchWalletBalances', () => {
@@ -252,11 +258,10 @@ describe('balanceService', () => {
   });
 
   describe('fetchBtcPrice', () => {
-    it('should fetch current BTC price in USD', async () => {
+    it('should fetch current BTC price from the DUCAT price server first', async () => {
       const mockPriceData = {
-        bitcoin: {
-          usd: 45000.50,
-        },
+        price: 45000.50,
+        stamp: 123456,
       };
 
       getJSON.mockResolvedValueOnce(mockPriceData);
@@ -265,7 +270,25 @@ describe('balanceService', () => {
 
       expect(result).toBe(45000.50);
       expect(getJSON).toHaveBeenCalledWith(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
+        'https://price.example.com/api/price/latest',
+        expect.objectContaining({
+          timeout: 10000,
+          description: 'Fetch BTC price from DUCAT price server'
+        })
+      );
+    });
+
+    it('should fall back to CoinGecko if the DUCAT price server fails', async () => {
+      getJSON
+        .mockRejectedValueOnce(new Error('DUCAT price unavailable'))
+        .mockResolvedValueOnce({ bitcoin: { usd: 46000 } });
+
+      const result = await fetchBtcPrice();
+
+      expect(result).toBe(46000);
+      expect(getJSON).toHaveBeenNthCalledWith(
+        2,
+        'https://api.example.com/coingecko/simple/price?ids=bitcoin&vs_currencies=usd',
         expect.objectContaining({
           headers: {},
           description: 'Fetch BTC price'
@@ -274,7 +297,9 @@ describe('balanceService', () => {
     });
 
     it('should return null if fetch fails', async () => {
-      getJSON.mockRejectedValueOnce(new Error('Service Unavailable'));
+      getJSON
+        .mockRejectedValueOnce(new Error('Service Unavailable'))
+        .mockRejectedValueOnce(new Error('CoinGecko unavailable'));
 
       const result = await fetchBtcPrice();
 
@@ -282,7 +307,9 @@ describe('balanceService', () => {
     });
 
     it('should return null if response is invalid', async () => {
-      getJSON.mockResolvedValueOnce({});
+      getJSON
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({});
 
       const result = await fetchBtcPrice();
 
@@ -290,7 +317,9 @@ describe('balanceService', () => {
     });
 
     it('should return null on network error', async () => {
-      getJSON.mockRejectedValueOnce(new Error('Network error'));
+      getJSON
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'));
 
       const result = await fetchBtcPrice();
 
@@ -300,23 +329,79 @@ describe('balanceService', () => {
     it('should include API key header when configured', async () => {
       // Temporarily set API key
       const constantsMock = jest.requireMock('../../utils/constants');
-      const originalApiKeys = constantsMock.API_KEYS;
-      constantsMock.API_KEYS = { COINGECKO: 'test-api-key' };
+      const originalApiKey = constantsMock.API_KEYS.COINGECKO;
+      constantsMock.API_KEYS.COINGECKO = 'test-api-key';
 
       const mockPriceData = { bitcoin: { usd: 50000 } };
-      getJSON.mockResolvedValueOnce(mockPriceData);
+      getJSON
+        .mockRejectedValueOnce(new Error('DUCAT price unavailable'))
+        .mockResolvedValueOnce(mockPriceData);
 
       await fetchBtcPrice();
 
-      expect(getJSON).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(getJSON).toHaveBeenNthCalledWith(
+        2,
+        'https://api.example.com/coingecko/simple/price?ids=bitcoin&vs_currencies=usd',
         expect.objectContaining({
           headers: { 'x-cg-demo-api-key': 'test-api-key' },
         })
       );
 
       // Restore original API keys
-      constantsMock.API_KEYS = originalApiKeys;
+      constantsMock.API_KEYS.COINGECKO = originalApiKey;
+    });
+  });
+
+  describe('fetchEthPrice', () => {
+    it('should fetch current ETH price from CoinGecko', async () => {
+      getJSON.mockResolvedValueOnce({ ethereum: { usd: 3250.75 } });
+
+      const result = await fetchEthPrice();
+
+      expect(result).toBe(3250.75);
+      expect(getJSON).toHaveBeenCalledWith(
+        'https://api.example.com/coingecko/simple/price?ids=ethereum&vs_currencies=usd',
+        expect.objectContaining({
+          headers: {},
+          timeout: 10000,
+          description: 'Fetch ETH price',
+        })
+      );
+    });
+
+    it('should return null if ETH price response is invalid', async () => {
+      getJSON.mockResolvedValueOnce({ ethereum: { usd: 0 } });
+
+      const result = await fetchEthPrice();
+
+      expect(result).toBeNull();
+    });
+
+    it('should include API key header when configured', async () => {
+      const constantsMock = jest.requireMock('../../utils/constants');
+      const originalApiKey = constantsMock.API_KEYS.COINGECKO;
+      constantsMock.API_KEYS.COINGECKO = 'test-api-key';
+
+      getJSON.mockResolvedValueOnce({ ethereum: { usd: 3250 } });
+
+      await fetchEthPrice();
+
+      expect(getJSON).toHaveBeenCalledWith(
+        'https://api.example.com/coingecko/simple/price?ids=ethereum&vs_currencies=usd',
+        expect.objectContaining({
+          headers: { 'x-cg-demo-api-key': 'test-api-key' },
+        })
+      );
+
+      constantsMock.API_KEYS.COINGECKO = originalApiKey;
+    });
+
+    it('should return null on network error', async () => {
+      getJSON.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await fetchEthPrice();
+
+      expect(result).toBeNull();
     });
   });
 

@@ -19,6 +19,7 @@ import { colors, fonts, fontSizes, fontWeights, radii, layout } from '../../styl
 import Icon from '../icons';
 import { logger } from '../../utils/logger';
 import { notify } from '../../utils/notify';
+import { isE2E } from '../../utils/e2e';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
@@ -273,7 +274,7 @@ export default function ImportWalletScreen({
             (!isComplete || isImporting) && styles.buttonDisabled,
           ]}
           onPress={onImport}
-          disabled={(!isComplete && !(__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true')) || isImporting}
+          disabled={(!isComplete && !isE2E()) || isImporting}
           activeOpacity={0.8}
           testID="import-wallet-btn"
         >

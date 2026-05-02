@@ -96,8 +96,8 @@ describe('matchesAddressType', () => {
     expect(matchesAddressType('1test', 'all')).toBe(true);
   });
 
-  it('should match mainnet segwit addresses', () => {
-    expect(matchesAddressType('bc1qsegwit', 'segwit')).toBe(true);
+  it('should reject mainnet segwit addresses for Mutinynet filters', () => {
+    expect(matchesAddressType('bc1qsegwit', 'segwit')).toBe(false);
     expect(matchesAddressType('bc1qsegwit', 'taproot')).toBe(false);
   });
 
@@ -106,8 +106,8 @@ describe('matchesAddressType', () => {
     expect(matchesAddressType('tb1qsegwit', 'taproot')).toBe(false);
   });
 
-  it('should match mainnet taproot addresses', () => {
-    expect(matchesAddressType('bc1ptaproot', 'taproot')).toBe(true);
+  it('should reject mainnet taproot addresses for Mutinynet filters', () => {
+    expect(matchesAddressType('bc1ptaproot', 'taproot')).toBe(false);
     expect(matchesAddressType('bc1ptaproot', 'segwit')).toBe(false);
   });
 
@@ -126,18 +126,18 @@ describe('getUnconfirmedUTXOsFromPending', () => {
   const mockPendingTxs = {
     tx1: {
       txid: 'tx1',
-      status: 'pending',
-      assetType: 'btc',
-      outputs: [
-        { vout: 0, address: 'bc1qsegwit', value: 50000 },
-        { vout: 1, address: 'bc1ptaproot', value: 30000 },
+        status: 'pending',
+        assetType: 'btc',
+        outputs: [
+        { vout: 0, address: 'tb1qsegwit', value: 50000 },
+        { vout: 1, address: 'tb1ptaproot', value: 30000 },
       ],
     },
     tx2: {
       txid: 'tx2',
       status: 'invalid',
       assetType: 'btc',
-      outputs: [{ vout: 0, address: 'bc1qsegwit', value: 10000 }],
+      outputs: [{ vout: 0, address: 'tb1qsegwit', value: 10000 }],
     },
   } as Record<string, PendingTransaction>;
 
@@ -153,14 +153,14 @@ describe('getUnconfirmedUTXOsFromPending', () => {
     const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'segwit', new Set<string>());
 
     expect(result.length).toBe(1);
-    expect(result[0].address).toBe('bc1qsegwit');
+    expect(result[0].address).toBe('tb1qsegwit');
   });
 
   it('should filter by taproot addresses', () => {
     const result = getUnconfirmedUTXOsFromPending(mockPendingTxs, 'taproot', new Set<string>());
 
     expect(result.length).toBe(1);
-    expect(result[0].address).toBe('bc1ptaproot');
+    expect(result[0].address).toBe('tb1ptaproot');
   });
 
   it('should exclude specified UTXOs', () => {
@@ -184,7 +184,7 @@ describe('getUnconfirmedUTXOsFromPending', () => {
         status: 'pending',
         assetType: 'runes',
         parentTxid: 'parent1',
-        outputs: [{ vout: 0, address: 'bc1qtest', value: 1000 }],
+        outputs: [{ vout: 0, address: 'tb1qtest', value: 1000 }],
       },
     } as Record<string, PendingTransaction>;
 

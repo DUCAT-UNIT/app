@@ -7,6 +7,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { retrySilently } from '../utils/retry';
 import { getBroadcastUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { fetchWithTimeout } from '../utils/api';
 
 /**
  * Broadcast a signed transaction to the Bitcoin network
@@ -34,10 +35,10 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
 
     const response = await retrySilently(
       () =>
-        fetch(getBroadcastUrl(), {
+        fetchWithTimeout(getBroadcastUrl(), {
           method: 'POST',
           body: signedTxHex,
-        }),
+        }, 10000),
       { maxRetries: 2 } // Fewer retries for broadcasts
     );
 

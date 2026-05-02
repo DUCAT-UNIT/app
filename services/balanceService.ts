@@ -3,9 +3,10 @@
  */
 
 import { getJSON, fetchParallel } from '../utils/apiClient';
-import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS } from '../utils/constants';
+import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS, API } from '../utils/constants';
 import { satsToBTC } from '../utils/bitcoin/conversions';
 import { e2eVaultState } from '../utils/e2eVaultState';
+import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
@@ -49,10 +50,61 @@ interface OrdAddressData {
 }
 
 interface CoinGeckoResponse {
-  bitcoin: {
-    usd: number;
+  bitcoin?: {
+    usd?: number;
+  };
+  ethereum?: {
+    usd?: number;
   };
 }
+
+interface DucatPriceServerResponse {
+  price?: number;
+  curr_price?: number;
+  current_price?: number;
+}
+
+const isValidUsdPrice = (price: unknown): price is number => (
+  typeof price === 'number'
+  && Number.isFinite(price)
+  && price > 0
+  && price < 10_000_000
+);
+
+const getCoinGeckoHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {};
+  if (API_KEYS.COINGECKO) {
+    headers['x-cg-demo-api-key'] = API_KEYS.COINGECKO;
+  }
+  return headers;
+};
+
+const extractBtcUsdPrice = (data: unknown): number | null => {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const response = data as DucatPriceServerResponse & Partial<CoinGeckoResponse>;
+  const candidates = [
+    response.price,
+    response.curr_price,
+    response.current_price,
+    response.bitcoin?.usd,
+  ];
+
+  const price = candidates.find(isValidUsdPrice);
+  return price ?? null;
+};
+
+const extractEthUsdPrice = (data: unknown): number | null => {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const response = data as Partial<CoinGeckoResponse>;
+  const price = response.ethereum?.usd;
+  return isValidUsdPrice(price) ? price : null;
+};
 
 /**
  * Fetch wallet balances for SegWit, Taproot, and Runes
@@ -126,7 +178,7 @@ export const fetchWalletBalances = async (
         // E2E bypass: return fake Runes balance when vault was created via bypass
         // Note: ord indexer returns amounts in display format (divisibility already applied)
         // so getRunesAmount uses parseFloat(amount) directly
-        if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && e2eVaultState.vaultCreated && e2eVaultState.unitBorrowed > 0) {
+        if (isE2E() && e2eVaultState.vaultCreated && e2eVaultState.unitBorrowed > 0) {
           return [{
             rune: 'DUCAT•UNIT•RUNE',
             runeid: '1527352:1',
@@ -149,6 +201,7 @@ export const fetchWalletBalances = async (
   let overallTimeoutId: ReturnType<typeof setTimeout> | null = null;
   const overallTimeout = new Promise<(number | RuneBalance[])[]>((_, reject) => {
     overallTimeoutId = setTimeout(() => reject(new Error('Overall balance fetch timed out')), OVERALL_FETCH_TIMEOUT);
+    (overallTimeoutId as { unref?: () => void }).unref?.();
   });
 
   let results: (number | RuneBalance[])[];
@@ -200,22 +253,62 @@ export const fetchUtxos = async (address: string): Promise<UTXO[]> => {
  * @returns BTC price in USD, or null if unavailable
  */
 export const fetchBtcPrice = async (): Promise<number | null> => {
-  try {
-    const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd';
+  const ducatPriceUrl = `${API.PRICE_SERVER}/api/price/latest`;
 
-    // Optionally include API key if configured (increases rate limits)
-    const headers: Record<string, string> = {};
-    if (API_KEYS.COINGECKO) {
-      headers['x-cg-demo-api-key'] = API_KEYS.COINGECKO;
+  try {
+    const data = await getJSON<DucatPriceServerResponse>(ducatPriceUrl, {
+      timeout: BALANCE_FETCH_TIMEOUT,
+      description: 'Fetch BTC price from DUCAT price server',
+    });
+    const price = extractBtcUsdPrice(data);
+    if (price) {
+      return price;
     }
 
+    logger.warn('[balanceService] DUCAT price server returned invalid BTC price', { data });
+  } catch (error: unknown) {
+    logger.debug('[balanceService] DUCAT price server unavailable, falling back to CoinGecko', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  try {
+    const url = `${API.COINGECKO}/simple/price?ids=bitcoin&vs_currencies=usd`;
+
     const data = await getJSON<CoinGeckoResponse>(url, {
-      headers,
+      headers: getCoinGeckoHeaders(),
       description: 'Fetch BTC price',
     });
 
-    return data.bitcoin.usd;
+    return extractBtcUsdPrice(data);
   } catch (error: unknown) {
+    logger.debug('[balanceService] Failed to fetch BTC price from all sources', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+};
+
+/**
+ * Fetch current ETH price in USD.
+ * Sepolia ETH itself is testnet-only, but the wallet uses mainnet ETH/USD as
+ * the reference price for portfolio math and gas balance visibility.
+ * @returns ETH price in USD, or null if unavailable
+ */
+export const fetchEthPrice = async (): Promise<number | null> => {
+  try {
+    const url = `${API.COINGECKO}/simple/price?ids=ethereum&vs_currencies=usd`;
+    const data = await getJSON<CoinGeckoResponse>(url, {
+      headers: getCoinGeckoHeaders(),
+      timeout: BALANCE_FETCH_TIMEOUT,
+      description: 'Fetch ETH price',
+    });
+
+    return extractEthUsdPrice(data);
+  } catch (error: unknown) {
+    logger.debug('[balanceService] Failed to fetch ETH price', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };

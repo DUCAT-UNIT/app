@@ -353,60 +353,6 @@ export const keypad = StyleSheet.create({
 });
 
 // =============================================================================
-// ICONS
-// =============================================================================
-
-export const icon = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  round: {
-    borderRadius: radii.full,
-    backgroundColor: colors.bg.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roundBrand: {
-    borderRadius: radii.full,
-    backgroundColor: colors.brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sm: { width: sizes.icon.sm, height: sizes.icon.sm },
-  md: { width: sizes.icon.md, height: sizes.icon.md },
-  lg: { width: sizes.icon.lg, height: sizes.icon.lg },
-  xl: { width: sizes.icon.xl, height: sizes.icon.xl },
-});
-
-// =============================================================================
-// AVATARS
-// =============================================================================
-
-export const avatar = StyleSheet.create({
-  sm: {
-    width: sizes.avatar.sm,
-    height: sizes.avatar.sm,
-    borderRadius: sizes.avatar.sm / 2,
-  },
-  md: {
-    width: sizes.avatar.md,
-    height: sizes.avatar.md,
-    borderRadius: sizes.avatar.md / 2,
-  },
-  lg: {
-    width: sizes.avatar.lg,
-    height: sizes.avatar.lg,
-    borderRadius: sizes.avatar.lg / 2,
-  },
-  xl: {
-    width: sizes.avatar.xl,
-    height: sizes.avatar.xl,
-    borderRadius: sizes.avatar.xl / 2,
-  },
-});
-
-// =============================================================================
 // TOAST
 // =============================================================================
 
@@ -444,19 +390,3 @@ export const toast = StyleSheet.create({
 });
 
 // =============================================================================
-// COMBINED EXPORT
-// =============================================================================
-
-export const c = {
-  button,
-  card,
-  input,
-  modal,
-  sheet,
-  keypad,
-  icon,
-  avatar,
-  toast,
-};
-
-export default c;

@@ -22,20 +22,20 @@ interface StepConfig {
 
 const STEPS: Record<ProcessingStep, StepConfig> = {
   1: {
-    title: 'Awaiting user signatures',
-    description: 'Approval for deposit and borrow',
+    title: 'Preparing request',
+    description: 'Checking vault details and balances',
   },
   2: {
-    title: 'Request received by node',
-    description: 'Initiating transaction process',
+    title: 'Connecting to node',
+    description: 'Opening the Guardian session',
   },
   3: {
-    title: 'Validation in progress',
-    description: 'Confirming transaction details',
+    title: 'Building transaction',
+    description: 'Finalizing the vault request',
   },
   4: {
-    title: 'Network approvals',
-    description: 'Gathering necessary approvals',
+    title: 'Submitting request',
+    description: 'Broadcasting and waiting for approvals',
   },
 };
 
@@ -142,41 +142,6 @@ function ProcessingStepItem({
   );
 }
 
-interface VaultStepIndicatorProps {
-  currentStep: 1 | 2 | 3 | 4;
-  totalSteps?: number;
-}
-
-export function VaultStepIndicator({
-  currentStep,
-  totalSteps = 4,
-}: VaultStepIndicatorProps) {
-  return (
-    <View style={styles.indicatorContainer}>
-      {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => (
-        <View key={step} style={styles.indicatorRow}>
-          <View
-            style={[
-              styles.dot,
-              step < currentStep && styles.dotCompleted,
-              step === currentStep && styles.dotCurrent,
-              step > currentStep && styles.dotPending,
-            ]}
-          />
-          {step < totalSteps && (
-            <View
-              style={[
-                styles.line,
-                step < currentStep && styles.lineCompleted,
-              ]}
-            />
-          )}
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -255,40 +220,5 @@ const styles = StyleSheet.create({
     bottom: 4,
     width: 2,
     backgroundColor: colors.border.default,
-  },
-  // Step indicator styles
-  indicatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.md,
-  },
-  indicatorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: radii.full,
-  },
-  dotCompleted: {
-    backgroundColor: colors.semantic.success,
-  },
-  dotCurrent: {
-    backgroundColor: colors.brand.primary,
-  },
-  dotPending: {
-    backgroundColor: colors.bg.tertiary,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  line: {
-    width: 40,
-    height: 2,
-    backgroundColor: colors.bg.tertiary,
-  },
-  lineCompleted: {
-    backgroundColor: colors.semantic.success,
   },
 });

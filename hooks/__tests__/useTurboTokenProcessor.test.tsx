@@ -498,6 +498,38 @@ describe('useTurboTokenProcessor', () => {
 
       expect(mockStoreState.triggerWalletReload).toHaveBeenCalled();
     });
+
+    it('should not trigger delayed wallet reload after unmount', async () => {
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuAtoken123';
+        }
+        return null;
+      });
+
+      const { unmount } = renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+
+      expect(mockProps.fetchBalance).toHaveBeenCalled();
+      mockStoreState.triggerWalletReload.mockClear();
+
+      act(() => {
+        unmount();
+      });
+      mockStoreState.triggerWalletReload.mockClear();
+      act(() => {
+        jest.advanceTimersByTime(1100);
+      });
+
+      expect(mockStoreState.triggerWalletReload).not.toHaveBeenCalled();
+    });
   });
 
   describe('polling behavior', () => {

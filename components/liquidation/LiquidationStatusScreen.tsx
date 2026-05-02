@@ -67,19 +67,30 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   useEffect(() => {
     if (!isProcessing) return;
     setVisualStep(1);
+    let interval: ReturnType<typeof setInterval> | null = null;
     const delay = setTimeout(() => {
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         setVisualStep((prev) => {
           if (prev >= 4) {
-            clearInterval(interval);
+            if (interval) {
+              clearInterval(interval);
+              interval = null;
+            }
             return 4;
           }
           return (prev + 1) as ProcessingStep;
         });
       }, STEP_ADVANCE_INTERVAL);
-      return () => clearInterval(interval);
+      (interval as { unref?: () => void }).unref?.();
     }, INITIAL_DELAY);
-    return () => clearTimeout(delay);
+    (delay as { unref?: () => void }).unref?.();
+    return () => {
+      clearTimeout(delay);
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
   }, [isProcessing]);
 
   // ── Success handlers ──

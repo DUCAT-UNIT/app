@@ -53,14 +53,14 @@ export function useNotifications(
 
   // Initialize push notifications when wallet is available and notifications enabled
   useEffect(() => {
-    if (isE2E || !walletAddress) return;
+    if (isE2E() || !walletAddress) return;
     void (async () => {
       // Use the reactive prop if provided, otherwise fall back to async check
       const enabled = notificationsEnabled ?? (await getNotificationsEnabled());
       if (enabled) {
         const token = await initializePushNotifications(walletAddress, vaultPubkey);
         if (token) {
-          logger.info('[Notifications] Push token registered', { token: token.substring(0, 20) });
+          logger.info('[Notifications] Push token registered', { tokenLength: token.length });
         }
       }
     })();
@@ -147,7 +147,7 @@ export function useNotifications(
     txid: string,
     type: TransactionType = 'withdraw'
   ): Promise<void> => {
-    if (isE2E) return;
+    if (isE2E()) return;
 
     try {
       const action = type === 'deposit' ? 'Received' : 'Sent';

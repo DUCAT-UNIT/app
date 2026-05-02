@@ -8,8 +8,9 @@ on:
 
 jobs:
   quality:
-    name: Typecheck, Lint & Dead Code
+    name: Verify
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -20,12 +21,5 @@ jobs:
 
       - run: npm ci
 
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Lint
-        run: npx eslint . --ext .js,.jsx,.ts,.tsx --max-warnings 0
-
-      - name: Dead code detection
-        run: npx knip
-        continue-on-error: true  # Warning mode — will fail-hard after initial baseline
+      - name: Verify project quality gates
+        run: npm run verify

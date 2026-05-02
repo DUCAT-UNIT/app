@@ -259,12 +259,10 @@ This document provides step-by-step instructions for manually testing all applic
 **Steps:**
 1. Tap "Send" in bottom navigation
 2. On AssetSelectorScreen, select "BTC"
-3. On AddressInputScreen:
+3. On SendInputScreen:
    - Enter valid Bitcoin address
-   - Tap "Continue"
-4. On AmountInputScreen:
    - Enter amount in BTC or USD
-   - Tap "Continue"
+   - Tap "Review"
 5. On ReviewScreen:
    - Verify recipient address
    - Verify amount
@@ -290,12 +288,10 @@ This document provides step-by-step instructions for manually testing all applic
 **Steps:**
 1. Tap "Send" in bottom navigation
 2. On AssetSelectorScreen, select "UNIT"
-3. On AddressInputScreen:
+3. On SendInputScreen:
    - Enter valid UNIT address
-   - Tap "Continue"
-4. On AmountInputScreen:
    - Enter amount
-   - Tap "Continue"
+   - Tap "Review"
 5. On ReviewScreen:
    - Verify all details
    - Tap "Send"
@@ -340,7 +336,7 @@ This document provides step-by-step instructions for manually testing all applic
 **Steps:**
 1. Tap "Send" in bottom navigation
 2. Select asset
-3. On AddressInputScreen, tap QR scanner icon
+3. On SendInputScreen, tap QR scanner icon
 4. QRScanner opens
 5. Point camera at QR code
 6. Verify address populates
@@ -360,7 +356,7 @@ This document provides step-by-step instructions for manually testing all applic
 
 **Steps:**
 1. Copy a valid address to clipboard
-2. Navigate to Send → Asset → AddressInputScreen
+2. Navigate to Send -> Asset -> SendInputScreen
 3. Tap "Paste" button
 4. Verify address populates
 
@@ -376,7 +372,7 @@ This document provides step-by-step instructions for manually testing all applic
 **Preconditions:** Wallet with balance
 
 **Steps:**
-1. Navigate to Send → Asset → Address → AmountInputScreen
+1. Navigate to Send -> Asset -> SendInputScreen
 2. Tap "MAX" button
 3. Observe amount field
 
@@ -392,13 +388,13 @@ This document provides step-by-step instructions for manually testing all applic
 **Preconditions:** Wallet with low/zero balance
 
 **Steps:**
-1. Navigate to Send → Asset → Address → AmountInputScreen
+1. Navigate to Send -> Asset -> SendInputScreen
 2. Enter amount greater than balance
-3. Tap "Continue"
+3. Tap "Review"
 
 **Expected Results:**
 - Error message displays
-- Cannot proceed past amount screen
+- Cannot proceed past send input screen
 - For Turbo: InsufficientTurboSheet appears
 
 ---
@@ -408,13 +404,13 @@ This document provides step-by-step instructions for manually testing all applic
 **Preconditions:** Wallet with balance
 
 **Steps:**
-1. Navigate to Send → Asset → AddressInputScreen
+1. Navigate to Send -> Asset -> SendInputScreen
 2. Enter invalid address (wrong format, wrong network)
-3. Tap "Continue"
+3. Tap "Review"
 
 **Expected Results:**
 - Validation error appears
-- Cannot proceed to amount screen
+- Cannot proceed to review screen
 - Clear error message explains issue
 
 ---

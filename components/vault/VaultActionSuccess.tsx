@@ -4,20 +4,26 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-import { Text, View, StyleSheet, Linking, TouchableOpacity } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import TouchableScale from '../common/TouchableScale';
-import { ReceiveAssetBadge } from '../vaultAction';
 import { useNotifications } from '../../stores/notificationStore';
+import { EVM_CONFIG } from '../../constants/evm';
 import { getTxUrl } from '../../utils/constants';
-import { formatFiat, formatBTC } from '../../utils/formatters';
+import { formatBTC, formatFiat } from '../../utils/formatters';
 import { formatVaultUsd } from '../../utils/vaultFaceValue';
-import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 
 export type VaultActionType = 'create' | 'deposit' | 'withdraw' | 'borrow' | 'repay';
+
+interface VaultActionTxItem {
+  label: string;
+  txid: string;
+  explorerUrl: string;
+}
 
 interface VaultActionSuccessProps {
   actionType: VaultActionType;
@@ -27,6 +33,7 @@ interface VaultActionSuccessProps {
   unit: 'BTC' | 'UNIT' | 'USD' | 'USDC' | 'wUNIT';
   titleOverride?: string;
   messageOverride?: string;
+  txItems?: VaultActionTxItem[];
   onDone: () => void;
 }
 
@@ -53,6 +60,10 @@ const ACTION_CONFIG = {
   },
 };
 
+function truncateTxid(txid: string): string {
+  return `${txid.slice(0, 8)}...${txid.slice(-8)}`;
+}
+
 export default function VaultActionSuccess({
   actionType,
   amount,
@@ -61,6 +72,7 @@ export default function VaultActionSuccess({
   unit,
   titleOverride,
   messageOverride,
+  txItems,
   onDone,
 }: VaultActionSuccessProps) {
   const { showToast } = useNotifications();
@@ -70,34 +82,29 @@ export default function VaultActionSuccess({
     message: messageOverride || ACTION_CONFIG[actionType].message,
   };
 
-  // Trigger haptic feedback on mount
+  const resolvedTxItems: VaultActionTxItem[] = txItems && txItems.length > 0
+    ? txItems
+    : txid
+      ? [{ label: 'Transaction', txid, explorerUrl: getTxUrl(txid) }]
+      : [];
+
   useEffect(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
 
-  // Copy transaction ID to clipboard
-  const handleCopyTxid = useCallback(async () => {
-    if (txid) {
-      await Clipboard.setStringAsync(txid);
+  const handleCopyTxid = useCallback(
+    async (value: string) => {
+      await Clipboard.setStringAsync(value);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       showToast('Transaction ID copied');
-    }
-  }, [txid, showToast]);
+    },
+    [showToast],
+  );
 
-  // Open transaction in explorer
-  const handleViewExplorer = useCallback(() => {
-    if (txid) {
-      const url = getTxUrl(txid);
-      Linking.openURL(url);
-    }
-  }, [txid]);
+  const handleOpenExplorer = useCallback((url: string) => {
+    Linking.openURL(url);
+  }, []);
 
-  // Truncate txid for display
-  const truncatedTxid = txid
-    ? `${txid.slice(0, 8)}...${txid.slice(-8)}`
-    : '';
-
-  // Format amount based on unit
   const formattedAmount = unit === 'BTC'
     ? `${formatBTC(amount)} BTC`
     : unit === 'USD'
@@ -108,45 +115,44 @@ export default function VaultActionSuccess({
           ? `${amount.toFixed(2)} wUNIT`
           : `${amount.toFixed(2)} UNIT`;
   const shouldShowUsdApproximation = unit !== 'USD' && unit !== 'USDC';
-  const receivesAssetBadge = unit === 'USDC' || unit === 'UNIT' || unit === 'wUNIT';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID={`vault-${actionType}-success-screen`}>
-      <View style={styles.content}>
-        {/* Success Icon */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
             <Ionicons name="checkmark" size={48} color={colors.semantic.success} />
           </View>
         </View>
 
-        {/* Success Message */}
         <Text style={styles.title}>{config.title}</Text>
         <Text style={styles.amount}>{formattedAmount}</Text>
         {shouldShowUsdApproximation && (
           <Text style={styles.amountUsd}>≈ ${formatFiat(usdValue)}</Text>
         )}
-        {receivesAssetBadge && (
-          <View style={styles.badgeWrap}>
-            <ReceiveAssetBadge asset={unit as 'USDC' | 'UNIT' | 'wUNIT'} />
-          </View>
-        )}
 
-        {/* Transaction Links */}
-        {txid && (
+        {resolvedTxItems.length > 0 && (
           <View style={styles.linksContainer}>
-            <Text style={styles.linksTitle}>Transaction</Text>
-            <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
-              <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
-              <Text style={styles.txId}>{truncatedTxid}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity onPress={handleViewExplorer} style={styles.linkRow} activeOpacity={0.7}>
-              <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
-              <Text style={styles.explorerText}>View on Explorer</Text>
-            </TouchableOpacity>
+            <Text style={styles.linksTitle}>Transactions</Text>
+            {resolvedTxItems.map((item, index) => (
+              <View key={`${item.label}-${item.txid}`} style={styles.txItem}>
+                <Text style={styles.txLabel}>{item.label}</Text>
+                <TouchableOpacity onPress={() => handleCopyTxid(item.txid)} style={styles.linkRow} activeOpacity={0.7}>
+                  <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
+                  <Text style={styles.txId}>{truncateTxid(item.txid)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleOpenExplorer(item.explorerUrl)} style={styles.linkRow} activeOpacity={0.7}>
+                  <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
+                  <Text style={styles.explorerText}>View on Explorer</Text>
+                </TouchableOpacity>
+                {index < resolvedTxItems.length - 1 && <View style={styles.divider} />}
+              </View>
+            ))}
           </View>
         )}
 
@@ -154,11 +160,10 @@ export default function VaultActionSuccess({
           <Ionicons name="time-outline" size={14} color={colors.text.tertiary} />
           <Text style={styles.infoText}>{config.message}</Text>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Done Button */}
       <View style={styles.footer}>
-        <TouchableScale style={styles.doneButton} onPress={onDone} testID="vault-success-done-btn">
+        <TouchableScale style={styles.doneButton} onPress={onDone} testID="vault-success-done-btn" pressLockMs={700}>
           <Text style={styles.doneText}>Done</Text>
         </TouchableScale>
       </View>
@@ -166,19 +171,48 @@ export default function VaultActionSuccess({
   );
 }
 
+export function buildVaultSuccessTxItems(params: {
+  mutinynetTxid?: string | null;
+  sepoliaTxHash?: string | null;
+  includeSepolia?: boolean;
+}): VaultActionTxItem[] {
+  const items: VaultActionTxItem[] = [];
+
+  if (params.mutinynetTxid) {
+    items.push({
+      label: 'Mutinynet creation',
+      txid: params.mutinynetTxid,
+      explorerUrl: getTxUrl(params.mutinynetTxid),
+    });
+  }
+
+  if (params.includeSepolia && params.sepoliaTxHash) {
+    items.push({
+      label: 'Sepolia USDC deposit',
+      txid: params.sepoliaTxHash,
+      explorerUrl: `${EVM_CONFIG.explorerBaseUrl}/tx/${params.sepoliaTxHash}`,
+    });
+  }
+
+  return items;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg.primary,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  content: {
     padding: spacing.lg,
     alignItems: 'center',
+    paddingBottom: spacing.xl,
   },
   iconContainer: {
-    marginTop: spacing.xxl,
-    marginBottom: spacing.xl,
+    marginTop: spacing.xl,
+    marginBottom: spacing.lg,
   },
   iconCircle: {
     width: 96,
@@ -208,11 +242,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
-  badgeWrap: {
-    marginBottom: spacing.md,
-  },
   linksContainer: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
     backgroundColor: colors.bg.secondary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,
@@ -231,11 +262,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.xs,
   },
+  txItem: {
+    paddingVertical: spacing.xs,
+  },
+  txLabel: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   txId: {
     fontSize: fontSizes.md,
@@ -246,6 +287,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.border.default,
+    marginTop: spacing.sm,
   },
   explorerText: {
     fontSize: fontSizes.md,
@@ -255,15 +297,18 @@ const styles = StyleSheet.create({
   },
   warningRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
     marginTop: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
   infoText: {
     fontSize: fontSizes.xs,
     fontFamily: fonts.regular,
     color: colors.text.tertiary,
     marginLeft: spacing.xs,
+    flex: 1,
+    textAlign: 'center',
   },
   footer: {
     padding: spacing.lg,

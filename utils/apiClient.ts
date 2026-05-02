@@ -5,7 +5,13 @@
 
 import { retrySilently, type RetryOptions } from './retry';
 import { fetchWithTimeout } from './api';
+import {
+  AppRequestError,
+  classifyError,
+  classifyHttpStatus,
+} from './errorTaxonomy';
 import { logger } from './logger';
+import { runRequestWithPolicy } from './requestPolicy';
 import { analytics } from '../services/analyticsService';
 import { ERROR_EVENTS } from '../constants/analyticsEvents';
 
@@ -24,6 +30,13 @@ const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+function logApi(url: string, method: string, status: number, duration: number): void {
+  const apiLogger = (logger as typeof logger & { api?: (url: string, method: string, status: number, duration: number) => void }).api;
+  if (typeof apiLogger === 'function') {
+    apiLogger(url, method, status, duration);
+  }
+}
+
 export interface PostOptions {
   headers?: Record<string, string>;
   timeout?: number;
@@ -32,6 +45,11 @@ export interface PostOptions {
   retryOptions?: RetryOptions;
   /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
   signal?: AbortSignal;
+  dedupeKey?: string;
+  cacheKey?: string;
+  cacheTtlMs?: number;
+  staleOnError?: boolean;
+  circuitKey?: string;
 }
 
 export interface GetOptions {
@@ -42,6 +60,11 @@ export interface GetOptions {
   retryOptions?: RetryOptions;
   /** AbortSignal for request cancellation (e.g., from useEffect cleanup) */
   signal?: AbortSignal;
+  dedupeKey?: string;
+  cacheKey?: string;
+  cacheTtlMs?: number;
+  staleOnError?: boolean;
+  circuitKey?: string;
 }
 
 /**
@@ -93,11 +116,11 @@ export async function postWithRetry(
       retryOptions
     );
     const duration = Date.now() - startTime;
-    logger.api(url, 'POST', response.status, duration);
+    logApi(url, 'POST', response.status, duration);
     return response;
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
-    logger.api(url, 'POST', 0, duration);
+    logApi(url, 'POST', 0, duration);
     analytics.track(ERROR_EVENTS.API_ERROR, {
       endpoint: getEndpointPath(url),
       status_code: 0,
@@ -140,11 +163,11 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
       retryOptions
     );
     const duration = Date.now() - startTime;
-    logger.api(url, 'GET', response.status, duration);
+    logApi(url, 'GET', response.status, duration);
     return response;
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
-    logger.api(url, 'GET', 0, duration);
+    logApi(url, 'GET', 0, duration);
     analytics.track(ERROR_EVENTS.API_ERROR, {
       endpoint: getEndpointPath(url),
       status_code: 0,
@@ -162,23 +185,37 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
  * @returns Parsed JSON response
  */
 export async function postJSON<T = unknown>(url: string, body: unknown, options: PostOptions = {}): Promise<T> {
-  const response = await postWithRetry(url, body, options);
+  return runRequestWithPolicy(async () => {
+    const response = await postWithRetry(url, body, options);
 
-  // Check if response was successful
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string };
-    const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
-    if (response.status >= 500) {
-      analytics.track(ERROR_EVENTS.API_ERROR, {
+    // Check if response was successful
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string };
+      const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+      if (response.status >= 500) {
+        analytics.track(ERROR_EVENTS.API_ERROR, {
+          endpoint: getEndpointPath(url),
+          status_code: response.status,
+          error: errorMessage,
+        });
+      }
+      throw new AppRequestError({
+        category: classifyHttpStatus(response.status),
+        message: errorMessage,
+        statusCode: response.status,
         endpoint: getEndpointPath(url),
-        status_code: response.status,
-        error: errorMessage,
+        method: 'POST',
       });
     }
-    throw new Error(errorMessage);
-  }
 
-  return response.json() as Promise<T>;
+    return response.json() as Promise<T>;
+  }, {
+    dedupeKey: options.dedupeKey,
+    cacheKey: options.cacheKey,
+    cacheTtlMs: options.cacheTtlMs,
+    staleOnError: options.staleOnError,
+    circuitKey: options.circuitKey,
+  });
 }
 
 /**
@@ -188,27 +225,49 @@ export async function postJSON<T = unknown>(url: string, body: unknown, options:
  * @returns Parsed JSON response
  */
 export async function getJSON<T = unknown>(url: string, options: GetOptions = {}): Promise<T> {
-  const response = await getWithRetry(url, options);
+  return runRequestWithPolicy(async () => {
+    const response = await getWithRetry(url, options);
 
-  // Check if response is OK before parsing
-  if (!response.ok) {
-    if (response.status >= 500) {
-      analytics.track(ERROR_EVENTS.API_ERROR, {
+    // Check if response is OK before parsing
+    if (!response.ok) {
+      const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      if (response.status >= 500) {
+        analytics.track(ERROR_EVENTS.API_ERROR, {
+          endpoint: getEndpointPath(url),
+          status_code: response.status,
+          error: errorMessage,
+        });
+      }
+      throw new AppRequestError({
+        category: classifyHttpStatus(response.status),
+        message: errorMessage,
+        statusCode: response.status,
         endpoint: getEndpointPath(url),
-        status_code: response.status,
-        error: `HTTP ${response.status}: ${response.statusText}`,
+        method: 'GET',
       });
     }
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
 
-  // Check content-type to ensure it's JSON before parsing
-  const contentType = response.headers.get('content-type');
-  if (contentType && !contentType.includes('application/json')) {
-    throw new Error(`Expected JSON response but got ${contentType}`);
-  }
+    // Check content-type to ensure it's JSON before parsing
+    const contentType = response.headers?.get?.('content-type');
+    if (contentType && !contentType.includes('application/json')) {
+      throw new AppRequestError({
+        category: 'api_client',
+        message: `Expected JSON response but got ${contentType}`,
+        endpoint: getEndpointPath(url),
+        method: 'GET',
+      });
+    }
 
-  return response.json() as Promise<T>;
+    return response.json() as Promise<T>;
+  }, {
+    dedupeKey: options.dedupeKey,
+    cacheKey: options.cacheKey,
+    cacheTtlMs: options.cacheTtlMs,
+    staleOnError: options.staleOnError,
+    circuitKey: options.circuitKey,
+  }).catch((error) => {
+    throw classifyError(error);
+  });
 }
 
 export type FetchPageFunction<T> = (offset: number, limit: number) => Promise<T[]>;

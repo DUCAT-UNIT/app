@@ -56,10 +56,23 @@ When adding new state, choose the right tool:
 - `displayPreferencesStore` — UI preferences (AsyncStorage)
 - `vaultCreationStore` — vault creation form (AsyncStorage)
 - `liquidationFlowStore` — liquidation UI state
-- `remoteConfigStore` — server config + announcements (AsyncStorage)
 - `borrowStore/depositStore/repayStore/withdrawStore` — vault operation state
 - `turboProcessingStore/tokenProcessingStore` — progress tracking
+- `vaultSettlementStore` — short-lived vault settlement recovery checkpoints (AsyncStorage, 24h TTL)
+- `evmTransactionCheckpointStore` — Sepolia tx hashes for submitted/confirmed/failed approvals, swaps, redemptions, and transfers (AsyncStorage, 7d TTL)
+- `swapDiagnosticsStore` — in-memory operational diagnostics and UNIT/USDC pool snapshots
 - `ecashThresholdSheetStore` — low balance modal
+
+## Storage Sensitivity
+
+| Key / Store | Storage | Sensitivity | Reset Behavior |
+|-------------|---------|-------------|----------------|
+| `mnemonic`, PIN, P2PK private keys, Cashu proofs | SecureStore, device-only where possible | Secret spend authority | Cleared by full wallet deletion, protected from generic cache clear |
+| `pendingTransactionsStore` | AsyncStorage | Non-secret wallet metadata | Cleared by full wallet reset and cache clear |
+| `vault-settlement` | AsyncStorage | Non-secret recovery metadata: bridge IDs, txids, amounts | 24h TTL, cleared by full wallet reset |
+| `evm-transaction-checkpoints` | AsyncStorage | Non-secret Sepolia tx metadata: tx hashes, release IDs, addresses, amounts | 7d TTL, reconciled on startup, cleared by full wallet reset |
+| `turbo_processing_state` | AsyncStorage | Non-secret processing metadata | Normalized on load, cleared by full wallet reset |
+| `swapDiagnosticsStore` | Memory only | Operational diagnostics | Cleared by full wallet reset or diagnostics reset |
 
 ## Anti-Patterns to Avoid
 

@@ -15,11 +15,25 @@ import { analytics } from '../services/analyticsService';
 import { VAULT_EVENTS } from '../constants/analyticsEvents';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
 const VAULT_HEALTH_ALERT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const VAULT_HEALTH_WARNING_KEY = 'vault_health_warning_last_alert';
 const VAULT_HEALTH_CRITICAL_KEY = 'vault_health_critical_last_alert';
+const VAULT_HEALTH_BAND_KEY = 'vault_health_last_band';
+
+type VaultHealthBand = 'safe' | 'warning' | 'critical';
+
+function getVaultHealthBand(healthPercent: number): VaultHealthBand {
+  if (healthPercent <= 170) return 'critical';
+  if (healthPercent < 200) return 'warning';
+  return 'safe';
+}
+
+function isVaultHealthBand(value: string | null): value is VaultHealthBand {
+  return value === 'safe' || value === 'warning' || value === 'critical';
+}
 
 export type VaultDataValue = UseVaultDataFetchReturn;
 
@@ -39,8 +53,9 @@ interface VaultProviderProps {
 
 export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
+  const { isAuthenticated } = useAuthSession();
 
-  const vault = useVaultDataFetch(wallet);
+  const vault = useVaultDataFetch(isAuthenticated ? wallet : null);
 
   // ============================================================
   // VAULT TRANSACTION CONFIRMATION CHECK
@@ -91,27 +106,51 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
     warning: 0,
     critical: 0,
   });
+  const lastHealthBandRef = useRef<VaultHealthBand | null>(null);
+  const healthAlertStateLoadedRef = useRef(false);
 
   const checkVaultHealthAlert = useCallback(async (healthPercent: number): Promise<void> => {
-    if (isE2E) return;
+    if (isE2E()) return;
 
     try {
-      const enabled = await getNotificationsEnabled();
-      if (!enabled) return;
-
       const now = Date.now();
 
       // Load last alert timestamps from storage (first check only)
-      if (lastHealthAlertRef.current.warning === 0 && lastHealthAlertRef.current.critical === 0) {
-        const [warningTs, criticalTs] = await Promise.all([
+      if (!healthAlertStateLoadedRef.current) {
+        const [warningTs, criticalTs, storedBand] = await Promise.all([
           AsyncStorage.getItem(VAULT_HEALTH_WARNING_KEY),
           AsyncStorage.getItem(VAULT_HEALTH_CRITICAL_KEY),
+          AsyncStorage.getItem(VAULT_HEALTH_BAND_KEY),
         ]);
         lastHealthAlertRef.current.warning = warningTs ? parseInt(warningTs, 10) : 0;
         lastHealthAlertRef.current.critical = criticalTs ? parseInt(criticalTs, 10) : 0;
+        lastHealthBandRef.current = isVaultHealthBand(storedBand) ? storedBand : null;
+        healthAlertStateLoadedRef.current = true;
       }
 
-      if (healthPercent <= 170) {
+      const currentBand = getVaultHealthBand(healthPercent);
+      const previousBand = lastHealthBandRef.current;
+      lastHealthBandRef.current = currentBand;
+      await AsyncStorage.setItem(VAULT_HEALTH_BAND_KEY, currentBand);
+
+      if (previousBand === null) {
+        return;
+      }
+
+      if (currentBand === 'safe') {
+        return;
+      }
+
+      const shouldSendCriticalAlert = currentBand === 'critical' && previousBand !== 'critical';
+      const shouldSendWarningAlert = currentBand === 'warning' && previousBand === 'safe';
+      if (!shouldSendCriticalAlert && !shouldSendWarningAlert) {
+        return;
+      }
+
+      const enabled = await getNotificationsEnabled();
+      if (!enabled) return;
+
+      if (currentBand === 'critical' && shouldSendCriticalAlert) {
         // Critical alert
         if (now - lastHealthAlertRef.current.critical >= VAULT_HEALTH_ALERT_INTERVAL_MS) {
           await sendLocalNotification({
@@ -127,7 +166,7 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
           });
           logger.info('[VaultContext] Sent critical vault health alert', { healthPercent });
         }
-      } else if (healthPercent < 200 && healthPercent > 170) {
+      } else if (currentBand === 'warning' && shouldSendWarningAlert) {
         // Warning alert
         if (now - lastHealthAlertRef.current.warning >= VAULT_HEALTH_ALERT_INTERVAL_MS) {
           await sendLocalNotification({
@@ -154,6 +193,7 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
   useEffect(() => {
     const vaultInfo = vault.vaultData?.vaultInfo;
     if (!vaultInfo) return;
+    if ((vaultInfo.unit_borrowed ?? vault.vaultData?.totalDebt ?? 0) <= 0) return;
 
     // collateral_ratio from the API may be a multiplier (e.g., 1.6) or percentage (e.g., 160)
     // No legitimate vault can have 5000%+ health (50x collateral), so values > 50 are already percentages
@@ -163,7 +203,7 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
       logger.warn('[VaultContext] collateral_ratio appears to already be a percentage', { rawRatio });
     }
     if (typeof healthPercent === 'number' && healthPercent > 0) {
-      void checkVaultHealthAlert(healthPercent);
+      checkVaultHealthAlert(healthPercent).catch(() => undefined);
     }
   }, [vault.vaultData, checkVaultHealthAlert]);
 

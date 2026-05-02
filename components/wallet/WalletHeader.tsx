@@ -9,6 +9,7 @@ import { COLORS } from '../../theme';
 import Icon from '../icons';
 
 const HEADER_ICON_SIZE = 22;
+const HEADER_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
 
 export interface WalletHeaderStyles {
   xverseHeader: ViewStyle;
@@ -45,6 +46,8 @@ export default function WalletHeader({
           accessibilityRole="button"
           accessibilityLabel="Transaction history"
           accessibilityHint="View your transaction history"
+          hitSlop={HEADER_HIT_SLOP}
+          pressRetentionOffset={HEADER_HIT_SLOP}
         >
           <Icon name="transaction_history" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
@@ -55,6 +58,8 @@ export default function WalletHeader({
           accessibilityRole="button"
           accessibilityLabel="Scan QR code"
           accessibilityHint="Scan a QR code to send or receive"
+          hitSlop={HEADER_HIT_SLOP}
+          pressRetentionOffset={HEADER_HIT_SLOP}
         >
           <Icon name="qr_scan" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
@@ -65,6 +70,8 @@ export default function WalletHeader({
           accessibilityRole="button"
           accessibilityLabel="Settings"
           accessibilityHint="Open app settings"
+          hitSlop={HEADER_HIT_SLOP}
+          pressRetentionOffset={HEADER_HIT_SLOP}
         >
           <Icon name="settings" size={HEADER_ICON_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>

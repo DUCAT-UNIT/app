@@ -37,6 +37,27 @@ function renderHook<T>(hook: () => T) {
 describe('useNavigationState', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (AuthContext.useAuth as jest.Mock).mockReturnValue({
+      isAuthenticated: false,
+      changingPin: false,
+      settingUpPin: false,
+      showPinEntry: false,
+    });
+    (AuthContext.useAuthSession as jest.Mock).mockImplementation(() => {
+      const auth = (AuthContext.useAuth as jest.Mock)();
+      return {
+        isAuthenticated: auth.isAuthenticated,
+      };
+    });
+    (AuthContext.useAuthPinFlow as jest.Mock).mockImplementation(() => {
+      const auth = (AuthContext.useAuth as jest.Mock)();
+      return {
+        changingPin: auth.changingPin,
+        settingUpPin: auth.settingUpPin,
+        showPinEntry: auth.showPinEntry,
+      };
+    });
+    (AuthContext.useOnboardingFlow as jest.Mock).mockReturnValue({ seedConfirmed: false });
   });
 
   describe('shouldShowAuth', () => {

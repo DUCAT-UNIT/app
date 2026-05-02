@@ -270,7 +270,7 @@ describe('vaultService', () => {
         .mockResolvedValueOnce(createMockResponse(vaultListResponse))
         .mockResolvedValueOnce(createMockResponse(historyResponse));
 
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData(vaultPubkey, { includeLatestTransaction: true });
 
       expect(result).toEqual({
         vaultId: 'vault_1',
@@ -302,13 +302,13 @@ describe('vaultService', () => {
           vault_pubkey: REQUIRED_VAULT_FIELDS.vault_pubkey,
           liquidation_hash: '',
           utxo: REQUIRED_VAULT_FIELDS.utxo,
-          oracle_timestamp: 0,
-          vault_last_action: '',
+          oracle_timestamp: 1000,
+          vault_last_action: 'deposit',
         },
       });
     });
 
-    it('should return vault data without latest transaction if history is empty', async () => {
+    it('should return vault data from the fast list-only path by default', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
       const vaultListResponse = {
@@ -326,9 +326,7 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -342,6 +340,7 @@ describe('vaultService', () => {
       expect(result?.vaultInfo).toBeDefined();
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
       expect(result?.latestTransaction).toBeUndefined();
+      expect(getFetchCallCount()).toBe(1);
     });
 
     it('should return null if no vaults found', async () => {
@@ -390,7 +389,7 @@ describe('vaultService', () => {
       expect(requestBody).toMatchObject({
         vault_id: 'vault_1',
         pagination: {
-          limit: 250,
+          limit: 1,
           offset: 0,
         },
       });
@@ -431,9 +430,7 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -448,9 +445,7 @@ describe('vaultService', () => {
       expect(result?.vaultInfo).toBeDefined();
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
 
-      // Should query history for first vault ID
-      const requestBody = getFetchCallBody<{ vault_id: string }>(1);
-      expect(requestBody?.vault_id).toBe('vault_1');
+      expect(getFetchCallCount()).toBe(1);
     });
 
     it('should log debug messages for multiple vaults', async () => {
@@ -466,15 +461,13 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
 
       await fetchVaultData(vaultPubkey);
 
       // Should have used first vault
-      const call = getFetchCall(1);
-      expect(call?.[1]?.body).toContain('vault_1');
+      const call = getFetchCall(0);
+      expect(call?.[1]?.body).toContain(vaultPubkey);
     });
 
     it('should handle single vault without logging multiple vaults warning', async () => {
@@ -493,9 +486,7 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 
@@ -510,7 +501,7 @@ describe('vaultService', () => {
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
     });
 
-    it('should return null when vault is missing required fields', async () => {
+    it('should return display data without vaultInfo when vault is missing operation fields', async () => {
       const vaultPubkey = 'vault_pubkey_123';
 
       const vaultListResponse = {
@@ -526,12 +517,84 @@ describe('vaultService', () => {
         current_price: 50000,
       };
 
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse));
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
 
       const result = await fetchVaultData(vaultPubkey);
 
-      expect(result).toBeNull();
+      expect(result).toMatchObject({
+        vaultId: 'vault_1',
+        vaultTag: 'Incomplete Vault',
+        totalDebt: 1000,
+        totalCollateral: 5000,
+        currentPrice: 50000,
+      });
+      expect(result?.vaultInfo).toBeUndefined();
+    });
+
+    it('should use vault oracle_price when current_price is unavailable', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'Oracle Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+            oracle_price: 51000,
+            ...REQUIRED_VAULT_FIELDS,
+          },
+        ],
+        current_price: 0,
+      };
+
+      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      expect(result?.currentPrice).toBe(51000);
+      expect(result?.vaultInfo?.oracle_price).toBe(51000);
+    });
+
+    it('should use latest transaction oracle price when list prices are unavailable', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+
+      const vaultListResponse = {
+        vaults: [
+          {
+            vault_id: 'vault_1',
+            vault_tag: 'History Oracle Vault',
+            unit_borrowed: 1000,
+            btc_locked: 5000,
+            ...REQUIRED_VAULT_FIELDS,
+          },
+        ],
+        current_price: 0,
+      };
+
+      const historyResponse = {
+        history: [
+          {
+            amount_borrowed: 100,
+            vault_amount: 1000,
+            btc_amt: 0.5,
+            unit_amt: 500,
+            oracle_price: 52000,
+            timestamp: 1000,
+            action: 'borrow',
+          },
+        ],
+      };
+
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
+        .mockResolvedValueOnce(createMockResponse(historyResponse));
+
+      const result = await fetchVaultData(vaultPubkey);
+
+      expect(result?.currentPrice).toBe(52000);
+      expect(result?.vaultInfo?.oracle_price).toBe(52000);
+      expect(result?.latestTransaction?.oraclePrice).toBe(52000);
     });
 
     it('should use first vault data in latestTransaction', async () => {
@@ -575,7 +638,7 @@ describe('vaultService', () => {
         .mockResolvedValueOnce(createMockResponse(vaultListResponse))
         .mockResolvedValueOnce(createMockResponse(historyResponse));
 
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData(vaultPubkey, { includeLatestTransaction: true });
 
       // Should use first vault's data, not sum of all vaults
       expect(result?.totalDebt).toBe(1000);

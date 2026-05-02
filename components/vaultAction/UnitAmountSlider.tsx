@@ -21,6 +21,7 @@ useAnimatedStyle,
 useSharedValue,
 } from 'react-native-reanimated';
 import { COLORS } from '../../theme';
+import { isE2E } from '../../utils/e2e';
 import TouchableScale from '../common/TouchableScale';
 
 // Animated TextInput for real-time text updates on UI thread
@@ -247,7 +248,7 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
         <View style={styles.header}>
           <Text style={styles.label} accessibilityElementsHidden>{label}</Text>
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            {__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && (
+            {isE2E() && (
               <>
                 <TouchableScale
                   onPress={handleQuarter}
@@ -518,5 +519,3 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
 });
-
-export default UnitAmountSlider;

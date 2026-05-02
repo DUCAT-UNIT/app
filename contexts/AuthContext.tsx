@@ -6,12 +6,11 @@
 
 import React, { createContext, useContext, useState, useRef, useMemo, useCallback, ReactNode, MutableRefObject } from 'react';
 import { useAuth as useAuthHook, UseAuthReturn } from '../hooks/useAuth';
-import { resetOnboardingState } from '../utils/onboardingHelpers';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
 import { SETTINGS_EVENTS } from '../constants/analyticsEvents';
 import { TextInput } from 'react-native';
-import { deleteWalletData } from '../services/secureStorageService';
+import { performFullWalletReset } from '../services/walletResetService';
 
 // Rate limit: minimum interval between wallet resets (1 hour)
 const WALLET_RESET_COOLDOWN_MS = 60 * 60 * 1000;
@@ -36,20 +35,95 @@ export interface AuthContextValue extends UseAuthReturn {
   onboarding: OnboardingState;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export type AuthSessionContextValue = Pick<
+  UseAuthReturn,
+  | 'isAuthenticated'
+  | 'isBiometricSupported'
+  | 'biometricEnabled'
+  | 'showBiometricPrompt'
+  | 'showFaceIdButton'
+  | 'isPasskeySupported'
+  | 'passkeyEnabled'
+  | 'setIsAuthenticated'
+  | 'setBiometricEnabled'
+  | 'setShowBiometricPrompt'
+  | 'setShowFaceIdButton'
+  | 'setPasskeyEnabled'
+  | 'authenticateUser'
+  | 'authenticateWithPasskey'
+  | 'handleLockScreenAuthenticated'
+  | 'loadBiometricPreference'
+  | 'loadPasskeyPreference'
+  | 'lock'
+  | 'resetAuth'
+>;
+
+export type AuthPinFlowContextValue = Pick<
+  UseAuthReturn,
+  | 'settingUpPin'
+  | 'changingPin'
+  | 'showPinEntry'
+  | 'pin'
+  | 'confirmPin'
+  | 'pinError'
+  | 'pinStep'
+  | 'setShowPinEntry'
+  | 'setSettingUpPin'
+  | 'setChangingPin'
+  | 'setPin'
+  | 'setConfirmPin'
+  | 'setPinError'
+  | 'setPinStep'
+  | 'handlePinSetupComplete'
+  | 'handlePinChangeComplete'
+  | 'startPinChange'
+>;
+
+const AuthSessionContext = createContext<AuthSessionContextValue | undefined>(undefined);
+const AuthPinFlowContext = createContext<AuthPinFlowContextValue | undefined>(undefined);
+const OnboardingContext = createContext<OnboardingState | undefined>(undefined);
 
 export const useAuth = (): AuthContextValue => {
-  const context = useContext(AuthContext);
-  if (!context) {
+  const session = useContext(AuthSessionContext);
+  const pinFlow = useContext(AuthPinFlowContext);
+  const onboarding = useContext(OnboardingContext);
+
+  if (!session || !pinFlow || !onboarding) {
     throw new Error('useAuth must be used within an AuthProvider');
+  }
+
+  return useMemo(
+    () => ({
+      ...session,
+      ...pinFlow,
+      onboarding,
+    }),
+    [session, pinFlow, onboarding]
+  );
+};
+
+export const useAuthSession = (): AuthSessionContextValue => {
+  const context = useContext(AuthSessionContext);
+  if (!context) {
+    throw new Error('useAuthSession must be used within an AuthProvider');
   }
   return context;
 };
 
-// Backwards compatibility hook
+export const useAuthPinFlow = (): AuthPinFlowContextValue => {
+  const context = useContext(AuthPinFlowContext);
+  if (!context) {
+    throw new Error('useAuthPinFlow must be used within an AuthProvider');
+  }
+  return context;
+};
+
 export const useOnboardingFlow = (): OnboardingState => {
-  const { onboarding } = useAuth();
-  return onboarding;
+  const context = useContext(OnboardingContext);
+  if (!context) {
+    throw new Error('useOnboardingFlow must be used within an AuthProvider');
+  }
+  return context;
 };
 
 interface AuthProviderProps {
@@ -102,12 +176,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
       action: 'resetWalletAndState',
     });
 
-    await deleteWalletData();
-    await resetOnboardingState();
-    if (resetWallet) {
-      resetWallet();
-    }
-    setSeedConfirmed(false);
+    await performFullWalletReset({
+      resetWallet,
+      setSeedConfirmed,
+    });
 
     lastWalletResetTimestamp = now;
 
@@ -182,12 +254,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
     startPinChange,
   } = authState;
 
-  // TODO: Split AuthContext into AuthSessionContext (isAuthenticated, biometricEnabled, lock, resetAuth)
-  // and PinFlowContext (pin, confirmPin, pinStep, pinError, etc.) to reduce re-render surface.
-  // Currently, PIN keystroke changes re-render all useAuth() consumers including RootNavigator.
-  const value = useMemo(
+  const sessionValue = useMemo<AuthSessionContextValue>(
     () => ({
-      // Auth state (from useAuth hook)
       isAuthenticated,
       isBiometricSupported,
       biometricEnabled,
@@ -195,20 +263,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
       showFaceIdButton,
       isPasskeySupported,
       passkeyEnabled,
-            settingUpPin,
+      setIsAuthenticated,
+      setBiometricEnabled,
+      setShowBiometricPrompt,
+      setShowFaceIdButton,
+      setPasskeyEnabled,
+      authenticateUser,
+      authenticateWithPasskey,
+      handleLockScreenAuthenticated,
+      loadBiometricPreference,
+      loadPasskeyPreference,
+      lock,
+      resetAuth,
+    }),
+    [
+      isAuthenticated, isBiometricSupported, biometricEnabled, showBiometricPrompt,
+      showFaceIdButton, isPasskeySupported, passkeyEnabled,
+      setIsAuthenticated, setBiometricEnabled, setShowBiometricPrompt, setShowFaceIdButton,
+      setPasskeyEnabled, authenticateUser, authenticateWithPasskey,
+      handleLockScreenAuthenticated, loadBiometricPreference,
+      loadPasskeyPreference, lock, resetAuth,
+    ]
+  );
+
+  const pinFlowValue = useMemo<AuthPinFlowContextValue>(
+    () => ({
+      settingUpPin,
       changingPin,
       showPinEntry,
       pin,
       confirmPin,
       pinError,
       pinStep,
-      // Auth setters
-      setIsAuthenticated,
-      setBiometricEnabled,
-      setShowBiometricPrompt,
-      setShowFaceIdButton,
-      setPasskeyEnabled,
-  
       setShowPinEntry,
       setSettingUpPin,
       setChangingPin,
@@ -216,32 +302,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onSeedConf
       setConfirmPin,
       setPinError,
       setPinStep,
-      // Auth functions
-      authenticateUser,
-      authenticateWithPasskey,
       handlePinSetupComplete,
       handlePinChangeComplete,
-      handleLockScreenAuthenticated,
-      loadBiometricPreference,
-      loadPasskeyPreference,
-      lock,
-      resetAuth,
       startPinChange,
-      // Onboarding namespace
-      onboarding,
     }),
     [
-      isAuthenticated, isBiometricSupported, biometricEnabled, showBiometricPrompt,
-      showFaceIdButton, isPasskeySupported, passkeyEnabled,       settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
-      setIsAuthenticated, setBiometricEnabled, setShowBiometricPrompt, setShowFaceIdButton,
-      setPasskeyEnabled, setShowPinEntry, setSettingUpPin,
-      setChangingPin, setPin, setConfirmPin, setPinError, setPinStep,
-      authenticateUser, authenticateWithPasskey, handlePinSetupComplete,
-      handlePinChangeComplete, handleLockScreenAuthenticated, loadBiometricPreference,
-      loadPasskeyPreference, lock, resetAuth, startPinChange,
-      onboarding,
+      settingUpPin, changingPin, showPinEntry, pin, confirmPin, pinError, pinStep,
+      setShowPinEntry, setSettingUpPin, setChangingPin, setPin,
+      setConfirmPin, setPinError, setPinStep, handlePinSetupComplete,
+      handlePinChangeComplete, startPinChange,
     ]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthSessionContext.Provider value={sessionValue}>
+      <AuthPinFlowContext.Provider value={pinFlowValue}>
+        <OnboardingContext.Provider value={onboarding}>{children}</OnboardingContext.Provider>
+      </AuthPinFlowContext.Provider>
+    </AuthSessionContext.Provider>
+  );
 };

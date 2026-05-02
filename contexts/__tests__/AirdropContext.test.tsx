@@ -7,7 +7,7 @@ import { create, act } from 'react-test-renderer';
 import { AirdropProvider, useAirdrop } from '../AirdropContext';
 import { useBalance } from '../WalletDataContext';
 import { useWallet } from '../WalletContext';
-import { useAuth } from '../AuthContext';
+import { useAuth, useAuthSession } from '../AuthContext';
 import * as SecureStore from 'expo-secure-store';
 import * as AirdropService from '../../services/airdropService';
 
@@ -85,6 +85,8 @@ describe('AirdropContext', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+    (useAuthSession as jest.Mock).mockImplementation(() => (useAuth as jest.Mock)());
   });
 
   afterEach(() => {

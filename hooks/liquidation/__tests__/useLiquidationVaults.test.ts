@@ -22,6 +22,11 @@ jest.mock('../../../services/liquidation/fetchVaults', () => ({
 
 jest.mock('../../../services/vaultWallet', () => ({
   fetchProtocolContract: jest.fn(),
+  prefetchProtocolContract: jest.fn(),
+}));
+
+jest.mock('../../../services/balanceService', () => ({
+  fetchBtcPrice: jest.fn(),
 }));
 
 jest.mock('../../../services/liquidation/calculations', () => ({
@@ -40,7 +45,8 @@ jest.mock('../../../utils/logger', () => ({
 }));
 
 import { fetchLiquidatableVaults } from '../../../services/liquidation/fetchVaults';
-import { fetchProtocolContract } from '../../../services/vaultWallet';
+import { fetchProtocolContract, prefetchProtocolContract } from '../../../services/vaultWallet';
+import { fetchBtcPrice } from '../../../services/balanceService';
 import {
   computeLiquidVaultProfiles,
   getMaxInvest,
@@ -49,6 +55,8 @@ import {
 
 const mockFetchVaults = fetchLiquidatableVaults as jest.Mock;
 const mockFetchContract = fetchProtocolContract as jest.Mock;
+const mockPrefetchContract = prefetchProtocolContract as jest.Mock;
+const mockFetchBtcPrice = fetchBtcPrice as jest.Mock;
 const mockComputeProfiles = computeLiquidVaultProfiles as jest.Mock;
 const mockGetMaxInvest = getMaxInvest as jest.Mock;
 const mockGetAvailableCollateral = getAvailableCollateralBtc as jest.Mock;
@@ -118,6 +126,16 @@ const DEFAULT_PARAMS = {
   visible: false,
 };
 
+const RAW_VAULT = { vault_id: 'v1' };
+
+const hookUnmounts: Array<() => void> = [];
+
+function renderLiquidationHook<T>(hook: () => T) {
+  const rendered = renderHook(hook);
+  hookUnmounts.push(rendered.unmount);
+  return rendered;
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('useLiquidationVaults', () => {
@@ -125,8 +143,10 @@ describe('useLiquidationVaults', () => {
     jest.clearAllMocks();
     resetLiquidationFlowStore();
 
-    mockFetchVaults.mockResolvedValue([]);
+    mockFetchVaults.mockResolvedValue([RAW_VAULT]);
     mockFetchContract.mockResolvedValue(MOCK_CONTRACT);
+    mockPrefetchContract.mockImplementation(() => undefined);
+    mockFetchBtcPrice.mockResolvedValue(null);
     mockComputeProfiles.mockReturnValue([]);
     mockGetMaxInvest.mockReturnValue({
       maxInvestBtc: 0,
@@ -139,13 +159,19 @@ describe('useLiquidationVaults', () => {
     mockGetAvailableCollateral.mockReturnValue(0.02);
   });
 
+  afterEach(() => {
+    while (hookUnmounts.length > 0) {
+      hookUnmounts.pop()?.();
+    }
+  });
+
   describe('refreshLiqVaults', () => {
     describe('happy path', () => {
       it('should set fetchStatus to loading then loaded on success', async () => {
         const profiles = [makeFullProfile()];
         mockComputeProfiles.mockReturnValue(profiles);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -154,22 +180,24 @@ describe('useLiquidationVaults', () => {
         expect(useLiquidationFlowStore.getState().fetchStatus).toBe('loaded');
       });
 
-      it('should call fetchLiquidatableVaults and fetchProtocolContract concurrently', async () => {
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+      it('should skip the protocol contract fetch when validator has no vaults', async () => {
+        mockFetchVaults.mockResolvedValue([]);
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
         });
 
-        expect(mockFetchVaults).toHaveBeenCalledTimes(1);
-        expect(mockFetchContract).toHaveBeenCalledTimes(1);
+        expect(mockFetchVaults).toHaveBeenCalled();
+        expect(mockFetchContract).not.toHaveBeenCalled();
+        expect(useLiquidationFlowStore.getState().fetchStatus).toBe('loaded');
       });
 
       it('should call computeLiquidVaultProfiles with raw vaults, btcPrice, and contract', async () => {
         const rawVaults = [{ vault_id: 'v1' }];
         mockFetchVaults.mockResolvedValue(rawVaults);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -178,11 +206,28 @@ describe('useLiquidationVaults', () => {
         expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 80_000, MOCK_CONTRACT);
       });
 
+      it('should fetch BTC price directly when props and validator vaults do not provide one', async () => {
+        const rawVaults = [{ vault_id: 'v1' }];
+        mockFetchVaults.mockResolvedValue(rawVaults);
+        mockFetchBtcPrice.mockResolvedValue(81_000);
+        const params = { ...DEFAULT_PARAMS, btcPrice: null };
+
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
+
+        await act(async () => {
+          await result.current!.refreshLiqVaults();
+        });
+
+        expect(mockFetchBtcPrice).toHaveBeenCalled();
+        expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 81_000, MOCK_CONTRACT);
+        expect(useLiquidationFlowStore.getState().fetchStatus).toBe('loaded');
+      });
+
       it('should populate the store vaults with display projections', async () => {
         const profiles = [makeFullProfile({ vaultId: 'abc', profitPercent: 5 })];
         mockComputeProfiles.mockReturnValue(profiles);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -202,7 +247,7 @@ describe('useLiquidationVaults', () => {
         });
         mockComputeProfiles.mockReturnValue([profile]);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -220,7 +265,7 @@ describe('useLiquidationVaults', () => {
       it('should set profitRate/depositRate/swapRate to 0 when vaults list is empty', async () => {
         mockComputeProfiles.mockReturnValue([]);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -237,7 +282,7 @@ describe('useLiquidationVaults', () => {
       it('should set fetchStatus to error when fetch throws', async () => {
         mockFetchVaults.mockRejectedValue(new Error('Network failure'));
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -249,7 +294,7 @@ describe('useLiquidationVaults', () => {
       it('should set fetchStatus to error when fetchProtocolContract throws', async () => {
         mockFetchContract.mockRejectedValue(new Error('Contract not found'));
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -270,7 +315,7 @@ describe('useLiquidationVaults', () => {
 
         mockFetchVaults.mockRejectedValue(new Error('fail'));
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
@@ -278,6 +323,21 @@ describe('useLiquidationVaults', () => {
 
         // Display vaults should remain unchanged since we failed
         expect(useLiquidationFlowStore.getState().vaults[0].vaultId).toBe('existing');
+      });
+
+      it('should set fetchStatus to error when no BTC price source is available', async () => {
+        mockFetchVaults.mockResolvedValue([{ vault_id: 'v1' }]);
+        mockFetchBtcPrice.mockResolvedValue(null);
+        const params = { ...DEFAULT_PARAMS, btcPrice: null };
+
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
+
+        await act(async () => {
+          await result.current!.refreshLiqVaults();
+        });
+
+        expect(useLiquidationFlowStore.getState().fetchStatus).toBe('error');
+        expect(mockFetchContract).not.toHaveBeenCalled();
       });
     });
 
@@ -287,7 +347,7 @@ describe('useLiquidationVaults', () => {
         const firstFetch = new Promise((res) => { resolveFirst = res; });
         mockFetchVaults.mockReturnValueOnce(firstFetch);
 
-        const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
         // Start first fetch without awaiting
         act(() => { void result.current!.refreshLiqVaults(); });
@@ -307,15 +367,18 @@ describe('useLiquidationVaults', () => {
         });
       });
 
-      it('should skip refresh when btcPrice is null', async () => {
+      it('should load an empty pool when btcPrice is null and validator has no vaults', async () => {
+        mockFetchVaults.mockResolvedValue([]);
         const params = { ...DEFAULT_PARAMS, btcPrice: null };
-        const { result } = renderHook(() => useLiquidationVaults(params));
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
 
         await act(async () => {
           await result.current!.refreshLiqVaults();
         });
 
-        expect(mockFetchVaults).not.toHaveBeenCalled();
+        expect(mockFetchVaults).toHaveBeenCalled();
+        expect(mockFetchContract).not.toHaveBeenCalled();
+        expect(useLiquidationFlowStore.getState().fetchStatus).toBe('loaded');
       });
     });
   });
@@ -323,13 +386,13 @@ describe('useLiquidationVaults', () => {
   describe('maxInvestable computation', () => {
     it('should return 0 when btcPrice is null', () => {
       const params = { ...DEFAULT_PARAMS, btcPrice: null };
-      const { result } = renderHook(() => useLiquidationVaults(params));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
 
       expect(result.current!.maxInvestable).toBe(0);
     });
 
     it('should return 0 when vaultsFull is empty', () => {
-      const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
       // vaultsFull starts as []
       expect(result.current!.maxInvestable).toBe(0);
@@ -349,7 +412,7 @@ describe('useLiquidationVaults', () => {
         lastPortionRate: 1,
       });
 
-      const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
       await act(async () => {
         await result.current!.refreshLiqVaults();
@@ -374,7 +437,7 @@ describe('useLiquidationVaults', () => {
       mockGetMaxInvest.mockReturnValue({ maxInvestBtc: 0.01, maxClaimAmountBtc: 0, maxSwapBtc: 0, maxSwapUnit: 0, maxVaultCount: 1, lastPortionRate: 1 });
 
       const params = { ...DEFAULT_PARAMS, segwitBalance: 0.01, taprootBalance: 0.005 };
-      const { result } = renderHook(() => useLiquidationVaults(params));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
 
       await act(async () => {
         await result.current!.refreshLiqVaults();
@@ -398,7 +461,7 @@ describe('useLiquidationVaults', () => {
       mockGetMaxInvest.mockReturnValue({ maxInvestBtc: 0.005, maxClaimAmountBtc: 0, maxSwapBtc: 0, maxSwapUnit: 0, maxVaultCount: 1, lastPortionRate: 1 });
 
       const params = { ...DEFAULT_PARAMS, hasVault: false, segwitBalance: 0.005, taprootBalance: 0 };
-      const { result } = renderHook(() => useLiquidationVaults(params));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(params));
 
       await act(async () => {
         await result.current!.refreshLiqVaults();
@@ -423,7 +486,7 @@ describe('useLiquidationVaults', () => {
       mockGetAvailableCollateral.mockReturnValue(0.035);
       mockGetMaxInvest.mockReturnValue({ maxInvestBtc: 0.02, maxClaimAmountBtc: 0, maxSwapBtc: 0, maxSwapUnit: 0, maxVaultCount: 1, lastPortionRate: 1 });
 
-      const { result } = renderHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+      const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
 
       await act(async () => {
         await result.current!.refreshLiqVaults();
@@ -457,7 +520,7 @@ describe('useLiquidationVaults', () => {
 
     it('should start polling when visible and currentStep is input', () => {
       const params = { ...DEFAULT_PARAMS, visible: true };
-      renderHook(() => useLiquidationVaults(params));
+      renderLiquidationHook(() => useLiquidationVaults(params));
 
       act(() => { jest.advanceTimersByTime(30_000); });
 
@@ -467,7 +530,7 @@ describe('useLiquidationVaults', () => {
 
     it('should stop polling on unmount', async () => {
       const params = { ...DEFAULT_PARAMS, visible: true };
-      const { unmount } = renderHook(() => useLiquidationVaults(params));
+      const { unmount } = renderLiquidationHook(() => useLiquidationVaults(params));
 
       unmount();
 
@@ -481,7 +544,7 @@ describe('useLiquidationVaults', () => {
 
     it('should still fetch in background when visible is false', () => {
       const params = { ...DEFAULT_PARAMS, visible: false };
-      renderHook(() => useLiquidationVaults(params));
+      renderLiquidationHook(() => useLiquidationVaults(params));
 
       // The hook now always fetches on mount for background prefetch
       // When visible=false, it uses the background polling interval (120s)
@@ -491,7 +554,7 @@ describe('useLiquidationVaults', () => {
     it('should not poll when currentStep is not input', () => {
       useLiquidationFlowStore.getState().setCurrentStep('processing');
       const params = { ...DEFAULT_PARAMS, visible: true };
-      renderHook(() => useLiquidationVaults(params));
+      renderLiquidationHook(() => useLiquidationVaults(params));
 
       act(() => { jest.advanceTimersByTime(30_000); });
 
@@ -504,7 +567,7 @@ describe('useLiquidationVaults', () => {
   describe('initial fetch on mount', () => {
     it('should trigger fetch when visible is true', async () => {
       const params = { ...DEFAULT_PARAMS, visible: true };
-      renderHook(() => useLiquidationVaults(params));
+      renderLiquidationHook(() => useLiquidationVaults(params));
 
       await act(async () => {
         await Promise.resolve();
@@ -515,7 +578,7 @@ describe('useLiquidationVaults', () => {
 
     it('should also trigger background fetch when visible is false', async () => {
       const params = { ...DEFAULT_PARAMS, visible: false };
-      renderHook(() => useLiquidationVaults(params));
+      renderLiquidationHook(() => useLiquidationVaults(params));
 
       await act(async () => {
         await Promise.resolve();

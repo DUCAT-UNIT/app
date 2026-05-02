@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { COLORS } from '../../theme';
+import { isE2E } from '../../utils/e2e';
 import Icon from '../icons';
 import TouchableScale from '../common/TouchableScale';
 
@@ -248,7 +249,7 @@ export const AmountSlider = memo(function AmountSlider({
         <View style={styles.header}>
           <Text style={styles.label} accessibilityElementsHidden>{label}</Text>
           <View style={{ flexDirection: 'row', gap: 12 }}>
-            {__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' && (
+            {isE2E() && (
               <>
                 <TouchableScale
                   onPress={handleQuarter}
@@ -537,5 +538,3 @@ const styles = StyleSheet.create({
     borderColor: COLORS.BORDER_COLOR,
   },
 });
-
-export default AmountSlider;

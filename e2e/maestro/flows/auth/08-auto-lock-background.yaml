@@ -32,7 +32,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Relaunch the app
 - launchApp:
     appId: "com.ducatprotocol.DucatProtocolWallet"
-- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+- openLink: "${MAESTRO_EXPO_DEV_CLIENT_URL}"
 
 # Verify lock screen appears (wallet exists but not authenticated)
 - extendedWaitUntil:

@@ -5,8 +5,9 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp } from '@react-navigation/native';
-import React,{ useCallback,useEffect,useMemo,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import {
+ActivityIndicator,
 KeyboardAvoidingView,
 Platform,
 ScrollView,
@@ -20,6 +21,7 @@ import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact'
 import TouchableScale from '../../components/common/TouchableScale';
 import { AmountSlider,VaultActionGauge } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
@@ -54,6 +56,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     healthFactor,
     setBtcAmount,
     setBorrowAmountUsd,
+    setReceiveAsset,
     setBitcoinPrice,
     setCurrentStep,
     error,
@@ -68,6 +71,8 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   const { segwitBalance, utxos, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   logger.debug('[VaultAmounts] segwitBalance:', { segwitBalance, loadingBalance, utxoCount: utxos?.length, btcPrice });
 
   // Calculate estimated fee based on selected rate and UTXOs
@@ -78,6 +83,8 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   // Local preview states for real-time updates during drag
   const [previewBtcAmount, setPreviewBtcAmount] = useState(btcAmount);
   const [previewBorrowAmountUsd, setPreviewBorrowAmountUsd] = useState(borrowAmountUsd);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const continueUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Update bitcoin price in store when it changes
   useEffect(() => {
@@ -95,19 +102,26 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     setPreviewBorrowAmountUsd(borrowAmountUsd);
   }, [borrowAmountUsd]);
 
+  useEffect(() => () => {
+    if (continueUnlockTimerRef.current) {
+      clearTimeout(continueUnlockTimerRef.current);
+      continueUnlockTimerRef.current = null;
+    }
+  }, []);
+
   // Calculate available BTC (balance minus fees)
   const availableBtc = useMemo(() => {
     if (!segwitBalance) return 0;
     const openFeeCostSats = estimatedFeeSats;
     const bridgeSettlementReserveSats =
-      receiveAsset === 'USDC' ? getVaultSettlementReserveSats(selectedFeeRate) : 0;
+      usdcFeaturesEnabled && receiveAsset === 'USDC' ? getVaultSettlementReserveSats(selectedFeeRate) : 0;
     const futureRepayReserveSats = getOpCostRepay(selectedFeeRate, utxos);
     const totalReservedBtc =
       (openFeeCostSats + bridgeSettlementReserveSats + futureRepayReserveSats) / 100_000_000;
 
     // Leave enough spendable BTC for the hidden bridge send and a later repay.
     return Math.max(segwitBalance - totalReservedBtc, 0);
-  }, [estimatedFeeSats, receiveAsset, segwitBalance, selectedFeeRate, utxos]);
+  }, [estimatedFeeSats, receiveAsset, segwitBalance, selectedFeeRate, usdcFeaturesEnabled, utxos]);
 
   // Calculate max borrowable for preview BTC amount (at 160% minimum health)
   const previewMaxBorrowable = useMemo(() => {
@@ -153,12 +167,29 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
   // Handle continue
   const handleContinue = useCallback(() => {
-    if (!canContinue) return;
+    if (!canContinue || isContinuing) return;
+    setIsContinuing(true);
+    if (continueUnlockTimerRef.current) {
+      clearTimeout(continueUnlockTimerRef.current);
+    }
+    continueUnlockTimerRef.current = setTimeout(() => {
+      continueUnlockTimerRef.current = null;
+      setIsContinuing(false);
+    }, 900);
+    (continueUnlockTimerRef.current as { unref?: () => void }).unref?.();
+
+    if (!usdcFeaturesEnabled) {
+      setReceiveAsset('UNIT');
+      setCurrentStep('confirm');
+      navigation.navigate('VaultConfirm');
+      return;
+    }
     setCurrentStep('payout');
     navigation.navigate('VaultPayout');
-  }, [canContinue, setCurrentStep, navigation]);
+  }, [canContinue, isContinuing, navigation, setCurrentStep, setReceiveAsset, usdcFeaturesEnabled]);
 
   const hasChanges = previewBtcAmount > 0 && previewBorrowAmountUsd > 0;
+  const continueDisabled = !canContinue || isContinuing;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="vault-amounts-screen">
@@ -174,13 +205,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>Vault Setup</Text>
-              <Text style={styles.title}>Create Vault</Text>
-              <Text style={styles.subtitle}>
-                Lock BTC and set the debt value for your new vault before reviewing how the position behaves.
-              </Text>
-            </View>
+            <Text style={styles.title}>Create Vault</Text>
             <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={24} color={colors.text.secondary} />
             </TouchableOpacity>
@@ -196,14 +221,12 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
 
           {/* Liquidation Price */}
           <View style={styles.liquidationPrice}>
-            <View style={styles.metricCard}>
-              <Text style={styles.metricLabel}>Liquidation Price</Text>
-              <Text style={styles.metricValue}>
-                {previewLiquidationPrice > 0 && previewLiquidationPrice !== Infinity
-                  ? `$${previewLiquidationPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : 'None'}
-              </Text>
-            </View>
+            <Text style={styles.liquidationLabel}>Liquidation Price</Text>
+            <Text style={styles.liquidationValue}>
+              {previewLiquidationPrice > 0 && previewLiquidationPrice !== Infinity
+                ? `$${previewLiquidationPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : 'None'}
+            </Text>
           </View>
           {/* Connected Sliders - Deposit + Borrow as one unit */}
           <View style={styles.section}>
@@ -263,14 +286,25 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
         {/* Continue Button */}
         <View style={styles.footer}>
           <TouchableScale
-            style={[styles.continueBtn, !canContinue && styles.continueBtnDisabled]}
+            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
             onPress={handleContinue}
-            disabled={!canContinue}
+            disabled={continueDisabled}
             testID="vault-create-continue-btn"
+            accessibilityRole="button"
+            accessibilityLabel={isContinuing ? 'Preparing vault review' : 'Continue to vault review'}
+            accessibilityState={{ disabled: continueDisabled, busy: isContinuing }}
+            pressLockMs={700}
           >
-            <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
-              Continue
-            </Text>
+            {isContinuing ? (
+              <View style={styles.busyButtonContent}>
+                <ActivityIndicator size="small" color={colors.text.white} />
+                <Text style={styles.continueBtnText}>Preparing...</Text>
+              </View>
+            ) : (
+              <Text style={[styles.continueBtnText, !canContinue && styles.continueBtnTextDisabled]}>
+                Continue
+              </Text>
+            )}
           </TouchableScale>
         </View>
       </KeyboardAvoidingView>
@@ -285,57 +319,28 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: spacing.sm,
-    gap: spacing.md,
-  },
-  headerCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  eyebrow: {
-    color: colors.brand.primary,
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
   },
   title: {
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
-  subtitle: {
-    color: colors.text.secondary,
-    fontSize: fontSizes.sm,
-    fontFamily: fonts.regular,
-    lineHeight: 20,
-    marginTop: spacing.xs,
-  },
   liquidationPrice: {
     marginTop: spacing.md,
-  },
-  metricCard: {
-    backgroundColor: colors.bg.secondary,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    alignSelf: 'center',
-    minWidth: 180,
     alignItems: 'center',
-    gap: 2,
   },
-  metricLabel: {
+  liquidationLabel: {
     fontSize: 12,
     fontFamily: fonts.medium,
     color: colors.text.secondary,
   },
-  metricValue: {
+  liquidationValue: {
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
     color: colors.text.primary,
+    marginTop: 2,
   },
   section: { marginTop: spacing.md },
   disabledSection: { opacity: 0.4 },
@@ -388,4 +393,10 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
   },
   continueBtnTextDisabled: { color: colors.text.tertiary },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
 });

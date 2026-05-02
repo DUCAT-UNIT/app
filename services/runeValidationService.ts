@@ -5,6 +5,7 @@
 
 import { API, RUNES_CONFIG } from '../utils/constants';
 import { logger } from '../utils/logger';
+import { getJSON } from '../utils/apiClient';
 
 interface RuneInfo {
   id: string;
@@ -41,25 +42,17 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
     const runeIdStr = `${block}:${tx}`;
     const url = `${ordBaseUrl}/rune/${runeIdStr}`;
 
-    const response = await fetch(url, {
+    const runeInfo = await getJSON<RuneInfo>(url, {
       headers: {
         'Accept': 'application/json',
       },
+      timeout: 8000,
+      retryOptions: { maxRetries: 1 },
+      cacheKey: `rune-validation:${runeIdStr}`,
+      cacheTtlMs: 60_000,
+      staleOnError: true,
+      circuitKey: 'ord-rune-validation',
     });
-
-    if (!response.ok) {
-      // If API doesn't support this endpoint, log warning but don't block
-      logger.warn('Rune validation API unavailable', {
-        status: response.status,
-        url,
-        recommendation: `Verify rune ID manually: ${ordBaseUrl}`,
-      });
-
-      // Return true to not block app startup, but log the concern
-      return true;
-    }
-
-    const runeInfo: RuneInfo = await response.json();
 
     // Validate the spaced_rune matches expected label
     if (runeInfo.spaced_rune !== expectedLabel) {

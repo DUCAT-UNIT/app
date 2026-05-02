@@ -1,0 +1,77 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Enable hidden Sepolia ETH/USDC surfaces through Advanced developer settings.
+# Assumes a wallet is already open on the wallet screen.
+
+- runFlow: unlock-if-locked.yaml
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 15000
+- runFlow: unlock-if-locked.yaml
+- runFlow: dismiss-low-ecash.yaml
+- runFlow: dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+- tapOn:
+    id: "wallet-settings-btn"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "wallet-screen"
+    commands:
+      - tapOn:
+          id: "wallet-settings-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-advanced-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-screen"
+    timeout: 5000
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- scrollUntilVisible:
+    element:
+      id: "advanced-enable-usdc-btn"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "advanced-enable-usdc-btn"
+- extendedWaitUntil:
+    visible:
+      id: "enable-usdc-password-modal"
+    timeout: 5000
+- tapOn:
+    id: "enable-usdc-password-input"
+- inputText: "fx-570ES PLUS"
+- hideKeyboard
+- tapOn:
+    id: "enable-usdc-confirm-btn"
+- extendedWaitUntil:
+    notVisible:
+      id: "enable-usdc-password-modal"
+    timeout: 5000
+- assertVisible:
+    id: "advanced-enable-usdc-btn"
+- tapOn:
+    id: "advanced-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "settings-screen"
+    timeout: 5000
+- tapOn:
+    id: "settings-back-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 5000

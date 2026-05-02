@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { NavigationProp } from '@react-navigation/native';
 import VaultConfirmScreen from './VaultConfirmScreen';
 import { createBorrowConfirmConfig } from './configs';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBorrow } from '../../stores/borrowStore';
 import { useBorrowToUsdcSettlement } from '../../hooks/vault';
 
@@ -16,12 +17,14 @@ interface BorrowConfirmScreenNewProps {
 export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScreenNewProps) {
   const store = useBorrow();
   const vaultHook = useBorrowToUsdcSettlement();
+  const { settingsHandlers } = useSettingsHandlers();
+  const effectiveReceiveAsset = settingsHandlers.usdcFeaturesEnabled ? store.receiveAsset : 'UNIT';
   const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (store.borrowAmountUsd <= 0 || store.receiveAsset !== 'USDC') {
+    if (store.borrowAmountUsd <= 0 || effectiveReceiveAsset !== 'USDC') {
       setEstimatedUsdcOut(null);
       return () => {
         cancelled = true;
@@ -44,11 +47,11 @@ export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScre
     return () => {
       cancelled = true;
     };
-  }, [store.borrowAmountUsd, store.receiveAsset, vaultHook]);
+  }, [store.borrowAmountUsd, effectiveReceiveAsset, vaultHook]);
 
   const config = useMemo(
-    () => createBorrowConfirmConfig(estimatedUsdcOut, store.receiveAsset),
-    [estimatedUsdcOut, store.receiveAsset],
+    () => createBorrowConfirmConfig(estimatedUsdcOut, effectiveReceiveAsset),
+    [estimatedUsdcOut, effectiveReceiveAsset],
   );
 
   return (

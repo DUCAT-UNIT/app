@@ -7,16 +7,30 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { API } from '../utils/constants';
+import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
 import { postJSON } from '../utils/apiClient';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+
+function formatWatchTransactionType(type?: string): string {
+  const raw = type?.trim();
+  if (!raw || raw === 'tx_confirmed') return 'transaction';
+
+  const normalized = raw.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (normalized === 'vault operation' || normalized === 'vault transaction') {
+    return 'vault transaction';
+  }
+  if (normalized === 'btc send') return 'BTC transaction';
+  if (normalized === 'unit send') return 'UNIT transaction';
+  return normalized;
+}
 
 /**
  * Get the Expo push token for this device.
  * Returns null if permissions are not granted or running in E2E mode.
  */
 export async function getExpoPushToken(): Promise<string | null> {
-  if (isE2E) {
+  if (isE2E()) {
     logger.debug('[PushNotification] Skipped token retrieval in E2E mode');
     return null;
   }
@@ -41,7 +55,7 @@ export async function getExpoPushToken(): Promise<string | null> {
     }
 
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-    logger.info('[PushNotification] Push token obtained', { token: tokenData.data.slice(0, 20) + '...' });
+    logger.info('[PushNotification] Push token obtained', { tokenLength: tokenData.data.length });
     return tokenData.data;
   } catch (error: unknown) {
     logger.error('[PushNotification] Failed to get push token', {
@@ -58,14 +72,14 @@ export async function getExpoPushToken(): Promise<string | null> {
  * @param vaultPubkey - Optional taproot pubkey for vault health monitoring
  */
 export async function registerPushToken(token: string, walletAddress: string, vaultPubkey?: string): Promise<void> {
-  if (isE2E) return;
+  if (isE2E()) return;
 
   try {
     await postJSON('https://notifications.ducatprotocol.com/api/register', {
       token,
       walletAddress,
       vaultPubkey,
-      network: 'mutinynet',
+      network: APP_NETWORK_CONFIG.id,
     });
     logger.info('[PushNotification] Token registered with backend');
   } catch (error: unknown) {
@@ -80,7 +94,7 @@ export async function registerPushToken(token: string, walletAddress: string, va
  * @param token - Expo push token string to unregister
  */
 export async function unregisterPushToken(token: string): Promise<void> {
-  if (isE2E) return;
+  if (isE2E()) return;
 
   try {
     await postJSON('https://notifications.ducatprotocol.com/api/unregister', { token });
@@ -101,7 +115,7 @@ export async function sendLocalNotification(params: {
   body: string;
   data?: Record<string, unknown>;
 }): Promise<void> {
-  if (isE2E) return;
+  if (isE2E()) return;
 
   try {
     await Notifications.scheduleNotificationAsync({
@@ -135,7 +149,7 @@ export async function watchTransaction(
   walletAddress: string,
   type?: string
 ): Promise<void> {
-  if (isE2E) return;
+  if (isE2E()) return;
 
   try {
     const token = await getExpoPushToken();
@@ -148,7 +162,8 @@ export async function watchTransaction(
       txid,
       token,
       walletAddress,
-      type: type || 'tx_confirmed',
+      type: formatWatchTransactionType(type),
+      network: APP_NETWORK_CONFIG.id,
     });
     logger.info('[PushNotification] TX watch registered', { txid: txid.substring(0, 8) + '...' });
   } catch (error: unknown) {
@@ -169,7 +184,7 @@ export async function watchTransaction(
  * @returns The Expo push token, or null if initialization failed
  */
 export async function initializePushNotifications(walletAddress: string, vaultPubkey?: string): Promise<string | null> {
-  if (isE2E) {
+  if (isE2E()) {
     logger.debug('[PushNotification] Skipped initialization in E2E mode');
     return null;
   }

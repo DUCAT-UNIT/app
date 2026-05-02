@@ -1,21 +1,20 @@
 /**
  * VaultProcessingScreen - Generic processing screen for all vault operations
- * Features: 4-step progress tracker, animated indicators, background support
+ * Features: 4-step progress tracker driven by real operation state, background support
  */
 
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { AppState,AppStateStatus,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { ProcessingStepsList } from '../../components/vaultCreation';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuthSession } from '../../contexts/AuthContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useIssuedUnitSettlement } from '../../hooks/vault/useIssuedUnitSettlement';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import type { ProcessingStep } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,spacing } from '../../styles/theme';
 import { getVaultSettlementStatusMessage } from '../../services/vaultSettlementService';
 import type { VaultProcessingScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
-
-const STEP_DURATION_MS = 1000; // Minimum 1 second per step
-const TOTAL_STEPS = 4;
 
 interface VaultProcessingScreenProps {
   navigation: VaultScreenNavigationProp;
@@ -28,53 +27,29 @@ export default function VaultProcessingScreen({
   config,
   store,
 }: VaultProcessingScreenProps) {
-  const { currentStep, error, vaultTxid: txid, reset } = store;
-  const { isAuthenticated } = useAuth();
-  const { kind: settlementKind, phase: settlementPhase } = useVaultSettlementStore();
+  const { currentStep, processingStep, error, vaultTxid: txid, reset } = store;
+  const { isAuthenticated } = useAuthSession();
+  const { settingsHandlers } = useSettingsHandlers();
+  const {
+    kind: settlementKind,
+    phase: settlementPhase,
+    faceValueUsd: settlementFaceValueUsd,
+  } = useVaultSettlementStore();
+  const { settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
-
-  // Visual step state - advances at minimum 1 second per step
-  const [visualStep, setVisualStep] = useState(1);
-  const visualStepRef = useRef(1);
-
-  // Track if we can start animating (after FaceID delay)
-  const [canAnimate, setCanAnimate] = useState(false);
-
-  // Wait for FaceID/splash screen to complete before starting animation
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCanAnimate(true);
-    }, 2000); // 2 second delay for FaceID to complete
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Advance visual step every 1 second
-  useEffect(() => {
-    if (error) return; // Stop advancing on error
-    if (!canAnimate) return; // Wait for FaceID delay
-    if (visualStepRef.current > TOTAL_STEPS) return; // Already done
-
-    const interval = setInterval(() => {
-      if (visualStepRef.current <= TOTAL_STEPS) {
-        visualStepRef.current += 1;
-        setVisualStep(visualStepRef.current);
-      }
-    }, STEP_DURATION_MS);
-
-    return () => clearInterval(interval);
-  }, [error, canAnimate]);
+  const [isRetryingSettlement, setIsRetryingSettlement] = useState(false);
+  const realStep = Math.max(1, Math.min(4, processingStep || 1)) as ProcessingStep;
 
   const hasNavigatedToSuccess = useRef(false);
 
   const navigateToSuccess = useCallback(() => {
     if (hasNavigatedToSuccess.current) return;
-    if (isAuthenticated && currentStep === 'success' && txid && visualStep > TOTAL_STEPS) {
+    if (isAuthenticated && currentStep === 'success' && txid) {
       hasNavigatedToSuccess.current = true;
       navigation.navigate(config.routes.success, { vaultTxid: txid });
     }
-  }, [isAuthenticated, currentStep, txid, visualStep, navigation, config.routes.success]);
+  }, [isAuthenticated, currentStep, txid, navigation, config.routes.success]);
 
   // Keep the operation running when app goes to background
   useEffect(() => {
@@ -93,16 +68,15 @@ export default function VaultProcessingScreen({
 
   // Navigate to success screen when complete
   useEffect(() => {
-    if (isAuthenticated && currentStep === 'success' && txid && visualStep > TOTAL_STEPS) {
-      const timer = setTimeout(() => {
-        navigateToSuccess();
-      }, 500); // Small delay after showing all completed
-      return () => clearTimeout(timer);
+    if (isAuthenticated && currentStep === 'success' && txid) {
+      navigateToSuccess();
     }
-  }, [currentStep, txid, isAuthenticated, visualStep, navigateToSuccess]);
+  }, [currentStep, txid, isAuthenticated, navigateToSuccess]);
 
   // Show error snackbar and navigate back when error occurs
   useEffect(() => {
+    let navigateBackTimer: ReturnType<typeof setTimeout> | null = null;
+
     if (error && !hasShownError.current) {
       hasShownError.current = true;
       useNotificationStore.getState().showSnackbar({
@@ -111,13 +85,20 @@ export default function VaultProcessingScreen({
         type: 'error',
       });
       // Navigate back to input screen after showing error
-      setTimeout(() => {
+      navigateBackTimer = setTimeout(() => {
         navigation.navigate(config.routes.input);
       }, 500);
+      (navigateBackTimer as { unref?: () => void }).unref?.();
     }
     if (!error) {
       hasShownError.current = false;
     }
+
+    return () => {
+      if (navigateBackTimer) {
+        clearTimeout(navigateBackTimer);
+      }
+    };
   }, [error, config.operationType, navigation, config.routes.input]);
 
   // Handle cancel button press
@@ -126,10 +107,60 @@ export default function VaultProcessingScreen({
     navigation.navigate(config.routes.input);
   };
 
+  const handleRetrySettlement = useCallback(async () => {
+    if (
+      isRetryingSettlement ||
+      settlementKind !== 'borrow' ||
+      settlementFaceValueUsd <= 0
+    ) {
+      return;
+    }
+
+    setIsRetryingSettlement(true);
+    try {
+      const settlement = await settleIssuedUnitToUsdc('borrow', settlementFaceValueUsd);
+      const canComplete =
+        settlement.status === 'settled' ||
+        (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+      if (canComplete) {
+        store.setCurrentStep('success');
+      }
+    } catch (retryError) {
+      const message = retryError instanceof Error
+        ? retryError.message
+        : 'Unable to retry settlement';
+      useNotificationStore.getState().showSnackbar({
+        title: 'Settlement retry failed',
+        description: message,
+        type: 'error',
+      });
+    } finally {
+      setIsRetryingSettlement(false);
+    }
+  }, [
+    isRetryingSettlement,
+    settlementKind,
+    settlementFaceValueUsd,
+    settleIssuedUnitToUsdc,
+    store,
+  ]);
+
   const statusMessage =
-    config.operationType === 'repay' && settlementKind === 'repay'
-      ? getVaultSettlementStatusMessage(settlementKind, settlementPhase, visualStep)
-      : config.getStatusMessage(visualStep);
+    settlementKind === config.operationType
+      ? getVaultSettlementStatusMessage(settlementKind, settlementPhase, realStep, settingsHandlers.usdcFeaturesEnabled)
+      : config.getStatusMessage(realStep);
+  const isSettlementRetryNeeded =
+    !error &&
+    settlementPhase === 'needs_retry' &&
+    settlementKind === 'borrow' &&
+    config.operationType === 'borrow' &&
+    settlementFaceValueUsd > 0;
+  const showActionButton = !!error || isSettlementRetryNeeded;
+  const actionLabel = error
+    ? 'Cancel'
+    : isRetryingSettlement
+      ? 'Retrying...'
+      : 'Retry settlement';
 
   return (
     <View style={styles.container} testID={`vault-${config.operationType}-processing-screen`}>
@@ -145,9 +176,9 @@ export default function VaultProcessingScreen({
         {/* Processing Steps */}
         <View style={styles.stepsContainer}>
           <ProcessingStepsList
-            currentStep={visualStep as ProcessingStep}
+            currentStep={realStep}
             hasError={!!error}
-            errorStep={error ? visualStep as ProcessingStep : undefined}
+            errorStep={error ? realStep : undefined}
           />
         </View>
 
@@ -166,17 +197,27 @@ export default function VaultProcessingScreen({
           )}
         </View>
 
-        {/* Cancel Button - only visible on error */}
-        {error && (
+        {/* Action button - visible on hard errors or settlement retry states */}
+        {showActionButton && (
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={handleCancel}
+              style={[
+                styles.cancelButton,
+                isRetryingSettlement && styles.disabledButton,
+              ]}
+              onPress={error ? handleCancel : handleRetrySettlement}
+              disabled={isRetryingSettlement}
               accessibilityRole="button"
-              accessibilityLabel="Cancel and go back"
-              accessibilityHint="Returns to the input screen to try again"
+              accessibilityLabel={error ? 'Cancel and go back' : 'Retry settlement'}
+              accessibilityHint={
+                error
+                  ? 'Returns to the input screen to try again'
+                  : 'Retries USDC settlement without creating another borrow'
+              }
             >
-              <Text style={styles.cancelButtonText} accessibilityElementsHidden>Cancel</Text>
+              <Text style={styles.cancelButtonText} accessibilityElementsHidden>
+                {actionLabel}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -246,6 +287,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   cancelButtonText: {
     fontSize: fontSizes.md,

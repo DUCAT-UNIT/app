@@ -82,6 +82,7 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
   const [quoting, setQuoting] = useState(false);
   const [maxInputAmount, setMaxInputAmount] = useState<string | null>(null);
   const [didClampToMax, setDidClampToMax] = useState(false);
+  const [swapError, setSwapError] = useState<string | null>(null);
 
   const destinationAsset: CrossChainSwapAsset = sourceAsset === 'UNIT' ? 'USDC' : 'UNIT';
   const validAmount = Number(amountIn) > 0;
@@ -103,19 +104,22 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
   useEffect(() => {
     if (!bridgeReady) {
       setMaxInputAmount(null);
+      setSwapError('Sepolia swap contracts are not configured in this build.');
       return undefined;
     }
 
     let active = true;
+    setSwapError(null);
     getCrossChainSwapLimit()
       .then((limit) => {
         if (active) {
           setMaxInputAmount(limit.maxInputAmount);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
           setMaxInputAmount(null);
+          setSwapError(error instanceof Error ? error.message : 'Unable to load current pool limits.');
         }
       });
 
@@ -139,21 +143,26 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
     if (!bridgeReady || !validAmount) {
       setQuote(null);
       setQuoting(false);
+      if (!validAmount) {
+        setSwapError(null);
+      }
       return undefined;
     }
 
     let active = true;
     const timeout = setTimeout(() => {
       setQuoting(true);
+      setSwapError(null);
       quoteUnitUsdcSwap(sourceAsset, amountIn)
         .then((nextQuote) => {
           if (active) {
             setQuote(nextQuote);
           }
         })
-        .catch(() => {
+        .catch((error) => {
           if (active) {
             setQuote(null);
+            setSwapError(error instanceof Error ? error.message : 'Unable to fetch a live UNIT/USDC quote.');
           }
         })
         .finally(() => {
@@ -202,6 +211,9 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
 
   const handleContinue = (): void => {
     if (!bridgeReady || !validAmount || !quote) {
+      if (swapError) {
+        return;
+      }
       return;
     }
 
@@ -228,15 +240,18 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
       : 'Amount capped to the current pool max.';
 
   return (
-    <SafeAreaView style={styles.safeArea} testID="cross-chain-swap-screen">
+    <SafeAreaView style={styles.safeArea} testID="sepolia-swap-screen">
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <TouchableOpacity style={styles.backButton} onPress={navigation.goBack} testID="cross-chain-swap-back-btn">
+        <TouchableOpacity style={styles.backButton} onPress={navigation.goBack} testID="sepolia-swap-back-btn">
           <Icon name="back" size={20} color={COLORS.WHITE} />
         </TouchableOpacity>
 
         {!bridgeReady && (
-          <View style={styles.warningCard}>
-            <Text style={styles.warningText}>Swap unavailable</Text>
+          <View style={styles.warningCard} testID="sepolia-swap-config-warning">
+            <Text style={styles.warningTitle}>Swap unavailable</Text>
+            <Text style={styles.warningBody}>
+              Configure Sepolia RPC, bridge API, wUNIT, router, and UNIT/USDC pool addresses before using live swap actions.
+            </Text>
           </View>
         )}
 
@@ -306,6 +321,13 @@ export default function SwapScreen({ route, navigation }: SwapScreenProps): Reac
           </View>
         )}
 
+        {swapError && (
+          <View style={styles.warningCard} testID="sepolia-swap-error-card">
+            <Text style={styles.warningTitle}>Swap quote unavailable</Text>
+            <Text style={styles.warningBody}>{swapError}</Text>
+          </View>
+        )}
+
         <TouchableOpacity
           style={[
             styles.primaryButton,
@@ -349,9 +371,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#2A1C22',
   },
-  warningText: {
+  warningTitle: {
     color: '#FF8BD9',
+    fontSize: 14,
     fontWeight: '600',
+  },
+  warningBody: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
   },
   sellCard: {
     minHeight: 138,

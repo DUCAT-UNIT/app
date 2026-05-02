@@ -2,7 +2,17 @@ module.exports = {
   root: true,
   extends: ['@react-native', 'prettier'],
   parser: '@babel/eslint-parser',
-  ignorePatterns: ['coverage/**', 'node_modules/**'],
+  ignorePatterns: [
+    'coverage/**',
+    'node_modules/**',
+    '**/node_modules/**',
+    'ios/**',
+    'android/**',
+    'bridge-service/**',
+    'evm/**',
+    'web/pool-dashboard/**',
+    'tmp/**',
+  ],
   parserOptions: {
     requireConfigFile: false,
     ecmaFeatures: {

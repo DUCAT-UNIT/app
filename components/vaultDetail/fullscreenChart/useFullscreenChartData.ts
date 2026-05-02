@@ -8,6 +8,7 @@ import { useCallback,useEffect,useMemo,useState } from 'react';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import { API,API_KEYS } from '../../../utils/constants';
 import { logger } from '../../../utils/logger';
+import { getWithRetry } from '../../../utils/apiClient';
 import type { BitcoinData,PriceTimeframe,ReferenceLine,SeriesItem } from '../vaultChart/types';
 import { createEventSeries,transformToEvents } from '../vaultChart/utils';
 import { CACHE_EXPIRY_MS,CACHE_KEY_PREFIX,CHART_PADDING,PORTRAIT_HEIGHT,PORTRAIT_WIDTH } from './constants';
@@ -81,13 +82,15 @@ export function useFullscreenChartData(
       }
 
       try {
-        const response = await fetch(
+        const response = await getWithRetry(
           `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
           {
             headers: {
               'accept': 'application/json',
               'x-cg-demo-api-key': API_KEYS.COINGECKO
-            }
+            },
+            timeout: 8000,
+            retryOptions: { maxRetries: 0 },
           }
         );
 

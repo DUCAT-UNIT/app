@@ -25,7 +25,7 @@ import {
 buildVaultProfile,
 computeVaultPrevoutFromTx,
 } from '../../services/vaultOperationsService';
-import { fetchVaultData,fetchVaultHistory } from '../../services/vaultService';
+import { fetchLatestVaultHistoryTransaction,fetchVaultData } from '../../services/vaultService';
 import { createVaultWallet } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
@@ -176,19 +176,18 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     try {
       const vaultData = await fetchVaultData(wallet.taprootPubkey);
 
-      if (!vaultData?.vaultInfo) {
+      if (!vaultData?.vaultInfo || !vaultData.vaultId) {
         logger.error(`[${operationName}] No vault info available`);
         return null;
       }
 
-      const history = await fetchVaultHistory(wallet.taprootPubkey);
+      const latestTx = await fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540);
 
-      if (!history || history.length === 0) {
+      if (!latestTx) {
         logger.error(`[${operationName}] No vault history available`);
         return null;
       }
 
-      const latestTx = history[0];
       const vaultPrevout = computeVaultPrevoutFromTx(latestTx);
 
       if (!vaultPrevout) {
@@ -422,7 +421,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       watchTransaction(
         resultVaultTxid,
         wallet?.segwitAddress || '',
-        'vault_operation'
+        'vault transaction'
       );
 
       return { txid, vaultTxid: resultVaultTxid };

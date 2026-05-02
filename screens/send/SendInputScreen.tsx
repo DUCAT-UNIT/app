@@ -68,6 +68,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const setSendAmount = useSendFlowStore((state) => state.setSendAmount);
   const setSelectedFeeRate = useSendFlowStore((state) => state.setSelectedFeeRate);
   const setTurboEnabled = useSendFlowStore((state) => state.setTurboEnabled);
+  const resetSendFlow = useSendFlowStore((state) => state.resetSendFlow);
 
   // Hooks
   const { btcPrice } = usePrice();
@@ -78,7 +79,9 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   // Local state
   const prevMaxRef = useRef<number>(0);
+  const reviewUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   const assetType = route.params?.assetType || sendAssetType;
   const prefillAddress = route.params?.prefillAddress;
@@ -184,6 +187,13 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     }
   }, [isInitializing]);
 
+  useEffect(() => () => {
+    if (reviewUnlockTimerRef.current) {
+      clearTimeout(reviewUnlockTimerRef.current);
+      reviewUnlockTimerRef.current = null;
+    }
+  }, []);
+
   // Adjust amount when max changes based on fee rate (for BTC only)
   useEffect(() => {
     if (!isBtc) return;
@@ -222,22 +232,35 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   }, []);
 
   const handleClose = useCallback(() => {
+    resetSendFlow();
     navigation.goBack();
-  }, [navigation]);
+  }, [navigation, resetSendFlow]);
 
-  const handleReview = useCallback(() => {
-    if (!canContinue) return;
-    // For BTC, go to Processing to create intent
-    // For UNIT, use turbo review hook which handles turbo vs normal flow
-    if (isBtc) {
-      navigation.navigate('Processing', {
-        fromScreen: 'SendInput',
-        action: 'create_intent',
-      });
-    } else {
-      handleTurboReview();
+  const handleReview = useCallback(async () => {
+    if (!canContinue || isReviewing || isRequestingMint) return;
+    setIsReviewing(true);
+    if (reviewUnlockTimerRef.current) {
+      clearTimeout(reviewUnlockTimerRef.current);
     }
-  }, [canContinue, isBtc, navigation, handleTurboReview]);
+    try {
+      // For BTC, go to Processing to create intent.
+      // For UNIT, use turbo review hook which handles turbo vs normal flow.
+      if (isBtc) {
+        navigation.navigate('Processing', {
+          fromScreen: 'SendInput',
+          action: 'create_intent',
+        });
+      } else {
+        await handleTurboReview();
+      }
+    } finally {
+      reviewUnlockTimerRef.current = setTimeout(() => {
+        reviewUnlockTimerRef.current = null;
+        setIsReviewing(false);
+      }, 900);
+      (reviewUnlockTimerRef.current as { unref?: () => void }).unref?.();
+    }
+  }, [canContinue, isReviewing, isRequestingMint, isBtc, navigation, handleTurboReview]);
 
   // Show loading state during initialization to prevent layout flash
   if (isInitializing) {
@@ -249,6 +272,8 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
       </SafeAreaView>
     );
   }
+
+  const reviewDisabled = !canContinue || isReviewing || isRequestingMint;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="send-input-screen">
@@ -319,15 +344,25 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
         {/* Footer */}
         <View style={[styles.footer, { paddingBottom: Math.max(keyboardHeight, 16) }]}>
           <TouchableScale
-            style={[styles.reviewBtn, !canContinue && styles.reviewBtnDisabled]}
+            style={[styles.reviewBtn, reviewDisabled && styles.reviewBtnDisabled]}
             onPress={handleReview}
-            disabled={!canContinue}
+            disabled={reviewDisabled}
             testID="send-review-btn"
-            accessibilityLabel="Review transaction"
+            accessibilityLabel={reviewDisabled && isReviewing ? "Preparing transaction review" : "Review transaction"}
+            accessibilityState={{ disabled: reviewDisabled, busy: isReviewing || isRequestingMint }}
+            lockWhilePending
+            pressLockMs={700}
           >
-            <Text style={[styles.reviewBtnText, !canContinue && styles.reviewBtnTextDisabled]}>
-              Review
-            </Text>
+            {isReviewing || isRequestingMint ? (
+              <View style={styles.busyButtonContent}>
+                <ActivityIndicator size="small" color={colors.text.white} />
+                <Text style={styles.reviewBtnText}>Preparing...</Text>
+              </View>
+            ) : (
+              <Text style={[styles.reviewBtnText, !canContinue && styles.reviewBtnTextDisabled]}>
+                Review
+              </Text>
+            )}
           </TouchableScale>
         </View>
       </KeyboardAvoidingView>
@@ -402,6 +437,12 @@ const styles = StyleSheet.create({
   },
   reviewBtnTextDisabled: {
     color: colors.text.tertiary,
+  },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

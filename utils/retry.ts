@@ -30,6 +30,13 @@ function isNetworkError(error: Error | string | unknown): boolean {
   return networkPatterns.some((pattern) => pattern.test(errorMessage));
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
+  });
+}
+
 export interface RetryOptions {
   maxRetries?: number;
   initialDelay?: number;
@@ -76,7 +83,7 @@ export async function retryWithBackoff<T>(
       const finalDelay = delay + jitter;
 
       // Wait before retrying
-      await new Promise((resolve) => setTimeout(resolve, finalDelay));
+      await sleep(finalDelay);
     }
   }
 

@@ -1,12 +1,12 @@
 /**
  * E2E test state for simulating vault operations without Guardian WebSocket.
  *
- * Safety: All consumers check `__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true'`.
- * - `__DEV__` is false in production builds (Metro dead code elimination strips these blocks)
+ * Safety: Consumers gate behavior through `isE2E()`.
+ * - `isE2E()` is false in production builds because it also requires `__DEV__`
  * - `app.config.ts` throws at build time if EXPO_PUBLIC_E2E_BYPASS is set with NODE_ENV=production
  *
- * This module is only referenced inside `if (__DEV__)` guards, so the entire import
- * and all associated code paths are removed from production bundles.
+ * This module stores inert state only; production code paths must not read from it
+ * unless `isE2E()` is true.
  */
 
 export const e2eVaultState = {

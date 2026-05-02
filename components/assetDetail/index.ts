@@ -17,6 +17,4 @@ export {
   AssetInfoSkeleton,
   AssetChartSkeleton,
   AssetActivityListSkeleton,
-  AssetTabsSkeleton,
-  AssetDetailSkeleton,
 } from './AssetSkeleton';

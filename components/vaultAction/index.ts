@@ -14,6 +14,5 @@ export type { AmountSliderProps } from './AmountSlider';
 export { UnitAmountSlider } from './UnitAmountSlider';
 export type { UnitAmountSliderProps } from './UnitAmountSlider';
 
-export { ReceiveAssetSelector } from './ReceiveAssetSelector';
 export { ReceiveAssetBadge, getReceiveAssetMeta } from './ReceiveAssetBadge';
 export { ReceiveAssetStep } from './ReceiveAssetStep';

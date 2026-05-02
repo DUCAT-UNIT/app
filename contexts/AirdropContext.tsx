@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useMemo,
 import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
-import { useAuth } from './AuthContext';
+import { useAuthSession } from './AuthContext';
 import { useAuthFlowHandlers } from './NavigationHandlersContext';
 import * as AirdropService from '../services/airdropService';
 import { logger } from '../utils/logger';
@@ -55,7 +55,7 @@ interface AirdropProviderProps {
 export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seedConfirmed }) => {
   const { segwitBalance, taprootBalance } = useBalance();
   const { wallet, currentAccount } = useWallet();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuthSession();
   const { showBiometricSetupModal } = useAuthFlowHandlers();
 
   // Airdrop modal state

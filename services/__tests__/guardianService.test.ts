@@ -7,6 +7,9 @@ jest.mock('../../utils/constants', () => ({
   API: {
     GUARDIAN_WS: 'wss://test.guardian.url',
   },
+  NETWORK_CONFIG: {
+    vaultSdkNetwork: 'mutiny',
+  },
   VAULT_CONFIG: {
     TX_TIMEOUT: 30000,
   },
@@ -136,6 +139,13 @@ describe('guardianService', () => {
       jest.advanceTimersByTime(31000);
 
       await expect(clientPromise).rejects.toThrow('Guardian connection timeout');
+    });
+
+    it('should reject non-Mutinynet guardian networks', async () => {
+      await expect(
+        createGuardianClient({ pubkey: 'test-pubkey', network: 'main' as never })
+      ).rejects.toThrow('Mutinynet-only');
+      expect(mockOnce).not.toHaveBeenCalled();
     });
   });
 

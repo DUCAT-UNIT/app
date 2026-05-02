@@ -40,6 +40,20 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "advanced-ecash-threshold-btn"
 
+# Developer-only USDC unlock appears only after developer mode is enabled
+- assertNotVisible:
+    id: "advanced-enable-usdc-btn"
+- tapOn:
+    id: "advanced-dev-mode-btn"
+- extendedWaitUntil:
+    visible:
+      id: "advanced-enable-usdc-btn"
+    timeout: 5000
+- assertVisible:
+    id: "advanced-enable-usdc-btn"
+- assertVisible:
+    id: "advanced-operation-journal-panel"
+
 # Go back to settings
 - tapOn:
     id: "advanced-back-btn"

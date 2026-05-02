@@ -90,7 +90,7 @@ type VaultCreationStore = VaultCreationState & VaultCreationActions;
 const initialState: VaultCreationState = {
   btcAmount: 0,
   unitAmount: 0,
-  receiveAsset: 'USDC',
+  receiveAsset: 'UNIT',
   selectedFeeRate: 1, // Default 1 sat/vB
   bitcoinPrice: null,
   currentStep: 'amounts',
@@ -178,7 +178,8 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
 
       getMaxBorrowable: () => {
         const { btcAmount, bitcoinPrice } = get();
-        return protocolUnitToUsd(getMaxUnit(btcAmount, bitcoinPrice ?? undefined));
+        const maxUnit = getMaxUnit(btcAmount, bitcoinPrice ?? undefined);
+        return maxUnit === null ? null : protocolUnitToUsd(maxUnit);
       },
 
       getHealthStatus: () => {

@@ -12,6 +12,7 @@ import * as WalletService from '../services/walletService';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
+import { isE2E } from '../utils/e2e';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 
@@ -72,9 +73,8 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
 
     try {
       // E2E bypass: use test seed phrase in dev builds with explicit env var
-      const isE2E = __DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true';
       const e2eSeed = __DEV__ ? process.env.EXPO_PUBLIC_E2E_TEST_SEED : undefined;
-      const seedWords = isE2E && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
+      const seedWords = isE2E() && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
         ? e2eSeed.split(' ')
         : importSeedPhrase;
 

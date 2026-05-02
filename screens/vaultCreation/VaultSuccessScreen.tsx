@@ -4,9 +4,10 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
+import VaultActionSuccess, { buildVaultSuccessTxItems } from '../../components/vault/VaultActionSuccess';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { usePrice } from '../../stores/priceStore';
 import { analytics } from '../../services/analyticsService';
@@ -21,16 +22,21 @@ type VaultSuccessScreenProps = StackScreenProps<VaultCreateStackParamList, 'Vaul
 export default function VaultSuccessScreen({ navigation, route }: VaultSuccessScreenProps) {
   const { txid: storeTxid, btcAmount, borrowAmountUsd, reset } = useVaultCreation();
   const { wallet } = useWallet();
+  const { settingsHandlers } = useSettingsHandlers();
   const {
     phase,
     payoutAsset,
     payoutAmount,
+    sepoliaTxHash,
     error: settlementError,
     reset: resetSettlement,
   } = useVaultSettlementStore();
   const { btcPrice } = usePrice();
 
   const txid = route.params?.txid || storeTxid || '';
+  const showUsdcSettlementCopy = settingsHandlers.usdcFeaturesEnabled;
+  const showUsdcPayout = showUsdcSettlementCopy && payoutAsset === 'USDC';
+  const showWrappedUnitPayout = showUsdcSettlementCopy && payoutAsset === 'wUNIT';
 
   // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
   const btcAmountSats = Math.round(btcAmount * 100_000_000);
@@ -66,23 +72,23 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
   }, [resetSettlement, reset, navigation]);
 
   const successUnit =
-    payoutAsset === 'USDC'
+    showUsdcPayout
       ? 'USDC'
       : payoutAsset === 'UNIT'
         ? 'UNIT'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'wUNIT'
         : 'BTC';
   const successAmount =
-    payoutAsset && payoutAmount
+    (showUsdcPayout || showWrappedUnitPayout || payoutAsset === 'UNIT') && payoutAmount
       ? Number.parseFloat(payoutAmount) || btcAmountSats
       : btcAmountSats;
   const titleOverride =
-    payoutAsset === 'USDC'
+    showUsdcPayout
       ? 'Vault Created!'
       : payoutAsset === 'UNIT'
         ? 'UNIT Received!'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'wUNIT Received!'
       : phase === 'pending_settlement'
         ? 'Vault Created!'
@@ -90,27 +96,37 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
           ? 'Vault Created!'
           : undefined;
   const messageOverride =
-    payoutAsset === 'USDC'
-      ? 'BTC collateral is locked and the issued UNIT settled to USDC on Sepolia.'
+    showUsdcPayout
+      ? 'BTC collateral is locked and the issued UNIT settled to Sepolia USDC.'
       : payoutAsset === 'UNIT'
         ? 'BTC collateral is locked and the issued UNIT is now available in your wallet.'
-        : payoutAsset === 'wUNIT'
+        : showWrappedUnitPayout
           ? 'BTC collateral is locked. Auto-swap could not clear safely, so the issued UNIT was credited as wUNIT on Sepolia.'
       : phase === 'pending_settlement'
-        ? 'Vault created. Sepolia settlement is still processing in the background.'
-        : phase === 'needs_retry'
-          ? settlementError || 'Vault created. Automatic USDC settlement needs retry.'
+        ? showUsdcSettlementCopy
+          ? 'Vault created. Sepolia settlement is still processing in the background.'
+          : 'Vault created. Settlement is still processing in the background.'
+      : phase === 'needs_retry'
+          ? showUsdcSettlementCopy
+            ? settlementError || 'Vault created. Automatic Sepolia USDC settlement needs retry.'
+            : 'Vault created. Automatic settlement needs retry.'
           : undefined;
+  const txItems = buildVaultSuccessTxItems({
+    mutinynetTxid: txid,
+    sepoliaTxHash,
+    includeSepolia: showUsdcPayout,
+  });
 
   return (
     <VaultActionSuccess
       actionType="create"
       amount={successAmount}
-      usdValue={payoutAsset === 'UNIT' || payoutAsset === 'wUNIT' ? borrowAmountUsd : btcUsdValue}
+      usdValue={payoutAsset === 'UNIT' || showWrappedUnitPayout ? borrowAmountUsd : btcUsdValue}
       txid={txid}
       unit={successUnit}
       titleOverride={titleOverride}
       messageOverride={messageOverride}
+      txItems={txItems}
       onDone={handleDone}
     />
   );

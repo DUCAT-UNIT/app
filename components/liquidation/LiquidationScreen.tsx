@@ -11,6 +11,7 @@ import LiquidationStatusScreen from './LiquidationStatusScreen';
 import LiquidationReviewScreen from './LiquidationReviewScreen';
 import LiquidationInputScreen from './LiquidationInputScreen';
 import LiquidationEmptyStates from './LiquidationEmptyStates';
+import OperationRecoveryCard from '../common/OperationRecoveryCard';
 import {
   useLiquidationFlowStore,
   useLiqStep,
@@ -159,6 +160,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     currentStep === 'processing' || currentStep === 'success' || currentStep === 'error';
   const isReview = currentStep === 'review';
   const isInput = currentStep === 'input';
+  const hasStaleVaultData = fetchStatus === 'error' && vaults.length > 0;
 
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
@@ -227,6 +229,10 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       return <LiquidationEmptyStates variant="noVault" />;
     }
 
+    if (fetchStatus === 'error' && vaults.length === 0) {
+      return <LiquidationEmptyStates variant="error" />;
+    }
+
     if (isLoaded && vaults.length === 0) {
       return <LiquidationEmptyStates variant="noVaults" />;
     }
@@ -240,19 +246,31 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     }
 
     return (
-      <LiquidationInputScreen
-        maxInvestable={maxInvestable}
-        investAmount={investAmount}
-        onInvestAmountChange={setInvestAmount}
-        btcPrice={btcPrice ?? 0}
-        showBTC={showBTC}
-        vaults={vaults}
-        vaultsFull={vaultsFull}
-        vaultsLoaded={isLoaded}
-        vaultExpanded={vaultExpanded}
-        onExpandToggle={handleExpandToggle}
-        profitRate={profitRate}
-      />
+      <View style={styles.inputBody}>
+        {hasStaleVaultData && (
+          <View style={styles.staleCardWrap}>
+            <OperationRecoveryCard
+              title="Showing last vault data"
+              body="The latest liquidation refresh failed, so this dashboard is keeping the last successful vault set visible. Refresh will retry automatically."
+              statusLabel="Stale"
+              testID="liquidation-stale-data-card"
+            />
+          </View>
+        )}
+        <LiquidationInputScreen
+          maxInvestable={maxInvestable}
+          investAmount={investAmount}
+          onInvestAmountChange={setInvestAmount}
+          btcPrice={btcPrice ?? 0}
+          showBTC={showBTC}
+          vaults={vaults}
+          vaultsFull={vaultsFull}
+          vaultsLoaded={isLoaded}
+          vaultExpanded={vaultExpanded}
+          onExpandToggle={handleExpandToggle}
+          profitRate={profitRate}
+        />
+      </View>
     );
   };
 
@@ -322,6 +340,12 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xxl,
     fontFamily: fonts.bold,
     color: colors.text.primary,
+  },
+  inputBody: {
+    flex: 1,
+  },
+  staleCardWrap: {
+    paddingHorizontal: 16,
   },
   continueWrap: {
     position: 'absolute',

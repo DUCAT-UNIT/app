@@ -9,7 +9,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Kill and relaunch app (wallet persists, goes to lock screen)
 - stopApp
 - launchApp
-- openLink: "com.ducatprotocol.DucatProtocolWallet://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+- openLink: "${MAESTRO_EXPO_DEV_CLIENT_URL}"
 
 # Wait for lock screen
 - extendedWaitUntil:

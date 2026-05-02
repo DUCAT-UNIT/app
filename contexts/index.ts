@@ -4,7 +4,7 @@
  */
 
 // Auth context exports
-export { useAuth, useOnboardingFlow } from './AuthContext';
+export { useAuth, useAuthPinFlow, useAuthSession, useOnboardingFlow } from './AuthContext';
 
 // Wallet context exports
 export { useWallet } from './WalletContext';

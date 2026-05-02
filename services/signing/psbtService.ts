@@ -44,8 +44,14 @@ interface PsbtSigningIntent {
   minAmountSats?: number;
   allowOpReturn?: boolean;
   expectedPsbtTemplates?: ExpectedPsbtTemplate[];
-  /** Skip output validation entirely (for non-vault PSBTs like swaps) */
-  skipOutputValidation?: boolean;
+  externalSpend?: {
+    /** Wallet-controlled addresses that are allowed to receive change/asset outputs. */
+    returnAddresses: string[];
+    /** Maximum signed-input value that may leave the wallet, including miner fee. */
+    maxSpendSats: number;
+    /** Wallet-controlled outputs that must appear in the PSBT. */
+    requiredOutputAddresses?: string[];
+  };
 }
 
 const TAPROOT_PREFIX = `${NETWORK.bech32}1p`;
@@ -69,7 +75,7 @@ export async function signPsbt(
   return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
-    enforceIntentOutputs(psbt, intent);
+    enforceIntentOutputs(psbt, intent, signInputs);
 
     for (const [address, inputIndices] of Object.entries(signInputs)) {
       const scriptHex = ''; // Will be determined by address prefix
@@ -124,7 +130,7 @@ export async function signPsbtRaw(
   return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
-    enforceIntentOutputs(psbt, intent);
+    enforceIntentOutputs(psbt, intent, signInputs);
     logger.debug(`[signPsbtRaw] Loaded PSBT with ${psbt.inputCount} inputs`);
 
     for (const [address, inputIndices] of Object.entries(signInputs)) {
@@ -210,7 +216,7 @@ export async function signPsbtWithSdkObject(
     // Decode with bitcoinjs-lib for sighash computation
     const bjsPsbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
 
-    enforceIntentOutputs(bjsPsbt, intent);
+    enforceIntentOutputs(bjsPsbt, intent, signInputs);
 
     logger.debug(`[signPsbtWithSdkObject] Processing ${Object.keys(signInputs).length} addresses`);
 
@@ -658,6 +664,106 @@ function matchesExpectedPsbtTemplate(
   return true;
 }
 
+function toSatsBigInt(value: bigint | number, label: string): bigint {
+  if (typeof value === 'bigint') {
+    if (value < 0n) {
+      throw new Error(`SECURITY: ${label} cannot be negative`);
+    }
+    return value;
+  }
+
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`SECURITY: ${label} must be a non-negative safe integer`);
+  }
+
+  return BigInt(value);
+}
+
+function normalizeAddressSet(addresses: string[], label: string): Set<string> {
+  if (!addresses.length) {
+    throw new Error(`SECURITY: ${label} must contain at least one address`);
+  }
+
+  return new Set(addresses.map(validateAndNormalizeAddress));
+}
+
+function getSignInputIndices(signInputs: Record<string, number[]>): number[] {
+  const indices = new Set<number>();
+
+  for (const inputIndices of Object.values(signInputs)) {
+    for (const inputIndex of inputIndices) {
+      if (!Number.isInteger(inputIndex) || inputIndex < 0) {
+        throw new Error(`SECURITY: Invalid PSBT input index ${inputIndex}`);
+      }
+      indices.add(inputIndex);
+    }
+  }
+
+  return [...indices];
+}
+
+function enforceExternalSpendPolicy(
+  psbt: bitcoin.Psbt,
+  signInputs: Record<string, number[]>,
+  policy: NonNullable<PsbtSigningIntent['externalSpend']>,
+  allowOpReturn: boolean
+): void {
+  const inputIndices = getSignInputIndices(signInputs);
+  if (inputIndices.length === 0) {
+    throw new Error('SECURITY: External PSBT signing requires at least one signed input');
+  }
+
+  const returnAddresses = normalizeAddressSet(policy.returnAddresses, 'external spend returnAddresses');
+  const requiredAddresses = policy.requiredOutputAddresses?.length
+    ? normalizeAddressSet(policy.requiredOutputAddresses, 'external spend requiredOutputAddresses')
+    : new Set<string>();
+  const seenRequiredAddresses = new Set<string>();
+
+  let signedInputValue = 0n;
+  for (const inputIndex of inputIndices) {
+    const input = psbt.data.inputs[inputIndex];
+    if (!input?.witnessUtxo) {
+      throw new Error(`SECURITY: Missing witnessUtxo for requested input ${inputIndex}`);
+    }
+    signedInputValue += toSatsBigInt(input.witnessUtxo.value, `input ${inputIndex} value`);
+  }
+
+  let walletReturnValue = 0n;
+  for (const out of psbt.txOutputs) {
+    if (out.script[0] === 0x6a) {
+      if (!allowOpReturn) {
+        throw new Error('SECURITY: PSBT contains OP_RETURN output but allowOpReturn is false');
+      }
+      validateOpReturnOutput(out.script);
+      continue;
+    }
+
+    const addr = validateAndNormalizeAddress(bitcoin.address.fromOutputScript(out.script, NETWORK));
+    if (returnAddresses.has(addr)) {
+      walletReturnValue += toSatsBigInt(out.value, `output to ${addr}`);
+    }
+    if (requiredAddresses.has(addr)) {
+      seenRequiredAddresses.add(addr);
+    }
+  }
+
+  for (const requiredAddress of requiredAddresses) {
+    if (!seenRequiredAddresses.has(requiredAddress)) {
+      throw new Error(`SECURITY: External PSBT missing required wallet output ${requiredAddress}`);
+    }
+  }
+
+  const netSpend = signedInputValue - walletReturnValue;
+  if (netSpend < 0n) {
+    throw new Error('SECURITY: External PSBT returns more value than signed inputs');
+  }
+
+  const maxSpend = toSatsBigInt(policy.maxSpendSats, 'external spend maxSpendSats');
+  if (netSpend > maxSpend) {
+    throw new Error('SECURITY: External PSBT spends more than the approved maximum');
+  }
+}
+
 /**
  * Basic intent enforcement for wallet/vault PSBT signing.
  * - Ensures all outputs are either the reviewed recipient or wallet-derived change.
@@ -665,17 +771,9 @@ function matchesExpectedPsbtTemplate(
  */
 function enforceIntentOutputs(
   psbt: bitcoin.Psbt,
-  intent?: PsbtSigningIntent
+  intent: PsbtSigningIntent | undefined,
+  signInputs: Record<string, number[]>
 ): void {
-  // SECURITY NOTE: skipOutputValidation bypasses ALL output checks. Currently used only
-  // for liquidation swap PSBTs from the Guardian server. This is a known risk — if the
-  // Guardian is compromised, swap PSBTs could drain funds. A narrow output allowlist
-  // should replace this blanket bypass before mainnet launch.
-  // TODO: Replace skipOutputValidation with allowedOutputAddresses validation
-  if (intent?.skipOutputValidation) {
-    return;
-  }
-
   if (!intent?.recipient) {
     throw new Error('SECURITY: Missing intent for PSBT signing');
   }
@@ -698,8 +796,13 @@ function enforceIntentOutputs(
 
   const recipient = validateAndNormalizeAddress(intent.recipient);
   const change = intent.change ? validateAndNormalizeAddress(intent.change) : null;
-  const minAmount = intent.minAmountSats ?? 0;
+  const minAmount = toSatsBigInt(intent.minAmountSats ?? 0, 'intent minAmountSats');
   const allowOpReturn = intent.allowOpReturn ?? false;
+
+  if (intent.externalSpend) {
+    enforceExternalSpendPolicy(psbt, signInputs, intent.externalSpend, allowOpReturn);
+    return;
+  }
 
   let recipientValue = 0n;
 
@@ -722,9 +825,9 @@ function enforceIntentOutputs(
       continue;
     }
 
-    const addr = bitcoin.address.fromOutputScript(out.script, NETWORK);
+    const addr = validateAndNormalizeAddress(bitcoin.address.fromOutputScript(out.script, NETWORK));
     if (addr === recipient) {
-      recipientValue += out.value;
+      recipientValue += toSatsBigInt(out.value, `output to ${recipient}`);
       continue;
     }
 
@@ -735,7 +838,7 @@ function enforceIntentOutputs(
     throw new Error('SECURITY: PSBT has outputs not matching recipient/change');
   }
 
-  if (recipientValue < BigInt(minAmount)) {
+  if (recipientValue < minAmount) {
     throw new Error('SECURITY: PSBT recipient amount below approved value');
   }
 }

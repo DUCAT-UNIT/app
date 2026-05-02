@@ -12,7 +12,6 @@ export type {
   VaultOperationType,
   ProcessingStep,
   VaultWalletData,
-  VaultContextData,
   VaultStoreState,
   VaultStoreActions,
   VaultStore,

@@ -3,7 +3,7 @@
  * Displays detailed information about a specific asset (BTC or UNIT)
  */
 
-import React,{ useCallback,useMemo,useRef,useState } from 'react';
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import {
 Alert,
 Animated,
@@ -26,6 +26,7 @@ import TransactionDetailsSheet from '../../components/transaction/TransactionDet
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance,useEvmAssets,useTransactionHistory,useVaultData } from '../../contexts/WalletDataContext';
 import { useAssetTransactions } from '../../hooks/useAssetTransactions';
 import { useFuseEcash } from '../../hooks/useFuseEcash';
@@ -49,11 +50,12 @@ interface AssetDetailScreenProps {
   route?: {
     /** Route parameters */
     params?: {
-      /** Type of asset to display (BTC or UNIT) */
-      assetType?: 'BTC' | 'UNIT' | 'USDC';
+      /** Type of asset to display (BTC, UNIT, or Sepolia asset) */
+      assetType?: 'BTC' | 'UNIT' | 'USDC' | 'ETH';
       /** Whether advanced mode is enabled for additional features */
       advancedMode?: boolean;
       initialEvmUsdcBalance?: number;
+      initialEvmEthBalance?: number;
       initialEvmAddress?: string;
     };
   };
@@ -84,29 +86,52 @@ interface TokenData {
 
 function AssetDetailScreen(props: AssetDetailScreenProps): React.JSX.Element {
   const assetType = props.route?.params?.assetType || 'BTC';
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const isSepoliaAsset = assetType === 'USDC' || assetType === 'ETH';
 
-  if (assetType === 'USDC') {
-    return <UsdcAssetDetailScreen {...props} />;
+  useEffect(() => {
+    if (isSepoliaAsset && !usdcFeaturesEnabled) {
+      props.navigation.goBack();
+    }
+  }, [isSepoliaAsset, props.navigation, usdcFeaturesEnabled]);
+
+  if (isSepoliaAsset && !usdcFeaturesEnabled) {
+    return <SafeAreaView style={styles.container} />;
+  }
+
+  if (isSepoliaAsset) {
+    return <EvmAssetDetailScreen {...props} />;
   }
 
   return <BtcUnitAssetDetailScreen {...props} />;
 }
 
-function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
+function EvmAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps): React.JSX.Element {
   const {
+    assetType: requestedAssetType = 'USDC',
     advancedMode = false,
     initialEvmUsdcBalance = 0,
+    initialEvmEthBalance = 0,
     initialEvmAddress = '',
   } = route?.params || {};
+  const assetType: 'USDC' | 'ETH' = requestedAssetType === 'ETH' ? 'ETH' : 'USDC';
   const {
     evmBalances,
     usdcHistory,
+    ethHistory,
     loadingEvmBalances,
     loadingUsdcHistory,
+    loadingEthHistory,
+    isSepoliaConfigured,
     isEvmConfigured,
     refreshEvmBalances,
     refreshUsdcHistory,
+    refreshEthHistory,
   } = useEvmAssets();
+  const { ethPrice } = usePrice();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT'>('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1M');
   const [isChartScrubbing, setIsChartScrubbing] = useState(false);
@@ -124,9 +149,13 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const balanceLoadedRef = useRef(Boolean(initialEvmAddress));
-  const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart('USDC', selectedTimeframe);
+  const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(assetType, selectedTimeframe);
 
-  const effectiveEvmUsdcBalance = Number(evmBalances?.usdc || initialEvmUsdcBalance || 0);
+  const effectiveEvmBalance = Number(
+    assetType === 'ETH'
+      ? evmBalances?.eth || initialEvmEthBalance || 0
+      : evmBalances?.usdc || initialEvmUsdcBalance || 0,
+  );
   const effectiveEvmAddress = evmBalances?.address || initialEvmAddress;
 
   if (!loadingEvmBalances || Boolean(effectiveEvmAddress)) {
@@ -139,16 +168,20 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
     useCallback(() => {
       refreshEvmBalances().catch(() => undefined);
       if (selectedTab === 'ACTIVITY') {
-        refreshUsdcHistory().catch(() => undefined);
+        if (assetType === 'USDC') {
+          refreshUsdcHistory().catch(() => undefined);
+        } else {
+          refreshEthHistory().catch(() => undefined);
+        }
       }
       return undefined;
-    }, [refreshEvmBalances, refreshUsdcHistory, selectedTab]),
+    }, [assetType, refreshEthHistory, refreshEvmBalances, refreshUsdcHistory, selectedTab]),
   );
 
   const handleActionPress = useCallback((action: 'send' | 'receive' | 'swap') => {
     switch (action) {
       case 'send':
-        navigation.navigate('SepoliaSend', { asset: 'USDC' });
+        navigation.navigate('SepoliaSend', { asset: assetType });
         break;
       case 'receive':
         if (!effectiveEvmAddress) {
@@ -158,15 +191,17 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
         navigation.navigate('ReceiveQR', {
           address: effectiveEvmAddress,
           addressType: 'Sepolia EVM',
-          assetType: 'USDC',
+          assetType,
           networkLabel: 'Ethereum Sepolia',
         });
         break;
       case 'swap':
-        navigation.navigate('SepoliaSwap', { sourceAsset: 'USDC' });
+        if (assetType === 'USDC') {
+          navigation.navigate('SepoliaSwap', { sourceAsset: 'USDC' });
+        }
         break;
     }
-  }, [effectiveEvmAddress, navigation]);
+  }, [assetType, effectiveEvmAddress, navigation]);
 
   const handleTransactionPress = useCallback((tx: {
     txid: string;
@@ -191,6 +226,9 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
     setShowRegularTxDetails(true);
   }, []);
 
+  const evmTransactions = assetType === 'USDC' ? usdcHistory : ethHistory;
+  const evmHistoryLoading = assetType === 'USDC' ? loadingUsdcHistory : loadingEthHistory;
+
   return (
     <>
       <SafeAreaView style={styles.container} testID="asset-detail-screen">
@@ -206,9 +244,9 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
           scrollEnabled={!isChartScrubbing}
         >
           <AssetInfo
-            assetType="USDC"
-            balance={effectiveEvmUsdcBalance}
-            fiatValue={effectiveEvmUsdcBalance}
+            assetType={assetType}
+            balance={effectiveEvmBalance}
+            fiatValue={assetType === 'ETH' ? effectiveEvmBalance * (ethPrice ?? 0) : effectiveEvmBalance}
             btcPrice={null}
             priceData={priceData}
             priceDirection={priceDirection}
@@ -219,14 +257,14 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
             onSendPress={() => handleActionPress('send')}
             onReceivePress={() => handleActionPress('receive')}
             onSwapPress={() => handleActionPress('swap')}
-            showSwap={isEvmConfigured}
-            showSend={isEvmConfigured}
+            showSwap={assetType === 'USDC' && isEvmConfigured && usdcFeaturesEnabled}
+            showSend={isSepoliaConfigured}
             showReceive={true}
             advancedMode={advancedMode}
           />
 
           <AssetPriceChart
-            assetType="USDC"
+            assetType={assetType}
             priceData={priceData}
             priceError={priceError}
             priceLoading={priceLoading}
@@ -234,7 +272,7 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             onRetry={() => setPriceError(null)}
-            currentPrice={1}
+            currentPrice={assetType === 'ETH' ? ethPrice : 1}
             onScrubStart={() => setIsChartScrubbing(true)}
             onScrubEnd={() => setIsChartScrubbing(false)}
           />
@@ -242,19 +280,19 @@ function UsdcAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProp
           <AssetTabs
             selectedTab={selectedTab}
             onTabChange={(tab: string) => setSelectedTab(tab as 'ACTIVITY' | 'ABOUT')}
-            assetType="USDC"
+            assetType={assetType}
             advancedMode={advancedMode}
           />
 
           {selectedTab === 'ACTIVITY' ? (
             <AssetActivityList
-              transactions={usdcHistory}
-              isLoading={loadingUsdcHistory}
+              transactions={evmTransactions}
+              isLoading={evmHistoryLoading}
               onTransactionPress={handleTransactionPress as (tx: { txid: string; ecashToken?: boolean }) => void}
               advancedMode={advancedMode}
             />
           ) : (
-            <AssetAbout assetType="USDC" evmAddress={effectiveEvmAddress} />
+            <AssetAbout assetType={assetType} evmAddress={effectiveEvmAddress} />
           )}
         </Animated.ScrollView>
       </SafeAreaView>
@@ -287,6 +325,8 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
     refreshEvmBalances,
     refreshUsdcHistory,
   } = useEvmAssets();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
 
   const { segwitBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
@@ -297,6 +337,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
 
   // Vault data from shared context (participates in 10s polling)
   const { vaultData, loadingVault } = useVaultData();
+  const effectiveBtcPrice = btcPrice || vaultData?.currentPrice || 0;
 
   // Calculate vault health metrics
   const {
@@ -306,7 +347,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
     vaultCollateral,
     hasVault,
   } = useWalletCalculations({
-    btcPrice,
+    btcPrice: effectiveBtcPrice,
     vaultData,
   });
 
@@ -347,7 +388,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
   const effectiveEvmUsdcBalance = Number(evmBalances?.usdc || initialEvmUsdcBalance || 0);
   const effectiveEvmAddress = evmBalances?.address || initialEvmAddress;
   const balance = assetType === 'BTC' ? segwitBalance : assetType === 'UNIT' ? totalUnitAmount : effectiveEvmUsdcBalance;
-  const fiatValue = assetType === 'BTC' ? balance * (btcPrice ?? 0) : balance * 1;
+  const fiatValue = assetType === 'BTC' ? balance * effectiveBtcPrice : balance * 1;
 
   // Loading states - only show loading on initial load, not background updates
   const hasRunesData = runesBalance !== null && runesBalance !== undefined;
@@ -528,7 +569,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
             assetType={assetType}
             balance={balance}
             fiatValue={fiatValue}
-            btcPrice={btcPrice}
+            btcPrice={assetType === 'BTC' ? effectiveBtcPrice : btcPrice}
             priceData={priceData}
             priceDirection={priceDirection}
             runesBalance={unitRunesAmount}
@@ -539,7 +580,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
               healthColor: vaultHealthColor,
               totalDebt: vaultDebt,
               totalCollateral: vaultCollateral,
-              currentPrice: btcPrice || 0,
+              currentPrice: effectiveBtcPrice,
               hasVault,
               isLoading: loadingVault,
               priceChange24h: priceDirection.isPositive ? parseFloat(priceDirection.percentChange) : -parseFloat(priceDirection.percentChange),
@@ -560,7 +601,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
             onSwapPress={() => handleActionPress('swap')}
             onConsolidatePress={() => handleActionPress('consolidate')}
             onTurboPress={() => handleActionPress('turbo')}
-            showSwap={showSwapAction}
+            showSwap={assetType === 'UNIT' && showSwapAction && usdcFeaturesEnabled}
             showSend={assetType !== 'USDC' || showSwapAction}
             showReceive={true}
             showConsolidate={assetType === 'UNIT'}
@@ -576,7 +617,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
             selectedTimeframe={selectedTimeframe}
             onTimeframeChange={setSelectedTimeframe}
             onRetry={() => setPriceError(null)}
-            currentPrice={assetType === 'BTC' ? btcPrice : 1}
+            currentPrice={assetType === 'BTC' ? effectiveBtcPrice : 1}
             onScrubStart={handleChartScrubStart}
             onScrubEnd={handleChartScrubEnd}
           />

@@ -28,7 +28,7 @@ jest.mock('../../services/vaultOperationsService', () => ({
   createVaultConfig: jest.fn(() => ({ unit_amount: 100, btc_amount: 0.001 })),
   guardianOpenVaultReserve: jest.fn().mockResolvedValue({ account: 'res123' }),
   guardianSendReqOpen: jest.fn().mockResolvedValue('txid123'),
-  createVaultReqOpen: jest.fn().mockResolvedValue({ psbt: 'psbt123' }),
+  createVaultReqOpen: jest.fn().mockResolvedValue({ psbt: 'psbt123', vault_txid: 'vaulttxid123' }),
 }));
 
 jest.mock('../../services/vaultWalletService', () => ({
@@ -39,13 +39,17 @@ jest.mock('../../services/vaultWalletService', () => ({
 const mockVaultCreationStore = {
   btcAmount: 0.001,
   unitAmount: 100,
+  borrowAmountUsd: 100,
+  protocolUnitAmount: 100,
   selectedFeeRate: 10,
   loading: false,
   error: null,
   txid: null,
+  vaultTxid: null,
   setLoading: jest.fn(),
   setError: jest.fn(),
   setTxid: jest.fn(),
+  setVaultTxid: jest.fn(),
   setCurrentStep: jest.fn(),
   setProcessingStep: jest.fn(),
   reset: jest.fn(),
@@ -54,6 +58,55 @@ const mockVaultCreationStore = {
 jest.mock('../../stores/vaultCreationStore', () => ({
   useVaultCreationStore: jest.fn(() => mockVaultCreationStore),
   useVaultCreation: jest.fn(() => mockVaultCreationStore),
+}));
+
+const mockSetPendingVaultTransaction = jest.fn().mockResolvedValue(undefined);
+const mockAddPendingTransaction = jest.fn().mockResolvedValue(undefined);
+const mockMarkUtxoAsSpent = jest.fn().mockResolvedValue(undefined);
+const mockShowSnackbar = jest.fn();
+const mockPendingTransactions: Record<string, unknown> = {};
+
+jest.mock('../../stores/pendingVaultTransactionStore', () => ({
+  usePendingVaultTransactionStore: jest.fn((selector) => selector({
+    pendingTransaction: null,
+    setPendingTransaction: mockSetPendingVaultTransaction,
+  })),
+}));
+
+jest.mock('../../stores/pendingTransactionsStore', () => {
+  const store = {
+    pendingTransactions: mockPendingTransactions,
+    addPendingTransaction: mockAddPendingTransaction,
+    markUtxoAsSpent: mockMarkUtxoAsSpent,
+  };
+
+  const usePendingTransactionsStore = jest.fn((selector) => selector(store)) as jest.Mock & {
+    getState: jest.Mock;
+  };
+  usePendingTransactionsStore.getState = jest.fn(() => store);
+
+  return {
+    usePendingTransactionsStore,
+  };
+});
+
+jest.mock('../../stores/notificationStore', () => ({
+  useNotificationStore: jest.fn((selector) => selector({
+    showSnackbar: mockShowSnackbar,
+  })),
+}));
+
+jest.mock('../../services/vault/pendingIssueOutputs', () => ({
+  extractVaultIssuePendingData: jest.fn(() => ({
+    outputs: [],
+    spentInputs: [],
+    parentTxid: null,
+  })),
+  extractVaultFinalizationPendingData: jest.fn(() => ({
+    outputs: [],
+    spentInputs: [],
+    parentTxid: null,
+  })),
 }));
 
 jest.mock('../../contexts/WalletContext', () => ({
@@ -91,6 +144,7 @@ describe('useCreateVault', () => {
     mockVaultCreationStore.loading = false;
     mockVaultCreationStore.error = null;
     mockVaultCreationStore.txid = null;
+    mockVaultCreationStore.vaultTxid = null;
   });
 
   it('should return initial state', () => {
@@ -116,6 +170,7 @@ describe('useCreateVault', () => {
       expect(mockVaultCreationStore.setLoading).toHaveBeenCalledWith(true);
       expect(mockVaultCreationStore.setCurrentStep).toHaveBeenCalledWith('processing');
       expect(mockVaultCreationStore.setTxid).toHaveBeenCalledWith('txid123');
+      expect(mockVaultCreationStore.setVaultTxid).toHaveBeenCalledWith('vaulttxid123');
       expect(mockVaultCreationStore.setCurrentStep).toHaveBeenCalledWith('success');
     });
 

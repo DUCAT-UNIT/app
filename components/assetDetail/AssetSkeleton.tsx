@@ -101,32 +101,6 @@ export const AssetActivityListSkeleton = React.memo(function AssetActivityListSk
   );
 });
 
-/**
- * Skeleton for tabs section
- */
-export const AssetTabsSkeleton = React.memo(function AssetTabsSkeleton() {
-  return (
-    <View style={styles.tabsContainer}>
-      <SkeletonLoader width={80} height={32} borderRadius={8} style={styles.tabItem} />
-      <SkeletonLoader width={80} height={32} borderRadius={8} style={styles.tabItem} />
-    </View>
-  );
-});
-
-/**
- * Combined skeleton for the full asset detail page
- */
-export const AssetDetailSkeleton = React.memo(function AssetDetailSkeleton() {
-  return (
-    <View style={styles.fullPageContainer}>
-      <AssetInfoSkeleton />
-      <AssetChartSkeleton />
-      <AssetTabsSkeleton />
-      <AssetActivityListSkeleton />
-    </View>
-  );
-});
-
 const styles = StyleSheet.create({
   // Asset info skeleton styles
   assetInfoContainer: {
@@ -198,23 +172,4 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-
-  // Tabs skeleton styles
-  tabsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 16,
-    minHeight: 56, // Fixed height to prevent jumping
-  },
-  tabItem: {
-    marginHorizontal: 4,
-  },
-
-  // Full page container
-  fullPageContainer: {
-    flex: 1,
-  },
 });
-
-export default AssetDetailSkeleton;

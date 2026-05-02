@@ -7,6 +7,7 @@ import React from 'react';
 import { useTransactionHistoryData } from '../useTransactionHistoryData';
 import * as WalletDataContext from '../../contexts/WalletDataContext';
 import * as transactionHistoryService from '../../services/transactionHistoryService';
+import { resetEvmTransactionCheckpointStore, useEvmTransactionCheckpointStore } from '../../stores/evmTransactionCheckpointStore';
 import { Linking } from 'react-native';
 
 // Mock dependencies
@@ -16,8 +17,12 @@ jest.mock('../../contexts/NavigationHandlersContext', () => ({
   useSettingsHandlers: jest.fn(() => ({
     settingsHandlers: {
       advancedMode: false,
+      usdcFeaturesEnabled: true,
     },
   })),
+}));
+jest.mock('../../contexts/WalletContext', () => ({
+  useWallet: jest.fn(() => ({ currentAccount: 0 })),
 }));
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   getSentLockedTokens: jest.fn(() => Promise.resolve([])),
@@ -80,6 +85,14 @@ describe('useTransactionHistoryData', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetEvmTransactionCheckpointStore();
+    const { useSettingsHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+    (useSettingsHandlers as jest.Mock).mockReturnValue({
+      settingsHandlers: {
+        advancedMode: false,
+        usdcFeaturesEnabled: true,
+      },
+    });
 
     (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
       transactionHistory: [],
@@ -95,6 +108,15 @@ describe('useTransactionHistoryData', () => {
       resetEcashTokens: jest.fn(),
     });
 
+    (WalletDataContext.useEvmAssets as jest.Mock).mockReturnValue({
+      usdcHistory: [],
+      ethHistory: [],
+      loadingUsdcHistory: false,
+      loadingEthHistory: false,
+      refreshUsdcHistory: jest.fn(),
+      refreshEthHistory: jest.fn(),
+    });
+
     (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
       amount: 100000,
       type: 'BTC',
@@ -103,6 +125,10 @@ describe('useTransactionHistoryData', () => {
 
     (Linking.canOpenURL as jest.Mock).mockResolvedValue(true);
     (Linking.openURL as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    resetEvmTransactionCheckpointStore();
   });
 
   it('should initialize with empty data', () => {
@@ -125,6 +151,182 @@ describe('useTransactionHistoryData', () => {
     rerender({ showHistorySheet: true, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress });
 
     expect(mockFetchTransactionHistory).toHaveBeenCalled();
+  });
+
+  it('should include ETH and USDC transactions in the global history sheet', () => {
+    (WalletDataContext.useEvmAssets as jest.Mock).mockReturnValue({
+      usdcHistory: [
+        {
+          txid: '0xusdc',
+          status: { confirmed: true, block_time: 1_777_371_540 },
+          txData: {
+            amount: 2.5,
+            assetType: 'USDC',
+            isSent: true,
+            isReceived: true,
+          },
+        },
+      ],
+      ethHistory: [
+        {
+          txid: '0xeth',
+          status: { confirmed: true, block_time: 1_777_370_400 },
+          txData: {
+            amount: 0.05,
+            assetType: 'ETH',
+            isSent: false,
+            isReceived: true,
+          },
+        },
+      ],
+      loadingUsdcHistory: false,
+      loadingEthHistory: false,
+      refreshUsdcHistory: jest.fn(),
+      refreshEthHistory: jest.fn(),
+    });
+
+    const { result } = renderHook(
+      useTransactionHistoryData,
+      { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+    );
+
+    expect(result.current!.displayTransactions.map((tx: { txid: string }) => tx.txid)).toEqual(['0xusdc', '0xeth']);
+    expect(result.current!.displayTransactions[0].txData).toEqual(
+      expect.objectContaining({
+        assetType: 'USDC',
+        amount: 2.5,
+        isSent: true,
+        isReceived: true,
+      })
+    );
+  });
+
+  it('should hide ETH and USDC history when the USDC developer flag is disabled', () => {
+    const { useSettingsHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
+    (useSettingsHandlers as jest.Mock).mockReturnValue({
+      settingsHandlers: {
+        advancedMode: false,
+        usdcFeaturesEnabled: false,
+      },
+    });
+    (WalletDataContext.useEvmAssets as jest.Mock).mockReturnValue({
+      usdcHistory: [
+        {
+          txid: '0xusdc',
+          status: { confirmed: true, block_time: 1_777_371_540 },
+          txData: {
+            amount: 2.5,
+            assetType: 'USDC',
+            isSent: true,
+            isReceived: true,
+          },
+        },
+      ],
+      ethHistory: [
+        {
+          txid: '0xeth',
+          status: { confirmed: true, block_time: 1_777_370_400 },
+          txData: {
+            amount: 0.05,
+            assetType: 'ETH',
+            isSent: false,
+            isReceived: true,
+          },
+        },
+      ],
+      loadingUsdcHistory: false,
+      loadingEthHistory: false,
+      refreshUsdcHistory: jest.fn(),
+      refreshEthHistory: jest.fn(),
+    });
+
+    const { result } = renderHook(
+      useTransactionHistoryData,
+      { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+    );
+
+    expect(result.current!.displayTransactions).toEqual([]);
+  });
+
+  it('should include EVM operation checkpoints in global history when indexed history has not caught up', () => {
+    useEvmTransactionCheckpointStore.setState({
+      checkpoints: [{
+        id: '0xpending-usdc',
+        chain: 'sepolia',
+        accountIndex: 0,
+        kind: 'transfer',
+        status: 'submitted',
+        txHash: '0xpending-usdc',
+        receiptTxHash: null,
+        asset: 'USDC',
+        amount: '7.25',
+        spender: null,
+        recipient: '0x2222222222222222222222222222222222222222',
+        tokenIn: null,
+        tokenOut: null,
+        releaseId: null,
+        destinationTaprootAddress: null,
+        submittedAt: 1_700_000_000_000,
+        confirmedAt: null,
+        updatedAt: 1_700_000_000_000,
+        error: null,
+      }],
+    });
+
+    const { result } = renderHook(
+      useTransactionHistoryData,
+      { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+    );
+
+    expect(result.current!.displayTransactions[0]).toMatchObject({
+      txid: '0xpending-usdc',
+      isPending: true,
+      txData: {
+        amount: 7.25,
+        assetType: 'USDC',
+        isSent: true,
+      },
+    });
+  });
+
+  it('should show failed EVM checkpoints without treating them as pending', () => {
+    useEvmTransactionCheckpointStore.setState({
+      checkpoints: [{
+        id: '0xfailed-usdc',
+        chain: 'sepolia',
+        accountIndex: 0,
+        kind: 'transfer',
+        status: 'failed',
+        txHash: '0xfailed-usdc',
+        receiptTxHash: null,
+        asset: 'USDC',
+        amount: '2',
+        spender: null,
+        recipient: '0x2222222222222222222222222222222222222222',
+        tokenIn: null,
+        tokenOut: null,
+        releaseId: null,
+        destinationTaprootAddress: null,
+        submittedAt: 1_700_000_000_000,
+        confirmedAt: null,
+        updatedAt: 1_700_000_000_000,
+        error: 'reverted',
+      }],
+    });
+
+    const { result } = renderHook(
+      useTransactionHistoryData,
+      { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+    );
+
+    expect(result.current!.displayTransactions[0]).toMatchObject({
+      txid: '0xfailed-usdc',
+      isPending: false,
+      status: {
+        confirmed: false,
+        failed: true,
+      },
+    });
   });
 
   it('should show loading when no cached data and loading from context', () => {
@@ -455,6 +657,7 @@ describe('useTransactionHistoryData', () => {
       (useSettingsHandlers as jest.Mock).mockReturnValue({
         settingsHandlers: {
           advancedMode: true, // Must be true for fetchEcashTokens to be called
+          usdcFeaturesEnabled: true,
         },
       });
 

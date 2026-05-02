@@ -38,6 +38,10 @@ const testGlobal = global as typeof global & TurboLinkingGlobal;
 
 // Mock dependencies BEFORE imports
 jest.mock('react-native', () => ({
+  Platform: {
+    OS: 'ios',
+    select: jest.fn((values) => values.ios ?? values.default),
+  },
   Linking: {
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
     getInitialURL: jest.fn(() => Promise.resolve(null)),
@@ -84,12 +88,23 @@ jest.mock('../turboTokenStorage', () => ({
   },
 }));
 
+jest.mock('../../e2eSettingsResetService', () => ({
+  E2E_ENABLE_USDC_URL_PREFIX: 'ducat://e2e/enable-usdc',
+  E2E_RESET_SETTINGS_URL_PREFIX: 'ducat://e2e/reset-settings',
+  enableUsdcFeaturesForE2E: jest.fn().mockResolvedValue(undefined),
+  resetNonSecretE2ESettings: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock atob for base64 decoding
 testGlobal.atob = jest.fn((str) => Buffer.from(str, 'base64').toString('utf8'));
 
 import { Linking, AppState } from 'react-native';
 import { createLinkingConfig } from '../turboLinkingConfig';
 import { hashToken, initializeTokenStorage } from '../turboTokenStorage';
+import {
+  enableUsdcFeaturesForE2E,
+  resetNonSecretE2ESettings,
+} from '../../e2eSettingsResetService';
 
 // Type assertion for the linking config
 const getTypedConfig = (): LinkingConfig => createLinkingConfig() as unknown as LinkingConfig;
@@ -97,6 +112,7 @@ const getTypedConfig = (): LinkingConfig => createLinkingConfig() as unknown as 
 describe('turboLinkingConfig', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (Linking.getInitialURL as jest.Mock).mockResolvedValue(null);
     testGlobal.atob.mockImplementation((str: string) => Buffer.from(str, 'base64').toString('utf8'));
     delete testGlobal.processedCashuTokens;
     delete testGlobal.processedCashuTokensLoading;
@@ -130,8 +146,10 @@ describe('turboLinkingConfig', () => {
       const screens = config.config.screens as Record<string, unknown>;
 
       expect(screens.Main).toBeDefined();
-      expect((screens.Main as { screens: Record<string, unknown> }).screens.Wallet).toBeDefined();
-      expect(screens.NotFound).toBe('*');
+      const mainScreens = (screens.Main as { screens: Record<string, unknown> }).screens;
+      const walletTab = mainScreens.WalletTab as { screens: Record<string, unknown> };
+      expect(walletTab).toBeDefined();
+      expect(walletTab.screens.WalletHome).toBe('wallet');
     });
   });
 
@@ -240,6 +258,20 @@ describe('turboLinkingConfig', () => {
       const result = await config.getStateFromPath(null as unknown as string, defaultOptions);
 
       expect(result).toBe(undefined);
+    });
+
+    it('should consume E2E control paths without token processing', async () => {
+      const config = getTypedConfig();
+
+      const result = config.getStateFromPath(
+        'ducat://e2e/enable-usdc?password=fx-570ES%20PLUS',
+        defaultOptions,
+      );
+      await new Promise(resolve => setImmediate(resolve));
+
+      expect(result).toBe(undefined);
+      expect(enableUsdcFeaturesForE2E).toHaveBeenCalledWith('ducat://e2e/enable-usdc?password=fx-570ES%20PLUS');
+      expect(testGlobal.pendingCashuToken).toBeUndefined();
     });
 
     it('should decode base64 token from t parameter', async () => {
@@ -482,6 +514,33 @@ describe('turboLinkingConfig', () => {
       await urlHandler({ url: undefined });
 
       expect(testGlobal.pendingCashuToken).toBeUndefined();
+    });
+
+    it('should process E2E reset URL events without forwarding to navigation', async () => {
+      const config = createLinkingConfig();
+      const listener = jest.fn();
+
+      config.subscribe!(listener);
+      const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
+
+      await urlHandler({ url: 'ducat://e2e/reset-settings' });
+
+      expect(resetNonSecretE2ESettings).toHaveBeenCalled();
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('should process E2E Enable USDC URL events without forwarding to navigation', async () => {
+      const config = createLinkingConfig();
+      const listener = jest.fn();
+      const url = 'ducat://e2e/enable-usdc?password=fx-570ES%20PLUS';
+
+      config.subscribe!(listener);
+      const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
+
+      await urlHandler({ url });
+
+      expect(enableUsdcFeaturesForE2E).toHaveBeenCalledWith(url);
+      expect(listener).not.toHaveBeenCalled();
     });
 
     it('should handle null event', async () => {

@@ -69,55 +69,55 @@ describe('AssetCard', () => {
   });
 
   it('should render without crashing', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} />);
-    expect(getByLabelText(/Bitcoin/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} />);
+    expect(getByText('Bitcoin')).toBeTruthy();
   });
 
   it('should display asset name', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} />);
-    expect(getByLabelText(/Bitcoin/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} />);
+    expect(getByText('Bitcoin')).toBeTruthy();
   });
 
   it('should display USD value when displayInBTC is false', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} displayInBTC={false} />);
-    expect(getByLabelText(/\$5,432\.10/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} displayInBTC={false} />);
+    expect(getByText(/\$\s+5,432\.10/)).toBeTruthy();
   });
 
   it('should display BTC value when displayInBTC is true', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} displayInBTC={true} />);
-    expect(getByLabelText(/0\.12345678 Bitcoin/)).toBeTruthy();
+    const { getAllByText } = render(<AssetCard {...mockProps} displayInBTC={true} />);
+    expect(getAllByText('0.12345678').length).toBeGreaterThanOrEqual(2);
   });
 
   it('should apply isLast style when isLast is true', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} isLast={true} />);
+    const { getByText } = render(<AssetCard {...mockProps} isLast={true} />);
     // Just verify it renders - style testing is complex with testing-library
-    expect(getByLabelText(/Bitcoin/)).toBeTruthy();
+    expect(getByText('Bitcoin')).toBeTruthy();
   });
 
   it('should apply customAmountStyle when provided', () => {
     const customStyle = { textAlign: 'left' as const };
-    const { getByLabelText } = render(<AssetCard {...mockProps} customAmountStyle={customStyle} />);
-    expect(getByLabelText(/Bitcoin/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} customAmountStyle={customStyle} />);
+    expect(getByText('Bitcoin')).toBeTruthy();
   });
 
   it('should handle string BTC value', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} btcValue="0.00000000" displayInBTC={true} />);
-    expect(getByLabelText(/0\.00000000 Bitcoin/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} btcValue="0.00000000" displayInBTC={true} />);
+    expect(getByText('0.00000000')).toBeTruthy();
   });
 
   it('should handle string USD value', () => {
-    const { getByLabelText } = render(<AssetCard {...mockProps} usdValue="0.00" displayInBTC={false} />);
-    expect(getByLabelText(/\$0\.00/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...mockProps} usdValue="0.00" displayInBTC={false} />);
+    expect(getByText(/\$\s+0\.00/)).toBeTruthy();
   });
 
   it('should render without amountLabel', () => {
     const propsWithoutLabel = { ...mockProps, amountLabel: undefined };
-    const { getByLabelText } = render(<AssetCard {...propsWithoutLabel} />);
-    expect(getByLabelText(/Bitcoin/)).toBeTruthy();
+    const { getByText } = render(<AssetCard {...propsWithoutLabel} />);
+    expect(getByText('Bitcoin')).toBeTruthy();
   });
 
   it('should support alternate brand logos for non-BTC assets', () => {
-    const { getByTestId, getByLabelText } = render(
+    const { getByTestId, getByText } = render(
       <AssetCard
         {...mockProps}
         assetName="USDC"
@@ -129,6 +129,6 @@ describe('AssetCard', () => {
     );
 
     expect(getByTestId('icon-usdc_logo', { includeHiddenElements: true })).toBeTruthy();
-    expect(getByLabelText(/USDC/)).toBeTruthy();
+    expect(getByText('USDC')).toBeTruthy();
   });
 });

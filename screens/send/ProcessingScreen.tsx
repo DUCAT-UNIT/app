@@ -48,6 +48,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   const { showSnackbar } = useNotifications();
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const hasStarted = useRef(false);
+  const navigationErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get action from route params
   const action = route.params?.action; // 'create_intent', 'sign_and_broadcast'
@@ -68,12 +69,26 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       // Normal flow - go back to previous screen
       navigation.goBack();
     }
-    setTimeout(() => showSnackbar({
+    if (navigationErrorTimerRef.current) {
+      clearTimeout(navigationErrorTimerRef.current);
+    }
+    navigationErrorTimerRef.current = setTimeout(() => {
+      navigationErrorTimerRef.current = null;
+      showSnackbar({
       type: 'error',
       message: errorMessage,
       action: sendAssetType === 'unit' ? 'swap' : 'btc_send',
-    }), 300);
+      });
+    }, 300);
+    (navigationErrorTimerRef.current as { unref?: () => void }).unref?.();
   };
+
+  useEffect(() => () => {
+    if (navigationErrorTimerRef.current) {
+      clearTimeout(navigationErrorTimerRef.current);
+      navigationErrorTimerRef.current = null;
+    }
+  }, []);
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -137,6 +152,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
         return prev; // Stay on last message
       });
     }, 500); // 500ms between messages
+    (timer as { unref?: () => void }).unref?.();
 
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,6 +174,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
         logger.debug('Creating send intent for asset type:', sendAssetType);
         createSendIntent();
       }, 100);
+      (timer as { unref?: () => void }).unref?.();
       return () => clearTimeout(timer);
     } else if (!hasStarted.current && action === 'sign_and_broadcast') {
       hasStarted.current = true;
@@ -193,6 +210,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
           handleNavigationError(errorMessage);
         }
       }, 100);
+      (timer as { unref?: () => void }).unref?.();
       return () => { cancelled = true; clearTimeout(timer); };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

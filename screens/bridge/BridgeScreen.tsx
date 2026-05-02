@@ -53,7 +53,7 @@ export default function BridgeScreen({ route, navigation }: BridgeScreenProps): 
   const bridgeReady = isEvmBridgeConfigured();
 
   const payoutLabel = useMemo(() => (
-    autoSwap ? 'USDC by default, with raw wUNIT fallback if swap guards fail.' : 'wUNIT on Sepolia.'
+    autoSwap ? 'Sepolia USDC by default, with raw wUNIT fallback if swap guards fail.' : 'wUNIT on Sepolia.'
   ), [autoSwap]);
 
   useEffect(() => {
@@ -194,7 +194,7 @@ export default function BridgeScreen({ route, navigation }: BridgeScreenProps): 
           />
           <View style={styles.row}>
             <View style={styles.switchText}>
-              <Text style={styles.cardLabel}>Auto-swap into USDC</Text>
+              <Text style={styles.cardLabel}>Auto-swap into Sepolia USDC</Text>
               <Text style={styles.helperText}>Fallback is raw wUNIT if pool guards fail.</Text>
             </View>
             <Switch value={autoSwap} onValueChange={setAutoSwap} trackColor={{ true: '#9FE870' }} />

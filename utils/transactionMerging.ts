@@ -46,6 +46,7 @@ export interface MergeableTransaction {
     block_time: number;
     block_height?: number;
     block_hash?: string;
+    failed?: boolean;
   };
   txData?: TxData;
   ecashToken?: boolean;

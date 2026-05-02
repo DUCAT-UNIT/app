@@ -1,13 +1,13 @@
 import { EVM_CONFIG } from '../constants/evm';
 import { getJSON, postJSON } from '../utils/apiClient';
+import { fetchWithTimeout as fetchResponseWithTimeout } from '../utils/api';
+import { AppError, AppRequestError } from '../utils/errorTaxonomy';
 import { logger } from '../utils/logger';
 import type {
   BridgeIntent,
   BridgeIntentStatus,
   CreateBridgeIntentRequest,
   CreateBridgeIntentResponse,
-  PoolPosition,
-  ReconciliationSnapshot,
   RedemptionRequest,
   TrackRedemptionRequest,
 } from '../shared/bridgeTypes';
@@ -18,11 +18,20 @@ const BRIDGE_LOOKUP_TOTAL_WAIT_MS = 12_000;
 const BRIDGE_LOOKUP_RETRY_DELAY_MS = 400;
 
 function buildUrl(path: string): string {
+  if (!EVM_CONFIG.bridgeApiBaseUrl) {
+    throw new Error('Sepolia bridge API is not configured. Set EXPO_PUBLIC_UNIT_BRIDGE_API_URL.');
+  }
+
   return `${EVM_CONFIG.bridgeApiBaseUrl}${path}`;
 }
 
 function buildBridgeTimeoutError(): Error {
-  return new Error('Bridge request timed out while creating the deposit address.');
+  return new AppError({
+    category: 'api_timeout',
+    message: 'Bridge request timed out while creating the deposit address.',
+    userMessage: 'Bridge request took too long. Try again in a moment.',
+    retryable: true,
+  });
 }
 
 function buildClientRequestId(): string {
@@ -31,8 +40,16 @@ function buildClientRequestId(): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
   });
+}
+
+function logBridgeApi(url: string, method: string, status: number, duration: number): void {
+  const apiLogger = (logger as typeof logger & { api?: (url: string, method: string, status: number, duration: number) => void }).api;
+  if (typeof apiLogger === 'function') {
+    apiLogger(url, method, status, duration);
+  }
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -40,9 +57,15 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 function parseIntentPayload(raw: string): Partial<CreateBridgeIntentResponse> & { error?: string; message?: string } {
-  return raw
-    ? JSON.parse(raw) as Partial<CreateBridgeIntentResponse> & { error?: string; message?: string }
-    : {};
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Partial<CreateBridgeIntentResponse> & { error?: string; message?: string };
+  } catch {
+    throw new Error('Bridge intent response was not valid JSON');
+  }
 }
 
 function parseBridgeIntentHeaders(headers?: Pick<Headers, 'get'> | null): BridgeIntent | null {
@@ -82,12 +105,14 @@ function parseBridgeIntentHeaders(headers?: Pick<Headers, 'get'> | null): Bridge
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestInit): Promise<Response> {
-  return Promise.race<Response>([
-    fetch(url, init),
-    new Promise<Response>((_, reject) => {
-      setTimeout(() => reject(buildBridgeTimeoutError()), timeoutMs);
-    }),
-  ]);
+  try {
+    return await fetchResponseWithTimeout(url, init, timeoutMs);
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw buildBridgeTimeoutError();
+    }
+    throw error;
+  }
 }
 
 async function readIntentResponse(response: Response): Promise<BridgeIntent> {
@@ -100,7 +125,13 @@ async function readIntentResponse(response: Response): Promise<BridgeIntent> {
   const payload = parseIntentPayload(raw);
 
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || `HTTP ${response.status}: ${response.statusText}`);
+    throw new AppRequestError({
+      category: response.status === 404 ? 'indexer_lag' : response.status >= 500 ? 'api_server' : 'api_client',
+      message: payload.error || payload.message || `HTTP ${response.status}: ${response.statusText}`,
+      statusCode: response.status,
+      endpoint: 'bridge-intent',
+      method: 'GET/POST',
+    });
   }
 
   if (!payload.intent) {
@@ -122,7 +153,7 @@ async function createBridgeIntentViaGet(request: CreateBridgeIntentRequest): Pro
   const response = await fetchWithTimeout(`${buildUrl('/bridge/create-intent')}?${params.toString()}`, BRIDGE_CREATE_TIMEOUT_MS, {
     method: 'GET',
   });
-  logger.api(url, 'GET', response.status, Date.now() - start);
+  logBridgeApi(url, 'GET', response.status, Date.now() - start);
   return readIntentResponse(response);
 }
 
@@ -136,11 +167,11 @@ async function createBridgeIntentViaPost(request: CreateBridgeIntentRequest): Pr
     },
     body: JSON.stringify(request),
   });
-  logger.api(url, 'POST', response.status, Date.now() - start);
+  logBridgeApi(url, 'POST', response.status, Date.now() - start);
   return readIntentResponse(response);
 }
 
-async function getBridgeIntentByClientRequestId(clientRequestId: string): Promise<BridgeIntent | null> {
+export async function getBridgeIntentByClientRequestId(clientRequestId: string): Promise<BridgeIntent | null> {
   const url = buildUrl(`/bridge/intents/by-client-request-id/${encodeURIComponent(clientRequestId)}`);
   const start = Date.now();
   const response = await fetchWithTimeout(
@@ -148,7 +179,7 @@ async function getBridgeIntentByClientRequestId(clientRequestId: string): Promis
     BRIDGE_LOOKUP_TIMEOUT_MS,
     { method: 'GET' },
   );
-  logger.api(url, 'GET', response.status, Date.now() - start);
+  logBridgeApi(url, 'GET', response.status, Date.now() - start);
 
   if (response.status === 404) {
     return null;
@@ -252,17 +283,5 @@ export async function trackRedemption(
 export async function getRedemptionStatus(redemptionId: string): Promise<RedemptionRequest> {
   return getJSON<RedemptionRequest>(buildUrl(`/redemptions/${redemptionId}`), {
     description: 'Fetch redemption release status',
-  });
-}
-
-export async function getPoolPosition(): Promise<PoolPosition> {
-  return getJSON<PoolPosition>(buildUrl('/admin/pool'), {
-    description: 'Fetch bridge pool position',
-  });
-}
-
-export async function getReconciliation(): Promise<ReconciliationSnapshot> {
-  return getJSON<ReconciliationSnapshot>(buildUrl('/admin/reconciliation'), {
-    description: 'Fetch bridge reconciliation snapshot',
   });
 }

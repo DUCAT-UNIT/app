@@ -1,0 +1,38 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Sepolia USDC Receive Labeling - verify receive copy consistently says Sepolia USDC.
+
+- runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "asset-card-usdc"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "asset-card-usdc"
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+
+- tapOn:
+    id: "asset-detail-receive-btn"
+- extendedWaitUntil:
+    visible:
+      id: "receive-qr-screen"
+    timeout: 10000
+
+- assertVisible:
+    text: "Sepolia USDC address"
+- assertVisible:
+    text: "Only use this address to receive Sepolia USDC on Ethereum Sepolia."
+- assertVisible:
+    text: "Sepolia USDC"
+
+- tapOn:
+    id: "receive-copy-btn"
+- assertVisible:
+    text: "Sepolia USDC address copied"

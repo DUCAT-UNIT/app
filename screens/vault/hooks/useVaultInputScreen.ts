@@ -3,7 +3,8 @@
  * Shared logic for all vault input screens
  */
 
-import { useCallback,useEffect,useMemo,useState } from 'react';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
 import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
 import { usePriceStore } from '../../../stores/priceStore';
@@ -15,6 +16,7 @@ import {
   getOpCostRepay,
   getVaultSettlementReserveSats,
 } from '../../../utils/vaultUtils';
+import { dismissVaultActionFlow } from '../navigation';
 import type {
   AmountConfig,
   DepositVaultStore,
@@ -39,6 +41,7 @@ interface UseVaultInputScreenResult {
   effectiveUnitBorrowed: number;
   vaultLoaded: boolean;
   isInitializing: boolean;
+  isContinuing: boolean;
   btcPrice: number | null;
 
   // Amount state
@@ -94,6 +97,8 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   const { config, store, loadVaultData, additionalData } = options;
 
   const { btcPrice, fetchBtcPrice } = usePriceStore();
+  const { settingsHandlers } = useSettingsHandlers();
+  const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { segwitBalance, utxos } = useBalance();
   const { vaultData } = useVaultData();
 
@@ -107,6 +112,8 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Track initialization
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const continueUnlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Consider vault loaded if we have effective data
   const hasVaultData = effectiveBtcLocked > 0 || effectiveUnitBorrowed > 0;
@@ -120,7 +127,8 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // BTC balance for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
-  const receiveAsset = getReceiveAssetIfPresent(store);
+  const storedReceiveAsset = getReceiveAssetIfPresent(store);
+  const receiveAsset = usdcFeaturesEnabled ? storedReceiveAsset : storedReceiveAsset ? 'UNIT' : null;
 
   // Calculate estimated fee
   const estimatedFeeSats = useMemo(() => {
@@ -176,6 +184,13 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     }
   }, [vaultLoaded, isInitializing]);
 
+  useEffect(() => () => {
+    if (continueUnlockTimerRef.current) {
+      clearTimeout(continueUnlockTimerRef.current);
+      continueUnlockTimerRef.current = null;
+    }
+  }, []);
+
   // Sync preview amount when store value changes
   useEffect(() => {
     setPreviewAmount(amountConfig.value);
@@ -224,24 +239,32 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   // Actions
   const handleClose = useCallback(() => {
     store.reset();
-    const parent = navigation.getParent();
-    if (parent) {
-      parent.goBack();
-    } else {
-      navigation.goBack();
-    }
+    dismissVaultActionFlow(navigation);
   }, [store, navigation]);
 
   const handleContinue = useCallback(() => {
-    if (!validation.canContinue) return;
-    if (config.routes.selection) {
+    if (!validation.canContinue || isContinuing) return;
+    setIsContinuing(true);
+    if (continueUnlockTimerRef.current) {
+      clearTimeout(continueUnlockTimerRef.current);
+    }
+    continueUnlockTimerRef.current = setTimeout(() => {
+      continueUnlockTimerRef.current = null;
+      setIsContinuing(false);
+    }, 900);
+    (continueUnlockTimerRef.current as { unref?: () => void }).unref?.();
+
+    if (!usdcFeaturesEnabled && 'setReceiveAsset' in store) {
+      (store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }).setReceiveAsset('UNIT');
+    }
+    if (config.routes.selection && usdcFeaturesEnabled) {
       store.setCurrentStep('payout');
       navigation.navigate(config.routes.selection);
       return;
     }
     store.setCurrentStep('confirm');
     navigation.navigate(config.routes.confirm);
-  }, [validation.canContinue, store, navigation, config.routes.selection, config.routes.confirm]);
+  }, [validation.canContinue, isContinuing, usdcFeaturesEnabled, store, navigation, config.routes.selection, config.routes.confirm]);
 
   const handleLiveValueChange = useCallback((val: number) => {
     setPreviewAmount(val);
@@ -253,6 +276,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     effectiveUnitBorrowed,
     vaultLoaded,
     isInitializing,
+    isContinuing,
     btcPrice,
 
     // Amount state

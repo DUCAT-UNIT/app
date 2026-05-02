@@ -30,6 +30,7 @@ export const SettingKeys = {
   SHOW_ZERO_ASSETS: 'showZeroAssets',
   ADVANCED_MODE: 'advancedMode',
   ECASH_THRESHOLD: 'ecashThreshold',
+  USDC_FEATURES_ENABLED: 'usdcFeaturesEnabled',
   DISPLAY_CURRENCY: 'displayCurrency',
   PRICE_DISPLAY_MODE: 'priceDisplayMode',
 
@@ -271,18 +272,6 @@ export async function exists(key: string): Promise<boolean> {
     return false;
   }
 }
-
-/**
- * Result type for getMultiple - maps setting keys to their inferred types
- * @template T - Array of SettingItem configurations
- */
-export type GetMultipleResult<T extends readonly SettingItem[]> = {
-  [K in T[number]['key']]: T[number] extends { key: K; type: infer Type }
-    ? Type extends keyof SettingTypeMap
-      ? SettingTypeMap[Type]
-      : unknown
-    : unknown;
-};
 
 /**
  * Get multiple settings at once with type inference

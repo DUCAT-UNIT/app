@@ -6,15 +6,13 @@
 
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import React,{ memo,useCallback,useEffect,useRef,useState } from 'react';
-import { Animated,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
-import TouchableScale from '../../components/common/TouchableScale';
+import React,{ memo,useCallback,useRef,useState } from 'react';
+import { Animated,Pressable,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
 import * as PasskeyService from '../../services/passkey';
-import { loadLockoutState,recordFailedAttempt } from '../../services/pinLockout';
-import { checkPinLockout,verifyPin } from '../../services/pinService';
+import { verifyPin } from '../../services/pinService';
 import { hasSessionMnemonic } from '../../services/secureStorageService';
 import { analytics } from '../../services/analyticsService';
 import { AUTH_EVENTS } from '../../constants/analyticsEvents';
@@ -55,9 +53,14 @@ interface LockScreenProps {
 const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontSize }: KeypadButtonProps): React.JSX.Element {
   const handlePress = useCallback(() => onPress(digit), [digit, onPress]);
   return (
-    <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePress} testID={`lock-keypad-${digit}`}>
+    <Pressable
+      style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
+      onPressIn={handlePress}
+      hitSlop={8}
+      testID={`lock-keypad-${digit}`}
+    >
       <Text style={[styles.lockKeyText, { fontSize }]}>{digit}</Text>
-    </TouchableScale>
+    </Pressable>
   );
 });
 
@@ -65,21 +68,10 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
   const { s, sf } = useResponsive();
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
-  const [, setPasskeyEnabled] = useState(false);
-  const [showPasskeyButton, setShowPasskeyButton] = useState(false);
   const [showResetWarning, setShowResetWarning] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
-
-  // Check if passkey is enabled on mount
-  useEffect(() => {
-    const checkPasskey = async () => {
-      const enabled = await PasskeyService.isPasskeyEnabled();
-      setPasskeyEnabled(enabled);
-      setShowPasskeyButton(false);
-    };
-    checkPasskey();
-  }, []);
+  const pinRef = useRef('');
 
   const shakeError = useCallback((): void => {
     Animated.sequence([
@@ -92,112 +84,90 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
 
   const verifyingRef = useRef(false);
 
-  const handlePinDigit = useCallback((digit: string): void => {
-    setPin(currentPin => {
-      if (currentPin.length >= 6) return currentPin;
-      const newPin = currentPin + digit;
-      if (newPin.length === 6 && !verifyingRef.current) {
-        verifyingRef.current = true;
-        // Move async work outside setState callback
-        (async () => {
-          try {
-            const result = await verifyPin(newPin);
-            if (result.success) {
-              logger.auth('pin_verified_success');
-              analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'pin' });
-              try {
-                if (!hasSessionMnemonic()) {
-                  // Try loading mnemonic from SecureStore first (plain wallet)
-                  const { getMnemonic, cacheSessionMnemonic } = await import('../../services/secureStorageService');
-                  const storedMnemonic = await getMnemonic();
-                  if (storedMnemonic) {
-                    cacheSessionMnemonic(storedMnemonic);
-                  } else {
-                    // No mnemonic in SecureStore — must be passkey-only recovery wallet
-                    const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
-                    if (isPasskeyEnabled) {
-                      await PasskeyService.unlockWithPasskey(newPin);
-                    }
-                  }
-                }
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                setPin('');
-                setPinError('');
-                onAuthenticated();
-              } catch (error: unknown) {
-                logger.auth('session_unlock_failed', {
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                shakeError();
-                setPinError(
-                  error instanceof Error
-                    ? error.message
-                    : 'Failed to unlock wallet. Please try again.'
-                );
-                setPin('');
-              }
+  const verifyEnteredPin = useCallback(async (candidatePin: string): Promise<void> => {
+    if (verifyingRef.current) {
+      return;
+    }
+
+    verifyingRef.current = true;
+
+    try {
+      const result = await verifyPin(candidatePin);
+      if (result.success) {
+        logger.auth('pin_verified_success');
+        analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'pin' });
+        try {
+          if (!hasSessionMnemonic()) {
+            const { getMnemonic, cacheSessionMnemonic } = await import('../../services/secureStorageService');
+            const storedMnemonic = await getMnemonic();
+            if (storedMnemonic) {
+              cacheSessionMnemonic(storedMnemonic);
             } else {
-              logger.auth('pin_verified_failed', {
-                remainingAttempts: result.remainingAttempts,
-                isLocked: (result as { isLocked?: boolean }).isLocked || false,
-              });
-              analytics.track(AUTH_EVENTS.AUTH_FAILED, { method: 'pin', remaining_attempts: result.remainingAttempts });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              shakeError();
-              setPinError(result.error || ERRORS.INCORRECT_PIN);
-              setPin('');
+              const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
+              if (isPasskeyEnabled) {
+                await PasskeyService.unlockWithPasskey(candidatePin);
+              }
             }
-          } finally {
-            verifyingRef.current = false;
           }
-        })();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          pinRef.current = '';
+          setPin('');
+          setPinError('');
+          onAuthenticated();
+        } catch (error: unknown) {
+          logger.auth('session_unlock_failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          shakeError();
+          pinRef.current = '';
+          setPin('');
+          setPinError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to unlock wallet. Please try again.'
+          );
+        }
+      } else {
+        logger.auth('pin_verified_failed', {
+          remainingAttempts: result.remainingAttempts,
+          isLocked: (result as { isLocked?: boolean }).isLocked || false,
+        });
+        analytics.track(AUTH_EVENTS.AUTH_FAILED, { method: 'pin', remaining_attempts: result.remainingAttempts });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        shakeError();
+        pinRef.current = '';
+        setPin('');
+        setPinError(result.error || ERRORS.INCORRECT_PIN);
       }
-      return newPin;
-    });
+    } finally {
+      verifyingRef.current = false;
+    }
   }, [onAuthenticated, shakeError]);
 
+  const handlePinDigit = useCallback((digit: string): void => {
+    const currentPin = pinRef.current;
+    if (currentPin.length >= 6 || verifyingRef.current) {
+      return;
+    }
+
+    const nextPin = currentPin + digit;
+    pinRef.current = nextPin;
+    setPinError('');
+    setPin(nextPin);
+
+    if (nextPin.length === 6) {
+      requestAnimationFrame(() => {
+        verifyEnteredPin(nextPin).catch(() => undefined);
+      });
+    }
+  }, [verifyEnteredPin]);
+
   const handlePinDelete = useCallback((): void => {
-    setPin(currentPin => currentPin.slice(0, -1));
+    pinRef.current = pinRef.current.slice(0, -1);
+    setPin(pinRef.current);
     setPinError('');
   }, []);
-
-  const handlePasskeyUnlock = useCallback(async (): Promise<void> => {
-    try {
-      setPinError('');
-
-      if (pin.length !== 6) {
-        setPinError('Enter your 6-digit PIN for passkey recovery');
-        return;
-      }
-
-      // SECURITY: Check lockout before passkey attempt to prevent brute-force via passkey path
-      const lockStatus = await checkPinLockout();
-      if (lockStatus.isLocked) {
-        setPinError(`Too many failed attempts. Try again in ${lockStatus.remainingTime} minutes.`);
-        setPin('');
-        return;
-      }
-
-      await PasskeyService.unlockWithPasskey(pin);
-      onAuthenticated();
-    } catch (error: unknown) {
-      // SECURITY: Record failed passkey attempt for rate limiting
-      try {
-        const { failedAttempts } = await loadLockoutState();
-        await recordFailedAttempt(failedAttempts);
-      } catch (lockoutError) {
-        // If lockout recording fails, deny access (fail closed)
-        setPinError('Unable to verify. Please try again.');
-        setPin('');
-        return;
-      }
-
-      const errorMessage = error instanceof Error ? error.message : 'Passkey authentication failed';
-      setPinError(errorMessage);
-      setPin('');
-    }
-  }, [pin, onAuthenticated]);
 
   const handleResetPress = useCallback(() => {
     setShowResetWarning(true);
@@ -268,12 +238,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           </View>
         ))}
         <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
-          {/* FaceID / Passkey Button - Bottom Left */}
-          {showPasskeyButton ? (
-            <TouchableOpacity style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePasskeyUnlock} testID="lock-passkey-btn">
-              <Icon name="face_id" size={s(32)} color={COLORS.PRIMARY_BLUE} />
-            </TouchableOpacity>
-          ) : showFaceIdButton && onFaceIdPress ? (
+          {showFaceIdButton && onFaceIdPress ? (
             <TouchableOpacity style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={onFaceIdPress} testID="lock-faceid-btn">
               <Icon name="face_id" size={s(32)} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
@@ -281,9 +246,14 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
             <View style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} />
           )}
           <KeypadButton digit="0" onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
-          <TouchableScale style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={handlePinDelete} haptic={false} testID="lock-keypad-delete">
+          <Pressable
+            style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
+            onPressIn={handlePinDelete}
+            hitSlop={8}
+            testID="lock-keypad-delete"
+          >
             <Icon name="delete" size={iconSize} color={COLORS.WHITE} />
-          </TouchableScale>
+          </Pressable>
         </View>
       </View>
 
@@ -382,6 +352,7 @@ const styles = StyleSheet.create({
 
 // Styles for the ConfirmationModal used in the lock screen reset flow.
 // Matches the shared modal styles from common.ts.
+/* eslint-disable react-native/no-unused-styles */
 const confirmationModalStyles = StyleSheet.create({
   modalOverlay: {
     position: 'absolute',
@@ -454,3 +425,4 @@ const confirmationModalStyles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+/* eslint-enable react-native/no-unused-styles */

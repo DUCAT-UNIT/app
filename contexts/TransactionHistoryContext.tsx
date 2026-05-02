@@ -5,6 +5,7 @@
 
 import React, { createContext, ReactNode, useContext } from 'react';
 import { useTransactionHistoryFetch, UseTransactionHistoryFetchReturn } from '../hooks/useTransactionHistoryFetch';
+import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
 export type TransactionHistoryValue = UseTransactionHistoryFetchReturn;
@@ -25,8 +26,9 @@ interface TransactionHistoryProviderProps {
 
 export const TransactionHistoryProvider: React.FC<TransactionHistoryProviderProps> = ({ children }) => {
   const { wallet } = useWallet();
+  const { isAuthenticated } = useAuthSession();
 
-  const history = useTransactionHistoryFetch(wallet);
+  const history = useTransactionHistoryFetch(isAuthenticated ? wallet : null);
 
   return <HistoryCtx.Provider value={history}>{children}</HistoryCtx.Provider>;
 };

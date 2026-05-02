@@ -11,7 +11,7 @@
  */
 
 import React, { createContext, useContext, useCallback, useMemo, ReactNode, MutableRefObject } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuthPinFlow, useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 import { useBalance, useTransactionHistory, useVaultData } from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
@@ -29,6 +29,8 @@ interface SettingsHandlers {
   showZeroAssets: boolean;
   advancedMode: boolean;
   ecashThreshold: number;
+  autoLockTimeoutMs: number;
+  usdcFeaturesEnabled: boolean;
   handleLogout: () => void;
   handleDeleteWallet: () => void;
   handleViewSeedPhrase: () => void;
@@ -41,6 +43,9 @@ interface SettingsHandlers {
   handleRecoverLockedChange: () => void;
   handleClearLockedTokens: () => void;
   handleEcashThresholdChange: (value: number) => void;
+  handleAutoLockTimeoutChange: (value: number) => void;
+  handleEnableUsdcFeatures: (password: string) => Promise<boolean>;
+  handleDisableUsdcFeatures: () => Promise<void>;
 }
 
 interface PasskeyMigrationData {
@@ -116,10 +121,12 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   // to reduce the hook count and decouple concerns. The 3-sub-context split below mitigates
   // the re-render impact for consumers.
   const {
-    setIsAuthenticated, setBiometricEnabled, biometricEnabled, passkeyEnabled,
-    setSettingUpPin, setChangingPin, changingPin, resetAuth,
+    setIsAuthenticated, setBiometricEnabled, biometricEnabled, passkeyEnabled, resetAuth,
+  } = useAuthSession();
+  const {
+    setSettingUpPin, setChangingPin, changingPin,
     startPinChange, handlePinSetupComplete, handlePinChangeComplete,
-  } = useAuth();
+  } = useAuthPinFlow();
 
   const { resetWallet, switchAccount: switchAccountContext } = useWallet();
   const { fetchBalance, resetBalances } = useBalance();
@@ -155,10 +162,12 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   // --- Settings ---
   const {
     notificationsEnabled, showZeroAssets, advancedMode, ecashThreshold,
+    autoLockTimeoutMs, usdcFeaturesEnabled,
     handleLogout, handleDeleteWallet, handleChangePin, handleFaceIdToggle,
     handleNotificationsToggle, handleShowZeroAssetsToggle, handleAdvancedModeToggle,
     handleClearCashuCache, handleRecoverLockedChange, handleClearLockedTokens,
-    handleEcashThresholdChange,
+    handleEcashThresholdChange, handleAutoLockTimeoutChange,
+    handleEnableUsdcFeatures, handleDisableUsdcFeatures,
     showLogoutModal, showDeleteModal, showFaceIdModal, showNotificationsModal,
     confirmLogout, cancelLogout, confirmDeleteWallet, cancelDeleteWallet,
     confirmFaceIdToggle, cancelFaceIdToggle, confirmNotificationsToggle, cancelNotificationsToggle,
@@ -204,16 +213,21 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       showZeroAssets: showZeroAssets || false,
       advancedMode: advancedMode || false,
       ecashThreshold: ecashThreshold || 10000,
+      autoLockTimeoutMs: autoLockTimeoutMs || 300000,
+      usdcFeaturesEnabled: usdcFeaturesEnabled || false,
       handleLogout, handleDeleteWallet, handleViewSeedPhrase: requestViewSeedPhrase,
       handleChangePin, handleFaceIdToggle, handleNotificationsToggle,
       handleShowZeroAssetsToggle, handleAdvancedModeToggle, handleClearCashuCache,
       handleRecoverLockedChange, handleClearLockedTokens, handleEcashThresholdChange,
+      handleAutoLockTimeoutChange, handleEnableUsdcFeatures, handleDisableUsdcFeatures,
     }),
     [notificationsEnabled, showZeroAssets, advancedMode, ecashThreshold,
+     autoLockTimeoutMs, usdcFeaturesEnabled,
      handleLogout, handleDeleteWallet, requestViewSeedPhrase, handleChangePin,
      handleFaceIdToggle, handleNotificationsToggle, handleShowZeroAssetsToggle,
      handleAdvancedModeToggle, handleClearCashuCache, handleRecoverLockedChange,
-     handleClearLockedTokens, handleEcashThresholdChange]
+     handleClearLockedTokens, handleEcashThresholdChange, handleAutoLockTimeoutChange,
+     handleEnableUsdcFeatures, handleDisableUsdcFeatures]
   );
 
   // --- Context values ---

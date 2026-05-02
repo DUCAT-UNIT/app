@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { SEGWIT_ADDRESS_PREFIX, TAPROOT_ADDRESS_PREFIX } from './bitcoin';
 
 export interface TransactionInput {
   txid: string;
@@ -110,8 +111,9 @@ export function matchesAddressType(address: string, addressType: AddressType): b
     return true;
   }
 
-  const isSegwit = address.startsWith('tb1q') || address.startsWith('bc1q');
-  const isTaproot = address.startsWith('tb1p') || address.startsWith('bc1p');
+  const lowerAddress = address.toLowerCase();
+  const isSegwit = lowerAddress.startsWith(SEGWIT_ADDRESS_PREFIX);
+  const isTaproot = lowerAddress.startsWith(TAPROOT_ADDRESS_PREFIX);
 
   return (addressType === 'segwit' && isSegwit) || (addressType === 'taproot' && isTaproot);
 }
@@ -152,8 +154,8 @@ export function getUnconfirmedUTXOsFromPending(
           logger.debug('[getUnconfirmedUTXOsFromPending] Filtering UTXO (address type mismatch):', {
             address: output.address?.slice(0, 15) + '...',
             addressType,
-            isSegwit: output.address?.startsWith('tb1q') || output.address?.startsWith('bc1q'),
-            isTaproot: output.address?.startsWith('tb1p') || output.address?.startsWith('bc1p'),
+            isSegwit: output.address?.toLowerCase().startsWith(SEGWIT_ADDRESS_PREFIX),
+            isTaproot: output.address?.toLowerCase().startsWith(TAPROOT_ADDRESS_PREFIX),
           });
           return;
         }

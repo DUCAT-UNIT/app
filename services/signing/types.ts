@@ -7,7 +7,6 @@
  */
 
 import * as bitcoin from 'bitcoinjs-lib';
-import type { VaultWallet } from '@ducat-unit/client-sdk';
 
 /**
  * Internal PSBT cache type for low-level signing operations.
@@ -24,11 +23,6 @@ export interface PsbtCache {
     ): Buffer;
   };
 }
-
-/**
- * PSBT with internal cache exposed for Taproot signing
- */
-export type PsbtWithCache = bitcoin.Psbt & { __CACHE: PsbtCache };
 
 /**
  * Signature data for binary patching
@@ -50,41 +44,6 @@ export interface PsbtFieldData {
 }
 
 /**
- * Mobile wallet info for address derivation
- */
-export interface MobileWalletInfo {
-  segwitAddress: string;
-  segwitPubkey: string;
-  taprootAddress: string;
-  taprootPubkey: string;
-}
-
-/**
- * Signing context for determining signing behavior
- */
-export type SigningContext = 'wallet' | 'vault';
-
-/**
- * Options for PSBT signing operations
- */
-export interface PsbtSigningOptions {
-  /**
-   * Whether to finalize inputs after signing (default: false for vault, true for wallet)
-   */
-  finalizeInputs?: boolean;
-
-  /**
-   * Original PSBT base64 to preserve (used for OP_RETURN preservation in vault)
-   */
-  originalPsbtBase64?: string;
-
-  /**
-   * Account index override (default: read from SecureStore)
-   */
-  accountIndex?: number;
-}
-
-/**
  * Result of witness data extraction
  */
 export interface WitnessData {
@@ -99,12 +58,4 @@ export interface AddressTypeInfo {
   isSegwit: boolean;
   isTaproot: boolean;
   derivationPath: string;
-}
-
-/**
- * Vault signing context with SDK client
- */
-export interface VaultSigningContext {
-  client: VaultWallet;
-  manifest: Record<string, number[]>;
 }

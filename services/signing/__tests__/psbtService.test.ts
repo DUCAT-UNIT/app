@@ -163,6 +163,9 @@ const mockUpdateInput = jest.fn();
 const mockToBase64 = jest.fn().mockReturnValue('signed_psbt_base64');
 const DEFAULT_INTENT = { recipient: 'recipient', change: 'recipient', minAmountSats: 0, allowOpReturn: true };
 const RECIPIENT_SCRIPT = Buffer.from('0014' + '11'.repeat(20), 'hex'); // simple p2wpkh; address mock returns 'recipient'
+const CHANGE_SCRIPT = Buffer.from('0014' + '22'.repeat(20), 'hex');
+const VAULT_SCRIPT = Buffer.from('5120' + '33'.repeat(32), 'hex');
+const EXTERNAL_SCRIPT = Buffer.from('0014' + '44'.repeat(20), 'hex');
 
 jest.mock('bitcoinjs-lib', () => {
   const { Buffer: B } = require('buffer');
@@ -178,7 +181,13 @@ jest.mock('bitcoinjs-lib', () => {
       SIGHASH_DEFAULT: 0x00,
     },
     address: {
-      fromOutputScript: jest.fn(() => 'recipient'),
+      fromOutputScript: jest.fn((script) => {
+        const hex = B.from(script).toString('hex');
+        if (hex === `0014${'22'.repeat(20)}`) return 'change';
+        if (hex === `5120${'33'.repeat(32)}`) return 'vault';
+        if (hex === `0014${'44'.repeat(20)}`) return 'faucet';
+        return 'recipient';
+      }),
     },
   };
 });
@@ -481,6 +490,235 @@ describe('psbtService', () => {
       await expect(signPsbtRaw('test_psbt_base64', {
         'tb1qtest': [0],
       }, DEFAULT_INTENT)).rejects.toThrow('Sign error');
+    });
+
+    it('should reject negative approved recipient minimums before signing', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        minAmountSats: -1,
+      })).rejects.toThrow('intent minAmountSats must be a non-negative safe integer');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject fractional approved recipient minimums before signing', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        minAmountSats: 1.5,
+      })).rejects.toThrow('intent minAmountSats must be a non-negative safe integer');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject PSBTs with no outputs', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], []));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, DEFAULT_INTENT))
+        .rejects
+        .toThrow('PSBT has no outputs to validate');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject recipient outputs below the approved value', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: RECIPIENT_SCRIPT, value: BigInt(999) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        minAmountSats: 1_000,
+      })).rejects.toThrow('recipient amount below approved value');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject outputs that are neither recipient nor change', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: EXTERNAL_SCRIPT, value: BigInt(10_000) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        change: 'change',
+        minAmountSats: 0,
+      })).rejects.toThrow('outputs not matching recipient/change');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject OP_RETURN outputs unless explicitly allowed', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: Buffer.from('6a5d01', 'hex'), value: BigInt(0) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        allowOpReturn: false,
+      })).rejects.toThrow('OP_RETURN output but allowOpReturn is false');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject non-Runestone OP_RETURN outputs even when OP_RETURN is allowed', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: Buffer.from('6a0101', 'hex'), value: BigInt(0) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        allowOpReturn: true,
+      })).rejects.toThrow('OP_RETURN output does not start with Runestone marker');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject oversized OP_RETURN payloads', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: Buffer.concat([Buffer.from('6a5d', 'hex'), Buffer.alloc(80)]), value: BigInt(0) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'recipient',
+        allowOpReturn: true,
+      })).rejects.toThrow('OP_RETURN payload size 81 bytes exceeds maximum');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject external swap signing with no requested input', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: CHANGE_SCRIPT, value: BigInt(10_000) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {}, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change'],
+          maxSpendSats: 1_000,
+        },
+      })).rejects.toThrow('External PSBT signing requires at least one signed input');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid external swap input indices', async () => {
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([], [
+        { script: CHANGE_SCRIPT, value: BigInt(10_000) },
+      ]));
+
+      await expect(signPsbtRaw('test_psbt_base64', {
+        change: [-1],
+      }, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change'],
+          maxSpendSats: 1_000,
+        },
+      })).rejects.toThrow('Invalid PSBT input index -1');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject external swap PSBTs that return more than signed inputs', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10_000),
+        },
+      };
+      const mockPsbt = createMockPsbt([mockInput], [
+        { script: CHANGE_SCRIPT, value: BigInt(11_000) },
+      ]);
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {
+        change: [0],
+      }, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change'],
+          maxSpendSats: 1_000,
+        },
+      })).rejects.toThrow('returns more value than signed inputs');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should allow external swap outputs when net spend is bounded and required wallet output exists', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(120_000),
+        },
+      };
+      const mockPsbt = createMockPsbt([mockInput], [
+        { script: EXTERNAL_SCRIPT, value: BigInt(100_000) },
+        { script: CHANGE_SCRIPT, value: BigInt(15_000) },
+        { script: VAULT_SCRIPT, value: BigInt(546) },
+      ]);
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {
+        change: [0],
+      }, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change', 'vault'],
+          requiredOutputAddresses: ['vault'],
+          maxSpendSats: 110_000,
+        },
+      })).resolves.toBe('signed_psbt_base64');
+    });
+
+    it('should reject external swap outputs when net spend exceeds approved maximum', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(200_000),
+        },
+      };
+      const mockPsbt = createMockPsbt([mockInput], [
+        { script: EXTERNAL_SCRIPT, value: BigInt(198_000) },
+        { script: CHANGE_SCRIPT, value: BigInt(1_000) },
+        { script: VAULT_SCRIPT, value: BigInt(546) },
+      ]);
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {
+        change: [0],
+      }, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change', 'vault'],
+          requiredOutputAddresses: ['vault'],
+          maxSpendSats: 110_000,
+        },
+      })).rejects.toThrow('spends more than the approved maximum');
+      expect(mockSignInput).not.toHaveBeenCalled();
+    });
+
+    it('should reject external swap PSBTs missing the required wallet output', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(120_000),
+        },
+      };
+      const mockPsbt = createMockPsbt([mockInput], [
+        { script: EXTERNAL_SCRIPT, value: BigInt(100_000) },
+        { script: CHANGE_SCRIPT, value: BigInt(15_000) },
+      ]);
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockPsbt);
+
+      await expect(signPsbtRaw('test_psbt_base64', {
+        change: [0],
+      }, {
+        recipient: 'change',
+        externalSpend: {
+          returnAddresses: ['change', 'vault'],
+          requiredOutputAddresses: ['vault'],
+          maxSpendSats: 110_000,
+        },
+      })).rejects.toThrow('missing required wallet output vault');
+      expect(mockSignInput).not.toHaveBeenCalled();
     });
 
     it('should sign multiple inputs across different addresses', async () => {
@@ -1211,17 +1449,4 @@ describe('cryptoUtils', () => {
     });
   });
 
-  describe('witnessToScriptWitness', () => {
-    it('should serialize empty witness stack', () => {
-      const result = cryptoUtils.witnessToScriptWitness([]);
-      expect(Buffer.isBuffer(result)).toBe(true);
-    });
-
-    it('should serialize witness stack with items', () => {
-      const witness = [Buffer.from('sig'), Buffer.from('pubkey')];
-      const result = cryptoUtils.witnessToScriptWitness(witness);
-      expect(Buffer.isBuffer(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
-    });
-  });
 });

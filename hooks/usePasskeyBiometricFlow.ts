@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Keyboard } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { setBiometricEnabled as persistBiometricEnabled } from '../services/biometricService';
 import { isPasskeyUpgradeRecommended } from '../services/passkey';
 import { logger } from '../utils/logger';
@@ -120,7 +121,6 @@ export function usePasskeyBiometricFlow({
       await persistBiometricEnabled(true);
       setBiometricEnabled(true);
 
-      const LocalAuthentication = await import('expo-local-authentication');
       await LocalAuthentication.authenticateAsync({
         promptMessage: 'Authenticate to enable biometric login',
         fallbackLabel: 'Use PIN instead',

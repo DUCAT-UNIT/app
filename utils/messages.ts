@@ -73,21 +73,6 @@ export const SUCCESS = {
   SETTINGS_SAVED: 'Settings saved successfully',
 } as const;
 
-export const WARNINGS = {
-  // Wallet warnings
-  WALLET_DELETE_WARNING:
-    'WARNING: This will permanently delete wallet data from this device. Your iCloud passkey backup is not deleted. Make sure you still have a recovery method.',
-  WALLET_LOGOUT_WARNING: 'This will lock your wallet. You can unlock it again with Face ID or PIN.',
-} as const;
-
-export const PROMPTS = {
-  // User prompts
-  ENTER_PIN: 'Enter 6-Digit PIN',
-  CONFIRM_PIN: 'Confirm Your PIN',
-  ENTER_ADDRESS: 'Enter Address',
-  ENTER_AMOUNT: 'Enter Amount',
-} as const;
-
 export const DIALOGS = {
   DELETE_WALLET_TITLE: 'Delete Local Wallet',
   LOGOUT_TITLE: 'Logout',

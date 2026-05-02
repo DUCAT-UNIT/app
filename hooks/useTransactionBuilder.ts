@@ -10,6 +10,7 @@ import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { releaseOrphanedUtxos } from '../utils/pendingTransactionsUtils';
 import { notify } from '../utils/notify';
+import { isE2E } from '../utils/e2e';
 
 import type { AssetType, IntentStep } from '../stores/sendFlowStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
@@ -200,7 +201,7 @@ export function useTransactionBuilder({
       }
 
       // E2E bypass: skip UTXO lookup and PSBT building — no real Runes UTXOs exist
-      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      if (isE2E()) {
         const parsedAmount = parseFloat(sendAmount) || 0;
         const fakeIntent: UnitTransactionIntent = {
           id: `e2e-unit-${Date.now()}`,

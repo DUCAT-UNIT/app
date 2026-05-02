@@ -13,15 +13,15 @@ const { getRandomValues } = require('react-native-quick-crypto');
 const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
 
 const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('Passkey creation timed out — please try again')),
-        PASSKEY_NATIVE_TIMEOUT_MS,
-      ),
-    ),
-  ]);
+  new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Passkey creation timed out — please try again')),
+      PASSKEY_NATIVE_TIMEOUT_MS,
+    );
+    (timeout as { unref?: () => void }).unref?.();
+
+    promise.then(resolve, reject).finally(() => clearTimeout(timeout));
+  });
 
 /**
  * Generate cryptographic challenge and user ID for FIDO2

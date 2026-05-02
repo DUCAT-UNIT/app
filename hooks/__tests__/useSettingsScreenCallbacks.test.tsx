@@ -99,11 +99,9 @@ describe('useSettingsScreenCallbacks', () => {
         onClose: expect.any(Function),
         onFaceIdToggle: mockSettingsHandlers.handleFaceIdToggle,
         onChangePin: mockSettingsHandlers.handleChangePin,
-        onAutoLockToggle: expect.any(Function),
         onViewSeedPhrase: mockSettingsHandlers.handleViewSeedPhrase,
         onDeleteWallet: mockSettingsHandlers.handleDeleteWallet,
         faceIdEnabled: true,
-        autoLockEnabled: false,
       });
     });
 
@@ -114,16 +112,6 @@ describe('useSettingsScreenCallbacks', () => {
       params.onClose();
 
       expect(mockNavigation.goBack).toHaveBeenCalled();
-    });
-
-    it('should log info when onAutoLockToggle is called', () => {
-      const { logger } = require('../../utils/logger');
-      callbacks.handleViewSecurity();
-
-      const params = mockNavigation.navigate.mock.calls[0][1];
-      params.onAutoLockToggle();
-
-      expect(logger.info).toHaveBeenCalledWith('Auto lock toggle pressed - feature not yet available');
     });
 
     it('should use biometricEnabled value for faceIdEnabled', () => {
@@ -174,6 +162,7 @@ describe('useSettingsScreenCallbacks', () => {
       expect(mockNavigation.goBack).toHaveBeenCalled();
       expect(mockSetShowAccountPicker).toHaveBeenCalledWith(true);
     });
+
   });
 
   describe('handleViewCashuSettings', () => {

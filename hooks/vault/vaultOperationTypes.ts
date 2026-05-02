@@ -29,15 +29,6 @@ export interface VaultWalletData {
 }
 
 /**
- * Common vault data from context
- */
-export interface VaultContextData {
-  totalDebt: number;
-  totalCollateral: number;
-  vaultId?: string;
-}
-
-/**
  * Store state selectors - what we read from the operation-specific store
  */
 export interface VaultStoreState {

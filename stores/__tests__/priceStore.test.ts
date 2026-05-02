@@ -11,8 +11,10 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const mockFetchBtcPrice = jest.fn();
+const mockFetchEthPrice = jest.fn();
 jest.mock('../../services/balanceService', () => ({
   fetchBtcPrice: () => mockFetchBtcPrice(),
+  fetchEthPrice: () => mockFetchEthPrice(),
 }));
 
 describe('priceStore', () => {
@@ -20,6 +22,7 @@ describe('priceStore', () => {
     resetPriceStore();
     jest.useFakeTimers();
     mockFetchBtcPrice.mockReset();
+    mockFetchEthPrice.mockReset();
   });
 
   afterEach(() => {
@@ -28,10 +31,71 @@ describe('priceStore', () => {
 
   it('should have correct initial state', () => {
     const state = usePriceStore.getState();
-    expect(state).toMatchObject({
-      btcPrice: null,
-      loadingBtcPrice: false,
-      lastFetchTime: null,
+      expect(state).toMatchObject({
+        btcPrice: null,
+        ethPrice: null,
+        loadingBtcPrice: false,
+        loadingEthPrice: false,
+        lastFetchTime: null,
+      });
+  });
+
+  describe('fetchEthPrice', () => {
+    it('should fetch and update ethPrice on success', async () => {
+      mockFetchEthPrice.mockResolvedValueOnce(3200);
+      const { fetchEthPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchEthPrice(); });
+
+      const state = usePriceStore.getState();
+      expect(state.ethPrice).toBe(3200);
+      expect(state.loadingEthPrice).toBe(false);
+      expect(state.lastFetchTime).not.toBeNull();
+    });
+
+    it('should preserve the last valid ethPrice when a later fetch fails', async () => {
+      mockFetchEthPrice
+        .mockResolvedValueOnce(3200)
+        .mockRejectedValueOnce(new Error('Network error'));
+      const { fetchEthPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchEthPrice(); });
+      await act(async () => { await fetchEthPrice(); });
+
+      expect(usePriceStore.getState().ethPrice).toBe(3200);
+      expect(usePriceStore.getState().loadingEthPrice).toBe(false);
+    });
+
+    it('should ignore invalid ETH price responses without clearing a valid price', async () => {
+      mockFetchEthPrice
+        .mockResolvedValueOnce(3200)
+        .mockResolvedValueOnce(null);
+      const { fetchEthPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchEthPrice(); });
+      await act(async () => { await fetchEthPrice(); });
+
+      expect(usePriceStore.getState().ethPrice).toBe(3200);
+    });
+
+    it('should prevent concurrent ETH price fetches', async () => {
+      let resolveFirst: (value: number) => void;
+      mockFetchEthPrice.mockReturnValueOnce(new Promise<number>((resolve) => {
+        resolveFirst = resolve;
+      }));
+
+      const { fetchEthPrice } = usePriceStore.getState();
+      let firstFetchPromise: Promise<void>;
+
+      act(() => { firstFetchPromise = fetchEthPrice(); });
+      await act(async () => { await fetchEthPrice(); });
+
+      expect(mockFetchEthPrice).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveFirst!(3200);
+        await firstFetchPromise;
+      });
     });
   });
 
@@ -48,7 +112,7 @@ describe('priceStore', () => {
       expect(state.lastFetchTime).not.toBeNull();
     });
 
-    it('should set btcPrice to null on error', async () => {
+    it('should keep btcPrice null on initial fetch error', async () => {
       mockFetchBtcPrice.mockRejectedValueOnce(new Error('Network error'));
       const { fetchBtcPrice } = usePriceStore.getState();
 
@@ -56,6 +120,31 @@ describe('priceStore', () => {
 
       expect(usePriceStore.getState().btcPrice).toBeNull();
       expect(usePriceStore.getState().loadingBtcPrice).toBe(false);
+    });
+
+    it('should preserve the last valid btcPrice when a later fetch fails', async () => {
+      mockFetchBtcPrice
+        .mockResolvedValueOnce(50000)
+        .mockRejectedValueOnce(new Error('Network error'));
+      const { fetchBtcPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchBtcPrice(); });
+      await act(async () => { await fetchBtcPrice(); });
+
+      expect(usePriceStore.getState().btcPrice).toBe(50000);
+      expect(usePriceStore.getState().loadingBtcPrice).toBe(false);
+    });
+
+    it('should ignore invalid price responses without clearing a valid price', async () => {
+      mockFetchBtcPrice
+        .mockResolvedValueOnce(50000)
+        .mockResolvedValueOnce(null);
+      const { fetchBtcPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchBtcPrice(); });
+      await act(async () => { await fetchBtcPrice(); });
+
+      expect(usePriceStore.getState().btcPrice).toBe(50000);
     });
 
     it('should set loadingBtcPrice during fetch', async () => {
@@ -95,6 +184,35 @@ describe('priceStore', () => {
         resolveFirst!(50000);
         await firstFetchPromise;
       });
+    });
+  });
+
+  describe('setFallbackBtcPrice', () => {
+    it('should seed btcPrice from a valid fallback when no price is loaded', () => {
+      const { setFallbackBtcPrice } = usePriceStore.getState();
+
+      act(() => { setFallbackBtcPrice(51000); });
+
+      expect(usePriceStore.getState().btcPrice).toBe(51000);
+      expect(usePriceStore.getState().lastFetchTime).not.toBeNull();
+    });
+
+    it('should not overwrite an existing primary price with fallback data', async () => {
+      mockFetchBtcPrice.mockResolvedValueOnce(50000);
+      const { fetchBtcPrice, setFallbackBtcPrice } = usePriceStore.getState();
+
+      await act(async () => { await fetchBtcPrice(); });
+      act(() => { setFallbackBtcPrice(49000); });
+
+      expect(usePriceStore.getState().btcPrice).toBe(50000);
+    });
+
+    it('should ignore invalid fallback prices', () => {
+      const { setFallbackBtcPrice } = usePriceStore.getState();
+
+      act(() => { setFallbackBtcPrice(0); });
+
+      expect(usePriceStore.getState().btcPrice).toBeNull();
     });
   });
 
@@ -170,11 +288,13 @@ describe('priceStore', () => {
 
     act(() => { resetPriceStore(); });
 
-    expect(usePriceStore.getState()).toMatchObject({
-      btcPrice: null,
-      loadingBtcPrice: false,
-      lastFetchTime: null,
-    });
+      expect(usePriceStore.getState()).toMatchObject({
+        btcPrice: null,
+        ethPrice: null,
+        loadingBtcPrice: false,
+        loadingEthPrice: false,
+        lastFetchTime: null,
+      });
 
     // Interval should be cleared
     await act(async () => {

@@ -44,6 +44,13 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   const intentCreated = useRef(false);
   const stateInitialized = useRef(false);
 
+  const clearErrorTimeout = () => {
+    if (errorTimeout.current) {
+      clearTimeout(errorTimeout.current);
+      errorTimeout.current = null;
+    }
+  };
+
   // Reset refs when component mounts with new params
   useEffect(() => {
     hasStarted.current = false;
@@ -106,9 +113,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
       logger.debug('[TurboLoading] Navigating to Review...');
       hasNavigated.current = true;
       intentCreated.current = true;
-      if (errorTimeout.current) {
-        clearTimeout(errorTimeout.current);
-      }
+      clearErrorTimeout();
       navigation.dispatch(
         StackActions.replace('Review', {
           isTurbo,
@@ -122,9 +127,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
       logger.debug('[TurboLoading] Error detected, showing alert...');
       // Error - show alert and go back
       hasNavigated.current = true;
-      if (errorTimeout.current) {
-        clearTimeout(errorTimeout.current);
-      }
+      clearErrorTimeout();
 
       // Clean up any stuck UTXOs before showing error
       const cleanupAndShowError = async () => {
@@ -184,11 +187,10 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
           );
         }
       }, 10000); // 10 second timeout
+      (errorTimeout.current as { unref?: () => void }).unref?.();
 
       return () => {
-        if (errorTimeout.current) {
-          clearTimeout(errorTimeout.current);
-        }
+        clearErrorTimeout();
       };
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

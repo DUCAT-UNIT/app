@@ -5,7 +5,7 @@
  * from LiquidationScreen.
  */
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchLiquidatableVaults } from '../../services/liquidation/fetchVaults';
 import {
   computeLiquidVaultProfiles,
@@ -13,9 +13,12 @@ import {
   getAvailableCollateralBtc,
 } from '../../services/liquidation/calculations';
 import { LIQ_MAX_CLAIM_AMOUNT_BTC, LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
-import type { LiqVaultDisplay } from '../../services/liquidation/types';
-import { fetchProtocolContract } from '../../services/vaultWallet';
+import type { LiqVaultDisplay, ValidatorLiquidatedVault } from '../../services/liquidation/types';
+import { fetchProtocolContract, prefetchProtocolContract } from '../../services/vaultWallet';
+import { fetchBtcPrice } from '../../services/balanceService';
+import type { ProtocolProfile } from '@ducat-unit/client-sdk';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
+import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
 import { sendLocalNotification } from '../../services/pushNotificationService';
 import { getNotificationsEnabled } from '../../services/settingsService';
 import { isE2E } from '../../utils/e2e';
@@ -24,6 +27,7 @@ import { logger } from '../../utils/logger';
 const POLL_INTERVAL_ACTIVE_MS = 30_000;  // 30s when screen is open
 const POLL_INTERVAL_BG_MS = 120_000;    // 2 min background prefetch
 const LIQ_ALERT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour throttle
+const LIQ_CONTRACT_FETCH_TIMEOUT_MS = 12_000;
 
 interface UseLiquidationVaultsParams {
   btcPrice: number | null;
@@ -40,6 +44,42 @@ interface UseLiquidationVaultsReturn {
   refreshLiqVaults: () => Promise<void>;
 }
 
+function deriveBtcPrice(rawVaults: ValidatorLiquidatedVault[]): number | null {
+  for (const vault of rawVaults) {
+    const candidates = [
+      vault.quote?.latest_price,
+      vault.quote?.quote_price,
+      vault.stone?.oracle_price,
+      vault.quote?.thold_price,
+    ];
+    const price = candidates.find((candidate) => typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0);
+    if (price) {
+      return price;
+    }
+  }
+  return null;
+}
+
+async function fetchProtocolContractWithTimeout(): Promise<ProtocolProfile> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error('Timed out loading liquidation protocol contract')),
+      LIQ_CONTRACT_FETCH_TIMEOUT_MS,
+    );
+    (timeoutId as { unref?: () => void }).unref?.();
+  });
+
+  try {
+    return await Promise.race([fetchProtocolContract(), timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export function useLiquidationVaults({
   btcPrice,
   segwitBalance,
@@ -53,15 +93,38 @@ export function useLiquidationVaults({
   const fetchStatus = store((s) => s.fetchStatus);
   const currentStep = store((s) => s.currentStep);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const diagnosticsPollIdRef = useRef<string | null>(null);
   const fetchInFlightRef = useRef(false);
   const prevVaultCountRef = useRef<number>(-1);
   const lastLiqAlertRef = useRef<number>(0);
+  const [fallbackBtcPrice, setFallbackBtcPrice] = useState<number | null>(null);
+  const effectiveBtcPrice = btcPrice ?? fallbackBtcPrice;
 
   const refreshLiqVaults = useCallback(async () => {
-    if (!btcPrice || fetchInFlightRef.current) return;
+    const pollId = diagnosticsPollIdRef.current;
+    if (fetchInFlightRef.current) {
+      if (pollId) {
+        useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+          lastStatus: 'skipped',
+          lastMessage: 'Previous liquidation vault refresh is still in flight',
+        });
+      }
+      return;
+    }
     // Don't update vault data while user is reviewing or executing
     const step = store.getState().currentStep;
-    if (step === 'review' || step === 'processing') return;
+    if (step === 'review' || step === 'processing') {
+      if (pollId) {
+        useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+          lastStatus: 'paused',
+          lastMessage: `Paused while liquidation flow is ${step}`,
+          metadata: {
+            currentStep: step,
+          },
+        });
+      }
+      return;
+    }
 
     fetchInFlightRef.current = true;
     // Only set loading on first fetch to avoid re-renders during polling
@@ -70,11 +133,49 @@ export function useLiquidationVaults({
     }
 
     try {
-      const [raw, contract] = await Promise.all([
-        fetchLiquidatableVaults(),
-        fetchProtocolContract(),
-      ]);
-      const currentPrice = btcPrice || 67000;
+      const pricePromise = btcPrice
+        ? Promise.resolve(btcPrice)
+        : fetchBtcPrice().catch(() => null);
+      const raw = await fetchLiquidatableVaults();
+
+      if (raw.length === 0) {
+        const prev = store.getState();
+        const hadVaults = prev.vaults.length > 0 || prev.vaultsFull.length > 0;
+        if (hadVaults || prev.fetchStatus !== 'loaded') {
+          store.setState({
+            vaults: [],
+            vaultsFull: [],
+            profitRate: 0,
+            depositRate: 0,
+            swapRate: 0,
+            fetchStatus: 'loaded',
+          });
+        }
+        prevVaultCountRef.current = 0;
+        if (pollId) {
+          useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+            lastStatus: 'loaded',
+            lastMessage: 'No liquidatable vaults returned by validator',
+            metadata: {
+              vaultCount: 0,
+              fetchStatus: store.getState().fetchStatus,
+              visible,
+              currentStep: store.getState().currentStep,
+            },
+          });
+        }
+        return;
+      }
+
+      const currentPrice = btcPrice ?? deriveBtcPrice(raw) ?? await pricePromise;
+      if (!currentPrice) {
+        throw new Error('BTC price unavailable for liquidation vault calculation');
+      }
+      if (!btcPrice) {
+        setFallbackBtcPrice(currentPrice);
+      }
+
+      const contract = await fetchProtocolContractWithTimeout();
       logger.debug('[Liquidation] Fetch result', { rawCount: raw.length, price: currentPrice });
 
       // Use computeLiquidVaultProfiles from calculations.ts (no duplication)
@@ -127,9 +228,23 @@ export function useLiquidationVaults({
         full: fullProfiles.length,
         changed: vaultsChanged,
       });
+      if (pollId) {
+        useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+          lastStatus: 'loaded',
+          lastMessage: vaultsChanged ? 'Liquidation vault set changed' : 'Liquidation vault set unchanged',
+          metadata: {
+            vaultCount: displayProfiles.length,
+            fullProfileCount: fullProfiles.length,
+            vaultsChanged,
+            fetchStatus: store.getState().fetchStatus,
+            visible,
+            currentStep: store.getState().currentStep,
+          },
+        });
+      }
 
       // Send liquidation opportunity notification when new vaults appear
-      if (!isE2E && vaultsChanged && prevVaultCountRef.current >= 0) {
+      if (!isE2E() && vaultsChanged && prevVaultCountRef.current >= 0) {
         const newCount = displayProfiles.length;
         if (newCount > prevVaultCountRef.current) {
           const now = Date.now();
@@ -156,27 +271,59 @@ export function useLiquidationVaults({
       if (store.getState().fetchStatus !== 'error') {
         store.getState().setFetchStatus('error');
       }
+      if (pollId) {
+        useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+          lastStatus: 'error',
+          lastError: fetchErr instanceof Error ? fetchErr.message : String(fetchErr),
+          metadata: {
+            fetchStatus: store.getState().fetchStatus,
+            visible,
+            currentStep: store.getState().currentStep,
+          },
+        });
+      }
     } finally {
       fetchInFlightRef.current = false;
     }
-  }, [btcPrice]);
+  }, [btcPrice, visible]);
+
+  useEffect(() => {
+    prefetchProtocolContract();
+  }, []);
 
   // Background prefetch — start fetching immediately on mount, poll every 2 min
   // so data is ready when user opens the liquidation screen
   useEffect(() => {
-    if (!btcPrice) return;
-    void refreshLiqVaults();
     const interval = visible && currentStep === 'input'
       ? POLL_INTERVAL_ACTIVE_MS   // 30s when screen is open
       : POLL_INTERVAL_BG_MS;      // 2 min background
+    const pollId = useSwapDiagnosticsStore.getState().startPoll({
+      id: 'liquidation-vaults',
+      kind: 'liquidation_vaults',
+      label: 'Liquidation vault refresh',
+      subject: visible ? 'active' : 'background',
+      intervalMs: interval,
+      metadata: {
+        visible,
+        currentStep,
+        btcPrice,
+      },
+    });
+    diagnosticsPollIdRef.current = pollId;
+    void refreshLiqVaults();
     pollingRef.current = setInterval(() => {
       void refreshLiqVaults();
     }, interval);
+    (pollingRef.current as { unref?: () => void }).unref?.();
     logger.debug('[Liquidation] Polling started', { interval, visible });
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
+      }
+      if (diagnosticsPollIdRef.current === pollId) {
+        useSwapDiagnosticsStore.getState().stopPoll(pollId, 'Liquidation vault polling stopped');
+        diagnosticsPollIdRef.current = null;
       }
     };
   }, [btcPrice, visible, currentStep, refreshLiqVaults]);
@@ -184,16 +331,16 @@ export function useLiquidationVaults({
   // Compute max investable from vault data + wallet constraints
   const vaultsFull = store((s) => s.vaultsFull);
   const maxInvestable = useMemo(() => {
-    if (!btcPrice || vaultsFull.length === 0) return 0;
+    if (!effectiveBtcPrice || vaultsFull.length === 0) return 0;
     const walletSats = Math.round(((segwitBalance || 0) + (taprootBalance || 0)) * 100_000_000);
     const availableCollateral = hasVault
-      ? getAvailableCollateralBtc(btcPrice, vaultCollateral || 0, vaultDebt || 0)
+      ? getAvailableCollateralBtc(effectiveBtcPrice, vaultCollateral || 0, vaultDebt || 0)
       : walletSats / 100_000_000;
     const stats = getMaxInvest(
       true,
       availableCollateral,
       walletSats,
-      btcPrice,
+      effectiveBtcPrice,
       LIQ_DEFAULT_FEE_RATE,
       vaultsFull,
       LIQ_MAX_CLAIM_AMOUNT_BTC,
@@ -205,7 +352,7 @@ export function useLiquidationVaults({
       result: stats.maxInvestBtc,
     });
     return stats.maxInvestBtc;
-  }, [btcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, hasVault, vaultsFull, fetchStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [effectiveBtcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, hasVault, vaultsFull, fetchStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { maxInvestable, refreshLiqVaults };
 }

@@ -4,7 +4,7 @@ import Icon from '../icons';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
-export type LiquidationEmptyVariant = 'noVaults' | 'noVault' | 'lowCollateral' | 'loading';
+export type LiquidationEmptyVariant = 'noVaults' | 'noVault' | 'lowCollateral' | 'loading' | 'error';
 
 export interface LiquidationEmptyStatesProps {
   variant: LiquidationEmptyVariant;
@@ -44,6 +44,14 @@ const VARIANT_CONFIG: Record<
     bgColor: colors.bg.secondary,
     title: 'Loading Vaults...',
     subtitle: 'Fetching liquidatable vaults from the network.',
+  },
+  error: {
+    icon: 'liquidations',
+    iconColor: colors.semantic.error,
+    bgColor: colors.bg.errorTint,
+    title: 'Unable to Load Liquidations',
+    subtitle:
+      'The liquidation service did not respond in time. Keep this screen open and the app will retry automatically.',
   },
 };
 

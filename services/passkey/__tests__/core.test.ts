@@ -23,7 +23,6 @@ jest.mock('../../../utils/logger', () => ({
 // Import after mocks
 import {
   PASSKEY_KEYS,
-  PASSKEY_STORAGE_KEYS,
   isPasskeySupported,
   toBase64Url,
   fromBase64Url,
@@ -43,10 +42,6 @@ describe('Passkey Core', () => {
       expect(PASSKEY_KEYS.ENCRYPTED_MNEMONIC).toBe('passkey_encrypted_mnemonic_v1');
       expect(PASSKEY_KEYS.ENCRYPTION_IV).toBe('passkey_encryption_iv_v1');
       expect(PASSKEY_KEYS.ENCRYPTION_TAG).toBe('passkey_encryption_tag_v1');
-    });
-
-    it('should export PASSKEY_STORAGE_KEYS as alias', () => {
-      expect(PASSKEY_STORAGE_KEYS).toBe(PASSKEY_KEYS);
     });
   });
 

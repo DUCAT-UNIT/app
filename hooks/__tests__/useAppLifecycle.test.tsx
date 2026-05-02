@@ -87,7 +87,7 @@ describe('useAppLifecycle', () => {
   });
 
   describe('Screen Capture Management', () => {
-    it('should allow screen capture on mount', async () => {
+    it('should prevent screen capture on mount', async () => {
       renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
         initialProps: mockProps,
       });
@@ -96,7 +96,7 @@ describe('useAppLifecycle', () => {
         await Promise.resolve();
       });
 
-      expect(ScreenCapture.allowScreenCaptureAsync).toHaveBeenCalled();
+      expect(ScreenCapture.preventScreenCaptureAsync).toHaveBeenCalled();
     });
 
 

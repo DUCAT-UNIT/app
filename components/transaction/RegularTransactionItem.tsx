@@ -76,7 +76,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     // Determine action label
     let label: string;
     if (isEcashSwap) label = 'tUNIT Swap';
-    else if (isSent && isReceived) label = 'Self Claim';
+    else if (isSent && isReceived) label = assetType === 'UNIT' ? 'Self Claim' : 'Self Transfer';
     else label = isSent ? 'Sent' : 'Received';
 
     // Determine status config
@@ -92,7 +92,9 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
       ? formatUnitAmount(absAmount)
       : assetType === 'USDC'
         ? formatFiat(absAmount, 2)
-        : formatBalance(absAmount / 100000000);
+        : assetType === 'ETH'
+          ? formatBalance(absAmount, 6)
+          : formatBalance(absAmount / 100000000);
 
     // Format date once
     const date = formatTransactionDate(tx.status.block_time);
@@ -108,7 +110,8 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
 
   // tUNIT Swap is a conversion (positive action) — show green
   const isEcashSwap = actionLabel === 'tUNIT Swap';
-  const amountColor = (isReceived || isEcashSwap) ? COLORS.GREEN : COLORS.RED;
+  const isSelfTransfer = isSent && isReceived;
+  const amountColor = isSelfTransfer ? COLORS.WHITE : (isReceived || isEcashSwap) ? COLORS.GREEN : COLORS.RED;
 
   return (
     <TouchableOpacity
@@ -117,7 +120,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
       activeOpacity={0.7}
     >
       <View style={{ width: s(36), height: s(36), marginRight: s(12), marginLeft: 0, justifyContent: 'center', alignItems: 'center' }}>
-        <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : assetType === 'USDC' ? 'usdc_logo' : 'btc_logo')}
+        <Icon name={showTurboUI ? 'turbo' : (assetType === 'UNIT' ? 'unit_logo' : assetType === 'USDC' ? 'usdc_logo' : assetType === 'ETH' ? 'eth_logo' : 'btc_logo')}
           size={s(36)} color={showTurboUI ? '#DDDDDD' : undefined} />
       </View>
       <View style={localStyles.txContentContainer}>
@@ -138,6 +141,10 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
                 assetType === 'USDC' ? (
                   <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
                     ${formattedAmount}
+                  </Text>
+                ) : assetType === 'ETH' ? (
+                  <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                    {formattedAmount} ETH
                   </Text>
                 ) : (
                   <View style={styles.balanceWithIcon}>

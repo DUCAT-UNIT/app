@@ -207,12 +207,13 @@ export const recoverPendingTurboSend = async (
 
       logger.info('[TurboRecovery] P2PK token created successfully');
 
-      // Update stage
-      await updateTurboSendStage('p2pk_created');
+      // Persist the token before any URL/history work so another crash can retry safely.
+      await updateTurboSendStage('p2pk_created', { token: result.token });
 
       // Generate shortened URL
       const shortUrl = await shortenToken(result.token);
-      logger.info('[TurboRecovery] Generated short URL:', { shortUrl });
+      await updateTurboSendStage('p2pk_created', { token: result.token, shortUrl });
+      logger.info('[TurboRecovery] Generated short URL', { shortUrlLength: shortUrl.length });
 
       // Save the token
       await saveToken(result.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
@@ -234,22 +235,25 @@ export const recoverPendingTurboSend = async (
     if (pending.stage === 'p2pk_created') {
       logger.info('[TurboRecovery] P2PK was created, attempting to re-save token');
 
-      if (pending.token) {
-        try {
-          // Re-generate short URL if not saved
-          const shortUrl = pending.shortUrl || await shortenToken(pending.token);
-          // Re-save the locked token
-          await saveToken(pending.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
-          logger.info('[TurboRecovery] Re-saved token from recovery data');
-        } catch (saveError) {
-          logger.error('[TurboRecovery] Failed to re-save token, clearing state', {
-            error: saveError instanceof Error ? saveError.message : String(saveError),
-          });
-        }
+      if (!pending.token) {
+        throw new Error('P2PK token missing from recovery data');
       }
 
+      // Re-generate short URL if not saved
+      const shortUrl = pending.shortUrl || await shortenToken(pending.token);
+      await updateTurboSendStage('p2pk_created', { token: pending.token, shortUrl });
+      // Re-save the locked token
+      await saveToken(pending.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
+      logger.info('[TurboRecovery] Re-saved token from recovery data');
+
       await clearPendingTurboSend();
-      return { recovered: true, token: pending.token, recipient: pending.recipient, amount: pending.amount };
+      return {
+        recovered: true,
+        token: pending.token,
+        deeplink: shortUrl,
+        recipient: pending.recipient,
+        amount: pending.amount,
+      };
     }
 
     return { recovered: false };

@@ -426,6 +426,17 @@ jest.mock('react-native', () => {
       addEventListener: jest.fn(() => ({ remove: jest.fn() })),
       currentState: 'active',
     },
+    InteractionManager: {
+      runAfterInteractions: jest.fn((callback) => {
+        const handle = {
+          cancel: jest.fn(),
+        };
+        if (typeof callback === 'function') {
+          callback();
+        }
+        return handle;
+      }),
+    },
     Animated: {
       Value: jest.fn((initialValue) => {
         const animatedValue = {

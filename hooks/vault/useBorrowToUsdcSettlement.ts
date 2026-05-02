@@ -4,6 +4,7 @@ import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { useBorrowVault, type UseBorrowVaultResult } from './useBorrowVault';
 import { useIssuedUnitSettlement } from './useIssuedUnitSettlement';
 import { formatVaultSettlementAmountInput } from '../../services/vaultSettlementService';
+import { getBoolean, SettingKeys } from '../../services/settingsService';
 
 export interface UseBorrowToUsdcSettlementResult extends UseBorrowVaultResult {
   quoteBorrowToUsdc: (amountUsd: number) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
@@ -22,7 +23,10 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
   const { quoteBorrowToUsdc, settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
 
   const borrow = useCallback(async () => {
-    startOperation('borrow', store.borrowAmountUsd, store.receiveAsset);
+    const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+    const requestedReceiveAsset = usdcFeaturesEnabled ? store.receiveAsset : 'UNIT';
+
+    startOperation('borrow', store.borrowAmountUsd, requestedReceiveAsset);
     setPhase('issuing_vault');
 
     const result = await rawBorrow.borrow();
@@ -31,10 +35,16 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     }
 
     setIssueResult(result.txid, result.vaultTxid);
-    if (store.receiveAsset === 'UNIT') {
+    if (requestedReceiveAsset === 'UNIT') {
       completeSettlement('UNIT', formatVaultSettlementAmountInput(store.borrowAmountUsd));
     } else {
-      await settleIssuedUnitToUsdc('borrow', store.borrowAmountUsd);
+      const settlement = await settleIssuedUnitToUsdc('borrow', store.borrowAmountUsd);
+      const canComplete =
+        settlement.status === 'settled' ||
+        (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+      if (!canComplete) {
+        return result;
+      }
     }
     store.setCurrentStep('success');
 

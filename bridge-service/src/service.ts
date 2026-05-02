@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BRIDGE_CONFIG } from './config';
-import { formatUnits6, microsToMutinynetBaseUnits, parseUnits2, parseUnits6 } from './amounts';
+import { formatUnits6, microsToMutinynetBaseUnits, parseUnits6 } from './amounts';
 import type {
   BridgeDeposit,
   BridgeIntent,
@@ -789,8 +789,4 @@ export class BridgeCoordinator {
     const amountOut = (feeAdjusted * amplifiedOut) / (amplifiedIn + feeAdjusted);
     return amountOut > reserveOut ? reserveOut : amountOut;
   }
-}
-
-export function normalizeMutinynetAmountInput(amount: string): string {
-  return formatUnits6(parseUnits2(amount) * 10_000n);
 }

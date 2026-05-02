@@ -1,0 +1,26 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Liquidation Dashboard - Verify the wallet liquidation surface opens and can return to wallet.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "liquidations-fab"
+    timeout: 10000
+
+- tapOn:
+    id: "liquidations-fab"
+- waitForAnimationToEnd
+
+- assertVisible:
+    text: "Liquidations"
+- assertVisible:
+    id: "liquidation-continue-btn"
+
+- tapOn:
+    id: "liquidations-fab"
+- waitForAnimationToEnd
+
+- assertVisible:
+    id: "wallet-screen"

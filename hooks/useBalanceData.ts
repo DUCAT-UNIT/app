@@ -71,6 +71,7 @@ export function useBalanceData(
   // Keep refs to previous balance values for comparison
   const prevBalancesRef = useRef<{ segwit: number; taproot: number; runes: RuneBalance[] }>({ segwit: 0, taproot: 0, runes: [] });
   const prevWalletAddressRef = useRef<string | null>(null);
+  const balanceFetchInFlightRef = useRef(false);
 
   // Reset prevBalancesRef when wallet address changes
   useEffect(() => {
@@ -88,10 +89,11 @@ export function useBalanceData(
       const segwitAddress = segwitAddr || wallet?.segwitAddress;
       const taprootAddress = taprootAddr || wallet?.taprootAddress;
 
-      if (!segwitAddress || !taprootAddress) {
+      if (!segwitAddress || !taprootAddress || balanceFetchInFlightRef.current) {
         return;
       }
 
+      balanceFetchInFlightRef.current = true;
       try {
         // Only show loading on first fetch — avoids flicker on 10s poll cycles
         if (!prevBalancesRef.current.segwit && !prevBalancesRef.current.taproot) {
@@ -122,6 +124,16 @@ export function useBalanceData(
         // Also fetch unconfirmed balances from pending transactions
         // But we need to filter out UTXOs that have already confirmed to avoid double-counting
         if (getUnconfirmedUTXOs) {
+          const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
+          const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
+
+          if (unconfirmedSegwitUtxos.length === 0 && unconfirmedTaprootUtxos.length === 0) {
+            setUnconfirmedSegwitBalance(0);
+            setUnconfirmedTaprootBalance(0);
+            setUnconfirmedRunesBalance(0);
+            return;
+          }
+
           // Fetch confirmed UTXOs for both addresses to check for overlap
           const [confirmedSegwitUtxos, confirmedTaprootUtxos] = await Promise.all([
             fetchUtxosService(segwitAddress),
@@ -129,10 +141,6 @@ export function useBalanceData(
           ]);
           const confirmedSegwitKeys = new Set(confirmedSegwitUtxos.map(u => `${u.txid}:${u.vout}`));
           const confirmedTaprootKeys = new Set(confirmedTaprootUtxos.map(u => `${u.txid}:${u.vout}`));
-
-          // Get unconfirmed UTXOs and filter out any that are already confirmed
-          const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit');
-          const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot');
 
           const filteredSegwitUtxos = unconfirmedSegwitUtxos.filter(u => {
             const key = `${u.txid}:${u.vout}`;
@@ -180,6 +188,7 @@ export function useBalanceData(
       } catch (error: unknown) {
         setBalanceError('Failed to fetch balance. Tap to retry.');
       } finally {
+        balanceFetchInFlightRef.current = false;
         setLoadingBalance(false);
       }
     },

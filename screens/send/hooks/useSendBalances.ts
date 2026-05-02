@@ -7,6 +7,7 @@ import { useMemo, useRef } from 'react';
 import { useBalance } from '../../../contexts/WalletDataContext';
 import { useCashuBalanceState } from '../../../contexts/CashuContext';
 import { getRunesAmount } from '../../../utils/runesHelper';
+import { isE2E } from '../../../utils/e2e';
 
 export interface UseSendBalancesOptions {
   /** Estimated fee in satoshis */
@@ -44,7 +45,7 @@ export function useSendBalances({
   // non-zero Runes balance so the send screen stays usable between polls.
   const lastKnownRunes = useRef(0);
   if (rawRunes > 0) lastKnownRunes.current = rawRunes;
-  const unitRunesBalance = (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true')
+  const unitRunesBalance = isE2E()
     ? (rawRunes > 0 ? rawRunes : lastKnownRunes.current)
     : rawRunes;
   const unitBalance = unitRunesBalance + ((cashuBalance || 0) / 100);

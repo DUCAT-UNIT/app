@@ -67,7 +67,7 @@ type BorrowExtension = BorrowSpecificState & BorrowSpecificActions;
 // Borrow-specific initial state
 const borrowSpecificInitialState: BorrowSpecificState = {
   borrowAmount: 0,
-  receiveAsset: 'USDC',
+  receiveAsset: 'UNIT',
   txid: null,
 };
 

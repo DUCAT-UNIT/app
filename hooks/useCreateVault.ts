@@ -18,6 +18,7 @@ import {
 import { createVaultWallet } from '../services/vaultWalletService';
 import { computeLiquidationPrice, validateVaultParams } from '../utils/vaultUtils';
 import { e2eVaultState } from '../utils/e2eVaultState';
+import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 import type { ProcessingStep } from '../stores/vaultCreationStore';
 import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
@@ -128,7 +129,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
       setCurrentStep('processing');
 
       // E2E bypass: skip Guardian and simulate instant vault creation
-      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      if (isE2E()) {
         try {
           for (const step of [1, 2, 3, 4] as ProcessingStep[]) {
             updateProcessingStep(step);
@@ -290,7 +291,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         logger.error('[useCreateVault] Error:', {
           message: errorMessage,
           stack: errorStack,
-          rawError: JSON.stringify(err, Object.getOwnPropertyNames(err || {}))
+          errorName: err instanceof Error ? err.name : typeof err,
         });
         setError(errorMessage);
         setCurrentStep('confirm'); // Go back to confirm step on error

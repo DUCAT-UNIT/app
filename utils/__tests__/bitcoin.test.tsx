@@ -405,13 +405,10 @@ describe('bitcoin utilities', () => {
     // Import the function
     const { extractPubkeyFromTaprootAddress } = require('../bitcoin');
 
-    it('should accept mainnet taproot prefix (bc1p) for extraction', () => {
-      // The function accepts bc1p prefix but may fail on actual mainnet addresses
-      // due to network mismatch during decoding
+    it('should reject mainnet taproot prefix (bc1p) for extraction', () => {
       expect(() => {
-        // This is an invalid address but tests that bc1p prefix is accepted
         extractPubkeyFromTaprootAddress('bc1pinvalid');
-      }).toThrow('Failed to extract pubkey from Taproot address');
+      }).toThrow('Address must be a Mutinynet Taproot address');
     });
 
     it('should extract pubkey from valid testnet taproot address', () => {
@@ -429,13 +426,13 @@ describe('bitcoin utilities', () => {
     it('should throw error for non-taproot address', () => {
       expect(() => {
         extractPubkeyFromTaprootAddress('tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx');
-      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+      }).toThrow('Address must be a Mutinynet Taproot address');
     });
 
     it('should throw error for legacy address', () => {
       expect(() => {
         extractPubkeyFromTaprootAddress('2MzQwSSnBHWHqSAqtTVQ6v47XtaisrJa1Vc');
-      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+      }).toThrow('Address must be a Mutinynet Taproot address');
     });
 
     it('should handle address with whitespace', () => {
@@ -453,12 +450,10 @@ describe('bitcoin utilities', () => {
       }).toThrow('Failed to extract pubkey from Taproot address');
     });
 
-    it('should throw error for mainnet taproot address check', () => {
-      // Note: bc1p addresses would pass the prefix check but may fail validation
-      // This tests the prefix validation
+    it('should throw error for non-taproot Mutinynet address check', () => {
       expect(() => {
         extractPubkeyFromTaprootAddress('tb1qtest');
-      }).toThrow('Address must be a Taproot address (tb1p... or bc1p...)');
+      }).toThrow('Address must be a Mutinynet Taproot address');
     });
   });
 });

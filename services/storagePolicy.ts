@@ -12,6 +12,7 @@ const MIGRATABLE_PREFERENCE_KEYS = new Set([
   'showZeroAssets',
   'advancedMode',
   'ecashThreshold',
+  'usdcFeaturesEnabled',
   'displayCurrency',
   'priceDisplayMode',
   'autoLockEnabled',
@@ -90,10 +91,6 @@ export const preferenceItemExists = async (key: string): Promise<boolean> => {
 
 export const clearPreferenceItems = async (keys: string[]): Promise<void> => {
   await Promise.allSettled(keys.map((key) => deletePreferenceItem(key)));
-};
-
-export const getDeviceOnlyItem = async (key: string): Promise<string | null> => {
-  return SecureStore.getItemAsync(key);
 };
 
 export const setDeviceOnlyItem = async (key: string, value: string): Promise<void> => {

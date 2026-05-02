@@ -86,13 +86,16 @@ export const repayInputConfig: VaultInputScreenConfig<
     effectiveUnitBorrowed: number,
     _preview: VaultPreview,
     hasSufficientBtcForFees: boolean,
-    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number }
+    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number; allowUsdc?: boolean }
   ): ValidationResult => {
     const warnings: string[] = [];
     const errors: string[] = [];
+    const allowUsdc = additionalData?.allowUsdc ?? true;
     const repayBalanceUsd = additionalData?.repayBalanceUsd ?? 0;
     const directUnitBalanceUsd = additionalData?.directUnitBalanceUsd ?? 0;
-    const maxFundingUsd = Math.max(repayBalanceUsd, directUnitBalanceUsd);
+    const maxFundingUsd = allowUsdc
+      ? Math.max(repayBalanceUsd, directUnitBalanceUsd)
+      : directUnitBalanceUsd;
 
     // Check repay exceeds debt
     if (amount > effectiveUnitBorrowed) {
@@ -101,7 +104,9 @@ export const repayInputConfig: VaultInputScreenConfig<
 
     // Check repay exceeds available funding path
     if (amount > maxFundingUsd) {
-      if (directUnitBalanceUsd > 0) {
+      if (!allowUsdc) {
+        errors.push(`Insufficient spendable UNIT balance. You have ${formatVaultUsd(directUnitBalanceUsd)} available.`);
+      } else if (directUnitBalanceUsd > 0) {
         errors.push(
           `Insufficient repayable balance. You have ${formatVaultUsd(directUnitBalanceUsd)} in spendable UNIT or ${formatVaultUsd(repayBalanceUsd)} in Sepolia USDC.`,
         );
@@ -125,8 +130,9 @@ export const repayInputConfig: VaultInputScreenConfig<
   getEmptyState: (
     _effectiveBtcLocked: number,
     effectiveUnitBorrowed: number,
-    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number }
+    additionalData?: { repayBalanceUsd?: number; directUnitBalanceUsd?: number; allowUsdc?: boolean }
   ): EmptyStateConfig | null => {
+    const allowUsdc = additionalData?.allowUsdc ?? true;
     // No debt
     if (effectiveUnitBorrowed <= 0) {
       return {
@@ -139,14 +145,16 @@ export const repayInputConfig: VaultInputScreenConfig<
     // No repayable balance
     if (
       additionalData?.repayBalanceUsd !== undefined
-      && additionalData.repayBalanceUsd <= 0
+      && (allowUsdc ? additionalData.repayBalanceUsd <= 0 : true)
       && (additionalData?.directUnitBalanceUsd ?? 0) <= 0
     ) {
       return {
         icon: 'alert-circle-outline',
         iconColor: colors.semantic.warning,
         title: 'No Repayable Balance',
-        subtitle: `You need either spendable UNIT or Sepolia USDC to repay your debt of ${formatVaultUsd(effectiveUnitBorrowed)}.`,
+        subtitle: allowUsdc
+          ? `You need either spendable UNIT or Sepolia USDC to repay your debt of ${formatVaultUsd(effectiveUnitBorrowed)}.`
+          : `You need spendable UNIT to repay your debt of ${formatVaultUsd(effectiveUnitBorrowed)}.`,
       };
     }
 
@@ -154,7 +162,8 @@ export const repayInputConfig: VaultInputScreenConfig<
   },
 };
 
-export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
+export function createRepayConfirmConfig(allowUsdc = true): VaultConfirmScreenConfig<RepayVaultStore> {
+  return {
   operationType: 'repay',
   title: 'Confirm Repay',
   authMessage: 'Authenticate to repay USD',
@@ -171,22 +180,29 @@ export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
 
   getSummaryRows: (store, _btcPrice): SummaryRow[] => {
     const newDebt = Math.max(0, store.currentUnitBorrowed - store.repayAmountUsd);
+    const canFundDirectly = store.availableDirectUnitBalanceUsd >= store.repayAmountUsd;
+    const useDirectUnit = !allowUsdc || canFundDirectly || store.estimatedUsdcIn === '0';
 
-    return [
-      {
-        label: 'Estimated USDC Spend',
-        currentValue: store.estimatedUsdcIn ? `${store.estimatedUsdcIn} USDC` : 'Refreshing…',
-      },
-      {
-        label: 'Sepolia Network Fee',
-        currentValue: store.estimatedSepoliaFeeEth ? `${store.estimatedSepoliaFeeEth} ETH` : 'Refreshing…',
-      },
-      ...(store.availableDirectUnitBalanceUsd >= store.repayAmountUsd
-        ? [{
-            label: 'Funding Path',
-            currentValue: 'Direct UNIT',
-          } satisfies SummaryRow]
-        : []),
+    const rows: SummaryRow[] = [];
+    if (useDirectUnit) {
+      rows.push({
+        label: 'Funding Path',
+        currentValue: 'Direct UNIT',
+      });
+    } else {
+      rows.push(
+        {
+          label: 'Estimated Sepolia USDC Spend',
+          currentValue: store.estimatedUsdcIn ? `${store.estimatedUsdcIn} USDC` : 'Refreshing…',
+        },
+        {
+          label: 'Sepolia Network Fee',
+          currentValue: store.estimatedSepoliaFeeEth ? `${store.estimatedSepoliaFeeEth} ETH` : 'Refreshing…',
+        },
+      );
+    }
+
+    rows.push(
       {
         label: 'Debt',
         currentValue: formatVaultUsd(store.currentUnitBorrowed),
@@ -214,14 +230,20 @@ export const repayConfirmConfig: VaultConfirmScreenConfig<RepayVaultStore> = {
         valueColor: colors.semantic.error,
         newValueColor: colors.semantic.error,
       },
-    ];
+    );
+
+    return rows;
   },
 };
+}
 
-export const repayProcessingConfig: VaultProcessingScreenConfig = {
+export function createRepayProcessingConfig(allowUsdc = true): VaultProcessingScreenConfig {
+  return {
   operationType: 'repay',
   title: 'Repaying USD',
-  subtitle: 'Please wait while we swap USDC back into UNIT and settle the repay',
+  subtitle: allowUsdc
+    ? 'Please wait while we swap Sepolia USDC back into UNIT and settle the repay'
+    : 'Please wait while we settle the repay with spendable UNIT',
   errorSubtitle: 'An error occurred',
   routes: repayRoutes,
 
@@ -240,3 +262,4 @@ export const repayProcessingConfig: VaultProcessingScreenConfig = {
     }
   },
 };
+}

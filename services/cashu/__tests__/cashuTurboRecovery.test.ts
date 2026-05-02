@@ -289,7 +289,42 @@ describe('cashuTurboRecovery', () => {
       expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
     });
 
-    it('should clear for p2pk_created stage', async () => {
+    it('should re-save and clear for p2pk_created stage with persisted token', async () => {
+      const pending: PendingTurboSend = {
+        quoteId: mockQuoteId,
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now(),
+        stage: 'p2pk_created',
+        token: 'cashuApersisted',
+        shortUrl: 'https://short.url/persisted',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pending));
+
+      const result = await recoverPendingTurboSend(
+        mockSendP2PKToken,
+        mockExtractPubkey,
+        mockShortenToken,
+        mockSaveToken
+      );
+
+      expect(result.recovered).toBe(true);
+      expect(result.token).toBe('cashuApersisted');
+      expect(result.deeplink).toBe('https://short.url/persisted');
+      expect(mockSaveToken).toHaveBeenCalledWith(
+        'cashuApersisted',
+        mockRecipient,
+        mockAmount,
+        null,
+        'https://short.url/persisted',
+        mockSenderAddress
+      );
+      expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+    });
+
+    it('keeps p2pk_created recovery state when persisted token is missing', async () => {
       const pending: PendingTurboSend = {
         quoteId: mockQuoteId,
         recipient: mockRecipient,
@@ -307,9 +342,12 @@ describe('cashuTurboRecovery', () => {
         mockSaveToken
       );
 
-      expect(result.recovered).toBe(true);
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
-      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        recovered: false,
+        error: 'P2PK token missing from recovery data',
+      });
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+      expect(mockSaveToken).not.toHaveBeenCalled();
     });
 
     it('should return error if pubkey extraction fails', async () => {
@@ -384,7 +422,7 @@ describe('cashuTurboRecovery', () => {
       expect(result.error).toBe('Network error');
     });
 
-    it('should update stage to p2pk_created during recovery', async () => {
+    it('should persist token and short URL while advancing to p2pk_created during recovery', async () => {
       const pending: PendingTurboSend = {
         quoteId: mockQuoteId,
         recipient: mockRecipient,
@@ -406,9 +444,14 @@ describe('cashuTurboRecovery', () => {
       const setCalls = (SecureStore.setItemAsync as jest.Mock).mock.calls;
       const stageUpdateCall = setCalls.find((call: string[]) => {
         const data = JSON.parse(call[1]);
-        return data.stage === 'p2pk_created';
+        return data.stage === 'p2pk_created' && data.token === 'cashuAtoken123';
       });
       expect(stageUpdateCall).toBeDefined();
+      const shortUrlUpdateCall = setCalls.find((call: string[]) => {
+        const data = JSON.parse(call[1]);
+        return data.stage === 'p2pk_created' && data.shortUrl === 'https://short.url/abc';
+      });
+      expect(shortUrlUpdateCall).toBeDefined();
     });
   });
 });

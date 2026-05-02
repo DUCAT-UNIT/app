@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import { InteractionManager } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
@@ -42,6 +43,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [wallet, setWallet] = useState<WalletAddresses | null>(null);
   const [currentAccount, setCurrentAccount] = useState(0);
 
+  const scheduleAnalyticsIdentify = useCallback((address: string) => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      analytics.hashAddress(address).then((hashed) => {
+        analytics.identifyHashed(hashed);
+      });
+    });
+
+    return () => task.cancel();
+  }, []);
+
   // Load wallet from secure storage
   const loadWallet = useCallback(async (): Promise<{ exists: boolean; addresses?: WalletAddresses }> => {
     try {
@@ -55,9 +66,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           taprootPubkey: addresses.taprootPubkey,
         });
         setCurrentAccount(accountIndex);
-        void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
-          analytics.identifyHashed(hashed);
-        });
+        scheduleAnalyticsIdentify(addresses.segwitAddress);
 
         return { exists: true, addresses };
       }
@@ -69,7 +78,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       });
       throw error;
     }
-  }, []);
+  }, [scheduleAnalyticsIdentify]);
 
   // Set wallet addresses (for creating/importing wallet)
   const setWalletAddresses = useCallback((addresses: WalletAddresses, accountIndex = 0) => {
@@ -82,9 +91,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     setCurrentAccount(accountIndex);
 
     // Identify user with hashed address for analytics
-    void analytics.hashAddress(addresses.segwitAddress).then((hashed) => {
-      analytics.identifyHashed(hashed);
-    });
+    scheduleAnalyticsIdentify(addresses.segwitAddress);
 
     Promise.all([
       saveCachedAddresses(accountIndex, addresses),
@@ -95,7 +102,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         error: error instanceof Error ? error.message : String(error),
       });
     });
-  }, []);
+  }, [scheduleAnalyticsIdentify]);
 
   // Reset wallet (for logout/delete)
   const resetWallet = useCallback(async () => {

@@ -34,8 +34,6 @@ export interface AppProvidersWrapperProps {
   fetchBalance: () => Promise<void>;
   fetchTransactionHistory: () => void;
   setIsAuthenticated: (value: boolean) => void;
-  loadWallet: () => Promise<{ exists: boolean; addresses?: WalletAddresses }>;
-  loadBiometricPreference: () => Promise<void>;
   isBiometricSupported: boolean;
   walletExists: MutableRefObject<boolean>;
 }
@@ -62,8 +60,6 @@ export default function AppProvidersWrapper({
   fetchBalance,
   fetchTransactionHistory,
   setIsAuthenticated,
-  loadWallet,
-  loadBiometricPreference,
   walletExists,
 }: AppProvidersWrapperProps): React.JSX.Element {
   const { seedConfirmed } = useOnboardingFlow();
@@ -91,10 +87,7 @@ export default function AppProvidersWrapper({
         <SeedPhraseProvider setIsAuthenticated={setIsAuthenticated}>
           <NavigationHandlersProvider walletExists={walletExists}>
             <AirdropProvider seedConfirmed={seedConfirmed}>
-              <AppNavigatorContent
-                loadWallet={loadWallet}
-                loadBiometricPreference={loadBiometricPreference}
-              />
+              <AppNavigatorContent />
             </AirdropProvider>
           </NavigationHandlersProvider>
         </SeedPhraseProvider>

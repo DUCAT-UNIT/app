@@ -3,8 +3,7 @@
  * Renders the root navigator and global UI elements
  */
 
-import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
 
 // Navigation
 import RootNavigator from './RootNavigator';
@@ -23,19 +22,13 @@ import { getThresholdSheetOnSelect,useEcashThresholdSheetStore } from '../stores
 
 // Contexts
 import { useAirdrop } from '../contexts/AirdropContext';
-import { useAuth,useOnboardingFlow } from '../contexts/AuthContext';
+import { useAuthSession } from '../contexts/AuthContext';
 import { useAccountSwitcherContext,useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
-import type { WalletAddresses } from '../contexts/WalletContext';
-import { useWallet } from '../contexts/WalletContext';
 import { useNotifications } from '../stores/notificationStore';
-
-// Hooks
-import { useWalletInitialization } from '../hooks/useWalletInitialization';
 
 // Styles
 import styles from '../styles';
-import { COLORS } from '../theme';
 
 /**
  * Global wrapper for EcashThresholdSheet that uses the global store
@@ -68,27 +61,13 @@ function EcashThresholdSheetGlobal() {
   );
 }
 
-export interface AppNavigatorContentProps {
-  loadWallet: () => Promise<{ exists: boolean; addresses?: WalletAddresses }>;
-  loadBiometricPreference: () => Promise<void>;
-}
-
 /**
  * Main content component that renders navigation and global overlays
  * Has access to all context values via hooks
  */
-export default function AppNavigatorContent({
-  loadWallet,
-  loadBiometricPreference,
-}: AppNavigatorContentProps): React.JSX.Element | null {
+export default function AppNavigatorContent(): React.JSX.Element | null {
   // Auth contexts
-  const { setIsAuthenticated } = useAuth();
-  const { wallet } = useWallet();
-  const walletExistsRef = useRef(!!wallet);
-
-  useEffect(() => {
-    walletExistsRef.current = !!wallet;
-  }, [wallet]);
+  useAuthSession();
 
   // Settings handlers from context
   const {
@@ -118,9 +97,6 @@ export default function AppNavigatorContent({
     switchAccount,
   } = useAccountSwitcherContext();
 
-  // Onboarding context
-  const { setSeedConfirmed } = useOnboardingFlow();
-
   // Seed phrase context
   const {
     viewingSeedPhrase,
@@ -137,38 +113,6 @@ export default function AppNavigatorContent({
 
   // Notifications context
   const { snackbar, dismissSnackbar } = useNotifications();
-
-  // Wallet initialization
-  const { isLoading, initializationError, retryInitialization } = useWalletInitialization({
-    loadWallet,
-    loadBiometricPreference,
-    setSeedConfirmed,
-    setIsAuthenticated,
-    walletExistsRef,
-  });
-
-  // Check for pending turbo transaction on startup
-  // Turbo resume is handled centrally in RootNavigator; avoid duplicate resume here.
-
-  // Show loading splash (initial load only)
-  if (isLoading) {
-    return <SplashScreen mode="launch" />;
-  }
-
-  if (initializationError) {
-    return (
-      <View style={localStyles.errorContainer}>
-        <Text style={localStyles.errorTitle}>Unable To Access Wallet</Text>
-        <Text style={localStyles.errorMessage}>
-          The app could not read wallet data securely. Retry before creating or importing a new wallet.
-        </Text>
-        <Text style={localStyles.errorDetails}>{initializationError}</Text>
-        <TouchableOpacity style={localStyles.retryButton} onPress={() => { retryInitialization(); }}>
-          <Text style={localStyles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   // Main navigation
   return (
@@ -241,46 +185,3 @@ export default function AppNavigatorContent({
     </>
   );
 }
-
-const localStyles = StyleSheet.create({
-  errorContainer: {
-    flex: 1,
-    backgroundColor: COLORS.DARK_BG,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  errorTitle: {
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontSize: 28,
-    fontFamily: 'CabinetGrotesk-Bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    color: COLORS.SECONDARY_TEXT,
-    fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Regular',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 12,
-  },
-  errorDetails: {
-    color: COLORS.DANGER_RED,
-    fontSize: 13,
-    fontFamily: 'CabinetGrotesk-Regular',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: COLORS.PRIMARY_BLUE,
-    borderRadius: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-  },
-  retryButtonText: {
-    color: COLORS.VERY_LIGHT_GRAY,
-    fontSize: 16,
-    fontFamily: 'CabinetGrotesk-Bold',
-  },
-});

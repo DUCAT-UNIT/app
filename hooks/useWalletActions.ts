@@ -5,8 +5,8 @@
 
 import { useState, useCallback, useMemo, MutableRefObject } from 'react';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import { deleteWalletData } from '../services/secureStorageService';
-import { setBoolean, SettingKeys } from '../services/settingsService';
+import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsService';
+import { performFullWalletReset } from '../services/walletResetService';
 import { notify } from '../utils/notify';
 import { logger } from '../utils/logger';
 
@@ -61,41 +61,46 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
   const confirmDeleteWallet = useCallback(async (): Promise<void> => {
     setShowDeleteModal(false);
 
-    // Require authentication before deleting wallet
+    const requestPinConfirmation = async () => {
+      const pendingFlagSet = await setBoolean(SettingKeys.PENDING_WALLET_DELETE, true);
+      if (!pendingFlagSet) {
+        logger.error('[useWalletActions] Failed to persist pending wallet delete flag');
+      }
+      setIsAuthenticated(false);
+      notify.auth.requiredForDeleteWallet();
+    };
+
     try {
-      const result = await authenticateWithBiometrics(
+      const authResult = await authenticateWithBiometrics(
         'Authenticate to delete wallet',
         'Use PIN'
       );
 
-      if (!result.success) {
-        await setBoolean(SettingKeys.PENDING_WALLET_DELETE, true);
-        setIsAuthenticated(false);
+      if (!authResult.success) {
+        await requestPinConfirmation();
         return;
       }
-    } catch (error: unknown) {
-      logger.error('[useWalletActions] Biometric auth failed for wallet delete', { error: error instanceof Error ? error.message : String(error) });
-      notify.auth.requiredForDeleteWallet();
-      return;
-    }
 
-    // Authentication successful, proceed with deletion
-    try {
-      await deleteWalletData();
-      // Clear vault credentials and data
-      if (clearVaultCredentials) {
-        clearVaultCredentials();
-      }
-
-      resetWallet();
+      await deleteSetting(SettingKeys.PENDING_WALLET_DELETE);
+      await performFullWalletReset({
+        clearVaultCredentials,
+        resetWallet,
+        resetAuth,
+      });
       if (walletExistsRef && walletExistsRef.current !== undefined) {
         walletExistsRef.current = false;
       }
-      resetAuth();
 
       notify.wallet.deleted();
     } catch (error: unknown) {
-      logger.error('[useWalletActions] Failed to delete wallet', { error: error instanceof Error ? error.message : String(error) });
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error('[useWalletActions] Failed to delete wallet', { error: message });
+
+      if (message.toLowerCase().includes('auth')) {
+        await requestPinConfirmation();
+        return;
+      }
+
       notify.wallet.deleteFailed();
     }
   }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated]);

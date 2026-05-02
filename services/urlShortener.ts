@@ -4,6 +4,7 @@
  */
 
 import { logger } from '../utils/logger';
+import { postJSON } from '../utils/apiClient';
 
 interface ShortenerResponse {
   success: boolean;
@@ -22,20 +23,15 @@ export const shortenCashuToken = async (cashuToken: string): Promise<string> => 
   try {
     logger.info('Shortening Cashu token with Ducat server', { tokenLength: cashuToken.length });
 
-    const response = await fetch('https://short.ducatprotocol.com/api/shorten', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const result = await postJSON<ShortenerResponse>(
+      'https://short.ducatprotocol.com/api/shorten',
+      { cashuToken },
+      {
+        timeout: 10000,
+        retryOptions: { maxRetries: 1 },
+        circuitKey: 'ducat-shortener',
       },
-      body: JSON.stringify({ cashuToken }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Ducat shortener error: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json() as ShortenerResponse;
+    );
 
     if (!result.success || !result.data?.shortUrl) {
       throw new Error('Invalid response from shortener service');
@@ -54,7 +50,10 @@ export const shortenCashuToken = async (cashuToken: string): Promise<string> => 
       throw new Error('Shortener returned invalid URL');
     }
 
-    logger.info('Token shortened successfully', { shortUrl, shortCode: result.data.shortCode });
+    logger.info('Token shortened successfully', {
+      shortUrlLength: shortUrl.length,
+      shortCode: result.data.shortCode,
+    });
     return shortUrl;
   } catch (error: unknown) {
     logger.error('Failed to shorten token with Ducat server', { error: (error as Error).message });

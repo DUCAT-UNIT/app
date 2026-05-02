@@ -32,7 +32,7 @@ interface UseWalletCalculationsReturn {
 
 export const useWalletCalculations = ({
   segwitBalance = 0,
-  taprootBalance: _taprootBalance = 0,
+  taprootBalance = 0,
   runesBalance = [],
   cashuBalance = 0,
   btcPrice: btcPriceParam = 0,
@@ -46,14 +46,14 @@ export const useWalletCalculations = ({
    * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceBTC = useMemo(() => {
-    const btcValue = segwitBalance || 0;
+    const btcValue = (segwitBalance || 0) + (taprootBalance || 0);
     const runesDisplayValue = getRunesAmount(runesBalance);
     const cashuDisplayValue = (cashuBalance || 0) / 100;
     const unitValue = (runesDisplayValue + cashuDisplayValue) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
     return btcValue + unitValue + ducatValue;
-  }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
+  }, [segwitBalance, taprootBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate total balance in USD
@@ -61,14 +61,14 @@ export const useWalletCalculations = ({
    * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceUSD = useMemo(() => {
-    const btcUsdValue = (segwitBalance || 0) * (btcPrice || 0);
+    const btcUsdValue = ((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0);
     const runesDisplayValue = getRunesAmount(runesBalance);
     const cashuDisplayValue = (cashuBalance || 0) / 100;
     const unitUsdValue = runesDisplayValue + cashuDisplayValue;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
     return btcUsdValue + unitUsdValue + ducatUsdValue;
-  }, [segwitBalance, runesBalance, cashuBalance, btcPrice]);
+  }, [segwitBalance, taprootBalance, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate vault collateral ratio

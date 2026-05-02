@@ -1,0 +1,65 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Sepolia ETH Asset - Verify native Sepolia ETH is visible as a first-class asset with receive and send surfaces.
+# Requires Sepolia RPC env to be configured for the E2E app build.
+
+- runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
+
+- scrollUntilVisible:
+    element:
+      id: "asset-card-eth"
+    direction: DOWN
+    timeout: 15000
+
+- tapOn:
+    id: "asset-card-eth"
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+
+- assertVisible:
+    text: "Sepolia ETH"
+- assertVisible:
+    text: "Ethereum Sepolia gas"
+
+- tapOn:
+    id: "asset-detail-receive-btn"
+- extendedWaitUntil:
+    visible:
+      id: "receive-qr-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Sepolia ETH address"
+- assertVisible:
+    text: "Only use this address to receive Sepolia ETH on Ethereum Sepolia."
+- tapOn:
+    id: "receive-back-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "asset-detail-screen"
+    timeout: 10000
+- tapOn:
+    id: "asset-detail-send-btn"
+- extendedWaitUntil:
+    visible:
+      id: "sepolia-send-screen"
+    timeout: 10000
+- assertVisible:
+    text: "Send Sepolia ETH"
+- assertVisible:
+    id: "sepolia-send-recipient-input"
+- assertVisible:
+    id: "sepolia-send-amount-input"
+- assertVisible:
+    text: "Network fee"
+- assertVisible:
+    id: "sepolia-send-submit-btn"
+- tapOn:
+    id: "sepolia-send-recipient-input"
+- inputText: "invalidaddress123"
+- hideKeyboard
+- assertVisible:
+    id: "sepolia-send-recipient-error"

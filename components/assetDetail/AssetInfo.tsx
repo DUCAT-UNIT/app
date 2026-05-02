@@ -38,7 +38,7 @@ export interface VaultHealthData {
 }
 
 export interface AssetInfoProps {
-  assetType: 'BTC' | 'UNIT' | 'USDC';
+  assetType: 'BTC' | 'UNIT' | 'USDC' | 'ETH';
   balance: number;
   fiatValue: number;
   btcPrice: number | null;
@@ -52,14 +52,24 @@ export interface AssetInfoProps {
   isPendingVaultTx?: boolean;
 }
 
+function getAssetDisplayName(assetType: AssetInfoProps['assetType']): string {
+  if (assetType === 'BTC') return 'Bitcoin';
+  if (assetType === 'ETH') return 'Sepolia ETH';
+  if (assetType === 'USDC') return 'Sepolia USDC';
+  return assetType;
+}
+
 export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, priceDirection, isLoading }: AssetInfoProps) {
   const { s, sf } = useResponsive();
+  const assetDisplayName = getAssetDisplayName(assetType);
 
   // For UNIT, show the actual UNIT amount with commas and 2 decimals
   // For BTC, show the BTC value with 8 decimals
   const displayBalance = assetType === 'BTC'
     ? formatBalance(balance || 0)
-    : formatFiat(balance || 0, 2);
+    : assetType === 'ETH'
+      ? formatBalance(balance || 0, 6)
+      : formatFiat(balance || 0, 2);
 
   // Show skeleton loading state if balances are still loading
   if (isLoading) {
@@ -81,14 +91,14 @@ export function AssetInfo({ assetType, balance, fiatValue, btcPrice, priceData, 
           </View>
         ) : (
           <Icon
-            name={assetType === 'BTC' ? 'btc_logo' : 'unit_logo'}
+            name={assetType === 'BTC' ? 'btc_logo' : assetType === 'ETH' ? 'eth_logo' : 'unit_logo'}
             size={s(60)}
           />
         )}
       </View>
 
       <Text style={[styles.assetName, { fontSize: sf(16), marginBottom: s(12) }]}>
-        {assetType === 'BTC' ? 'Bitcoin' : assetType}
+        {assetDisplayName}
       </Text>
 
       <Text style={[styles.balanceAmount, { fontSize: sf(31), marginBottom: s(8) }]}>

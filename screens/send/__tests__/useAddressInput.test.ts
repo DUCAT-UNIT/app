@@ -95,7 +95,7 @@ describe('useAddressInput', () => {
         result.current!.handleRecipientChange('tb1qtest123'); // segwit, not taproot
       });
 
-      expect(result.current!.addressError).toBe('UNIT requires Taproot (bc1p/tb1p)');
+      expect(result.current!.addressError).toBe('UNIT requires Mutinynet Taproot (tb1p...)');
       expect(result.current!.isValidAddress).toBe(false);
     });
 

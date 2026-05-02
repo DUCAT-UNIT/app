@@ -1,9 +1,0 @@
-appId: com.ducatprotocol.DucatProtocolWallet
----
-# Navigate to Settings from the wallet screen
-- assertVisible:
-    id: "wallet-screen"
-- tapOn:
-    id: "wallet-settings-btn"
-- assertVisible:
-    id: "settings-screen"

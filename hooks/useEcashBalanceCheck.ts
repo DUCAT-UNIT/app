@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 
 const LAST_CHECK_KEY = '@ecash_balance_last_check';
@@ -31,7 +32,7 @@ export function useEcashBalanceCheck(
   useEffect(() => {
     const checkBalance = async () => {
       // Skip in E2E testing to avoid modal race conditions
-      if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
+      if (isE2E()) {
         hasChecked.current = true;
         return;
       }

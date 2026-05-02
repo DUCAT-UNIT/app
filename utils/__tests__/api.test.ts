@@ -123,6 +123,18 @@ describe('api utilities', () => {
       expect(clearTimeoutSpy).toHaveBeenCalled();
       clearTimeoutSpy.mockRestore();
     });
+
+    it('should remove external abort listener after fetch settles', async () => {
+      const mockResponse = new Response('OK', { status: 200 });
+      const externalController = new AbortController();
+      (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+      const removeEventListenerSpy = jest.spyOn(externalController.signal, 'removeEventListener');
+
+      await fetchWithTimeout('https://example.com/api', { signal: externalController.signal });
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+      removeEventListenerSpy.mockRestore();
+    });
   });
 
   describe('isAbortError', () => {

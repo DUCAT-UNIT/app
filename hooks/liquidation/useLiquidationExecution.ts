@@ -16,6 +16,7 @@ import { registerSwapTxid } from '../../services/transactionHistoryService';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
+import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { sendLocalNotification, watchTransaction } from '../../services/pushNotificationService';
@@ -157,19 +158,50 @@ export function useLiquidationExecution({
         // Background swap broadcast: wait for repo TX in mempool, then broadcast swap
         if (result.swapPsbtHex && result.txid) {
           void (async () => {
+            const swapPollId = useSwapDiagnosticsStore.getState().startPoll({
+              id: `liquidation-swap-broadcast:${result.txid}`,
+              kind: 'liquidation_swap_broadcast',
+              label: 'Liquidation swap broadcast',
+              subject: result.txid,
+              metadata: {
+                repoTxid: result.txid,
+              },
+            });
+
             try {
               store.getState().setProcessingMessage('Waiting for repo TX...');
+              useSwapDiagnosticsStore.getState().recordAttempt(swapPollId, {
+                lastStatus: 'waiting_repo_mempool',
+                lastMessage: 'Waiting for repo transaction before swap broadcast',
+              });
               const inMempool = await waitForMempool(result.txid!);
               if (!inMempool) {
+                useSwapDiagnosticsStore.getState().completePoll(swapPollId, {
+                  status: 'timeout',
+                  lastStatus: 'repo_mempool_timeout',
+                  lastMessage: 'Repo transaction was not found; swap broadcast skipped',
+                });
                 logger.warn('[Liquidation] Repo TX not found in mempool, skipping swap broadcast');
                 return;
               }
 
               store.getState().setProcessingMessage('Broadcasting swap...');
+              useSwapDiagnosticsStore.getState().recordAttempt(swapPollId, {
+                lastStatus: 'broadcasting',
+                lastMessage: 'Broadcasting finalized swap transaction',
+              });
               const swapTxid = await broadcastSwapTx(result.swapPsbtHex!);
               if (swapTxid) {
                 store.getState().setResultSwapTxid(swapTxid);
                 store.getState().setProcessingMessage('Swap broadcast!');
+                useSwapDiagnosticsStore.getState().completePoll(swapPollId, {
+                  status: 'success',
+                  lastStatus: 'broadcast',
+                  lastMessage: 'Liquidation swap broadcast completed',
+                  metadata: {
+                    swapTxid,
+                  },
+                });
                 // Register swap txid so it shows as "Swap" in history with UNIT amount
                 const swapUnitAmount = store.getState().vaultsFull.reduce((acc, v) => acc + v.unit, 0);
                 await registerSwapTxid(swapTxid, swapUnitAmount);
@@ -181,9 +213,19 @@ export function useLiquidationExecution({
                   data: { type: 'swap_complete', txid: swapTxid },
                 });
               } else {
+                useSwapDiagnosticsStore.getState().completePoll(swapPollId, {
+                  status: 'error',
+                  lastStatus: 'broadcast_failed',
+                  lastMessage: 'Swap broadcast returned no txid',
+                });
                 logger.warn('[Liquidation] Swap broadcast returned no txid');
               }
             } catch (swapErr: unknown) {
+              useSwapDiagnosticsStore.getState().completePoll(swapPollId, {
+                status: 'error',
+                lastStatus: 'error',
+                lastError: swapErr instanceof Error ? swapErr.message : String(swapErr),
+              });
               logger.warn('[Liquidation] Background swap broadcast failed', {
                 error: swapErr instanceof Error ? swapErr.message : String(swapErr),
               });

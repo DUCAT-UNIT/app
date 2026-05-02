@@ -216,20 +216,6 @@ export const getCachedAddresses = async (
 };
 
 /**
- * Delete cached addresses from secure storage
- * @returns Success status
- */
-export const deleteCachedAddresses = async (): Promise<boolean> => {
-  try {
-    await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
-    return true;
-  } catch (error: unknown) {
-    logger.error('Failed to delete cached addresses', { error: error instanceof Error ? error.message : String(error) });
-    return false;
-  }
-};
-
-/**
  * Multi-account cache format
  * Stores addresses for multiple accounts to enable fast account switching
  */
@@ -359,21 +345,6 @@ export const saveToMultiAccountCache = async (
   } finally {
     resolveOperation!();
     cacheOperationInProgress = null;
-  }
-};
-
-/**
- * Clear the multi-account cache (both memory and storage)
- * @returns Success status
- */
-export const clearMultiAccountCache = async (): Promise<boolean> => {
-  try {
-    memoryCache = null;
-    await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
-    return true;
-  } catch (error: unknown) {
-    logger.error('Failed to clear multi-account cache', { error: error instanceof Error ? error.message : String(error) });
-    return false;
   }
 };
 
