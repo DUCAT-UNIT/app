@@ -28,10 +28,14 @@ jest.mock('@react-navigation/native', () => ({
 
 // Mock tokenProcessingStore
 const mockTriggerWalletReload = jest.fn();
+const mockSetPendingToken = jest.fn();
+const mockTriggerTokenCheck = jest.fn();
 jest.mock('../../stores/tokenProcessingStore', () => ({
   useTokenProcessingStore: (selector: (store: Record<string, unknown>) => unknown) => {
     const store = {
       triggerWalletReload: mockTriggerWalletReload,
+      setPendingToken: mockSetPendingToken,
+      triggerTokenCheck: mockTriggerTokenCheck,
     };
     return selector ? selector(store) : store;
   },
@@ -209,9 +213,9 @@ describe('useClaimNotifications', () => {
       jest.advanceTimersByTime(200);
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('TurboClaiming', {
-      tokenString: 'cashuA...',
-    });
+    expect(mockSetPendingToken).toHaveBeenCalledWith('cashuA...');
+    expect(mockTriggerTokenCheck).toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith('TurboClaiming', expect.anything());
   });
 
   it('should show success snackbar when switching without token', async () => {

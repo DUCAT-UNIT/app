@@ -19,7 +19,7 @@ export type SendStackParamList = {
   Review: { assetType?: string; address?: string; amount?: number };
   Processing: undefined;
   TurboProcessing: undefined;
-  TurboClaiming: { tokenString?: string; tokenAmount?: number };
+  TurboClaiming: { tokenString?: string; token?: string; tokenAmount?: number };
   Confirmation: { txid?: string; amount?: number };
 };
 

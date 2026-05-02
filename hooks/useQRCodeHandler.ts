@@ -328,14 +328,21 @@ export function useQRCodeHandler({
             return;
           }
 
-          // Close scanner FIRST before any navigation to prevent race conditions
-          setShowQRScanner(false);
+          const alreadyProcessed = await tokenStore.isTokenProcessed(token);
+          if (alreadyProcessed) {
+            setShowQRScanner(false);
+            showSnackbar({
+              type: 'error',
+              action: 'swap',
+              description: 'Token already claimed',
+            });
+            return;
+          }
 
-          // Navigate to claiming screen
-          navigation.navigate('SendFlow', {
-            screen: 'TurboClaiming',
-            params: { tokenString: token },
-          });
+          // Close scanner FIRST, then hand the token to the unified processor.
+          setShowQRScanner(false);
+          tokenStore.setPendingToken(token);
+          tokenStore.triggerTokenCheck();
         } else {
           setShowQRScanner(false);
           notify.token.extractFailed();

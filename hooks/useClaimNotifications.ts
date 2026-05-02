@@ -49,6 +49,8 @@ export function useClaimNotifications({
   const navigation = useNavigation() as ClaimNavigationType;
   // Get stable reference to triggerWalletReload to avoid re-renders
   const triggerWalletReload = useTokenProcessingStore((state) => state.triggerWalletReload);
+  const setPendingToken = useTokenProcessingStore((state) => state.setPendingToken);
+  const triggerTokenCheck = useTokenProcessingStore((state) => state.triggerTokenCheck);
 
   useEffect(() => {
     logger.debug('🎯 useClaimNotifications effect triggered:', {
@@ -127,10 +129,9 @@ export function useClaimNotifications({
                 logger.info('[useClaimNotifications] Will retry token claim after delay');
                 // Small delay to ensure wallet state is updated
                 setTimeout(() => {
-                  logger.info('[useClaimNotifications] Navigating to TurboClaiming with token...');
-                  navigation.navigate('TurboClaiming', {
-                    tokenString: tokenToRetry,
-                  });
+                  logger.info('[useClaimNotifications] Queueing token retry in Turbo processor...');
+                  setPendingToken(tokenToRetry);
+                  triggerTokenCheck();
                 }, 100);
               } else {
                 logger.warn('[useClaimNotifications] No token to retry!');
@@ -158,5 +159,5 @@ export function useClaimNotifications({
         navigation.setParams({ claimError: undefined, claimToken: undefined });
       }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, triggerWalletReload]);
+  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, triggerWalletReload, setPendingToken, triggerTokenCheck]);
 }

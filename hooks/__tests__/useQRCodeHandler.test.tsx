@@ -156,6 +156,15 @@ describe('useQRCodeHandler', () => {
     expect(typeof result.current).toBe('function');
   });
 
+  const expectTurboTokenQueued = (token: string) => {
+    expect(mockSetPendingToken).toHaveBeenCalledWith(token);
+    expect(mockTriggerTokenCheck).toHaveBeenCalled();
+    expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
+    expect(mockNavigate).not.toHaveBeenCalledWith('SendFlow', expect.objectContaining({
+      screen: 'TurboClaiming',
+    }));
+  };
+
   describe('Bitcoin addresses', () => {
     const validSegwitAddress = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
     const validTaprootAddress = 'tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2';
@@ -649,10 +658,7 @@ describe('useQRCodeHandler', () => {
         await result.current!('ducat://turbo/cashuBbc123xyz');
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBbc123xyz' },
-      });
+      expectTurboTokenQueued('cashuBbc123xyz');
     });
 
     it('should handle URL with t parameter (base64 token)', async () => {
@@ -667,10 +673,7 @@ describe('useQRCodeHandler', () => {
         await result.current!(`https://ducatprotocol.com/unit?t=${base64Token}`);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBtesttoken' },
-      });
+      expectTurboTokenQueued('cashuBtesttoken');
     });
 
     it('should handle redeem URL with raw token parameter', async () => {
@@ -680,10 +683,7 @@ describe('useQRCodeHandler', () => {
         await result.current!('https://redeem.ducatprotocol.com?token=cashuBtokenparam');
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBtokenparam' },
-      });
+      expectTurboTokenQueued('cashuBtokenparam');
     });
 
     it('should handle unit URL with hash token parameter', async () => {
@@ -693,10 +693,7 @@ describe('useQRCodeHandler', () => {
         await result.current!('https://ducatprotocol.com/unit#token=cashuBhashtoken');
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBhashtoken' },
-      });
+      expectTurboTokenQueued('cashuBhashtoken');
     });
 
     it('should resolve short URLs through the shortener info API', async () => {
@@ -719,10 +716,7 @@ describe('useQRCodeHandler', () => {
         { method: 'GET' },
         5000,
       );
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBshorttoken' },
-      });
+      expectTurboTokenQueued('cashuBshorttoken');
     });
 
     it('should add padding to base64 tokens as needed', async () => {
@@ -739,10 +733,7 @@ describe('useQRCodeHandler', () => {
         await result.current!(`https://ducatprotocol.com/unit?t=${base64Token}`);
       });
 
-      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
-        screen: 'TurboClaiming',
-        params: { tokenString: 'cashuBab' },
-      });
+      expectTurboTokenQueued('cashuBab');
     });
 
     it('should show error when no token found in URL', async () => {
