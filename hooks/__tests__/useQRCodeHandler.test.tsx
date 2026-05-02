@@ -10,6 +10,8 @@ import { useQRCodeHandler } from '../useQRCodeHandler';
 import { notify } from '../../utils/notify';
 
 // Mock dependencies
+const mockFetchWithTimeout = jest.fn();
+
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -17,6 +19,10 @@ jest.mock('../../utils/logger', () => ({
     warn: jest.fn(),
     error: jest.fn(),
   },
+}));
+
+jest.mock('../../utils/api', () => ({
+  fetchWithTimeout: (...args: unknown[]) => mockFetchWithTimeout(...args),
 }));
 
 jest.mock('react-native', () => ({
@@ -107,6 +113,7 @@ describe('useQRCodeHandler', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchWithTimeout.mockReset();
     // Mock requestAnimationFrame globally
     originalRaf = global.requestAnimationFrame;
     global.requestAnimationFrame = jest.fn((cb: (time: number) => void) => {
@@ -666,6 +673,58 @@ describe('useQRCodeHandler', () => {
       });
     });
 
+    it('should handle redeem URL with raw token parameter', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('https://redeem.ducatprotocol.com?token=cashuBtokenparam');
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'TurboClaiming',
+        params: { tokenString: 'cashuBtokenparam' },
+      });
+    });
+
+    it('should handle unit URL with hash token parameter', async () => {
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('https://ducatprotocol.com/unit#token=cashuBhashtoken');
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'TurboClaiming',
+        params: { tokenString: 'cashuBhashtoken' },
+      });
+    });
+
+    it('should resolve short URLs through the shortener info API', async () => {
+      mockFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          success: true,
+          data: { cashuToken: 'cashuBshorttoken' },
+        }),
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('https://short.ducatprotocol.com/abc12345');
+      });
+
+      expect(mockFetchWithTimeout).toHaveBeenCalledWith(
+        'https://short.ducatprotocol.com/api/info/abc12345',
+        { method: 'GET' },
+        5000,
+      );
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'TurboClaiming',
+        params: { tokenString: 'cashuBshorttoken' },
+      });
+    });
+
     it('should add padding to base64 tokens as needed', async () => {
       // Create token that needs 1 padding character
       const token = 'cashuBab';
@@ -709,7 +768,7 @@ describe('useQRCodeHandler', () => {
         await result.current!('https://ducatprotocol.com/unit?t=invalid!!!');
       });
 
-      expect(notify.token.extractError).toHaveBeenCalled();
+      expect(notify.token.extractFailed).toHaveBeenCalled();
 
       global.atob = originalAtob;
     });
@@ -726,7 +785,7 @@ describe('useQRCodeHandler', () => {
         await result.current!('https://ducatprotocol.com/unit?t=invalid');
       });
 
-      expect(notify.token.extractError).toHaveBeenCalled();
+      expect(notify.token.extractFailed).toHaveBeenCalled();
 
       global.atob = originalAtob;
     });

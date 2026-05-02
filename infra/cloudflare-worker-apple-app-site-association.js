@@ -1,6 +1,4 @@
-// Cloudflare Worker to serve apple-app-site-association
-// Deploy this to ducatprotocol.com/.well-known/apple-app-site-association
-// and short.ducatprotocol.com/.well-known/apple-app-site-association
+// Cloudflare Worker to serve apple-app-site-association for Ducat link domains.
 
 export default {
   async fetch(request, env, ctx) {

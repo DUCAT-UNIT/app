@@ -15,6 +15,7 @@ import {
   hasP2PKProofs,
 } from '../services/cashu/cashuWalletService';
 import { getKeysetIdsFromMintKeys } from '../services/cashu/cashuTsCompat';
+import { isTurboTokenUrl, resolveCashuTokenFromUrl } from '../services/turbo/turboTokenUrl';
 import type { SnackbarParams } from '../stores/notificationStore';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../utils/bitcoin';
@@ -63,7 +64,7 @@ function classifyQrPayload(data: string): string {
   if (lower.startsWith('cashu')) return 'unsupported_cashu_token';
   if (lower.startsWith('bitcoin:')) return 'bitcoin_uri';
   if (lower.startsWith('tb1') || lower.startsWith('bc1')) return 'bitcoin_address';
-  if (lower.includes('ducat://turbo/') || lower.includes('unit?')) return 'turbo_url';
+  if (isTurboTokenUrl(data)) return 'turbo_url';
   if (data.startsWith('{') || data.startsWith('[')) return 'json';
   return 'unknown';
 }
@@ -312,34 +313,9 @@ export function useQRCodeHandler({
     }
 
     // Handle Turbo URL formats
-    if (trimmedData.includes('ducat://turbo/') || trimmedData.includes('unit?')) {
+    if (isTurboTokenUrl(trimmedData)) {
       try {
-        let token = null;
-
-        // Check if this is the ducat://turbo/ format
-        const turboMatch = trimmedData.match(/ducat:\/\/turbo\/([^/?#]+)/);
-        if (turboMatch && turboMatch[1]) {
-          token = turboMatch[1];
-          logger.debug('[useQRCodeHandler] Extracted token from ducat:// URL');
-        }
-        // Check if this is a direct token link with base64 encoded token
-        else {
-          const tokenMatch = trimmedData.match(/[?&]t=([^&]+)/);
-          if (tokenMatch && tokenMatch[1]) {
-            // Decode URL-safe base64
-            let base64Token = tokenMatch[1]
-              .replace(/-/g, '+')
-              .replace(/_/g, '/');
-
-            // Add padding
-            while (base64Token.length % 4) {
-              base64Token += '=';
-            }
-
-            token = atob(base64Token);
-            logger.debug('[useQRCodeHandler] Decoded base64 token');
-          }
-        }
+        const token = await resolveCashuTokenFromUrl(trimmedData);
 
         if (token) {
           if (!isSupportedCashuToken(token)) {

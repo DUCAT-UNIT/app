@@ -32,9 +32,11 @@ interface LinkingConfig {
  * Default options for getStateFromPath calls in tests
  */
 const defaultOptions = { screens: {} };
+const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 
 // Type-safe global accessor for tests
 const testGlobal = global as typeof global & TurboLinkingGlobal;
+const mockFetchWithTimeout = jest.fn();
 
 // Mock dependencies BEFORE imports
 jest.mock('react-native', () => ({
@@ -76,6 +78,10 @@ jest.mock('../../../utils/logger', () => ({
   },
 }));
 
+jest.mock('../../../utils/api', () => ({
+  fetchWithTimeout: (...args: unknown[]) => mockFetchWithTimeout(...args),
+}));
+
 jest.mock('../turboTokenStorage', () => ({
   hashToken: jest.fn().mockResolvedValue('mockedHash'),
   initializeTokenStorage: jest.fn().mockResolvedValue(undefined),
@@ -113,6 +119,7 @@ describe('turboLinkingConfig', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (Linking.getInitialURL as jest.Mock).mockResolvedValue(null);
+    mockFetchWithTimeout.mockReset();
     testGlobal.atob.mockImplementation((str: string) => Buffer.from(str, 'base64').toString('utf8'));
     delete testGlobal.processedCashuTokens;
     delete testGlobal.processedCashuTokensLoading;
@@ -139,6 +146,8 @@ describe('turboLinkingConfig', () => {
       expect(config.prefixes).toContain('ducat://');
       expect(config.prefixes).toContain('https://ducatprotocol.com');
       expect(config.prefixes).toContain('https://www.ducatprotocol.com');
+      expect(config.prefixes).toContain('https://redeem.ducatprotocol.com');
+      expect(config.prefixes).toContain('https://short.ducatprotocol.com');
     });
 
     it('should include screen configuration', () => {
@@ -225,6 +234,7 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set<string>();
 
       await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
@@ -234,6 +244,7 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set(['mockedHash']);
 
       await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBeUndefined();
       expect(testGlobal.pendingTurboSnackbars).toEqual([{
@@ -248,6 +259,7 @@ describe('turboLinkingConfig', () => {
       testGlobal.turboJustResumed = true;
 
       await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
@@ -285,8 +297,51 @@ describe('turboLinkingConfig', () => {
         .replace(/=/g, '');
 
       await config.getStateFromPath(`https://example.com/unit?t=${base64Token}`, defaultOptions);
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
+    });
+
+    it('should extract raw token from redeem URL token parameter', async () => {
+      const config = getTypedConfig();
+      testGlobal.processedCashuTokens = new Set<string>();
+
+      await config.getStateFromPath('https://redeem.ducatprotocol.com?token=cashuBtokenparam', defaultOptions);
+      await flushPromises();
+
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtokenparam');
+    });
+
+    it('should extract raw token from unit URL hash token parameter', async () => {
+      const config = getTypedConfig();
+      testGlobal.processedCashuTokens = new Set<string>();
+
+      await config.getStateFromPath('https://ducatprotocol.com/unit#token=cashuBhashtoken', defaultOptions);
+      await flushPromises();
+
+      expect(testGlobal.pendingCashuToken).toBe('cashuBhashtoken');
+    });
+
+    it('should resolve short URLs through the shortener info API', async () => {
+      const config = getTypedConfig();
+      testGlobal.processedCashuTokens = new Set<string>();
+      mockFetchWithTimeout.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValue({
+          success: true,
+          data: { cashuToken: 'cashuBshorttoken' },
+        }),
+      });
+
+      await config.getStateFromPath('https://short.ducatprotocol.com/abc12345', defaultOptions);
+      await flushPromises();
+
+      expect(mockFetchWithTimeout).toHaveBeenCalledWith(
+        'https://short.ducatprotocol.com/api/info/abc12345',
+        { method: 'GET' },
+        5000,
+      );
+      expect(testGlobal.pendingCashuToken).toBe('cashuBshorttoken');
     });
 
     it('should handle base64 decode error', async () => {
@@ -471,6 +526,7 @@ describe('turboLinkingConfig', () => {
 
       // Call with a turbo URL
       await urlHandler({ url: 'ducat://turbo/cashuBtoken123' });
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
@@ -488,6 +544,7 @@ describe('turboLinkingConfig', () => {
         .replace(/=/g, '');
 
       await urlHandler({ url: `https://example.com/unit?t=${base64Token}` });
+      await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
     });

@@ -14,53 +14,16 @@ import {
   resetNonSecretE2ESettings,
 } from '../e2eSettingsResetService';
 import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
+import {
+  isSupportedCashuToken,
+  isTurboTokenUrl,
+  resolveCashuTokenFromUrl,
+} from './turboTokenUrl';
 import type { RootNavigatorParamList } from '../../navigation/types';
 
 interface URLEvent {
   url: string;
 }
-
-/**
- * Extract token from ducat://turbo/{base64} URL format
- */
-const extractTokenFromDucatUrl = (url: string): string | null => {
-  const turboMatch = url.match(/ducat:\/\/turbo\/([^/?#]+)/);
-  if (turboMatch && turboMatch[1]) {
-    return turboMatch[1];
-  }
-  return null;
-};
-
-const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token);
-
-/**
- * Extract and decode token from URL parameter
- * Handles: ?t=base64urlsafe format
- */
-const extractTokenFromParam = (url: string): string | null => {
-  const tokenMatch = url.match(/[?&]t=([^&]+)/);
-  if (!tokenMatch || !tokenMatch[1]) {
-    return null;
-  }
-
-  let base64Token = tokenMatch[1];
-
-  try {
-    // Convert URL-safe base64 back to standard base64
-    base64Token = base64Token.replace(/-/g, '+').replace(/_/g, '/');
-
-    // Add padding if needed
-    while (base64Token.length % 4) {
-      base64Token += '=';
-    }
-
-    // Decode base64 to get cashu token
-    return atob(base64Token);
-  } catch (error: unknown) {
-    logger.error('[TURBO] Failed to decode base64 token:', { message: (error as Error).message });
-    return null;
-  }
-};
 
 const isE2EControlUrl = (url: string): boolean => {
   return url.startsWith('ducat://e2e/');
@@ -90,15 +53,7 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
     urlLength: url?.length,
   });
 
-  let token: string | null = null;
-
-  // Check for ducat://turbo/ format
-  token = extractTokenFromDucatUrl(url);
-
-  // Check for direct token format: ?t=base64...
-  if (!token) {
-    token = extractTokenFromParam(url);
-  }
+  const token = await resolveCashuTokenFromUrl(url);
 
   if (!token) {
     logger.cashu('p2pk_url_no_token', { step: 'ENTRY_POINT', reason: 'No token found in URL' });
@@ -174,12 +129,12 @@ const onReceiveURL = async (
   const url = event?.url;
   logger.debug('[TURBO] URL event received:', {
     urlLength: url?.length,
-    isTurboUrl: !!url && (url.includes('ducat://turbo/') || url.includes('unit?')),
+    isTurboUrl: !!url && isTurboTokenUrl(url),
     isE2EControlUrl: !!url && isE2EControlUrl(url),
   });
 
   // Process Turbo URLs
-  if (url && (url.includes('ducat://turbo/') || url.includes('unit?'))) {
+  if (url && isTurboTokenUrl(url)) {
     await processUrlAndStoreToken(url);
     return;
   }
@@ -239,7 +194,14 @@ const linkingConfig: LinkingOptions<RootNavigatorParamList>['config'] = {
 };
 
 export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> => ({
-  prefixes: ['ducat://', 'https://ducatprotocol.com', 'https://www.ducatprotocol.com'],
+  prefixes: [
+    'ducat://',
+    'https://ducatprotocol.com',
+    'https://www.ducatprotocol.com',
+    'https://redeem.ducatprotocol.com',
+    'https://short.ducatprotocol.com',
+    'https://go.ducatprotocol.com',
+  ],
   config: linkingConfig,
 
   subscribe(listener) {
@@ -252,10 +214,10 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
       if (initialUrl) {
         logger.debug('[TURBO] Initial URL found:', {
           urlLength: initialUrl?.length,
-          isTurboUrl: initialUrl.includes('ducat://turbo/') || initialUrl.includes('unit?'),
+          isTurboUrl: isTurboTokenUrl(initialUrl),
           isE2EControlUrl: isE2EControlUrl(initialUrl),
         });
-        if (initialUrl.includes('ducat://turbo/') || initialUrl.includes('unit?')) {
+        if (isTurboTokenUrl(initialUrl)) {
           processUrlAndStoreToken(initialUrl).catch((error) => {
             logger.error('[TURBO] Failed to process initial URL:', { error: error instanceof Error ? error.message : String(error) });
           });
@@ -298,13 +260,7 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
       return undefined;
     }
 
-    // Check for Turbo token URLs
-    const isTurboUrl = (
-      path.includes('ducat://turbo/') ||
-      (path.includes('unit?') && path.includes('t='))
-    );
-
-    if (isTurboUrl) {
+    if (isTurboTokenUrl(path)) {
       logger.debug('[TURBO] Processing token URL');
       // Fire-and-forget async processing with error logging
       processUrlAndStoreToken(path).catch((error) => {
