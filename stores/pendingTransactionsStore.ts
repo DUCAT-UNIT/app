@@ -34,6 +34,9 @@ import {
   operationJournalId,
   useOperationJournalStore,
 } from './operationJournalStore';
+import type { TransactionDisplayKind } from '../utils/transactionMerging';
+
+export type PendingTransactionDisplayKind = TransactionDisplayKind;
 
 export interface PendingTransactionOutput {
   address: string;
@@ -51,6 +54,7 @@ export interface PendingTransaction {
   timestamp: number;
   sentAmount?: number; // Amount sent in the transaction (sats for BTC, smallest units for UNIT)
   inputUtxos?: Array<{ txid: string; vout: number }>; // Track which UTXOs were spent by this transaction
+  displayKind?: PendingTransactionDisplayKind;
 }
 
 interface PendingTransactionsState {
@@ -67,7 +71,10 @@ interface PendingTransactionsActions {
     assetType: 'BTC' | 'UNIT',
     parentTxid?: string | null,
     sentAmount?: number,
-    inputUtxos?: Array<{ txid: string; vout: number }>
+    inputUtxos?: Array<{ txid: string; vout: number }>,
+    options?: {
+      displayKind?: PendingTransactionDisplayKind;
+    },
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
   invalidateTransaction: (
@@ -99,12 +106,18 @@ const initialState: PendingTransactionsState = {
   currentAccount: 0,
 };
 
-function sendJournalScope(assetType: 'BTC' | 'UNIT'): string {
-  return assetType === 'UNIT' ? 'unit-send' : 'btc-send';
+function sendJournalScope(transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>): string {
+  if (transaction.displayKind === 'turbo_mint_claim') {
+    return 'turbounit-claim';
+  }
+  return transaction.assetType === 'UNIT' ? 'unit-send' : 'btc-send';
 }
 
-function sendJournalLabel(assetType: 'BTC' | 'UNIT'): string {
-  return assetType === 'UNIT' ? 'UNIT send submitted' : 'BTC send submitted';
+function sendJournalLabel(transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>): string {
+  if (transaction.displayKind === 'turbo_mint_claim') {
+    return 'TurboUNIT claim submitted';
+  }
+  return transaction.assetType === 'UNIT' ? 'UNIT send submitted' : 'BTC send submitted';
 }
 
 function sendJournalKind(assetType: 'BTC' | 'UNIT'): 'btc_send' | 'unit_send' {
@@ -116,15 +129,15 @@ function recordPendingSendJournal(
   transaction: PendingTransaction,
 ): void {
   const now = transaction.timestamp || Date.now();
-  const id = operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid);
+  const id = operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid);
 
   useOperationJournalStore.getState().recordOperation({
     id,
     accountIndex,
     kind: sendJournalKind(transaction.assetType),
     stage: 'pending',
-    label: sendJournalLabel(transaction.assetType),
-    idempotencyKey: `${sendJournalScope(transaction.assetType)}:${accountIndex}:${transaction.txid}`,
+    label: sendJournalLabel(transaction),
+    idempotencyKey: `${sendJournalScope(transaction)}:${accountIndex}:${transaction.txid}`,
     retrySafety: 'unsafe_until_checked',
     txids: [transaction.txid],
     asset: transaction.assetType,
@@ -138,14 +151,14 @@ function recordPendingSendJournal(
 
 function markPendingSendConfirmed(accountIndex: number, transaction: PendingTransaction): void {
   useOperationJournalStore.getState().markConfirmed(
-    operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid),
+    operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
     transaction.txid,
   );
 }
 
 function markPendingSendFailed(accountIndex: number, transaction: PendingTransaction, reason: string): void {
   useOperationJournalStore.getState().markFailed(
-    operationJournalId(sendJournalScope(transaction.assetType), accountIndex, transaction.txid),
+    operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
     reason,
   );
 }
@@ -244,7 +257,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
   },
 
   // Add a new pending transaction
-  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount, inputUtxos) => {
+  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount, inputUtxos, options) => {
     const { pendingTransactions, currentAccount } = get();
 
     logger.info('[addPendingTransaction] Adding pending tx:', {
@@ -256,6 +269,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       currentAccount,
       sentAmount,
       inputUtxoCount: inputUtxos?.length || 0,
+      displayKind: options?.displayKind,
     });
 
     const newTx: PendingTransaction = {
@@ -267,6 +281,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       timestamp: Date.now(),
       sentAmount,
       inputUtxos,
+      displayKind: options?.displayKind,
     };
 
     const updated = {

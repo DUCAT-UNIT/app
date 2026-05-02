@@ -536,6 +536,7 @@ export function useIssuedUnitSettlement() {
               parentTxid,
               amountSmallestUnits,
               spentInputs,
+              { displayKind: 'turbo_mint_claim' },
             );
 
             startPolling(
@@ -561,6 +562,12 @@ export function useIssuedUnitSettlement() {
         setPhase('waiting_turbo_mint');
         const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, amountSmallestUnits);
         const payoutAmount = formatVaultSettlementAmountInput(mintedAmount / 100);
+
+        if (broadcastedMintSendTxid) {
+          await confirmTransaction(broadcastedMintSendTxid).catch(() => undefined);
+          await fetchBalance().catch(() => undefined);
+          await fetchTransactionHistory?.().catch(() => undefined);
+        }
 
         completeSettlement('TURBOUNIT', payoutAmount);
 

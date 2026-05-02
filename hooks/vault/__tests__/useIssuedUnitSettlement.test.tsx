@@ -462,8 +462,19 @@ describe('useIssuedUnitSettlement', () => {
       'waiting_turbo_mint',
     ]);
     expect(mockSetCashuMintSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+      'broadcast-txid',
+      [{ address: wallet.segwitAddress, value: 546, vout: 0, runeAmount: 1000 }],
+      'UNIT',
+      pendingInputHash,
+      5000,
+      [{ txid: pendingInputHash, vout: 2 }],
+      { displayKind: 'turbo_mint_claim' },
+    );
     expect(checkMintStatus).toHaveBeenCalledWith('cashu-quote-1');
     expect(completeMint).toHaveBeenCalledWith('cashu-quote-1', 5000);
+    expect(mockConfirmTransaction).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockFetchTransactionHistory).toHaveBeenCalled();
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
   });
 

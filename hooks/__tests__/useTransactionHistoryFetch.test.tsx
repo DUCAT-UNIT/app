@@ -39,6 +39,10 @@ describe('useTransactionHistoryFetch', () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('should initialize with default state', () => {
     const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
 
@@ -218,5 +222,37 @@ describe('useTransactionHistoryFetch', () => {
 
     expect(result.current!.historyError).toBe(null);
     expect(result.current!.transactionHistory.length).toBe(1);
+  });
+
+  it('should allow retry when a previous history request is stale', async () => {
+    let now = 1_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const freshHistory = [
+      { txid: 'fresh-tx', status: { confirmed: true, block_height: 123 } },
+    ];
+
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock)
+      .mockReturnValueOnce(new Promise(() => undefined))
+      .mockResolvedValueOnce(freshHistory);
+
+    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
+
+    await act(async () => {
+      void result.current!.fetchTransactionHistory();
+      await Promise.resolve();
+    });
+
+    expect(transactionHistoryService.fetchAllTransactionHistory).toHaveBeenCalledTimes(1);
+    expect(result.current!.loadingTransactionHistory).toBe(true);
+
+    now += 31_000;
+
+    await act(async () => {
+      await result.current!.fetchTransactionHistory();
+    });
+
+    expect(transactionHistoryService.fetchAllTransactionHistory).toHaveBeenCalledTimes(2);
+    expect(result.current!.transactionHistory).toEqual(freshHistory);
+    expect(result.current!.loadingTransactionHistory).toBe(false);
   });
 });

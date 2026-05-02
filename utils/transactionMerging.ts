@@ -10,6 +10,8 @@
 
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 
+export type TransactionDisplayKind = 'turbo_mint_claim';
+
 /**
  * Minimal transaction data computed from calculateTransactionAmount
  */
@@ -21,6 +23,7 @@ export interface TxData {
   isReceived: boolean;
   isSelfTransfer?: boolean;
   isAutoclaim?: boolean;
+  displayKind?: TransactionDisplayKind;
 }
 
 /**
@@ -33,6 +36,11 @@ export interface PendingTx {
   timestamp: number;
   sentAmount?: number;
   outputs: Array<{ value?: number; runeAmount?: number }>;
+  displayKind?: TransactionDisplayKind;
+}
+
+export interface TransactionDisplayHints {
+  turboMintClaimTxids?: Set<string>;
 }
 
 /**
@@ -65,7 +73,8 @@ export interface MergeableTransaction {
 export function processPendingTransactions(
   pendingTransactions: Record<string, PendingTx>,
   assetType: string | undefined,
-  confirmedTxids: Set<string>
+  confirmedTxids: Set<string>,
+  displayHints: TransactionDisplayHints = {},
 ): MergeableTransaction[] {
   return Object.values(pendingTransactions)
     .filter(tx => {
@@ -74,6 +83,9 @@ export function processPendingTransactions(
       return !confirmedTxids.has(tx.txid);
     })
     .map(tx => {
+      const isTurboMintClaim =
+        tx.displayKind === 'turbo_mint_claim' ||
+        displayHints.turboMintClaimTxids?.has(tx.txid) === true;
       let amount: number;
       if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
         amount = -tx.sentAmount;
@@ -82,6 +94,7 @@ export function processPendingTransactions(
         const totalRuneAmount = tx.outputs.reduce((sum, output) => sum + (output.runeAmount || 0), 0);
         amount = tx.assetType === 'UNIT' ? -totalRuneAmount : -totalValue;
       }
+      const displayAmount = isTurboMintClaim ? Math.abs(amount) : amount;
 
       return {
         txid: tx.txid,
@@ -92,11 +105,12 @@ export function processPendingTransactions(
         },
         isPending: true,
         txData: {
-          amount,
+          amount: displayAmount,
           assetType: tx.assetType,
-          numericAmount: amount,
-          isSent: true,
-          isReceived: false,
+          numericAmount: displayAmount,
+          isSent: !isTurboMintClaim,
+          isReceived: isTurboMintClaim,
+          ...(isTurboMintClaim ? { displayKind: 'turbo_mint_claim' as const } : {}),
         },
       } as MergeableTransaction;
     });

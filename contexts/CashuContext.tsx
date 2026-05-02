@@ -6,7 +6,7 @@
  */
 
 import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
-import { InteractionManager } from 'react-native';
+import { AppState,InteractionManager } from 'react-native';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMelt } from '../hooks/useCashuMelt';
 import { useCashuMint } from '../hooks/useCashuMint';
@@ -16,6 +16,7 @@ import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteReco
 import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
 import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
 import { clearWallet,sendP2PKToken,setCurrentAccount } from '../services/cashu/cashuWalletService';
+import { refreshPersistedTurboMintSettlementStatus } from '../services/vaultSettlementService';
 import type {
   MeltQuoteResult,
   MeltResult,
@@ -187,6 +188,33 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
   // Check for and recover any pending swap/mint/turbo transactions on startup
   const recoveryChecked = useRef(false);
+  const foregroundRecoveryInFlightRef = useRef(false);
+  const hasSeenAuthenticatedWalletRef = useRef(false);
+
+  const runTurboMintForegroundRecovery = useCallback(async (source: string) => {
+    if (!activeWallet?.taprootAddress || foregroundRecoveryInFlightRef.current) {
+      return;
+    }
+
+    foregroundRecoveryInFlightRef.current = true;
+    try {
+      logger.info('[CashuContext] Checking TurboUNIT mint recovery after foreground', { source });
+      const mintRecovery = await recoverUnclaimedMintQuotes();
+      const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
+
+      if (mintRecovery.recovered > 0 || turboMintSettlement.status === 'settled') {
+        await fetchBalance();
+      }
+    } catch (foregroundRecoveryError) {
+      logger.error('[CashuContext] TurboUNIT foreground recovery failed', {
+        source,
+        error: foregroundRecoveryError instanceof Error ? foregroundRecoveryError.message : String(foregroundRecoveryError),
+      });
+    } finally {
+      foregroundRecoveryInFlightRef.current = false;
+    }
+  }, [activeWallet?.taprootAddress, fetchBalance]);
+
   useEffect(() => {
     if (recoveryChecked.current || !activeWallet?.taprootAddress) {
       return;
@@ -209,6 +237,16 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
           logger.info('[CashuContext] Recovered unclaimed mint quotes on startup', {
             recovered: mintRecovery.recovered,
             totalAmount: mintRecovery.totalAmountRecovered,
+          });
+        }
+
+        // If a vault TurboUNIT mint finished while the app was locked, clear
+        // the persisted UNIT send and mark the vault settlement complete.
+        const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
+        if (cancelled) return;
+        if (turboMintSettlement.status === 'settled') {
+          logger.info('[CashuContext] Recovered persisted TurboUNIT vault settlement on startup', {
+            lastStatus: turboMintSettlement.lastStatus,
           });
         }
 
@@ -255,6 +293,35 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     };
   }, [activeWallet?.taprootAddress, fetchBalance]);
 
+  useEffect(() => {
+    let previousState = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasLockedOrBackgrounded = previousState === 'inactive' || previousState === 'background';
+      previousState = nextState;
+
+      if (wasLockedOrBackgrounded && nextState === 'active') {
+        runTurboMintForegroundRecovery('app_state_active').catch(() => undefined);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [runTurboMintForegroundRecovery]);
+
+  useEffect(() => {
+    if (!activeWallet?.taprootAddress) {
+      return;
+    }
+
+    if (!hasSeenAuthenticatedWalletRef.current) {
+      hasSeenAuthenticatedWalletRef.current = true;
+      return;
+    }
+
+    runTurboMintForegroundRecovery('wallet_reauthenticated').catch(() => undefined);
+  }, [activeWallet?.taprootAddress, runTurboMintForegroundRecovery]);
+
   /**
    * Clear all Cashu proofs (for testing/reset)
    */
@@ -291,6 +358,19 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     } catch (mintQuoteRecoveryError) {
       logger.error('[CashuContext] Mint quote recovery failed', {
         error: mintQuoteRecoveryError instanceof Error ? mintQuoteRecoveryError.message : String(mintQuoteRecoveryError),
+      });
+    }
+
+    try {
+      const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
+      if (turboMintSettlement.status === 'settled') {
+        logger.info('[CashuContext] Recovered persisted TurboUNIT vault settlement', {
+          lastStatus: turboMintSettlement.lastStatus,
+        });
+      }
+    } catch (turboMintSettlementError) {
+      logger.error('[CashuContext] TurboUNIT vault settlement recovery failed', {
+        error: turboMintSettlementError instanceof Error ? turboMintSettlementError.message : String(turboMintSettlementError),
       });
     }
 

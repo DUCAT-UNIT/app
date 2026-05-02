@@ -9,10 +9,12 @@ import { fetchVaultHistory } from './vaultService';
 import { getAddressTxsUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { getWithRetry } from '../utils/apiClient';
+import { withTimeout } from '../utils/withTimeout';
 
 // UNIT•RUNE identifier
 const UNIT_RUNE_BLOCK = 1527352n;
 const UNIT_RUNE_TX = 1n;
+const HISTORY_SOURCE_TIMEOUT_MS = 15_000;
 
 export interface TransactionOutput {
   value: number;
@@ -409,9 +411,24 @@ export const fetchAllTransactionHistory = async (
   // Fetch transactions for both addresses and vault history — use allSettled so
   // a single source failure (e.g. vault API) doesn't lose on-chain history
   const results = await Promise.allSettled([
-    fetchAddressTransactions(segwitAddress),
-    fetchAddressTransactions(taprootAddress),
-    fetchVaultHistory(vaultPubkey) as Promise<VaultTransaction[]>,
+    withTimeout(
+      fetchAddressTransactions(segwitAddress),
+      HISTORY_SOURCE_TIMEOUT_MS,
+      [],
+      'segwit_transaction_history',
+    ),
+    withTimeout(
+      fetchAddressTransactions(taprootAddress),
+      HISTORY_SOURCE_TIMEOUT_MS,
+      [],
+      'taproot_transaction_history',
+    ),
+    withTimeout(
+      fetchVaultHistory(vaultPubkey) as Promise<VaultTransaction[]>,
+      HISTORY_SOURCE_TIMEOUT_MS,
+      [],
+      'vault_transaction_history',
+    ),
   ]);
 
   const segwitTxs = results[0].status === 'fulfilled' ? results[0].value : [];

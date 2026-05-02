@@ -691,6 +691,43 @@ describe('transactionHistoryService', () => {
       expect(result[2].txid).toBe('tx1'); // 1000
     });
 
+    it('should return partial history when one source hangs', async () => {
+      jest.useFakeTimers();
+      try {
+        const taprootTxs = [
+          { txid: 'taproot_tx', status: { block_time: 2000 } },
+        ];
+        const vaultHistory = [
+          {
+            transaction_id: 'vault_tx_timeout',
+            timestamp: 3000,
+            action: 'borrow',
+            amount_borrowed: 25,
+            vault_amount: 1000,
+            btc_amt: 0.5,
+            unit_amt: 2500,
+            oracle_price: 50000,
+          },
+        ];
+
+        getMockFetch()
+          .mockImplementationOnce(() => new Promise(() => undefined))
+          .mockResolvedValueOnce(createMockResponse(taprootTxs));
+        mockFetchVaultHistory.mockResolvedValueOnce(vaultHistory);
+
+        const resultPromise = fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
+        await Promise.resolve();
+        await jest.advanceTimersByTimeAsync(15_000);
+
+        await expect(resultPromise).resolves.toEqual([
+          expect.objectContaining({ txid: 'vault_tx_timeout', vaultTransaction: true }),
+          expect.objectContaining({ txid: 'taproot_tx' }),
+        ]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('should handle fetch errors gracefully', async () => {
       // fetchAddressTransactions catches errors and returns []
       getMockFetch().mockRejectedValueOnce(new Error('Network error'));

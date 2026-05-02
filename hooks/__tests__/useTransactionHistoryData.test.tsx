@@ -24,6 +24,16 @@ jest.mock('../../contexts/NavigationHandlersContext', () => ({
 jest.mock('../../contexts/WalletContext', () => ({
   useWallet: jest.fn(() => ({ currentAccount: 0 })),
 }));
+
+let mockTurboMintSendTxid: string | null = null;
+jest.mock('../../stores/vaultSettlementStore', () => ({
+  useVaultSettlementStore: (selector: (state: { requestedPayoutAsset: string; cashuMintSendTxid: string | null }) => unknown) =>
+    selector({
+      requestedPayoutAsset: mockTurboMintSendTxid ? 'TURBOUNIT' : 'UNIT',
+      cashuMintSendTxid: mockTurboMintSendTxid,
+    }),
+}));
+
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   getSentLockedTokens: jest.fn(() => Promise.resolve([])),
   getReceivedTokens: jest.fn(() => Promise.resolve([])),
@@ -86,6 +96,7 @@ describe('useTransactionHistoryData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetEvmTransactionCheckpointStore();
+    mockTurboMintSendTxid = null;
     const { useSettingsHandlers } = jest.requireMock('../../contexts/NavigationHandlersContext');
     (useSettingsHandlers as jest.Mock).mockReturnValue({
       settingsHandlers: {
@@ -199,6 +210,39 @@ describe('useTransactionHistoryData', () => {
         isReceived: true,
       })
     );
+  });
+
+  it('should display TurboUNIT mint funding txs as claimed TurboUNIT in global history', () => {
+    mockTurboMintSendTxid = 'turbo-mint-send-txid';
+    (WalletDataContext.useTransactionHistory as jest.Mock).mockReturnValue({
+      transactionHistory: [
+        {
+          txid: 'turbo-mint-send-txid',
+          status: { confirmed: true, block_time: 5000 },
+        },
+      ],
+      loadingTransactionHistory: false,
+      fetchTransactionHistory: mockFetchTransactionHistory,
+    });
+    (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
+      amount: -5000n,
+      type: 'UNIT',
+      isSelfTransfer: false,
+    });
+
+    const { result } = renderHook(
+      useTransactionHistoryData,
+      { showHistorySheet: false, segwitAddress: mockSegwitAddress, taprootAddress: mockTaprootAddress }
+    );
+
+    expect(result.current!.displayTransactions).toHaveLength(1);
+    expect(result.current!.displayTransactions[0].txData).toEqual(expect.objectContaining({
+      amount: 5000,
+      numericAmount: 5000,
+      isSent: false,
+      isReceived: true,
+      displayKind: 'turbo_mint_claim',
+    }));
   });
 
   it('should hide ETH and USDC history when the USDC developer flag is disabled', () => {

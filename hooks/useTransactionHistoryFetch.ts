@@ -9,6 +9,8 @@ import { useCallback,useMemo,useRef,useState } from 'react';
 import type { WalletAddresses } from '../contexts/WalletContext';
 import { fetchAllTransactionHistory,Transaction } from '../services/transactionHistoryService';
 
+const HISTORY_FETCH_STALE_MS = 30_000;
+
 export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
   loadingTransactionHistory: boolean;
@@ -28,6 +30,8 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
   // Track whether we've ever loaded data (to avoid setting loading=false when already false)
   const hasLoadedOnceRef = useRef(false);
   const historyFetchInFlightRef = useRef(false);
+  const historyFetchStartedAtRef = useRef<number | null>(null);
+  const historyFetchGenerationRef = useRef(0);
 
   /**
    * Fetch transaction history in background
@@ -38,9 +42,22 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
     const taprootAddress = wallet?.taprootAddress;
     const vaultPubkey = wallet?.taprootPubkey;
 
-    if (!segwitAddress || !taprootAddress || !vaultPubkey || historyFetchInFlightRef.current) return;
+    if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
 
+    if (historyFetchInFlightRef.current) {
+      const startedAt = historyFetchStartedAtRef.current;
+      if (!startedAt || Date.now() - startedAt < HISTORY_FETCH_STALE_MS) {
+        return;
+      }
+    }
+
+    const fetchGeneration = historyFetchGenerationRef.current + 1;
+    historyFetchGenerationRef.current = fetchGeneration;
     historyFetchInFlightRef.current = true;
+    historyFetchStartedAtRef.current = Date.now();
+
+    const isCurrentFetch = () => historyFetchGenerationRef.current === fetchGeneration;
+
     try {
       // Only show loading spinner on the first load when no cached data exists.
       if (!hasLoadedOnceRef.current) {
@@ -49,6 +66,7 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
       // Clear any previous error on new attempt
       setHistoryError(null);
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
+      if (!isCurrentFetch()) return;
 
       // Update state if transactions have changed
       // Compute hash once (no sort - order matters for display)
@@ -68,13 +86,17 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
         setLoadingTransactionHistory(false);
       }
     } catch (error: unknown) {
+      if (!isCurrentFetch()) return;
       setHistoryError('Failed to fetch transaction history');
       if (!hasLoadedOnceRef.current) {
         hasLoadedOnceRef.current = true;
         setLoadingTransactionHistory(false);
       }
     } finally {
-      historyFetchInFlightRef.current = false;
+      if (isCurrentFetch()) {
+        historyFetchInFlightRef.current = false;
+        historyFetchStartedAtRef.current = null;
+      }
     }
   }, [wallet]);
 
@@ -85,6 +107,11 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
     setTransactionHistory([]);
     hasLoadedOnceRef.current = false;
     prevHashRef.current = '';
+    historyFetchInFlightRef.current = false;
+    historyFetchStartedAtRef.current = null;
+    historyFetchGenerationRef.current += 1;
+    setLoadingTransactionHistory(false);
+    setHistoryError(null);
   }, []);
 
   // Memoize return value to prevent context consumers from re-rendering

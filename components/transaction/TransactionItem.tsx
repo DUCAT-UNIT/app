@@ -35,6 +35,7 @@ interface TransactionData {
   assetType: DisplayAssetType;
   isSent: boolean;
   isReceived: boolean;
+  displayKind?: 'turbo_mint_claim';
 }
 
 
@@ -60,6 +61,9 @@ export interface EcashTokenTransaction extends BaseTransaction {
   timestamp: number;
   txData: {
     amount: number;
+    isSent?: boolean;
+    isReceived?: boolean;
+    displayKind?: 'turbo_mint_claim';
   };
   vaultTransaction?: never;
   vaultData?: never;
@@ -109,6 +113,9 @@ export default memo(TransactionItem, (prev: TransactionItemProps, next: Transact
   return (
     prev.tx.txid === next.tx.txid &&
     prev.tx.status?.confirmed === next.tx.status?.confirmed &&
+    prev.tx.txData?.displayKind === next.tx.txData?.displayKind &&
+    prev.tx.txData?.isSent === next.tx.txData?.isSent &&
+    prev.tx.txData?.isReceived === next.tx.txData?.isReceived &&
     prev.advancedMode === next.advancedMode
   );
 });

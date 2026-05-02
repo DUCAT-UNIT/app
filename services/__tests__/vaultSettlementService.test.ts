@@ -1,4 +1,5 @@
 import { getBridgeIntentByClientRequestId, getBridgeStatus, getRedemptionStatus } from '../bridgeApiService';
+import { checkMintQuote } from '../cashu/cashuMintClient';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -14,7 +15,10 @@ import {
   waitForRedemptionRelease,
 } from '../vaultSettlementService';
 import { resetSwapDiagnosticsStore, useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { resetVaultSettlementStore, useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+
+const mockConfirmPendingTransaction = jest.fn();
 
 jest.mock('../bridgeApiService', () => ({
   getBridgeIntentByClientRequestId: jest.fn(),
@@ -22,10 +26,30 @@ jest.mock('../bridgeApiService', () => ({
   getRedemptionStatus: jest.fn(),
 }));
 
+jest.mock('../cashu/cashuMintClient', () => ({
+  checkMintQuote: jest.fn(),
+  deriveMintQuoteState: jest.fn((quote: { state?: string; amount_paid?: number; amount_issued?: number; paid?: boolean }) => {
+    if (quote.state) return quote.state;
+    if ((quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0)) {
+      return 'ISSUED';
+    }
+    if (quote.paid || (quote.amount_paid ?? 0) > 0) return 'PAID';
+    return 'UNPAID';
+  }),
+}));
+
 jest.mock('../evmBridgeService', () => ({
   estimateUsdcToUnitSwapExecution: jest.fn(),
   quoteUnitUsdcSwap: jest.fn(),
   quoteUsdcForExactWunit: jest.fn(),
+}));
+
+jest.mock('../../stores/pendingTransactionsStore', () => ({
+  usePendingTransactionsStore: {
+    getState: jest.fn(() => ({
+      confirmTransaction: mockConfirmPendingTransaction,
+    })),
+  },
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -40,6 +64,10 @@ describe('vaultSettlementService', () => {
     jest.useRealTimers();
     resetSwapDiagnosticsStore();
     resetVaultSettlementStore();
+    mockConfirmPendingTransaction.mockResolvedValue(undefined);
+    (usePendingTransactionsStore.getState as jest.Mock).mockReturnValue({
+      confirmTransaction: mockConfirmPendingTransaction,
+    });
   });
 
   afterEach(() => {
@@ -232,6 +260,56 @@ describe('vaultSettlementService', () => {
       status: 'success',
       lastStatus: 'fulfilled',
       lastMessage: 'Bridge settlement completed',
+    });
+  });
+
+  it('refreshes a completed TurboUNIT mint settlement and clears the pending UNIT send', async () => {
+    useVaultSettlementStore.getState().startOperation('borrow', 50, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMintQuote('cashu-quote-complete', 'tb1pmint');
+    useVaultSettlementStore.getState().setCashuMintSendTxid('unit-send-txid');
+    (checkMintQuote as jest.Mock).mockResolvedValue({
+      quote: 'cashu-quote-complete',
+      state: 'ISSUED',
+      amount_paid: 5000,
+      amount_issued: 5000,
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'settled',
+      message: 'TurboUNIT mint completed.',
+      lastStatus: 'ISSUED',
+    });
+
+    expect(checkMintQuote).toHaveBeenCalledWith('cashu-quote-complete');
+    expect(mockConfirmPendingTransaction).toHaveBeenCalledWith('unit-send-txid');
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'settled',
+      payoutAsset: 'TURBOUNIT',
+      payoutAmount: '50',
+    });
+  });
+
+  it('keeps a paid TurboUNIT mint settlement pending until proofs are issued', async () => {
+    useVaultSettlementStore.getState().startOperation('open', 75, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMintQuote('cashu-quote-paid', 'tb1pmint');
+    useVaultSettlementStore.getState().setCashuMintSendTxid('unit-send-txid');
+    (checkMintQuote as jest.Mock).mockResolvedValue({
+      quote: 'cashu-quote-paid',
+      state: 'PAID',
+      amount_paid: 7500,
+      amount_issued: 0,
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'pending',
+      message: 'TurboUNIT mint is paid and ready to claim.',
+      lastStatus: 'PAID',
+    });
+
+    expect(mockConfirmPendingTransaction).not.toHaveBeenCalled();
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'waiting_turbo_mint',
+      payoutAsset: null,
     });
   });
 

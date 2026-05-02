@@ -77,6 +77,15 @@ jest.mock('../../stores/pendingTransactionsStore', () => ({
   usePendingTxs: () => mockPendingTransactions,
 }));
 
+let mockTurboMintSendTxid: string | null = null;
+jest.mock('../../stores/vaultSettlementStore', () => ({
+  useVaultSettlementStore: (selector: (state: { requestedPayoutAsset: string; cashuMintSendTxid: string | null }) => unknown) =>
+    selector({
+      requestedPayoutAsset: mockTurboMintSendTxid ? 'TURBOUNIT' : 'UNIT',
+      cashuMintSendTxid: mockTurboMintSendTxid,
+    }),
+}));
+
 // Mock bitcoinjs-lib for taproot address decoding
 const mockFromBech32 = jest.fn();
 jest.mock('bitcoinjs-lib', () => ({
@@ -122,6 +131,7 @@ describe('useAssetTransactions', () => {
     mockLoadingEcashTokens = false;
     // Reset pending transactions
     mockPendingTransactions = {};
+    mockTurboMintSendTxid = null;
     // Reset legacy mocks (kept for backwards compatibility with some tests)
     mockGetSentLockedTokens.mockResolvedValue([]);
     mockGetReceivedTokens.mockResolvedValue([]);
@@ -1160,6 +1170,39 @@ describe('useAssetTransactions', () => {
 
       expect(result.current!.transactions).toHaveLength(1);
       expect(result.current.transactions[0].txData.amount).toBe(-500);
+    });
+
+    it('should display TurboUNIT mint funding txs as claimed TurboUNIT', () => {
+      mockPendingTransactions = {};
+      mockTurboMintSendTxid = 'turbo-mint-send-txid';
+      const txHistory = [
+        {
+          txid: 'turbo-mint-send-txid',
+          status: { confirmed: true, block_time: 5000 },
+        },
+      ];
+
+      (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
+        amount: -5000n,
+        type: 'UNIT',
+      });
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
+      expect(result.current!.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txData).toEqual(expect.objectContaining({
+        amount: 5000,
+        numericAmount: 5000,
+        isSent: false,
+        isReceived: true,
+        displayKind: 'turbo_mint_claim',
+      }));
     });
 
     it('should calculate amount from outputs when sentAmount is not available (BTC)', () => {

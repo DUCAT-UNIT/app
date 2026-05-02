@@ -19,6 +19,7 @@ interface TransactionData {
   assetType: DisplayAssetType;
   isSent: boolean;
   isReceived: boolean;
+  displayKind?: 'turbo_mint_claim';
 }
 
 interface TransactionDetailsSheetProps {
@@ -53,6 +54,7 @@ const formatTxid = (txid: string): string => {
 
 // Get action label
 const getActionLabel = (txData: TransactionData): string => {
+  if (txData.displayKind === 'turbo_mint_claim') return 'Claimed TurboUNIT';
   if (txData.isSent && txData.isReceived) return 'Self Transfer';
   return txData.isSent ? 'Sent' : 'Received';
 };
@@ -64,6 +66,7 @@ const getActionDescription = (txData: TransactionData): string => {
 
   if (txData.assetType === 'UNIT') {
     const formatted = formatUnitAmount(absAmount);
+    if (txData.displayKind === 'turbo_mint_claim') return `Claimed ${formatted} TurboUNIT`;
     if (txData.isSent && txData.isReceived) return `Moved ${formatted} UNIT to self`;
     return txData.isSent ? `Sent ${formatted} UNIT` : `Received ${formatted} UNIT`;
   } else if (txData.assetType === 'USDC') {
@@ -170,6 +173,7 @@ export default function TransactionDetailsSheet({
       assetType: txData.assetType,
       isSent: txData.isSent,
       isReceived: txData.isReceived,
+      isTurboMintClaim: txData.displayKind === 'turbo_mint_claim',
     };
   }, [txData, txid, btcPrice, ethPrice, fee]);
 
@@ -194,7 +198,7 @@ export default function TransactionDetailsSheet({
   if (!details || !txid) return null;
 
   const isSelfTransfer = details.isSent && details.isReceived;
-  const isPositiveAction = details.isReceived && !details.isSent;
+  const isPositiveAction = details.isTurboMintClaim || (details.isReceived && !details.isSent);
   const amountColor = isSelfTransfer ? COLORS.WHITE : isPositiveAction ? COLORS.GREEN : COLORS.RED;
   const summaryBorderColor = isSelfTransfer ? COLORS.BORDER_COLOR : isPositiveAction ? COLORS.GREEN : COLORS.RED;
   const amountPrefix = isSelfTransfer ? '' : details.isSent ? '-' : '+';
@@ -258,7 +262,7 @@ export default function TransactionDetailsSheet({
         {/* Asset Type */}
         <DetailRow
           label="Asset"
-          value={details.assetType === 'UNIT' ? 'UNIT' : details.assetType === 'USDC' ? 'Sepolia USDC' : details.assetType === 'ETH' ? 'Sepolia ETH' : 'Bitcoin'}
+          value={details.isTurboMintClaim ? 'TurboUNIT' : details.assetType === 'UNIT' ? 'UNIT' : details.assetType === 'USDC' ? 'Sepolia USDC' : details.assetType === 'ETH' ? 'Sepolia ETH' : 'Bitcoin'}
           icon={details.assetType === 'UNIT' ? 'unit_symbol' : details.assetType === 'USDC' ? 'usdc_logo' : details.assetType === 'ETH' ? 'eth_logo' : 'btc_symbol'}
         />
 

@@ -1,4 +1,5 @@
 import { getBridgeIntentByClientRequestId, getBridgeStatus, getRedemptionStatus } from './bridgeApiService';
+import { checkMintQuote, deriveMintQuoteState } from './cashu/cashuMintClient';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -13,6 +14,7 @@ import {
   type VaultSettlementPhase,
   type VaultSettlementPayoutAsset,
 } from '../stores/vaultSettlementStore';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 
 const BRIDGE_POLL_INTERVAL_MS = 4_000;
 // Live Mutinynet -> Sepolia settlement needs at least one Mutinynet confirmation,
@@ -465,11 +467,72 @@ async function refreshPersistedRedemption(redemptionId: string): Promise<VaultSe
   };
 }
 
+export async function refreshPersistedTurboMintSettlementStatus(): Promise<VaultSettlementRefreshResult> {
+  const settlement = useVaultSettlementStore.getState();
+  const { cashuMintQuoteId, cashuMintSendTxid, requestedPayoutAsset } = settlement;
+
+  if (requestedPayoutAsset !== 'TURBOUNIT' || !cashuMintQuoteId) {
+    return {
+      status: 'idle',
+      message: 'No persisted TurboUNIT mint settlement is available to refresh.',
+    };
+  }
+
+  let mintQuote: Awaited<ReturnType<typeof checkMintQuote>>;
+  try {
+    mintQuote = await checkMintQuote(cashuMintQuoteId);
+  } catch (error) {
+    return {
+      status: 'error',
+      message: getErrorMessage(error),
+    };
+  }
+
+  const mintState = deriveMintQuoteState(mintQuote);
+  const amountPaid = mintQuote.amount_paid ?? 0;
+  const amountIssued = mintQuote.amount_issued ?? 0;
+  const isFullyIssued = mintState === 'ISSUED' || (amountPaid > 0 && amountIssued >= amountPaid);
+
+  if (isFullyIssued) {
+    if (cashuMintSendTxid) {
+      await usePendingTransactionsStore.getState().confirmTransaction(cashuMintSendTxid).catch(() => undefined);
+    }
+
+    const issuedSmallestUnits =
+      amountIssued ||
+      amountPaid ||
+      mintQuote.amount ||
+      Math.round(settlement.faceValueUsd * 100);
+    const payoutAmount = formatVaultSettlementAmountInput(issuedSmallestUnits / 100);
+    useVaultSettlementStore.getState().completeSettlement('TURBOUNIT', payoutAmount);
+
+    return {
+      status: 'settled',
+      message: 'TurboUNIT mint completed.',
+      lastStatus: mintState,
+    };
+  }
+
+  useVaultSettlementStore.getState().setPhase('waiting_turbo_mint');
+
+  return {
+    status: 'pending',
+    message: mintState === 'PAID'
+      ? 'TurboUNIT mint is paid and ready to claim.'
+      : 'TurboUNIT mint is still processing.',
+    lastStatus: mintState,
+  };
+}
+
 export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSettlementRefreshResult> {
-  const { bridgeClientRequestId, bridgeIntentId, redemptionId } = useVaultSettlementStore.getState();
+  const { bridgeClientRequestId, bridgeIntentId, cashuMintQuoteId, redemptionId, requestedPayoutAsset } = useVaultSettlementStore.getState();
 
   if (redemptionId) {
     return refreshPersistedRedemption(redemptionId);
+  }
+
+  if (requestedPayoutAsset === 'TURBOUNIT' && cashuMintQuoteId) {
+    return refreshPersistedTurboMintSettlementStatus();
   }
 
   if (bridgeIntentId) {

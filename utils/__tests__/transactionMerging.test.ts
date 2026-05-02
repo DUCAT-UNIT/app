@@ -376,6 +376,23 @@ describe('processPendingTransactions', () => {
       expect(result[0].txData?.isSent).toBe(true);
       expect(result[0].txData?.isReceived).toBe(false);
     });
+
+    it('should show TurboUNIT mint funding transactions as positive claims', () => {
+      const tx = makePendingTx({
+        assetType: 'UNIT',
+        sentAmount: 5000,
+        displayKind: 'turbo_mint_claim',
+      });
+      const result = processPendingTransactions({ [tx.txid]: tx }, 'UNIT', new Set());
+
+      expect(result[0].txData).toEqual(expect.objectContaining({
+        amount: 5000,
+        numericAmount: 5000,
+        isSent: false,
+        isReceived: true,
+        displayKind: 'turbo_mint_claim',
+      }));
+    });
   });
 
   describe('filtering', () => {

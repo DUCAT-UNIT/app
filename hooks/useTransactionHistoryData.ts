@@ -15,6 +15,7 @@ import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { calculateTransactionAmount,Transaction } from '../services/transactionHistoryService';
 import { useEvmTransactionCheckpointStore } from '../stores/evmTransactionCheckpointStore';
 import { usePendingTxs } from '../stores/pendingTransactionsStore';
+import { useVaultSettlementStore } from '../stores/vaultSettlementStore';
 import { getOrdTxUrl,getTxUrl } from '../utils/constants';
 import { mapEvmCheckpointToHistoryItem } from '../utils/evmCheckpointDisplay';
 import { logger } from '../utils/logger';
@@ -37,6 +38,7 @@ interface TxData {
   isReceived: boolean;
   isSelfTransfer?: boolean;
   isAutoclaim?: boolean;
+  displayKind?: 'turbo_mint_claim';
 }
 
 export interface ProcessedTransaction extends Transaction {
@@ -83,6 +85,13 @@ export function useTransactionHistoryData(
 
   // Get pending transactions from store
   const pendingTransactions = usePendingTxs();
+  const turboMintSendTxid = useVaultSettlementStore((state) =>
+    state.requestedPayoutAsset === 'TURBOUNIT' ? state.cashuMintSendTxid : null
+  );
+  const turboMintClaimTxids = useMemo(
+    () => new Set(turboMintSendTxid ? [turboMintSendTxid] : []),
+    [turboMintSendTxid],
+  );
 
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, loadingEcashTokens, fetchEcashTokens } = useEcashTokens();
@@ -198,9 +207,21 @@ export function useTransactionHistoryData(
         continue;
       }
 
+      const isTurboMintClaim = processedTxData.assetType === 'UNIT' && turboMintClaimTxids.has(tx.txid);
+      const displayTxData: TxData = isTurboMintClaim
+        ? {
+          ...processedTxData,
+          amount: Math.abs(processedTxData.numericAmount),
+          numericAmount: Math.abs(processedTxData.numericAmount),
+          isSent: false,
+          isReceived: true,
+          displayKind: 'turbo_mint_claim',
+        }
+        : processedTxData;
+
       regularTxs.push({
         ...tx,
-        txData: processedTxData,
+        txData: displayTxData,
       });
     }
 
@@ -212,7 +233,8 @@ export function useTransactionHistoryData(
     const pendingTxs = processPendingTransactions(
       pendingTransactions as unknown as Record<string, PendingTx>,
       undefined,
-      confirmedTxids
+      confirmedTxids,
+      { turboMintClaimTxids },
     ) as ProcessedTransaction[];
 
     const indexedEvmTxids = new Set([...visibleUsdcHistory, ...visibleEthHistory].map((tx) => tx.txid.toLowerCase()));
@@ -253,6 +275,7 @@ export function useTransactionHistoryData(
     usdcFeaturesEnabled,
     evmCheckpoints,
     currentAccount,
+    turboMintClaimTxids,
   ]);
 
   // Open transaction in blockchain explorer

@@ -10,6 +10,7 @@ import { useEcashTokens } from '../contexts/WalletDataContext';
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
 import { calculateTransactionAmount,Transaction } from '../services/transactionHistoryService';
 import { usePendingTxs } from '../stores/pendingTransactionsStore';
+import { useVaultSettlementStore } from '../stores/vaultSettlementStore';
 import type { DisplayAssetType } from '../types/assets';
 import { logger } from '../utils/logger';
 import {
@@ -27,6 +28,7 @@ interface TxData {
   isSent: boolean;
   isReceived: boolean;
   isAutoclaim?: boolean;
+  displayKind?: 'turbo_mint_claim';
 }
 
 // Use a more flexible type for processed transactions
@@ -78,6 +80,13 @@ export function useAssetTransactions(
 
   // Get pending transactions from store
   const pendingTransactions = usePendingTxs();
+  const turboMintSendTxid = useVaultSettlementStore((state) =>
+    state.requestedPayoutAsset === 'TURBOUNIT' ? state.cashuMintSendTxid : null
+  );
+  const turboMintClaimTxids = useMemo(
+    () => new Set(turboMintSendTxid ? [turboMintSendTxid] : []),
+    [turboMintSendTxid],
+  );
 
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, fetchEcashTokens } = useEcashTokens();
@@ -134,7 +143,7 @@ export function useAssetTransactions(
     const pendingTxIds = Object.keys(pendingTransactions).join(',');
     const txHash = transactionHistory
       .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-      .join('|') + `-${assetType}-ecash:${ecashTokens.length}-pending:${pendingTxIds}`;
+      .join('|') + `-${assetType}-ecash:${ecashTokens.length}-pending:${pendingTxIds}-turboMint:${turboMintSendTxid || ''}`;
 
     const hashChanged = txHash !== lastTxHashRef.current;
 
@@ -180,12 +189,24 @@ export function useAssetTransactions(
         }
       }
 
-      if (processedTxData.assetType !== assetType) continue;
-      if (!processedTxData.numericAmount || processedTxData.numericAmount === 0) continue;
+      const isTurboMintClaim = processedTxData.assetType === 'UNIT' && turboMintClaimTxids.has(tx.txid);
+      const displayTxData: TxData = isTurboMintClaim
+        ? {
+          ...processedTxData,
+          amount: Math.abs(processedTxData.numericAmount),
+          numericAmount: Math.abs(processedTxData.numericAmount),
+          isSent: false,
+          isReceived: true,
+          displayKind: 'turbo_mint_claim',
+        }
+        : processedTxData;
+
+      if (displayTxData.assetType !== assetType) continue;
+      if (!displayTxData.numericAmount || displayTxData.numericAmount === 0) continue;
 
       filtered.push({
         ...tx,
-        txData: processedTxData,
+        txData: displayTxData,
       } as ProcessedTransaction);
     }
 
@@ -197,7 +218,8 @@ export function useAssetTransactions(
     const pendingTxs = processPendingTransactions(
       pendingTransactions as unknown as Record<string, PendingTx>,
       assetType,
-      confirmedTxids
+      confirmedTxids,
+      { turboMintClaimTxids },
     ) as ProcessedTransaction[];
 
     const merged = mergeAndSortTransactions(pendingTxs, filtered, ecashTxs) as unknown as ProcessedTransaction[];
@@ -207,7 +229,7 @@ export function useAssetTransactions(
     transactionsProcessedRef.current = true;
 
     return merged;
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex, pendingTransactions]);
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex, pendingTransactions, turboMintClaimTxids, turboMintSendTxid]);
 
   // Loading is true only on FIRST load — never flicker after data has been shown
   const isLoading = !transactionsProcessedRef.current && filteredTransactions.length === 0;

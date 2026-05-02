@@ -7,13 +7,22 @@ import { create, act } from 'react-test-renderer';
 
 let mockWallet: { address?: string; taprootAddress?: string } | null = { address: 'tb1ptest' };
 let mockIsAuthenticated = true;
+let mockAppStateHandler: ((state: string) => void) | null = null;
 const mockRunAfterInteractions = jest.fn((callback: () => void) => {
   callback();
   return { cancel: jest.fn() };
 });
+const mockAppStateAddEventListener = jest.fn((_event: string, handler: (state: string) => void) => {
+  mockAppStateHandler = handler;
+  return { remove: jest.fn() };
+});
 
 // Mock dependencies BEFORE imports
 jest.mock('react-native', () => ({
+  AppState: {
+    currentState: 'active',
+    addEventListener: (...args: [string, (state: string) => void]) => mockAppStateAddEventListener(...args),
+  },
   InteractionManager: {
     runAfterInteractions: (callback: () => void) => mockRunAfterInteractions(callback),
   },
@@ -37,6 +46,7 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 const mockCheckAndRecoverSwaps = jest.fn();
 const mockRecoverUnclaimedMintQuotes = jest.fn();
 const mockRecoverPendingTurboSend = jest.fn();
+const mockRefreshPersistedTurboMintSettlementStatus = jest.fn();
 
 jest.mock('../../services/cashu/cashuSwapRecovery', () => ({
   checkAndRecoverSwaps: () => mockCheckAndRecoverSwaps(),
@@ -48,6 +58,10 @@ jest.mock('../../services/cashu/cashuMintQuoteRecovery', () => ({
 
 jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
   recoverPendingTurboSend: (...args: unknown[]) => mockRecoverPendingTurboSend(...args),
+}));
+
+jest.mock('../../services/vaultSettlementService', () => ({
+  refreshPersistedTurboMintSettlementStatus: () => mockRefreshPersistedTurboMintSettlementStatus(),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({
@@ -150,6 +164,7 @@ describe('CashuContext', () => {
     jest.clearAllMocks();
     mockWallet = { address: 'tb1ptest' };
     mockIsAuthenticated = true;
+    mockAppStateHandler = null;
     mockPendingMints = [];
     mockFetchBalance.mockResolvedValue(undefined);
     mockStartMint.mockResolvedValue({ quote: 'mint-quote' });
@@ -159,6 +174,10 @@ describe('CashuContext', () => {
     mockFinishMelt.mockResolvedValue({ paid: true });
     mockReceive.mockResolvedValue({ amount: 100 });
     mockSend.mockResolvedValue({ token: 'cashu-token' });
+    mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValue({
+      status: 'idle',
+      message: 'No persisted TurboUNIT mint settlement is available to refresh.',
+    });
   });
 
   describe('useCashu', () => {
@@ -618,6 +637,10 @@ describe('CashuContext', () => {
       mockCheckAndRecoverSwaps.mockResolvedValue(undefined);
       mockRecoverUnclaimedMintQuotes.mockResolvedValue({ recovered: 0, totalAmountRecovered: 0 });
       mockRecoverPendingTurboSend.mockResolvedValue({ recovered: false });
+      mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValue({
+        status: 'idle',
+        message: 'No persisted TurboUNIT mint settlement is available to refresh.',
+      });
       mockFetchBalance.mockResolvedValue(undefined);
     });
 
@@ -650,7 +673,45 @@ describe('CashuContext', () => {
       expect(mockRunAfterInteractions).toHaveBeenCalled();
       expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
       expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should check TurboUNIT mint recovery when the app returns active after lock', async () => {
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1ptest123' };
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      mockRecoverUnclaimedMintQuotes.mockClear();
+      mockRefreshPersistedTurboMintSettlementStatus.mockClear();
+      mockFetchBalance.mockClear();
+      mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValueOnce({
+        status: 'settled',
+        message: 'TurboUNIT mint completed.',
+        lastStatus: 'ISSUED',
+      });
+
+      await act(async () => {
+        mockAppStateHandler?.('background');
+        mockAppStateHandler?.('active');
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
     });
 
@@ -700,6 +761,7 @@ describe('CashuContext', () => {
       });
 
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
     });
 
