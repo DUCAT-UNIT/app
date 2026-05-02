@@ -156,7 +156,7 @@ Mnemonic -> HKDF(passkey_id + PIN) -> AES-256-GCM -> iCloud Keychain
 
 | Service | Domain | Purpose |
 |---------|--------|---------|
-| Cashu Mint | `cashu-mint.ducatprotocol.com` | E-cash mint/melt operations |
+| Cashu Mint | `dev-cashu-mint.ducatprotocol.com` | UNIT e-cash mint/melt operations |
 | Push Server | `notifications.ducatprotocol.com` | Push token registry + event watchers |
 | Faucet | `faucet.ducatprotocol.com` | Testnet BTC/UNIT faucet + swap API |
 | URL Shortener | `go.ducatprotocol.com` | Cashu token deep links |
@@ -232,7 +232,7 @@ The app operates on **Mutinynet** (Bitcoin signet testnet). Network configuratio
 ESPLORA_URL:  https://mutinynet.com/api
 ORD_API:      https://ord-mutinynet.ducatprotocol.com
 VALIDATOR:    https://validator.ducatprotocol.com
-CASHU_MINT:   https://cashu-mint.ducatprotocol.com
+CASHU_MINT:   https://dev-cashu-mint.ducatprotocol.com
 ```
 
 ## Testing

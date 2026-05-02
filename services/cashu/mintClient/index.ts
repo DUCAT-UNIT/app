@@ -1,6 +1,6 @@
 /**
  * Cashu Mint API Client
- * Communicates with the local mint server for Cashu e-cash operations
+ * Communicates with the advertised Ducat Cashu mint for UNIT e-cash operations
  */
 
 export { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
