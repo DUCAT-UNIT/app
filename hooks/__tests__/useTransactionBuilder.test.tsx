@@ -6,6 +6,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTransactionBuilder, UseTransactionBuilderParams } from '../useTransactionBuilder';
 import { notify } from '../../utils/notify';
+import { isE2E } from '../../utils/e2e';
 
 // Mock dependencies
 jest.mock('../../services/transaction', () => ({
@@ -36,6 +37,10 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../utils/pendingTransactionsUtils', () => ({
   releaseOrphanedUtxos: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../utils/e2e', () => ({
+  isE2E: jest.fn(() => false),
 }));
 
 import { createBtcIntent, createUnitIntent } from '../../services/transaction';
@@ -75,11 +80,13 @@ type MockProps = {
 };
 
 describe('useTransactionBuilder', () => {
+  const mockIsE2E = isE2E as jest.MockedFunction<typeof isE2E>;
   let mockProps: MockProps;
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockIsE2E.mockReturnValue(false);
 
     mockProps = {
       wallet: {
@@ -373,35 +380,26 @@ describe('useTransactionBuilder', () => {
     });
 
     it('should create a fake UNIT intent in E2E bypass mode', async () => {
-      const originalBypass = process.env.EXPO_PUBLIC_E2E_BYPASS;
-      process.env.EXPO_PUBLIC_E2E_BYPASS = 'true';
+      mockIsE2E.mockReturnValue(true);
 
-      try {
-        const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
-        await act(async () => {
-          await result.current!.createSendIntent();
-        });
+      await act(async () => {
+        await result.current!.createSendIntent();
+      });
 
-        expect(createUnitIntent).not.toHaveBeenCalled();
-        expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
-        expect(mockProps.markUtxosAsSpent).not.toHaveBeenCalled();
-        expect(mockProps.setSendIntent).toHaveBeenCalledWith(
-          expect.objectContaining({
-            assetType: 'UNIT',
-            psbt: 'e2e-mock-psbt',
-            recipient: mockProps.sendRecipient,
-            sourceAddress: mockProps.wallet!.taprootAddress,
-            feeAddress: mockProps.wallet!.segwitAddress,
-          })
-        );
-      } finally {
-        if (originalBypass === undefined) {
-          delete process.env.EXPO_PUBLIC_E2E_BYPASS;
-        } else {
-          process.env.EXPO_PUBLIC_E2E_BYPASS = originalBypass;
-        }
-      }
+      expect(createUnitIntent).not.toHaveBeenCalled();
+      expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
+      expect(mockProps.markUtxosAsSpent).not.toHaveBeenCalled();
+      expect(mockProps.setSendIntent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assetType: 'UNIT',
+          psbt: 'e2e-mock-psbt',
+          recipient: mockProps.sendRecipient,
+          sourceAddress: mockProps.wallet!.taprootAddress,
+          feeAddress: mockProps.wallet!.segwitAddress,
+        })
+      );
     });
 
     it('should create UNIT intent and set reviewing step', async () => {

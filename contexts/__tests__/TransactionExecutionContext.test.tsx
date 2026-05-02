@@ -17,6 +17,7 @@ import * as TransactionSigningService from '../../services/transactionSigningSer
 import * as TransactionBroadcastService from '../../services/transactionBroadcastService';
 import * as BackgroundTaskService from '../../services/backgroundTaskService';
 import { ERRORS } from '../../utils/messages';
+import { isE2E } from '../../utils/e2e';
 import * as bitcoin from 'bitcoinjs-lib';
 
 // Type for renderHook options
@@ -58,8 +59,12 @@ jest.mock('../../services/backgroundTaskService', () => ({
   addPendingTransaction: jest.fn(),
   removePendingTransaction: jest.fn(),
 }));
+jest.mock('../../utils/e2e', () => ({
+  isE2E: jest.fn(() => false),
+}));
 
 describe('TransactionExecutionContext', () => {
+  const mockIsE2E = isE2E as jest.MockedFunction<typeof isE2E>;
   const mockShowSnackbar = jest.fn();
   const mockSetIntentStep = jest.fn();
   const mockSetSendIntent = jest.fn();
@@ -82,6 +87,7 @@ describe('TransactionExecutionContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks(); // Restore all spies
+    mockIsE2E.mockReturnValue(false);
 
     (useSendFlow as jest.Mock).mockReturnValue({
       setIntentStep: mockSetIntentStep,
@@ -210,8 +216,7 @@ describe('TransactionExecutionContext', () => {
   });
 
   it('should bypass signing and broadcasting for E2E mock PSBT intent', async () => {
-    const originalBypass = process.env.EXPO_PUBLIC_E2E_BYPASS;
-    process.env.EXPO_PUBLIC_E2E_BYPASS = 'true';
+    mockIsE2E.mockReturnValue(true);
 
     (useTransactionBuild as jest.Mock).mockReturnValue({
       sendIntent: { psbt: 'e2e-mock-psbt' },
@@ -232,24 +237,16 @@ describe('TransactionExecutionContext', () => {
     );
     const { result } = renderHook(() => useTransactionExecution(), { wrapper });
 
-    try {
-      let txid: string | null = null;
-      await act(async () => {
-        txid = await result.current!.signIntent();
-      });
+    let txid: string | null = null;
+    await act(async () => {
+      txid = await result.current!.signIntent();
+    });
 
-      expect(txid).toMatch(/^e2e-send-/);
-      expect(result.current!.broadcastedTxid).toBe(txid);
-      expect(mockSetIntentStep).toHaveBeenCalledWith('confirmed');
-      expect(TransactionSigningService.signIntent).not.toHaveBeenCalled();
-      expect(TransactionService.broadcastTransaction).not.toHaveBeenCalled();
-    } finally {
-      if (originalBypass === undefined) {
-        delete process.env.EXPO_PUBLIC_E2E_BYPASS;
-      } else {
-        process.env.EXPO_PUBLIC_E2E_BYPASS = originalBypass;
-      }
-    }
+    expect(txid).toMatch(/^e2e-send-/);
+    expect(result.current!.broadcastedTxid).toBe(txid);
+    expect(mockSetIntentStep).toHaveBeenCalledWith('confirmed');
+    expect(TransactionSigningService.signIntent).not.toHaveBeenCalled();
+    expect(TransactionService.broadcastTransaction).not.toHaveBeenCalled();
   });
 
   it('should handle missing intent when signing', async () => {

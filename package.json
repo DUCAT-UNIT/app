@@ -36,7 +36,7 @@
     "e2e": "bash e2e/maestro/run-all-sequential.sh",
     "e2e:auth": "maestro test e2e/maestro/flows/auth/",
     "e2e:wallet": "maestro test e2e/maestro/flows/wallet/",
-    "e2e:send": "maestro test e2e/maestro/flows/send/",
+    "e2e:send": "node scripts/runMaestroCritical.mjs e2e/maestro/flows/send/",
     "e2e:settings": "maestro test e2e/maestro/flows/settings/",
     "e2e:vault": "maestro test e2e/maestro/flows/vault/",
     "e2e:ecash": "maestro test e2e/maestro/flows/ecash/",

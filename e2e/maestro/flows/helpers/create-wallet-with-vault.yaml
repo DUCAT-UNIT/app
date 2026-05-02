@@ -62,7 +62,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-create-success-screen"
     timeout: 120000
 - assertVisible:
-    text: "Vault Created!"
+    id: "vault-success-done-btn"
 
 # Tap Done to return to wallet
 - tapOn:

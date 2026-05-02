@@ -14,6 +14,7 @@ import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { useNotifications } from "../../stores/notificationStore";
 import { useSendFlow,type AssetType } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
+import { isE2E } from '../../utils/e2e';
 import { logger } from '../../utils/logger';
 
 /**
@@ -182,6 +183,23 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       let cancelled = false;
       const timer = setTimeout(async () => {
         try {
+          if (isE2E() && sendIntent?.psbt === 'e2e-mock-psbt') {
+            const txid = `e2e-send-${Date.now().toString(16)}`;
+            navigation.dispatch(
+              StackActions.replace('Confirmation', {
+                isTurbo,
+                mintQuoteId,
+                mintAmount,
+                turboRecipient,
+                cashuMint: isCashuMint,
+                quoteId: cashuQuoteId,
+                skipMint: false,
+                broadcastedTxid: txid,
+              })
+            );
+            return;
+          }
+
           // Sign and broadcast transaction
           const txid = await signIntent();
 
