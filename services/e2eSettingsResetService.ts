@@ -33,7 +33,9 @@ const getUrlPassword = (url: string): string => {
 export async function resetNonSecretE2ESettings(): Promise<void> {
   if (!__DEV__ && !hasConfiguredE2EBypass()) return;
 
-  enableRuntimeE2EBypass();
+  if (hasConfiguredE2EBypass()) {
+    enableRuntimeE2EBypass();
+  }
   useUsdcFeatureFlagStore.getState().setEnabled(false);
 
   await Promise.allSettled([
@@ -51,7 +53,9 @@ export async function enableUsdcFeaturesForE2E(url = ''): Promise<void> {
   const hasUrlPassword = canonicalizePassword(urlPassword) === canonicalizePassword(USDC_FEATURE_PASSWORD);
   if (!hasUrlPassword && !__DEV__ && !hasConfiguredE2EBypass()) return;
 
-  enableRuntimeE2EBypass();
+  if (hasConfiguredE2EBypass()) {
+    enableRuntimeE2EBypass();
+  }
   useUsdcFeatureFlagStore.getState().setEnabled(true);
   await setBoolean(SettingKeys.USDC_FEATURES_ENABLED, true);
 }

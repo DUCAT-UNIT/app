@@ -67,8 +67,18 @@ const liveFlowsRoot = path.join(flowsRoot, 'test');
 if (!liveScript.includes('npm run doctor:live')) {
   fail('package.json e2e:live must run doctor:live before live/ad-hoc flows');
 }
+if (!liveScript.includes('scripts/runMaestroLive.mjs')) {
+  fail('package.json e2e:live must use scripts/runMaestroLive.mjs so live flows run without E2E bypass');
+}
+if (liveScript.includes('scripts/runMaestroCritical.mjs')) {
+  fail('package.json e2e:live must not use the deterministic E2E bypass runner');
+}
 if (!liveScript.includes('e2e/maestro/flows/test/')) {
   fail('package.json e2e:live must target e2e/maestro/flows/test/');
+}
+const liveTurboScript = String(scripts['e2e:live:turbo'] || '');
+if (!liveTurboScript.includes('scripts/runMaestroLive.mjs') || !liveTurboScript.includes('live-turbounit-smoke.yaml')) {
+  fail('package.json e2e:live:turbo must run the named live TurboUNIT smoke flow');
 }
 if (!existsSync(liveFlowsRoot) || listYamlFiles(liveFlowsRoot).length === 0) {
   fail('live/ad-hoc flow directory e2e/maestro/flows/test must contain YAML flows');

@@ -2,7 +2,7 @@
  * E2E test state for simulating vault operations without Guardian WebSocket.
  *
  * Safety: Consumers gate behavior through `isE2E()`.
- * - `isE2E()` is false in production builds because it also requires `__DEV__`
+ * - `isE2E()` is false unless an explicit E2E bypass is configured
  * - `app.config.ts` throws at build time if EXPO_PUBLIC_E2E_BYPASS is set with NODE_ENV=production
  *
  * This module stores inert state only; production code paths must not read from it

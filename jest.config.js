@@ -28,7 +28,6 @@ module.exports = {
 
     // --- Index/Re-export Files (barrel exports, no logic) ---
     '!**/index.{js,ts,tsx}',           // All index files are re-exports
-    '!services/cashu/cashuTokenOperations.{js,ts}', // Re-exports cashu operations
     '!services/cashu/cashuMintClient.{js,ts}',      // Re-exports from mintClient/
     '!services/vaultOperationsService.{js,ts}',     // Re-exports from vault/
     '!services/vaultWalletService.{js,ts}',         // Re-exports from vaultWallet/

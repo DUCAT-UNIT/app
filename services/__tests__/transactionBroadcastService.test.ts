@@ -45,6 +45,7 @@ describe('transactionBroadcastService', () => {
       expect(getMockFetch()).toHaveBeenCalledWith('https://mempool.space/api/tx', {
         method: 'POST',
         body: mockSignedTxHex,
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -109,6 +110,7 @@ describe('transactionBroadcastService', () => {
       expect(getMockFetch()).toHaveBeenCalledWith('https://custom.mempool.space/api/tx', {
         method: 'POST',
         body: mockSignedTxHex,
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -121,6 +123,7 @@ describe('transactionBroadcastService', () => {
       expect(getMockFetch()).toHaveBeenCalledWith(expect.any(String), {
         method: 'POST',
         body: mockSignedTxHex,
+        signal: expect.any(AbortSignal),
       });
     });
 

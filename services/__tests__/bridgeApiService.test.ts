@@ -43,7 +43,10 @@ describe('bridgeApiService', () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining('https://bridge.example/bridge/create-intent?'),
-      { method: 'GET' },
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(result).toEqual(expect.objectContaining({ id: 'intent-1', status: 'pending' }));
   });
@@ -73,7 +76,10 @@ describe('bridgeApiService', () => {
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('/bridge/intents/by-client-request-id/'),
-      { method: 'GET' },
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(result).toEqual(expect.objectContaining({ id: 'intent-recovered', status: 'pending' }));
   });
@@ -100,7 +106,10 @@ describe('bridgeApiService', () => {
     );
     expect(global.fetch).toHaveBeenCalledWith(
       'https://bridge.example/bridge/intents/by-client-request-id/client%20request%2F1',
-      { method: 'GET' },
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -119,7 +128,10 @@ describe('bridgeApiService', () => {
     await expect(getBridgeIntentByClientRequestId('missing-client')).resolves.toBeNull();
     expect(global.fetch).toHaveBeenCalledWith(
       'https://bridge.example/bridge/intents/by-client-request-id/missing-client',
-      { method: 'GET' },
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 

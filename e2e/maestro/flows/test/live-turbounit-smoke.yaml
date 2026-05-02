@@ -1,0 +1,92 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live TurboUNIT smoke path.
+# This flow must run through scripts/runMaestroLive.mjs so EXPO_PUBLIC_E2E_BYPASS=false.
+# It uses the reviewer wallet fixture, creates a real live vault if needed by the setup
+# flow, sends UNIT to the advertised Cashu onchain mint, and waits for a P2PK TurboUNIT
+# token to be produced.
+#
+# This is intentionally not part of e2e:critical. It can spend live Mutinynet funds and
+# may take several minutes while the mint waits for the UNIT deposit.
+
+- runFlow: setup-reviewer-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-actions"
+    timeout: 15000
+
+# Open UNIT send.
+- tapOn:
+    id: "wallet-withdraw-btn"
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible:
+    id: "withdraw-unit"
+- tapOn:
+    id: "withdraw-unit"
+
+- extendedWaitUntil:
+    visible:
+      id: "send-input-screen"
+    timeout: 10000
+
+# Live mode sanity check: deterministic-only amount shortcuts must not be present.
+- assertNotVisible:
+    id: "unit-slider-quarter-btn"
+
+# Recipient must be taproot so the app can extract the x-only pubkey for P2PK locking.
+- tapOn:
+    id: "send-address-input"
+- inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
+- hideKeyboard
+
+- extendedWaitUntil:
+    visible:
+      text: "Valid"
+    timeout: 10000
+
+# Enter a small live amount without relying on bypass-only buttons.
+- tapOn:
+    id: "unit-send-amount-display"
+- inputText: "0.01"
+- tapOn:
+    id: "unit-send-amount-done-btn"
+- waitForAnimationToEnd
+
+# First review shows the insufficient eCash sheet; choose the live Turbo mint path.
+- tapOn:
+    id: "send-review-btn"
+- extendedWaitUntil:
+    visible:
+      id: "turbo-use-turbo-btn"
+    timeout: 30000
+- tapOn:
+    id: "turbo-use-turbo-btn"
+
+# The app now builds a real onchain UNIT send to the Cashu mint deposit request.
+- extendedWaitUntil:
+    visible:
+      id: "review-screen"
+    timeout: 120000
+- assertVisible:
+    text: "You will send"
+- tapOn:
+    id: "review-confirm-btn"
+
+# Mutinynet block production plus mint polling can take several minutes.
+- extendedWaitUntil:
+    visible:
+      id: "confirmation-screen"
+    timeout: 420000
+- extendedWaitUntil:
+    visible:
+      text: "Turbo Token Ready"
+    timeout: 420000
+
+- tapOn:
+    id: "confirmation-done-btn"
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000

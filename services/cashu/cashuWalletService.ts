@@ -10,7 +10,7 @@ import { deletePreferenceItem } from '../storagePolicy';
  *
  * - cashuProofManager: Proof storage and account management
  * - cashuBalanceService: Balance calculations and keyset management
- * - cashuTokenOperations: Mint, melt, swap, send, receive operations
+ * - operations/*: Mint, melt, swap, send, receive operations
  *
  * Refactored from 1,490 lines into modular services for:
  * - Better maintainability and testability
@@ -18,66 +18,65 @@ import { deletePreferenceItem } from '../storagePolicy';
  * - Single responsibility principle
  */
 
-// Import and re-export from cashuProofManager
 import {
-  setCurrentAccount as _setCurrentAccount,
-  getStorageKey as _getStorageKey,
-  loadProofs as _loadProofs,
-  saveProofs as _saveProofs,
-  addProofs as _addProofs,
-  removeProofs as _removeProofs,
-  loadProofsPartial as _loadProofsPartial,
-  removeSpentProofs as _removeSpentProofs,
-  subscribeToProofChanges as _subscribeToProofChanges,
+  setCurrentAccount,
+  getStorageKey,
+  loadProofs,
+  saveProofs,
+  addProofs,
+  removeProofs,
+  loadProofsPartial,
+  removeSpentProofs,
+  subscribeToProofChanges,
 } from './cashuProofManager';
 
-export const setCurrentAccount = _setCurrentAccount;
-export const getStorageKey = _getStorageKey;
-export const loadProofs = _loadProofs;
-export const saveProofs = _saveProofs;
-export const addProofs = _addProofs;
-export const removeProofs = _removeProofs;
-export const loadProofsPartial = _loadProofsPartial;
-export const removeSpentProofs = _removeSpentProofs;
-export const subscribeToProofChanges = _subscribeToProofChanges;
-
-// Import and re-export from cashuBalanceService
 import {
-  getOrFetchKeys as _getOrFetchKeys,
-  getBalance as _getBalance,
+  getOrFetchKeys,
+  getBalance,
 } from './cashuBalanceService';
 
-export const getOrFetchKeys = _getOrFetchKeys;
-export const getBalance = _getBalance;
-
-// Import and re-export from cashuTokenOperations
 import {
-  requestMint as _requestMint,
-  checkMintStatus as _checkMintStatus,
-  completeMint as _completeMint,
-  receiveToken as _receiveToken,
-  sendToken as _sendToken,
-  requestMelt as _requestMelt,
-  completeMelt as _completeMelt,
-  completeMeltWithoutCleanup as _completeMeltWithoutCleanup,
-  cleanupMeltProofs as _cleanupMeltProofs,
-  sendP2PKToken as _sendP2PKToken,
-  receiveP2PKToken as _receiveP2PKToken,
-  recoverLockedChange as _recoverLockedChange,
-} from './cashuTokenOperations';
+  requestMint,
+  checkMintStatus,
+  completeMint,
+} from './operations/cashuMintOperations';
+import { receiveToken } from './operations/cashuReceiveToken';
+import { sendToken } from './operations/cashuSendToken';
+import {
+  requestMelt,
+  completeMelt,
+  completeMeltWithoutCleanup,
+  cleanupMeltProofs,
+} from './operations/cashuMeltOperations';
+import { sendP2PKToken } from './operations/cashuSendP2PK';
+import { receiveP2PKToken } from './operations/cashuReceiveP2PK';
+import { recoverLockedChange } from './operations/cashuRecoverLockedChange';
 
-export const requestMint = _requestMint;
-export const checkMintStatus = _checkMintStatus;
-export const completeMint = _completeMint;
-export const receiveToken = _receiveToken;
-export const sendToken = _sendToken;
-export const requestMelt = _requestMelt;
-export const completeMelt = _completeMelt;
-export const completeMeltWithoutCleanup = _completeMeltWithoutCleanup;
-export const cleanupMeltProofs = _cleanupMeltProofs;
-export const sendP2PKToken = _sendP2PKToken;
-export const receiveP2PKToken = _receiveP2PKToken;
-export const recoverLockedChange = _recoverLockedChange;
+export {
+  setCurrentAccount,
+  getStorageKey,
+  loadProofs,
+  saveProofs,
+  addProofs,
+  removeProofs,
+  loadProofsPartial,
+  removeSpentProofs,
+  subscribeToProofChanges,
+  getOrFetchKeys,
+  getBalance,
+  requestMint,
+  checkMintStatus,
+  completeMint,
+  receiveToken,
+  sendToken,
+  requestMelt,
+  completeMelt,
+  completeMeltWithoutCleanup,
+  cleanupMeltProofs,
+  sendP2PKToken,
+  receiveP2PKToken,
+  recoverLockedChange,
+};
 
 // Constants
 const KEYSETS_KEY = 'cashu_keysets';
@@ -87,7 +86,7 @@ const KEYSETS_KEY = 'cashu_keysets';
  * WARNING: This will delete all Cashu tokens - use with caution!
  */
 export const clearWallet = async (): Promise<void> => {
-  const STORAGE_KEY = _getStorageKey();
+  const STORAGE_KEY = getStorageKey();
   await SecureStore.deleteItemAsync(STORAGE_KEY);
   await deletePreferenceItem(KEYSETS_KEY);
   logger.info('Wallet cleared', { storageKey: STORAGE_KEY });
@@ -98,34 +97,34 @@ export const clearWallet = async (): Promise<void> => {
  */
 export default {
   // Account management
-  setCurrentAccount: _setCurrentAccount,
-  getStorageKey: _getStorageKey,
+  setCurrentAccount,
+  getStorageKey,
 
   // Proof management
-  loadProofs: _loadProofs,
-  saveProofs: _saveProofs,
-  addProofs: _addProofs,
-  removeProofs: _removeProofs,
-  loadProofsPartial: _loadProofsPartial,
-  removeSpentProofs: _removeSpentProofs,
+  loadProofs,
+  saveProofs,
+  addProofs,
+  removeProofs,
+  loadProofsPartial,
+  removeSpentProofs,
 
   // Balance
-  getOrFetchKeys: _getOrFetchKeys,
-  getBalance: _getBalance,
+  getOrFetchKeys,
+  getBalance,
 
   // Token operations
-  requestMint: _requestMint,
-  checkMintStatus: _checkMintStatus,
-  completeMint: _completeMint,
-  receiveToken: _receiveToken,
-  sendToken: _sendToken,
-  requestMelt: _requestMelt,
-  completeMelt: _completeMelt,
-  completeMeltWithoutCleanup: _completeMeltWithoutCleanup,
-  cleanupMeltProofs: _cleanupMeltProofs,
-  sendP2PKToken: _sendP2PKToken,
-  receiveP2PKToken: _receiveP2PKToken,
-  recoverLockedChange: _recoverLockedChange,
+  requestMint,
+  checkMintStatus,
+  completeMint,
+  receiveToken,
+  sendToken,
+  requestMelt,
+  completeMelt,
+  completeMeltWithoutCleanup,
+  cleanupMeltProofs,
+  sendP2PKToken,
+  receiveP2PKToken,
+  recoverLockedChange,
 
   // Wallet management
   clearWallet,

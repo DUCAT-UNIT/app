@@ -5,7 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTransactionPolling } from '../useTransactionPolling';
-import * as constants from '../../utils/constants';
+import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
 // Helper to render hooks
 function renderHook<T>(hook: () => T) {
@@ -35,6 +35,7 @@ jest.mock('../../utils/constants', () => ({
 describe('useTransactionPolling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetRequestPolicyForTests();
     (global.fetch as jest.Mock).mockClear();
   });
 
@@ -61,7 +62,13 @@ describe('useTransactionPolling', () => {
       await Promise.resolve(); // Let fetch resolve
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('https://api.test/tx/test-txid');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.test/tx/test-txid',
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
+    );
     expect(onConfirmed).toHaveBeenCalledWith(true);
   });
 
@@ -217,8 +224,17 @@ describe('useTransactionPolling', () => {
     });
 
     // Only second poll should be called
-    expect(global.fetch).toHaveBeenCalledWith('https://api.test/tx/txid-2');
-    expect(global.fetch).not.toHaveBeenCalledWith('https://api.test/tx/txid-1');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.test/tx/txid-2',
+      expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    expect(global.fetch).not.toHaveBeenCalledWith(
+      'https://api.test/tx/txid-1',
+      expect.any(Object),
+    );
   });
 
   it('should reach max attempts and call onConfirmed with false', async () => {

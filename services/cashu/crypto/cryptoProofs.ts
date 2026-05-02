@@ -110,9 +110,6 @@ export const selectProofsForAmount = (
   return selected;
 };
 
-export const normalizeProof = normalizeCashuProof;
-export const normalizeProofs = normalizeCashuProofs;
-
 // Helper: Find exact match for amount using subset sum
 const findExactMatch = (proofs: CashuProof[], target: number): CashuProof[] | null => {
   // Simple recursive subset sum - finds ANY combination that equals target

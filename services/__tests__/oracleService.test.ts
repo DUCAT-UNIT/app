@@ -35,10 +35,12 @@ global.fetch = mockFetch;
 
 import { fetchCurrentPrice, fetchPriceQuote } from '../oracleService';
 import { OracleAPI } from '@ducat-unit/client-sdk';
+import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
 describe('oracleService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetRequestPolicyForTests();
   });
 
   describe('fetchCurrentPrice', () => {
@@ -50,7 +52,13 @@ describe('oracleService', () => {
 
       const result = await fetchCurrentPrice();
 
-      expect(mockFetch).toHaveBeenCalledWith('https://test.price.server/api/price/latest');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://test.price.server/api/price/latest',
+        expect.objectContaining({
+          method: 'GET',
+          signal: expect.any(AbortSignal),
+        }),
+      );
       expect(result).toBe(100000);
     });
 

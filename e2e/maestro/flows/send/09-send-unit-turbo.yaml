@@ -7,9 +7,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 #   3. InsufficientTurboSheet appears on Review (ecash = 0)
 #   4. Verify both buttons are accessible, then tap "Send Normally"
 #   5. Complete on-chain UNIT send through ReviewScreen
-# NOTE: Full Turbo mint flow (Use Turbo UNIT → mint → P2PK) cannot be tested
-# E2E until Cashu mint supports the 'unit' currency. This test verifies the
-# sheet UX and the Send Normally fallback path.
+# NOTE: This deterministic suite intentionally verifies the sheet UX and Send
+# Normally fallback with EXPO_PUBLIC_E2E_BYPASS=true. The real onchain Cashu
+# mint -> P2PK TurboUNIT path lives in test/live-turbounit-smoke.yaml and must
+# run through scripts/runMaestroLive.mjs without E2E bypass.
 
 # Step 1: Create wallet with vault
 - runFlow: ../helpers/create-wallet-with-vault.yaml

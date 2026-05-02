@@ -1,5 +1,5 @@
 import * as bitcoin from 'bitcoinjs-lib';
-import { postJSON } from '../../../utils/apiClient';
+import { getWithRetry, postJSON } from '../../../utils/apiClient';
 import { broadcastTransaction } from '../../transactionBroadcastService';
 import { resetSwapDiagnosticsStore, useSwapDiagnosticsStore } from '../../../stores/swapDiagnosticsStore';
 import {
@@ -14,6 +14,7 @@ import {
 import { FAUCET_SWAP_URL } from '../constants';
 
 jest.mock('../../../utils/apiClient', () => ({
+  getWithRetry: jest.fn(),
   postJSON: jest.fn(),
 }));
 
@@ -194,11 +195,14 @@ describe('liquidation swapService', () => {
   });
 
   it('records a successful mempool poll', async () => {
-    (global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 });
+    (getWithRetry as jest.Mock).mockResolvedValue({ ok: true, status: 200 });
 
     await expect(waitForMempool('txid-success', 2, 0)).resolves.toBe(true);
 
-    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/tx/txid-success'));
+    expect(getWithRetry).toHaveBeenCalledWith(
+      expect.stringContaining('/tx/txid-success'),
+      expect.objectContaining({ timeout: 8000 }),
+    );
     expect(useSwapDiagnosticsStore.getState().polls[0]).toMatchObject({
       id: 'liquidation-mempool:txid-success',
       status: 'success',
@@ -208,7 +212,7 @@ describe('liquidation swapService', () => {
   });
 
   it('records timeout and network-error state while waiting for mempool visibility', async () => {
-    (global.fetch as jest.Mock)
+    (getWithRetry as jest.Mock)
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce({ ok: false, status: 404 });
 

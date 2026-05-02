@@ -23,9 +23,7 @@ export {
   createProof,
   splitAmount,
   sumProofs,
-  selectProofsForAmount,
-  normalizeProof,
-  normalizeProofs
+  selectProofsForAmount
 } from './cryptoProofs';
 export type { CashuProof } from './cryptoProofs';
 export { encodeToken, decodeToken, decodeTokenMetadata } from './cryptoTokens';

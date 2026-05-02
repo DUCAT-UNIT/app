@@ -11,7 +11,6 @@ import {
 import type { CashuProof } from './crypto/cryptoProofs';
 
 export type CashuAmountLike = AmountLike;
-export type CashuTsProofLike = ProofLike;
 
 const CASHU_TOKEN_PREFIX_V4 = /^cashuB/i;
 const DEFAULT_DUCAT_UNIT = 'unit';

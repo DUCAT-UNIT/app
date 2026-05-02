@@ -6,15 +6,17 @@ import Constants from 'expo-constants';
  * Centralizes E2E bypass detection. All E2E-conditional logic should
  * import `isE2E` from here instead of checking the env var inline.
  *
- * The bypass is only active in development runtime. Jest keeps it disabled so
- * unit tests can still assert normal security lifecycle behavior.
- * Production builds always return false (enforced in App.tsx and app.config.ts).
+ * The bypass is only active when explicitly configured. Development builds do
+ * not imply E2E because dev-client live Maestro flows must exercise real vault,
+ * PSBT, and TurboUNIT behavior. Jest keeps it disabled so unit tests can still
+ * assert normal security lifecycle behavior. Production builds always return
+ * false (enforced in App.tsx and app.config.ts).
  */
 
 let runtimeE2EBypass = false;
 
 export function enableRuntimeE2EBypass(): void {
-  if (__DEV__ || hasConfiguredE2EBypass()) {
+  if (hasConfiguredE2EBypass()) {
     runtimeE2EBypass = true;
   }
 }
@@ -33,9 +35,5 @@ export function hasConfiguredE2EBypass(): boolean {
 
 export function isE2E(): boolean {
   const isJest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID != null;
-  return !isJest && (
-    runtimeE2EBypass ||
-    hasConfiguredE2EBypass() ||
-    __DEV__
-  );
+  return !isJest && hasActiveE2EBypass();
 }

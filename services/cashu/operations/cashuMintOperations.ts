@@ -125,7 +125,7 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
 
     const unitKeyset = selectActiveUnitKeyset(keyData);
     const keysetId = unitKeyset.id;
-    let keys = unitKeyset.keys!;
+    const keys = unitKeyset.keys!;
 
     // Split amount into denominations
     const amounts = splitAmount(availableAmount);

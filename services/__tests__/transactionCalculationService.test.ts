@@ -17,6 +17,7 @@ import {
   getMockFetch,
   createMockResponse,
 } from './testUtils';
+import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
 jest.mock('../../utils/constants', () => ({
   getAddressUtxoUrl: jest.fn((address: string) => `https://api.example.com/address/${address}/utxo`),
@@ -25,6 +26,7 @@ jest.mock('../../utils/constants', () => ({
 describe('transactionCalculationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetRequestPolicyForTests();
     setupMockFetch();
   });
 

@@ -2,7 +2,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Setup Apple Reviewer Wallet
 # Imports a pre-funded wallet and creates a real vault via Guardian
-# Run WITHOUT EXPO_PUBLIC_E2E_BYPASS so vault creation goes through real Guardian protocol
+# Run through scripts/runMaestroLive.mjs, without EXPO_PUBLIC_E2E_BYPASS, so vault
+# creation goes through real Guardian protocol.
 
 - runFlow: ../helpers/clear-and-launch.yaml
 

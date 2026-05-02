@@ -63,6 +63,7 @@ export function AmountSection({
           btcPrice={btcPrice}
           disabled={maxValue <= 0}
           renderFooter={renderFooter}
+          testIDPrefix="btc-send-amount"
         />
       ) : (
         <UnitAmountSlider
@@ -73,6 +74,7 @@ export function AmountSection({
           label="Amount to Send"
           disabled={maxValue <= 0}
           renderFooter={renderFooter}
+          testIDPrefix="unit-send-amount"
         />
       )}
     </View>

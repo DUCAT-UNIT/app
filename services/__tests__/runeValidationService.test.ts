@@ -28,10 +28,12 @@ jest.mock('../../utils/constants', () => ({
 
 import { validateRuneConfiguration, getRuneIdString } from '../runeValidationService';
 import { logger } from '../../utils/logger';
+import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
 describe('runeValidationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetRequestPolicyForTests();
     global.fetch = jest.fn();
   });
 
@@ -87,10 +89,10 @@ describe('runeValidationService', () => {
 
       expect(result).toBe(true);
       expect(logger.warn).toHaveBeenCalledWith(
-        'Rune validation API unavailable',
+        'Rune validation failed (network error)',
         expect.objectContaining({
-          status: 404,
-          recommendation: 'Verify rune ID manually: https://ord-test.com',
+          error: expect.stringContaining('HTTP 404'),
+          recommendation: 'Verify rune ID manually before proceeding with transactions',
         })
       );
     });
@@ -284,9 +286,11 @@ describe('runeValidationService', () => {
       expect(global.fetch).toHaveBeenCalledWith(
         'https://ord-test.com/rune/123456:789',
         expect.objectContaining({
+          method: 'GET',
           headers: {
             'Accept': 'application/json',
           },
+          signal: expect.any(AbortSignal),
         })
       );
     });
