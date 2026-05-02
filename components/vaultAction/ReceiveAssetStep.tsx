@@ -16,6 +16,7 @@ interface ReceiveAssetStepProps {
   onContinue: () => void;
   testIDPrefix?: string;
   allowUsdc?: boolean;
+  allowTurboUnit?: boolean;
 }
 
 type OptionMeta = {
@@ -36,6 +37,17 @@ const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
       { icon: 'wallet-outline', label: 'Receive Sepolia USDC in your wallet' },
       { icon: 'shield-checkmark-outline', label: 'Best for cash out or holding stable value' },
       { icon: 'swap-horizontal-outline', label: 'Simple and direct' },
+    ],
+  },
+  TURBOUNIT: {
+    title: 'Receive as TurboUNIT',
+    subtitle: 'Instant ecash',
+    description: "We'll mint the issued UNIT into TurboUNIT after issuance.",
+    icon: 'unit_logo',
+    bullets: [
+      { icon: 'flash-outline', label: 'Receive spendable TurboUNIT in your wallet' },
+      { icon: 'qr-code-outline', label: 'Best for instant QR and link transfers' },
+      { icon: 'shield-checkmark-outline', label: 'Backed by the advertised Ducat Cashu mint' },
     ],
   },
   UNIT: {
@@ -59,9 +71,21 @@ export function ReceiveAssetStep({
   onContinue,
   testIDPrefix,
   allowUsdc = false,
+  allowTurboUnit = true,
 }: ReceiveAssetStepProps): React.JSX.Element {
   const [expandedAsset, setExpandedAsset] = useState<VaultSettlementRequestedAsset | null>(value);
-  const availableAssets: VaultSettlementRequestedAsset[] = allowUsdc ? ['USDC', 'UNIT'] : ['UNIT'];
+  const availableAssets: VaultSettlementRequestedAsset[] = [
+    ...(allowTurboUnit ? (['TURBOUNIT'] as const) : []),
+    ...(allowUsdc ? (['USDC'] as const) : []),
+    'UNIT',
+  ];
+  const availableAssetCopy = allowTurboUnit && allowUsdc
+    ? 'Choose TurboUNIT, Sepolia USDC, or UNIT'
+    : allowTurboUnit
+      ? 'Choose TurboUNIT or UNIT'
+      : allowUsdc
+        ? 'Choose Sepolia USDC or UNIT'
+        : 'You will receive UNIT';
 
   const handleSelect = (asset: VaultSettlementRequestedAsset) => {
     onChange(asset);
@@ -89,7 +113,7 @@ export function ReceiveAssetStep({
           <Text style={styles.stepLabel}>Step 2 of 3</Text>
           <Text style={styles.title}>How do you want to receive your loan?</Text>
           <Text style={styles.subtitle}>
-            {allowUsdc ? 'Choose Sepolia USDC or UNIT' : 'You will receive UNIT'} for{' '}
+            {availableAssetCopy} for{' '}
             <Text style={styles.subtitleAmount}>{formatVaultUsd(amountUsd)}</Text>.
           </Text>
         </View>

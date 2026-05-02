@@ -35,9 +35,12 @@ interface RepaySpecificState {
   // Form data
   repayAmountUnit: number; // Face-value USD shown to the user, settles as protocol UNIT 1:1
   availableUsdcBalance: number; // Available Sepolia USDC that can be swapped back into UNIT for repay
+  availableTurboUnitBalance: number; // Available TurboUNIT that can be melted back into UNIT for repay
   availableDirectUnitBalance: number; // Spendable Mutinynet UNIT already in-wallet for direct repay resume
   estimatedUsdcIn: string | null;
   estimatedSepoliaFeeEth: string | null;
+  estimatedTurboUnitIn: string | null;
+  estimatedTurboUnitFee: string | null;
   issueTxid: string | null;
 }
 
@@ -48,8 +51,10 @@ interface RepaySpecificActions {
   // Form actions
   setRepayAmountUnit: (amount: number) => void;
   setAvailableUsdcBalance: (balance: number) => void;
+  setAvailableTurboUnitBalance: (balance: number) => void;
   setAvailableDirectUnitBalance: (balance: number) => void;
   setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
+  setTurboRepayQuote: (estimatedTurboUnitIn: string | null, estimatedTurboUnitFee: string | null) => void;
   setIssueTxid: (txid: string | null) => void;
 
   // Repay-specific computed getters
@@ -67,9 +72,12 @@ type RepayExtension = RepaySpecificState & RepaySpecificActions;
 const repaySpecificInitialState: RepaySpecificState = {
   repayAmountUnit: 0,
   availableUsdcBalance: 0,
+  availableTurboUnitBalance: 0,
   availableDirectUnitBalance: 0,
   estimatedUsdcIn: null,
   estimatedSepoliaFeeEth: null,
+  estimatedTurboUnitIn: null,
+  estimatedTurboUnitFee: null,
   issueTxid: null,
 };
 
@@ -90,6 +98,11 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
       set({ availableUsdcBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
+    setAvailableTurboUnitBalance: (availableTurboUnitBalance: number) => {
+      logger.debug('[RepayStore] setAvailableTurboUnitBalance:', availableTurboUnitBalance);
+      set({ availableTurboUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    },
+
     setAvailableDirectUnitBalance: (availableDirectUnitBalance: number) => {
       logger.debug('[RepayStore] setAvailableDirectUnitBalance:', availableDirectUnitBalance);
       set({ availableDirectUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
@@ -100,6 +113,14 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
       set({
         estimatedUsdcIn,
         estimatedSepoliaFeeEth,
+      } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    },
+
+    setTurboRepayQuote: (estimatedTurboUnitIn: string | null, estimatedTurboUnitFee: string | null) => {
+      logger.debug('[RepayStore] setTurboRepayQuote:', { estimatedTurboUnitIn, estimatedTurboUnitFee });
+      set({
+        estimatedTurboUnitIn,
+        estimatedTurboUnitFee,
       } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
@@ -134,10 +155,19 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
     },
 
     getMaxRepayable: () => {
-      const { currentUnitBorrowed, availableUsdcBalance, availableDirectUnitBalance } = get();
+      const {
+        currentUnitBorrowed,
+        availableUsdcBalance,
+        availableTurboUnitBalance,
+        availableDirectUnitBalance,
+      } = get();
       // The repay can be funded by either direct released UNIT already in-wallet
-      // or by Sepolia USDC that will be swapped back into UNIT.
-      const availableRepayFunding = Math.max(availableUsdcBalance, availableDirectUnitBalance);
+      // or by TurboUNIT/Sepolia USDC that will be converted back into UNIT.
+      const availableRepayFunding = Math.max(
+        availableUsdcBalance,
+        availableTurboUnitBalance,
+        availableDirectUnitBalance,
+      );
       return Math.min(currentUnitBorrowed, availableRepayFunding);
     },
 
@@ -164,9 +194,12 @@ export const useRepay = () => {
   const currentBtcLocked = useRepayStore((state) => state.currentBtcLocked);
   const bitcoinPrice = useRepayStore((state) => state.bitcoinPrice);
   const availableUsdcBalance = useRepayStore((state) => state.availableUsdcBalance);
+  const availableTurboUnitBalance = useRepayStore((state) => state.availableTurboUnitBalance);
   const availableDirectUnitBalance = useRepayStore((state) => state.availableDirectUnitBalance);
   const estimatedUsdcIn = useRepayStore((state) => state.estimatedUsdcIn);
   const estimatedSepoliaFeeEth = useRepayStore((state) => state.estimatedSepoliaFeeEth);
+  const estimatedTurboUnitIn = useRepayStore((state) => state.estimatedTurboUnitIn);
+  const estimatedTurboUnitFee = useRepayStore((state) => state.estimatedTurboUnitFee);
   const currentStep = useRepayStore((state) => state.currentStep);
   const processingStep = useRepayStore((state) => state.processingStep);
   const loading = useRepayStore((state) => state.loading);
@@ -180,8 +213,10 @@ export const useRepay = () => {
   const setCurrentVaultData = useRepayStore((state) => state.setCurrentVaultData);
   const setBitcoinPrice = useRepayStore((state) => state.setBitcoinPrice);
   const setAvailableUsdcBalance = useRepayStore((state) => state.setAvailableUsdcBalance);
+  const setAvailableTurboUnitBalance = useRepayStore((state) => state.setAvailableTurboUnitBalance);
   const setAvailableDirectUnitBalance = useRepayStore((state) => state.setAvailableDirectUnitBalance);
   const setRepayQuote = useRepayStore((state) => state.setRepayQuote);
+  const setTurboRepayQuote = useRepayStore((state) => state.setTurboRepayQuote);
   const setCurrentStep = useRepayStore((state) => state.setCurrentStep);
   const setProcessingStep = useRepayStore((state) => state.setProcessingStep);
   const setLoading = useRepayStore((state) => state.setLoading);
@@ -213,9 +248,13 @@ export const useRepay = () => {
   const newHealthStatus = getHealthStatus(newHealthFactor);
 
   // Can only repay up to the debt amount or available balance, whichever is smaller
-  const maxRepayable = Math.min(currentUnitBorrowed, Math.max(availableUsdcBalance, availableDirectUnitBalance));
+  const maxRepayable = Math.min(
+    currentUnitBorrowed,
+    Math.max(availableUsdcBalance, availableTurboUnitBalance, availableDirectUnitBalance),
+  );
   const maxRepayableUsd = protocolUnitToUsd(maxRepayable);
   const availableRepayBalanceUsd = protocolUnitToUsd(availableUsdcBalance);
+  const availableTurboUnitBalanceUsd = protocolUnitToUsd(availableTurboUnitBalance);
   const availableDirectUnitBalanceUsd = protocolUnitToUsd(availableDirectUnitBalance);
 
   return {
@@ -228,10 +267,14 @@ export const useRepay = () => {
     bitcoinPrice,
     availableRepayBalanceUsd,
     availableUsdcBalance,
+    availableTurboUnitBalance,
+    availableTurboUnitBalanceUsd,
     availableDirectUnitBalance,
     availableDirectUnitBalanceUsd,
     estimatedUsdcIn,
     estimatedSepoliaFeeEth,
+    estimatedTurboUnitIn,
+    estimatedTurboUnitFee,
     currentStep,
     processingStep,
     loading,
@@ -260,7 +303,9 @@ export const useRepay = () => {
     setCurrentVaultData,
     setBitcoinPrice,
     setAvailableUsdcBalance,
+    setAvailableTurboUnitBalance,
     setAvailableDirectUnitBalance,
+    setTurboRepayQuote,
     setCurrentStep,
     setProcessingStep,
     setLoading,

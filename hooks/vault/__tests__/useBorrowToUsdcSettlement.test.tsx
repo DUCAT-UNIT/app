@@ -12,6 +12,8 @@ jest.mock('../../../stores/borrowStore', () => ({
 
 jest.mock('../../../stores/vaultSettlementStore', () => ({
   useVaultSettlementStore: jest.fn(),
+  resolveVaultSettlementRequestedAsset: (asset: string, allowUsdc: boolean) =>
+    asset === 'USDC' && !allowUsdc ? 'UNIT' : asset,
 }));
 
 jest.mock('../../../services/vaultSettlementService', () => ({
@@ -36,6 +38,7 @@ const mockCompleteSettlement = jest.fn();
 const mockResetSettlement = jest.fn();
 const mockQuoteBorrowToUsdc = jest.fn();
 const mockSettleIssuedUnitToUsdc = jest.fn();
+const mockSettleIssuedUnitToTurboUnit = jest.fn();
 const mockGetBoolean = jest.fn();
 
 jest.mock('../../../services/settingsService', () => ({
@@ -49,7 +52,7 @@ function configure({
   receiveAsset = 'UNIT',
   borrowResult = { txid: 'issue-txid', vaultTxid: 'vault-txid' },
 }: {
-  receiveAsset?: 'UNIT' | 'USDC';
+  receiveAsset?: 'UNIT' | 'USDC' | 'TURBOUNIT';
   borrowResult?: { txid: string; vaultTxid: string } | null;
 } = {}): void {
   mockBorrow.mockResolvedValue(borrowResult);
@@ -58,6 +61,7 @@ function configure({
     minimumUsdcOut: '98.00',
   });
   mockSettleIssuedUnitToUsdc.mockResolvedValue({ status: 'settled' });
+  mockSettleIssuedUnitToTurboUnit.mockResolvedValue({ status: 'settled' });
 
   (useBorrow as jest.Mock).mockReturnValue({
     borrowAmountUsd: 123.45,
@@ -80,6 +84,7 @@ function configure({
   (useIssuedUnitSettlement as jest.Mock).mockReturnValue({
     quoteBorrowToUsdc: mockQuoteBorrowToUsdc,
     settleIssuedUnitToUsdc: mockSettleIssuedUnitToUsdc,
+    settleIssuedUnitToTurboUnit: mockSettleIssuedUnitToTurboUnit,
   });
 }
 
@@ -122,6 +127,22 @@ describe('useBorrowToUsdcSettlement', () => {
     expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'USDC');
     expect(mockSetIssueResult).toHaveBeenCalledWith('issue-txid', 'vault-txid');
     expect(mockSettleIssuedUnitToUsdc).toHaveBeenCalledWith('borrow', 123.45);
+    expect(mockSettleIssuedUnitToTurboUnit).not.toHaveBeenCalled();
+    expect(mockCompleteSettlement).not.toHaveBeenCalled();
+    expect(mockSetCurrentStep).toHaveBeenCalledWith('success');
+  });
+
+  it('settles borrowed UNIT to TurboUNIT when requested by the store', async () => {
+    configure({ receiveAsset: 'TURBOUNIT' });
+    const { result } = renderHook(() => useBorrowToUsdcSettlement());
+
+    await act(async () => {
+      await result.current.borrow();
+    });
+
+    expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'TURBOUNIT');
+    expect(mockSettleIssuedUnitToTurboUnit).toHaveBeenCalledWith('borrow', 123.45);
+    expect(mockSettleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockCompleteSettlement).not.toHaveBeenCalled();
     expect(mockSetCurrentStep).toHaveBeenCalledWith('success');
   });

@@ -6,7 +6,11 @@
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
-import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
+import {
+  requiresVaultSettlementUnitSend,
+  resolveVaultSettlementRequestedAsset,
+  type VaultSettlementRequestedAsset,
+} from '../../../stores/vaultSettlementStore';
 import { usePriceStore } from '../../../stores/priceStore';
 import {
   computeHealthFactor,
@@ -128,14 +132,16 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   // BTC balance for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
   const storedReceiveAsset = getReceiveAssetIfPresent(store);
-  const receiveAsset = usdcFeaturesEnabled ? storedReceiveAsset : storedReceiveAsset ? 'UNIT' : null;
+  const receiveAsset = storedReceiveAsset
+    ? resolveVaultSettlementRequestedAsset(storedReceiveAsset, usdcFeaturesEnabled)
+    : null;
 
   // Calculate estimated fee
   const estimatedFeeSats = useMemo(() => {
     switch (config.operationType) {
       case 'borrow':
         return getOpCostBorrow(store.selectedFeeRate, utxos) +
-          (receiveAsset === 'USDC' ? getVaultSettlementReserveSats(store.selectedFeeRate) : 0);
+          (requiresVaultSettlementUnitSend(receiveAsset) ? getVaultSettlementReserveSats(store.selectedFeeRate) : 0);
       case 'repay':
         return getOpCostRepay(store.selectedFeeRate, utxos);
       case 'deposit':
@@ -254,17 +260,17 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     }, 900);
     (continueUnlockTimerRef.current as { unref?: () => void }).unref?.();
 
-    if (!usdcFeaturesEnabled && 'setReceiveAsset' in store) {
-      (store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }).setReceiveAsset('UNIT');
+    if (storedReceiveAsset && receiveAsset && storedReceiveAsset !== receiveAsset && 'setReceiveAsset' in store) {
+      (store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }).setReceiveAsset(receiveAsset);
     }
-    if (config.routes.selection && usdcFeaturesEnabled) {
+    if (config.routes.selection && 'setReceiveAsset' in store) {
       store.setCurrentStep('payout');
       navigation.navigate(config.routes.selection);
       return;
     }
     store.setCurrentStep('confirm');
     navigation.navigate(config.routes.confirm);
-  }, [validation.canContinue, isContinuing, usdcFeaturesEnabled, store, navigation, config.routes.selection, config.routes.confirm]);
+  }, [validation.canContinue, isContinuing, storedReceiveAsset, receiveAsset, store, navigation, config.routes.selection, config.routes.confirm]);
 
   const handleLiveValueChange = useCallback((val: number) => {
     setPreviewAmount(val);

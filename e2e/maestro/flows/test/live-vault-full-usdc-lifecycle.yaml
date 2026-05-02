@@ -103,6 +103,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "vault-create-continue-btn"
 
+- scrollUntilVisible:
+    element:
+      id: "vault-create-payout-usdc-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-create-payout-usdc-card"
+- tapOn:
+    id: "vault-create-payout-continue-btn"
+
 - extendedWaitUntil:
     visible:
       id: "vault-create-confirm-screen"

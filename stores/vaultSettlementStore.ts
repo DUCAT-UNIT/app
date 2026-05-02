@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type VaultSettlementKind = 'borrow' | 'open' | 'repay';
-export type VaultSettlementRequestedAsset = 'USDC' | 'UNIT';
+export type VaultSettlementRequestedAsset = 'USDC' | 'UNIT' | 'TURBOUNIT';
 
 export type VaultSettlementPhase =
   | 'idle'
@@ -14,6 +14,13 @@ export type VaultSettlementPhase =
   | 'signing_bridge_send'
   | 'broadcasting_bridge_send'
   | 'waiting_bridge_fulfillment'
+  | 'creating_turbo_mint'
+  | 'building_turbo_send'
+  | 'signing_turbo_send'
+  | 'broadcasting_turbo_send'
+  | 'waiting_turbo_mint'
+  | 'melting_turbo_repay'
+  | 'waiting_turbo_release'
   | 'swapping_repay'
   | 'waiting_redemption_release'
   | 'repaying_vault'
@@ -21,7 +28,7 @@ export type VaultSettlementPhase =
   | 'pending_settlement'
   | 'needs_retry';
 
-export type VaultSettlementPayoutAsset = 'USDC' | 'wUNIT' | 'UNIT';
+export type VaultSettlementPayoutAsset = 'USDC' | 'wUNIT' | 'UNIT' | 'TURBOUNIT';
 
 interface VaultSettlementState {
   kind: VaultSettlementKind | null;
@@ -38,6 +45,11 @@ interface VaultSettlementState {
   bridgeClientRequestId: string | null;
   bridgeDepositAddress: string | null;
   bridgeSendTxid: string | null;
+  cashuMintQuoteId: string | null;
+  cashuMintDepositAddress: string | null;
+  cashuMintSendTxid: string | null;
+  cashuMeltQuoteId: string | null;
+  cashuMeltTxid: string | null;
   sepoliaTxHash: string | null;
   redemptionId: string | null;
   redemptionBurnTxHash: string | null;
@@ -60,6 +72,10 @@ interface VaultSettlementActions {
   setBridgeClientRequestId: (clientRequestId: string) => void;
   setBridgeIntent: (intentId: string, depositAddress: string) => void;
   setBridgeSendTxid: (txid: string) => void;
+  setCashuMintQuote: (quoteId: string, depositAddress: string) => void;
+  setCashuMintSendTxid: (txid: string) => void;
+  setCashuMeltQuote: (quoteId: string) => void;
+  setCashuMeltTxid: (txid: string) => void;
   setRedemptionResult: (redemptionId: string, burnTxHash: string) => void;
   completeSettlement: (
     asset: VaultSettlementPayoutAsset,
@@ -77,7 +93,7 @@ export const VAULT_SETTLEMENT_STORAGE_KEY = 'vault-settlement';
 export const VAULT_SETTLEMENT_PERSIST_TTL_MS = 24 * 60 * 60 * 1000;
 
 const settlementKinds: VaultSettlementKind[] = ['borrow', 'open', 'repay'];
-const requestedAssets: VaultSettlementRequestedAsset[] = ['USDC', 'UNIT'];
+const requestedAssets: VaultSettlementRequestedAsset[] = ['USDC', 'UNIT', 'TURBOUNIT'];
 const phases: VaultSettlementPhase[] = [
   'idle',
   'quoting',
@@ -87,6 +103,13 @@ const phases: VaultSettlementPhase[] = [
   'signing_bridge_send',
   'broadcasting_bridge_send',
   'waiting_bridge_fulfillment',
+  'creating_turbo_mint',
+  'building_turbo_send',
+  'signing_turbo_send',
+  'broadcasting_turbo_send',
+  'waiting_turbo_mint',
+  'melting_turbo_repay',
+  'waiting_turbo_release',
   'swapping_repay',
   'waiting_redemption_release',
   'repaying_vault',
@@ -94,7 +117,7 @@ const phases: VaultSettlementPhase[] = [
   'pending_settlement',
   'needs_retry',
 ];
-const payoutAssets: VaultSettlementPayoutAsset[] = ['USDC', 'wUNIT', 'UNIT'];
+const payoutAssets: VaultSettlementPayoutAsset[] = ['USDC', 'wUNIT', 'UNIT', 'TURBOUNIT'];
 
 export const initialVaultSettlementState: VaultSettlementState = {
   kind: null,
@@ -111,6 +134,11 @@ export const initialVaultSettlementState: VaultSettlementState = {
   bridgeClientRequestId: null,
   bridgeDepositAddress: null,
   bridgeSendTxid: null,
+  cashuMintQuoteId: null,
+  cashuMintDepositAddress: null,
+  cashuMintSendTxid: null,
+  cashuMeltQuoteId: null,
+  cashuMeltTxid: null,
   sepoliaTxHash: null,
   redemptionId: null,
   redemptionBurnTxHash: null,
@@ -130,6 +158,17 @@ function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+export function resolveVaultSettlementRequestedAsset(
+  asset: VaultSettlementRequestedAsset,
+  allowUsdc: boolean,
+): VaultSettlementRequestedAsset {
+  return asset === 'USDC' && !allowUsdc ? 'UNIT' : asset;
+}
+
+export function requiresVaultSettlementUnitSend(asset: VaultSettlementRequestedAsset | null | undefined): boolean {
+  return asset === 'USDC' || asset === 'TURBOUNIT';
 }
 
 function finiteNonNegative(value: unknown): number {
@@ -176,6 +215,11 @@ export function normalizeVaultSettlementPersistedState(
     bridgeClientRequestId: stringOrNull(value.bridgeClientRequestId),
     bridgeDepositAddress: stringOrNull(value.bridgeDepositAddress),
     bridgeSendTxid: stringOrNull(value.bridgeSendTxid),
+    cashuMintQuoteId: stringOrNull(value.cashuMintQuoteId),
+    cashuMintDepositAddress: stringOrNull(value.cashuMintDepositAddress),
+    cashuMintSendTxid: stringOrNull(value.cashuMintSendTxid),
+    cashuMeltQuoteId: stringOrNull(value.cashuMeltQuoteId),
+    cashuMeltTxid: stringOrNull(value.cashuMeltTxid),
     sepoliaTxHash: stringOrNull(value.sepoliaTxHash),
     redemptionId: stringOrNull(value.redemptionId),
     redemptionBurnTxHash: stringOrNull(value.redemptionBurnTxHash),
@@ -202,6 +246,11 @@ function persistableState(state: VaultSettlementStore): VaultSettlementState {
     bridgeClientRequestId: state.bridgeClientRequestId,
     bridgeDepositAddress: state.bridgeDepositAddress,
     bridgeSendTxid: state.bridgeSendTxid,
+    cashuMintQuoteId: state.cashuMintQuoteId,
+    cashuMintDepositAddress: state.cashuMintDepositAddress,
+    cashuMintSendTxid: state.cashuMintSendTxid,
+    cashuMeltQuoteId: state.cashuMeltQuoteId,
+    cashuMeltTxid: state.cashuMeltTxid,
     sepoliaTxHash: state.sepoliaTxHash,
     redemptionId: state.redemptionId,
     redemptionBurnTxHash: state.redemptionBurnTxHash,
@@ -265,6 +314,18 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
           }),
 
         setBridgeSendTxid: (bridgeSendTxid) => update({ bridgeSendTxid }),
+
+        setCashuMintQuote: (cashuMintQuoteId, cashuMintDepositAddress) =>
+          update({
+            cashuMintQuoteId,
+            cashuMintDepositAddress,
+          }),
+
+        setCashuMintSendTxid: (cashuMintSendTxid) => update({ cashuMintSendTxid }),
+
+        setCashuMeltQuote: (cashuMeltQuoteId) => update({ cashuMeltQuoteId }),
+
+        setCashuMeltTxid: (cashuMeltTxid) => update({ cashuMeltTxid }),
 
         setRedemptionResult: (redemptionId, redemptionBurnTxHash) =>
           update({

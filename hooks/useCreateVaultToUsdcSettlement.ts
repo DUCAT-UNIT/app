@@ -1,7 +1,10 @@
 import { useCallback, useMemo } from 'react';
 import { useCreateVault, type CreateVaultParams, type UseCreateVaultResult } from './useCreateVault';
 import { useVaultCreation, useVaultCreationStore } from '../stores/vaultCreationStore';
-import { useVaultSettlementStore } from '../stores/vaultSettlementStore';
+import {
+  resolveVaultSettlementRequestedAsset,
+  useVaultSettlementStore,
+} from '../stores/vaultSettlementStore';
 import { useIssuedUnitSettlement } from './vault/useIssuedUnitSettlement';
 import { formatVaultSettlementAmountInput } from '../services/vaultSettlementService';
 import { getBoolean, SettingKeys } from '../services/settingsService';
@@ -21,12 +24,16 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
     completeSettlement,
     reset: resetSettlement,
   } = useVaultSettlementStore();
-  const { quoteBorrowToUsdc, settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
+  const {
+    quoteBorrowToUsdc,
+    settleIssuedUnitToUsdc,
+    settleIssuedUnitToTurboUnit,
+  } = useIssuedUnitSettlement();
 
   const createVault = useCallback(
     async (params?: CreateVaultParams) => {
       const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
-      const requestedReceiveAsset = usdcFeaturesEnabled ? receiveAsset : 'UNIT';
+      const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
 
       startOperation('open', borrowAmountUsd, requestedReceiveAsset);
       setPhase('issuing_vault');
@@ -40,11 +47,19 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       setIssueResult(issueTxid, latestVaultCreationState.vaultTxid);
       if (requestedReceiveAsset === 'UNIT') {
         completeSettlement('UNIT', formatVaultSettlementAmountInput(borrowAmountUsd));
-      } else {
+      } else if (requestedReceiveAsset === 'USDC') {
         const settlement = await settleIssuedUnitToUsdc('open', borrowAmountUsd);
         const canComplete =
           settlement.status === 'settled' ||
           (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+        if (!canComplete) {
+          return issueTxid;
+        }
+      } else {
+        const settlement = await settleIssuedUnitToTurboUnit('open', borrowAmountUsd);
+        const canComplete =
+          settlement.status === 'settled' ||
+          (settlement.status === 'pending_settlement' && !!settlement.cashuMintSendTxid);
         if (!canComplete) {
           return issueTxid;
         }
@@ -62,6 +77,7 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       setIssueResult,
       completeSettlement,
       settleIssuedUnitToUsdc,
+      settleIssuedUnitToTurboUnit,
       setCurrentStep,
     ],
   );

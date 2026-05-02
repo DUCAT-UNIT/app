@@ -65,7 +65,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 
 - assertVisible:
-    id: "vault-create-payout-usdc-card"
+    id: "vault-create-payout-turbounit-card"
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-payout-usdc-card"
+    commands:
+      - assertVisible:
+          id: "vault-create-payout-usdc-card"
 
 - assertVisible:
     id: "vault-create-payout-unit-card"

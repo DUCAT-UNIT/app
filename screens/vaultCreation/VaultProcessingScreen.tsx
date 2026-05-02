@@ -23,10 +23,15 @@ interface VaultProcessingScreenProps {
 export default function VaultProcessingScreen({ navigation }: VaultProcessingScreenProps) {
   const { processingStep, currentStep, error, txid, setCurrentStep } = useVaultCreation();
   const { settingsHandlers } = useSettingsHandlers();
-  const { kind, phase, faceValueUsd } = useVaultSettlementStore();
-  const { settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
+  const { kind, phase, faceValueUsd, requestedPayoutAsset } = useVaultSettlementStore();
+  const { settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } = useIssuedUnitSettlement();
   const [isRetryingSettlement, setIsRetryingSettlement] = useState(false);
-  const isSettlementRetryNeeded = !error && kind === 'open' && phase === 'needs_retry' && faceValueUsd > 0;
+  const isSettlementRetryNeeded =
+    !error &&
+    kind === 'open' &&
+    phase === 'needs_retry' &&
+    requestedPayoutAsset !== 'UNIT' &&
+    faceValueUsd > 0;
 
   // Navigate to success screen when complete
   useEffect(() => {
@@ -49,10 +54,15 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
 
     setIsRetryingSettlement(true);
     try {
-      const settlement = await settleIssuedUnitToUsdc('open', faceValueUsd);
+      const settlement = requestedPayoutAsset === 'TURBOUNIT'
+        ? await settleIssuedUnitToTurboUnit('open', faceValueUsd)
+        : await settleIssuedUnitToUsdc('open', faceValueUsd);
       const canComplete =
         settlement.status === 'settled' ||
-        (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+        (
+          settlement.status === 'pending_settlement' &&
+          (!!settlement.bridgeSendTxid || !!settlement.cashuMintSendTxid)
+        );
       if (canComplete) {
         setCurrentStep('success');
       }
@@ -72,7 +82,9 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
     faceValueUsd,
     isRetryingSettlement,
     kind,
+    requestedPayoutAsset,
     setCurrentStep,
+    settleIssuedUnitToTurboUnit,
     settleIssuedUnitToUsdc,
   ]);
 
@@ -113,7 +125,7 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
             disabled={isRetryingSettlement}
             accessibilityRole="button"
             accessibilityLabel="Retry settlement"
-            accessibilityHint="Retries USDC settlement without creating another vault"
+            accessibilityHint="Retries settlement without creating another vault"
           >
             <Text style={styles.backButtonText}>
               {isRetryingSettlement ? 'Retrying...' : 'Retry settlement'}

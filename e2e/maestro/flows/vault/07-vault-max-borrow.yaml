@@ -23,9 +23,19 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "unit-slider-max-btn"
 - waitForAnimationToEnd
 
-# Continue to confirm
+# Continue to payout selection
 - tapOn:
     id: "vault-borrow-continue-btn"
+
+- scrollUntilVisible:
+    element:
+      id: "vault-borrow-payout-unit-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-borrow-payout-unit-card"
+- tapOn:
+    id: "vault-borrow-payout-continue-btn"
 
 - extendedWaitUntil:
     visible:

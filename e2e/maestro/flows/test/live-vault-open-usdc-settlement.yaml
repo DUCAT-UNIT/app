@@ -61,7 +61,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 
-# Continue to confirm
+# Continue to payout selection
 - runFlow: ../helpers/dismiss-debug-warning.yaml
 - tapOn:
     point: "50%,97%"
@@ -75,6 +75,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           point: "50%,97%"
+
+- scrollUntilVisible:
+    element:
+      id: "vault-create-payout-usdc-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-create-payout-usdc-card"
+- tapOn:
+    id: "vault-create-payout-continue-btn"
 
 - extendedWaitUntil:
     visible:

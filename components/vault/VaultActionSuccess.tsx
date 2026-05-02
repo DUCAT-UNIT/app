@@ -30,7 +30,7 @@ interface VaultActionSuccessProps {
   amount: number;
   usdValue: number;
   txid: string;
-  unit: 'BTC' | 'UNIT' | 'USD' | 'USDC' | 'wUNIT';
+  unit: 'BTC' | 'UNIT' | 'USD' | 'USDC' | 'wUNIT' | 'TURBOUNIT';
   titleOverride?: string;
   messageOverride?: string;
   txItems?: VaultActionTxItem[];
@@ -113,6 +113,8 @@ export default function VaultActionSuccess({
         ? `${formatFiat(amount)} USDC`
         : unit === 'wUNIT'
           ? `${amount.toFixed(2)} wUNIT`
+          : unit === 'TURBOUNIT'
+            ? `${amount.toFixed(2)} TurboUNIT`
           : `${amount.toFixed(2)} UNIT`;
   const shouldShowUsdApproximation = unit !== 'USD' && unit !== 'USDC';
 
@@ -173,6 +175,7 @@ export default function VaultActionSuccess({
 
 export function buildVaultSuccessTxItems(params: {
   mutinynetTxid?: string | null;
+  turboMintSendTxid?: string | null;
   sepoliaTxHash?: string | null;
   includeSepolia?: boolean;
 }): VaultActionTxItem[] {
@@ -183,6 +186,14 @@ export function buildVaultSuccessTxItems(params: {
       label: 'Mutinynet creation',
       txid: params.mutinynetTxid,
       explorerUrl: getTxUrl(params.mutinynetTxid),
+    });
+  }
+
+  if (params.turboMintSendTxid) {
+    items.push({
+      label: 'TurboUNIT mint send',
+      txid: params.turboMintSendTxid,
+      explorerUrl: getTxUrl(params.turboMintSendTxid),
     });
   }
 

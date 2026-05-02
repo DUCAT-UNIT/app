@@ -28,6 +28,7 @@ const mockSettlementStore = {
 const mockIssuedSettlement = {
   quoteBorrowToUsdc: jest.fn(),
   settleIssuedUnitToUsdc: jest.fn(),
+  settleIssuedUnitToTurboUnit: jest.fn(),
 };
 
 const mockGetBoolean = jest.fn();
@@ -45,6 +46,8 @@ jest.mock('../../stores/vaultCreationStore', () => ({
 
 jest.mock('../../stores/vaultSettlementStore', () => ({
   useVaultSettlementStore: jest.fn(() => mockSettlementStore),
+  resolveVaultSettlementRequestedAsset: (asset: string, allowUsdc: boolean) =>
+    asset === 'USDC' && !allowUsdc ? 'UNIT' : asset,
 }));
 
 jest.mock('../vault/useIssuedUnitSettlement', () => ({
@@ -72,6 +75,7 @@ describe('useCreateVaultToUsdcSettlement', () => {
       minimumUsdcOut: '123.00',
     });
     mockIssuedSettlement.settleIssuedUnitToUsdc.mockResolvedValue({ status: 'settled' });
+    mockIssuedSettlement.settleIssuedUnitToTurboUnit.mockResolvedValue({ status: 'settled' });
     mockVaultCreationState.borrowAmountUsd = 125.5;
     mockVaultCreationState.receiveAsset = 'USDC';
     mockVaultCreationState.vaultTxid = 'vault-txid-1';
@@ -139,6 +143,22 @@ describe('useCreateVaultToUsdcSettlement', () => {
     expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'UNIT');
     expect(mockSettlementStore.completeSettlement).toHaveBeenCalledWith('UNIT', 'formatted-125.5');
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
+    expect(mockIssuedSettlement.settleIssuedUnitToTurboUnit).not.toHaveBeenCalled();
+    expect(mockVaultCreationState.setCurrentStep).toHaveBeenCalledWith('success');
+  });
+
+  it('settles issued UNIT to TurboUNIT when requested', async () => {
+    mockVaultCreationState.receiveAsset = 'TURBOUNIT';
+    const { result } = renderHook(() => useCreateVaultToUsdcSettlement());
+
+    await act(async () => {
+      await result.current.createVault();
+    });
+
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'TURBOUNIT');
+    expect(mockIssuedSettlement.settleIssuedUnitToTurboUnit).toHaveBeenCalledWith('open', 125.5);
+    expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
+    expect(mockSettlementStore.completeSettlement).not.toHaveBeenCalled();
     expect(mockVaultCreationState.setCurrentStep).toHaveBeenCalledWith('success');
   });
 

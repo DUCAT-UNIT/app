@@ -34,8 +34,9 @@ export default function VaultProcessingScreen({
     kind: settlementKind,
     phase: settlementPhase,
     faceValueUsd: settlementFaceValueUsd,
+    requestedPayoutAsset,
   } = useVaultSettlementStore();
-  const { settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
+  const { settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } = useIssuedUnitSettlement();
   const appState = useRef(AppState.currentState);
   const hasShownError = useRef(false);
   const [isRetryingSettlement, setIsRetryingSettlement] = useState(false);
@@ -118,10 +119,15 @@ export default function VaultProcessingScreen({
 
     setIsRetryingSettlement(true);
     try {
-      const settlement = await settleIssuedUnitToUsdc('borrow', settlementFaceValueUsd);
+      const settlement = requestedPayoutAsset === 'TURBOUNIT'
+        ? await settleIssuedUnitToTurboUnit('borrow', settlementFaceValueUsd)
+        : await settleIssuedUnitToUsdc('borrow', settlementFaceValueUsd);
       const canComplete =
         settlement.status === 'settled' ||
-        (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+        (
+          settlement.status === 'pending_settlement' &&
+          (!!settlement.bridgeSendTxid || !!settlement.cashuMintSendTxid)
+        );
       if (canComplete) {
         store.setCurrentStep('success');
       }
@@ -141,6 +147,8 @@ export default function VaultProcessingScreen({
     isRetryingSettlement,
     settlementKind,
     settlementFaceValueUsd,
+    requestedPayoutAsset,
+    settleIssuedUnitToTurboUnit,
     settleIssuedUnitToUsdc,
     store,
   ]);
@@ -154,6 +162,7 @@ export default function VaultProcessingScreen({
     settlementPhase === 'needs_retry' &&
     settlementKind === 'borrow' &&
     config.operationType === 'borrow' &&
+    requestedPayoutAsset !== 'UNIT' &&
     settlementFaceValueUsd > 0;
   const showActionButton = !!error || isSettlementRetryNeeded;
   const actionLabel = error
@@ -212,7 +221,7 @@ export default function VaultProcessingScreen({
               accessibilityHint={
                 error
                   ? 'Returns to the input screen to try again'
-                  : 'Retries USDC settlement without creating another borrow'
+                  : 'Retries settlement without creating another borrow'
               }
             >
               <Text style={styles.cancelButtonText} accessibilityElementsHidden>

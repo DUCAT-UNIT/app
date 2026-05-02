@@ -16,41 +16,36 @@ interface RepayConfirmScreenNewProps {
 
 export default function RepayConfirmScreenNew({ navigation }: RepayConfirmScreenNewProps) {
   const store = useRepay();
-  const { repayAmountUsd, setRepayQuote } = store;
+  const { repayAmountUsd, setRepayQuote, setTurboRepayQuote } = store;
   const vaultHook = useRepayFromUsdcSettlement();
-  const { quoteRepayFromUsdc } = vaultHook;
+  const { quoteRepaySettlement } = vaultHook;
   const { settingsHandlers } = useSettingsHandlers();
   const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
-  const config = useMemo(() => createRepayConfirmConfig(allowUsdc), [allowUsdc]);
+  const config = useMemo(() => createRepayConfirmConfig({ allowUsdc, allowTurboUnit: true }), [allowUsdc]);
 
   useEffect(() => {
     let cancelled = false;
 
     if (repayAmountUsd <= 0) {
       setRepayQuote(null, null);
+      setTurboRepayQuote(null, null);
       return () => {
         cancelled = true;
       };
     }
 
-    if (!allowUsdc) {
-      setRepayQuote('0', '0');
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    quoteRepayFromUsdc(repayAmountUsd)
+    quoteRepaySettlement(repayAmountUsd)
       .catch(() => {
         if (!cancelled) {
           setRepayQuote(null, null);
+          setTurboRepayQuote(null, null);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [allowUsdc, quoteRepayFromUsdc, repayAmountUsd, setRepayQuote]);
+  }, [quoteRepaySettlement, repayAmountUsd, setRepayQuote, setTurboRepayQuote]);
 
   return (
     <VaultConfirmScreen

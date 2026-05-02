@@ -1,8 +1,15 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import { useCallback } from 'react';
 import type { SendIntent } from '../../contexts/TransactionBuildContext';
+import { useCashuOperations } from '../../contexts/CashuContext';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
+import {
+  checkMintStatus,
+  completeMint,
+  requestMint,
+  type CashuProof,
+} from '../../services/cashu/cashuWalletService';
 import { createBridgeIntent } from '../../services/bridgeApiService';
 import { deriveSepoliaAccount } from '../../services/evmWalletService';
 import { broadcastTransaction, createUnitIntent as createUnitIntentService, signIntent as signIntentService } from '../../services/transaction';
@@ -22,6 +29,8 @@ import {
 
 const BRIDGE_SEND_BUILD_RETRY_MS = 2_500;
 const BRIDGE_SEND_BUILD_TIMEOUT_MS = 90_000;
+const CASHU_MINT_POLL_INTERVAL_MS = 4_000;
+const CASHU_MINT_COMPLETION_TIMEOUT_MS = 720_000;
 
 interface BridgeIntentUnconfirmedUtxo {
   txid: string;
@@ -43,6 +52,14 @@ function isUnitAvailabilityError(error: unknown): boolean {
 
 function isBridgeSettlementPendingError(error: unknown): boolean {
   return error instanceof Error && error.message === 'Bridge settlement is still processing.';
+}
+
+function isTurboMintPendingError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'TurboUNIT mint is still processing.';
+}
+
+function sumCashuProofs(proofs: CashuProof[]): number {
+  return proofs.reduce((sum, proof) => sum + proof.amount, 0);
 }
 
 function getUnitIntentInputs(intent: SendIntent): Array<{ txid: string; vout: number }> {
@@ -164,6 +181,8 @@ interface IssuedUnitSettlementResult {
   payoutAmount?: string | null;
   bridgeIntentId?: string;
   bridgeSendTxid?: string;
+  cashuMintQuoteId?: string;
+  cashuMintSendTxid?: string;
   error?: string;
 }
 
@@ -171,6 +190,7 @@ export function useIssuedUnitSettlement() {
   const { wallet, currentAccount } = useWallet();
   const { fetchBalance } = useBalance();
   const { fetchTransactionHistory } = useTransactionHistory();
+  const { refresh: refreshCashuBalance } = useCashuOperations();
   const showSnackbar = useNotificationStore((state) => state.showSnackbar);
   const startPolling = useTransactionPolling().startPolling;
 
@@ -188,6 +208,8 @@ export function useIssuedUnitSettlement() {
   const setBridgeClientRequestId = useVaultSettlementStore((state) => state.setBridgeClientRequestId);
   const setBridgeIntent = useVaultSettlementStore((state) => state.setBridgeIntent);
   const setBridgeSendTxid = useVaultSettlementStore((state) => state.setBridgeSendTxid);
+  const setCashuMintQuote = useVaultSettlementStore((state) => state.setCashuMintQuote);
+  const setCashuMintSendTxid = useVaultSettlementStore((state) => state.setCashuMintSendTxid);
   const completeSettlement = useVaultSettlementStore((state) => state.completeSettlement);
   const markPendingSettlement = useVaultSettlementStore((state) => state.markPendingSettlement);
   const markNeedsRetry = useVaultSettlementStore((state) => state.markNeedsRetry);
@@ -199,6 +221,37 @@ export function useIssuedUnitSettlement() {
       return quote;
     },
     [setQuote],
+  );
+
+  const waitForCashuMintCompletion = useCallback(
+    async (quoteId: string, fallbackAmount: number): Promise<number> => {
+      const deadline = Date.now() + CASHU_MINT_COMPLETION_TIMEOUT_MS;
+
+      while (Date.now() < deadline) {
+        const status = await checkMintStatus(quoteId);
+        const alreadyIssued = status.state === 'ISSUED' ||
+          (
+            (status.amountPaid ?? 0) > 0 &&
+            (status.amountIssued ?? 0) >= (status.amountPaid ?? 0)
+          );
+
+        if (status.availableAmount > 0 || (!alreadyIssued && status.paid && status.state === 'PAID')) {
+          const proofs = await completeMint(quoteId, status.availableAmount || fallbackAmount);
+          await refreshCashuBalance().catch(() => undefined);
+          return sumCashuProofs(proofs) || status.availableAmount || fallbackAmount;
+        }
+
+        if (alreadyIssued) {
+          await refreshCashuBalance().catch(() => undefined);
+          return status.amountIssued || fallbackAmount;
+        }
+
+        await delay(CASHU_MINT_POLL_INTERVAL_MS);
+      }
+
+      throw new Error('TurboUNIT mint is still processing.');
+    },
+    [refreshCashuBalance],
   );
 
   const buildBridgeSendIntent = useCallback(
@@ -416,8 +469,173 @@ export function useIssuedUnitSettlement() {
     ],
   );
 
+  const settleIssuedUnitToTurboUnit = useCallback(
+    async (kind: VaultSettlementKind, faceValueUsd: number): Promise<IssuedUnitSettlementResult> => {
+      if (!wallet?.taprootAddress || !wallet?.segwitAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      const amountInput = formatVaultSettlementAmountInput(faceValueUsd);
+      const amountSmallestUnits = Math.round(faceValueUsd * 100);
+      let cashuMintQuoteId: string | undefined;
+      let broadcastedMintSendTxid: string | null = null;
+
+      try {
+        const persistedSettlement = useVaultSettlementStore.getState();
+        cashuMintQuoteId = persistedSettlement.cashuMintQuoteId || undefined;
+        let cashuMintDepositAddress = persistedSettlement.cashuMintDepositAddress || undefined;
+        broadcastedMintSendTxid = persistedSettlement.cashuMintSendTxid;
+
+        if (!cashuMintQuoteId || !cashuMintDepositAddress) {
+          setPhase('creating_turbo_mint');
+          const quote = await requestMint(amountSmallestUnits);
+          cashuMintQuoteId = quote.quoteId;
+          cashuMintDepositAddress = quote.depositAddress;
+          setCashuMintQuote(quote.quoteId, quote.depositAddress);
+        }
+
+        if (!broadcastedMintSendTxid) {
+          setPhase('building_turbo_send');
+          const mintSendIntent = await buildBridgeSendIntent(cashuMintDepositAddress, amountInput);
+          const inputsToLock = getUnitIntentInputs(mintSendIntent);
+          if (inputsToLock.length > 0) {
+            await markUtxosAsSpent(inputsToLock);
+          }
+
+          try {
+            setPhase('signing_turbo_send');
+            const signed = await signIntentService(mintSendIntent, currentAccount);
+            const signedIntent: SendIntent = {
+              ...mintSendIntent,
+              signedTxHex: signed.signedTxHex,
+              txid: signed.txid,
+            };
+
+            setPhase('broadcasting_turbo_send');
+            broadcastedMintSendTxid = await broadcastTransaction(signed.signedTxHex);
+            const finalMintSendTxid = broadcastedMintSendTxid;
+            setCashuMintSendTxid(finalMintSendTxid);
+
+            const { outputs, spentInputs, parentTxid } = extractPendingOutputs(
+              signedIntent,
+              signed.signedTxHex,
+              wallet,
+              pendingTransactions,
+            );
+
+            for (const spentInput of spentInputs) {
+              if (pendingTransactions[spentInput.txid]?.status === 'pending') {
+                await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+              }
+            }
+
+            await addPendingTransaction(
+              finalMintSendTxid,
+              outputs,
+              'UNIT',
+              parentTxid,
+              amountSmallestUnits,
+              spentInputs,
+            );
+
+            startPolling(
+              finalMintSendTxid,
+              () => {
+                confirmTransaction(finalMintSendTxid).catch(() => undefined);
+                fetchBalance().catch(() => undefined);
+                fetchTransactionHistory?.().catch(() => undefined);
+              },
+              () => {
+                fetchBalance().catch(() => undefined);
+                fetchTransactionHistory?.().catch(() => undefined);
+              },
+            );
+          } catch (error) {
+            if (!broadcastedMintSendTxid && inputsToLock.length > 0) {
+              await unmarkUtxosAsSpent(inputsToLock);
+            }
+            throw error;
+          }
+        }
+
+        setPhase('waiting_turbo_mint');
+        const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, amountSmallestUnits);
+        const payoutAmount = formatVaultSettlementAmountInput(mintedAmount / 100);
+
+        completeSettlement('TURBOUNIT', payoutAmount);
+
+        return {
+          status: 'settled',
+          payoutAsset: 'TURBOUNIT',
+          payoutAmount,
+          cashuMintQuoteId,
+          ...(broadcastedMintSendTxid ? { cashuMintSendTxid: broadcastedMintSendTxid } : {}),
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to settle issued UNIT to TurboUNIT';
+        logger.error('[VaultSettlement] TurboUNIT settlement error', {
+          kind,
+          message,
+        });
+
+        if (isTurboMintPendingError(error)) {
+          markPendingSettlement(message);
+          showSnackbar({
+            title: 'TurboUNIT mint still processing',
+            description: 'The vault action succeeded. TurboUNIT minting is still catching up.',
+            type: 'info',
+            duration: 7000,
+          });
+          return {
+            status: 'pending_settlement',
+            ...(cashuMintQuoteId ? { cashuMintQuoteId } : {}),
+            ...(broadcastedMintSendTxid ? { cashuMintSendTxid: broadcastedMintSendTxid } : {}),
+            error: message,
+          };
+        }
+
+        markNeedsRetry(message);
+        showSnackbar({
+          title: 'Settlement needs retry',
+          description: 'The vault action succeeded, but automatic TurboUNIT settlement needs retry.',
+          type: 'warning',
+          duration: 7000,
+        });
+        return {
+          status: 'needs_retry',
+          ...(cashuMintQuoteId ? { cashuMintQuoteId } : {}),
+          ...(broadcastedMintSendTxid ? { cashuMintSendTxid: broadcastedMintSendTxid } : {}),
+          error: message,
+        };
+      }
+    },
+    [
+      wallet,
+      currentAccount,
+      setPhase,
+      setCashuMintQuote,
+      setCashuMintSendTxid,
+      buildBridgeSendIntent,
+      markUtxosAsSpent,
+      pendingTransactions,
+      addPendingTransaction,
+      startPolling,
+      confirmTransaction,
+      fetchBalance,
+      fetchTransactionHistory,
+      completeSettlement,
+      unmarkUtxosAsSpent,
+      markUtxoAsSpent,
+      markPendingSettlement,
+      markNeedsRetry,
+      showSnackbar,
+      waitForCashuMintCompletion,
+    ],
+  );
+
   return {
     quoteBorrowToUsdc,
     settleIssuedUnitToUsdc,
+    settleIssuedUnitToTurboUnit,
   };
 }

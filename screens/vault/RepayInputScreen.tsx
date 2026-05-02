@@ -5,6 +5,7 @@
 import { NavigationProp } from '@react-navigation/native';
 import React,{ useEffect,useMemo } from 'react';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useBalance, useEvmAssets } from '../../contexts/WalletDataContext';
 import { useRepayFromUsdcSettlement } from '../../hooks/vault';
 import { useRepay } from '../../stores/repayStore';
@@ -18,9 +19,14 @@ interface RepayInputScreenNewProps {
 
 export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewProps) {
   const store = useRepay();
-  const { setAvailableRepayBalanceUsd, setAvailableDirectUnitBalance } = store;
+  const {
+    setAvailableRepayBalanceUsd,
+    setAvailableTurboUnitBalance,
+    setAvailableDirectUnitBalance,
+  } = store;
   const { loadVaultData } = useRepayFromUsdcSettlement();
   const { runesBalance } = useBalance();
+  const { balance: cashuBalance } = useCashuBalanceState();
   const { evmBalances } = useEvmAssets();
   const { settingsHandlers } = useSettingsHandlers();
   const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
@@ -37,6 +43,11 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
     return Number.isFinite(parsed) ? parsed : 0;
   }, [runesBalance]);
 
+  const turboUnitBalanceUsd = useMemo((): number => {
+    const parsed = (cashuBalance || 0) / 100;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [cashuBalance]);
+
   // Sync the currently repayable face value into the repay store.
   useEffect(() => {
     setAvailableRepayBalanceUsd(repayBalanceUsd);
@@ -46,13 +57,17 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
     setAvailableDirectUnitBalance(directUnitBalanceUsd);
   }, [directUnitBalanceUsd, setAvailableDirectUnitBalance]);
 
+  useEffect(() => {
+    setAvailableTurboUnitBalance(turboUnitBalanceUsd);
+  }, [setAvailableTurboUnitBalance, turboUnitBalanceUsd]);
+
   return (
     <VaultInputScreen
       navigation={navigation}
       config={repayInputConfig}
       store={store}
       loadVaultData={loadVaultData}
-      additionalData={{ repayBalanceUsd, directUnitBalanceUsd, allowUsdc }}
+      additionalData={{ repayBalanceUsd, directUnitBalanceUsd, turboUnitBalanceUsd, allowUsdc, allowTurboUnit: true }}
     />
   );
 }

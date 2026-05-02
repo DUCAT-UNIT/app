@@ -24,6 +24,10 @@ import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider'
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { usePrice } from '../../stores/priceStore';
+import {
+  requiresVaultSettlementUnitSend,
+  resolveVaultSettlementRequestedAsset,
+} from '../../stores/vaultSettlementStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { logger } from '../../utils/logger';
@@ -56,7 +60,6 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     healthFactor,
     setBtcAmount,
     setBorrowAmountUsd,
-    setReceiveAsset,
     setBitcoinPrice,
     setCurrentStep,
     error,
@@ -73,6 +76,7 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
   const { btcPrice } = usePrice();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
   logger.debug('[VaultAmounts] segwitBalance:', { segwitBalance, loadingBalance, utxoCount: utxos?.length, btcPrice });
 
   // Calculate estimated fee based on selected rate and UTXOs
@@ -114,14 +118,14 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     if (!segwitBalance) return 0;
     const openFeeCostSats = estimatedFeeSats;
     const bridgeSettlementReserveSats =
-      usdcFeaturesEnabled && receiveAsset === 'USDC' ? getVaultSettlementReserveSats(selectedFeeRate) : 0;
+      requiresVaultSettlementUnitSend(effectiveReceiveAsset) ? getVaultSettlementReserveSats(selectedFeeRate) : 0;
     const futureRepayReserveSats = getOpCostRepay(selectedFeeRate, utxos);
     const totalReservedBtc =
       (openFeeCostSats + bridgeSettlementReserveSats + futureRepayReserveSats) / 100_000_000;
 
     // Leave enough spendable BTC for the hidden bridge send and a later repay.
     return Math.max(segwitBalance - totalReservedBtc, 0);
-  }, [estimatedFeeSats, receiveAsset, segwitBalance, selectedFeeRate, usdcFeaturesEnabled, utxos]);
+  }, [effectiveReceiveAsset, estimatedFeeSats, segwitBalance, selectedFeeRate, utxos]);
 
   // Calculate max borrowable for preview BTC amount (at 160% minimum health)
   const previewMaxBorrowable = useMemo(() => {
@@ -178,15 +182,9 @@ export default function VaultAmountsScreen({ navigation }: VaultAmountsScreenPro
     }, 900);
     (continueUnlockTimerRef.current as { unref?: () => void }).unref?.();
 
-    if (!usdcFeaturesEnabled) {
-      setReceiveAsset('UNIT');
-      setCurrentStep('confirm');
-      navigation.navigate('VaultConfirm');
-      return;
-    }
     setCurrentStep('payout');
     navigation.navigate('VaultPayout');
-  }, [canContinue, isContinuing, navigation, setCurrentStep, setReceiveAsset, usdcFeaturesEnabled]);
+  }, [canContinue, isContinuing, navigation, setCurrentStep]);
 
   const hasChanges = previewBtcAmount > 0 && previewBorrowAmountUsd > 0;
   const continueDisabled = !canContinue || isContinuing;

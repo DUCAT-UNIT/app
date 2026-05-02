@@ -83,14 +83,19 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   }, [resetSettlement, reset, navigation]);
 
   const repaidFromUsdc = settingsHandlers.usdcFeaturesEnabled && kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
-  const successUnit = repaidFromUsdc ? 'USDC' : 'USD';
-  const successAmount = repaidFromUsdc ? Number.parseFloat(payoutAmount) || repayAmountUsd : repayAmountUsd;
-  const titleOverride = repaidFromUsdc ? 'Repayment Complete!' : undefined;
+  const repaidFromTurboUnit = kind === 'repay' && payoutAsset === 'TURBOUNIT' && payoutAmount;
+  const successUnit = repaidFromUsdc ? 'USDC' : repaidFromTurboUnit ? 'TURBOUNIT' : 'USD';
+  const successAmount = repaidFromUsdc || repaidFromTurboUnit
+    ? Number.parseFloat(payoutAmount) || repayAmountUsd
+    : repayAmountUsd;
+  const titleOverride = repaidFromUsdc || repaidFromTurboUnit ? 'Repayment Complete!' : undefined;
   const messageOverride = repaidFromUsdc
     ? 'Sepolia USDC was swapped back into UNIT and the released UNIT repaid your vault on Mutinynet.'
-    : settingsHandlers.usdcFeaturesEnabled
-      ? settlementError || undefined
-      : undefined;
+    : repaidFromTurboUnit
+      ? 'TurboUNIT was melted back into UNIT and the released UNIT repaid your vault on Mutinynet.'
+      : settingsHandlers.usdcFeaturesEnabled
+        ? settlementError || undefined
+        : undefined;
 
   return (
     <VaultActionSuccess

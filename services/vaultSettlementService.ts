@@ -524,6 +524,20 @@ export function getVaultSettlementStatusMessage(
       return 'Broadcasting the bridge send...';
     case 'waiting_bridge_fulfillment':
       return includeSepoliaCopy ? 'Waiting for Sepolia USDC settlement...' : 'Waiting for USDC settlement...';
+    case 'creating_turbo_mint':
+      return 'Preparing TurboUNIT mint quote...';
+    case 'building_turbo_send':
+      return 'Preparing UNIT send to the Cashu mint...';
+    case 'signing_turbo_send':
+      return 'Signing the TurboUNIT mint send...';
+    case 'broadcasting_turbo_send':
+      return 'Broadcasting the TurboUNIT mint send...';
+    case 'waiting_turbo_mint':
+      return 'Waiting for TurboUNIT proofs from the mint...';
+    case 'melting_turbo_repay':
+      return 'Melting TurboUNIT into on-chain UNIT...';
+    case 'waiting_turbo_release':
+      return 'Waiting for melted UNIT on Mutinynet...';
     case 'swapping_repay':
       return includeSepoliaCopy ? 'Swapping Sepolia USDC into UNIT on Sepolia...' : 'Swapping USDC into UNIT...';
     case 'waiting_redemption_release':

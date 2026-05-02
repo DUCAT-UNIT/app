@@ -71,13 +71,18 @@ export interface RepayVaultStore extends VaultStoreState {
   setRepayAmountUsd: (amount: number) => void;
   maxRepayableUsd: number;
   availableRepayBalanceUsd: number;
+  availableTurboUnitBalanceUsd: number;
   availableDirectUnitBalance: number;
   availableDirectUnitBalanceUsd: number;
   setAvailableRepayBalanceUsd: (balance: number) => void;
+  setAvailableTurboUnitBalance: (balance: number) => void;
   setAvailableDirectUnitBalance: (balance: number) => void;
   estimatedUsdcIn: string | null;
   estimatedSepoliaFeeEth: string | null;
+  estimatedTurboUnitIn: string | null;
+  estimatedTurboUnitFee: string | null;
   setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
+  setTurboRepayQuote: (estimatedTurboUnitIn: string | null, estimatedTurboUnitFee: string | null) => void;
 }
 
 export interface WithdrawVaultStore extends VaultStoreState {

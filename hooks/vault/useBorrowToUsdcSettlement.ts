@@ -1,6 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { useBorrow } from '../../stores/borrowStore';
-import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  resolveVaultSettlementRequestedAsset,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 import { useBorrowVault, type UseBorrowVaultResult } from './useBorrowVault';
 import { useIssuedUnitSettlement } from './useIssuedUnitSettlement';
 import { formatVaultSettlementAmountInput } from '../../services/vaultSettlementService';
@@ -20,11 +23,15 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     completeSettlement,
     reset: resetSettlement,
   } = useVaultSettlementStore();
-  const { quoteBorrowToUsdc, settleIssuedUnitToUsdc } = useIssuedUnitSettlement();
+  const {
+    quoteBorrowToUsdc,
+    settleIssuedUnitToUsdc,
+    settleIssuedUnitToTurboUnit,
+  } = useIssuedUnitSettlement();
 
   const borrow = useCallback(async () => {
     const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
-    const requestedReceiveAsset = usdcFeaturesEnabled ? store.receiveAsset : 'UNIT';
+    const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(store.receiveAsset, usdcFeaturesEnabled);
 
     startOperation('borrow', store.borrowAmountUsd, requestedReceiveAsset);
     setPhase('issuing_vault');
@@ -37,11 +44,19 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     setIssueResult(result.txid, result.vaultTxid);
     if (requestedReceiveAsset === 'UNIT') {
       completeSettlement('UNIT', formatVaultSettlementAmountInput(store.borrowAmountUsd));
-    } else {
+    } else if (requestedReceiveAsset === 'USDC') {
       const settlement = await settleIssuedUnitToUsdc('borrow', store.borrowAmountUsd);
       const canComplete =
         settlement.status === 'settled' ||
         (settlement.status === 'pending_settlement' && !!settlement.bridgeSendTxid);
+      if (!canComplete) {
+        return result;
+      }
+    } else {
+      const settlement = await settleIssuedUnitToTurboUnit('borrow', store.borrowAmountUsd);
+      const canComplete =
+        settlement.status === 'settled' ||
+        (settlement.status === 'pending_settlement' && !!settlement.cashuMintSendTxid);
       if (!canComplete) {
         return result;
       }
@@ -57,6 +72,7 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     setIssueResult,
     completeSettlement,
     settleIssuedUnitToUsdc,
+    settleIssuedUnitToTurboUnit,
   ]);
 
   const cancel = useCallback(() => {

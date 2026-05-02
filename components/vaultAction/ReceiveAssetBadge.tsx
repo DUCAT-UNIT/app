@@ -37,6 +37,13 @@ export function getReceiveAssetMeta(asset: ReceiveAssetBadgeAsset): ReceiveAsset
         network: 'Sepolia',
         note: 'Fallback if auto-swap is unavailable',
       };
+    case 'TURBOUNIT':
+      return {
+        icon: 'unit_logo',
+        label: 'TurboUNIT',
+        network: 'Cashu',
+        note: 'Minted to TurboUNIT after issuance',
+      };
     case 'UNIT':
     default:
       return {

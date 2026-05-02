@@ -27,6 +27,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
     phase,
     payoutAsset,
     payoutAmount,
+    cashuMintSendTxid,
     sepoliaTxHash,
     error: settlementError,
     reset: resetSettlement,
@@ -37,6 +38,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
   const showUsdcSettlementCopy = settingsHandlers.usdcFeaturesEnabled;
   const showUsdcPayout = showUsdcSettlementCopy && payoutAsset === 'USDC';
   const showWrappedUnitPayout = showUsdcSettlementCopy && payoutAsset === 'wUNIT';
+  const showTurboUnitPayout = payoutAsset === 'TURBOUNIT';
 
   // VaultActionSuccess expects satoshis for BTC amounts (formatBTC converts sats to BTC)
   const btcAmountSats = Math.round(btcAmount * 100_000_000);
@@ -76,11 +78,13 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
       ? 'USDC'
       : payoutAsset === 'UNIT'
         ? 'UNIT'
+        : showTurboUnitPayout
+          ? 'TURBOUNIT'
         : showWrappedUnitPayout
           ? 'wUNIT'
         : 'BTC';
   const successAmount =
-    (showUsdcPayout || showWrappedUnitPayout || payoutAsset === 'UNIT') && payoutAmount
+    (showUsdcPayout || showWrappedUnitPayout || showTurboUnitPayout || payoutAsset === 'UNIT') && payoutAmount
       ? Number.parseFloat(payoutAmount) || btcAmountSats
       : btcAmountSats;
   const titleOverride =
@@ -88,6 +92,8 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
       ? 'Vault Created!'
       : payoutAsset === 'UNIT'
         ? 'UNIT Received!'
+        : showTurboUnitPayout
+          ? 'TurboUNIT Received!'
         : showWrappedUnitPayout
           ? 'wUNIT Received!'
       : phase === 'pending_settlement'
@@ -100,6 +106,8 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
       ? 'BTC collateral is locked and the issued UNIT settled to Sepolia USDC.'
       : payoutAsset === 'UNIT'
         ? 'BTC collateral is locked and the issued UNIT is now available in your wallet.'
+        : showTurboUnitPayout
+          ? 'BTC collateral is locked and the issued UNIT was minted into TurboUNIT.'
         : showWrappedUnitPayout
           ? 'BTC collateral is locked. Auto-swap could not clear safely, so the issued UNIT was credited as wUNIT on Sepolia.'
       : phase === 'pending_settlement'
@@ -113,6 +121,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
           : undefined;
   const txItems = buildVaultSuccessTxItems({
     mutinynetTxid: txid,
+    turboMintSendTxid: showTurboUnitPayout ? cashuMintSendTxid : null,
     sepoliaTxHash,
     includeSepolia: showUsdcPayout,
   });
@@ -121,7 +130,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
     <VaultActionSuccess
       actionType="create"
       amount={successAmount}
-      usdValue={payoutAsset === 'UNIT' || showWrappedUnitPayout ? borrowAmountUsd : btcUsdValue}
+      usdValue={payoutAsset === 'UNIT' || showWrappedUnitPayout || showTurboUnitPayout ? borrowAmountUsd : btcUsdValue}
       txid={txid}
       unit={successUnit}
       titleOverride={titleOverride}

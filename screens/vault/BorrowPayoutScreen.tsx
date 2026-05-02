@@ -3,6 +3,7 @@ import { NavigationProp } from '@react-navigation/native';
 import { ReceiveAssetStep } from '../../components/vaultAction';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBorrow } from '../../stores/borrowStore';
+import { resolveVaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
 
 interface BorrowPayoutScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -12,12 +13,13 @@ export default function BorrowPayoutScreen({ navigation }: BorrowPayoutScreenPro
   const { borrowAmountUsd, receiveAsset, setReceiveAsset, setCurrentStep } = useBorrow();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
 
   useEffect(() => {
-    if (!usdcFeaturesEnabled && receiveAsset !== 'UNIT') {
+    if (receiveAsset !== effectiveReceiveAsset) {
       setReceiveAsset('UNIT');
     }
-  }, [receiveAsset, setReceiveAsset, usdcFeaturesEnabled]);
+  }, [effectiveReceiveAsset, receiveAsset, setReceiveAsset]);
 
   const handleBack = useCallback(() => {
     setCurrentStep('input');
@@ -32,12 +34,13 @@ export default function BorrowPayoutScreen({ navigation }: BorrowPayoutScreenPro
   return (
     <ReceiveAssetStep
       amountUsd={borrowAmountUsd}
-      value={usdcFeaturesEnabled ? receiveAsset : 'UNIT'}
+      value={effectiveReceiveAsset}
       onChange={setReceiveAsset}
       onBack={handleBack}
       onContinue={handleContinue}
       testIDPrefix="vault-borrow-payout"
       allowUsdc={usdcFeaturesEnabled}
+      allowTurboUnit
     />
   );
 }

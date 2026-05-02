@@ -8,7 +8,11 @@ import { useCallback,useMemo,useRef,useState } from 'react';
 import { Alert } from 'react-native';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../../contexts/WalletDataContext';
-import type { VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
+import {
+  requiresVaultSettlementUnitSend,
+  resolveVaultSettlementRequestedAsset,
+  type VaultSettlementRequestedAsset,
+} from '../../../stores/vaultSettlementStore';
 import { usePrice } from '../../../stores/priceStore';
 import {
   getOpCostBorrow,
@@ -87,7 +91,9 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   const summaryRows = config.getSummaryRows(store, btcPrice);
   const selectedFeeRate = store.selectedFeeRate;
   const storedReceiveAsset = getReceiveAssetIfPresent(store);
-  const receiveAsset = usdcFeaturesEnabled ? storedReceiveAsset : storedReceiveAsset ? 'UNIT' : null;
+  const receiveAsset = storedReceiveAsset
+    ? resolveVaultSettlementRequestedAsset(storedReceiveAsset, usdcFeaturesEnabled)
+    : null;
 
   // Dynamic fee calculation
   const estimatedFeeSats = useMemo(() => {
@@ -110,7 +116,7 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
         break;
     }
     const settlementReserve =
-      config.operationType === 'borrow' && receiveAsset === 'USDC'
+      config.operationType === 'borrow' && requiresVaultSettlementUnitSend(receiveAsset)
         ? getVaultSettlementReserveSats(selectedFeeRate)
         : 0;
     return baseFee + settlementReserve;
@@ -171,9 +177,9 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   }, [config, store, vaultHook, navigation]);
 
   const handleBack = useCallback(() => {
-    store.setCurrentStep(config.routes.selection && usdcFeaturesEnabled ? 'payout' : 'input');
+    store.setCurrentStep(config.routes.selection && 'receiveAsset' in store ? 'payout' : 'input');
     navigation.goBack();
-  }, [config.routes.selection, store, navigation, usdcFeaturesEnabled]);
+  }, [config.routes.selection, store, navigation]);
 
   const handleClose = useCallback(() => {
     store.reset();

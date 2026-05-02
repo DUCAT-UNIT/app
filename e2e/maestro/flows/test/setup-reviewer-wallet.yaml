@@ -240,6 +240,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     point: "201, 855"
 
+# Keep reviewer setup on on-chain UNIT after the route picker.
+- scrollUntilVisible:
+    element:
+      id: "vault-create-payout-unit-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-create-payout-unit-card"
+- tapOn:
+    id: "vault-create-payout-continue-btn"
+
 # Wait for confirm screen to fully render and be interactive
 - extendedWaitUntil:
     visible:

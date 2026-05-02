@@ -32,6 +32,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
     phase,
     payoutAsset,
     payoutAmount,
+    cashuMintSendTxid,
     sepoliaTxHash,
     error: settlementError,
     reset: resetSettlement,
@@ -41,6 +42,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
   const showUsdcSettlementCopy = settingsHandlers.usdcFeaturesEnabled;
   const showUsdcPayout = showUsdcSettlementCopy && payoutAsset === 'USDC';
   const showWrappedUnitPayout = showUsdcSettlementCopy && payoutAsset === 'wUNIT';
+  const showTurboUnitPayout = payoutAsset === 'TURBOUNIT';
 
   useEffect(() => {
     if (txid) {
@@ -92,16 +94,20 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
       ? 'USDC'
       : payoutAsset === 'UNIT'
         ? 'UNIT'
+        : showTurboUnitPayout
+          ? 'TURBOUNIT'
         : showWrappedUnitPayout
           ? 'wUNIT'
         : 'USD';
   const successAmount =
-    (showUsdcPayout || showWrappedUnitPayout || payoutAsset === 'UNIT') && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
+    (showUsdcPayout || showWrappedUnitPayout || showTurboUnitPayout || payoutAsset === 'UNIT') && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
   const titleOverride =
     showUsdcPayout
       ? 'Sepolia USDC Received!'
       : payoutAsset === 'UNIT'
         ? 'UNIT Received!'
+        : showTurboUnitPayout
+          ? 'TurboUNIT Received!'
         : showWrappedUnitPayout
           ? 'wUNIT Received!'
       : phase === 'pending_settlement'
@@ -114,6 +120,8 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
       ? 'Borrow recorded and automatically settled to Sepolia USDC.'
       : payoutAsset === 'UNIT'
         ? 'Borrow recorded and issued as UNIT on Mutinynet.'
+        : showTurboUnitPayout
+          ? 'Borrow recorded and the issued UNIT was minted into TurboUNIT.'
         : showWrappedUnitPayout
           ? 'Borrow recorded. Auto-swap could not clear safely, so you received wUNIT on Sepolia instead.'
       : phase === 'pending_settlement'
@@ -127,6 +135,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
           : undefined;
   const txItems = buildVaultSuccessTxItems({
     mutinynetTxid: txid,
+    turboMintSendTxid: showTurboUnitPayout ? cashuMintSendTxid : null,
     sepoliaTxHash,
     includeSepolia: showUsdcPayout,
   });

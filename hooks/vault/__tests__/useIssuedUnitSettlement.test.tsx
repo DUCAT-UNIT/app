@@ -1,6 +1,11 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useBalance, useTransactionHistory } from '../../../contexts/WalletDataContext';
 import { useWallet } from '../../../contexts/WalletContext';
+import {
+  checkMintStatus,
+  completeMint,
+  requestMint,
+} from '../../../services/cashu/cashuWalletService';
 import { createBridgeIntent } from '../../../services/bridgeApiService';
 import { deriveSepoliaAccount } from '../../../services/evmWalletService';
 import {
@@ -35,9 +40,21 @@ jest.mock('../../../contexts/WalletContext', () => ({
   useWallet: jest.fn(),
 }));
 
+jest.mock('../../../contexts/CashuContext', () => ({
+  useCashuOperations: jest.fn(() => ({
+    refresh: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 jest.mock('../../../contexts/WalletDataContext', () => ({
   useBalance: jest.fn(),
   useTransactionHistory: jest.fn(),
+}));
+
+jest.mock('../../../services/cashu/cashuWalletService', () => ({
+  requestMint: jest.fn(),
+  checkMintStatus: jest.fn(),
+  completeMint: jest.fn(),
 }));
 
 jest.mock('../../../services/bridgeApiService', () => ({
@@ -101,6 +118,8 @@ const mockSetPhase = jest.fn();
 const mockSetBridgeClientRequestId = jest.fn();
 const mockSetBridgeIntent = jest.fn();
 const mockSetBridgeSendTxid = jest.fn();
+const mockSetCashuMintQuote = jest.fn();
+const mockSetCashuMintSendTxid = jest.fn();
 const mockCompleteSettlement = jest.fn();
 const mockMarkPendingSettlement = jest.fn();
 const mockMarkNeedsRetry = jest.fn();
@@ -160,11 +179,16 @@ function configureIssuedUnitSettlement({
   vaultSettlementStoreMock.mockImplementation((selector) =>
     selector({
       bridgeClientRequestId,
+      cashuMintQuoteId: null,
+      cashuMintDepositAddress: null,
+      cashuMintSendTxid: null,
       setQuote: mockSetQuote,
       setPhase: mockSetPhase,
       setBridgeClientRequestId: mockSetBridgeClientRequestId,
       setBridgeIntent: mockSetBridgeIntent,
       setBridgeSendTxid: mockSetBridgeSendTxid,
+      setCashuMintQuote: mockSetCashuMintQuote,
+      setCashuMintSendTxid: mockSetCashuMintSendTxid,
       completeSettlement: mockCompleteSettlement,
       markPendingSettlement: mockMarkPendingSettlement,
       markNeedsRetry: mockMarkNeedsRetry,
@@ -172,6 +196,9 @@ function configureIssuedUnitSettlement({
   );
   vaultSettlementStoreMock.getState.mockReturnValue({
     bridgeClientRequestId,
+    cashuMintQuoteId: null,
+    cashuMintDepositAddress: null,
+    cashuMintSendTxid: null,
   });
   (formatVaultSettlementAmountInput as jest.Mock).mockImplementation((amount: number) => amount.toFixed(2));
   (quoteVaultBorrowSettlement as jest.Mock).mockResolvedValue({
@@ -203,6 +230,24 @@ function configureIssuedUnitSettlement({
     payoutAmount: '49.25',
     sepoliaTxHash: '0xsepolia',
   });
+  (requestMint as jest.Mock).mockResolvedValue({
+    quoteId: 'cashu-quote-1',
+    amount: 5000,
+    depositAddress: 'tb1pcashumint',
+    state: 'UNPAID',
+  });
+  (checkMintStatus as jest.Mock).mockResolvedValue({
+    quoteId: 'cashu-quote-1',
+    state: 'PAID',
+    paid: true,
+    amountPaid: 5000,
+    amountIssued: 0,
+    availableAmount: 5000,
+  });
+  (completeMint as jest.Mock).mockResolvedValue([
+    { amount: 3000 },
+    { amount: 2000 },
+  ]);
   mockBitcoinTransactionFromHex.mockReturnValue({
     ins: [
       {
@@ -380,6 +425,46 @@ describe('useIssuedUnitSettlement', () => {
     expect(mockMarkPendingSettlement).toHaveBeenCalledWith('Bridge settlement is still processing.');
     expect(mockMarkNeedsRetry).not.toHaveBeenCalled();
     expect(mockCompleteSettlement).not.toHaveBeenCalled();
+  });
+
+  it('mints issued UNIT into TurboUNIT through the Cashu onchain quote flow', async () => {
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+    let settlementResult: unknown;
+
+    await act(async () => {
+      settlementResult = await result.current.settleIssuedUnitToTurboUnit('borrow', 50);
+    });
+
+    expect(settlementResult).toEqual({
+      status: 'settled',
+      payoutAsset: 'TURBOUNIT',
+      payoutAmount: '50.00',
+      cashuMintQuoteId: 'cashu-quote-1',
+      cashuMintSendTxid: 'broadcast-txid',
+    });
+    expect(requestMint).toHaveBeenCalledWith(5000);
+    expect(mockSetCashuMintQuote).toHaveBeenCalledWith('cashu-quote-1', 'tb1pcashumint');
+    expect(createUnitIntentService).toHaveBeenCalledWith(
+      'tb1pcashumint',
+      '50.00',
+      wallet.taprootAddress,
+      wallet.segwitAddress,
+      7,
+      [{ txid: 'tap-unconfirmed', vout: 0, value: 546, runeAmount: 250 }],
+      [{ txid: 'seg-unconfirmed', vout: 1, value: 1200, runeAmount: undefined }],
+      [{ txid: 'already-spent', vout: 0 }],
+    );
+    expect(mockSetPhase.mock.calls.map(([phase]) => phase)).toEqual([
+      'creating_turbo_mint',
+      'building_turbo_send',
+      'signing_turbo_send',
+      'broadcasting_turbo_send',
+      'waiting_turbo_mint',
+    ]);
+    expect(mockSetCashuMintSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(checkMintStatus).toHaveBeenCalledWith('cashu-quote-1');
+    expect(completeMint).toHaveBeenCalledWith('cashu-quote-1', 5000);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
   });
 
   it('rejects settlement immediately when wallet addresses are missing', async () => {

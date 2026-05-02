@@ -30,9 +30,21 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "unit-slider-quarter-btn"
 - waitForAnimationToEnd
 
-# Continue to confirm
+# Continue to payout selection
 - tapOn:
     id: "vault-borrow-continue-btn"
+
+# Keep the maintained deterministic borrow flow on on-chain UNIT.
+- scrollUntilVisible:
+    element:
+      id: "vault-borrow-payout-unit-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-borrow-payout-unit-card"
+- tapOn:
+    id: "vault-borrow-payout-continue-btn"
+
 - extendedWaitUntil:
     visible:
       id: "vault-borrow-confirm-screen"

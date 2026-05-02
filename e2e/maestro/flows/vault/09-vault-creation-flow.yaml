@@ -53,7 +53,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - pressKey: Enter
 - waitForAnimationToEnd
 
-# Continue to confirm
+# Continue to payout selection
 - runFlow:
     when:
       visible:
@@ -64,6 +64,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - waitForAnimationToEnd
 - tapOn:
     id: "vault-create-continue-btn"
+
+# Keep the maintained deterministic create-vault flow on on-chain UNIT.
+- scrollUntilVisible:
+    element:
+      id: "vault-create-payout-unit-card"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: "vault-create-payout-unit-card"
+- tapOn:
+    id: "vault-create-payout-continue-btn"
 
 # Verify confirm screen
 - extendedWaitUntil:

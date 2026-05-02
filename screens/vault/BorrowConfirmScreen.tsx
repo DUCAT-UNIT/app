@@ -8,6 +8,7 @@ import VaultConfirmScreen from './VaultConfirmScreen';
 import { createBorrowConfirmConfig } from './configs';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBorrow } from '../../stores/borrowStore';
+import { resolveVaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
 import { useBorrowToUsdcSettlement } from '../../hooks/vault';
 
 interface BorrowConfirmScreenNewProps {
@@ -18,7 +19,10 @@ export default function BorrowConfirmScreenNew({ navigation }: BorrowConfirmScre
   const store = useBorrow();
   const vaultHook = useBorrowToUsdcSettlement();
   const { settingsHandlers } = useSettingsHandlers();
-  const effectiveReceiveAsset = settingsHandlers.usdcFeaturesEnabled ? store.receiveAsset : 'UNIT';
+  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(
+    store.receiveAsset,
+    settingsHandlers.usdcFeaturesEnabled,
+  );
   const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
 
   useEffect(() => {

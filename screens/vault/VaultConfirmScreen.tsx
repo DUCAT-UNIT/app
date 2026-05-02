@@ -120,7 +120,7 @@ export default function VaultConfirmScreen<
                   <Text style={styles.routeLabel}>Payout Route</Text>
                   <Text style={styles.routeText}>{payoutMeta.note}</Text>
                 </View>
-                <ReceiveAssetBadge asset={payoutMeta.label as 'USDC' | 'UNIT'} />
+                <ReceiveAssetBadge asset={selectedPayoutRow!.badgeAsset!} />
               </View>
             </>
           )}

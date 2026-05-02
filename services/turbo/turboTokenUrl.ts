@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer';
 import { fetchWithTimeout } from '../../utils/api';
 import { logger } from '../../utils/logger';
 
@@ -9,17 +8,6 @@ const REDEEM_HOST = 'redeem.ducatprotocol.com';
 const TOKEN_QUERY_PARAMS = ['token', 'cashuToken', 'cashu_token', 't'];
 
 export const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token.trim());
-
-const encodeBase64Url = (value: string): string => {
-  return Buffer.from(value, 'utf8').toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-};
-
-export const buildTurboTokenUrl = (token: string): string => {
-  return `https://${DIRECT_TOKEN_HOST}${DIRECT_TOKEN_PATH}?t=${encodeBase64Url(token)}`;
-};
 
 const safeDecodeURIComponent = (value: string): string => {
   try {

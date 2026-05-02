@@ -5,7 +5,7 @@
 import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
 import { formatVaultUsd } from '../../../utils/vaultFaceValue';
 import { colors } from '../../../styles/theme';
-import { useVaultSettlementStore } from '../../../stores/vaultSettlementStore';
+import { useVaultSettlementStore, type VaultSettlementRequestedAsset } from '../../../stores/vaultSettlementStore';
 import { getVaultSettlementStatusMessage } from '../../../services/vaultSettlementService';
 import type {
   BorrowVaultStore,
@@ -114,7 +114,7 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
 
 export function createBorrowConfirmConfig(
   estimatedUsdcOut?: string | null,
-  receiveAsset: 'USDC' | 'UNIT' = 'UNIT',
+  receiveAsset: VaultSettlementRequestedAsset = 'UNIT',
 ): VaultConfirmScreenConfig<BorrowVaultStore> {
   return {
     operationType: 'borrow',
@@ -142,7 +142,7 @@ export function createBorrowConfirmConfig(
         },
         {
           label: 'Receive As',
-          currentValue: receiveAsset,
+          currentValue: receiveAsset === 'TURBOUNIT' ? 'TurboUNIT' : receiveAsset,
           badgeAsset: receiveAsset,
         },
       ];
@@ -156,6 +156,11 @@ export function createBorrowConfirmConfig(
         rows.push({
           label: 'Estimated UNIT Received',
           currentValue: `${store.borrowAmountUsd.toFixed(2)} UNIT`,
+        });
+      } else if (receiveAsset === 'TURBOUNIT') {
+        rows.push({
+          label: 'Estimated TurboUNIT Received',
+          currentValue: `${store.borrowAmountUsd.toFixed(2)} TurboUNIT`,
         });
       }
 

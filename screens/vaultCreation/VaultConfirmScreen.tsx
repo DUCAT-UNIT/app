@@ -16,6 +16,10 @@ import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
+import {
+  requiresVaultSettlementUnitSend,
+  resolveVaultSettlementRequestedAsset,
+} from '../../stores/vaultSettlementStore';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { isE2E } from '../../utils/e2e';
@@ -44,7 +48,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   const { utxos } = useBalance();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
-  const effectiveReceiveAsset = usdcFeaturesEnabled ? receiveAsset : 'UNIT';
+  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
@@ -84,7 +88,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   // Dynamic fee calculation based on UTXOs and selected rate
   const estimatedFee = useMemo(() => {
     const openFee = getOpCostOpen(selectedFeeRate, utxos);
-    return effectiveReceiveAsset === 'USDC'
+    return requiresVaultSettlementUnitSend(effectiveReceiveAsset)
       ? openFee + getVaultSettlementReserveSats(selectedFeeRate)
       : openFee;
   }, [effectiveReceiveAsset, selectedFeeRate, utxos]);
@@ -149,9 +153,9 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
       return;
     }
 
-    setCurrentStep(usdcFeaturesEnabled ? 'payout' : 'amounts');
+    setCurrentStep('payout');
     navigation.goBack();
-  }, [isBusy, setCurrentStep, navigation, usdcFeaturesEnabled]);
+  }, [isBusy, setCurrentStep, navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="vault-create-confirm-screen">
@@ -228,6 +232,16 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
               <View style={styles.row}>
                 <Text style={styles.label}>Estimated UNIT Received</Text>
                 <Text style={styles.valueHighlight}>{borrowAmountUsd.toFixed(2)} UNIT</Text>
+              </View>
+            </>
+          )}
+
+          {effectiveReceiveAsset === 'TURBOUNIT' && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.label}>Estimated TurboUNIT Received</Text>
+                <Text style={styles.valueHighlight}>{borrowAmountUsd.toFixed(2)} TurboUNIT</Text>
               </View>
             </>
           )}
