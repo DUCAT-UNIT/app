@@ -15,12 +15,14 @@ import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService'
 import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
 import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
 import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
-import { clearWallet,setCurrentAccount } from '../services/cashu/cashuWalletService';
-import type { MeltQuoteResult,MeltResult } from '../services/cashu/operations/cashuMeltOperations';
-import type { MintQuoteResult } from '../services/cashu/operations/cashuMintOperations';
-import type { ReceiveTokenResult } from '../services/cashu/operations/cashuReceiveToken';
-import { sendP2PKToken } from '../services/cashu/operations/cashuSendP2PK';
-import type { SendTokenResult } from '../services/cashu/operations/cashuSendToken';
+import { clearWallet,sendP2PKToken,setCurrentAccount } from '../services/cashu/cashuWalletService';
+import type {
+  MeltQuoteResult,
+  MeltResult,
+  MintQuoteResult,
+  ReceiveTokenResult,
+  SendTokenResult,
+} from '../services/cashu/cashuWalletService';
 import { shortenCashuToken } from '../services/urlShortener';
 import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
 import { logger } from '../utils/logger';

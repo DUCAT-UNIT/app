@@ -6,7 +6,7 @@
 import { useCallback, Dispatch, SetStateAction } from 'react';
 import { logger } from '../utils/logger';
 import { requestMelt, completeMelt } from '../services/cashu/cashuWalletService';
-import type { MeltQuoteResult, MeltResult } from '../services/cashu/operations/cashuMeltOperations';
+import type { MeltQuoteResult, MeltResult } from '../services/cashu/cashuWalletService';
 
 interface UseCashuMeltParams {
   setIsLoading: Dispatch<SetStateAction<boolean>>;

@@ -5,7 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useCashuMint } from '../useCashuMint';
-import type { MintQuoteResult } from '../../services/cashu/operations/cashuMintOperations';
+import type { MintQuoteResult } from '../../services/cashu/cashuWalletService';
 
 // Define type for the hook return value
 type UseCashuMintReturn = ReturnType<typeof useCashuMint>;

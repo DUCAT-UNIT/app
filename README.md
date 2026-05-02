@@ -19,7 +19,7 @@ Both forms represent the same asset. Convert between them freely inside the wall
 
 ### Turbo -- Convert On-chain UNIT to E-cash
 
-Send on-chain UNIT to the Cashu mint, receive instant e-cash proofs. Configurable threshold (100/500/1000 UNIT) auto-routes small payments through Turbo for instant delivery.
+Send on-chain UNIT to the advertised `onchain/unit` Cashu mint method, receive instant e-cash proofs. Configurable threshold (100/500/1000 UNIT) auto-routes small payments through Turbo for instant delivery.
 
 ### Fuse -- Convert E-cash back to On-chain
 
@@ -87,7 +87,7 @@ app/
 |   +-- vaultCreation/   # Vault open flow
 |   +-- wallet/          # WalletScreen, AssetDetail, ReceiveQR
 +-- services/            # Business logic layer
-|   +-- cashu/           # Cashu protocol (mint client, proofs, P2PK, crypto)
+|   +-- cashu/           # Cashu wallet service, mint client, proofs, P2PK, crypto
 |   +-- liquidation/     # Execution, calculations, swap service
 |   +-- passkey/         # WebAuthn creation, restore, encryption
 |   +-- signing/         # PSBT service, crypto utils
@@ -118,7 +118,7 @@ app/
 | Navigation | React Navigation 7 (stacks + bottom tabs) |
 | Bitcoin | `bitcoinjs-lib` v7, `@bitcoinerlab/secp256k1`, BIP32/39/84/86 |
 | Runes | Custom LEB128 encoder, runestone serialization |
-| E-cash | Cashu NUT-01 through NUT-11, custom P2PK implementation |
+| E-cash | `@cashu/cashu-ts` v4 token handling plus Ducat `onchain/unit` mint adapter and NUT-11 P2PK flows |
 | Security | `expo-secure-store`, `expo-local-authentication`, `react-native-passkey` |
 | Crypto | `react-native-quick-crypto` (PBKDF2, HKDF, AES-256-GCM) |
 | Analytics | PostHog (`posthog-react-native`), 55+ events, EU cloud |
@@ -216,6 +216,8 @@ npm run verify                    # Doctor + typecheck + lint + deadcode + E2E c
 npm run typecheck                 # Type check
 ```
 
+Fresh reviewers should start with [docs/CLEAN_CONTEXT_HANDOFF.md](docs/CLEAN_CONTEXT_HANDOFF.md). It records the current quality gate, Cashu UNIT invariants, live Maestro boundary, and maintained-docs map.
+
 ### Production Build
 
 ```bash
@@ -237,14 +239,14 @@ CASHU_MINT:   https://dev-cashu-mint.ducatprotocol.com
 
 ## Testing
 
-**Unit Tests**: 220 Jest suites covering services, hooks, contexts, stores, components, and utilities. Co-located in `__tests__/` directories.
+**Unit Tests**: 230+ Jest suites covering services, hooks, contexts, stores, components, and utilities. Co-located in `__tests__/` directories.
 
-**Coverage Gate**: `npm run verify` enforces Jest coverage thresholds after unit tests. Current verified coverage: statements 89.47%, branches 79.61%, functions 87.38%, lines 90.33%.
+**Coverage Gate**: `npm run verify` enforces Jest coverage thresholds after unit tests.
 
-**E2E Tests**: 65 maintained Maestro product flows across 6 suites, plus separate live/ad-hoc flows under `e2e/maestro/flows/test`:
+**E2E Tests**: 67 maintained Maestro product flows across 6 suites, plus separate live/ad-hoc flows under `e2e/maestro/flows/test`:
 - Auth (8): wallet create/import, PIN setup/unlock, lockout, auto-lock
 - Settings (17): preferences, security, advanced, diagnostics, wallet deletion
-- Wallet (17): balances, receive, asset detail, transaction history, Sepolia surfaces, liquidation dashboard
+- Wallet (19): balances, receive, asset detail, transaction history, Sepolia surfaces, liquidation dashboard
 - Send (9): BTC/UNIT send, turbo, address input, review
 - Ecash (5): cashu mint, send/receive, token details
 - Vault (9): create, deposit, borrow, repay, withdraw
@@ -255,6 +257,7 @@ npm run e2e:settings   # Settings suite
 npm run e2e:wallet     # Wallet suite
 npm run e2e            # All maintained product suites
 npm run doctor:live    # Validate funded Mutinynet/Sepolia live-run prerequisites
+npm run e2e:live:turbo # Live TurboUNIT smoke flow after doctor:live
 npm run e2e:live       # doctor:live, then long-running live/ad-hoc flows
 npm run e2e:validate   # Validate maintained Maestro suite references and docs count
 ```

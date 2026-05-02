@@ -18,6 +18,8 @@ const allowLocal = args.has('--allow-local') || env.DUCAT_LIVE_ALLOW_LOCAL === '
 
 const DEFAULT_SEPOLIA_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
 const DEFAULT_MUTINYNET_ESPLORA = 'https://mutinynet.com/api';
+const DUCAT_CASHU_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
+const MINT_CONFIG_PATH = join(root, 'services', 'cashu', 'mintClient', 'mintConfig.ts');
 const REQUIRED_ADDRESS_ENV = [
   'EXPO_PUBLIC_WUNIT_ADDRESS',
   'EXPO_PUBLIC_UNIT_BRIDGE_ROUTER_ADDRESS',
@@ -115,6 +117,34 @@ function validateAddress(name, { required = true, defaultValue } = {}) {
   return value;
 }
 
+function getCashuMintUrlFromSource() {
+  if (!existsSync(MINT_CONFIG_PATH)) {
+    fail('Cashu mint config is missing at services/cashu/mintClient/mintConfig.ts');
+    return null;
+  }
+
+  const contents = readFileSync(MINT_CONFIG_PATH, 'utf8');
+  const match = contents.match(/export\s+const\s+MINT_URL\s*=\s*['"]([^'"]+)['"]/);
+  if (!match) {
+    fail('Cashu mint config must export MINT_URL');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(match[1]);
+  } catch {
+    fail('Cashu MINT_URL must be a valid URL');
+    return null;
+  }
+
+  if (parsed.origin !== DUCAT_CASHU_MINT_URL || parsed.pathname.replace(/\/$/, '') !== '') {
+    fail(`Cashu MINT_URL must be ${DUCAT_CASHU_MINT_URL}`);
+  }
+
+  return parsed;
+}
+
 async function fetchWithTimeout(url, options = {}) {
   const timeoutMs = Number(envValue('DUCAT_LIVE_DOCTOR_TIMEOUT_MS') || 10000);
   const controller = new AbortController();
@@ -123,6 +153,35 @@ async function fetchWithTimeout(url, options = {}) {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function probeCashuMintInfo(cashuMintUrl) {
+  if (!cashuMintUrl) return;
+
+  const infoUrl = new URL('/v1/info', cashuMintUrl);
+  try {
+    const response = await fetchWithTimeout(infoUrl.toString(), { method: 'GET' });
+    if (!response.ok) {
+      fail(`Cashu mint /v1/info returned HTTP ${response.status}`);
+      return;
+    }
+
+    const info = await response.json();
+    const methods = info?.nuts?.['4']?.methods;
+    if (!Array.isArray(methods)) {
+      fail('Cashu mint /v1/info did not include nuts["4"].methods');
+      return;
+    }
+
+    const supportsOnchainUnit = methods.some(
+      (method) => method?.method === 'onchain' && method?.unit === 'unit'
+    );
+    if (!supportsOnchainUnit) {
+      fail('Cashu mint does not advertise NUT-04 onchain/unit support');
+    }
+  } catch (error) {
+    fail(`Cashu mint /v1/info probe failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -271,7 +330,13 @@ async function checkNetworkProbes() {
 
   const rpcUrl = validateHttpUrl('EXPO_PUBLIC_SEPOLIA_RPC_URL');
   const bridgeUrl = validateHttpUrl('EXPO_PUBLIC_UNIT_BRIDGE_API_URL');
-  await Promise.all([probeSepoliaRpc(rpcUrl), probeBridgeApi(bridgeUrl), probeMutinynetEsplora()]);
+  const cashuMintUrl = getCashuMintUrlFromSource();
+  await Promise.all([
+    probeSepoliaRpc(rpcUrl),
+    probeBridgeApi(bridgeUrl),
+    probeMutinynetEsplora(),
+    probeCashuMintInfo(cashuMintUrl),
+  ]);
 }
 
 checkMutinynetOnly();

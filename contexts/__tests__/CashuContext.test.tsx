@@ -30,6 +30,7 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   clearWallet: jest.fn(),
+  sendP2PKToken: jest.fn(),
   setCurrentAccount: jest.fn(),
 }));
 
@@ -47,10 +48,6 @@ jest.mock('../../services/cashu/cashuMintQuoteRecovery', () => ({
 
 jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
   recoverPendingTurboSend: (...args: unknown[]) => mockRecoverPendingTurboSend(...args),
-}));
-
-jest.mock('../../services/cashu/operations/cashuSendP2PK', () => ({
-  sendP2PKToken: jest.fn(),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({

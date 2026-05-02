@@ -7,8 +7,7 @@ import { useState, useCallback, useEffect, useRef, Dispatch, SetStateAction } fr
 import { Alert } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
 import { logger } from '../utils/logger';
-import type { MintQuoteResult } from '../services/cashu/operations/cashuMintOperations';
-import type { ReceiveTokenResult } from '../services/cashu/operations/cashuReceiveToken';
+import type { MintQuoteResult, ReceiveTokenResult } from '../services/cashu/cashuWalletService';
 
 type ReceiveMode = 'choose' | 'mint' | 'receive';
 

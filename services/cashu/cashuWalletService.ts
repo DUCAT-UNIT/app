@@ -52,6 +52,14 @@ import { sendP2PKToken } from './operations/cashuSendP2PK';
 import { receiveP2PKToken } from './operations/cashuReceiveP2PK';
 import { recoverLockedChange } from './operations/cashuRecoverLockedChange';
 
+export type { MintQuoteResult, MintStatusResult } from './operations/cashuMintOperations';
+export type { MeltQuoteResult, MeltResult } from './operations/cashuMeltOperations';
+export type { ReceiveTokenResult } from './operations/cashuReceiveToken';
+export type { SendTokenResult } from './operations/cashuSendToken';
+export type { SendP2PKTokenResult } from './operations/cashuSendP2PK';
+export type { ReceiveP2PKTokenResult } from './operations/cashuReceiveP2PK';
+export type { CashuProof } from './crypto';
+
 export {
   setCurrentAccount,
   getStorageKey,

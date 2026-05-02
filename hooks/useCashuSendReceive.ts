@@ -10,8 +10,7 @@ import {
   sendToken as sendTokenService,
 } from '../services/cashu/cashuWalletService';
 import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
-import type { ReceiveTokenResult } from '../services/cashu/operations/cashuReceiveToken';
-import type { SendTokenResult } from '../services/cashu/operations/cashuSendToken';
+import type { ReceiveTokenResult, SendTokenResult } from '../services/cashu/cashuWalletService';
 
 interface UseCashuSendReceiveParams {
   setIsLoading: Dispatch<SetStateAction<boolean>>;

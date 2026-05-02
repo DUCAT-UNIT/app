@@ -12,8 +12,7 @@ import {
   completeMint,
 } from '../services/cashu/cashuWalletService';
 import { usePolling } from './usePolling';
-import type { MintQuoteResult } from '../services/cashu/operations/cashuMintOperations';
-import type { CashuProof } from '../services/cashu/crypto';
+import type { CashuProof, MintQuoteResult } from '../services/cashu/cashuWalletService';
 
 export interface PendingMintQuote extends MintQuoteResult {
   createdAt: number;

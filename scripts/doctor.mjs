@@ -236,6 +236,72 @@ function checkSensitiveLoggingInvariant() {
   );
 }
 
+function checkCashuDucatUnitInvariant() {
+  const mintConfig = read('services/cashu/mintClient/mintConfig.ts');
+  check(
+    mintConfig.includes("export const MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com'"),
+    'Cashu mint config must use the advertised Ducat dev mint URL'
+  );
+  check(
+    mintConfig.includes("export const CASHU_UNIT = 'unit'"),
+    'Cashu mint config must use unit for Ducat UNIT'
+  );
+  check(
+    mintConfig.includes("export const RUNE_ID = '1527352:1'"),
+    'Cashu mint config must keep the Ducat UNIT rune id'
+  );
+
+  const codeFiles = getAppCodeFiles();
+  const forbiddenEndpointPatterns = [
+    '/v1/mint/quote/unit',
+    '/v1/mint/unit',
+    '/v1/melt/quote/unit',
+    '/v1/melt/unit',
+  ];
+  const forbiddenMethodPatterns = [
+    /\bmethod\s*:\s*['"]unit['"]/,
+    /\bmethod\s*:\s*['"]runes['"]/,
+  ];
+
+  const endpointViolations = [];
+  const methodViolations = [];
+  for (const file of codeFiles) {
+    const content = read(file);
+    if (forbiddenEndpointPatterns.some((pattern) => content.includes(pattern))) {
+      endpointViolations.push(file);
+    }
+    if (forbiddenMethodPatterns.some((pattern) => pattern.test(content))) {
+      methodViolations.push(file);
+    }
+  }
+
+  check(
+    endpointViolations.length === 0,
+    `Legacy Ducat Cashu UNIT endpoints must not exist in app code: ${endpointViolations.join(', ')}`
+  );
+  check(
+    methodViolations.length === 0,
+    `Legacy Ducat Cashu UNIT methods must not exist in app code: ${methodViolations.join(', ')}`
+  );
+
+  const cashuFiles = listFiles('services/cashu')
+    .filter((file) => /\.(js|jsx|ts|tsx)$/.test(file))
+    .filter((file) => !file.includes('/__tests__/'));
+  const satUnitViolations = cashuFiles.filter((file) =>
+    /\bunit\s*:\s*['"]sat['"]/.test(read(file))
+  );
+  check(
+    satUnitViolations.length === 0,
+    `Ducat Cashu UNIT code must not construct sat-denominated UNIT tokens: ${satUnitViolations.join(', ')}`
+  );
+
+  const compat = read('services/cashu/cashuTsCompat.ts');
+  check(
+    compat.includes('cashuB') && compat.includes('sat tokens are BTC/Lightning only'),
+    'cashuTsCompat must enforce v4 cashuB tokens and reject sat tokens for Ducat UNIT'
+  );
+}
+
 function checkOptionalNativeTooling() {
   if (!commandVersion('maestro')) {
     warn('Maestro CLI not found; install it before running npm run e2e locally');
@@ -252,6 +318,7 @@ checkRequiredTooling();
 checkProjectScripts();
 checkMutinynetInvariant();
 checkSensitiveLoggingInvariant();
+checkCashuDucatUnitInvariant();
 checkOptionalNativeTooling();
 
 for (const message of warnings) {

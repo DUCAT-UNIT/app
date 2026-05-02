@@ -34,7 +34,8 @@ This is intentionally stricter than `npm run doctor`. It fails unless:
 - Sepolia RPC, bridge API, wUNIT, router, UNIT/USDC pool, and USDC config are valid
 - `DUCAT_LIVE_E2E_FUNDED_MUTINYNET=1`, `DUCAT_LIVE_E2E_FUNDED_SEPOLIA=1`, and `DUCAT_LIVE_E2E_BRIDGE_FUNDED=1` acknowledge funded fixtures
 - Maestro, simulator tooling, and `node_modules` are present
-- Sepolia RPC, bridge `/health`, and Mutinynet Esplora probes succeed
+- Sepolia RPC, bridge `/health`, Mutinynet Esplora, and Cashu mint `/v1/info` probes succeed
+- The Ducat Cashu mint advertises `nuts["4"].methods` with `method: onchain` and `unit: unit`
 
 For script-only validation without network/tool probes:
 
