@@ -11,6 +11,7 @@ const quick = args.has('--quick');
 const runtimeE2E = args.has('--runtime-e2e');
 
 const failures = [];
+const EXPECTED_RELEASE_VERSION = '0.0.4';
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), 'utf8');
@@ -38,8 +39,8 @@ function checkStaticReleaseInvariants() {
   const networkConfig = read('utils/networkConfig.ts');
   const settings = read('constants/settings.ts');
 
-  if (appJson.expo?.version !== '0.0.3') {
-    fail(`app.json version is ${appJson.expo?.version}; expected 0.0.3 for this release train.`);
+  if (appJson.expo?.version !== EXPECTED_RELEASE_VERSION) {
+    fail(`app.json version is ${appJson.expo?.version}; expected ${EXPECTED_RELEASE_VERSION} for this release train.`);
   }
 
   if (!appJson.expo?.ios?.buildNumber) {
