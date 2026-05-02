@@ -61,7 +61,7 @@ export type { ReceiveP2PKTokenResult } from './operations/cashuReceiveP2PK';
 export type { CashuProof } from './crypto';
 export type { AccountMatch } from './p2pk';
 
-export { checkMintQuote, checkProofsSpent } from './cashuMintClient';
+export { checkMintQuote, checkProofsSpent, getMintQuoteAvailableAmount } from './cashuMintClient';
 export { decodeToken, decodeTokenMetadata, encodeToken } from './crypto';
 export {
   clearP2PKCache,

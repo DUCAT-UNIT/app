@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
-import { checkMintQuote, completeMint, sendP2PKToken } from '../services/cashu/cashuWalletService';
+import {
+  checkMintQuote,
+  completeMint,
+  getMintQuoteAvailableAmount,
+  sendP2PKToken,
+} from '../services/cashu/cashuWalletService';
 import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
 import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
 import { shortenCashuToken } from '../services/urlShortener';
@@ -31,6 +36,36 @@ interface UseTurboMintCompletionReturn {
   processingStage: ProcessingStage;
   isCompletingMint: boolean;
 }
+
+type MintQuoteLike = Awaited<ReturnType<typeof checkMintQuote>>;
+
+const hasMintAccounting = (quote: MintQuoteLike): boolean =>
+  quote.amount_paid !== undefined || quote.amount_issued !== undefined;
+
+const isQuoteReadyToMint = (quote: MintQuoteLike): boolean => {
+  const availableAmount = getMintQuoteAvailableAmount(quote);
+
+  if (availableAmount > 0) {
+    return true;
+  }
+
+  if (!hasMintAccounting(quote)) {
+    return quote.state === 'PAID' || quote.state === 'ISSUED';
+  }
+
+  return (quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0);
+};
+
+const isQuoteAlreadyIssued = (quote: MintQuoteLike): boolean =>
+  hasMintAccounting(quote)
+  && (quote.amount_paid ?? 0) > 0
+  && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0)
+  && getMintQuoteAvailableAmount(quote) === 0;
+
+const getClaimAmount = (quote: MintQuoteLike, fallbackAmount: number): number => {
+  const availableAmount = getMintQuoteAvailableAmount(quote);
+  return availableAmount > 0 ? availableAmount : quote.amount ?? fallbackAmount;
+};
 
 /**
  * Hook to handle Turbo mint completion flow
@@ -99,7 +134,7 @@ export function useTurboMintCompletion({
         // Poll for payment confirmation
         // Mutinynet blocks ~30s + Ord indexing + mint deposit monitor (30s poll)
         // Need at least 120s to reliably catch deposits
-        let paidQuote = null;
+        let paidQuote: MintQuoteLike | null = null;
         let attempts = 0;
         const maxAttempts = 120;
 
@@ -110,7 +145,7 @@ export function useTurboMintCompletion({
           try {
             const quote = await checkMintQuote(mintQuoteId);
             logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
-            if (quote.state === 'PAID' || quote.state === 'ISSUED') {
+            if (isQuoteReadyToMint(quote)) {
               paidQuote = quote;
               break;
             }
@@ -124,12 +159,26 @@ export function useTurboMintCompletion({
 
         if (!mountedRef.current) return;
 
-        if (paidQuote && paidQuote.amount !== undefined) {
-          logger.debug('[useTurboMintCompletion] Payment confirmed! Completing mint with amount:', paidQuote.amount);
-          // Complete mint to get e-cash tokens - quote.amount is already in smallest units
-          const proofs = await completeMint(mintQuoteId, paidQuote.amount);
-          if (!mountedRef.current) return;
-          logger.debug('[useTurboMintCompletion] Mint completed successfully, received proofs:', proofs?.length);
+        if (paidQuote) {
+          const claimAmount = getClaimAmount(paidQuote, mintAmount);
+
+          if (claimAmount <= 0) {
+            throw new Error('Mint quote has no claimable amount');
+          }
+
+          if (isQuoteAlreadyIssued(paidQuote)) {
+            logger.debug('[useTurboMintCompletion] Mint quote already issued, continuing with existing proofs', {
+              quoteId: mintQuoteId,
+              amountPaid: paidQuote.amount_paid,
+              amountIssued: paidQuote.amount_issued,
+            });
+          } else {
+            logger.debug('[useTurboMintCompletion] Payment confirmed! Completing mint with amount:', claimAmount);
+            // Complete mint to get e-cash tokens - amount is in smallest units
+            const proofs = await completeMint(mintQuoteId, claimAmount);
+            if (!mountedRef.current) return;
+            logger.debug('[useTurboMintCompletion] Mint completed successfully, received proofs:', proofs?.length);
+          }
 
           // Update stage: mint completed
           await updateTurboSendStage('mint_completed');

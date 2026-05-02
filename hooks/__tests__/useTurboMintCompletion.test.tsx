@@ -29,6 +29,8 @@ const mockShortenCashuToken = jest.fn();
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
   completeMint: (...args: any[]) => mockCompleteMint(...args),
+  getMintQuoteAvailableAmount: (quote: { amount_paid?: number; amount_issued?: number }) =>
+    Math.max(0, (quote.amount_paid ?? 0) - (quote.amount_issued ?? 0)),
   sendP2PKToken: (...args: any[]) => mockSendP2PKToken(...args),
 }));
 
@@ -270,6 +272,27 @@ describe('useTurboMintCompletion', () => {
       expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
     });
 
+    it('should complete mint when live UNIT quote reports amount_paid without amount', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        quote: 'quote123',
+        amount_paid: 125,
+        amount_issued: 25,
+      });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        mintAmount: 100,
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCheckMintQuote).toHaveBeenCalledWith('quote123');
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
+      expect(notify.transaction.success).toHaveBeenCalledWith('convert');
+    });
+
     it('should poll for payment and complete mint on ISSUED state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
 
@@ -282,6 +305,27 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockCompleteMint).toHaveBeenCalledWith('quote456', 200);
+    });
+
+    it('should continue to P2PK when accounting says quote is already issued', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        state: 'ISSUED',
+        amount_paid: 100,
+        amount_issued: 100,
+      });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        mintAmount: 100,
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
     });
 
     it('should create P2PK token when turboRecipient is provided', async () => {
