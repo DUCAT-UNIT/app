@@ -4,6 +4,10 @@
 
 import { getJSON, postJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
+import {
+  normalizeOptionalCashuAmount,
+  type CashuAmountLike,
+} from '../cashuTsCompat';
 import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
 import { assertOnchainUnitMintSupport } from './mintInfo';
 
@@ -19,6 +23,12 @@ export interface MintQuote {
   pubkey?: string;
 }
 
+type MintQuoteWire = Omit<MintQuote, 'amount' | 'amount_paid' | 'amount_issued'> & {
+  amount?: CashuAmountLike | null;
+  amount_paid?: CashuAmountLike | null;
+  amount_issued?: CashuAmountLike | null;
+};
+
 export interface BlindedOutput {
   amount: number;
   B_: string;
@@ -29,10 +39,17 @@ export interface MintResponse {
   signatures: Array<{
     C_: string;
     id?: string;
-    amount?: number;
+    amount?: number | CashuAmountLike;
   }>;
   error?: string;
 }
+
+const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => ({
+  ...quote,
+  amount: normalizeOptionalCashuAmount(quote.amount, 'mint quote amount'),
+  amount_paid: normalizeOptionalCashuAmount(quote.amount_paid, 'mint quote amount_paid'),
+  amount_issued: normalizeOptionalCashuAmount(quote.amount_issued, 'mint quote amount_issued'),
+});
 
 /**
  * Create a mint quote for the advertised onchain/unit Cashu method.
@@ -45,14 +62,14 @@ export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
 
     await assertOnchainUnitMintSupport();
 
-    const quote = await postJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/onchain`, {
+    const quote = normalizeMintQuote(await postJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain`, {
       unit: CASHU_UNIT,
       pubkey,
       rune_id: RUNE_ID,
     }, {
       timeout: 10000,
       description: 'Create mint quote',
-    });
+    }));
 
     logger.info('Mint quote created', {
       quoteId: quote.quote,
@@ -73,10 +90,10 @@ export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
  */
 export const checkMintQuote = async (quoteId: string): Promise<MintQuote> => {
   try {
-    const quote = await getJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/onchain/${quoteId}`, {
+    const quote = normalizeMintQuote(await getJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain/${quoteId}`, {
       timeout: 5000,
       description: 'Check mint quote',
-    });
+    }));
     return quote;
   } catch (error: unknown) {
     logger.error('Failed to check mint quote', { error: (error as Error).message, quoteId });

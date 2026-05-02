@@ -4,6 +4,7 @@ import { sha256 } from '@noble/hashes/sha256';
 import { logger } from '../../utils/logger';
 import { checkProofsSpent, CheckStateResponse } from './cashuMintClient';
 import { CashuProof } from './crypto';
+import { normalizeCashuProofs } from './cashuTsCompat';
 import { DEVICE_ONLY } from '../storagePolicy';
 
 /**
@@ -183,7 +184,7 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
     try {
       const parsed = JSON.parse(stored) as CashuProof[] | StoredProofEnvelope;
       if (Array.isArray(parsed)) {
-        proofs = parsed;
+        proofs = normalizeCashuProofs(parsed);
       } else if (
         parsed &&
         typeof parsed === 'object' &&
@@ -199,7 +200,7 @@ const readProofsUnsafe = async (): Promise<CashuProof[]> => {
           });
           return [];
         }
-        proofs = parsed.proofs;
+        proofs = normalizeCashuProofs(parsed.proofs);
       } else {
         logger.error('Invalid stored Cashu proof envelope', { storageKey: STORAGE_KEY });
         return [];
@@ -232,12 +233,13 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
  */
 export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<void> => {
   try {
+    const normalizedProofs = normalizeCashuProofs(proofs);
     const STORAGE_KEY = getStorageKey();
-    const serializedProofs = JSON.stringify(proofs);
+    const serializedProofs = JSON.stringify(normalizedProofs);
     const integrityHash = await computeProofHash(serializedProofs);
     const serialized = JSON.stringify({
       version: 1,
-      proofs,
+      proofs: normalizedProofs,
       integrityHash,
     } satisfies StoredProofEnvelope);
     await registerProofStorageKey(STORAGE_KEY);
@@ -260,23 +262,23 @@ export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<v
         typeof verified.integrityHash !== 'string'
       ) {
         logger.error('SecureStore write verification failed!', {
-          expected: proofs.length,
+          expected: normalizedProofs.length,
           actual: 'invalid-envelope',
         });
         throw new Error('Failed to save proofs - verification failed');
       }
 
       const verifiedHash = await computeProofHash(JSON.stringify(verified.proofs));
-      if (verifiedHash !== verified.integrityHash || verified.proofs.length !== proofs.length) {
+      if (verifiedHash !== verified.integrityHash || verified.proofs.length !== normalizedProofs.length) {
         logger.error('SecureStore write verification failed!', {
-          expected: proofs.length,
+          expected: normalizedProofs.length,
           actual: verified.proofs.length,
         });
         throw new Error('Failed to save proofs - verification failed');
       }
     }
 
-    logger.info('Saved proofs to storage', { count: proofs.length });
+    logger.info('Saved proofs to storage', { count: normalizedProofs.length });
   } catch (error: unknown) {
     logger.error('Failed to save proofs', { error: (error as Error).message });
     throw error;

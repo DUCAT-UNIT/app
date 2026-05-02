@@ -47,7 +47,7 @@ describe('logger redaction', () => {
   });
 
   it('redacts sensitive direct debug arguments and payload shapes', () => {
-    testLogger.debug('qr payload', 'cashuA-secret-token', {
+    testLogger.debug('qr payload', 'cashuB-secret-token', {
       psbt: 'cHNidP8BAHECAAAAA',
       rawtx: 'a'.repeat(140),
       tokenLength: 17,
@@ -61,7 +61,7 @@ describe('logger redaction', () => {
   });
 
   it('redacts error messages and context in error logs', () => {
-    testLogger.error(new Error('cashuA-secret-token'), {
+    testLogger.error(new Error('cashuB-secret-token'), {
       seed: 'seed phrase',
       address: 'tb1pvisible',
     });

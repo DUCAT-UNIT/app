@@ -59,6 +59,7 @@ jest.mock('../../../utils/logger', () => ({
 // Mock cashuCrypto for hasP2PKProofs
 jest.mock('../crypto', () => ({
   decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 // Mock expo-secure-store for clearP2PKCache and getP2PKPrivateKey
@@ -275,7 +276,11 @@ describe('cashuP2PK', () => {
   });
 
   describe('hasP2PKProofs', () => {
-    const { decodeToken } = require('../crypto');
+    const { decodeToken, decodeTokenMetadata } = require('../crypto');
+
+    beforeEach(() => {
+      (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) => (decodeToken as jest.Mock)(token));
+    });
 
     it('should return true when token has P2PK proofs', () => {
       (decodeToken as jest.Mock).mockReturnValue({
@@ -285,7 +290,7 @@ describe('cashuP2PK', () => {
         ],
       });
 
-      const result = hasP2PKProofs('cashuAtoken...');
+      const result = hasP2PKProofs('cashuBtoken...');
 
       expect(result).toBe(true);
     });
@@ -298,7 +303,7 @@ describe('cashuP2PK', () => {
         ],
       });
 
-      const result = hasP2PKProofs('cashuAtoken...');
+      const result = hasP2PKProofs('cashuBtoken...');
 
       expect(result).toBe(false);
     });
@@ -308,7 +313,7 @@ describe('cashuP2PK', () => {
         proofs: [],
       });
 
-      const result = hasP2PKProofs('cashuAtoken...');
+      const result = hasP2PKProofs('cashuBtoken...');
 
       expect(result).toBe(false);
     });
@@ -316,7 +321,7 @@ describe('cashuP2PK', () => {
     it('should return false when proofs is undefined', () => {
       (decodeToken as jest.Mock).mockReturnValue({});
 
-      const result = hasP2PKProofs('cashuAtoken...');
+      const result = hasP2PKProofs('cashuBtoken...');
 
       expect(result).toBe(false);
     });
@@ -336,7 +341,7 @@ describe('cashuP2PK', () => {
         proofs: 'not-an-array',
       });
 
-      const result = hasP2PKProofs('cashuAtoken...');
+      const result = hasP2PKProofs('cashuBtoken...');
 
       expect(result).toBe(false);
     });

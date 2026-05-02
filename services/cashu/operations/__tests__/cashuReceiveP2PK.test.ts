@@ -44,6 +44,7 @@ jest.mock('../../crypto', () => ({
   splitAmount: jest.fn(),
   sumProofs: jest.fn((proofs: any[]) => proofs.reduce((sum: number, p: any) => sum + p.amount, 0)),
   decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 jest.mock('../../p2pk', () => ({
@@ -61,7 +62,7 @@ jest.mock('../../cashuProofManager', () => ({
 
 import { receiveP2PKToken } from '../cashuReceiveP2PK';
 import { MINT_URL, swapTokens } from '../../cashuMintClient';
-import { createBlindedOutputs, unblindSignatures, splitAmount, decodeToken } from '../../crypto';
+import { createBlindedOutputs, unblindSignatures, splitAmount, decodeToken, decodeTokenMetadata } from '../../crypto';
 import { isP2PKSecret, signP2PKSecret } from '../../p2pk';
 import { getOrFetchKeys } from '../../cashuBalanceService';
 import { addProofs } from '../../cashuProofManager';
@@ -69,6 +70,7 @@ import { addProofs } from '../../cashuProofManager';
 describe('cashuReceiveP2PK', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) => (decodeToken as jest.Mock)(token));
   });
 
   describe('receiveP2PKToken', () => {
@@ -88,7 +90,7 @@ describe('cashuReceiveP2PK', () => {
       (isP2PKSecret as jest.Mock).mockReturnValue(true);
       (signP2PKSecret as jest.Mock).mockResolvedValue('{"signatures":["sig1"]}');
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -103,7 +105,7 @@ describe('cashuReceiveP2PK', () => {
         { amount: 32, secret: 's2', C: 'C', id: 'id' },
       ]);
 
-      const result = await receiveP2PKToken('cashuAtoken...', 'privatekey123'.padEnd(64, '0'));
+      const result = await receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'));
 
       expect(result.amount).toBe(96);
       expect(result.proofCount).toBe(2);
@@ -129,7 +131,7 @@ describe('cashuReceiveP2PK', () => {
         amount: 96,
       });
 
-      await expect(receiveP2PKToken('cashuAtoken...', 'privatekey')).rejects.toThrow(
+      await expect(receiveP2PKToken('cashuBtoken...', 'privatekey')).rejects.toThrow(
         'Token from different mint: https://different.mint.com'
       );
     });
@@ -142,7 +144,7 @@ describe('cashuReceiveP2PK', () => {
       });
       (isP2PKSecret as jest.Mock).mockReturnValue(false);
 
-      await expect(receiveP2PKToken('cashuAtoken...', 'privatekey')).rejects.toThrow(
+      await expect(receiveP2PKToken('cashuBtoken...', 'privatekey')).rejects.toThrow(
         'Token does not contain P2PK locked proofs'
       );
     });
@@ -160,7 +162,7 @@ describe('cashuReceiveP2PK', () => {
       (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('["P2PK"'));
       (signP2PKSecret as jest.Mock).mockResolvedValue('{"signatures":["sig1"]}');
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -175,18 +177,17 @@ describe('cashuReceiveP2PK', () => {
         { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
       ]);
 
-      const result = await receiveP2PKToken('cashuAtoken...', 'privatekey123'.padEnd(64, '0'));
+      const result = await receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'));
 
       expect(result.amount).toBe(96);
     });
 
-    it('should handle legacy keys format (line 91)', async () => {
+    it('should use active unit keyset keys (line 91)', async () => {
       (decodeToken as jest.Mock).mockReturnValue(mockToken);
       (isP2PKSecret as jest.Mock).mockReturnValue(true);
       (signP2PKSecret as jest.Mock).mockResolvedValue('{"signatures":["sig1"]}');
-      // Legacy format
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keys: { 1: 'key1', 2: 'key2' },
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -201,7 +202,7 @@ describe('cashuReceiveP2PK', () => {
         { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
       ]);
 
-      const result = await receiveP2PKToken('cashuAtoken...', 'privatekey123'.padEnd(64, '0'));
+      const result = await receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'));
 
       expect(result.amount).toBe(96);
     });
@@ -212,7 +213,7 @@ describe('cashuReceiveP2PK', () => {
       (signP2PKSecret as jest.Mock).mockRejectedValue(new Error('P2PK verification failed'));
 
       // Test with empty string - cast needed to test error handling
-      await expect(receiveP2PKToken('cashuAtoken...', '')).rejects.toThrow();
+      await expect(receiveP2PKToken('cashuBtoken...', '')).rejects.toThrow();
     });
 
     it('should add diagnostics for wrong private key type (line 140)', async () => {
@@ -221,7 +222,7 @@ describe('cashuReceiveP2PK', () => {
       (signP2PKSecret as jest.Mock).mockRejectedValue(new Error('P2PK verification failed'));
 
       // Test with wrong type - cast needed to test error handling for invalid input
-      await expect(receiveP2PKToken('cashuAtoken...', String(12345))).rejects.toThrow();
+      await expect(receiveP2PKToken('cashuBtoken...', String(12345))).rejects.toThrow();
     });
 
     it('should add diagnostics for wrong private key length', async () => {
@@ -229,7 +230,7 @@ describe('cashuReceiveP2PK', () => {
       (isP2PKSecret as jest.Mock).mockReturnValue(true);
       (signP2PKSecret as jest.Mock).mockRejectedValue(new Error('P2PK verification failed'));
 
-      await expect(receiveP2PKToken('cashuAtoken...', 'short')).rejects.toThrow();
+      await expect(receiveP2PKToken('cashuBtoken...', 'short')).rejects.toThrow();
     });
 
     it('should call onProgress callback', async () => {
@@ -237,7 +238,7 @@ describe('cashuReceiveP2PK', () => {
       (isP2PKSecret as jest.Mock).mockReturnValue(true);
       (signP2PKSecret as jest.Mock).mockResolvedValue('{"signatures":["sig1"]}');
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -253,7 +254,7 @@ describe('cashuReceiveP2PK', () => {
       ]);
 
       const onProgress = jest.fn();
-      await receiveP2PKToken('cashuAtoken...', 'privatekey123'.padEnd(64, '0'), onProgress);
+      await receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'), onProgress);
 
       expect(onProgress).toHaveBeenCalled();
     });

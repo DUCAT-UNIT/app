@@ -29,6 +29,7 @@ jest.mock('../../../../utils/logger', () => ({
 // Mock the crypto module for hasP2PKProofs
 jest.mock('../../crypto', () => ({
   decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 import * as crypto from 'expo-crypto';
@@ -40,11 +41,12 @@ import {
   isP2PKLocked,
   hasP2PKProofs,
 } from '../p2pkVerification';
-import { decodeToken } from '../../crypto';
+import { decodeToken, decodeTokenMetadata } from '../../crypto';
 
 describe('p2pkVerification', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) => (decodeToken as jest.Mock)(token));
   });
 
   describe('isP2PKSecret', () => {
@@ -245,7 +247,7 @@ describe('p2pkVerification', () => {
         ],
       });
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(true);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(true);
     });
 
     it('should return false for token with no P2PK proofs', () => {
@@ -255,13 +257,13 @@ describe('p2pkVerification', () => {
         ],
       });
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(false);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(false);
     });
 
     it('should return false for token with no proofs array', () => {
       (decodeToken as jest.Mock).mockReturnValue({});
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(false);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(false);
     });
 
     it('should return false for token with non-array proofs', () => {
@@ -269,7 +271,7 @@ describe('p2pkVerification', () => {
         proofs: 'not an array',
       });
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(false);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(false);
     });
 
     it('should return false when decodeToken throws', () => {
@@ -288,7 +290,7 @@ describe('p2pkVerification', () => {
         ],
       });
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(true);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(true);
     });
 
     it('should handle proofs with invalid JSON secrets', () => {
@@ -298,7 +300,7 @@ describe('p2pkVerification', () => {
         ],
       });
 
-      expect(hasP2PKProofs('cashuAbc123')).toBe(false);
+      expect(hasP2PKProofs('cashuBbc123')).toBe(false);
     });
   });
 });

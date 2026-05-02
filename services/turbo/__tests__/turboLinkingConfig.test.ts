@@ -197,7 +197,7 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set<string>();
 
       // getStateFromPath is now synchronous and fires async processing in background
-      const result = config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      const result = config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
       expect(result).toBe(undefined);
     });
@@ -224,16 +224,16 @@ describe('turboLinkingConfig', () => {
       const config = getTypedConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      await config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtoken123');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
 
     it('should not store duplicate tokens', async () => {
       const config = getTypedConfig();
       testGlobal.processedCashuTokens = new Set(['mockedHash']);
 
-      await config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
       expect(testGlobal.pendingCashuToken).toBeUndefined();
       expect(testGlobal.pendingTurboSnackbars).toEqual([{
@@ -247,9 +247,9 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set(['mockedHash']);
       testGlobal.turboJustResumed = true;
 
-      await config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      await config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtoken123');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
 
     it('should handle null path', async () => {
@@ -278,15 +278,15 @@ describe('turboLinkingConfig', () => {
       const config = getTypedConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      // Create base64 encoded "cashuAtesttoken"
-      const base64Token = Buffer.from('cashuAtesttoken').toString('base64')
+      // Create base64 encoded "cashuBtesttoken"
+      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
 
       await config.getStateFromPath(`https://example.com/unit?t=${base64Token}`, defaultOptions);
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtesttoken');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
     });
 
     it('should handle base64 decode error', async () => {
@@ -328,7 +328,7 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokensLoading = true;
 
       // Start the getStateFromPath call
-      const promise = config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      const promise = config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
       // Advance timers to simulate waiting
       await jest.advanceTimersByTimeAsync(500);
@@ -340,7 +340,7 @@ describe('turboLinkingConfig', () => {
 
       await promise;
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtoken123');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
       jest.useRealTimers();
     });
 
@@ -352,7 +352,7 @@ describe('turboLinkingConfig', () => {
       (hashToken as jest.Mock).mockRejectedValueOnce(new Error('Hash failed'));
 
       // This should not throw - the error is caught and logged
-      const result = config.getStateFromPath('ducat://turbo/cashuAtoken123', defaultOptions);
+      const result = config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
       // Wait for async processing
       await new Promise(resolve => setImmediate(resolve));
@@ -384,21 +384,21 @@ describe('turboLinkingConfig', () => {
       const config = createLinkingConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      (Linking.getInitialURL as jest.Mock).mockResolvedValue('ducat://turbo/cashuAinitialToken');
+      (Linking.getInitialURL as jest.Mock).mockResolvedValue('ducat://turbo/cashuBinitialToken');
 
       config.subscribe!(jest.fn());
 
       // Wait for initial URL processing
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAinitialToken');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBinitialToken');
     });
 
     it('should process initial URL with unit? format', async () => {
       const config = createLinkingConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      const base64Token = Buffer.from('cashuAtesttoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
@@ -410,14 +410,14 @@ describe('turboLinkingConfig', () => {
       // Wait for initial URL processing
       await new Promise(resolve => setImmediate(resolve));
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtesttoken');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
     });
 
     it('should handle processUrlAndStoreToken error gracefully for initial URL', async () => {
       const config = createLinkingConfig();
       // Don't set processedCashuTokens - this causes hashToken to potentially fail
 
-      (Linking.getInitialURL as jest.Mock).mockResolvedValue('ducat://turbo/cashuAtoken');
+      (Linking.getInitialURL as jest.Mock).mockResolvedValue('ducat://turbo/cashuBtoken');
       (hashToken as jest.Mock).mockRejectedValueOnce(new Error('Hash failed'));
 
       // Should not throw
@@ -470,9 +470,9 @@ describe('turboLinkingConfig', () => {
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
 
       // Call with a turbo URL
-      await urlHandler({ url: 'ducat://turbo/cashuAtoken123' });
+      await urlHandler({ url: 'ducat://turbo/cashuBtoken123' });
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtoken123');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
     });
 
     it('should process unit URL in URL event', async () => {
@@ -482,14 +482,14 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
 
-      const base64Token = Buffer.from('cashuAtesttoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
 
       await urlHandler({ url: `https://example.com/unit?t=${base64Token}` });
 
-      expect(testGlobal.pendingCashuToken).toBe('cashuAtesttoken');
+      expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
     });
 
     it('should ignore non-turbo URLs', async () => {

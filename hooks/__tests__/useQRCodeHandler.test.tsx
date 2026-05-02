@@ -50,7 +50,18 @@ const mockDecodeToken = jest.fn();
 const mockEncodeToken = jest.fn();
 jest.mock('../../services/cashu/crypto', () => ({
   decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
+  decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
   encodeToken: (...args: unknown[]) => mockEncodeToken(...args),
+}));
+
+jest.mock('../../services/cashu/cashuBalanceService', () => ({
+  getOrFetchKeys: jest.fn().mockResolvedValue({
+    keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
+  }),
+}));
+
+jest.mock('../../services/cashu/cashuTsCompat', () => ({
+  getKeysetIdsFromMintKeys: jest.fn(() => ['keyset1']),
 }));
 
 const mockCheckProofsSpent = jest.fn();
@@ -131,7 +142,7 @@ describe('useQRCodeHandler', () => {
       amount: 100,
       mint: 'https://mint.example.com',
     });
-    mockEncodeToken.mockReturnValue('cashuAencodedtoken');
+    mockEncodeToken.mockReturnValue('cashuBencodedtoken');
     mockCheckProofsSpent.mockResolvedValue({
       states: [{ state: 'UNSPENT' }],
     });
@@ -241,10 +252,10 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtestP2PKtoken');
+        await result.current!('cashuBtestP2PKtoken');
       });
 
-      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuBtestP2PKtoken');
       expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
     });
 
@@ -252,7 +263,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtestP2PKtoken');
+        await result.current!('cashuBtestP2PKtoken');
       });
 
       expect(mockTriggerTokenCheck).toHaveBeenCalled();
@@ -264,7 +275,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtestP2PKtoken');
+        await result.current!('cashuBtestP2PKtoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -281,10 +292,10 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtestP2PKtoken');
+        await result.current!('cashuBtestP2PKtoken');
       });
 
-      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuAtestP2PKtoken');
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuBtestP2PKtoken');
     });
   });
 
@@ -297,12 +308,12 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       expect(notify.token.checking).toHaveBeenCalled();
       expect(notify.token.claiming).toHaveBeenCalled();
-      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAtesttoken');
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuBtesttoken');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
@@ -318,7 +329,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -344,7 +355,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
@@ -369,12 +380,12 @@ describe('useQRCodeHandler', () => {
       mockCheckProofsSpent.mockResolvedValue({
         states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
       });
-      mockEncodeToken.mockReturnValue('cashuAfiltered');
+      mockEncodeToken.mockReturnValue('cashuBfiltered');
 
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       // Get the Claim button callback
@@ -387,7 +398,7 @@ describe('useQRCodeHandler', () => {
 
       expect(notify.token.claimingUnspent).toHaveBeenCalled();
       expect(mockEncodeToken).toHaveBeenCalled();
-      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAfiltered');
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuBfiltered');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
@@ -412,7 +423,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
@@ -446,7 +457,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       const alertCall = (Alert.alert as jest.Mock).mock.calls[0];
@@ -471,7 +482,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -489,7 +500,7 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('cashuAtesttoken');
+        await result.current!('cashuBtesttoken');
       });
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
@@ -517,7 +528,7 @@ describe('useQRCodeHandler', () => {
 
       expect(mockEncodeToken).toHaveBeenCalled();
       expect(notify.token.claiming).toHaveBeenCalled();
-      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuAencodedtoken');
+      expect(mockProps.receiveCashuToken).toHaveBeenCalledWith('cashuBencodedtoken');
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
@@ -637,17 +648,17 @@ describe('useQRCodeHandler', () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
-        await result.current!('ducat://turbo/cashuAbc123xyz');
+        await result.current!('ducat://turbo/cashuBbc123xyz');
       });
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'TurboClaiming',
-        params: { tokenString: 'cashuAbc123xyz' },
+        params: { tokenString: 'cashuBbc123xyz' },
       });
     });
 
     it('should handle URL with t parameter (base64 token)', async () => {
-      const base64Token = Buffer.from('testtoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
@@ -660,13 +671,13 @@ describe('useQRCodeHandler', () => {
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'TurboClaiming',
-        params: { tokenString: 'testtoken' },
+        params: { tokenString: 'cashuBtesttoken' },
       });
     });
 
     it('should add padding to base64 tokens as needed', async () => {
       // Create token that needs 1 padding character
-      const token = 'ab';
+      const token = 'cashuBab';
       const base64Token = Buffer.from(token).toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
@@ -680,7 +691,7 @@ describe('useQRCodeHandler', () => {
 
       expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
         screen: 'TurboClaiming',
-        params: { tokenString: 'ab' },
+        params: { tokenString: 'cashuBab' },
       });
     });
 

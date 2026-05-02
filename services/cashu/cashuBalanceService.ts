@@ -63,7 +63,7 @@ export const getOrFetchKeys = async (forceRefresh = false): Promise<MintKeys> =>
 /**
  * Get current balance (fast initial load with first 25 proofs, then full load)
  * @param fullLoad - If false, only load first 25 proofs for quick estimate
- * @returns Total balance in sats
+ * @returns Total balance in Ducat UNIT smallest units
  */
 export const getBalance = async (fullLoad = true): Promise<number> => {
   // For quick initial load, only load first 25 proofs

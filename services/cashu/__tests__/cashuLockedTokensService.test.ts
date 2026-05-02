@@ -47,7 +47,7 @@ describe('cashuLockedTokensService', () => {
   describe('saveSentLockedToken', () => {
     it('should save a new sent locked token', async () => {
       await saveSentLockedToken(
-        'cashuAtoken123',
+        'cashuBtoken123',
         'tb1precipient',
         1000,
         'txid123',
@@ -65,7 +65,7 @@ describe('cashuLockedTokensService', () => {
       const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData).toHaveLength(1);
       expect(savedData[0]).toMatchObject({
-        token: 'cashuAtoken123',
+        token: 'cashuBtoken123',
         recipient: 'tb1precipient',
         amount: 1000,
         txid: 'txid123',
@@ -145,7 +145,7 @@ describe('cashuLockedTokensService', () => {
       expect(tokens.every((t: any) => t.taprootAddress === 'addr1')).toBe(true);
     });
 
-    it('should exclude legacy tokens without taprootAddress when filtering', async () => {
+    it('should exclude tokens without taprootAddress when filtering', async () => {
       const storedTokens = [
         { id: '1', token: 't1', timestamp: 100 }, // No taprootAddress
         { id: '2', token: 't2', timestamp: 200, taprootAddress: 'addr1' },
@@ -288,23 +288,23 @@ describe('cashuLockedTokensService', () => {
     // which bypasses static mocks. We test the fallback behavior.
     it('should return ducat:// deeplink as fallback', async () => {
       // Dynamic import will fail/fallback, returning the deeplink
-      const result = await generateTurboDeeplink('cashuAtoken', 'recipient', 100);
+      const result = await generateTurboDeeplink('cashuBtoken', 'recipient', 100);
 
-      expect(result).toBe('ducat://turbo/cashuAtoken');
+      expect(result).toBe('ducat://turbo/cashuBtoken');
     });
 
     it('should construct correct deeplink format', async () => {
-      const result = await generateTurboDeeplink('cashuAabcdef123', 'tb1precipient', 5000);
+      const result = await generateTurboDeeplink('cashuBabcdef123', 'tb1precipient', 5000);
 
-      expect(result).toMatch(/^ducat:\/\/turbo\/cashuA/);
-      expect(result).toContain('cashuAabcdef123');
+      expect(result).toMatch(/^ducat:\/\/turbo\/cashuB/);
+      expect(result).toContain('cashuBabcdef123');
     });
   });
 
   describe('generateTurboQRData', () => {
     it('should return same result as generateTurboDeeplink', async () => {
-      const deeplink = await generateTurboDeeplink('cashuAtoken', 'recipient', 100);
-      const qrData = await generateTurboQRData('cashuAtoken', 'recipient', 100);
+      const deeplink = await generateTurboDeeplink('cashuBtoken', 'recipient', 100);
+      const qrData = await generateTurboQRData('cashuBtoken', 'recipient', 100);
 
       expect(qrData).toBe(deeplink);
     });
@@ -312,7 +312,7 @@ describe('cashuLockedTokensService', () => {
 
   describe('saveReceivedToken', () => {
     it('should save a received token', async () => {
-      await saveReceivedToken('cashuAtoken', 'sender123', 500, 'tb1preceiver');
+      await saveReceivedToken('cashuBtoken', 'sender123', 500, 'tb1preceiver');
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'received_turbo_tokens',
@@ -323,7 +323,7 @@ describe('cashuLockedTokensService', () => {
       const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData).toHaveLength(1);
       expect(savedData[0]).toMatchObject({
-        token: 'cashuAtoken',
+        token: 'cashuBtoken',
         sender: 'sender123',
         amount: 500,
         taprootAddress: 'tb1preceiver',
@@ -332,7 +332,7 @@ describe('cashuLockedTokensService', () => {
     });
 
     it('should use "Unknown" for undefined sender', async () => {
-      await saveReceivedToken('cashuAtoken', '', 500, 'tb1preceiver');
+      await saveReceivedToken('cashuBtoken', '', 500, 'tb1preceiver');
 
       const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData[0].sender).toBe('Unknown');

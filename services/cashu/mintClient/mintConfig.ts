@@ -6,11 +6,12 @@ import { logger } from '../../../utils/logger';
 
 // Whitelist of allowed mint URLs (production only — __DEV__ allows any URL)
 const ALLOWED_MINT_URLS: readonly string[] = [
+  'https://dev-cashu-mint.ducatprotocol.com',
   'https://cashu-mint.ducatprotocol.com',
   'https://backup-mint.ducatprotocol.com',
 ];
 
-const DEFAULT_MINT_URL = 'https://cashu-mint.ducatprotocol.com';
+const DEFAULT_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
 
 const isLocalDevMintUrl = (url: string): boolean => {
   try {

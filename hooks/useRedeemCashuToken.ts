@@ -6,7 +6,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
-import { decodeToken } from '../services/cashu/crypto';
+import { decodeTokenMetadata } from '../services/cashu/crypto';
 import { isP2PKSecret, getP2PKRecipient, findAccountForP2PKToken } from '../services/cashu/p2pk';
 import { getCurrentAccount } from '../services/secureStorageService';
 import { receiveP2PKToken, receiveToken } from '../services/cashu/cashuWalletService';
@@ -25,7 +25,7 @@ interface DecodedToken {
     secret: string;
     amount: number;
     C: string;
-    id: string;
+    id?: string;
   }>;
   amount: number;
 }
@@ -35,6 +35,8 @@ interface AccountMatch {
   address: string;
   privateKey: string;
 }
+
+const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token);
 
 export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuTokenParams): UseRedeemCashuTokenReturn {
   const handleRedeemToken = useCallback(() => {
@@ -63,7 +65,13 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
             });
 
             try {
-              const decoded = decodeToken(tokenString.trim()) as DecodedToken | null;
+              const trimmedToken = tokenString.trim();
+              if (!isSupportedCashuToken(trimmedToken)) {
+                Alert.alert('Error', 'Only cashuB UNIT tokens are supported');
+                return;
+              }
+
+              const decoded = decodeTokenMetadata(trimmedToken) as DecodedToken | null;
 
               if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
                 logger.cashu('manual_redeem_invalid_format', {
@@ -86,9 +94,9 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
               });
 
               if (hasP2PKProofs) {
-                await redeemP2PKToken(tokenString.trim(), decoded, fetchTransactionHistory);
+                await redeemP2PKToken(trimmedToken, decoded, fetchTransactionHistory);
               } else {
-                await redeemRegularToken(tokenString.trim(), fetchTransactionHistory);
+                await redeemRegularToken(trimmedToken, fetchTransactionHistory);
               }
             } catch (error: unknown) {
               logger.cashu('manual_redeem_error', {

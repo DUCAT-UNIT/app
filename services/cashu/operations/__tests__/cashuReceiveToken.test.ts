@@ -38,6 +38,7 @@ jest.mock('../../crypto', () => ({
   splitAmount: jest.fn(),
   sumProofs: jest.fn((proofs: any[]) => proofs.reduce((sum: number, p: any) => sum + p.amount, 0)),
   decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 jest.mock('../../p2pk', () => ({
@@ -64,7 +65,7 @@ jest.mock('../../cashuProofManager', () => ({
 
 import { receiveToken } from '../cashuReceiveToken';
 import { MINT_URL, swapTokens, checkProofsSpent } from '../../cashuMintClient';
-import { createBlindedOutputs, unblindSignatures, splitAmount, sumProofs, decodeToken } from '../../crypto';
+import { createBlindedOutputs, unblindSignatures, splitAmount, sumProofs, decodeToken, decodeTokenMetadata } from '../../crypto';
 import { isP2PKLocked, getP2PKRecipient, findAccountForP2PKToken, getP2PKPrivateKey, signP2PKProofs } from '../../p2pk';
 import { getCurrentAccount } from '../../../secureStorageService';
 import { getOrFetchKeys } from '../../cashuBalanceService';
@@ -76,6 +77,7 @@ describe('cashuReceiveToken', () => {
     (checkProofsSpent as jest.Mock).mockImplementation(async (proofs: Array<unknown>) => ({
       states: proofs.map(() => ({ state: 'UNSPENT' })),
     }));
+    (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) => (decodeToken as jest.Mock)(token));
   });
 
   describe('receiveToken', () => {
@@ -95,7 +97,7 @@ describe('cashuReceiveToken', () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -110,7 +112,7 @@ describe('cashuReceiveToken', () => {
         { amount: 32, secret: 'new2', C: 'C', id: 'id' },
       ]);
 
-      const result = await receiveToken('cashuAtoken...');
+      const result = await receiveToken('cashuBtoken...');
 
       expect(result.amount).toBe(96);
       expect(result.proofCount).toBe(2);
@@ -130,7 +132,7 @@ describe('cashuReceiveToken', () => {
         amount: 96,
       });
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow(
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
         'Token from different mint: https://different.mint.com'
       );
     });
@@ -139,7 +141,7 @@ describe('cashuReceiveToken', () => {
       (decodeToken as jest.Mock).mockReturnValue(mockToken);
       (loadProofs as jest.Mock).mockResolvedValue([{ secret: 's1' }]); // Already have this proof
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow('Token already received');
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow('Token already received');
     });
 
     it('should throw error when P2PK token has no matching account (line 94-95)', async () => {
@@ -157,7 +159,7 @@ describe('cashuReceiveToken', () => {
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
       (findAccountForP2PKToken as jest.Mock).mockResolvedValue(null); // No matching account
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow(
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
         'This token is not locked to any of your accounts'
       );
     });
@@ -177,7 +179,7 @@ describe('cashuReceiveToken', () => {
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
       (findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 2 }); // Different account
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow(
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
         'This proof belongs to account 3. Please switch to that account to claim this token.'
       );
     });
@@ -195,7 +197,7 @@ describe('cashuReceiveToken', () => {
       (isP2PKLocked as jest.Mock).mockReturnValue(true);
       (getP2PKRecipient as jest.Mock).mockReturnValue(null); // Cannot extract pubkey
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (getP2PKPrivateKey as jest.Mock).mockResolvedValue('privatekey123');
       (signP2PKProofs as jest.Mock).mockResolvedValue(p2pkProofs);
@@ -213,7 +215,7 @@ describe('cashuReceiveToken', () => {
 
       const { logger } = require('../../../../utils/logger');
 
-      const result = await receiveToken('cashuAtoken...');
+      const result = await receiveToken('cashuBtoken...');
 
       expect(result.amount).toBe(64);
       expect(logger.warn).toHaveBeenCalledWith(
@@ -221,13 +223,12 @@ describe('cashuReceiveToken', () => {
       );
     });
 
-    it('should handle legacy keys format (line 144)', async () => {
+    it('should use active unit keyset keys (line 144)', async () => {
       (decodeToken as jest.Mock).mockReturnValue(mockToken);
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
-      // Legacy format
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keys: { 1: 'key1', 2: 'key2' },
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -242,7 +243,7 @@ describe('cashuReceiveToken', () => {
         { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
       ]);
 
-      const result = await receiveToken('cashuAtoken...');
+      const result = await receiveToken('cashuBtoken...');
 
       expect(result.amount).toBe(96);
     });
@@ -262,7 +263,7 @@ describe('cashuReceiveToken', () => {
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
       (findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 0, privateKey: 'privatekey123' }); // Same account
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (getP2PKPrivateKey as jest.Mock).mockResolvedValue('privatekey123');
       (signP2PKProofs as jest.Mock).mockResolvedValue(p2pkProofs);
@@ -278,7 +279,7 @@ describe('cashuReceiveToken', () => {
         { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
       ]);
 
-      const result = await receiveToken('cashuAtoken...');
+      const result = await receiveToken('cashuBtoken...');
 
       expect(result.amount).toBe(64);
       expect(signP2PKProofs).toHaveBeenCalledWith(p2pkProofs, 'privatekey123');
@@ -291,7 +292,7 @@ describe('cashuReceiveToken', () => {
       // No keysets and no keys
       (getOrFetchKeys as jest.Mock).mockResolvedValue({});
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow('No keys available from mint');
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow('No active unit keyset available from mint');
     });
 
     it('should retry saving proofs and succeed on second attempt (lines 250-259)', async () => {
@@ -299,7 +300,7 @@ describe('cashuReceiveToken', () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -321,7 +322,7 @@ describe('cashuReceiveToken', () => {
 
       const { logger } = require('../../../../utils/logger');
 
-      const result = await receiveToken('cashuAtoken...');
+      const result = await receiveToken('cashuBtoken...');
 
       expect(result.amount).toBe(96);
       expect(addProofs).toHaveBeenCalledTimes(2);
@@ -339,7 +340,7 @@ describe('cashuReceiveToken', () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -359,7 +360,7 @@ describe('cashuReceiveToken', () => {
 
       const { logger } = require('../../../../utils/logger');
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow(
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
         'Critical error: Received proofs from mint but failed to save locally'
       );
 
@@ -387,7 +388,7 @@ describe('cashuReceiveToken', () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64, 32]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -405,7 +406,7 @@ describe('cashuReceiveToken', () => {
 
       const { logger } = require('../../../../utils/logger');
 
-      await expect(receiveToken('cashuAtoken...')).rejects.toThrow('Critical error');
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow('Critical error');
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to store proofs in recovery queue',

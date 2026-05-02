@@ -94,7 +94,7 @@ export const clearWallet = async (): Promise<void> => {
 };
 
 /**
- * Default export for backwards compatibility
+ * Convenience default export for grouped Cashu wallet operations
  */
 export default {
   // Account management

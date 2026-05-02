@@ -70,6 +70,7 @@ jest.mock('../crypto', () => ({
   selectProofsForAmount: jest.fn(),
   encodeToken: jest.fn(),
   decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 describe('cashuWalletService', () => {
@@ -128,6 +129,9 @@ describe('cashuWalletService', () => {
     (cashuCrypto.splitAmount as jest.Mock).mockReset();
     (cashuCrypto.createBlindedOutputs as jest.Mock).mockReset();
     (cashuCrypto.unblindSignatures as jest.Mock).mockReset();
+    (cashuCrypto.decodeTokenMetadata as jest.Mock).mockImplementation(
+      (token: string) => (cashuCrypto.decodeToken as jest.Mock)(token)
+    );
 
     // Default mock implementations - use storage map for proof integrity hash verification
     mockSecureStorage = {};
@@ -624,14 +628,14 @@ describe('cashuWalletService', () => {
   describe('Token Operations', () => {
     describe('receiveToken - Basic Validation', () => {
       it('should reject invalid token format', async () => {
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce(null);
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue(null);
 
         await expect(cashuWalletService.receiveToken('invalid'))
           .rejects.toThrow('Invalid token format');
       });
 
       it('should reject token from different mint', async () => {
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: 'https://different-mint.com',
           proofs: mockProofs,
           amount: 15,
@@ -642,13 +646,13 @@ describe('cashuWalletService', () => {
       });
 
       it('should reject already received tokens', async () => {
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: mockProofs,
           amount: 15,
         });
 
-        (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockProofs));
+        mockSecureStorage[proofStorageKey] = JSON.stringify(mockProofs);
 
         await expect(cashuWalletService.receiveToken('token'))
           .rejects.toThrow('Token already received');
@@ -660,7 +664,7 @@ describe('cashuWalletService', () => {
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(mockProofs));
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValue(mockProofs.slice(0, 2));
         (cashuCrypto.sumProofs as jest.Mock).mockReturnValue(3);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValue('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValue('cashuBeyJ0...');
         (cashuMintClient.getKeys as jest.Mock).mockResolvedValue(mockKeysetData);
       });
 
@@ -1039,8 +1043,8 @@ describe('cashuWalletService', () => {
       });
 
       it('should receive regular token and add proofs', async () => {
-        const tokenString = 'cashuAeyJ0...';
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        const tokenString = 'cashuBeyJ0...';
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: mockProofs.slice(0, 2),
           amount: 3,
@@ -1056,7 +1060,7 @@ describe('cashuWalletService', () => {
       });
 
       it('should handle P2PK locked tokens for current account', async () => {
-        const tokenString = 'cashuAeyJ0...';
+        const tokenString = 'cashuBeyJ0...';
         const p2pkProofs = mockP2PKProofs.slice(0, 2);
 
         (cashuP2PK.isP2PKLocked as jest.Mock).mockReturnValue(true);
@@ -1071,7 +1075,7 @@ describe('cashuWalletService', () => {
         (cashuP2PK.signP2PKProofs as jest.Mock).mockResolvedValue(p2pkProofs);
         (secureStorageService.getCurrentAccount as jest.Mock).mockResolvedValue(0);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: p2pkProofs,
           amount: 3,
@@ -1085,14 +1089,14 @@ describe('cashuWalletService', () => {
       });
 
       it('should reject P2PK token for wrong account', async () => {
-        const tokenString = 'cashuAeyJ0...';
+        const tokenString = 'cashuBeyJ0...';
 
         (cashuP2PK.isP2PKLocked as jest.Mock).mockReturnValue(true);
         (cashuP2PK.getP2PKRecipient as jest.Mock).mockReturnValue('02abc123');
         (cashuP2PK.findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 1, publicKey: '02abc123' });
         (secureStorageService.getCurrentAccount as jest.Mock).mockResolvedValue(0);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: mockP2PKProofs,
           amount: 3,
@@ -1127,11 +1131,11 @@ describe('cashuWalletService', () => {
         mockSecureStorage[proofStorageKey] = JSON.stringify(mockProofs);
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         const result = await cashuWalletService.sendToken(3, false);
 
-        expect(result.token).toBe('cashuAeyJ0...');
+        expect(result.token).toBe('cashuBeyJ0...');
         expect(result.amount).toBe(3);
         expect(cashuMintClient.swapTokens).not.toHaveBeenCalled();
       });
@@ -1168,11 +1172,11 @@ describe('cashuWalletService', () => {
           signatures: mockSignatures,
         });
         (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce([...sendProofs, ...changeProofs]);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         const result = await cashuWalletService.sendToken(3, true);
 
-        expect(result.token).toBe('cashuAeyJ0...');
+        expect(result.token).toBe('cashuBeyJ0...');
         expect(result.amount).toBe(3);
         expect(cashuMintClient.swapTokens).toHaveBeenCalled();
       });
@@ -1446,11 +1450,11 @@ describe('cashuWalletService', () => {
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
           { ...mockProofs[1], secret: '["P2PK",{"nonce":"def","data":"02abc123"}]' },
         ]);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         const result = await cashuWalletService.sendP2PKToken(3, recipientPubkey);
 
-        expect(result.token).toBe('cashuAeyJ0...');
+        expect(result.token).toBe('cashuBeyJ0...');
         expect(result.amount).toBe(3);
         expect(cashuP2PK.createP2PKSecret).toHaveBeenCalledWith(recipientPubkey, {});
       });
@@ -1468,7 +1472,7 @@ describe('cashuWalletService', () => {
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
           { ...mockProofs[1], secret: '["P2PK",{"nonce":"def","data":"02abc123"}]' },
         ]);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         await cashuWalletService.sendP2PKToken(3, recipientPubkey, options);
 
@@ -1488,7 +1492,7 @@ describe('cashuWalletService', () => {
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
           { ...mockProofs[1], secret: '["P2PK",{"nonce":"def","data":"02abc123"}]' },
         ]);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         await cashuWalletService.sendP2PKToken(3, recipientPubkey, options);
 
@@ -1508,7 +1512,7 @@ describe('cashuWalletService', () => {
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
           { ...mockProofs[1], secret: '["P2PK",{"nonce":"def","data":"02abc123"}]' },
         ]);
-        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuAeyJ0...');
+        (cashuCrypto.encodeToken as jest.Mock).mockReturnValueOnce('cashuBeyJ0...');
 
         await cashuWalletService.sendP2PKToken(3, recipientPubkey, {}, onProgress);
 
@@ -1531,13 +1535,13 @@ describe('cashuWalletService', () => {
 
     describe('receiveP2PKToken', () => {
       it('should receive and unlock P2PK token', async () => {
-        const tokenString = 'cashuAeyJ0...';
+        const tokenString = 'cashuBeyJ0...';
         const p2pkProofs = [
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
           { ...mockProofs[1], secret: '["P2PK",{"nonce":"def","data":"02abc123"}]' },
         ];
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: p2pkProofs,
           amount: 3,
@@ -1561,11 +1565,11 @@ describe('cashuWalletService', () => {
       });
 
       it('should handle non-P2PK token error', async () => {
-        const tokenString = 'cashuAeyJ0...';
+        const tokenString = 'cashuBeyJ0...';
 
         (cashuP2PK.isP2PKSecret as jest.Mock).mockReturnValue(false);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: mockProofs,
           amount: 15,
@@ -1576,12 +1580,12 @@ describe('cashuWalletService', () => {
       });
 
       it('should handle wrong private key (swap fails)', async () => {
-        const tokenString = 'cashuAeyJ0...';
+        const tokenString = 'cashuBeyJ0...';
         const p2pkProofs = [
           { ...mockProofs[0], secret: '["P2PK",{"nonce":"abc","data":"02abc123"}]' },
         ];
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           mint: cashuMintClient.MINT_URL,
           proofs: p2pkProofs,
           amount: 1,
@@ -1614,7 +1618,7 @@ describe('cashuWalletService', () => {
       it('should recover locked tokens we can claim', async () => {
         const sentToken = {
           id: 'token1',
-          token: 'cashuAeyJ0...',
+          token: 'cashuBeyJ0...',
         };
 
         const changeProofs = [mockProofs[0], mockProofs[1]];
@@ -1622,7 +1626,7 @@ describe('cashuWalletService', () => {
 
         (cashuLockedTokensService.getSentLockedTokens as jest.Mock).mockResolvedValueOnce([sentToken]);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           proofs: [...changeProofs, ...lockedProofs],
         });
 
@@ -1654,13 +1658,13 @@ describe('cashuWalletService', () => {
       it('should handle locked tokens we cannot claim (all P2PK)', async () => {
         const sentToken = {
           id: 'token1',
-          token: 'cashuAeyJ0...',
+          token: 'cashuBeyJ0...',
         };
 
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify([]));
         (cashuLockedTokensService.getSentLockedTokens as jest.Mock).mockResolvedValueOnce([sentToken]);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           proofs: mockP2PKProofs,  // All P2PK, no change
         });
 
@@ -1673,7 +1677,7 @@ describe('cashuWalletService', () => {
       it('should skip tokens already in wallet', async () => {
         const sentToken = {
           id: 'token1',
-          token: 'cashuAeyJ0...',
+          token: 'cashuBeyJ0...',
         };
 
         const changeProofs = [mockProofs[0]];
@@ -1681,7 +1685,7 @@ describe('cashuWalletService', () => {
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify(changeProofs));  // already in wallet
         (cashuLockedTokensService.getSentLockedTokens as jest.Mock).mockResolvedValueOnce([sentToken]);
 
-        (cashuCrypto.decodeToken as jest.Mock).mockReturnValueOnce({
+        (cashuCrypto.decodeToken as jest.Mock).mockReturnValue({
           proofs: changeProofs,
         });
 

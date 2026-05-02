@@ -191,7 +191,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
         <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Paste Turbo UNIT token here (cashuA...)"
+            placeholder="Paste Turbo UNIT token here (cashuB...)"
             multiline
             numberOfLines={4}
             value={pasteValue}

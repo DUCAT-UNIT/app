@@ -7,6 +7,8 @@ import { logger } from '../../../utils/logger';
 import { getSentLockedTokens } from '../cashuLockedTokensService';
 import { addProofs,loadProofs } from '../cashuProofManager';
 import { CashuProof } from '../crypto';
+import { getOrFetchKeys } from '../cashuBalanceService';
+import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
 
 export interface RecoverLockedChangeResult {
   recovered: number;
@@ -30,6 +32,7 @@ export const recoverLockedChange = async (): Promise<RecoverLockedChangeResult> 
 
     // Get sent token history
     const sentTokens = await getSentLockedTokens();
+    const keysetIds = getKeysetIdsFromMintKeys(await getOrFetchKeys());
 
     logger.info('Starting change recovery', {
       walletProofs: allProofs.length,
@@ -41,7 +44,7 @@ export const recoverLockedChange = async (): Promise<RecoverLockedChangeResult> 
 
     for (const tokenData of sentTokens) {
       try {
-        const decoded = crypto.decodeToken(tokenData.token);
+        const decoded = crypto.decodeToken(tokenData.token, keysetIds);
         const p2pk = require('../p2pk');
 
         // Separate P2PK locked proofs (intended for recipient) from normal proofs (change)
@@ -81,7 +84,7 @@ export const recoverLockedChange = async (): Promise<RecoverLockedChangeResult> 
       const fallbackProofs: CashuProof[] = [];
       for (const tokenData of sentTokens) {
         try {
-          const decoded = crypto.decodeToken(tokenData.token);
+          const decoded = crypto.decodeToken(tokenData.token, keysetIds);
           const p2pk = require('../p2pk');
           const nonLocked = decoded.proofs.filter((p: CashuProof) => !p2pk.isP2PKSecret(p.secret));
           fallbackProofs.push(...nonLocked);

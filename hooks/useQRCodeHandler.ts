@@ -7,7 +7,9 @@ import { NavigationProp,ParamListBase,useNavigation } from '@react-navigation/na
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { checkProofsSpent } from '../services/cashu/cashuMintClient';
-import { decodeToken,encodeToken } from '../services/cashu/crypto';
+import { getOrFetchKeys } from '../services/cashu/cashuBalanceService';
+import { getKeysetIdsFromMintKeys } from '../services/cashu/cashuTsCompat';
+import { decodeToken,decodeTokenMetadata,encodeToken } from '../services/cashu/crypto';
 import { hasP2PKProofs } from '../services/cashu/p2pk';
 import type { SnackbarParams } from '../stores/notificationStore';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
@@ -53,13 +55,16 @@ interface TokenEntry {
 
 function classifyQrPayload(data: string): string {
   const lower = data.toLowerCase();
-  if (lower.startsWith('cashu')) return 'cashu_token';
+  if (lower.startsWith('cashub')) return 'cashu_token';
+  if (lower.startsWith('cashu')) return 'unsupported_cashu_token';
   if (lower.startsWith('bitcoin:')) return 'bitcoin_uri';
   if (lower.startsWith('tb1') || lower.startsWith('bc1')) return 'bitcoin_address';
   if (lower.includes('ducat://turbo/') || lower.includes('unit?')) return 'turbo_url';
   if (data.startsWith('{') || data.startsWith('[')) return 'json';
   return 'unknown';
 }
+
+const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token);
 
 /**
  * Hook for handling various QR code formats
@@ -118,7 +123,17 @@ export function useQRCodeHandler({
     }
 
     // Handle Cashu tokens
-    if (trimmedData.startsWith('cashu')) {
+    if (lowerData.startsWith('cashu')) {
+      if (!isSupportedCashuToken(trimmedData)) {
+        setShowQRScanner(false);
+        showSnackbar({
+          type: 'error',
+          action: 'claim',
+          description: 'Only cashuB UNIT tokens are supported',
+        });
+        return;
+      }
+
       try {
         // Check if this is a P2PK locked token (Turbo)
         const isP2PKToken = hasP2PKProofs(trimmedData);
@@ -156,12 +171,13 @@ export function useQRCodeHandler({
         setShowQRScanner(false);
         notify.token.checking();
 
-        // Decode and analyze the token
-        const decoded = decodeToken(trimmedData) as DecodedToken;
+        const metadata = decodeTokenMetadata(trimmedData);
+        const keyData = await getOrFetchKeys();
+        const decoded = decodeToken(trimmedData, getKeysetIdsFromMintKeys(keyData)) as DecodedToken;
         const { proofs, amount } = decoded;
 
         // Check which proofs are spent
-        const stateResult = await checkProofsSpent(proofs) as CheckProofsResult;
+        const stateResult = await checkProofsSpent(metadata.proofs) as CheckProofsResult;
 
         const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
         const unspentProofs = proofs.filter((_, idx) =>
@@ -322,6 +338,16 @@ export function useQRCodeHandler({
         }
 
         if (token) {
+          if (!isSupportedCashuToken(token)) {
+            setShowQRScanner(false);
+            showSnackbar({
+              type: 'error',
+              action: 'claim',
+              description: 'Only cashuB UNIT tokens are supported',
+            });
+            return;
+          }
+
           // Close scanner FIRST before any navigation to prevent race conditions
           setShowQRScanner(false);
 

@@ -6,14 +6,9 @@ import { Buffer } from 'buffer';
 import { schnorr } from '@noble/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { logger } from '../../../utils/logger';
+import type { CashuProof as CoreCashuProof } from '../crypto/cryptoProofs';
 
-export interface CashuProof {
-  amount: number;
-  secret: string;
-  C: string;
-  id: string;
-  witness?: string;
-}
+export type CashuProof = CoreCashuProof;
 
 /**
  * Check if a secret is a P2PK secret
@@ -165,9 +160,9 @@ export const hasP2PKProofs = (tokenString: string): boolean => {
   });
 
   try {
-    // Import decodeToken inline to avoid circular dependency
-    const { decodeToken } = require('../crypto');
-    const decoded = decodeToken(tokenString);
+    // Import inline to avoid circular dependency.
+    const { decodeTokenMetadata } = require('../crypto');
+    const decoded = decodeTokenMetadata(tokenString);
 
     if (!decoded.proofs || !Array.isArray(decoded.proofs)) {
       logger.cashu('p2pk_token_scan_result', {

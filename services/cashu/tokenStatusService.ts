@@ -8,7 +8,7 @@ import type { ProofState } from '../../types/cashu';
 import { logger } from '../../utils/logger';
 import { EcashTokenRecord,updateTokenClaimedStatus } from './cashuLockedTokensService';
 import { checkProofsSpent } from './cashuMintClient';
-import { decodeToken } from './crypto';
+import { decodeTokenMetadata } from './crypto';
 
 interface CheckProofsResult {
   states?: ProofState[];
@@ -40,7 +40,7 @@ export const clearTokenStatusCache = (): void => {
 const isValidTokenString = (tokenString: string | undefined): boolean => {
   if (!tokenString || typeof tokenString !== 'string') return false;
   if (tokenString.startsWith('http') || tokenString.startsWith('ducat://')) return false;
-  if (!tokenString.startsWith('cashu')) return false;
+  if (!/^cashuB/i.test(tokenString)) return false;
   return true;
 };
 
@@ -77,7 +77,7 @@ export const checkTokenStatus = async (
 
   try {
     // Decode token to get proofs
-    const { proofs } = decodeToken(token.token);
+    const { proofs } = decodeTokenMetadata(token.token);
 
     // Check if proofs are spent
     const result: CheckProofsResult = await checkProofsSpent(proofs);

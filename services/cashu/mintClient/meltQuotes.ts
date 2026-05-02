@@ -6,10 +6,14 @@ import { getJSON, postJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
 import { CashuProof } from '../p2pk';
+import {
+  normalizeOptionalCashuAmount,
+  type CashuAmountLike,
+} from '../cashuTsCompat';
 
 export interface MeltQuote {
   quote: string;
-  amount: number;
+  amount?: number;
   fee?: number;
   fee_reserve?: number;
   state?: string;
@@ -17,12 +21,32 @@ export interface MeltQuote {
   expiry?: number;
 }
 
+type MeltQuoteWire = Omit<MeltQuote, 'amount' | 'fee' | 'fee_reserve'> & {
+  amount?: CashuAmountLike | null;
+  fee?: CashuAmountLike | null;
+  fee_reserve?: CashuAmountLike | null;
+};
+
 export interface MeltResponse {
   paid: boolean;
   payment_preimage: string;
-  fee_paid?: number;
-  change?: Array<{ C_: string; id?: string; amount?: number }>;
+  fee_paid?: number | CashuAmountLike;
+  change?: Array<{ C_: string; id?: string; amount?: number | CashuAmountLike }>;
 }
+
+const normalizeMeltQuote = (quote: MeltQuoteWire): MeltQuote => {
+  const { amount: rawAmount, fee: rawFee, fee_reserve: rawFeeReserve, ...rest } = quote;
+  const normalized: MeltQuote = { ...rest };
+  const amount = normalizeOptionalCashuAmount(rawAmount, 'melt quote amount');
+  const fee = normalizeOptionalCashuAmount(rawFee, 'melt quote fee');
+  const feeReserve = normalizeOptionalCashuAmount(rawFeeReserve, 'melt quote fee_reserve');
+
+  if (amount !== undefined) normalized.amount = amount;
+  if (fee !== undefined) normalized.fee = fee;
+  if (feeReserve !== undefined) normalized.fee_reserve = feeReserve;
+
+  return normalized;
+};
 
 /**
  * Create a melt quote for the advertised onchain/unit Cashu method.
@@ -34,7 +58,7 @@ export const createMeltQuote = async (address: string, amount: number): Promise<
   try {
     logger.info('Creating melt quote', { address, amount });
 
-    const response = await postJSON<MeltQuote[] | { quotes?: MeltQuote[] } | MeltQuote>(`${MINT_URL}/v1/melt/quote/onchain`, {
+    const response = await postJSON<MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain`, {
       request: address,
       amount,
       unit: CASHU_UNIT,
@@ -44,19 +68,24 @@ export const createMeltQuote = async (address: string, amount: number): Promise<
       description: 'Create melt quote',
     });
 
-    const responseWithQuotes = response as { quotes?: MeltQuote[] };
+    const responseWithQuotes = response as { quotes?: MeltQuoteWire[] };
     const quotes = Array.isArray(response)
       ? response
       : Array.isArray(responseWithQuotes.quotes)
         ? responseWithQuotes.quotes
-        : [response as MeltQuote];
-    if (quotes.length === 0) {
+        : [response as MeltQuoteWire];
+    const normalizedQuotes = quotes.map(normalizeMeltQuote);
+    if (normalizedQuotes.length === 0) {
       throw new Error('Mint returned no melt quote options');
     }
 
-    const quote = [...quotes].sort(
-      (a, b) => (a.amount + (a.fee ?? a.fee_reserve ?? 0)) - (b.amount + (b.fee ?? b.fee_reserve ?? 0))
+    const quote = [...normalizedQuotes].sort(
+      (a, b) => ((a.amount ?? 0) + (a.fee ?? a.fee_reserve ?? 0)) - ((b.amount ?? 0) + (b.fee ?? b.fee_reserve ?? 0))
     )[0];
+
+    if (quote.amount === undefined) {
+      throw new Error('Mint returned melt quote without amount');
+    }
 
     logger.info('Melt quote created', {
       quoteId: quote.quote,
@@ -78,10 +107,10 @@ export const createMeltQuote = async (address: string, amount: number): Promise<
  */
 export const checkMeltQuote = async (quoteId: string): Promise<MeltQuote> => {
   try {
-    const quote = await getJSON<MeltQuote>(`${MINT_URL}/v1/melt/quote/onchain/${quoteId}`, {
+    const quote = normalizeMeltQuote(await getJSON<MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain/${quoteId}`, {
       timeout: 5000,
       description: 'Check melt quote',
-    });
+    }));
     return quote;
   } catch (error: unknown) {
     logger.error('Failed to check melt quote', { error: (error as Error).message, quoteId });

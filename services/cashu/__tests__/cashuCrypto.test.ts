@@ -55,6 +55,9 @@ import {
   unblindSignatures,
 } from '../crypto';
 
+const UNIT_KEYSET_ID = '016693641a43d3fc3d2255d36bf17c1edd2e99604b08e1c1b5dbac21c76213061b';
+const VALID_C = `02${'11'.repeat(32)}`;
+
 describe('cashuCrypto', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -238,81 +241,69 @@ describe('cashuCrypto', () => {
   describe('encodeToken', () => {
     it('should encode proofs and mint URL', () => {
       const proofs = [
-        { amount: 100, secret: 'abc', C: 'xyz', id: '00ffd' },
+        { amount: 100, secret: 'abc', C: VALID_C, id: UNIT_KEYSET_ID },
       ];
       const mint = 'https://mint.example.com';
 
       const encoded = encodeToken(proofs, mint);
 
-      expect(encoded).toMatch(/^cashuA/);
-
-      // Should be valid base64 after prefix
-      const base64Part = encoded.replace(/^cashuA/, '');
-      expect(() => Buffer.from(base64Part, 'base64').toString()).not.toThrow();
+      expect(encoded).toMatch(/^cashuB/);
+      expect(() => decodeToken(encoded, [UNIT_KEYSET_ID])).not.toThrow();
     });
 
     it('should include mint URL in encoded token', () => {
-      const proofs = [{ amount: 50, secret: 's', C: 'c', id: 'id' }];
+      const proofs = [{ amount: 50, secret: 's', C: VALID_C, id: UNIT_KEYSET_ID }];
       const mint = 'https://testmint.com';
 
       const encoded = encodeToken(proofs, mint);
-      const base64Part = encoded.replace(/^cashuA/, '');
-      const decoded = JSON.parse(Buffer.from(base64Part, 'base64').toString());
+      const decoded = decodeToken(encoded, [UNIT_KEYSET_ID]);
 
-      expect(decoded.token[0].mint).toBe(mint);
-      expect(decoded.token[0].proofs).toEqual(proofs);
+      expect(decoded.mint).toBe(mint);
+      expect(decoded.proofs).toEqual(proofs);
     });
   });
 
   describe('decodeToken', () => {
-    it('should decode a valid cashuA token', () => {
+    it('should decode a valid cashuB token', () => {
       const proofs = [
-        { amount: 100, secret: 'secret', C: 'signature', id: 'keysetid' },
+        { amount: 100, secret: 'secret', C: VALID_C, id: UNIT_KEYSET_ID },
       ];
       const mint = 'https://mint.example.com';
       const encoded = encodeToken(proofs, mint);
 
-      const decoded = decodeToken(encoded);
+      const decoded = decodeToken(encoded, [UNIT_KEYSET_ID]);
 
       expect(decoded.mint).toBe(mint);
       expect(decoded.proofs).toEqual(proofs);
       expect(decoded.amount).toBe(100); // amount in smallest units (integer)
     });
 
-    it('should handle token without version letter', () => {
-      // Old format: cashueyJ...
-      const tokenData = {
-        token: [{
-          mint: 'https://mint.com',
-          proofs: [{ amount: 200, secret: 's', C: 'c', id: 'i' }],
-        }],
-      };
-      const base64 = Buffer.from(JSON.stringify(tokenData)).toString('base64');
-      const oldToken = 'cashu' + base64;
-
-      const decoded = decodeToken(oldToken);
-
-      expect(decoded.mint).toBe('https://mint.com');
-      expect(decoded.proofs[0].amount).toBe(200);
+    it('should reject pre-v4 token formats', () => {
+      expect(() => decodeToken('cashuAeyJ0b2tlbiI6W119')).toThrow(
+        'Unsupported Cashu token format: only cashuB tokens are supported'
+      );
+      expect(() => decodeToken('cashueyJ0b2tlbiI6W119')).toThrow(
+        'Unsupported Cashu token format: only cashuB tokens are supported'
+      );
     });
 
     it('should throw on invalid token format', () => {
       expect(() => decodeToken('invalid')).toThrow();
-      expect(() => decodeToken('cashuAinvalidbase64!!')).toThrow();
+      expect(() => decodeToken('cashuBinvalidbase64!!')).toThrow();
     });
   });
 
   describe('round-trip encoding/decoding', () => {
     it('should preserve data through encode/decode cycle', () => {
       const proofs = [
-        { amount: 64, secret: 'secret1', C: 'sig1', id: 'ks1' },
-        { amount: 32, secret: 'secret2', C: 'sig2', id: 'ks1' },
-        { amount: 4, secret: 'secret3', C: 'sig3', id: 'ks1' },
+        { amount: 64, secret: 'secret1', C: VALID_C, id: UNIT_KEYSET_ID },
+        { amount: 32, secret: 'secret2', C: VALID_C, id: UNIT_KEYSET_ID },
+        { amount: 4, secret: 'secret3', C: VALID_C, id: UNIT_KEYSET_ID },
       ];
       const mint = 'https://roundtrip.mint.com';
 
       const encoded = encodeToken(proofs, mint);
-      const decoded = decodeToken(encoded);
+      const decoded = decodeToken(encoded, [UNIT_KEYSET_ID]);
 
       expect(decoded.mint).toBe(mint);
       expect(decoded.proofs).toEqual(proofs);

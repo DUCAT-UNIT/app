@@ -23,6 +23,7 @@ import {
 } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
+import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
 
 export interface MeltQuoteResult {
   quoteId: string;
@@ -40,6 +41,9 @@ export const requestMelt = async (address: string, amount: number): Promise<Melt
     logger.info('Requesting melt', { address, amount });
 
     const quote: MeltQuote = await createMeltQuote(address, amount);
+    if (quote.amount === undefined) {
+      throw new Error('Melt quote missing amount');
+    }
 
     return {
       quoteId: quote.quote,
@@ -114,7 +118,7 @@ const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<
 };
 
 const unblindMeltChange = (
-  resultChange: Array<{ C_: string; id?: string; amount?: number }> | undefined,
+  resultChange: Array<{ C_: string; id?: string; amount?: CashuAmountLike }> | undefined,
   prepared: PreparedMeltSpend,
   keyData: MintKeys
 ): CashuProof[] | null => {
@@ -185,7 +189,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
     return {
       paid: result.paid,
       txid: result.payment_preimage,
-      fee: result.fee_paid || 0,
+      fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
       balance: newBalance,
     };
   } catch (error: unknown) {
@@ -230,7 +234,7 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
     return {
       paid: result.paid,
       txid: result.payment_preimage,
-      fee: result.fee_paid || 0,
+      fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
       proofsToRemove: selectedProofs,
       changeProofs: changeProofs,
     };

@@ -68,7 +68,7 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
  * @param proofs - Proofs to check
  * @returns States of proofs
  */
-export const checkProofsSpent = async (proofs: CashuProof[]): Promise<CheckStateResponse> => {
+export const checkProofsSpent = async (proofs: Array<CashuProof | { secret: string }>): Promise<CheckStateResponse> => {
   try {
     // Hash secrets to Y values (curve points) as required by NUT-07
     const Ys = await Promise.all(

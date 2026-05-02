@@ -12,9 +12,9 @@
  * Proof structure for Cashu tokens (NUT-00 compliant)
  *
  * A proof is the fundamental unit of value in Cashu. It represents
- * a blinded signature from a mint that can be redeemed for satoshis.
+ * a blinded signature from a mint that can be redeemed for Ducat UNIT.
  *
- * @property amount - The amount in satoshis this proof represents
+ * @property amount - The amount in Ducat UNIT smallest units this proof represents
  * @property secret - A unique secret that identifies this proof (prevents double-spending)
  * @property C - The blinded signature from the mint (curve point)
  * @property id - The keyset ID identifying which mint keys signed this proof
@@ -33,12 +33,6 @@ export interface CashuProof {
   C: string;
   id: string;
 }
-
-/**
- * Alias for CashuProof - used in various hooks for backwards compatibility
- * @deprecated Prefer CashuProof for new code
- */
-export type Proof = CashuProof;
 
 /**
  * Proof state string literal values (NUT-07)
@@ -92,12 +86,12 @@ export interface ProofWithState extends CashuProof {
  * Contains all proofs and metadata needed to redeem the token.
  *
  * @property proofs - Array of CashuProof objects
- * @property amount - Total amount in satoshis (sum of all proof amounts)
+ * @property amount - Total amount in Ducat UNIT smallest units (sum of all proof amounts)
  * @property mint - The mint URL these proofs are redeemable at
  *
  * @example
- * const decoded: DecodedToken = decodeToken('cashuAey...');
- * console.log(`Token worth ${decoded.amount} sats from ${decoded.mint}`);
+ * const decoded: DecodedToken = decodeToken('cashuBey...');
+ * console.log(`Token worth ${decoded.amount} UNIT smallest units from ${decoded.mint}`);
  */
 export interface DecodedToken {
   proofs: CashuProof[];
@@ -110,9 +104,9 @@ export interface DecodedToken {
  *
  * Used to track sent/received tokens in the wallet's transaction list.
  *
- * @property amount - The token amount in satoshis
+ * @property amount - The token amount in Ducat UNIT smallest units
  * @property mint - The mint URL
- * @property token - The serialized token string (cashuA...)
+ * @property token - The serialized token string (cashuB...)
  * @property timestamp - Unix timestamp when the token was created/received
  * @property proofs - Optional array of proofs for detailed view
  */
@@ -125,13 +119,13 @@ export interface EcashToken {
 }
 
 /**
- * Full Cashu token structure (NUT-00 V3 format)
+ * Full Cashu token structure (Cashu v4 cashuB format)
  *
  * The complete token format that can contain proofs from multiple mints.
  *
  * @property token - Array of mint-proof pairs
  * @property memo - Optional human-readable memo
- * @property unit - The unit of account (e.g., 'sat' for satoshis)
+ * @property unit - The unit of account. Ducat UNIT tokens use 'unit'.
  *
  * @example
  * const token: CashuToken = {
@@ -140,7 +134,7 @@ export interface EcashToken {
  *     proofs: [{ amount: 1000, secret: '...', C: '...', id: '...' }]
  *   }],
  *   memo: 'Payment for coffee',
- *   unit: 'sat'
+ *   unit: 'unit'
  * };
  */
 export interface CashuToken {
@@ -172,11 +166,11 @@ export interface CashuMint {
 /**
  * Pending mint quote tracking
  *
- * Tracks a mint quote while waiting for Lightning payment to be received.
+ * Tracks a mint quote while waiting for UNIT Runes payment to be received.
  *
  * @property quote - The unique quote ID from the mint
- * @property amount - Amount in satoshis being minted
- * @property hash - Payment hash for tracking
+ * @property amount - Amount in Ducat UNIT smallest units being minted
+ * @property hash - Optional payment tracking hash
  * @property timestamp - When the quote was created
  * @property expiresAt - When the quote expires (Unix timestamp)
  *
@@ -184,7 +178,7 @@ export interface CashuMint {
  * const pending: PendingMint = {
  *   quote: 'abc123',
  *   amount: 10000,
- *   hash: 'lnbc...',
+ *   hash: 'quote-tracking-hash',
  *   timestamp: Date.now(),
  *   expiresAt: Date.now() + 3600000 // 1 hour
  * };
@@ -200,10 +194,10 @@ export interface PendingMint {
 /**
  * Mint quote response (NUT-04)
  *
- * Response from /v1/mint/quote/bolt11 endpoint when requesting to mint tokens.
+ * Response from /v1/mint/quote/onchain endpoint when requesting to mint UNIT tokens.
  *
  * @property quote - Unique quote identifier
- * @property request - Lightning invoice to pay
+ * @property request - On-chain deposit address to pay
  * @property paid - Whether the invoice has been paid
  * @property expiry - Quote expiration (Unix timestamp)
  *
@@ -222,11 +216,11 @@ export interface MintQuoteResponse {
 /**
  * Melt quote response (NUT-05)
  *
- * Response from /v1/melt/quote/bolt11 endpoint when melting tokens to pay a Lightning invoice.
+ * Response from /v1/melt/quote/onchain endpoint when melting tokens to a Bitcoin address.
  *
  * @property quote - Unique quote identifier
  * @property amount - Amount to be melted (excluding fees)
- * @property fee_reserve - Reserved amount for Lightning routing fees
+ * @property fee_reserve - Reserved mint fee amount
  * @property paid - Whether the melt has been completed
  * @property expiry - Quote expiration (Unix timestamp)
  *
@@ -247,7 +241,7 @@ export interface MeltQuoteResponse {
  *
  * Summary of all Cashu proofs held by the wallet.
  *
- * @property totalBalance - Total balance across all mints in satoshis
+ * @property totalBalance - Total balance across all mints in Ducat UNIT smallest units
  * @property balanceByMint - Balance breakdown by mint URL
  * @property proofCount - Total number of proofs held
  *
@@ -272,7 +266,7 @@ export interface CashuBalance {
  *
  * Represents the current state of the Cashu wallet in the app.
  *
- * @property balance - Current total balance in satoshis
+ * @property balance - Current total balance in Ducat UNIT smallest units
  * @property isLoading - Whether a wallet operation is in progress
  * @property error - Current error message, if any
  * @property pendingMints - Array of pending mint operations

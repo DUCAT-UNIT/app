@@ -50,7 +50,7 @@ describe('cashuRecoverLockedChange', () => {
         { secret: 'existing1' },
       ]);
       (getSentLockedTokens as jest.Mock).mockResolvedValue([
-        { id: 'token1', token: 'cashuAtoken1...' },
+        { id: 'token1', token: 'cashuBtoken1...' },
       ]);
       (decodeToken as jest.Mock).mockReturnValue({
         proofs: [
@@ -73,7 +73,7 @@ describe('cashuRecoverLockedChange', () => {
     it('should return zero when no change proofs found', async () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (getSentLockedTokens as jest.Mock).mockResolvedValue([
-        { id: 'token1', token: 'cashuAtoken1...' },
+        { id: 'token1', token: 'cashuBtoken1...' },
       ]);
       (decodeToken as jest.Mock).mockReturnValue({
         proofs: [
@@ -94,7 +94,7 @@ describe('cashuRecoverLockedChange', () => {
         { secret: 'change_secret' }, // Already have this
       ]);
       (getSentLockedTokens as jest.Mock).mockResolvedValue([
-        { id: 'token1', token: 'cashuAtoken1...' },
+        { id: 'token1', token: 'cashuBtoken1...' },
       ]);
       (decodeToken as jest.Mock).mockReturnValue({
         proofs: [
@@ -116,7 +116,7 @@ describe('cashuRecoverLockedChange', () => {
       mockFn(loadProofs).mockResolvedValue([]);
       mockFn(getSentLockedTokens).mockResolvedValue([
         { id: 'token1', token: 'invalid_token' },
-        { id: 'token2', token: 'cashuAtoken2...' },
+        { id: 'token2', token: 'cashuBtoken2...' },
       ]);
       mockFn(decodeToken)
         .mockImplementationOnce(() => { throw new Error('Invalid token'); })
@@ -158,8 +158,8 @@ describe('cashuRecoverLockedChange', () => {
     it('should handle multiple tokens with change', async () => {
       (loadProofs as jest.Mock).mockResolvedValue([]);
       (getSentLockedTokens as jest.Mock).mockResolvedValue([
-        { id: 'token1', token: 'cashuAtoken1...' },
-        { id: 'token2', token: 'cashuAtoken2...' },
+        { id: 'token1', token: 'cashuBtoken1...' },
+        { id: 'token2', token: 'cashuBtoken2...' },
       ]);
       (decodeToken as jest.Mock)
         .mockReturnValueOnce({

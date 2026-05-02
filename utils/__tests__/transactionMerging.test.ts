@@ -19,7 +19,7 @@ import type { TokenRecord, ReceivedTokenRecord } from '../../services/cashu/cash
 function makeSentToken(overrides: Partial<TokenRecord & { claimed?: boolean; partiallySpent?: boolean }> = {}): TokenWithStatus {
   return {
     id: 'sent-token-1',
-    token: 'cashuAbc',
+    token: 'cashuBbc',
     amount: 500,
     timestamp: 1_700_000_000_000,
     taprootAddress: 'tb1pXXX',

@@ -51,6 +51,7 @@ const mockReceiveToken = jest.fn();
 
 jest.mock('../../services/cashu/crypto', () => ({
   decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
+  decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
 }));
 
 jest.mock('../../services/cashu/p2pk', () => ({
@@ -286,11 +287,11 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAvalidtoken');
+        await redeemButton.onPress('cashuBvalidtoken');
       });
 
-      expect(mockDecodeToken).toHaveBeenCalledWith('cashuAvalidtoken');
-      expect(mockReceiveToken).toHaveBeenCalledWith('cashuAvalidtoken');
+      expect(mockDecodeToken).toHaveBeenCalledWith('cashuBvalidtoken');
+      expect(mockReceiveToken).toHaveBeenCalledWith('cashuBvalidtoken');
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
       expect(Alert.alert).toHaveBeenCalledWith('Success', 'Token redeemed successfully!');
     });
@@ -305,10 +306,10 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('  cashuAvalidtoken  ');
+        await redeemButton.onPress('  cashuBvalidtoken  ');
       });
 
-      expect(mockDecodeToken).toHaveBeenCalledWith('cashuAvalidtoken');
+      expect(mockDecodeToken).toHaveBeenCalledWith('cashuBvalidtoken');
     });
 
     it('should handle invalid token format - null decoded', async () => {
@@ -322,7 +323,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('invalidtoken');
+        await redeemButton.onPress('cashuBinvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
@@ -339,7 +340,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('invalidtoken');
+        await redeemButton.onPress('cashuBinvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
@@ -356,7 +357,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('invalidtoken');
+        await redeemButton.onPress('cashuBinvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Invalid token format');
@@ -375,7 +376,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('invalidtoken');
+        await redeemButton.onPress('cashuBinvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Decode failed');
@@ -394,7 +395,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('invalidtoken');
+        await redeemButton.onPress('cashuBinvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: String error');
@@ -424,7 +425,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(mockIsP2PKSecret).toHaveBeenCalled();
@@ -447,10 +448,10 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
-      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuAp2pktoken', 'privatekey123');
+      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuBp2pktoken', 'privatekey123');
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
       expect(Alert.alert).toHaveBeenCalledWith('Success', 'P2PK token redeemed successfully!');
     });
@@ -467,7 +468,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Could not extract recipient pubkey from P2PK token');
@@ -485,7 +486,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
@@ -511,7 +512,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
@@ -549,7 +550,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(mockGetP2PKRecipient).toHaveBeenCalledWith('regular_secret');
@@ -585,7 +586,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       // Should still find the pubkey from the second proof
@@ -606,7 +607,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAvalidtoken');
+        await redeemButton.onPress('cashuBvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Network error');
@@ -631,7 +632,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAp2pktoken');
+        await redeemButton.onPress('cashuBp2pktoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: P2PK error');
@@ -649,7 +650,7 @@ describe('useRedeemCashuToken', () => {
       const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
 
       await act(async () => {
-        await redeemButton.onPress('cashuAvalidtoken');
+        await redeemButton.onPress('cashuBvalidtoken');
       });
 
       expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: String rejection');

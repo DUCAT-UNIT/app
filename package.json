@@ -54,6 +54,7 @@
   },
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
+    "@cashu/cashu-ts": "^4.1.0",
     "@cmdcode/buff": "^2.2.5",
     "@ducat-unit/client-sdk": "0.7.23",
     "@expo/vector-icons": "^15.0.3",

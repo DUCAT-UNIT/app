@@ -26,10 +26,12 @@ interface URLEvent {
 const extractTokenFromDucatUrl = (url: string): string | null => {
   const turboMatch = url.match(/ducat:\/\/turbo\/([^/?#]+)/);
   if (turboMatch && turboMatch[1]) {
-    return turboMatch[1]; // Already in cashuA... format
+    return turboMatch[1];
   }
   return null;
 };
+
+const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token);
 
 /**
  * Extract and decode token from URL parameter
@@ -101,6 +103,15 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
 
   if (!token) {
     logger.cashu('p2pk_url_no_token', { step: 'ENTRY_POINT', reason: 'No token found in URL' });
+    return;
+  }
+
+  if (!isSupportedCashuToken(token)) {
+    logger.cashu('p2pk_url_unsupported_token', {
+      step: 'ENTRY_POINT',
+      tokenPrefix: token?.substring(0, 8),
+      reason: 'Only cashuB tokens are supported',
+    });
     return;
   }
 

@@ -4,7 +4,8 @@ jest.mock('../../../../utils/logger', () => ({
   },
 }));
 
-const DEFAULT_MINT_URL = 'https://cashu-mint.ducatprotocol.com';
+const DEFAULT_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
+const PROD_MINT_URL = 'https://cashu-mint.ducatprotocol.com';
 const BACKUP_MINT_URL = 'https://backup-mint.ducatprotocol.com';
 
 function loadMintConfig(): typeof import('../mintConfig') {
@@ -36,6 +37,15 @@ describe('mintConfig', () => {
   });
 
   it('allows whitelisted mint URLs', () => {
+    process.env.EXPO_PUBLIC_MINT_URL = PROD_MINT_URL;
+
+    const config = loadMintConfig();
+
+    expect(config.MINT_URL).toBe(PROD_MINT_URL);
+    expect(config.MINT_URLS).toEqual([PROD_MINT_URL, BACKUP_MINT_URL]);
+  });
+
+  it('allows the backup mint URL', () => {
     process.env.EXPO_PUBLIC_MINT_URL = BACKUP_MINT_URL;
 
     const config = loadMintConfig();

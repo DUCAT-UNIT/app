@@ -12,7 +12,7 @@ jest.mock('../../../utils/logger', () => ({
 }));
 
 jest.mock('../crypto', () => ({
-  decodeToken: jest.fn(),
+  decodeTokenMetadata: jest.fn(),
 }));
 
 jest.mock('../cashuMintClient', () => ({
@@ -30,7 +30,7 @@ import {
   clearTokenStatusCache,
   TokenWithStatus,
 } from '../tokenStatusService';
-import { decodeToken } from '../crypto';
+import { decodeTokenMetadata } from '../crypto';
 import { checkProofsSpent } from '../cashuMintClient';
 import { updateTokenClaimedStatus, EcashTokenRecord } from '../cashuLockedTokensService';
 import { logger } from '../../../utils/logger';
@@ -38,7 +38,7 @@ import { logger } from '../../../utils/logger';
 describe('tokenStatusService', () => {
   const mockToken: EcashTokenRecord = {
     id: 'token123',
-    token: 'cashuAeyJ0b2tlbiI6W10sIm1pbnQiOiJodHRwczovL21pbnQuY29tIn0=',
+    token: 'cashuBeyJ0b2tlbiI6W10sIm1pbnQiOiJodHRwczovL21pbnQuY29tIn0=',
     amount: 100,
     timestamp: Date.now(),
     recipient: 'bc1p...',
@@ -55,7 +55,7 @@ describe('tokenStatusService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearTokenStatusCache();
-    (decodeToken as jest.Mock).mockReturnValue({ proofs: mockProofs, mint: 'https://mint.com', amount: 100 });
+    (decodeTokenMetadata as jest.Mock).mockReturnValue({ proofs: mockProofs, mint: 'https://mint.com', amount: 100 });
   });
 
   describe('clearTokenStatusCache', () => {
@@ -295,7 +295,7 @@ describe('tokenStatusService', () => {
       const tokens: EcashTokenRecord[] = Array(5).fill(null).map((_, i) => ({
         ...mockToken,
         id: `token${i}`,
-        token: `cashuA${i}`,
+        token: `cashuB${i}`,
       }));
 
       (checkProofsSpent as jest.Mock).mockRejectedValue(new Error('API error'));

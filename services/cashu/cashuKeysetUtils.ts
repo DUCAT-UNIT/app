@@ -1,5 +1,10 @@
 import type { MintKeyset, MintKeys } from './cashuMintClient';
 import { CashuProof, selectProofsForAmount } from './crypto';
+import {
+  keysetIdsMatch,
+  normalizeCashuAmount,
+  normalizeCashuProofs,
+} from './cashuTsCompat';
 
 export const CASHU_DUCAT_UNIT = 'unit';
 
@@ -11,7 +16,7 @@ export interface SelectedProofsWithFees {
 }
 
 const sumProofAmounts = (proofs: CashuProof[]): number =>
-  proofs.reduce((sum, proof) => sum + proof.amount, 0);
+  proofs.reduce((sum, proof) => sum + normalizeCashuAmount(proof.amount, 'proof amount'), 0);
 
 export const selectActiveUnitKeyset = (keyData: MintKeys): MintKeyset => {
   const keysets = keyData.keysets ?? [];
@@ -27,7 +32,7 @@ export const selectActiveUnitKeyset = (keyData: MintKeys): MintKeyset => {
 };
 
 export const findKeysetById = (keyData: MintKeys, keysetId: string): MintKeyset | undefined =>
-  keyData.keysets?.find((ks) => ks.id === keysetId);
+  keyData.keysets?.find((ks) => keysetIdsMatch(ks.id, keysetId));
 
 export const calculateInputFees = (proofs: CashuProof[], keyData: MintKeys): number => {
   const keysets = keyData.keysets ?? [];
@@ -35,15 +40,10 @@ export const calculateInputFees = (proofs: CashuProof[], keyData: MintKeys): num
     return 0;
   }
 
-  const feePpkById = new Map<string, number>();
-  for (const keyset of keysets) {
-    feePpkById.set(keyset.id, keyset.input_fee_ppk ?? 0);
-  }
-
-  const feePpk = proofs.reduce(
-    (sum, proof) => sum + (feePpkById.get(proof.id) ?? 0),
-    0
-  );
+  const feePpk = proofs.reduce((sum, proof) => {
+    const keyset = keysets.find((candidate) => keysetIdsMatch(candidate.id, proof.id));
+    return sum + normalizeCashuAmount(keyset?.input_fee_ppk ?? 0, 'input_fee_ppk');
+  }, 0);
 
   return Math.floor((feePpk + 999) / 1000);
 };
@@ -53,10 +53,11 @@ export const selectProofsForAmountIncludingFees = (
   amount: number,
   keyData: MintKeys
 ): SelectedProofsWithFees => {
+  const normalizedProofs = normalizeCashuProofs(proofs);
   let target = amount;
 
   for (let attempt = 0; attempt < 10; attempt++) {
-    const selectedProofs = selectProofsForAmount(proofs, target);
+    const selectedProofs = selectProofsForAmount(normalizedProofs, target);
     const selectedAmount = sumProofAmounts(selectedProofs);
     const inputFees = calculateInputFees(selectedProofs, keyData);
     const requiredAmount = amount + inputFees;

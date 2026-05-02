@@ -14,10 +14,12 @@ import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils'
 import {
 createBlindedOutputs,
 decodeToken,
+decodeTokenMetadata,
 splitAmount,
 sumProofs,
 unblindSignatures
 } from '../crypto';
+import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
 import {
 findAccountForP2PKToken,
 getP2PKRecipient,
@@ -49,29 +51,29 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
   try {
     const perfStart = Date.now();
 
-    // Decode token
+    // Decode token metadata first. cashuB tokens need mint keyset IDs for full proof hydration.
     const t1 = Date.now();
-    const decoded = decodeToken(tokenString);
+    const metadata = decodeTokenMetadata(tokenString);
     const decodeTime = Date.now() - t1;
 
     logger.cashu('token_decoded', {
       step: 'RECEIVE',
       decodeTimeMs: decodeTime,
-      hasProofs: !!decoded?.proofs,
+      hasProofs: !!metadata?.proofs,
     });
 
-    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+    if (!metadata || !metadata.proofs || !Array.isArray(metadata.proofs)) {
       logger.cashu('token_invalid', { step: 'RECEIVE', error: 'Invalid token format' });
       throw new Error('Invalid token format');
     }
 
-    const { mint, proofs, amount } = decoded;
+    const { mint } = metadata;
 
     logger.cashu('token_details', {
       step: 'RECEIVE',
       mint: mint?.substring(0, 30) + '...',
-      proofCount: proofs.length,
-      totalAmount: amount,
+      proofCount: metadata.proofs.length,
+      totalAmount: metadata.amount,
     });
 
     // Verify mint matches
@@ -83,6 +85,15 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       });
       throw new Error(`Token from different mint: ${mint}`);
     }
+
+    // Get mint keys before full decode so cashu-ts v4 can expand short keyset IDs.
+    const t4 = Date.now();
+    logger.info('Getting mint keys');
+    const keyData = await getOrFetchKeys();
+    logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4 });
+
+    const decoded = decodeToken(tokenString, getKeysetIdsFromMintKeys(keyData));
+    const { proofs, amount } = decoded;
 
     // Check if we already have any of these proofs (prevent duplicate receives)
     const t2 = Date.now();
@@ -179,12 +190,6 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
       }
     }
-
-    // Get mint keys (P2PK private key already obtained above if needed)
-    const t4 = Date.now();
-    logger.info('Getting mint keys');
-    const keyData = await getOrFetchKeys();
-    logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4 });
 
     // Use the private key we got from findAccountForP2PKToken
     const privateKey = p2pkPrivateKey;

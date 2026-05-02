@@ -68,7 +68,10 @@ describe('cashuSendToken', () => {
       (loadProofs as jest.Mock).mockResolvedValue(mockProofs);
       (selectProofsForAmount as jest.Mock).mockReturnValue(mockProofs);
       (sumProofs as jest.Mock).mockReturnValue(96);
-      (encodeToken as jest.Mock).mockReturnValue('cashuAtoken...');
+      (encodeToken as jest.Mock).mockReturnValue('cashuBtoken...');
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
+      });
       (getBalance as jest.Mock).mockResolvedValue(0);
     });
 
@@ -78,7 +81,7 @@ describe('cashuSendToken', () => {
 
       const result = await sendToken(64, false);
 
-      expect(result.token).toBe('cashuAtoken...');
+      expect(result.token).toBe('cashuBtoken...');
       expect(removeProofs).toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
     });
@@ -86,7 +89,7 @@ describe('cashuSendToken', () => {
     it('should send token with change using keyset format', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       // splitAmount is called twice: once for send amounts, once for change
       (splitAmount as jest.Mock)
@@ -109,16 +112,15 @@ describe('cashuSendToken', () => {
 
       const result = await sendToken(64, true);
 
-      expect(result.token).toBe('cashuAtoken...');
+      expect(result.token).toBe('cashuBtoken...');
       // Change proof (secret: new2) should be added back
       expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'id' }]);
     });
 
-    it('should handle legacy keys format (line 57)', async () => {
+    it('should use active unit keyset keys (line 57)', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
-      // Legacy format - only keys property, no keysets array
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keys: { 1: 'key1', 2: 'key2' },
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64]) // send amount
@@ -140,8 +142,7 @@ describe('cashuSendToken', () => {
 
       const result = await sendToken(64, true);
 
-      expect(result.token).toBe('cashuAtoken...');
-      // Should have used keys from legacy format
+      expect(result.token).toBe('cashuBtoken...');
       expect(unblindSignatures).toHaveBeenCalled();
     });
 
@@ -150,7 +151,7 @@ describe('cashuSendToken', () => {
       // Empty object - no keys, no keysets
       (getOrFetchKeys as jest.Mock).mockResolvedValue({});
 
-      await expect(sendToken(64, true)).rejects.toThrow('No keys available from mint');
+      await expect(sendToken(64, true)).rejects.toThrow('No active unit keyset available from mint');
     });
 
     it('should not create change when returnChange is false', async () => {
@@ -158,12 +159,13 @@ describe('cashuSendToken', () => {
 
       const result = await sendToken(64, false);
 
-      expect(getOrFetchKeys).not.toHaveBeenCalled();
+      expect(getOrFetchKeys).toHaveBeenCalled();
       expect(swapTokens).not.toHaveBeenCalled();
     });
 
     it('should not create change when exact amount selected', async () => {
       (sumProofs as jest.Mock).mockReturnValue(64);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([mockProofs[0]]);
 
       const result = await sendToken(64, true);
 
@@ -174,7 +176,7 @@ describe('cashuSendToken', () => {
     it('should throw error on swap failure', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
@@ -189,7 +191,7 @@ describe('cashuSendToken', () => {
     it('should use keyset ID from signature response when available', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64])
@@ -219,7 +221,7 @@ describe('cashuSendToken', () => {
     it('should save change proofs when removeProofs fails after swap', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64])
@@ -253,7 +255,7 @@ describe('cashuSendToken', () => {
     it('should throw critical error when both removeProofs and addProofs fail after swap', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64])
@@ -288,7 +290,7 @@ describe('cashuSendToken', () => {
     it('should save change proofs in catch block when encodeToken fails after swap', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64])
@@ -322,7 +324,7 @@ describe('cashuSendToken', () => {
     it('should handle failure to save change proofs in outer catch block', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64])
@@ -358,7 +360,7 @@ describe('cashuSendToken', () => {
     it('should not attempt to save change when swap never happened', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockReturnValue([64]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({

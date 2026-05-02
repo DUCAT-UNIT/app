@@ -39,7 +39,7 @@ import {
 } from '../cashuMintClient';
 
 describe('cashuMintClient', () => {
-  const MINT_URL = 'https://cashu-mint.ducatprotocol.com';
+  const MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
 
   beforeEach(() => {
     jest.clearAllMocks();

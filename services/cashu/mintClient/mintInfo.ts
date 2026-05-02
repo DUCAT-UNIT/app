@@ -4,6 +4,7 @@
 
 import { getJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
+import type { CashuAmountLike } from '../cashuTsCompat';
 import { MINT_URL } from './mintConfig';
 
 export interface MintInfo {
@@ -13,8 +14,8 @@ export interface MintInfo {
     methods?: Array<{
       method: string;
       unit: string;
-      min_amount?: number;
-      max_amount?: number;
+      min_amount?: CashuAmountLike;
+      max_amount?: CashuAmountLike;
     }>;
     supported?: boolean;
   }>;
@@ -25,7 +26,7 @@ export interface Keysets {
     id: string;
     unit: string;
     active?: boolean;
-    input_fee_ppk?: number | null;
+    input_fee_ppk?: CashuAmountLike | null;
     final_expiry?: number | null;
   }>;
 }
@@ -34,15 +35,13 @@ export interface MintKeyset {
   id: string;
   unit: string;
   active?: boolean;
-  input_fee_ppk?: number | null;
+  input_fee_ppk?: CashuAmountLike | null;
   final_expiry?: number | null;
   keys?: Record<number | string, string>;
 }
 
 export interface MintKeys {
   keysets: MintKeyset[];
-  /** Legacy format - keys at root level */
-  keys?: Record<string, string>;
 }
 
 export const mintSupportsOnchainUnit = (info: MintInfo): boolean =>

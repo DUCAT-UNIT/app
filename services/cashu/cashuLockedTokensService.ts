@@ -135,9 +135,8 @@ export const getSentLockedTokens = async (taprootAddress: string | null = null):
       tokenAddresses: tokens.map(t => ({ id: t.id, address: t.taprootAddress }))
     });
 
-    // Filter by taproot address if provided
-    // Only include tokens that have a matching taprootAddress
-    // Exclude tokens without taprootAddress (legacy tokens)
+    // Filter by taproot address if provided.
+    // Only include tokens that have a matching taprootAddress.
     const filteredTokens = taprootAddress
       ? tokens.filter(t => t.taprootAddress && t.taprootAddress === taprootAddress)
       : tokens;

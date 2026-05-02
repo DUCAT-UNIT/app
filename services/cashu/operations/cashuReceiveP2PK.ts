@@ -11,6 +11,7 @@ import {
   splitAmount,
   sumProofs,
   decodeToken,
+  decodeTokenMetadata,
   CashuProof,
 } from '../crypto';
 import {
@@ -20,6 +21,7 @@ import {
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
 import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
+import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -52,14 +54,14 @@ export const receiveP2PKToken = async (
     // Step 1: Decode token
     logger.cashu('p2pk_decode_start', { step: 'RECEIVE', substep: 1, message: 'Decoding token' });
     if (onProgress) onProgress(++currentStep, totalSteps, 'Decoding token');
-    const decoded = decodeToken(tokenString);
+    const metadata = decodeTokenMetadata(tokenString);
 
-    if (!decoded || !decoded.proofs || !Array.isArray(decoded.proofs)) {
+    if (!metadata || !metadata.proofs || !Array.isArray(metadata.proofs)) {
       logger.cashu('p2pk_decode_error', { step: 'RECEIVE', error: 'Invalid token format' });
       throw new Error('Invalid token format');
     }
 
-    const { mint, proofs, amount } = decoded;
+    const { mint, proofs, amount } = metadata;
 
     logger.cashu('p2pk_token_decoded', {
       step: 'RECEIVE',
@@ -94,13 +96,29 @@ export const receiveP2PKToken = async (
       message: 'Token contains P2PK locked proofs',
     });
 
-    // Step 2: Sign proofs
-    logger.cashu('p2pk_sign_proofs_start', { step: 'RECEIVE', substep: 2, message: 'Signing proofs' });
+    // Step 2: Get keys. cashuB tokens use short keyset IDs, so keys are needed before full decode.
+    logger.cashu('p2pk_get_keys_start', { step: 'RECEIVE', substep: 2, message: 'Fetching mint keys' });
+    const keyData = await getOrFetchKeys();
+    const decoded = decodeToken(tokenString, getKeysetIdsFromMintKeys(keyData));
+    const fullProofs = decoded.proofs;
+    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const keysetId = unitKeyset.id;
+    const keys = unitKeyset.keys!;
+
+    logger.cashu('p2pk_keys_fetched', {
+      step: 'RECEIVE',
+      substep: 2,
+      keysetId: keysetId?.substring(0, 16),
+      keyCount: Object.keys(keys || {}).length,
+    });
+
+    // Step 3: Sign proofs
+    logger.cashu('p2pk_sign_proofs_start', { step: 'RECEIVE', substep: 3, message: 'Signing proofs' });
     if (onProgress) onProgress(++currentStep, totalSteps, 'Signing proofs');
 
     // Sign each P2PK proof with our private key
     const signedProofs: CashuProof[] = await Promise.all(
-      proofs.map(async (proof, index) => {
+      fullProofs.map(async (proof, index) => {
         if (isP2PKSecret(proof.secret)) {
           logger.cashu('p2pk_signing_individual_proof', {
             step: 'RECEIVE',
@@ -122,23 +140,9 @@ export const receiveP2PKToken = async (
 
     logger.cashu('p2pk_proofs_signed', {
       step: 'RECEIVE',
-      substep: 2,
+      substep: 3,
       signedCount: signedProofs.filter(p => p.witness).length,
       message: 'All P2PK proofs signed with witness',
-    });
-
-    // Step 3: Get keys
-    logger.cashu('p2pk_get_keys_start', { step: 'RECEIVE', substep: 3, message: 'Fetching mint keys' });
-    const keyData = await getOrFetchKeys();
-    const unitKeyset = selectActiveUnitKeyset(keyData);
-    const keysetId = unitKeyset.id;
-    const keys = unitKeyset.keys!;
-
-    logger.cashu('p2pk_keys_fetched', {
-      step: 'RECEIVE',
-      substep: 3,
-      keysetId: keysetId?.substring(0, 16),
-      keyCount: Object.keys(keys || {}).length,
     });
 
     // Step 4: Create blinded outputs

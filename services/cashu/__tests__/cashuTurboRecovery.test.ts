@@ -213,7 +213,7 @@ describe('cashuTurboRecovery', () => {
     const mockSaveToken = jest.fn();
 
     beforeEach(() => {
-      mockSendP2PKToken.mockResolvedValue({ token: 'cashuAtoken123' });
+      mockSendP2PKToken.mockResolvedValue({ token: 'cashuBtoken123' });
       mockExtractPubkey.mockReturnValue('02abc123pubkey');
       mockShortenToken.mockResolvedValue('https://short.url/abc');
       mockSaveToken.mockResolvedValue(undefined);
@@ -270,16 +270,16 @@ describe('cashuTurboRecovery', () => {
       );
 
       expect(result.recovered).toBe(true);
-      expect(result.token).toBe('cashuAtoken123');
+      expect(result.token).toBe('cashuBtoken123');
       expect(result.deeplink).toBe('https://short.url/abc');
       expect(result.recipient).toBe(mockRecipient);
       expect(result.amount).toBe(mockAmount);
 
       expect(mockExtractPubkey).toHaveBeenCalledWith(mockRecipient);
       expect(mockSendP2PKToken).toHaveBeenCalledWith(mockAmount, '02abc123pubkey', {});
-      expect(mockShortenToken).toHaveBeenCalledWith('cashuAtoken123');
+      expect(mockShortenToken).toHaveBeenCalledWith('cashuBtoken123');
       expect(mockSaveToken).toHaveBeenCalledWith(
-        'cashuAtoken123',
+        'cashuBtoken123',
         mockRecipient,
         mockAmount,
         null,
@@ -297,7 +297,7 @@ describe('cashuTurboRecovery', () => {
         senderTaprootAddress: mockSenderAddress,
         createdAt: Date.now(),
         stage: 'p2pk_created',
-        token: 'cashuApersisted',
+        token: 'cashuBpersisted',
         shortUrl: 'https://short.url/persisted',
       };
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pending));
@@ -310,10 +310,10 @@ describe('cashuTurboRecovery', () => {
       );
 
       expect(result.recovered).toBe(true);
-      expect(result.token).toBe('cashuApersisted');
+      expect(result.token).toBe('cashuBpersisted');
       expect(result.deeplink).toBe('https://short.url/persisted');
       expect(mockSaveToken).toHaveBeenCalledWith(
-        'cashuApersisted',
+        'cashuBpersisted',
         mockRecipient,
         mockAmount,
         null,
@@ -444,7 +444,7 @@ describe('cashuTurboRecovery', () => {
       const setCalls = (SecureStore.setItemAsync as jest.Mock).mock.calls;
       const stageUpdateCall = setCalls.find((call: string[]) => {
         const data = JSON.parse(call[1]);
-        return data.stage === 'p2pk_created' && data.token === 'cashuAtoken123';
+        return data.stage === 'p2pk_created' && data.token === 'cashuBtoken123';
       });
       expect(stageUpdateCall).toBeDefined();
       const shortUrlUpdateCall = setCalls.find((call: string[]) => {

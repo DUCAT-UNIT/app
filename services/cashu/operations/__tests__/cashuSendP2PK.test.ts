@@ -65,7 +65,7 @@ describe('cashuSendP2PK', () => {
       (isP2PKSecret as jest.Mock).mockReturnValue(false);
       (selectProofsForAmount as jest.Mock).mockReturnValue(mockProofs);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
       (splitAmount as jest.Mock).mockImplementation((amount: any) => [amount]);
       (createP2PKSecret as jest.Mock).mockResolvedValue('[\"P2PK\",{\"data\":\"recipientpubkey\"}]');
@@ -81,26 +81,26 @@ describe('cashuSendP2PK', () => {
         { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
         { amount: 64, secret: 'change_secret', C: 'C', id: 'id' },
       ]);
-      (encodeToken as jest.Mock).mockReturnValue('cashuAtoken...');
+      (encodeToken as jest.Mock).mockReturnValue('cashuBtoken...');
       (getBalance as jest.Mock).mockResolvedValue(64);
     });
 
     it('should send P2PK token successfully', async () => {
       const result = await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
 
-      expect(result.token).toBe('cashuAtoken...');
+      expect(result.token).toBe('cashuBtoken...');
       expect(result.amount).toBe(64);
       expect(removeProofs).toHaveBeenCalled();
     });
 
-    it('should handle legacy keys format (line 124)', async () => {
+    it('should use active unit keyset keys (line 124)', async () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keys: { 1: 'key1', 2: 'key2' },
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
       });
 
       const result = await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
 
-      expect(result.token).toBe('cashuAtoken...');
+      expect(result.token).toBe('cashuBtoken...');
     });
 
     it('should create change when selected amount exceeds requested (lines 143-149)', async () => {

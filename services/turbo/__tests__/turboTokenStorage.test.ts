@@ -70,11 +70,11 @@ describe('turboTokenStorage', () => {
 
   describe('hashToken', () => {
     it('should hash a token using SHA256', async () => {
-      const result = await hashToken('cashuAtoken123');
+      const result = await hashToken('cashuBtoken123');
 
       expect(Crypto.digestStringAsync).toHaveBeenCalledWith(
         Crypto.CryptoDigestAlgorithm.SHA256,
-        'cashuAtoken123'
+        'cashuBtoken123'
       );
       expect(result).toBe('mockedHashValue');
     });
@@ -161,7 +161,7 @@ describe('turboTokenStorage', () => {
     it('should mark token as processed when global set exists', async () => {
       testGlobal.processedCashuTokens = new Set<string>();
 
-      await markTokenAsProcessed('cashuAtoken');
+      await markTokenAsProcessed('cashuBtoken');
 
       expect(testGlobal.processedCashuTokens.has('mockedHashValue')).toBe(true);
       expect(AsyncStorage.setItem).toHaveBeenCalled();
@@ -170,7 +170,7 @@ describe('turboTokenStorage', () => {
     it('should not throw when global set does not exist', async () => {
       delete testGlobal.processedCashuTokens;
 
-      await expect(markTokenAsProcessed('cashuAtoken')).resolves.not.toThrow();
+      await expect(markTokenAsProcessed('cashuBtoken')).resolves.not.toThrow();
     });
 
     it('should handle errors gracefully', async () => {
@@ -178,7 +178,7 @@ describe('turboTokenStorage', () => {
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
       // Should not throw
-      await expect(markTokenAsProcessed('cashuAtoken')).resolves.not.toThrow();
+      await expect(markTokenAsProcessed('cashuBtoken')).resolves.not.toThrow();
     });
 
     it('should log error when add operation fails (line 73)', async () => {
@@ -190,7 +190,7 @@ describe('turboTokenStorage', () => {
         }),
       } as any;
 
-      await markTokenAsProcessed('cashuAtoken');
+      await markTokenAsProcessed('cashuBtoken');
 
       expect((logger.error as jest.Mock)).toHaveBeenCalledWith(
         '[TURBO] Failed to mark token as processed:',
@@ -203,7 +203,7 @@ describe('turboTokenStorage', () => {
     it('should return true for processed token', async () => {
       testGlobal.processedCashuTokens = new Set(['mockedHashValue']);
 
-      const result = await isTokenProcessed('cashuAtoken');
+      const result = await isTokenProcessed('cashuBtoken');
 
       expect(result).toBe(true);
     });
@@ -211,7 +211,7 @@ describe('turboTokenStorage', () => {
     it('should return false for unprocessed token', async () => {
       testGlobal.processedCashuTokens = new Set(['otherHash']);
 
-      const result = await isTokenProcessed('cashuAtoken');
+      const result = await isTokenProcessed('cashuBtoken');
 
       expect(result).toBe(false);
     });
@@ -219,7 +219,7 @@ describe('turboTokenStorage', () => {
     it('should return false when global set does not exist', async () => {
       delete testGlobal.processedCashuTokens;
 
-      const result = await isTokenProcessed('cashuAtoken');
+      const result = await isTokenProcessed('cashuBtoken');
 
       // When global set doesn't exist, the check returns falsy
       expect(result).toBeFalsy();
@@ -229,7 +229,7 @@ describe('turboTokenStorage', () => {
       testGlobal.processedCashuTokens = new Set<string>();
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash error'));
 
-      const result = await isTokenProcessed('cashuAtoken');
+      const result = await isTokenProcessed('cashuBtoken');
 
       expect(result).toBe(false);
     });
@@ -243,7 +243,7 @@ describe('turboTokenStorage', () => {
         }),
       };
 
-      const result = await isTokenProcessed('cashuAtoken');
+      const result = await isTokenProcessed('cashuBtoken');
 
       expect(result).toBe(false);
       expect((logger.error as jest.Mock)).toHaveBeenCalledWith(

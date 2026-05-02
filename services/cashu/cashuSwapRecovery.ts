@@ -21,6 +21,7 @@ import {
   withProofLock,
 } from './cashuProofManager';
 import type { BlindingData,CashuProof } from './crypto';
+import type { CashuAmountLike } from './cashuTsCompat';
 
 const PENDING_SWAP_KEY = 'cashu_pending_swap';
 
@@ -47,7 +48,7 @@ export interface PendingSwapTransaction {
 
   // Mint response (set after swap succeeds)
   swapResponse?: {
-    signatures: Array<{ C_: string; id?: string; amount?: number }>;
+    signatures: Array<{ C_: string; id?: string; amount?: CashuAmountLike }>;
   };
 
   // Status tracking

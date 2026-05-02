@@ -41,7 +41,7 @@ describe('urlShortener', () => {
         })
       );
 
-      const result = await shortenCashuToken('cashuAtoken123');
+      const result = await shortenCashuToken('cashuBtoken123');
 
       expect(result).toBe('https://short.ducatprotocol.com/abc123');
       expect(getMockFetch()).toHaveBeenCalledWith(
@@ -61,7 +61,7 @@ describe('urlShortener', () => {
         )
       );
 
-      await expect(shortenCashuToken('cashuAtoken123')).rejects.toThrow('Ducat shortener error');
+      await expect(shortenCashuToken('cashuBtoken123')).rejects.toThrow('Internal server error');
     });
 
     it('should throw error when response is invalid', async () => {
@@ -71,7 +71,7 @@ describe('urlShortener', () => {
         })
       );
 
-      await expect(shortenCashuToken('cashuAtoken123')).rejects.toThrow('Invalid response');
+      await expect(shortenCashuToken('cashuBtoken123')).rejects.toThrow('Invalid response');
     });
 
     it('should throw error when shortUrl is missing', async () => {
@@ -82,13 +82,13 @@ describe('urlShortener', () => {
         })
       );
 
-      await expect(shortenCashuToken('cashuAtoken123')).rejects.toThrow('Invalid response');
+      await expect(shortenCashuToken('cashuBtoken123')).rejects.toThrow('Invalid response');
     });
 
     it('should throw error on network failure', async () => {
       getMockFetch().mockRejectedValue(new Error('Network error'));
 
-      await expect(shortenCashuToken('cashuAtoken123')).rejects.toThrow('Network error');
+      await expect(shortenCashuToken('cashuBtoken123')).rejects.toThrow('Network error');
     });
   });
 });
