@@ -104,8 +104,8 @@ export const createP2PKSecret = async (
   const secretJson = JSON.stringify(p2pkSecret);
 
   logger.info('Created P2PK secret', {
-    nonce: nonce.substring(0, 16) + '...',
-    recipientPubkey: recipientPubkey.substring(0, 16) + '...',
+    nonceLength: nonce.length,
+    recipientPubkeyLength: recipientPubkey.length,
     sigflag,
     tagCount: tags.length
   });

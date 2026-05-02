@@ -47,7 +47,6 @@ export const findAccountForP2PKToken = async (
 ): Promise<AccountMatch | null> => {
   logger.cashu('p2pk_account_search_start', {
     step: 'ACCOUNT_MATCH',
-    targetPubkey: recipientPubkey?.substring(0, 16) + '...',
     targetPubkeyLength: recipientPubkey?.length,
     maxAccounts,
   });
@@ -93,8 +92,10 @@ export const findAccountForP2PKToken = async (
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-    logger.info(`[P2PK SCAN] 🔍 Starting scan for pubkey: ${recipientPubkey}`);
-    logger.info(`[P2PK SCAN] 📊 Pubkey length: ${recipientPubkey?.length}, Accounts to scan: ${accountsToCheck.length}`);
+    logger.info('[P2PK SCAN] Starting account scan', {
+      targetPubkeyLength: recipientPubkey?.length,
+      accountsToScan: accountsToCheck.length,
+    });
     logger.debug('[findAccountForP2PKToken] Seed and root derived in', Date.now() - startTime, 'ms');
 
     // Check each account
@@ -168,8 +169,8 @@ export const findAccountForP2PKToken = async (
           if (verifyPubkeyXOnly !== recipientPubkey) {
             logger.error('[P2PK] Key derivation verification failed: pubkey mismatch', {
               accountIndex,
-              expected: recipientPubkey,
-              derived: verifyPubkeyXOnly,
+              expectedLength: recipientPubkey.length,
+              derivedLength: verifyPubkeyXOnly.length,
             });
             throw new Error('P2PK key derivation verification failed: pubkey mismatch');
           }
@@ -191,7 +192,9 @@ export const findAccountForP2PKToken = async (
     }
 
     logger.warn(`[P2PK SCAN] ❌ NO MATCH FOUND after scanning ${accountsToCheck.length} accounts`);
-    logger.warn(`[P2PK SCAN] Target pubkey was: ${recipientPubkey}`);
+    logger.warn('[P2PK SCAN] Target pubkey did not match scanned accounts', {
+      targetPubkeyLength: recipientPubkey?.length,
+    });
     logger.warn(`[P2PK SCAN] Scan took ${Date.now() - startTime}ms`);
     logger.cashu('p2pk_account_search_complete', {
       step: 'ACCOUNT_MATCH',
@@ -211,7 +214,7 @@ export const findAccountForP2PKToken = async (
       accountsChecked: accountsToCheck.length,
       scanRange,
       currentAccountIndex,
-      targetPubkey: recipientPubkey,
+      targetPubkeyLength: recipientPubkey?.length,
       message: 'Token does not belong to any scanned account',
     });
   } else {

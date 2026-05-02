@@ -78,7 +78,7 @@ const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<
 
   logger.info('Proofs loaded for melt', {
     count: allProofs.length,
-    proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
+    proofs: allProofs.map(p => ({ amount: p.amount, id: p.id }))
   });
 
   const {

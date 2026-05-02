@@ -3,7 +3,7 @@ import { InteractionManager } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
-import { clearP2PKCache } from '../services/cashu/p2pk';
+import { clearP2PKCache } from '../services/cashu/cashuWalletService';
 import { resetE2eVaultState } from '../utils/e2eVaultState';
 import { analytics } from '../services/analyticsService';
 

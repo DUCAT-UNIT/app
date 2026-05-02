@@ -49,3 +49,6 @@ storybook-static
 coverage/
 coverage/
 bridge-service/data/
+
+# Local verification artifacts
+artifacts/

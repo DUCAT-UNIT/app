@@ -88,7 +88,6 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
   logger.cashu('p2pk_url_received', {
     step: 'ENTRY_POINT',
     urlLength: url?.length,
-    urlPreview: url?.substring(0, 50) + '...',
   });
 
   let token: string | null = null;
@@ -109,7 +108,6 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
   if (!isSupportedCashuToken(token)) {
     logger.cashu('p2pk_url_unsupported_token', {
       step: 'ENTRY_POINT',
-      tokenPrefix: token?.substring(0, 8),
       reason: 'Only cashuB tokens are supported',
     });
     return;
@@ -118,7 +116,6 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
   logger.cashu('p2pk_token_extracted', {
     step: 'ENTRY_POINT',
     tokenLength: token?.length,
-    tokenPrefix: token?.substring(0, 20) + '...',
     isCashuToken: token?.startsWith('cashu'),
   });
 
@@ -175,7 +172,11 @@ const onReceiveURL = async (
   listener?: (url: string) => void,
 ): Promise<void> => {
   const url = event?.url;
-  logger.debug('[TURBO] URL event received:', { urlPreview: url?.substring(0, 100) });
+  logger.debug('[TURBO] URL event received:', {
+    urlLength: url?.length,
+    isTurboUrl: !!url && (url.includes('ducat://turbo/') || url.includes('unit?')),
+    isE2EControlUrl: !!url && isE2EControlUrl(url),
+  });
 
   // Process Turbo URLs
   if (url && (url.includes('ducat://turbo/') || url.includes('unit?'))) {
@@ -249,7 +250,11 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
     logger.debug('[TURBO] Checking for initial URL');
     Linking.getInitialURL().then((initialUrl) => {
       if (initialUrl) {
-        logger.debug('[TURBO] Initial URL found:', { urlPreview: initialUrl?.substring(0, 100) });
+        logger.debug('[TURBO] Initial URL found:', {
+          urlLength: initialUrl?.length,
+          isTurboUrl: initialUrl.includes('ducat://turbo/') || initialUrl.includes('unit?'),
+          isE2EControlUrl: isE2EControlUrl(initialUrl),
+        });
         if (initialUrl.includes('ducat://turbo/') || initialUrl.includes('unit?')) {
           processUrlAndStoreToken(initialUrl).catch((error) => {
             logger.error('[TURBO] Failed to process initial URL:', { error: error instanceof Error ? error.message : String(error) });

@@ -49,24 +49,17 @@ const mockGetCurrentAccount = jest.fn();
 const mockReceiveP2PKToken = jest.fn();
 const mockReceiveToken = jest.fn();
 
-jest.mock('../../services/cashu/crypto', () => ({
-  decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
+jest.mock('../../services/cashu/cashuWalletService', () => ({
   decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
-}));
-
-jest.mock('../../services/cashu/p2pk', () => ({
   isP2PKSecret: (...args: unknown[]) => mockIsP2PKSecret(...args),
   getP2PKRecipient: (...args: unknown[]) => mockGetP2PKRecipient(...args),
   findAccountForP2PKToken: (...args: unknown[]) => mockFindAccountForP2PKToken(...args),
+  receiveP2PKToken: (...args: unknown[]) => mockReceiveP2PKToken(...args),
+  receiveToken: (...args: unknown[]) => mockReceiveToken(...args),
 }));
 
 jest.mock('../../services/secureStorageService', () => ({
   getCurrentAccount: (...args: unknown[]) => mockGetCurrentAccount(...args),
-}));
-
-jest.mock('../../services/cashu/cashuWalletService', () => ({
-  receiveP2PKToken: (...args: unknown[]) => mockReceiveP2PKToken(...args),
-  receiveToken: (...args: unknown[]) => mockReceiveToken(...args),
 }));
 
 // Type for the hook's return value

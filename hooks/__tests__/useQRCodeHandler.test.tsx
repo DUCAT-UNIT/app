@@ -42,31 +42,22 @@ jest.mock('expo-crypto', () => ({
 }));
 
 const mockHasP2PKProofs = jest.fn();
-jest.mock('../../services/cashu/p2pk', () => ({
-  hasP2PKProofs: (...args: unknown[]) => mockHasP2PKProofs(...args),
-}));
-
 const mockDecodeToken = jest.fn();
 const mockEncodeToken = jest.fn();
-jest.mock('../../services/cashu/crypto', () => ({
+const mockCheckProofsSpent = jest.fn();
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
   decodeToken: (...args: unknown[]) => mockDecodeToken(...args),
   decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
   encodeToken: (...args: unknown[]) => mockEncodeToken(...args),
-}));
-
-jest.mock('../../services/cashu/cashuBalanceService', () => ({
   getOrFetchKeys: jest.fn().mockResolvedValue({
     keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
   }),
+  hasP2PKProofs: (...args: unknown[]) => mockHasP2PKProofs(...args),
 }));
 
 jest.mock('../../services/cashu/cashuTsCompat', () => ({
   getKeysetIdsFromMintKeys: jest.fn(() => ['keyset1']),
-}));
-
-const mockCheckProofsSpent = jest.fn();
-jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
 }));
 
 // Mock tokenProcessingStore

@@ -13,8 +13,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 import {
 getSentLockedTokens,
 } from '../../services/cashu/cashuLockedTokensService';
-import { checkProofsSpent } from '../../services/cashu/cashuMintClient';
-import { decodeToken } from '../../services/cashu/crypto';
+import { checkProofsSpent, decodeToken } from '../../services/cashu/cashuWalletService';
 import { useNotifications } from '../../stores/notificationStore';
 import globalStyles from '../../styles';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';

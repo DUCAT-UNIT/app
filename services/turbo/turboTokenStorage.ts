@@ -45,8 +45,7 @@ export const hashToken = async (token: string): Promise<string> => {
     return hash;
   } catch (error: unknown) {
     logger.error('[TURBO] Failed to hash token:', { message: (error as Error).message });
-    // Fallback to storing first 64 chars if hashing fails
-    return token.substring(0, 64);
+    throw new Error('Failed to hash Cashu token for deduplication');
   }
 };
 

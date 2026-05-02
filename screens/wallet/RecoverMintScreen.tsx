@@ -31,10 +31,9 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
 
     setIsProcessing(true);
     try {
-      const { completeMint } = await import('../../services/cashu/cashuWalletService');
+      const { checkMintQuote, completeMint } = await import('../../services/cashu/cashuWalletService');
 
       // Check status and get the actual quote
-      const { checkMintQuote } = await import('../../services/cashu/cashuMintClient');
       const quote = await checkMintQuote(quoteId);
       logger.debug('Quote:', quote);
 

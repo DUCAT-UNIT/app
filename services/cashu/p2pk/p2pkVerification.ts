@@ -21,7 +21,6 @@ export const isP2PKSecret = (secret: string): boolean => {
       step: 'DETECTION',
       isP2PK,
       secretLength: secret?.length,
-      secretPreview: secret?.substring(0, 30) + '...',
     });
     return isP2PK;
   } catch (_) {
@@ -63,7 +62,6 @@ export const getP2PKRecipient = (secret: string): string | null => {
       step: 'DETECTION',
       success: true,
       pubkeyLength: pubkey?.length,
-      pubkeyPreview: pubkey?.substring(0, 16) + '...',
     });
     return pubkey;
   } catch (error: unknown) {
@@ -156,7 +154,6 @@ export const hasP2PKProofs = (tokenString: string): boolean => {
   logger.cashu('p2pk_token_scan_start', {
     step: 'DETECTION',
     tokenLength: tokenString?.length,
-    tokenPrefix: tokenString?.substring(0, 20) + '...',
   });
 
   try {

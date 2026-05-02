@@ -1,15 +1,69 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
+import { dirname, resolve } from 'node:path';
 
 const APP_ID = 'com.ducatprotocol.DucatProtocolWallet';
 const DEFAULT_FLOWS = ['e2e/maestro/flows/test/'];
 const DEFAULT_EXPO_PORT = 8082;
+const DEFAULT_REPORT_PATH = 'artifacts/live-maestro/last-run.json';
 const explicitPort = process.env.MAESTRO_LIVE_EXPO_PORT || process.env.MAESTRO_EXPO_PORT || process.env.EXPO_DEV_SERVER_PORT;
 const candidatePorts = [explicitPort ? Number(explicitPort) : DEFAULT_EXPO_PORT]
   .filter((port) => Number.isInteger(port) && port > 0);
 
 let metroProcess = null;
+let metroStartedByScript = false;
+
+const liveReport = {
+  schemaVersion: 1,
+  kind: 'ducat.live-maestro',
+  appId: APP_ID,
+  startedAt: new Date().toISOString(),
+  finishedAt: null,
+  durationMs: null,
+  result: 'running',
+  e2eBypass: 'false',
+  cashuMintUrl: readCashuMintUrl(),
+  flows: [],
+  environmentAssertions: {
+    fundedMutinynet: process.env.DUCAT_LIVE_E2E_FUNDED_MUTINYNET === '1',
+    fundedSepolia: process.env.DUCAT_LIVE_E2E_FUNDED_SEPOLIA === '1',
+    bridgeFunded: process.env.DUCAT_LIVE_E2E_BRIDGE_FUNDED === '1',
+  },
+  metro: {
+    startedByScript: false,
+    port: null,
+    reusedExisting: false,
+  },
+  error: null,
+};
+const liveReportStartedAt = Date.now();
+
+function readCashuMintUrl() {
+  try {
+    const source = readFileSync('services/cashu/mintClient/mintConfig.ts', 'utf8');
+    return source.match(/export\s+const\s+MINT_URL\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLiveReport() {
+  const reportPath = process.env.MAESTRO_LIVE_REPORT_PATH || DEFAULT_REPORT_PATH;
+  if (reportPath === 'off' || reportPath === 'false') {
+    return;
+  }
+
+  liveReport.finishedAt = new Date().toISOString();
+  liveReport.durationMs = Date.now() - liveReportStartedAt;
+
+  const absolutePath = resolve(process.cwd(), reportPath);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(`${absolutePath}.tmp`, `${JSON.stringify(liveReport, null, 2)}\n`);
+  renameSync(`${absolutePath}.tmp`, absolutePath);
+  console.log(`Live Maestro report written to ${reportPath}`);
+}
 
 function liveEnvironment(extra = {}) {
   return {
@@ -64,10 +118,12 @@ async function waitForMetro(port, timeoutMs) {
 
 async function ensureLiveMetro(port) {
   if (await statusForPort(port)) {
+    liveReport.metro.port = port;
     if (process.env.MAESTRO_LIVE_REUSE_METRO === 'true') {
       console.warn(
         `Reusing existing Metro on port ${port}; ensure it was started with EXPO_PUBLIC_E2E_BYPASS=false.`
       );
+      liveReport.metro.reusedExisting = true;
       return true;
     }
 
@@ -82,6 +138,9 @@ async function ensureLiveMetro(port) {
   }
 
   console.log(`Starting live Expo Metro for this project on port ${port}...`);
+  metroStartedByScript = true;
+  liveReport.metro.startedByScript = true;
+  liveReport.metro.port = port;
   metroProcess = spawn(process.execPath, [
     'scripts/run-node22.mjs',
     'expo',
@@ -143,7 +202,8 @@ Runs live Maestro flows with Expo Metro started as EXPO_PUBLIC_E2E_BYPASS=false.
 Defaults to e2e/maestro/flows/test/. Override with:
   MAESTRO_LIVE_EXPO_PORT=<port>
   MAESTRO_EXPO_DEV_CLIENT_URL=<url>
-  MAESTRO_LIVE_REUSE_METRO=true`);
+  MAESTRO_LIVE_REUSE_METRO=true
+  MAESTRO_LIVE_REPORT_PATH=<path|off>`);
   process.exit(0);
 }
 
@@ -155,6 +215,7 @@ try {
 
   for (const flow of targetFlows) {
     console.log(`\nRunning live Maestro flow: ${flow}`);
+    const flowStartedAt = Date.now();
     const result = spawnSync('maestro', [
       'test',
       '-e',
@@ -175,12 +236,27 @@ try {
     if ((result.status ?? 1) !== 0) {
       failed += 1;
     }
+
+    liveReport.flows.push({
+      flow,
+      status: result.status ?? 1,
+      signal: result.signal ?? null,
+      durationMs: Date.now() - flowStartedAt,
+      passed: (result.status ?? 1) === 0,
+    });
   }
 
   stopMetroIfStarted();
+  liveReport.result = failed > 0 ? 'failed' : 'passed';
+  liveReport.metro.startedByScript = metroStartedByScript;
+  writeLiveReport();
   process.exit(failed > 0 ? 1 : 0);
 } catch (error) {
   stopMetroIfStarted();
-  console.error(error instanceof Error ? error.message : String(error));
+  const message = error instanceof Error ? error.message : String(error);
+  liveReport.result = 'failed';
+  liveReport.error = message;
+  writeLiveReport();
+  console.error(message);
   process.exit(1);
 }

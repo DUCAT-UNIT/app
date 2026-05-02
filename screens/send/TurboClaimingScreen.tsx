@@ -70,7 +70,6 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
         logger.cashu('claim_screen_start', {
           step: 'UI_CLAIM',
           tokenLength: tokenString?.length,
-          tokenPrefix: tokenString?.substring(0, 20) + '...',
           message: 'TurboClaimingScreen mounted and starting claim',
         });
 
@@ -79,7 +78,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
         setCurrentMessage('Validating token');
 
         // Check if token has P2PK-locked proofs
-        const { hasP2PKProofs } = await import('../../services/cashu/p2pk');
+        const { hasP2PKProofs } = await import('../../services/cashu/cashuWalletService');
         const hasP2PKProofs_result = hasP2PKProofs(tokenString);
 
         logger.cashu('claim_p2pk_detection', {
@@ -100,8 +99,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
           });
 
           // Decode token to extract recipient pubkey
-          const { decodeToken } = await import('../../services/cashu/crypto');
-          const { getP2PKRecipient } = await import('../../services/cashu/p2pk');
+          const { decodeToken, getP2PKRecipient } = await import('../../services/cashu/cashuWalletService');
 
           const decoded = decodeToken(tokenString);
           const proofs = decoded.proofs || [];
@@ -120,7 +118,6 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
                 logger.cashu('claim_p2pk_pubkey_found', {
                   step: 'UI_CLAIM',
                   pubkeyLength: pubkey?.length,
-                  pubkeyPreview: pubkey?.substring(0, 16) + '...',
                   message: 'Found recipient pubkey in P2PK proof',
                 });
                 break;
@@ -140,11 +137,11 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
           // Find which account owns this pubkey
           logger.cashu('claim_account_search_start', {
             step: 'UI_CLAIM',
-            targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+            targetPubkeyLength: recipientPubkey?.length,
             message: 'Starting account search for P2PK token',
           });
 
-          const { findAccountForP2PKToken } = await import('../../services/cashu/p2pk');
+          const { findAccountForP2PKToken } = await import('../../services/cashu/cashuWalletService');
           const accountMatch = await findAccountForP2PKToken(
             recipientPubkey,
             50,
@@ -157,7 +154,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
           if (!accountMatch) {
             logger.cashu('claim_account_not_found', {
               step: 'UI_CLAIM',
-              targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+              targetPubkeyLength: recipientPubkey?.length,
               accountsChecked: 50,
               error: 'Token does not belong to any scanned account',
             });
@@ -167,7 +164,7 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
           logger.cashu('claim_account_match_found', {
             step: 'UI_CLAIM',
             accountIndex: accountMatch.accountIndex,
-            address: accountMatch.address?.substring(0, 20) + '...',
+            addressLength: accountMatch.address?.length,
             message: 'Found account that owns this P2PK token',
           });
 
@@ -208,7 +205,6 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
             step: 'UI_CLAIM',
             accountIndex: accountMatch.accountIndex,
             hasPrivateKey: !!accountMatch.privateKey,
-            privateKeyLength: accountMatch.privateKey?.length,
             message: 'Starting P2PK token redemption',
           });
 

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { logger } from '../utils/logger';
-import { completeMint, sendP2PKToken } from '../services/cashu/cashuWalletService';
-import { checkMintQuote } from '../services/cashu/cashuMintClient';
+import { checkMintQuote, completeMint, sendP2PKToken } from '../services/cashu/cashuWalletService';
 import { extractPubkeyFromTaprootAddress } from '../utils/bitcoin';
 import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
 import { shortenCashuToken } from '../services/urlShortener';

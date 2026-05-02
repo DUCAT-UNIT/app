@@ -84,6 +84,8 @@ npm run doctor:live
 npm run e2e:live:turbo
 ```
 
+Successful live runs write redacted evidence to `artifacts/live-maestro/last-run.json` by default. That artifact is local-only and ignored by git.
+
 `utils/e2e.ts` must not treat `__DEV__` as E2E. Bypass behavior is explicit only through `EXPO_PUBLIC_E2E_BYPASS=true`.
 
 ## Maintained Docs
@@ -102,6 +104,7 @@ Useful maintained docs:
 A clean context should score the repo against these pass criteria:
 
 - Build hygiene: `npm run verify` passes without local code changes.
+- Release hygiene: `npm run release:doctor -- --quick` passes before TestFlight handoff.
 - Network invariant: `npm run doctor` confirms Mutinynet-only runtime and no remote network switching.
 - Cashu correctness: only `onchain/unit` Ducat mint and melt endpoints are present.
 - Cashu v4 compatibility: only `cashuB` tokens are accepted for Ducat UNIT, and `sat` tokens are rejected.

@@ -27,12 +27,9 @@ const mockSaveSentLockedToken = jest.fn();
 const mockShortenCashuToken = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
+  checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
   completeMint: (...args: any[]) => mockCompleteMint(...args),
   sendP2PKToken: (...args: any[]) => mockSendP2PKToken(...args),
-}));
-
-jest.mock('../../services/cashu/cashuMintClient', () => ({
-  checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({

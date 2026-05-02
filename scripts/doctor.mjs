@@ -204,7 +204,19 @@ function checkSensitiveLoggingInvariant() {
     },
     {
       name: 'direct token snippet logging',
-      pattern: /logger\.[a-zA-Z]+\([^;\n]*(?:^|[^a-zA-Z0-9_])token\.(?:substring|slice)\(/,
+      pattern: /\b(?:token|tokenString)\??\.(?:substring|slice)\(/,
+    },
+    {
+      name: 'token or URL preview logging',
+      pattern: /\b(?:tokenPrefix|urlPreview)\b/,
+    },
+    {
+      name: 'proof secret preview logging',
+      pattern: /\b(?:secretPreview|secretPrefix|witnessSignaturePrefix)\b/,
+    },
+    {
+      name: 'private key metadata logging',
+      pattern: /\bprivateKeyLength\b/,
     },
     {
       name: 'direct short URL logging',
@@ -299,6 +311,18 @@ function checkCashuDucatUnitInvariant() {
   check(
     compat.includes('cashuB') && compat.includes('sat tokens are BTC/Lightning only'),
     'cashuTsCompat must enforce v4 cashuB tokens and reject sat tokens for Ducat UNIT'
+  );
+
+  const uiCashuBoundaryViolations = ['contexts', 'hooks', 'screens', 'components']
+    .flatMap(listFiles)
+    .filter((file) => /\.(js|jsx|ts|tsx)$/.test(file))
+    .filter((file) => !file.includes('/__tests__/'))
+    .filter((file) =>
+      /services\/cashu\/(?:cashuMintClient|crypto|p2pk|mintClient|operations)/.test(read(file))
+    );
+  check(
+    uiCashuBoundaryViolations.length === 0,
+    `UI and hook code must use cashuWalletService as the Cashu adapter: ${uiCashuBoundaryViolations.join(', ')}`
   );
 }
 

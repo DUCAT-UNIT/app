@@ -26,6 +26,7 @@ Validate that the machine is ready to run funded Mutinynet/Sepolia Maestro flows
 
 ```bash
 npm run doctor:live
+npm run e2e:live:turbo
 ```
 
 This is intentionally stricter than `npm run doctor`. It fails unless:
@@ -42,6 +43,13 @@ For script-only validation without network/tool probes:
 ```bash
 DUCAT_LIVE_DOCTOR_OFFLINE=1 DUCAT_LIVE_DOCTOR_SKIP_TOOLING=1 npm run doctor:live
 ```
+
+`scripts/runMaestroLive.mjs` writes a redacted run report to
+`artifacts/live-maestro/last-run.json` by default. Override with
+`MAESTRO_LIVE_REPORT_PATH=<path>`, or set `MAESTRO_LIVE_REPORT_PATH=off` to skip
+the artifact. The report records flow names, pass/fail status, duration, the
+configured Cashu mint URL, and boolean funded-fixture assertions; it does not
+record seeds, addresses, tokens, proofs, or dev-client URLs.
 
 ## Quality Gate
 

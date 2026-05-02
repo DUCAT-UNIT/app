@@ -88,7 +88,7 @@ export function useAssetTransactions(
   const ecashTokens = useMemo(() => {
     if (assetType !== 'UNIT') return [];
     const toKey = (t: (typeof preloadedEcashTokens)[0]) =>
-      `${t.token?.substring(0, 20)}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`;
+      `${t.id}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`;
     const prevKey = ecashTokensRef.current.map(toKey).join(',');
     const newKey = preloadedEcashTokens.map(toKey).join(',');
     if (prevKey === newKey) {

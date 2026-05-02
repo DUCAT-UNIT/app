@@ -26,11 +26,11 @@ function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.Co
 }
 import * as WalletService from '../../services/walletService';
 import * as SecureStore from 'expo-secure-store';
-import * as p2pk from '../../services/cashu/p2pk';
+import * as cashuWalletService from '../../services/cashu/cashuWalletService';
 
 jest.mock('../../services/walletService');
 jest.mock('expo-secure-store');
-jest.mock('../../services/cashu/p2pk');
+jest.mock('../../services/cashu/cashuWalletService');
 jest.mock('../../stores/notificationStore', () => ({
   useNotifications: () => ({
     showToast: jest.fn(),
@@ -51,7 +51,7 @@ describe('WalletContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Mock clearP2PKCache to return resolved promise by default
-    (p2pk.clearP2PKCache as jest.Mock).mockResolvedValue(undefined);
+    (cashuWalletService.clearP2PKCache as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('should throw error when used outside provider', () => {
@@ -230,7 +230,7 @@ describe('WalletContext', () => {
 
   it('should handle P2PK cache clear error in resetWallet', async () => {
     // Mock clearP2PKCache to throw error
-    (p2pk.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 
@@ -240,7 +240,7 @@ describe('WalletContext', () => {
     });
 
     expect(result.current!.wallet).toBeNull();
-    expect(p2pk.clearP2PKCache).toHaveBeenCalled();
+    expect(cashuWalletService.clearP2PKCache).toHaveBeenCalled();
   });
 
   it('should handle P2PK cache clear error in switchAccount', async () => {
@@ -256,7 +256,7 @@ describe('WalletContext', () => {
     });
 
     // Mock clearP2PKCache to throw error after switch
-    (p2pk.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 

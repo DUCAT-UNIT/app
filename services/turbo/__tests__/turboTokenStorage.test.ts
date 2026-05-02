@@ -79,13 +79,11 @@ describe('turboTokenStorage', () => {
       expect(result).toBe('mockedHashValue');
     });
 
-    it('should return first 64 chars as fallback on error', async () => {
+    it('should fail closed instead of storing token material on hash error', async () => {
       (Crypto.digestStringAsync as jest.Mock).mockRejectedValue(new Error('Hash failed'));
       const longToken = 'a'.repeat(100);
 
-      const result = await hashToken(longToken);
-
-      expect(result).toBe('a'.repeat(64));
+      await expect(hashToken(longToken)).rejects.toThrow('Failed to hash Cashu token for deduplication');
     });
   });
 

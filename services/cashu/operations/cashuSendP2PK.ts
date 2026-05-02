@@ -114,7 +114,10 @@ export const sendP2PKToken = async (
     const totalSteps = 4; // Selecting, Creating secrets, Swapping, Saving
     let currentStep = 0;
 
-    logger.info('Sending P2PK locked token', { amount, recipientPubkey: recipientPubkey.substring(0, 16) + '...' });
+    logger.info('Sending P2PK locked token', {
+      amount,
+      recipientPubkeyLength: recipientPubkey.length,
+    });
 
 
     // Step 1: Select proofs

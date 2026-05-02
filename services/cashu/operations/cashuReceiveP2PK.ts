@@ -44,7 +44,6 @@ export const receiveP2PKToken = async (
   logger.cashu('p2pk_receive_start', {
     step: 'RECEIVE',
     tokenLength: tokenString?.length,
-    tokenPrefix: tokenString?.substring(0, 20) + '...',
   });
 
   try {
@@ -174,22 +173,14 @@ export const receiveP2PKToken = async (
       outputCount: outputs.length,
     });
 
-    // Log detailed proof info for debugging signature issues
+    // Log only non-secret proof metadata for debugging signature issues.
     signedProofs.forEach((proof, idx) => {
       let secretParsed: unknown = null;
-      let lockedToPubkey: string | null = null;
+      let lockedToPubkeyLength = 0;
       try {
         secretParsed = JSON.parse(proof.secret);
         if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
-          lockedToPubkey = (secretParsed[1] as { data?: string })?.data ?? null;
-        }
-      } catch (e: unknown) { /* ignore */ }
-
-      let witnessSignature: string | null = null;
-      try {
-        if (proof.witness) {
-          const witnessParsed = JSON.parse(proof.witness) as { signatures?: string[] };
-          witnessSignature = witnessParsed.signatures?.[0] ?? null;
+          lockedToPubkeyLength = (secretParsed[1] as { data?: string })?.data?.length ?? 0;
         }
       } catch (e: unknown) { /* ignore */ }
 
@@ -197,10 +188,8 @@ export const receiveP2PKToken = async (
         step: 'RECEIVE',
         proofIndex: idx,
         amount: proof.amount,
-        lockedToPubkey: lockedToPubkey || 'NOT_P2PK',
+        lockedToPubkeyLength,
         hasWitness: !!proof.witness,
-        witnessSignaturePrefix: witnessSignature ? witnessSignature.substring(0, 16) + '...' : 'NO_SIGNATURE',
-        secretPrefix: proof.secret.substring(0, 16) + '...',
       });
     });
 

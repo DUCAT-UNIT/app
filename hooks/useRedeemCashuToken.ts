@@ -6,10 +6,15 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
-import { decodeTokenMetadata } from '../services/cashu/crypto';
-import { isP2PKSecret, getP2PKRecipient, findAccountForP2PKToken } from '../services/cashu/p2pk';
 import { getCurrentAccount } from '../services/secureStorageService';
-import { receiveP2PKToken, receiveToken } from '../services/cashu/cashuWalletService';
+import {
+  decodeTokenMetadata,
+  findAccountForP2PKToken,
+  getP2PKRecipient,
+  isP2PKSecret,
+  receiveP2PKToken,
+  receiveToken,
+} from '../services/cashu/cashuWalletService';
 
 interface UseRedeemCashuTokenParams {
   fetchTransactionHistory: () => Promise<void> | void;
@@ -60,7 +65,6 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
             logger.cashu('manual_redeem_start', {
               step: 'MANUAL_REDEEM',
               tokenLength: tokenString?.length,
-              tokenPrefix: tokenString?.substring(0, 20) + '...',
               message: 'User initiated manual token redemption',
             });
 
@@ -133,11 +137,10 @@ async function redeemP2PKToken(
       const pubkey = getP2PKRecipient(proof.secret);
       if (pubkey) {
         recipientPubkey = pubkey;
-        logger.cashu('manual_p2pk_pubkey_found', {
-          step: 'MANUAL_REDEEM',
-          pubkeyLength: pubkey?.length,
-          pubkeyPreview: pubkey?.substring(0, 16) + '...',
-        });
+                logger.cashu('manual_p2pk_pubkey_found', {
+                  step: 'MANUAL_REDEEM',
+                  pubkeyLength: pubkey?.length,
+                });
         break;
       }
     }
@@ -156,7 +159,7 @@ async function redeemP2PKToken(
   // Find matching account
   logger.cashu('manual_p2pk_account_search_start', {
     step: 'MANUAL_REDEEM',
-    targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+    targetPubkeyLength: recipientPubkey?.length,
     message: 'Searching for account that owns this P2PK token',
   });
 
@@ -165,7 +168,7 @@ async function redeemP2PKToken(
   if (!accountMatch) {
     logger.cashu('manual_p2pk_account_not_found', {
       step: 'MANUAL_REDEEM',
-      targetPubkey: recipientPubkey?.substring(0, 16) + '...',
+      targetPubkeyLength: recipientPubkey?.length,
       error: 'Token does not belong to any scanned account',
     });
     Alert.alert('Error', 'This token is not locked to any of your accounts (checked 50 accounts). Make sure you are using the correct wallet.');
@@ -175,7 +178,7 @@ async function redeemP2PKToken(
   logger.cashu('manual_p2pk_account_found', {
     step: 'MANUAL_REDEEM',
     accountIndex: accountMatch.accountIndex,
-    address: accountMatch.address?.substring(0, 20) + '...',
+    addressLength: accountMatch.address?.length,
     message: 'Found matching account for P2PK token',
   });
 

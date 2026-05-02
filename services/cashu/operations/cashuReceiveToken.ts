@@ -45,7 +45,6 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
   logger.cashu('receive_token_start', {
     step: 'RECEIVE',
     tokenLength: tokenString?.length,
-    tokenPrefix: tokenString?.substring(0, 20) + '...',
   });
 
   try {
@@ -149,7 +148,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         if (isP2PKLocked(proof)) {
           recipientPubkey = getP2PKRecipient(proof.secret);
           logger.info('[P2PK TOKEN] Extracted recipient pubkey from token', {
-            pubkeyPrefix: recipientPubkey?.substring(0, 12) + '...',
+            pubkeyLength: recipientPubkey?.length,
           });
           if (recipientPubkey) {
             break;
@@ -182,10 +181,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
         // Use the private key from accountMatch - this is the correct key for this specific token
         p2pkPrivateKey = accountMatch.privateKey;
-        logger.info('[P2PK TOKEN] 🔑 Using private key from account match (not cached key)', {
-          privateKeyLength: accountMatch.privateKey?.length,
-          expectedPubkey: recipientPubkey?.substring(0, 16) + '...',
-        });
+        logger.info('[P2PK TOKEN] Using private key from account match (not cached key)');
       } else {
         logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
       }

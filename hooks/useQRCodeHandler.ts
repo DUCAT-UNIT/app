@@ -6,11 +6,15 @@
 import { NavigationProp,ParamListBase,useNavigation } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
-import { checkProofsSpent } from '../services/cashu/cashuMintClient';
-import { getOrFetchKeys } from '../services/cashu/cashuBalanceService';
+import {
+  checkProofsSpent,
+  decodeToken,
+  decodeTokenMetadata,
+  encodeToken,
+  getOrFetchKeys,
+  hasP2PKProofs,
+} from '../services/cashu/cashuWalletService';
 import { getKeysetIdsFromMintKeys } from '../services/cashu/cashuTsCompat';
-import { decodeToken,decodeTokenMetadata,encodeToken } from '../services/cashu/crypto';
-import { hasP2PKProofs } from '../services/cashu/p2pk';
 import type { SnackbarParams } from '../stores/notificationStore';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../utils/bitcoin';
