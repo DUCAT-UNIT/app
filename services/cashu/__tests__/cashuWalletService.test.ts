@@ -14,6 +14,7 @@ import * as cashuMintClient from '../cashuMintClient';
 import * as cashuCrypto from '../crypto';
 import * as cashuWalletService from '../cashuWalletService';
 import * as cashuP2PK from '../p2pk';
+import * as cashuQuoteSigner from '../cashuQuoteSigner';
 import * as secureStorageService from '../../secureStorageService';
 import * as cashuLockedTokensService from '../cashuLockedTokensService';
 
@@ -51,6 +52,7 @@ jest.mock('../../../utils/logger', () => ({
 jest.mock('../cashuMintClient');
 jest.mock('../crypto');
 jest.mock('../p2pk');
+jest.mock('../cashuQuoteSigner');
 jest.mock('../../secureStorageService');
 jest.mock('../cashuLockedTokensService');
 
@@ -90,7 +92,7 @@ describe('cashuWalletService', () => {
     keysets: [
       {
         id: 'keyset1',
-        unit: 'sat',
+        unit: 'unit',
         keys: {
           1: 'key1',
           2: 'key2',
@@ -121,6 +123,11 @@ describe('cashuWalletService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    (cashuCrypto.sumProofs as jest.Mock).mockReset();
+    (cashuCrypto.selectProofsForAmount as jest.Mock).mockReset();
+    (cashuCrypto.splitAmount as jest.Mock).mockReset();
+    (cashuCrypto.createBlindedOutputs as jest.Mock).mockReset();
+    (cashuCrypto.unblindSignatures as jest.Mock).mockReset();
 
     // Default mock implementations - use storage map for proof integrity hash verification
     mockSecureStorage = {};
@@ -172,6 +179,11 @@ describe('cashuWalletService', () => {
       }
       return amounts;
     });
+    (cashuQuoteSigner.getMintQuoteSigningKey as jest.Mock).mockResolvedValue({
+      pubkey: '02' + 'a'.repeat(64),
+      privateKey: '1'.repeat(64),
+    });
+    (cashuQuoteSigner.signMintQuoteOutputs as jest.Mock).mockReturnValue('quotesig');
   });
 
   describe('Account Management', () => {
@@ -441,7 +453,7 @@ describe('cashuWalletService', () => {
           expiry: mockQuote.expiry,
           state: 'UNPAID',
         });
-        expect(cashuMintClient.createMintQuote).toHaveBeenCalledWith(1000);
+        expect(cashuMintClient.createMintQuote).toHaveBeenCalledWith('02' + 'a'.repeat(64));
       });
 
       it('should handle mint request errors', async () => {
@@ -526,6 +538,13 @@ describe('cashuWalletService', () => {
     describe('completeMint', () => {
       beforeEach(() => {
         (cashuMintClient.getKeys as jest.Mock).mockResolvedValue(mockKeysetData);
+        (cashuMintClient.checkMintQuote as jest.Mock).mockResolvedValue({
+          quote: 'quote123',
+          state: 'PAID',
+          amount_paid: 3,
+          amount_issued: 0,
+          pubkey: '02' + 'a'.repeat(64),
+        });
         (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValue({
           outputs: mockOutputs,
           blindingData: mockBlindingData,
@@ -555,16 +574,16 @@ describe('cashuWalletService', () => {
 
         expect(cashuCrypto.splitAmount).toHaveBeenCalledWith(3);
         expect(cashuCrypto.createBlindedOutputs).toHaveBeenCalledWith([1, 2], 'keyset1');
-        expect(cashuMintClient.mintTokens).toHaveBeenCalledWith('quote123', mockOutputs);
+        expect(cashuMintClient.mintTokens).toHaveBeenCalledWith('quote123', mockOutputs, 'quotesig');
         expect(cashuCrypto.unblindSignatures).toHaveBeenCalled();
         expect(result).toEqual(newProofs);
       });
 
-      it('should throw error if no keysets available', async () => {
+      it('should throw error if no unit keyset is available', async () => {
         (cashuMintClient.getKeys as jest.Mock).mockResolvedValueOnce({ keysets: [] });
 
         await expect(cashuWalletService.completeMint('quote123', 1000))
-          .rejects.toThrow('No keysets available from mint');
+          .rejects.toThrow('No active unit keyset available from mint');
       });
 
       it('should handle mint completion errors', async () => {
@@ -576,6 +595,13 @@ describe('cashuWalletService', () => {
 
       it('should handle amount splitting correctly', async () => {
         const amount = 15; // 1 + 2 + 4 + 8
+        (cashuMintClient.checkMintQuote as jest.Mock).mockResolvedValueOnce({
+          quote: 'quote123',
+          state: 'PAID',
+          amount_paid: amount,
+          amount_issued: 0,
+          pubkey: '02' + 'a'.repeat(64),
+        });
         (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([1, 2, 4, 8]);
 
         // Use a stateful mock that tracks storage
@@ -725,9 +751,15 @@ describe('cashuWalletService', () => {
 
     it('should handle invalid keyset data', async () => {
       (cashuMintClient.getKeys as jest.Mock).mockResolvedValue({});
+      (cashuMintClient.checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 1000,
+        amount_issued: 0,
+      });
 
       await expect(cashuWalletService.completeMint('quote123', 1000))
-        .rejects.toThrow('No keysets available');
+        .rejects.toThrow('No active unit keyset available');
     });
 
     it('should handle malformed proof data', async () => {
@@ -854,6 +886,13 @@ describe('cashuWalletService', () => {
       expect(status.paid).toBe(true);
 
       // Complete mint
+      (cashuMintClient.checkMintQuote as jest.Mock).mockResolvedValueOnce({
+        quote: 'quote1',
+        state: 'PAID',
+        amount_paid: 15,
+        amount_issued: 0,
+        pubkey: '02' + 'a'.repeat(64),
+      });
       (cashuMintClient.getKeys as jest.Mock).mockResolvedValue(mockKeysetData);
       (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([1, 2, 4, 8]);
       (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValueOnce({
@@ -1171,7 +1210,7 @@ describe('cashuWalletService', () => {
 
     describe('completeMelt', () => {
       it('should complete melt with cleanup (exact amount)', async () => {
-        const selectedProofs = [mockProofs[0], mockProofs[1], mockProofs[2]]; // 7 sats
+        const selectedProofs = [mockProofs[0], mockProofs[1], mockProofs[2]]; // 7 units
         mockSecureStorage[proofStorageKey] = JSON.stringify(mockProofs);
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
@@ -1188,13 +1227,12 @@ describe('cashuWalletService', () => {
 
         expect(result.paid).toBe(true);
         expect(result.txid).toBe('txid123');
-        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs);
+        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs, []);
       });
 
       it('should complete melt with change', async () => {
-        const selectedProofs = mockProofs; // 15 sats total
-        const meltProofs = mockProofs.slice(0, 2);
-        const changeProofs = mockProofs.slice(2); // 4 + 8 = 12 sats
+        const selectedProofs = mockProofs; // 15 units total
+        const changeProofs = mockProofs.slice(2); // 4 + 8 = 12 units
 
         // Use map-based storage for integrity hash verification
         const storage: Record<string, string> = {};
@@ -1213,60 +1251,44 @@ describe('cashuWalletService', () => {
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
 
-        (cashuCrypto.splitAmount as jest.Mock)
-          .mockReturnValueOnce([1, 2])  // melt (amounts as jest.Mock)
-          .mockReturnValueOnce([4, 8]);  // change amounts
+        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
 
         (cashuMintClient.meltTokens as jest.Mock).mockResolvedValueOnce({
           paid: true,
           payment_preimage: 'txid123',
           fee_paid: 0,
+          change: mockSignatures,
         });
+        (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce(changeProofs);
 
         const result = await cashuWalletService.completeMelt('melt123', 3);
 
         expect(result.paid).toBe(true);
         expect(result.txid).toBe('txid123');
-        expect(cashuMintClient.swapTokens).toHaveBeenCalled();
+        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs, mockOutputs);
+        expect(cashuMintClient.swapTokens).not.toHaveBeenCalled();
       });
 
-      it('should handle melt failure and preserve change', async () => {
+      it('should surface melt failure before proof cleanup', async () => {
         const selectedProofs = mockProofs;
-        const changeProofs = mockProofs.slice(2);
 
-        (SecureStore.getItemAsync as jest.Mock)
-          .mockResolvedValueOnce(JSON.stringify(mockProofs))  // (loadProofs as jest.Mock)
-          .mockResolvedValueOnce(null)  // (getOrFetchKeys as jest.Mock)
-          .mockResolvedValueOnce(JSON.stringify([]))  // removeProofs (recovery)
-          .mockResolvedValueOnce(JSON.stringify([]))  // verification (removeProofs)
-          .mockResolvedValueOnce(JSON.stringify(changeProofs))  // loadProofs (addProofs)
-          .mockResolvedValueOnce(JSON.stringify(changeProofs));  // verification (addProofs)
+        (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockProofs));
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
-        (cashuCrypto.sumProofs as jest.Mock).mockReturnValueOnce(15);
-        (cashuCrypto.splitAmount as jest.Mock)
-          .mockReturnValueOnce([1, 2])
-          .mockReturnValueOnce([4, 8]);
-
-        (cashuMintClient.swapTokens as jest.Mock).mockResolvedValueOnce({
-          signatures: mockSignatures,
-        });
+        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
 
         (cashuMintClient.meltTokens as jest.Mock).mockRejectedValueOnce(new Error('Melt failed'));
 
         await expect(cashuWalletService.completeMelt('melt123', 3))
           .rejects.toThrow('Melt failed');
 
-        // Verify change was saved despite melt failure
-        expect(logger.warn).toHaveBeenCalledWith(
-          'Melt failed after swap - saving change proofs to prevent fund loss'
-        );
+        expect(cashuMintClient.swapTokens).not.toHaveBeenCalled();
       });
     });
 
     describe('completeMeltWithoutCleanup', () => {
       it('should complete melt without cleanup (no change)', async () => {
-        const selectedProofs = mockProofs; // All 4 proofs = 15 sats
+        const selectedProofs = mockProofs; // All 4 proofs = 15 units
 
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockProofs));
 
@@ -1288,8 +1310,7 @@ describe('cashuWalletService', () => {
         expect(result.proofsToRemove).toEqual(selectedProofs);
         expect(result.changeProofs).toBeNull();
 
-        // Verify proofs were NOT removed from wallet
-        expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs, []);
       });
 
       it('should return change proofs for later cleanup', async () => {
@@ -1301,15 +1322,14 @@ describe('cashuWalletService', () => {
           .mockResolvedValueOnce(null);
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
-        (cashuCrypto.sumProofs as jest.Mock).mockReturnValueOnce(15);
-        (cashuCrypto.splitAmount as jest.Mock)
-          .mockReturnValueOnce([1, 2])
-          .mockReturnValueOnce([4, 8]);
+        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
 
         (cashuMintClient.meltTokens as jest.Mock).mockResolvedValueOnce({
           paid: true,
           payment_preimage: 'txid123',
+          change: mockSignatures,
         });
+        (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce(changeProofs);
 
         const result = await cashuWalletService.completeMeltWithoutCleanup('melt123', 3);
 

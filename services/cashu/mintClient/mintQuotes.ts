@@ -1,10 +1,11 @@
 /**
- * Mint Quotes API - Deposit Runes → receive Cashu tokens
+ * Mint Quotes API - deposit UNIT Runes and receive Cashu UNIT tokens
  */
 
 import { getJSON, postJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
+import { assertOnchainUnitMintSupport } from './mintInfo';
 
 export interface MintQuote {
   quote: string;
@@ -13,6 +14,9 @@ export interface MintQuote {
   state: string;
   expiry?: number;
   amount?: number;
+  amount_paid?: number;
+  amount_issued?: number;
+  pubkey?: string;
 }
 
 export interface BlindedOutput {
@@ -31,17 +35,19 @@ export interface MintResponse {
 }
 
 /**
- * Create a mint quote (deposit Runes → receive Cashu tokens)
- * @param amount - Amount in sats
- * @returns Quote with ID, amount, and Taproot deposit address
+ * Create a mint quote for the advertised onchain/unit Cashu method.
+ * @param pubkey - Compressed secp256k1 wallet public key for quote signing
+ * @returns Quote with ID and deposit request
  */
-export const createMintQuote = async (amount: number): Promise<MintQuote> => {
+export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
   try {
-    logger.info('Creating mint quote', { amount });
+    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10) });
 
-    const quote = await postJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/unit`, {
-      amount,
+    await assertOnchainUnitMintSupport();
+
+    const quote = await postJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/onchain`, {
       unit: CASHU_UNIT,
+      pubkey,
       rune_id: RUNE_ID,
     }, {
       timeout: 10000,
@@ -67,7 +73,7 @@ export const createMintQuote = async (amount: number): Promise<MintQuote> => {
  */
 export const checkMintQuote = async (quoteId: string): Promise<MintQuote> => {
   try {
-    const quote = await getJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/unit/${quoteId}`, {
+    const quote = await getJSON<MintQuote>(`${MINT_URL}/v1/mint/quote/onchain/${quoteId}`, {
       timeout: 5000,
       description: 'Check mint quote',
     });
@@ -84,13 +90,18 @@ export const checkMintQuote = async (quoteId: string): Promise<MintQuote> => {
  * @param outputs - Blinded messages for amounts to mint
  * @returns Blind signatures from mint
  */
-export const mintTokens = async (quoteId: string, outputs: BlindedOutput[]): Promise<MintResponse> => {
+export const mintTokens = async (
+  quoteId: string,
+  outputs: BlindedOutput[],
+  signature: string
+): Promise<MintResponse> => {
   try {
     logger.info('Minting tokens', { quoteId, outputCount: outputs.length });
 
-    const response = await postJSON<MintResponse>(`${MINT_URL}/v1/mint/unit`, {
+    const response = await postJSON<MintResponse>(`${MINT_URL}/v1/mint/onchain`, {
       quote: quoteId,
       outputs,
+      signature,
     }, {
       timeout: 10000,
       description: 'Mint tokens',

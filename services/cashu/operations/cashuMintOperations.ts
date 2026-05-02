@@ -4,6 +4,8 @@
  */
 
 import { logger } from '../../../utils/logger';
+import { selectActiveUnitKeyset, findKeysetById } from '../cashuKeysetUtils';
+import { getMintQuoteSigningKey, signMintQuoteOutputs } from '../cashuQuoteSigner';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import {
 checkMintQuote,
@@ -30,7 +32,8 @@ export interface MintQuoteResult {
 export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
   try {
     logger.info('Requesting mint', { amount, type: typeof amount });
-    const quote: MintQuote = await createMintQuote(amount);
+    const signingKey = await getMintQuoteSigningKey();
+    const quote: MintQuote = await createMintQuote(signingKey.pubkey);
 
     logger.info('Mint quote received from mint', {
       quoteId: quote.quote,
@@ -46,11 +49,17 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
         amount: quote.amount,
         depositAddress: quote.request,
       });
+    } else {
+      await saveMintQuote({
+        quoteId: quote.quote,
+        amount,
+        depositAddress: quote.request,
+      });
     }
 
     return {
       quoteId: quote.quote,
-      amount: quote.amount,
+      amount: quote.amount ?? amount,
       depositAddress: quote.request, // Taproot address
       expiry: quote.expiry,
       state: quote.state,
@@ -105,28 +114,21 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
 
     // Force fresh keys — stale cached keys from a previous mint instance cause unblinding failures
     const keyData = await getOrFetchKeys(true);
+    const paidQuote = await checkMintQuote(quoteId);
+    const amountPaid = paidQuote.amount_paid ?? paidQuote.amount ?? amount;
+    const amountIssued = paidQuote.amount_issued ?? 0;
+    const availableAmount = amountPaid - amountIssued;
 
-    // Extract keys from keyData — must use a 'unit' keyset, not 'sat'
-    let keys: Record<string, string>;
-    let keysetId: string;
-    if (keyData.keysets && keyData.keysets.length > 0) {
-      // Find an active 'unit' keyset (preferred), fall back to first keyset
-      const unitKeyset = keyData.keysets.find(
-        (ks: { unit?: string; active?: boolean }) => ks.unit === 'unit'
-      ) || keyData.keysets[0];
-      keysetId = unitKeyset.id;
-      keys = unitKeyset.keys;
-    } else if (keyData.keys) {
-      // Legacy format
-      keys = keyData.keys;
-      keysetId = '';
-    } else {
-      // No keysets available
-      throw new Error('No keysets available from mint');
+    if (availableAmount <= 0) {
+      throw new Error(`No available mint amount for quote ${quoteId}`);
     }
 
+    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const keysetId = unitKeyset.id;
+    let keys = unitKeyset.keys!;
+
     // Split amount into denominations
-    const amounts = splitAmount(amount);
+    const amounts = splitAmount(availableAmount);
 
     logger.info('Creating blinded outputs', {
       amounts,
@@ -142,7 +144,12 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     });
 
     // Get signatures from mint
-    const response = await mintTokensAPI(quoteId, outputs);
+    const signingKey = await getMintQuoteSigningKey();
+    if (paidQuote.pubkey && paidQuote.pubkey !== signingKey.pubkey) {
+      throw new Error('Mint quote pubkey does not match wallet signing key');
+    }
+    const signature = signMintQuoteOutputs(quoteId, outputs, signingKey.privateKey);
+    const response = await mintTokensAPI(quoteId, outputs, signature);
 
     logger.info('Received signatures from mint', {
       signatureCount: response.signatures.length,
@@ -154,15 +161,13 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
 
     // If the mint signed with a different keyset than we selected, look up the correct keys
     if (signedKeysetId && signedKeysetId !== keysetId && keyData.keysets) {
-      const signedKeyset = keyData.keysets.find(
-        (ks: { id: string }) => ks.id === signedKeysetId
-      );
+      const signedKeyset = findKeysetById(keyData, signedKeysetId);
       if (signedKeyset) {
         logger.info('Mint signed with different keyset, switching keys', {
           requested: keysetId,
           signed: signedKeysetId,
         });
-        unblindKeys = signedKeyset.keys;
+        unblindKeys = signedKeyset.keys!;
       }
     }
 

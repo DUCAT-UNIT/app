@@ -4,6 +4,10 @@
  */
 
 import { logger } from '../../../utils/logger';
+import {
+  selectActiveUnitKeyset,
+  selectProofsForAmountIncludingFees,
+} from '../cashuKeysetUtils';
 import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
 import {
   createBlindedOutputs,
@@ -45,12 +49,23 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
     if (!allProofs || allProofs.length === 0) {
       throw new Error('No funds available');
     }
-    selectedProofs = selectProofsForAmount(allProofs, amount);
-    const selectedAmount = sumProofs(selectedProofs);
+    const keyData = await getOrFetchKeys();
+    const selection = returnChange
+      ? selectProofsForAmountIncludingFees(allProofs, amount, keyData)
+      : {
+          selectedProofs: selectProofsForAmount(allProofs, amount),
+          selectedAmount: 0,
+          inputFees: 0,
+          requiredAmount: amount,
+        };
+    selectedProofs = selection.selectedProofs;
+    const selectedAmount = selection.selectedAmount || sumProofs(selectedProofs);
+    const inputFees = selection.inputFees;
 
     logger.info('Selected proofs', {
       selected: selectedAmount,
       needed: amount,
+      inputFees,
       proofCount: selectedProofs.length,
     });
 
@@ -59,25 +74,13 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
 
     // If we need to create change
     if (returnChange && selectedAmount > amount) {
-      const changeAmount = selectedAmount - amount;
+      const changeAmount = selectedAmount - amount - inputFees;
       logger.info('Creating change', { changeAmount });
 
       // Get keys first to determine keyset ID
-      const keyData = await getOrFetchKeys();
-      let keys: Record<string, string>;
-      let keysetId: string;
-      if (keyData.keysets && keyData.keysets.length > 0) {
-        const unitKeyset = keyData.keysets.find(
-          (ks: { unit?: string }) => ks.unit === 'unit'
-        ) || keyData.keysets[0];
-        keysetId = unitKeyset.id;
-        keys = unitKeyset.keys;
-      } else if (keyData.keys) {
-        keys = keyData.keys;
-        keysetId = '';
-      } else {
-        throw new Error('No keys available from mint');
-      }
+      const unitKeyset = selectActiveUnitKeyset(keyData);
+      const keysetId = unitKeyset.id;
+      const keys = unitKeyset.keys!;
 
       // Split into send + change amounts
       const sendAmounts = splitAmount(amount);
@@ -145,14 +148,15 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       // SECURITY: Verify the swap returned proofs matching the expected total amount.
       // A malicious mint could return fewer/different proofs, causing silent fund loss.
       const newProofsTotal = sumProofs(allNewProofs);
-      if (newProofsTotal !== selectedAmount) {
+      const expectedOutputAmount = selectedAmount - inputFees;
+      if (newProofsTotal !== expectedOutputAmount) {
         logger.error('SECURITY: Swap proof amount mismatch', {
-          expected: selectedAmount,
+          expected: expectedOutputAmount,
           received: newProofsTotal,
           proofsCount: allNewProofs.length,
         });
         throw new Error(
-          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+          `Swap verification failed: expected ${expectedOutputAmount} but received ${newProofsTotal}`
         );
       }
 

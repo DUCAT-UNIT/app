@@ -268,7 +268,7 @@ export const createBlindedOutputs = async (
 export const unblindSignatures = (
   signatures: BlindSignature[],
   blindingData: BlindingData[],
-  keys: Record<number, string>,
+  keys: Record<number | string, string>,
   keysetId: string
 ): CashuProof[] => {
   // Validate signature count matches blinding data count

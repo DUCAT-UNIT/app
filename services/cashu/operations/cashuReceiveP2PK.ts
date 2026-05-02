@@ -19,6 +19,7 @@ import {
 } from '../p2pk';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
+import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -129,20 +130,9 @@ export const receiveP2PKToken = async (
     // Step 3: Get keys
     logger.cashu('p2pk_get_keys_start', { step: 'RECEIVE', substep: 3, message: 'Fetching mint keys' });
     const keyData = await getOrFetchKeys();
-    let keys: Record<string, string>;
-    let keysetId: string;
-    if (keyData.keysets && keyData.keysets.length > 0) {
-      const unitKeyset = keyData.keysets.find(
-        (ks: { unit?: string }) => ks.unit === 'unit'
-      ) || keyData.keysets[0];
-      keysetId = unitKeyset.id;
-      keys = unitKeyset.keys;
-    } else if (keyData.keys) {
-      keys = keyData.keys;
-      keysetId = '';
-    } else {
-      throw new Error('No keys available from mint');
-    }
+    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const keysetId = unitKeyset.id;
+    const keys = unitKeyset.keys!;
 
     logger.cashu('p2pk_keys_fetched', {
       step: 'RECEIVE',
@@ -154,13 +144,19 @@ export const receiveP2PKToken = async (
     // Step 4: Create blinded outputs
     logger.cashu('p2pk_create_outputs_start', { step: 'RECEIVE', substep: 4, message: 'Creating blinded outputs' });
     const totalSmallestUnits = signedProofs.reduce((sum, proof) => sum + proof.amount, 0);
-    const amounts = splitAmount(totalSmallestUnits);
+    const inputFees = calculateInputFees(signedProofs, keyData);
+    const outputAmount = totalSmallestUnits - inputFees;
+    if (outputAmount <= 0) {
+      throw new Error('Token amount does not cover mint input fees');
+    }
+    const amounts = splitAmount(outputAmount);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
 
     logger.cashu('p2pk_outputs_created', {
       step: 'RECEIVE',
       substep: 4,
-      totalAmount: totalSmallestUnits,
+      totalAmount: outputAmount,
+      inputFees,
       outputCount: outputs.length,
       amounts: amounts.slice(0, 5), // First 5 amounts for brevity
     });
@@ -236,14 +232,14 @@ export const receiveP2PKToken = async (
     // SECURITY: Verify the swap returned proofs matching the expected total amount.
     // A malicious mint could return fewer/different proofs, causing silent fund loss.
     const newProofsTotal = sumProofs(newProofs);
-    if (newProofsTotal !== totalSmallestUnits) {
+    if (newProofsTotal !== outputAmount) {
       logger.error('SECURITY: Swap proof amount mismatch', {
-        expected: totalSmallestUnits,
+        expected: outputAmount,
         received: newProofsTotal,
         proofsCount: newProofs.length,
       });
       throw new Error(
-        `Swap verification failed: expected ${totalSmallestUnits} but received ${newProofsTotal}`
+        `Swap verification failed: expected ${outputAmount} but received ${newProofsTotal}`
       );
     }
 
@@ -252,7 +248,7 @@ export const receiveP2PKToken = async (
 
     logger.cashu('p2pk_receive_complete', {
       step: 'RECEIVE',
-      amount,
+      amount: outputAmount,
       proofCount: newProofs.length,
       message: 'P2PK token successfully claimed and added to wallet',
     });
@@ -260,7 +256,7 @@ export const receiveP2PKToken = async (
     txn.finish('ok');
 
     return {
-      amount,
+      amount: outputAmount,
       proofCount: newProofs.length || proofs.length,
     };
   } catch (error: unknown) {

@@ -65,5 +65,5 @@ export const MINT_URLS = [
 ];
 export const MINT_URL = MINT_URLS[0];
 
-export const CASHU_UNIT = 'unit'; // Using 'unit' for UNIT runes
+export const CASHU_UNIT = 'unit'; // Cashu unit advertised for Ducat UNIT
 export const RUNE_ID = '1527352:1'; // DUCAT•UNIT•RUNE (Mutinynet)

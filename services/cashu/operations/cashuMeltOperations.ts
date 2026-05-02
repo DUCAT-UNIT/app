@@ -1,21 +1,24 @@
 /**
  * Cashu Melt Operations
- * Handles redeeming tokens for Bitcoin/Runes
+ * Handles redeeming Cashu UNIT tokens through the onchain/unit mint method.
  */
 
 import { logger } from '../../../utils/logger';
 import {
+  findKeysetById,
+  selectActiveUnitKeyset,
+  selectProofsForAmountIncludingFees,
+} from '../cashuKeysetUtils';
+import {
   createMeltQuote,
   meltTokens as meltTokensAPI,
-  swapTokens as swapTokensAPI,
   MeltQuote,
 } from '../cashuMintClient';
+import type { MintKeys } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
   splitAmount,
-  sumProofs,
-  selectProofsForAmount,
   CashuProof,
 } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
@@ -29,7 +32,7 @@ export interface MeltQuoteResult {
 }
 
 /**
- * Redeem tokens for Runes (melt)
+ * Redeem tokens through the onchain/unit melt flow.
  * Step 1: Create melt quote
  */
 export const requestMelt = async (address: string, amount: number): Promise<MeltQuoteResult> => {
@@ -41,8 +44,8 @@ export const requestMelt = async (address: string, amount: number): Promise<Melt
     return {
       quoteId: quote.quote,
       amount: quote.amount,
-      fee: quote.fee_reserve,
-      total: quote.amount + quote.fee_reserve,
+      fee: quote.fee ?? quote.fee_reserve ?? 0,
+      total: quote.amount + (quote.fee ?? quote.fee_reserve ?? 0),
     };
   } catch (error: unknown) {
     logger.error('Failed to request melt', { error: (error as Error).message });
@@ -57,103 +60,104 @@ export interface MeltResult {
   balance: number;
 }
 
+interface PreparedMeltSpend {
+  selectedProofs: CashuProof[];
+  proofsToMelt: CashuProof[];
+  changeOutputs: Array<{ amount: number; B_: string; id?: string }>;
+  changeBlindingData: Parameters<typeof unblindSignatures>[1];
+  changeKeys: Record<number | string, string>;
+  changeKeysetId: string;
+}
+
+const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<PreparedMeltSpend> => {
+  const allProofs = await loadProofs();
+
+  logger.info('Proofs loaded for melt', {
+    count: allProofs.length,
+    proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
+  });
+
+  const {
+    selectedProofs,
+    selectedAmount,
+    inputFees,
+  } = selectProofsForAmountIncludingFees(allProofs, baseAmount, keyData);
+
+  const changeAmount = selectedAmount - baseAmount - inputFees;
+  if (changeAmount < 0) {
+    throw new Error('Selected proofs do not cover melt amount plus input fees');
+  }
+
+  if (changeAmount === 0) {
+    return {
+      selectedProofs,
+      proofsToMelt: selectedProofs,
+      changeOutputs: [],
+      changeBlindingData: [],
+      changeKeys: {},
+      changeKeysetId: '',
+    };
+  }
+
+  const unitKeyset = selectActiveUnitKeyset(keyData);
+  const changeAmounts = splitAmount(changeAmount);
+  const { outputs, blindingData } = await createBlindedOutputs(changeAmounts, unitKeyset.id);
+
+  return {
+    selectedProofs,
+    proofsToMelt: selectedProofs,
+    changeOutputs: outputs,
+    changeBlindingData: blindingData,
+    changeKeys: unitKeyset.keys!,
+    changeKeysetId: unitKeyset.id,
+  };
+};
+
+const unblindMeltChange = (
+  resultChange: Array<{ C_: string; id?: string; amount?: number }> | undefined,
+  prepared: PreparedMeltSpend,
+  keyData: MintKeys
+): CashuProof[] | null => {
+  if (prepared.changeOutputs.length === 0) {
+    return null;
+  }
+
+  if (!resultChange || resultChange.length === 0) {
+    throw new Error('Mint did not return melt change signatures');
+  }
+
+  const signedKeysetId = resultChange[0]?.id || prepared.changeKeysetId;
+  const signedKeyset = signedKeysetId
+    ? findKeysetById(keyData, signedKeysetId)
+    : undefined;
+  const keys = signedKeyset?.keys ?? prepared.changeKeys;
+
+  return unblindSignatures(
+    resultChange,
+    prepared.changeBlindingData,
+    keys,
+    signedKeysetId || prepared.changeKeysetId
+  );
+};
+
 /**
- * Complete melt (redeem tokens for Runes)
- * Step 2: Send proofs to mint and get Runes
+ * Complete melt through the onchain/unit flow.
+ * Step 2: Send proofs and optional change outputs to the mint.
  */
 export const completeMelt = async (quoteId: string, totalAmount: number): Promise<MeltResult> => {
-  let selectedProofs: CashuProof[] | null = null;
   let changeProofs: CashuProof[] | null = null;
-  let didSwap = false;
+  let selectedProofs: CashuProof[] | null = null;
 
   try {
     logger.info('Completing melt', { quoteId, totalAmount });
 
-    // Select proofs
-    const allProofs = await loadProofs();
-
-    // Debug: Log the proofs we're about to use
-    logger.info('Proofs loaded for melt', {
-      count: allProofs.length,
-      proofIds: allProofs.map(p => ({ amount: p.amount, id: p.id, secretPreview: p.secret?.substring(0, 8) }))
-    });
-
-    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
-    const selectedAmount = sumProofs(selectedProofs);
-
-    // If we have change, swap first
-    let proofsToMelt = selectedProofs;
-
-    if (selectedAmount > totalAmount) {
-      const changeAmount = selectedAmount - totalAmount;
-      logger.info('Creating change for melt', { changeAmount });
-
-      // Get keys first to determine keyset ID
-      const keyData = await getOrFetchKeys();
-      let keys: Record<string, string>;
-      let keysetId: string;
-      if (keyData.keysets && keyData.keysets.length > 0) {
-        const unitKeyset = keyData.keysets.find(
-          (ks: { unit?: string }) => ks.unit === 'unit'
-        ) || keyData.keysets[0];
-        keysetId = unitKeyset.id;
-        keys = unitKeyset.keys;
-      } else if (keyData.keys) {
-        keys = keyData.keys;
-        // Don't use empty string - throw error if no keyset available
-        throw new Error('No keyset ID available from mint');
-      } else {
-        throw new Error('No keys available from mint');
-      }
-
-      const meltAmounts = splitAmount(totalAmount);
-      const changeAmounts = splitAmount(changeAmount);
-
-      const { outputs, blindingData } = await createBlindedOutputs([
-        ...meltAmounts,
-        ...changeAmounts,
-      ], keysetId);
-
-      // CRITICAL: After this swap, selectedProofs are spent with the mint
-      // If melt fails after this, we MUST save changeProofs to avoid fund loss
-      const response = await swapTokensAPI(selectedProofs, outputs);
-      didSwap = true;
-
-      // Validate signatures array is not empty before accessing
-      if (!response.signatures || response.signatures.length === 0) {
-        throw new Error('Mint returned no signatures');
-      }
-      const keysetIdFromResponse = response.signatures[0].id || keysetId;
-
-      const allNewProofs = unblindSignatures(
-        response.signatures,
-        blindingData,
-        keys,
-        keysetIdFromResponse
-      );
-
-      // SECURITY: Verify the swap returned proofs matching the expected total amount.
-      // A malicious mint could return fewer/different proofs, causing silent fund loss.
-      const newProofsTotal = sumProofs(allNewProofs);
-      if (newProofsTotal !== selectedAmount) {
-        logger.error('SECURITY: Swap proof amount mismatch', {
-          expected: selectedAmount,
-          received: newProofsTotal,
-          proofsCount: allNewProofs.length,
-        });
-        throw new Error(
-          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
-        );
-      }
-
-      proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
-      changeProofs = allNewProofs.slice(meltAmounts.length);
-
-      // DON'T remove/add proofs yet - wait for melt confirmation
-    }
+    const keyData = await getOrFetchKeys();
+    const prepared = await prepareMeltSpend(totalAmount, keyData);
+    selectedProofs = prepared.selectedProofs;
 
     // Melt tokens - this is the critical step that broadcasts the transaction
-    const result = await meltTokensAPI(quoteId, proofsToMelt);
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
     // ONLY NOW that melt succeeded, remove the spent proofs
     if (changeProofs) {
@@ -185,27 +189,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       balance: newBalance,
     };
   } catch (error: unknown) {
-    logger.error('Failed to complete melt', { error: (error as Error).message, didSwap });
-
-    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
-    // The old proofs are already spent with the mint after the swap
-    if (didSwap && changeProofs && selectedProofs) {
-      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
-      try {
-        await removeProofs(selectedProofs);
-        await addProofs(changeProofs);
-        logger.info('Successfully saved change proofs after melt failure', {
-          changeCount: changeProofs.length,
-        });
-      } catch (saveError) {
-        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
-          error: (saveError as Error).message,
-          changeProofsCount: changeProofs.length,
-        });
-        // Still throw the original error, but user needs to know about this
-      }
-    }
-
+    logger.error('Failed to complete melt', { error: (error as Error).message, hasSelectedProofs: !!selectedProofs });
     throw error;
   }
 };
@@ -223,86 +207,19 @@ export interface MeltWithoutCleanupResult {
  * Returns the proofs that need to be removed so caller can wait for tx confirmation
  */
 export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: number): Promise<MeltWithoutCleanupResult> => {
-  let selectedProofs: CashuProof[] | null = null;
   let changeProofs: CashuProof[] | null = null;
-  let didSwap = false;
+  let selectedProofs: CashuProof[] | null = null;
 
   try {
     logger.info('Completing melt without cleanup', { quoteId, totalAmount });
 
-    // Select proofs
-    const allProofs = await loadProofs();
-    selectedProofs = selectProofsForAmount(allProofs, totalAmount);
-    const selectedAmount = sumProofs(selectedProofs);
-
-    // If we have change, swap first
-    let proofsToMelt = selectedProofs;
-
-    if (selectedAmount > totalAmount) {
-      const changeAmount = selectedAmount - totalAmount;
-      logger.info('Creating change for melt', { changeAmount });
-
-      const keyData = await getOrFetchKeys();
-      let keys: Record<string, string>;
-      let keysetId: string;
-      if (keyData.keysets && keyData.keysets.length > 0) {
-        const unitKeyset = keyData.keysets.find(
-          (ks: { unit?: string }) => ks.unit === 'unit'
-        ) || keyData.keysets[0];
-        keysetId = unitKeyset.id;
-        keys = unitKeyset.keys;
-      } else if (keyData.keys) {
-        keys = keyData.keys;
-        // Don't use empty string - throw error if no keyset available
-        throw new Error('No keyset ID available from mint');
-      } else {
-        throw new Error('No keys available from mint');
-      }
-
-      const meltAmounts = splitAmount(totalAmount);
-      const changeAmounts = splitAmount(changeAmount);
-
-      const { outputs, blindingData } = await createBlindedOutputs([
-        ...meltAmounts,
-        ...changeAmounts,
-      ], keysetId);
-
-      const response = await swapTokensAPI(selectedProofs, outputs);
-      didSwap = true;
-
-      // Validate signatures array is not empty before accessing
-      if (!response.signatures || response.signatures.length === 0) {
-        throw new Error('Mint returned no signatures');
-      }
-      const keysetIdFromResponse = response.signatures[0].id || keysetId;
-
-      const allNewProofs = unblindSignatures(
-        response.signatures,
-        blindingData,
-        keys,
-        keysetIdFromResponse
-      );
-
-      // SECURITY: Verify the swap returned proofs matching the expected total amount.
-      // A malicious mint could return fewer/different proofs, causing silent fund loss.
-      const newProofsTotal = sumProofs(allNewProofs);
-      if (newProofsTotal !== selectedAmount) {
-        logger.error('SECURITY: Swap proof amount mismatch', {
-          expected: selectedAmount,
-          received: newProofsTotal,
-          proofsCount: allNewProofs.length,
-        });
-        throw new Error(
-          `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
-        );
-      }
-
-      proofsToMelt = allNewProofs.slice(0, meltAmounts.length);
-      changeProofs = allNewProofs.slice(meltAmounts.length);
-    }
+    const keyData = await getOrFetchKeys();
+    const prepared = await prepareMeltSpend(totalAmount, keyData);
+    selectedProofs = prepared.selectedProofs;
 
     // Melt tokens
-    const result = await meltTokensAPI(quoteId, proofsToMelt);
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
     logger.info('Melt completed without cleanup', {
       paid: result.paid,
@@ -310,33 +227,15 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
     });
 
     // Return the proofs that need to be removed later
-    // IMPORTANT: If we swapped for change, we need to remove ALL old proofs (selectedProofs)
-    // because they were already swapped. The proofsToMelt and changeProofs are the NEW proofs.
-    // But proofsToMelt was spent in the melt, so we only keep changeProofs.
     return {
       paid: result.paid,
       txid: result.payment_preimage,
       fee: result.fee_paid || 0,
-      proofsToRemove: didSwap ? [...selectedProofs] : proofsToMelt,
+      proofsToRemove: selectedProofs,
       changeProofs: changeProofs,
     };
   } catch (error: unknown) {
-    logger.error('Failed to complete melt without cleanup', { error: (error as Error).message, didSwap });
-
-    // CRITICAL: If we swapped for change but melt failed, we MUST save the change proofs
-    if (didSwap && changeProofs && selectedProofs) {
-      logger.warn('Melt failed after swap - saving change proofs to prevent fund loss');
-      try {
-        await removeProofs(selectedProofs);
-        await addProofs(changeProofs);
-        logger.info('Successfully saved change proofs after melt failure');
-      } catch (saveError) {
-        logger.error('CRITICAL: Failed to save change proofs after melt failure!', {
-          error: (saveError as Error).message,
-        });
-      }
-    }
-
+    logger.error('Failed to complete melt without cleanup', { error: (error as Error).message, hasSelectedProofs: !!selectedProofs });
     throw error;
   }
 };

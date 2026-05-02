@@ -25,6 +25,7 @@ jest.mock('../crypto', () => ({
 import { getJSON, postJSON } from '../../../utils/apiClient';
 import {
   getMintInfo,
+  mintSupportsOnchainUnit,
   getKeysets,
   getKeys,
   createMintQuote,
@@ -65,6 +66,31 @@ describe('cashuMintClient', () => {
     });
   });
 
+  describe('mintSupportsOnchainUnit', () => {
+    it('should detect advertised onchain/unit mint support', () => {
+      expect(mintSupportsOnchainUnit({
+        nuts: {
+          '4': {
+            methods: [{ method: 'onchain', unit: 'unit' }],
+          },
+        },
+      })).toBe(true);
+    });
+
+    it('should reject non-matching advertised methods', () => {
+      expect(mintSupportsOnchainUnit({
+        nuts: {
+          '4': {
+            methods: [
+              { method: 'bolt11', unit: 'unit' },
+              { method: 'onchain', unit: 'btc' },
+            ],
+          },
+        },
+      })).toBe(false);
+    });
+  });
+
   describe('getKeysets', () => {
     it('should fetch keysets', async () => {
       const mockKeysets = { keysets: [{ id: 'keyset1', unit: 'unit' }] };
@@ -100,15 +126,16 @@ describe('cashuMintClient', () => {
       );
     });
 
-    it('should fetch keys for specific keyset ID', async () => {
-      const mockKeys = { keys: { 1: 'key1', 2: 'key2' } };
+    it('should fetch keys for specific 66-char keyset ID', async () => {
+      const keysetId = '02' + 'a'.repeat(64);
+      const mockKeys = { keysets: [{ id: keysetId, unit: 'unit', keys: { 1: 'key1', 2: 'key2' } }] };
       (getJSON as jest.Mock).mockResolvedValue(mockKeys);
 
-      const result = await getKeys('keyset123');
+      const result = await getKeys(keysetId);
 
       expect(result).toEqual(mockKeys);
       expect(getJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/keys/keyset123`,
+        `${MINT_URL}/v1/keys/${keysetId}`,
         expect.any(Object)
       );
     });
@@ -121,32 +148,60 @@ describe('cashuMintClient', () => {
   });
 
   describe('createMintQuote', () => {
+    const pubkey = '02' + 'b'.repeat(64);
+    const mintInfo = {
+      nuts: {
+        '4': {
+          methods: [{ method: 'onchain', unit: 'unit' }],
+        },
+      },
+    };
+
     it('should create a mint quote', async () => {
       const mockQuote = {
         quote: 'quote123',
         request: 'tb1pdeposit',
-        amount: 1000,
+        state: 'UNPAID',
       };
+      (getJSON as jest.Mock).mockResolvedValue(mintInfo);
       (postJSON as jest.Mock).mockResolvedValue(mockQuote);
 
-      const result = await createMintQuote(1000);
+      const result = await createMintQuote(pubkey);
 
       expect(result).toEqual(mockQuote);
+      expect(getJSON).toHaveBeenCalledWith(
+        `${MINT_URL}/v1/info`,
+        expect.objectContaining({ timeout: 5000 })
+      );
       expect(postJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/mint/quote/unit`,
+        `${MINT_URL}/v1/mint/quote/onchain`,
         expect.objectContaining({
-          amount: 1000,
           unit: 'unit',
+          pubkey,
           rune_id: '1527352:1',
         }),
         expect.objectContaining({ timeout: 10000 })
       );
     });
 
+    it('should reject mints that do not advertise onchain/unit', async () => {
+      (getJSON as jest.Mock).mockResolvedValue({
+        nuts: {
+          '4': {
+            methods: [{ method: 'bolt11', unit: 'unit' }],
+          },
+        },
+      });
+
+      await expect(createMintQuote(pubkey)).rejects.toThrow('onchain/unit support');
+      expect(postJSON).not.toHaveBeenCalled();
+    });
+
     it('should throw on error', async () => {
+      (getJSON as jest.Mock).mockResolvedValue(mintInfo);
       (postJSON as jest.Mock).mockRejectedValue(new Error('Server error'));
 
-      await expect(createMintQuote(1000)).rejects.toThrow('Server error');
+      await expect(createMintQuote(pubkey)).rejects.toThrow('Server error');
     });
   });
 
@@ -159,7 +214,7 @@ describe('cashuMintClient', () => {
 
       expect(result).toEqual(mockQuote);
       expect(getJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/mint/quote/unit/quote123`,
+        `${MINT_URL}/v1/mint/quote/onchain/quote123`,
         expect.any(Object)
       );
     });
@@ -179,12 +234,12 @@ describe('cashuMintClient', () => {
       (postJSON as jest.Mock).mockResolvedValue(mockResponse);
 
       const outputs = [{ amount: 100, B_: 'blind1' }];
-      const result = await mintTokens('quote123', outputs);
+      const result = await mintTokens('quote123', outputs, 'quotesig');
 
       expect(result).toEqual(mockResponse);
       expect(postJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/mint/unit`,
-        { quote: 'quote123', outputs },
+        `${MINT_URL}/v1/mint/onchain`,
+        { quote: 'quote123', outputs, signature: 'quotesig' },
         expect.any(Object)
       );
     });
@@ -192,25 +247,25 @@ describe('cashuMintClient', () => {
     it('should throw on mint error response', async () => {
       (postJSON as jest.Mock).mockResolvedValue({ error: 'Quote expired' });
 
-      await expect(mintTokens('quote123', [])).rejects.toThrow('Mint failed: Quote expired');
+      await expect(mintTokens('quote123', [], 'sig')).rejects.toThrow('Mint failed: Quote expired');
     });
 
     it('should throw on missing signatures', async () => {
       (postJSON as jest.Mock).mockResolvedValue({ success: true });
 
-      await expect(mintTokens('quote123', [])).rejects.toThrow('Invalid mint response: missing signatures');
+      await expect(mintTokens('quote123', [], 'sig')).rejects.toThrow('Invalid mint response: missing signatures');
     });
 
     it('should throw on invalid signatures format', async () => {
       (postJSON as jest.Mock).mockResolvedValue({ signatures: 'not-an-array' });
 
-      await expect(mintTokens('quote123', [])).rejects.toThrow('Invalid mint response: missing signatures');
+      await expect(mintTokens('quote123', [], 'sig')).rejects.toThrow('Invalid mint response: missing signatures');
     });
 
     it('should throw on network error', async () => {
       (postJSON as jest.Mock).mockRejectedValue(new Error('Network timeout'));
 
-      await expect(mintTokens('quote123', [])).rejects.toThrow('Network timeout');
+      await expect(mintTokens('quote123', [], 'sig')).rejects.toThrow('Network timeout');
     });
   });
 
@@ -258,15 +313,15 @@ describe('cashuMintClient', () => {
       const mockQuote = {
         quote: 'meltquote123',
         amount: 1000,
-        fee_reserve: 10,
+        fee: 10,
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockQuote);
+      (postJSON as jest.Mock).mockResolvedValue([mockQuote]);
 
       const result = await createMeltQuote('tb1pwithdraw', 1000);
 
       expect(result).toEqual(mockQuote);
       expect(postJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/melt/quote/unit`,
+        `${MINT_URL}/v1/melt/quote/onchain`,
         expect.objectContaining({
           request: 'tb1pwithdraw',
           amount: 1000,
@@ -293,7 +348,7 @@ describe('cashuMintClient', () => {
 
       expect(result).toEqual(mockQuote);
       expect(getJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/melt/quote/unit/meltquote123`,
+        `${MINT_URL}/v1/melt/quote/onchain/meltquote123`,
         expect.any(Object)
       );
     });
@@ -314,12 +369,13 @@ describe('cashuMintClient', () => {
       (postJSON as jest.Mock).mockResolvedValue(mockResponse);
 
       const inputs = [{ amount: 100, secret: 's', C: 'c', id: 'id1' }];
-      const result = await meltTokens('meltquote123', inputs);
+      const outputs = [{ amount: 5, B_: 'blind-change' }];
+      const result = await meltTokens('meltquote123', inputs, outputs);
 
       expect(result).toEqual(mockResponse);
       expect(postJSON).toHaveBeenCalledWith(
-        `${MINT_URL}/v1/melt/unit`,
-        { quote: 'meltquote123', inputs },
+        `${MINT_URL}/v1/melt/onchain`,
+        { quote: 'meltquote123', inputs, outputs },
         expect.objectContaining({ timeout: 15000 })
       );
     });

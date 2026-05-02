@@ -7,23 +7,55 @@ import { logger } from '../../../utils/logger';
 import { MINT_URL } from './mintConfig';
 
 export interface MintInfo {
-  name: string;
-  version: string;
+  name?: string;
+  version?: string;
+  nuts?: Record<string, {
+    methods?: Array<{
+      method: string;
+      unit: string;
+      min_amount?: number;
+      max_amount?: number;
+    }>;
+    supported?: boolean;
+  }>;
 }
 
 export interface Keysets {
-  keysets: string[];
-}
-
-export interface MintKeys {
   keysets: Array<{
     id: string;
     unit: string;
-    keys: Record<string, string>;
+    active?: boolean;
+    input_fee_ppk?: number | null;
+    final_expiry?: number | null;
   }>;
+}
+
+export interface MintKeyset {
+  id: string;
+  unit: string;
+  active?: boolean;
+  input_fee_ppk?: number | null;
+  final_expiry?: number | null;
+  keys?: Record<number | string, string>;
+}
+
+export interface MintKeys {
+  keysets: MintKeyset[];
   /** Legacy format - keys at root level */
   keys?: Record<string, string>;
 }
+
+export const mintSupportsOnchainUnit = (info: MintInfo): boolean =>
+  !!info.nuts?.['4']?.methods?.some(
+    (method) => method.method === 'onchain' && method.unit === 'unit'
+  );
+
+export const assertOnchainUnitMintSupport = async (): Promise<void> => {
+  const info = await getMintInfo();
+  if (!mintSupportsOnchainUnit(info)) {
+    throw new Error('Mint does not advertise onchain/unit support in nuts["4"].methods');
+  }
+};
 
 /**
  * Get mint information

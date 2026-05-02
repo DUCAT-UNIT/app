@@ -10,6 +10,7 @@ import { DEVICE_ONLY } from '../../storagePolicy';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { checkProofsSpent,MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
 import { addProofs,loadProofs } from '../cashuProofManager';
+import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
 import {
 createBlindedOutputs,
 decodeToken,
@@ -188,21 +189,9 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // Use the private key we got from findAccountForP2PKToken
     const privateKey = p2pkPrivateKey;
 
-    // Extract keys from keyData
-    let keys: Record<string, string>;
-    let keysetId: string;
-    if (keyData.keysets && keyData.keysets.length > 0) {
-      const unitKeyset = keyData.keysets.find(
-        (ks: { unit?: string }) => ks.unit === 'unit'
-      ) || keyData.keysets[0];
-      keysetId = unitKeyset.id;
-      keys = unitKeyset.keys;
-    } else if (keyData.keys) {
-      keys = keyData.keys;
-      keysetId = '';
-    } else {
-      throw new Error('No keys available from mint');
-    }
+    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const keysetId = unitKeyset.id;
+    const keys = unitKeyset.keys!;
 
     let proofsToSwap = proofs;
 
@@ -230,11 +219,16 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       }
     }
 
-    // Create new blinded outputs for the same amounts
-    // Use the actual sum in smallest units, not the display amount
+    // Create new blinded outputs for the net amount after mint input fees.
+    // Use the actual sum in smallest units, not the display amount.
     const t6 = Date.now();
     const totalSmallestUnits = proofs.reduce((sum, proof) => sum + proof.amount, 0);
-    const amounts = splitAmount(totalSmallestUnits);
+    const inputFees = calculateInputFees(proofsToSwap, keyData);
+    const outputAmount = totalSmallestUnits - inputFees;
+    if (outputAmount <= 0) {
+      throw new Error('Token amount does not cover mint input fees');
+    }
+    const amounts = splitAmount(outputAmount);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
     logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
 
@@ -257,14 +251,14 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // SECURITY: Verify the swap returned proofs matching the expected total amount.
     // A malicious mint could return fewer/different proofs, causing silent fund loss.
     const newProofsTotal = sumProofs(newProofs);
-    if (newProofsTotal !== totalSmallestUnits) {
+    if (newProofsTotal !== outputAmount) {
       logger.error('SECURITY: Swap proof amount mismatch', {
-        expected: totalSmallestUnits,
+        expected: outputAmount,
         received: newProofsTotal,
         proofsCount: newProofs.length,
       });
       throw new Error(
-        `Swap verification failed: expected ${totalSmallestUnits} but received ${newProofsTotal}`
+        `Swap verification failed: expected ${outputAmount} but received ${newProofsTotal}`
       );
     }
 
@@ -281,7 +275,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         logger.info('Successfully saved received proofs', {
           attempt,
           proofCount: newProofs.length,
-          amount,
+          amount: outputAmount,
         });
         break;
       } catch (error) {
@@ -289,7 +283,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         logger.warn(`Failed to save proofs (attempt ${attempt}/${MAX_RETRIES})`, {
           error: lastError.message,
           proofCount: newProofs.length,
-          amount,
+          amount: outputAmount,
         });
 
         // Wait before retrying (exponential backoff: 100ms, 200ms, 400ms)
@@ -304,7 +298,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       logger.error('CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK', {
         error: lastError?.message,
         proofCount: newProofs.length,
-        amount,
+        amount: outputAmount,
         timestamp: new Date().toISOString(),
         recoveryNote: 'Proofs were received from the mint but could not be persisted locally',
       });
@@ -317,7 +311,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         const updatedRegistry = Array.from(new Set([...existingRegistry, recoveryKey]));
         await SecureStore.setItemAsync(recoveryKey, JSON.stringify({
           proofs: newProofs,
-          amount,
+          amount: outputAmount,
           timestamp: new Date().toISOString(),
           error: lastError?.message,
         }), DEVICE_ONLY);
@@ -339,7 +333,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
     logger.cashu('receive_token_complete', {
       step: 'RECEIVE',
-      amount,
+      amount: outputAmount,
       proofCount: newProofs.length,
       totalTimeMs: totalTime,
       saveTimeMs: saveTime,
@@ -350,7 +344,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     txn.finish('ok');
 
     return {
-      amount,
+      amount: outputAmount,
       proofCount: newProofs.length,
     };
   } catch (error: unknown) {

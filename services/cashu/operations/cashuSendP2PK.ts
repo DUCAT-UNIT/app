@@ -5,6 +5,10 @@
 
 import { logger } from '../../../utils/logger';
 import { getBalance,getOrFetchKeys } from '../cashuBalanceService';
+import {
+selectActiveUnitKeyset,
+selectProofsForAmountIncludingFees,
+} from '../cashuKeysetUtils';
 import { MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
 import { addProofs,loadProofs,removeProofs } from '../cashuProofManager';
 import {
@@ -19,7 +23,6 @@ BlindingData,
 createBlindedMessage,
 encodeToken,
 generateSecret,
-selectProofsForAmount,
 splitAmount,
 sumProofs,
 unblindSignatures
@@ -130,32 +133,24 @@ export const sendP2PKToken = async (
       lockedProofs: allProofs.length - unlockedProofs.length,
     });
 
-    const selectedProofs = selectProofsForAmount(unlockedProofs, amount);
-    // Get total in smallest units (don't use sumProofs which divides by 100)
-    const selectedAmount = selectedProofs.reduce((sum, proof) => sum + proof.amount, 0);
+    const keyData = await getOrFetchKeys();
+    const {
+      selectedProofs,
+      selectedAmount,
+      inputFees,
+    } = selectProofsForAmountIncludingFees(unlockedProofs, amount, keyData);
 
     logger.info('Selected proofs for P2PK token', {
       requested: amount,
       selected: selectedAmount,
+      inputFees,
       proofCount: selectedProofs.length,
     });
 
     // Get keys
-    const keyData = await getOrFetchKeys();
-    let keys: Record<string, string>;
-    let keysetId: string;
-    if (keyData.keysets && keyData.keysets.length > 0) {
-      const unitKeyset = keyData.keysets.find(
-        (ks: { unit?: string }) => ks.unit === 'unit'
-      ) || keyData.keysets[0];
-      keysetId = unitKeyset.id;
-      keys = unitKeyset.keys;
-    } else if (keyData.keys) {
-      keys = keyData.keys;
-      keysetId = '';
-    } else {
-      throw new Error('No keys available from mint');
-    }
+    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const keysetId = unitKeyset.id;
+    const keys = unitKeyset.keys!;
 
     // Step 2: Create P2PK secrets
     if (onProgress) onProgress(++currentStep, totalSteps, 'Creating P2PK secrets');
@@ -173,7 +168,7 @@ export const sendP2PKToken = async (
     const changeSecrets: string[] = [];
     let changeAmounts: number[] = [];
     if (selectedAmount > amount) {
-      const changeAmount = selectedAmount - amount;
+      const changeAmount = selectedAmount - amount - inputFees;
       logger.info('Creating change for P2PK token', { changeAmount });
       changeAmounts = splitAmount(changeAmount);
 
@@ -196,11 +191,12 @@ export const sendP2PKToken = async (
       totalSendAmount,
       totalChangeAmount,
       totalOutputAmount,
-      match: selectedAmount === totalOutputAmount,
+      inputFees,
+      match: selectedAmount - inputFees === totalOutputAmount,
     });
 
-    if (selectedAmount !== totalOutputAmount) {
-      throw new Error(`Amount mismatch: input=${selectedAmount}, output=${totalOutputAmount}, diff=${selectedAmount - totalOutputAmount}`);
+    if (selectedAmount - inputFees !== totalOutputAmount) {
+      throw new Error(`Amount mismatch: input=${selectedAmount}, inputFees=${inputFees}, output=${totalOutputAmount}, diff=${selectedAmount - inputFees - totalOutputAmount}`);
     }
 
     // Track which secrets are P2PK vs normal (for identification after sorting)
@@ -263,14 +259,15 @@ export const sendP2PKToken = async (
     // SECURITY: Verify the swap returned proofs matching the expected total amount.
     // A malicious mint could return fewer/different proofs, causing silent fund loss.
     const newProofsTotal = sumProofs(allNewProofs);
-    if (newProofsTotal !== selectedAmount) {
+    const expectedOutputAmount = selectedAmount - inputFees;
+    if (newProofsTotal !== expectedOutputAmount) {
       logger.error('SECURITY: Swap proof amount mismatch', {
-        expected: selectedAmount,
+        expected: expectedOutputAmount,
         received: newProofsTotal,
         proofsCount: allNewProofs.length,
       });
       throw new Error(
-        `Swap verification failed: expected ${selectedAmount} but received ${newProofsTotal}`
+        `Swap verification failed: expected ${expectedOutputAmount} but received ${newProofsTotal}`
       );
     }
 
@@ -290,7 +287,7 @@ export const sendP2PKToken = async (
       changeProofs: changeProofs.length,
       changeTotal,
       totalReturned: sendTotal + changeTotal,
-      difference: selectedAmount - (sendTotal + changeTotal),
+      difference: selectedAmount - inputFees - (sendTotal + changeTotal),
     });
 
     // Log secret types to verify correct identification
