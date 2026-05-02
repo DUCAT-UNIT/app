@@ -16,6 +16,7 @@ interface MintCheckResult {
   proofs?: Array<{ id: string }>;
   amount?: number;
   state?: string;
+  alreadyIssued?: boolean;
 }
 
 // Mock dependencies
@@ -179,8 +180,64 @@ describe('useCashuMint', () => {
       expect(result.current!.pendingMints.length).toBe(0);
     });
 
+    it('should complete mint when quote has available amount without a paid state', async () => {
+      (checkMintStatus as jest.Mock).mockResolvedValue({
+        paid: true,
+        state: 'UNPAID',
+        amountPaid: 125,
+        amountIssued: 25,
+        availableAmount: 100,
+      });
+
+      const { result } = renderHook(() =>
+        useCashuMint({ fetchBalance, setIsLoading, setError })
+      );
+
+      await act(async () => {
+        await result.current!.startMint(100);
+      });
+
+      let status: MintCheckResult | undefined;
+      await act(async () => {
+        status = await result.current!.checkAndCompleteMint('quote123');
+      });
+
+      expect(status!.completed).toBe(true);
+      expect(completeMint).toHaveBeenCalledWith('quote123', 100);
+      expect(result.current!.pendingMints.length).toBe(0);
+    });
+
+    it('should remove already-issued quotes without trying to mint again', async () => {
+      (checkMintStatus as jest.Mock).mockResolvedValue({
+        paid: true,
+        state: 'ISSUED',
+        amountPaid: 100,
+        amountIssued: 100,
+        availableAmount: 0,
+      });
+
+      const { result } = renderHook(() =>
+        useCashuMint({ fetchBalance, setIsLoading, setError })
+      );
+
+      await act(async () => {
+        await result.current!.startMint(100);
+      });
+
+      let status: MintCheckResult | undefined;
+      await act(async () => {
+        status = await result.current!.checkAndCompleteMint('quote123');
+      });
+
+      expect(status!.completed).toBe(true);
+      expect(status!.alreadyIssued).toBe(true);
+      expect(completeMint).not.toHaveBeenCalled();
+      expect(fetchBalance).toHaveBeenCalled();
+      expect(result.current!.pendingMints.length).toBe(0);
+    });
+
     it('should throw error when quote not found', async () => {
-      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true });
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true, state: 'PAID' });
 
       const { result } = renderHook(() =>
         useCashuMint({ fetchBalance, setIsLoading, setError })

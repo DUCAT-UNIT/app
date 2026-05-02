@@ -14,6 +14,8 @@ export {
   getKeys,
   createMintQuote,
   checkMintQuote,
+  deriveMintQuoteState,
+  getMintQuoteAvailableAmount,
   mintTokens,
   createMeltQuote,
   checkMeltQuote,

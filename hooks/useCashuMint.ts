@@ -30,6 +30,7 @@ interface MintCheckResult {
   proofs?: CashuProof[];
   amount?: number;
   state?: string;
+  alreadyIssued?: boolean;
 }
 
 interface AutoMintSuccessData {
@@ -86,7 +87,11 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
       logger.cashu('mint_check_status', { quoteId: quoteId?.substring(0, 8) });
       const status = await checkMintStatus(quoteId);
 
-      if (status.paid) {
+      const hasMintAccounting = status.amountPaid !== undefined || status.amountIssued !== undefined;
+      const hasAvailableAmount = status.availableAmount > 0;
+      const shouldCompleteMint = hasAvailableAmount || (!hasMintAccounting && status.state === 'PAID');
+
+      if (shouldCompleteMint) {
         logger.cashu('mint_paid_completing', { quoteId: quoteId?.substring(0, 8) });
 
         const quote = pendingMints.find((q) => q.quoteId === quoteId);
@@ -107,6 +112,25 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
           completed: true,
           proofs,
           amount: quote.amount,
+        };
+      }
+
+      const alreadyIssued = status.state === 'ISSUED'
+        || (
+          hasMintAccounting
+          && (status.amountPaid ?? 0) > 0
+          && (status.amountIssued ?? 0) >= (status.amountPaid ?? 0)
+        );
+
+      if (alreadyIssued) {
+        setPendingMints((prev) => prev.filter((q) => q.quoteId !== quoteId));
+        await fetchBalance();
+        logger.cashu('mint_already_issued', { quoteId: quoteId?.substring(0, 8) });
+        return {
+          completed: true,
+          amount: status.amountIssued,
+          state: status.state,
+          alreadyIssued: true,
         };
       }
 

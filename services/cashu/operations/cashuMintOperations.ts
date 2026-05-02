@@ -16,6 +16,7 @@ mintTokens as mintTokensAPI,
 import { removeMintQuote,saveMintQuote,updateMintQuoteState } from '../cashuMintQuoteRecovery';
 import { addProofs } from '../cashuProofManager';
 import { CashuProof,createBlindedOutputs,splitAmount,unblindSignatures } from '../crypto';
+import { deriveMintQuoteState } from '../mintClient/mintQuotes';
 
 export interface MintQuoteResult {
   quoteId: string;
@@ -62,7 +63,7 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
       amount: quote.amount ?? amount,
       depositAddress: quote.request, // Taproot address
       expiry: quote.expiry,
-      state: quote.state,
+      state: quote.state ?? 'UNPAID',
     };
   } catch (error: unknown) {
     logger.error('Failed to request mint', { error: (error as Error).message });
@@ -74,6 +75,9 @@ export interface MintStatusResult {
   quoteId: string;
   state: string;
   paid: boolean;
+  amountPaid?: number;
+  amountIssued?: number;
+  availableAmount: number;
 }
 
 /**
@@ -87,13 +91,23 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
     logger.info('Mint quote status checked', {
       quoteId: quote.quote,
       state: quote.state,
+      amountPaid: quote.amount_paid,
+      amountIssued: quote.amount_issued,
       fullQuote: quote
     });
 
+    const amountPaid = quote.amount_paid;
+    const amountIssued = quote.amount_issued;
+    const availableAmount = Math.max(0, (amountPaid ?? 0) - (amountIssued ?? 0));
+    const state = deriveMintQuoteState(quote);
+
     return {
       quoteId: quote.quote,
-      state: quote.state,
-      paid: quote.state === 'PAID' || quote.state === 'ISSUED',
+      state,
+      paid: availableAmount > 0 || state === 'PAID' || state === 'ISSUED' || quote.paid === true,
+      amountPaid,
+      amountIssued,
+      availableAmount,
     };
   } catch (error: unknown) {
     logger.error('Failed to check mint status', { error: (error as Error).message });

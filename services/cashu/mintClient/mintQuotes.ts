@@ -14,8 +14,9 @@ import { assertOnchainUnitMintSupport } from './mintInfo';
 export interface MintQuote {
   quote: string;
   request: string;
-  paid: boolean;
-  state: string;
+  paid?: boolean;
+  state?: string;
+  unit?: string;
   expiry?: number;
   amount?: number;
   amount_paid?: number;
@@ -44,12 +45,38 @@ export interface MintResponse {
   error?: string;
 }
 
-const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => ({
-  ...quote,
-  amount: normalizeOptionalCashuAmount(quote.amount, 'mint quote amount'),
-  amount_paid: normalizeOptionalCashuAmount(quote.amount_paid, 'mint quote amount_paid'),
-  amount_issued: normalizeOptionalCashuAmount(quote.amount_issued, 'mint quote amount_issued'),
-});
+export const getMintQuoteAvailableAmount = (quote: Pick<MintQuote, 'amount_paid' | 'amount_issued'>): number => {
+  const amountPaid = quote.amount_paid ?? 0;
+  const amountIssued = quote.amount_issued ?? 0;
+  return Math.max(0, amountPaid - amountIssued);
+};
+
+export const deriveMintQuoteState = (quote: Pick<MintQuote, 'state' | 'amount_paid' | 'amount_issued' | 'paid'>): string => {
+  if (quote.state) {
+    return quote.state;
+  }
+  if (getMintQuoteAvailableAmount(quote) > 0 || quote.paid === true) {
+    return 'PAID';
+  }
+  if ((quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0)) {
+    return 'ISSUED';
+  }
+  return 'UNPAID';
+};
+
+const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => {
+  const normalized: MintQuote = {
+    ...quote,
+    amount: normalizeOptionalCashuAmount(quote.amount, 'mint quote amount'),
+    amount_paid: normalizeOptionalCashuAmount(quote.amount_paid, 'mint quote amount_paid'),
+    amount_issued: normalizeOptionalCashuAmount(quote.amount_issued, 'mint quote amount_issued'),
+  };
+
+  return {
+    ...normalized,
+    state: deriveMintQuoteState(normalized),
+  };
+};
 
 /**
  * Create a mint quote for the advertised onchain/unit Cashu method.

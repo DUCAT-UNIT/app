@@ -335,6 +335,53 @@ describe('cashuMintQuoteRecovery', () => {
       expect(completeMint).toHaveBeenCalledWith('quote123', 1000);
     });
 
+    it('should recover quotes with available amount even when mint omits state', async () => {
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote123',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: Date.now(),
+          state: 'UNPAID',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        amount_paid: 1250,
+        amount_issued: 250,
+      });
+      (completeMint as jest.Mock).mockResolvedValue([{ amount: 1000 }]);
+
+      const result = await recoverUnclaimedMintQuotes();
+
+      expect(result.recovered).toBe(1);
+      expect(result.totalAmountRecovered).toBe(1000);
+      expect(completeMint).toHaveBeenCalledWith('quote123', 1000);
+    });
+
+    it('should recover stale pending quotes instead of skipping them forever', async () => {
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote123',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: Date.now() - 3 * 60 * 1000,
+          state: 'PENDING',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        amount_paid: 1000,
+        amount_issued: 0,
+      });
+      (completeMint as jest.Mock).mockResolvedValue([{ amount: 1000 }]);
+
+      const result = await recoverUnclaimedMintQuotes();
+
+      expect(result.recovered).toBe(1);
+      expect(completeMint).toHaveBeenCalledWith('quote123', 1000);
+    });
+
     it('should remove already issued quotes', async () => {
       const storedQuotes: PersistedMintQuote[] = [
         {

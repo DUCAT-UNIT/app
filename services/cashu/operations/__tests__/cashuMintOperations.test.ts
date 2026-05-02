@@ -100,10 +100,13 @@ describe('cashuMintOperations', () => {
         quoteId: 'quote123',
         state: 'PAID',
         paid: true,
+        amountPaid: undefined,
+        amountIssued: undefined,
+        availableAmount: 0,
       });
     });
 
-    it('should return paid status for ISSUED state', async () => {
+    it('should expose issued state without a mintable amount', async () => {
       (checkMintQuote as jest.Mock).mockResolvedValue({
         quote: 'quote123',
         state: 'ISSUED',
@@ -112,6 +115,26 @@ describe('cashuMintOperations', () => {
       const result = await checkMintStatus('quote123');
 
       expect(result.paid).toBe(true);
+      expect(result.availableAmount).toBe(0);
+    });
+
+    it('should treat amount_paid minus amount_issued as mintable even without state', async () => {
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount_paid: 125,
+        amount_issued: 25,
+      });
+
+      const result = await checkMintStatus('quote123');
+
+      expect(result).toEqual({
+        quoteId: 'quote123',
+        state: 'PAID',
+        paid: true,
+        amountPaid: 125,
+        amountIssued: 25,
+        availableAmount: 100,
+      });
     });
 
     it('should return unpaid status for UNPAID state', async () => {
@@ -123,6 +146,7 @@ describe('cashuMintOperations', () => {
       const result = await checkMintStatus('quote123');
 
       expect(result.paid).toBe(false);
+      expect(result.availableAmount).toBe(0);
     });
 
     it('should throw error on failure', async () => {

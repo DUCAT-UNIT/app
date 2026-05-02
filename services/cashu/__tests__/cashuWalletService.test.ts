@@ -502,10 +502,13 @@ describe('cashuWalletService', () => {
           quoteId: 'quote123',
           state: 'PAID',
           paid: true,
+          amountPaid: undefined,
+          amountIssued: undefined,
+          availableAmount: 0,
         });
       });
 
-      it('should recognize ISSUED state as paid', async () => {
+      it('should recognize ISSUED state as paid but not mintable', async () => {
         const mockQuote = {
           quote: 'quote123',
           state: 'ISSUED',
@@ -516,6 +519,28 @@ describe('cashuWalletService', () => {
         const result = await cashuWalletService.checkMintStatus('quote123');
 
         expect(result.paid).toBe(true);
+        expect(result.availableAmount).toBe(0);
+      });
+
+      it('should treat amount_paid minus amount_issued as mintable without state', async () => {
+        const mockQuote = {
+          quote: 'quote123',
+          amount_paid: 125,
+          amount_issued: 25,
+        };
+
+        (cashuMintClient.checkMintQuote as jest.Mock).mockResolvedValueOnce(mockQuote);
+
+        const result = await cashuWalletService.checkMintStatus('quote123');
+
+        expect(result).toEqual({
+          quoteId: 'quote123',
+          state: 'PAID',
+          paid: true,
+          amountPaid: 125,
+          amountIssued: 25,
+          availableAmount: 100,
+        });
       });
 
       it('should handle unpaid quotes', async () => {
@@ -529,6 +554,7 @@ describe('cashuWalletService', () => {
         const result = await cashuWalletService.checkMintStatus('quote123');
 
         expect(result.paid).toBe(false);
+        expect(result.availableAmount).toBe(0);
       });
 
       it('should handle status check errors', async () => {

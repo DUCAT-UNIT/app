@@ -12,6 +12,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { checkMintQuote } from './cashuMintClient';
+import { deriveMintQuoteState, getMintQuoteAvailableAmount } from './mintClient/mintQuotes';
 // Lazy import to break circular dependency:
 // cashuMintOperations → cashuMintQuoteRecovery → cashuMintOperations
 // Uses require() for Jest compatibility (dynamic import() not supported without --experimental-vm-modules)
@@ -32,6 +33,7 @@ const QUOTE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 // This handles cases like amount mismatch where the on-chain deposit
 // doesn't match what the mint expects (e.g., floating-point rounding errors)
 const MAX_CONSECUTIVE_FAILURES = 3;
+const STALE_PENDING_MS = 2 * 60 * 1000;
 
 export interface PersistedMintQuote {
   quoteId: string;
@@ -242,8 +244,9 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
     for (const quote of quotes) {
       result.checked++;
 
-      // Skip quotes that are actively being processed by turbo flow
-      if (quote.state === 'PENDING') {
+      // Skip quotes that are actively being processed by turbo flow. If the app
+      // died mid-claim, do not leave the quote stuck in PENDING forever.
+      if (quote.state === 'PENDING' && Date.now() - quote.createdAt < STALE_PENDING_MS) {
         logger.debug('[MintQuoteRecovery] Skipping PENDING quote (active processing)', {
           quoteId: quote.quoteId.substring(0, 8),
         });
@@ -260,14 +263,21 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
           mintState: mintQuote.state,
         });
 
-        if (mintQuote.state === 'PAID') {
+        const mintState = deriveMintQuoteState(mintQuote);
+        const availableAmount = getMintQuoteAvailableAmount(mintQuote);
+        const hasMintAccounting = mintQuote.amount_paid !== undefined || mintQuote.amount_issued !== undefined;
+        const canClaim = availableAmount > 0 || (!hasMintAccounting && mintState === 'PAID');
+
+        if (canClaim) {
           // Quote is paid but not yet claimed - recover it!
           // Use the mint's reported amount (actual deposit), not the locally saved amount
-          const claimAmount = mintQuote.amount ?? quote.amount;
+          const claimAmount = availableAmount > 0 ? availableAmount : mintQuote.amount ?? quote.amount;
           logger.info('[MintQuoteRecovery] Found paid unclaimed quote, recovering...', {
             quoteId: quote.quoteId.substring(0, 8),
             savedAmount: quote.amount,
             mintAmount: mintQuote.amount,
+            amountPaid: mintQuote.amount_paid,
+            amountIssued: mintQuote.amount_issued,
             claimAmount,
           });
 
@@ -327,13 +337,20 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
               }
             }
           }
-        } else if (mintQuote.state === 'ISSUED') {
+        } else if (
+          mintState === 'ISSUED'
+          || (
+            hasMintAccounting
+            && (mintQuote.amount_paid ?? 0) > 0
+            && (mintQuote.amount_issued ?? 0) >= (mintQuote.amount_paid ?? 0)
+          )
+        ) {
           // Already claimed - remove from our list
           logger.info('[MintQuoteRecovery] Quote already issued, removing', {
             quoteId: quote.quoteId.substring(0, 8),
           });
           await removeMintQuote(quote.quoteId);
-        } else if (mintQuote.state === 'UNPAID') {
+        } else if (mintState === 'UNPAID') {
           // Still waiting for payment - keep in list
           await updateMintQuoteState(quote.quoteId, 'UNPAID');
         }
