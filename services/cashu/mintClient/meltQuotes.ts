@@ -33,8 +33,13 @@ export interface MeltResponse {
   unit?: string;
   state?: 'UNPAID' | 'PENDING' | 'PAID' | string;
   paid?: boolean;
+  txid?: string | null;
+  outpoint?: string | null;
   payment_preimage?: string | null;
+  fee?: number | CashuAmountLike;
   fee_paid?: number | CashuAmountLike;
+  request?: string;
+  estimated_blocks?: number;
   change?: Array<{ C_: string; id?: string; amount?: number | CashuAmountLike }>;
 }
 
@@ -147,7 +152,8 @@ export const meltTokens = async (
 
     logger.info('Tokens melted', {
       paid: response.paid,
-      txid: response.payment_preimage
+      state: response.state,
+      txid: response.txid || response.outpoint || response.payment_preimage,
     });
 
     return response;

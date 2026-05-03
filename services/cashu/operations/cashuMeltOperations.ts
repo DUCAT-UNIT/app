@@ -237,8 +237,10 @@ const unblindMeltChange = (
   );
 };
 
+const ACCEPTED_MELT_STATES = new Set(['PAID', 'PENDING']);
+
 const isMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): boolean =>
-  result.paid === true || result.state === 'PAID';
+  result.paid === true || (typeof result.state === 'string' && ACCEPTED_MELT_STATES.has(result.state));
 
 const assertMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): void => {
   if (!isMeltPaid(result)) {
@@ -247,8 +249,19 @@ const assertMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): void => {
   }
 };
 
-const getMeltTxid = (result: Pick<MeltResponse, 'payment_preimage' | 'quote'>): string =>
-  result.payment_preimage || result.quote || '';
+const getMeltTxid = (
+  result: Pick<MeltResponse, 'txid' | 'outpoint' | 'payment_preimage' | 'quote'>
+): string => {
+  if (result.txid) return result.txid;
+  if (result.outpoint) return result.outpoint.split(':')[0] || result.outpoint;
+  return result.payment_preimage || result.quote || '';
+};
+
+const getMeltFee = (result: Pick<MeltResponse, 'fee_paid' | 'fee'>): number => {
+  const feePaid = normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid');
+  if (feePaid !== undefined) return feePaid;
+  return normalizeOptionalCashuAmount(result.fee, 'melt fee') ?? 0;
+};
 
 /**
  * Complete melt through the onchain/unit flow.
@@ -296,7 +309,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
     return {
       paid: isMeltPaid(result),
       txid: getMeltTxid(result),
-      fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
+      fee: getMeltFee(result),
       balance: newBalance,
     };
   } catch (error: unknown) {
@@ -343,7 +356,7 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
     return {
       paid: isMeltPaid(result),
       txid: getMeltTxid(result),
-      fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
+      fee: getMeltFee(result),
       proofsToRemove: selectedProofs,
       changeProofs: changeProofs,
     };

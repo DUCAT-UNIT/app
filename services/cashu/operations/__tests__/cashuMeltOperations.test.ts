@@ -345,6 +345,27 @@ describe('cashuMeltOperations', () => {
       });
       expect(removeProofs).toHaveBeenCalledWith([exactProof]);
     });
+
+    it('should accept on-chain PENDING responses and use the returned outpoint txid', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PENDING',
+        outpoint: 'broadcasttxid123:1',
+        fee: 1000,
+      });
+
+      const result = await completeMelt('quote123', 100);
+
+      expect(result).toEqual({
+        paid: true,
+        txid: 'broadcasttxid123',
+        fee: 1000,
+        balance: 0,
+      });
+      expect(removeProofs).toHaveBeenCalledWith([exactProof]);
+    });
   });
 
   describe('completeMeltWithoutCleanup', () => {
@@ -393,6 +414,27 @@ describe('cashuMeltOperations', () => {
 
       expect(result.paid).toBe(true);
       expect(result.txid).toBe('quote123');
+      expect(result.proofsToRemove).toEqual([exactProof]);
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should accept on-chain PENDING responses without cleanup', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PENDING',
+        outpoint: 'broadcasttxid456:0',
+        fee: 1000,
+      });
+
+      const result = await completeMeltWithoutCleanup('quote123', 100);
+
+      expect(result.paid).toBe(true);
+      expect(result.txid).toBe('broadcasttxid456');
+      expect(result.fee).toBe(1000);
       expect(result.proofsToRemove).toEqual([exactProof]);
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
