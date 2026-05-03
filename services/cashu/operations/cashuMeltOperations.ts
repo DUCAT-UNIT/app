@@ -14,6 +14,7 @@ import {
   createMeltQuote,
   meltTokens as meltTokensAPI,
   MeltQuote,
+  MeltResponse,
 } from '../cashuMintClient';
 import type { MintKeys } from '../cashuMintClient';
 import {
@@ -236,11 +237,18 @@ const unblindMeltChange = (
   );
 };
 
-const assertMeltPaid = (result: { paid?: boolean }): void => {
-  if (result.paid !== true) {
-    throw new Error('Mint did not confirm the withdrawal');
+const isMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): boolean =>
+  result.paid === true || result.state === 'PAID';
+
+const assertMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): void => {
+  if (!isMeltPaid(result)) {
+    const state = result.state ? ` State: ${result.state}.` : '';
+    throw new Error(`Mint did not confirm the withdrawal.${state}`);
   }
 };
+
+const getMeltTxid = (result: Pick<MeltResponse, 'payment_preimage' | 'quote'>): string =>
+  result.payment_preimage || result.quote || '';
 
 /**
  * Complete melt through the onchain/unit flow.
@@ -281,13 +289,13 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
 
     logger.info('Melt completed', {
       paid: result.paid,
-      txid: result.payment_preimage,
+      txid: getMeltTxid(result),
       newBalance,
     });
 
     return {
-      paid: result.paid,
-      txid: result.payment_preimage,
+      paid: isMeltPaid(result),
+      txid: getMeltTxid(result),
       fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
       balance: newBalance,
     };
@@ -327,13 +335,14 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
 
     logger.info('Melt completed without cleanup', {
       paid: result.paid,
-      txid: result.payment_preimage,
+      state: result.state,
+      txid: getMeltTxid(result),
     });
 
     // Return the proofs that need to be removed later
     return {
-      paid: result.paid,
-      txid: result.payment_preimage,
+      paid: isMeltPaid(result),
+      txid: getMeltTxid(result),
       fee: normalizeOptionalCashuAmount(result.fee_paid, 'melt fee_paid') || 0,
       proofsToRemove: selectedProofs,
       changeProofs: changeProofs,

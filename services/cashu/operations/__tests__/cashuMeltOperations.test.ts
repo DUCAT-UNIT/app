@@ -325,6 +325,26 @@ describe('cashuMeltOperations', () => {
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
     });
+
+    it('should accept cashu-ts v4 PAID state responses without paid boolean', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        fee_paid: 0,
+      });
+
+      const result = await completeMelt('quote123', 100);
+
+      expect(result).toEqual({
+        paid: true,
+        txid: 'quote123',
+        fee: 0,
+        balance: 0,
+      });
+      expect(removeProofs).toHaveBeenCalledWith([exactProof]);
+    });
   });
 
   describe('completeMeltWithoutCleanup', () => {
@@ -355,6 +375,25 @@ describe('cashuMeltOperations', () => {
       await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toThrow(
         'Mint did not confirm the withdrawal'
       );
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should accept state PAID responses without paid boolean', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        fee_paid: 0,
+      });
+
+      const result = await completeMeltWithoutCleanup('quote123', 100);
+
+      expect(result.paid).toBe(true);
+      expect(result.txid).toBe('quote123');
+      expect(result.proofsToRemove).toEqual([exactProof]);
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
     });

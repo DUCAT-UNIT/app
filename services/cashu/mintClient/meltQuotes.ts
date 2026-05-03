@@ -28,8 +28,12 @@ type MeltQuoteWire = Omit<MeltQuote, 'amount' | 'fee' | 'fee_reserve'> & {
 };
 
 export interface MeltResponse {
-  paid: boolean;
-  payment_preimage: string;
+  quote?: string;
+  amount?: number | CashuAmountLike;
+  unit?: string;
+  state?: 'UNPAID' | 'PENDING' | 'PAID' | string;
+  paid?: boolean;
+  payment_preimage?: string | null;
   fee_paid?: number | CashuAmountLike;
   change?: Array<{ C_: string; id?: string; amount?: number | CashuAmountLike }>;
 }
