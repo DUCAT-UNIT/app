@@ -34,6 +34,7 @@
   "ignoreBinaries": [
     "maestro",
     "xcrun",
+    "hardhat",
     "tail",
     "react-native-bundle-visualizer",
     "e2e/maestro/scripts/run-iphone16pro.sh"
