@@ -1,0 +1,10 @@
+import type { LiquidationTerms, VaultTerms } from '../../../../types/index.js';
+export declare function get_adjusted_unit_price(coin_price: number, divisor?: number): number;
+export declare function calc_sats_balance(sats_balance: number, repo_portion?: number): number;
+export declare function calc_unit_balance(unit_balance: number, repo_portion?: number): number;
+export declare function calc_liquid_tax_rate(liquid_terms: LiquidationTerms): number;
+export declare function calc_subsidy_rate(liquid_terms: LiquidationTerms, subsidy_multi: number): number;
+export declare function calc_subsidy_multiplier(liquid_terms: LiquidationTerms, coll_ratio: number): number;
+export declare function calc_subsidy_sats(sats_balance: number, subsidy_rate: number, taxable_sats: number): number;
+export declare function calc_reserve_sats(liquid_terms: LiquidationTerms, tax_remaining: number): number;
+export declare function calc_collateral_deficit(vault_terms: VaultTerms, coin_price: number, sats_amount: number, unit_balance: number): number;

@@ -1,0 +1,1096 @@
+import { z } from 'zod';
+declare const _default: {
+    open_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+    } & {
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        borrow_amount: z.ZodNumber;
+        deposit_amount: z.ZodNumber;
+        token_address: z.ZodString;
+        token_data: z.ZodObject<{
+            rev: z.ZodNumber;
+            tag: z.ZodString;
+            ver: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            rev: number;
+            tag: string;
+            ver: number;
+        }, {
+            rev: number;
+            tag: string;
+            ver: number;
+        }>;
+        token_postage: z.ZodNumber;
+        unit_address: z.ZodString;
+        unit_postage: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+    } & {
+        acct_id: z.ZodString;
+        acct_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    } & {
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        borrow_amount: number;
+        deposit_amount: number;
+        token_address: string;
+        token_data: {
+            rev: number;
+            tag: string;
+            ver: number;
+        };
+        token_postage: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        borrow_amount: number;
+        deposit_amount: number;
+        token_address: string;
+        token_data: {
+            rev: number;
+            tag: string;
+            ver: number;
+        };
+        token_postage: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+    borrow_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        borrow_amount: z.ZodNumber;
+        deposit_amount: z.ZodNumber;
+        unit_address: z.ZodString;
+        unit_postage: z.ZodNumber;
+        acct_id: z.ZodString;
+        acct_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    } & {
+        vault_balance: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        vault_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    }, "strip", z.ZodTypeAny, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        borrow_amount: number;
+        deposit_amount: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        borrow_amount: number;
+        deposit_amount: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+    repay_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        deposit_amount: z.ZodNumber;
+        repay_amount: z.ZodNumber;
+        unit_address: z.ZodString;
+        unit_postage: z.ZodNumber;
+        acct_id: z.ZodString;
+        acct_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    } & {
+        vault_balance: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        vault_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    }, "strip", z.ZodTypeAny, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        repay_amount: number;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        acct_id: string;
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        unit_address: string;
+        unit_postage: number;
+        vault_pubkey: string;
+        repay_amount: number;
+        acct_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+    repo_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        deposit_amount: z.ZodNumber;
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    } & {
+        vault_balance: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        vault_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    }, "strip", z.ZodTypeAny, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        vault_pubkey: string;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        vault_pubkey: string;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+    deposit_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        deposit_amount: z.ZodNumber;
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    } & {
+        vault_balance: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        vault_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    }, "strip", z.ZodTypeAny, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        vault_pubkey: string;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        deposit_amount: number;
+        vault_pubkey: string;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+    withdraw_ctx: z.ZodObject<{
+        vault_action: z.ZodEnum<["o", "b", "r", "d", "w", "x", "l"]>;
+        vault_quote: z.ZodObject<{
+            event_type: z.ZodString;
+            latest_origin: z.ZodString;
+            latest_price: z.ZodNumber;
+            latest_stamp: z.ZodNumber;
+            quote_origin: z.ZodString;
+            quote_price: z.ZodNumber;
+            quote_stamp: z.ZodNumber;
+            req_id: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            req_sig: z.ZodEffects<z.ZodString, string, string>;
+            srv_network: z.ZodString;
+            srv_pubkey: z.ZodEffects<z.ZodString, string, string>;
+            thold_hash: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            thold_price: z.ZodNumber;
+        } & {
+            is_expired: z.ZodLiteral<false>;
+            event_origin: z.ZodNull;
+            event_price: z.ZodNull;
+            event_stamp: z.ZodNull;
+            thold_key: z.ZodNull;
+        }, "strip", z.ZodTypeAny, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }, {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        }>;
+        sats_address: z.ZodString;
+        tx_feerate: z.ZodNumber;
+        change_amount: z.ZodNumber;
+        contract_id: z.ZodString;
+        guard_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        unit_rune_id: z.ZodString;
+        unit_rune_lbl: z.ZodString;
+    } & {
+        vault_balance: z.ZodNumber;
+        vault_pubkey: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+        vault_utxo: z.ZodObject<{
+            txid: z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>;
+            vout: z.ZodNumber;
+            value: z.ZodNumber;
+            script: z.ZodEffects<z.ZodString, string, string>;
+        }, "strip", z.ZodTypeAny, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }, {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        }>;
+    }, "strip", z.ZodTypeAny, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        vault_pubkey: string;
+        change_amount: number;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }, {
+        vault_action: "o" | "b" | "r" | "d" | "w" | "x" | "l";
+        sats_address: string;
+        tx_feerate: number;
+        vault_pubkey: string;
+        change_amount: number;
+        contract_id: string;
+        guard_pubkey: string;
+        unit_rune_id: string;
+        unit_rune_lbl: string;
+        vault_balance: number;
+        vault_utxo: {
+            value: number;
+            txid: string;
+            vout: number;
+            script: string;
+        };
+        vault_quote: {
+            thold_hash: string;
+            thold_price: number;
+            event_origin: null;
+            event_price: null;
+            event_stamp: null;
+            event_type: string;
+            latest_origin: string;
+            latest_price: number;
+            latest_stamp: number;
+            quote_origin: string;
+            quote_price: number;
+            quote_stamp: number;
+            req_id: string;
+            req_sig: string;
+            srv_network: string;
+            srv_pubkey: string;
+            thold_key: null;
+            is_expired: false;
+        };
+    }>;
+};
+export default _default;

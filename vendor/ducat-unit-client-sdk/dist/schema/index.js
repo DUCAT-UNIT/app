@@ -1,0 +1,10 @@
+import base from './base.js';
+import ord from './ord.js';
+import proto from './proto.js';
+import tx from './tx.js';
+import ws from './ws.js';
+import guard from '../module/guard/schema/index.js';
+import oracle from '../module/oracle/schema/index.js';
+import vault from '../module/vault/schema/index.js';
+import wallet from '../module/wallet/schema/index.js';
+export default { base, guard, oracle, ord, proto, tx, vault, wallet, ws };

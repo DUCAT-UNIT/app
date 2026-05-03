@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   quality:
@@ -24,11 +23,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
         run: npm ci
 
       - name: Verify project quality gates
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN || github.token }}
         run: npm run verify

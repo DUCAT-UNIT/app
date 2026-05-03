@@ -1,0 +1,81 @@
+import { TxOpts } from '@scure/btc-signer/transaction';
+import { Transaction } from '@scure/btc-signer';
+import { TransactionInput, TransactionOutput } from '@scure/btc-signer/psbt';
+import type { BaseUtxo, PSBTBaseInput, PSBTBaseOutput, PSBTData, PSBTInputSelectOpt, PSBTPrevouts, SignedUtxo, TapScriptEntry, TxOutput } from '../types/index.js';
+export declare function assert_is_funded(psbt: PSBTData): void;
+export declare function extract_vins(psbt: PSBTData): TransactionInput[];
+export declare function extract_vouts(psbt: PSBTData): TransactionOutput[];
+export declare function extract_txins(psbt: PSBTData): PSBTBaseOutput[];
+export declare function extract_txouts(psbt: PSBTData): PSBTBaseOutput[];
+export declare function decode_psbt(b64str: string): Transaction;
+export declare function encode_psbt(psbt: Transaction): string;
+export declare function parse_psbt(psbt: PSBTData): Transaction;
+export declare function extract_tx(psbt: PSBTData): string;
+export declare function get_txhex(psbt: PSBTData): string;
+export declare function get_vin_total(psbt: PSBTData): number;
+export declare function extract_prevouts(psbt: PSBTData): PSBTPrevouts;
+export declare function extract_key_witness(psbt: PSBTData, index: number): string[];
+export declare function extract_script_witness(psbt: PSBTData, index: number): string[];
+export declare function extract_hash_witness(psbt: PSBTData, index: number): string[];
+export declare function extract_utxo(psbt: PSBTData, index: number): BaseUtxo;
+export declare function extract_vin(psbt: PSBTData, index: number): BaseUtxo;
+export declare function extract_sighash(psbt: PSBTData, index: number): string;
+export declare function extract_signed_vin(psbt: PSBTData, index: number): SignedUtxo;
+export declare function extract_scripted_vin(psbt: PSBTData, index: number): SignedUtxo;
+export declare function extract_hlock_vin(psbt: PSBTData, index: number): SignedUtxo;
+export declare function extract_finalized_vin(psbt: PSBTData, index: number): SignedUtxo;
+export declare function finalize_script_vin(psbt: PSBTData, index: number): string;
+export declare function extract_funding_vins(psbt: PSBTData, opt?: PSBTInputSelectOpt): SignedUtxo[];
+export declare function create_psbt_hashlock(hash: string, pimg: string): [Uint8Array, Uint8Array];
+export declare function create_psbt_tapscript(scripts: (string | Uint8Array)[], index?: number, version?: number): TapScriptEntry;
+export declare function create_psbt_output(output: TxOutput): PSBTBaseOutput;
+export declare function create_psbt_input(utxo: BaseUtxo, witness?: Uint8Array[]): TransactionInput;
+export declare function create_psbt_payout(amount: number, address: string): PSBTBaseOutput;
+export declare function get_vsize(psbt: PSBTData): number;
+export declare function assert_psbt_output(psbt_out: TransactionOutput): asserts psbt_out is PSBTBaseOutput;
+export declare function assert_psbt_input(psbt_vin: TransactionInput): asserts psbt_vin is PSBTBaseInput;
+declare const _default: {
+    assert: {
+        has_vin: typeof assert_psbt_input;
+        has_vout: typeof assert_psbt_output;
+        is_funded: typeof assert_is_funded;
+    };
+    extract: {
+        tx: typeof extract_tx;
+        utxo: typeof extract_utxo;
+        base_vin: typeof extract_vin;
+        signed_vin: typeof extract_signed_vin;
+        hlock_vin: typeof extract_hlock_vin;
+        script_vin: typeof extract_scripted_vin;
+        sighash: typeof extract_sighash;
+        final_vin: typeof extract_finalized_vin;
+        funding_vins: typeof extract_funding_vins;
+        prevouts: typeof extract_prevouts;
+        key_witness: typeof extract_key_witness;
+        script_witness: typeof extract_script_witness;
+    };
+    get: {
+        txhex: typeof get_txhex;
+        vsize: typeof get_vsize;
+        vin_total: typeof get_vin_total;
+    };
+    util: {
+        finalize_legacy_inputs: typeof finalize_legacy_inputs;
+    };
+    create: {
+        psbt: (opts?: TxOpts) => Transaction;
+        input: typeof create_psbt_input;
+        hashlock: typeof create_psbt_hashlock;
+        output: typeof create_psbt_output;
+        payout: typeof create_psbt_payout;
+        tapscript: typeof create_psbt_tapscript;
+    };
+    finalize: {
+        script_vin: typeof finalize_script_vin;
+    };
+    encode: typeof encode_psbt;
+    decode: typeof decode_psbt;
+    parse: typeof parse_psbt;
+};
+export default _default;
+declare function finalize_legacy_inputs(pdata: Transaction): Transaction;

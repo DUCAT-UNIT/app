@@ -1,0 +1,57 @@
+{
+  "name": "@ducat-unit/client-sdk",
+  "version": "0.7.23",
+  "description": "Client SDK for the Ducat Protocol.",
+  "author": "Christopher Scott",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DUCAT-UNIT/client-sdk"
+  },
+  "unpkg": "./dist/script.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./guard": {
+      "import": "./dist/module/guard/index.js",
+      "types": "./dist/module/guard/index.d.ts",
+      "default": "./dist/module/guard/index.js"
+    },
+    "./oracle": {
+      "import": "./dist/module/oracle/index.js",
+      "types": "./dist/module/oracle/index.d.ts",
+      "default": "./dist/module/oracle/index.js"
+    },
+    "./util": {
+      "import": "./dist/util/index.js",
+      "types": "./dist/util/index.d.ts",
+      "default": "./dist/util/index.js"
+    },
+    "./vault": {
+      "import": "./dist/module/vault/index.js",
+      "types": "./dist/module/vault/index.d.ts",
+      "default": "./dist/module/vault/index.js"
+    },
+    "./wallet": {
+      "import": "./dist/module/wallet/index.js",
+      "types": "./dist/module/wallet/index.d.ts",
+      "default": "./dist/module/wallet/index.js"
+    }
+  },
+  "dependencies": {
+    "@cmdcode/buff": "2.2.5",
+    "@ducat-unit/runestone": "^1.0.5",
+    "@noble/curves": "^1.9.2",
+    "@scrow/tapscript": "2.3.0",
+    "@scure/btc-signer": "^1.8.1",
+    "zod": "^3.25.67"
+  }
+}

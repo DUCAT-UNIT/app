@@ -1,7 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": ["App.tsx"],
-  "project": ["**/*.{ts,tsx}", "!bridge-service/**", "!evm/**", "!web/pool-dashboard/**"],
+  "project": [
+    "**/*.{ts,tsx}",
+    "!bridge-service/**",
+    "!evm/**",
+    "!web/pool-dashboard/**",
+    "!vendor/**"
+  ],
   "ignore": ["**/__tests__/**", "**/*.test.*"],
   "ignoreFiles": [
     "infra/cloudflare-worker-apple-app-site-association.js",
@@ -9,6 +15,8 @@
     "styles/screens/index.ts"
   ],
   "ignoreDependencies": [
+    "@ducat-unit/client-sdk",
+    "@ducat-unit/runestone",
     "buffer",
     "react-dom",
     "@types/*",

@@ -1,0 +1,40 @@
+import { Assert, parse_error } from '../../../../util/index.js';
+import CONST from '../../../../const.js';
+import Schema from '../../../../schema/index.js';
+export default function (client) {
+    return (request) => {
+        const schema = Schema.wallet.req.repay_req;
+        const config = schema.parse(request);
+        const topic = CONST.TOPICS.VAULT_REPAY;
+        Assert.ok(config.network === client.network, 'network mismatch');
+        const sub = client.subscribe(topic);
+        sub.register(handler);
+        sub.send({ ...config, network: client.network });
+        return sub;
+    };
+}
+function handler(sub, msg) {
+    try {
+        switch (msg.type) {
+            case 'info': {
+                const parsed = Schema.base.str.parse(msg.data);
+                sub.emit('info', parsed);
+                break;
+            }
+            case 'res': {
+                const parsed = Schema.guard.vault_repay_res.parse(msg.data);
+                sub.emit('res', parsed);
+                break;
+            }
+            case 'rej': {
+                const parsed = Schema.base.str.parse(msg.data);
+                sub.emit('rej', parsed);
+                break;
+            }
+        }
+    }
+    catch (err) {
+        const reason = parse_error(err);
+        sub.emit('err', reason);
+    }
+}

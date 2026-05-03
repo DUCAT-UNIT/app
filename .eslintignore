@@ -8,6 +8,7 @@ node_modules/
 .expo/
 dist/
 build/
+vendor/
 
 # Generated files
 *.generated.js
