@@ -44,6 +44,7 @@ import { receiveToken } from './operations/cashuReceiveToken';
 import { sendToken } from './operations/cashuSendToken';
 import {
   requestMelt,
+  requestMaxMelt,
   completeMelt,
   completeMeltWithoutCleanup,
   cleanupMeltProofs,
@@ -89,6 +90,7 @@ export {
   receiveToken,
   sendToken,
   requestMelt,
+  requestMaxMelt,
   completeMelt,
   completeMeltWithoutCleanup,
   cleanupMeltProofs,
@@ -138,6 +140,7 @@ export default {
   receiveToken,
   sendToken,
   requestMelt,
+  requestMaxMelt,
   completeMelt,
   completeMeltWithoutCleanup,
   cleanupMeltProofs,

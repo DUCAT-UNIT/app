@@ -22,12 +22,16 @@ jest.mock('../../cashuMintClient', () => ({
   meltTokens: jest.fn(),
 }));
 
-jest.mock('../../crypto', () => ({
-  createBlindedOutputs: jest.fn(),
-  unblindSignatures: jest.fn(),
-  splitAmount: jest.fn(),
-  selectProofsForAmount: jest.fn(),
-}));
+jest.mock('../../crypto', () => {
+  const actual = jest.requireActual('../../crypto');
+  return {
+    ...actual,
+    createBlindedOutputs: jest.fn(),
+    unblindSignatures: jest.fn(),
+    splitAmount: jest.fn(),
+    selectProofsForAmount: jest.fn(),
+  };
+});
 
 jest.mock('../../cashuBalanceService', () => ({
   getOrFetchKeys: jest.fn(),
@@ -40,8 +44,13 @@ jest.mock('../../cashuProofManager', () => ({
   addProofs: jest.fn(),
 }));
 
+jest.mock('../../p2pk', () => ({
+  isP2PKSecret: jest.fn(),
+}));
+
 import {
   requestMelt,
+  requestMaxMelt,
   completeMelt,
   completeMeltWithoutCleanup,
   cleanupMeltProofs,
@@ -55,6 +64,7 @@ import {
 } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../../cashuProofManager';
+import { isP2PKSecret } from '../../p2pk';
 
 describe('cashuMeltOperations', () => {
   const unitKeyData = {
@@ -81,10 +91,79 @@ describe('cashuMeltOperations', () => {
     (getBalance as jest.Mock).mockResolvedValue(0);
     (removeProofs as jest.Mock).mockResolvedValue(undefined);
     (addProofs as jest.Mock).mockResolvedValue(undefined);
+    (isP2PKSecret as jest.Mock).mockReturnValue(false);
     (meltTokens as jest.Mock).mockResolvedValue({
       paid: true,
       payment_preimage: 'txid123',
       fee_paid: 2,
+    });
+  });
+
+  describe('requestMaxMelt', () => {
+    const spendableProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+
+    beforeEach(() => {
+      (loadProofs as jest.Mock).mockResolvedValue([spendableProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([spendableProof]);
+    });
+
+    it('should return the first quote when the balance covers amount and fees', async () => {
+      (createMeltQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount: 100,
+        fee: 0,
+      });
+
+      const result = await requestMaxMelt('tb1paddr...', 100);
+
+      expect(result).toEqual({
+        quoteId: 'quote123',
+        amount: 100,
+        fee: 0,
+        total: 100,
+      });
+      expect(createMeltQuote).toHaveBeenCalledTimes(1);
+      expect(createMeltQuote).toHaveBeenCalledWith('tb1paddr...', 100);
+    });
+
+    it('should retry with the net amount when the full-balance quote needs a fee', async () => {
+      (createMeltQuote as jest.Mock)
+        .mockResolvedValueOnce({
+          quote: 'quote-full',
+          amount: 100,
+          fee: 10,
+        })
+        .mockResolvedValueOnce({
+          quote: 'quote-net',
+          amount: 90,
+          fee: 10,
+        });
+
+      const result = await requestMaxMelt('tb1paddr...', 100);
+
+      expect(result).toEqual({
+        quoteId: 'quote-net',
+        amount: 90,
+        fee: 10,
+        total: 100,
+      });
+      expect(createMeltQuote).toHaveBeenNthCalledWith(1, 'tb1paddr...', 100);
+      expect(createMeltQuote).toHaveBeenNthCalledWith(2, 'tb1paddr...', 90);
+    });
+
+    it('should throw when fees consume the available amount', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([
+        { amount: 10, secret: 's1', C: 'C1', id: 'keyset1' },
+      ]);
+      (createMeltQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount: 10,
+        fee: 10,
+      });
+
+      await expect(requestMaxMelt('tb1paddr...', 10)).rejects.toThrow(
+        'Not enough TurboUNIT to cover the on-chain withdrawal fee.'
+      );
     });
   });
 
@@ -219,6 +298,33 @@ describe('cashuMeltOperations', () => {
 
       await expect(completeMelt('quote123', 100)).rejects.toThrow('No active unit keyset available from mint');
     });
+
+    it('should ignore P2PK locked proofs when selecting melt inputs', async () => {
+      const lockedProof: MockProof = { amount: 100, secret: '["P2PK",{"data":"pubkey"}]', C: 'C1', id: 'keyset1' };
+      const spendableProof: MockProof = { amount: 100, secret: 's2', C: 'C2', id: 'keyset1' };
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('["P2PK"'));
+      (loadProofs as jest.Mock).mockResolvedValue([lockedProof, spendableProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([spendableProof]);
+
+      await completeMelt('quote123', 100);
+
+      expect(selectProofsForAmount).toHaveBeenCalledWith([spendableProof], 100);
+      expect(meltTokens).toHaveBeenCalledWith('quote123', [spendableProof], []);
+    });
+
+    it('should leave proofs untouched when the mint does not mark the melt paid', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        paid: false,
+        payment_preimage: '',
+        fee_paid: 0,
+      });
+
+      await expect(completeMelt('quote123', 100)).rejects.toThrow('Mint did not confirm the withdrawal');
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
   });
 
   describe('completeMeltWithoutCleanup', () => {
@@ -232,6 +338,23 @@ describe('cashuMeltOperations', () => {
       expect(result.paid).toBe(true);
       expect(result.proofsToRemove).toEqual([exactProof]);
       expect(result.changeProofs).toBeNull();
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should reject unpaid melt responses without returning proofs for cleanup', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockResolvedValue({
+        paid: false,
+        payment_preimage: '',
+        fee_paid: 0,
+      });
+
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toThrow(
+        'Mint did not confirm the withdrawal'
+      );
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
     });

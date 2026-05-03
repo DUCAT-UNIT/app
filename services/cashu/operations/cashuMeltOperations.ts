@@ -5,6 +5,7 @@
 
 import { logger } from '../../../utils/logger';
 import {
+  calculateInputFees,
   findKeysetById,
   selectActiveUnitKeyset,
   selectProofsForAmountIncludingFees,
@@ -19,11 +20,13 @@ import {
   createBlindedOutputs,
   unblindSignatures,
   splitAmount,
+  sumProofs,
   CashuProof,
 } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
 import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
+import { isP2PKSecret } from '../p2pk';
 
 export interface MeltQuoteResult {
   quoteId: string;
@@ -31,6 +34,26 @@ export interface MeltQuoteResult {
   fee: number;
   total: number;
 }
+
+const MAX_MELT_QUOTE_ATTEMPTS = 6;
+
+const loadSpendableProofsForMelt = async (): Promise<CashuProof[]> => {
+  const allProofs = await loadProofs();
+  return allProofs.filter(p => !isP2PKSecret(p.secret));
+};
+
+const canCoverMeltTotal = (
+  proofs: CashuProof[],
+  totalAmount: number,
+  keyData: MintKeys
+): boolean => {
+  try {
+    selectProofsForAmountIncludingFees(proofs, totalAmount, keyData);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
 
 /**
  * Redeem tokens through the onchain/unit melt flow.
@@ -57,6 +80,72 @@ export const requestMelt = async (address: string, amount: number): Promise<Melt
   }
 };
 
+/**
+ * Create a melt quote for the largest amount that can be paid from the
+ * available TurboUNIT balance after the mint fee and Cashu input fees.
+ */
+export const requestMaxMelt = async (address: string, availableAmount: number): Promise<MeltQuoteResult> => {
+  try {
+    const requestedAvailableAmount = Math.floor(availableAmount);
+    if (!Number.isFinite(requestedAvailableAmount) || requestedAvailableAmount <= 0) {
+      throw new Error('No TurboUNIT available to withdraw');
+    }
+
+    const keyData = await getOrFetchKeys();
+    const spendableProofs = await loadSpendableProofsForMelt();
+    const proofBalance = sumProofs(spendableProofs);
+    const maxSpendableAmount = Math.min(requestedAvailableAmount, proofBalance);
+
+    if (maxSpendableAmount <= 0) {
+      throw new Error('No unlocked TurboUNIT proofs available to withdraw');
+    }
+
+    const maxInputFees = calculateInputFees(spendableProofs, keyData);
+    let quoteAmount = maxSpendableAmount;
+    let lastQuote: MeltQuoteResult | null = null;
+
+    for (let attempt = 0; attempt < MAX_MELT_QUOTE_ATTEMPTS; attempt++) {
+      const quote = await requestMelt(address, quoteAmount);
+      lastQuote = quote;
+
+      if (
+        quote.total <= maxSpendableAmount &&
+        canCoverMeltTotal(spendableProofs, quote.total, keyData)
+      ) {
+        logger.info('Max melt quote selected', {
+          requestedAvailableAmount,
+          proofBalance,
+          amount: quote.amount,
+          fee: quote.fee,
+          total: quote.total,
+          attempt: attempt + 1,
+        });
+        return quote;
+      }
+
+      const balanceDeficit = Math.max(0, quote.total - maxSpendableAmount);
+      const reserveDeficit = Math.max(balanceDeficit, maxInputFees, 1);
+      const nextQuoteAmount = Math.floor(quote.amount - reserveDeficit);
+
+      if (nextQuoteAmount <= 0) {
+        break;
+      }
+
+      quoteAmount = nextQuoteAmount >= quoteAmount
+        ? quoteAmount - 1
+        : nextQuoteAmount;
+    }
+
+    if ((lastQuote?.fee ?? 0) >= maxSpendableAmount) {
+      throw new Error('Not enough TurboUNIT to cover the on-chain withdrawal fee.');
+    }
+    throw new Error('Not enough TurboUNIT to cover the withdrawal amount plus fees.');
+  } catch (error: unknown) {
+    logger.error('Failed to request max melt', { error: (error as Error).message });
+    throw error;
+  }
+};
+
 export interface MeltResult {
   paid: boolean;
   txid: string;
@@ -75,17 +164,20 @@ interface PreparedMeltSpend {
 
 const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<PreparedMeltSpend> => {
   const allProofs = await loadProofs();
+  const spendableProofs = allProofs.filter(p => !isP2PKSecret(p.secret));
 
   logger.info('Proofs loaded for melt', {
     count: allProofs.length,
-    proofs: allProofs.map(p => ({ amount: p.amount, id: p.id }))
+    spendableCount: spendableProofs.length,
+    lockedCount: allProofs.length - spendableProofs.length,
+    proofs: spendableProofs.map(p => ({ amount: p.amount, id: p.id }))
   });
 
   const {
     selectedProofs,
     selectedAmount,
     inputFees,
-  } = selectProofsForAmountIncludingFees(allProofs, baseAmount, keyData);
+  } = selectProofsForAmountIncludingFees(spendableProofs, baseAmount, keyData);
 
   const changeAmount = selectedAmount - baseAmount - inputFees;
   if (changeAmount < 0) {
@@ -144,6 +236,12 @@ const unblindMeltChange = (
   );
 };
 
+const assertMeltPaid = (result: { paid?: boolean }): void => {
+  if (result.paid !== true) {
+    throw new Error('Mint did not confirm the withdrawal');
+  }
+};
+
 /**
  * Complete melt through the onchain/unit flow.
  * Step 2: Send proofs and optional change outputs to the mint.
@@ -161,6 +259,7 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
 
     // Melt tokens - this is the critical step that broadcasts the transaction
     const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    assertMeltPaid(result);
     changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
     // ONLY NOW that melt succeeded, remove the spent proofs
@@ -223,6 +322,7 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
 
     // Melt tokens
     const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    assertMeltPaid(result);
     changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
     logger.info('Melt completed without cleanup', {

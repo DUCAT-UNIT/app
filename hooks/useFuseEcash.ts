@@ -8,7 +8,7 @@ import { Alert } from 'react-native';
 import { analytics } from '../services/analyticsService';
 import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { logger } from '../utils/logger';
-import { requestMelt, completeMeltWithoutCleanup, cleanupMeltProofs } from '../services/cashu/cashuWalletService';
+import { requestMaxMelt, completeMeltWithoutCleanup, cleanupMeltProofs } from '../services/cashu/cashuWalletService';
 
 interface TransactionOutput {
   scriptpubkey_address?: string;
@@ -35,6 +35,11 @@ interface UseFuseEcashReturn {
   handleFusePress: () => Promise<void>;
 }
 
+const CASHU_UNIT_DISPLAY_SCALE = 100;
+
+const formatTurboUnitAmount = (amount: number): string =>
+  (amount / CASHU_UNIT_DISPLAY_SCALE).toFixed(2);
+
 export function useFuseEcash({
   cashuBalance,
   taprootAddress,
@@ -42,23 +47,27 @@ export function useFuseEcash({
   fetchTransactionHistory,
 }: UseFuseEcashParams): UseFuseEcashReturn {
   const handleFusePress = useCallback(async () => {
-    if (cashuBalance === 0) {
-      Alert.alert('No E-cash', 'You don\'t have any e-cash to fuse.');
+    if (cashuBalance <= 0) {
+      Alert.alert('No TurboUNIT', 'You don\'t have any TurboUNIT to withdraw.');
       return;
     }
 
     Alert.alert(
-      'Fuse E-cash to UNIT?',
-      `Convert all ${cashuBalance.toFixed(2)} tUNIT to on-chain UNIT?`,
+      'Withdraw TurboUNIT?',
+      `Convert up to ${formatTurboUnitAmount(cashuBalance)} TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Fuse',
+          text: 'Withdraw',
           onPress: async () => {
             try {
-              analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount: cashuBalance });
-              // Request melt quote
-              const quote = await requestMelt(taprootAddress, cashuBalance);
+              // Request the largest quote the current balance can cover after fees.
+              const quote = await requestMaxMelt(taprootAddress, cashuBalance);
+              analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, {
+                amount: quote.amount,
+                availableAmount: cashuBalance,
+                fee: quote.fee,
+              });
 
               // Complete melt but keep proofs until we see the tx
               const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
@@ -67,7 +76,10 @@ export function useFuseEcash({
               logger.debug('[Fuse] Melt successful, cleaning up proofs');
               await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
 
-              Alert.alert('Processing', 'Waiting for transaction to appear on-chain...');
+              Alert.alert(
+                'Withdrawal submitted',
+                `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Waiting for transaction to appear on-chain...`
+              );
 
               // Poll for transaction
               let txFound = false;
@@ -104,15 +116,16 @@ export function useFuseEcash({
               await fetchTransactionHistory();
 
               if (txFound) {
-                Alert.alert('Success', 'E-cash successfully fused to on-chain UNIT!');
+                Alert.alert('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
               } else {
                 Alert.alert(
                   'Pending',
-                  'Melt completed successfully. Transaction will appear on-chain shortly.'
+                  'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
                 );
               }
             } catch (error: unknown) {
-              Alert.alert('Error', `Failed to fuse e-cash: ${error instanceof Error ? error.message : String(error)}`);
+              const message = error instanceof Error ? error.message : String(error);
+              Alert.alert('Withdrawal failed', `Your TurboUNIT tokens remain valid. ${message}`);
             }
           },
         },

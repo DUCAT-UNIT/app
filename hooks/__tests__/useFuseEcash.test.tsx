@@ -27,12 +27,12 @@ jest.mock('react-native', () => ({
 }));
 
 // Mock service functions
-const mockRequestMelt = jest.fn();
+const mockRequestMaxMelt = jest.fn();
 const mockCompleteMeltWithoutCleanup = jest.fn();
 const mockCleanupMeltProofs = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  requestMelt: (...args: unknown[]) => mockRequestMelt(...args),
+  requestMaxMelt: (...args: unknown[]) => mockRequestMaxMelt(...args),
   completeMeltWithoutCleanup: (...args: unknown[]) => mockCompleteMeltWithoutCleanup(...args),
   cleanupMeltProofs: (...args: unknown[]) => mockCleanupMeltProofs(...args),
 }));
@@ -74,14 +74,19 @@ describe('useFuseEcash', () => {
     jest.clearAllMocks();
 
     mockProps = {
-      cashuBalance: 100.50,
+      cashuBalance: 10050,
       taprootAddress: 'tb1ptest12345',
       transactionHistory: [],
       fetchTransactionHistory: jest.fn().mockResolvedValue(undefined),
     };
 
     // Default mocks
-    mockRequestMelt.mockResolvedValue({ quoteId: 'quote123', total: 100 });
+    mockRequestMaxMelt.mockResolvedValue({
+      quoteId: 'quote123',
+      amount: 9050,
+      fee: 1000,
+      total: 10050,
+    });
     mockCompleteMeltWithoutCleanup.mockResolvedValue({
       proofsToRemove: [],
       changeProofs: [],
@@ -102,7 +107,7 @@ describe('useFuseEcash', () => {
       await result.current!.handleFusePress();
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith('No E-cash', "You don't have any e-cash to fuse.");
+    expect(Alert.alert).toHaveBeenCalledWith('No TurboUNIT', "You don't have any TurboUNIT to withdraw.");
   });
 
   it('should show confirmation alert with balance', async () => {
@@ -113,17 +118,17 @@ describe('useFuseEcash', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'Fuse E-cash to UNIT?',
-      'Convert all 100.50 tUNIT to on-chain UNIT?',
+      'Withdraw TurboUNIT?',
+      'Convert up to 100.50 TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.',
       expect.arrayContaining([
         expect.objectContaining({ text: 'Cancel', style: 'cancel' }),
-        expect.objectContaining({ text: 'Fuse' }),
+        expect.objectContaining({ text: 'Withdraw' }),
       ])
     );
   });
 
   it('should format balance with two decimal places', async () => {
-    const props = { ...mockProps, cashuBalance: 50.123456 };
+    const props = { ...mockProps, cashuBalance: 5012 };
     const { result } = renderHookWithProps(props);
 
     await act(async () => {
@@ -131,8 +136,8 @@ describe('useFuseEcash', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'Fuse E-cash to UNIT?',
-      'Convert all 50.12 tUNIT to on-chain UNIT?',
+      'Withdraw TurboUNIT?',
+      'Convert up to 50.12 TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.',
       expect.any(Array)
     );
   });
@@ -157,13 +162,13 @@ describe('useFuseEcash', () => {
     expect(buttons).toHaveLength(2);
     expect(buttons[0].text).toBe('Cancel');
     expect(buttons[0].style).toBe('cancel');
-    expect(buttons[1].text).toBe('Fuse');
+    expect(buttons[1].text).toBe('Withdraw');
     expect(typeof buttons[1].onPress).toBe('function');
   });
 
   describe('Fuse flow - error handling', () => {
     it('should handle error during fuse', async () => {
-      mockRequestMelt.mockRejectedValue(new Error('Melt failed'));
+      mockRequestMaxMelt.mockRejectedValue(new Error('Melt failed'));
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -177,11 +182,14 @@ describe('useFuseEcash', () => {
         await fuseButton.onPress();
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fuse e-cash: Melt failed');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdrawal failed',
+        'Your TurboUNIT tokens remain valid. Melt failed'
+      );
     });
 
     it('should handle non-Error exception during fuse', async () => {
-      mockRequestMelt.mockRejectedValue('String error');
+      mockRequestMaxMelt.mockRejectedValue('String error');
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -195,7 +203,10 @@ describe('useFuseEcash', () => {
         await fuseButton.onPress();
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fuse e-cash: String error');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdrawal failed',
+        'Your TurboUNIT tokens remain valid. String error'
+      );
     });
   });
 
@@ -235,8 +246,8 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(mockRequestMelt).toHaveBeenCalledWith('tb1ptest12345', 100.50);
-      expect(mockCompleteMeltWithoutCleanup).toHaveBeenCalledWith('quote123', 100);
+      expect(mockRequestMaxMelt).toHaveBeenCalledWith('tb1ptest12345', 10050);
+      expect(mockCompleteMeltWithoutCleanup).toHaveBeenCalledWith('quote123', 10050);
       expect(mockCleanupMeltProofs).toHaveBeenCalled();
     });
 
@@ -265,7 +276,10 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Processing', 'Waiting for transaction to appear on-chain...');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdrawal submitted',
+        'Withdrawing 90.50 UNIT. Waiting for transaction to appear on-chain...'
+      );
     });
 
     it('should poll for transaction and show success when found with recent block_time', async () => {
@@ -301,7 +315,7 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'E-cash successfully fused to on-chain UNIT!');
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
     });
 
     it('should find unconfirmed transaction (no block_time)', async () => {
@@ -337,7 +351,7 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'E-cash successfully fused to on-chain UNIT!');
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
     });
 
     it('should show pending alert when transaction not found after polling', async () => {
@@ -367,7 +381,7 @@ describe('useFuseEcash', () => {
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Pending',
-        'Melt completed successfully. Transaction will appear on-chain shortly.'
+        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
       );
     });
 
@@ -406,7 +420,7 @@ describe('useFuseEcash', () => {
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Pending',
-        'Melt completed successfully. Transaction will appear on-chain shortly.'
+        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
       );
     });
 
@@ -445,7 +459,7 @@ describe('useFuseEcash', () => {
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Pending',
-        'Melt completed successfully. Transaction will appear on-chain shortly.'
+        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
       );
     });
 
@@ -483,7 +497,7 @@ describe('useFuseEcash', () => {
 
       expect(Alert.alert).toHaveBeenCalledWith(
         'Pending',
-        'Melt completed successfully. Transaction will appear on-chain shortly.'
+        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
       );
     });
 
