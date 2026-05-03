@@ -34,7 +34,7 @@
         "EXPO_PUBLIC_WUNIT_ADDRESS": "0x139a26fec4786c83888bB2b25E39f656371ed307",
         "EXPO_PUBLIC_UNIT_BRIDGE_ROUTER_ADDRESS": "0x3Da2e4bb5e5539194259D34F9cbc6D2b426A7E6A",
         "EXPO_PUBLIC_UNIT_USDC_STABLE_POOL_ADDRESS": "0x463A9C573f8843540045E077170ee920A091d017",
-        "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://v1mop1qqt8.execute-api.us-east-1.amazonaws.com",
+        "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_APP_NETWORK": "mutinynet"
       }
@@ -57,7 +57,7 @@
         "EXPO_PUBLIC_WUNIT_ADDRESS": "0x139a26fec4786c83888bB2b25E39f656371ed307",
         "EXPO_PUBLIC_UNIT_BRIDGE_ROUTER_ADDRESS": "0x3Da2e4bb5e5539194259D34F9cbc6D2b426A7E6A",
         "EXPO_PUBLIC_UNIT_USDC_STABLE_POOL_ADDRESS": "0x463A9C573f8843540045E077170ee920A091d017",
-        "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://v1mop1qqt8.execute-api.us-east-1.amazonaws.com",
+        "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_APP_NETWORK": "mutinynet"
       }

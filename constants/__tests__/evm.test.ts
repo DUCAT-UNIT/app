@@ -28,7 +28,7 @@ describe('EVM constants', () => {
     expect(EVM_CONFIG.wunitAddress).toBe('0x139a26fec4786c83888bB2b25E39f656371ed307');
     expect(EVM_CONFIG.bridgeRouterAddress).toBe('0x3Da2e4bb5e5539194259D34F9cbc6D2b426A7E6A');
     expect(EVM_CONFIG.stablePoolAddress).toBe('0x463A9C573f8843540045E077170ee920A091d017');
-    expect(EVM_CONFIG.bridgeApiBaseUrl).toBe('https://v1mop1qqt8.execute-api.us-east-1.amazonaws.com');
+    expect(EVM_CONFIG.bridgeApiBaseUrl).toBe('https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app');
     expect(isSepoliaRpcConfigured()).toBe(true);
     expect(isEvmBridgeConfigured()).toBe(true);
   });
