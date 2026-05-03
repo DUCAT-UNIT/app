@@ -20,6 +20,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   createMeltQuote: jest.fn(),
   meltTokens: jest.fn(),
+  swapTokens: jest.fn(),
 }));
 
 jest.mock('../../crypto', () => {
@@ -42,6 +43,13 @@ jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   removeProofs: jest.fn(),
   addProofs: jest.fn(),
+  removeSpentProofs: jest.fn(),
+}));
+
+jest.mock('../../cashuSwapRecovery', () => ({
+  savePendingSwap: jest.fn(),
+  updateSwapWithResponse: jest.fn(),
+  clearPendingSwap: jest.fn(),
 }));
 
 jest.mock('../../p2pk', () => ({
@@ -55,14 +63,15 @@ import {
   completeMeltWithoutCleanup,
   cleanupMeltProofs,
 } from '../cashuMeltOperations';
-import { createMeltQuote, meltTokens } from '../../cashuMintClient';
+import { createMeltQuote, meltTokens, swapTokens } from '../../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
   selectProofsForAmount,
 } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs } from '../../cashuProofManager';
+import { loadProofs, removeProofs, addProofs, removeSpentProofs } from '../../cashuProofManager';
+import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../../cashuSwapRecovery';
 import { isP2PKSecret } from '../../p2pk';
 
 describe('cashuMeltOperations', () => {
@@ -90,11 +99,18 @@ describe('cashuMeltOperations', () => {
     (getBalance as jest.Mock).mockResolvedValue(0);
     (removeProofs as jest.Mock).mockResolvedValue(undefined);
     (addProofs as jest.Mock).mockResolvedValue(undefined);
+    (removeSpentProofs as jest.Mock).mockResolvedValue({ removed: 0, kept: 1 });
+    (savePendingSwap as jest.Mock).mockResolvedValue('swap-1');
+    (updateSwapWithResponse as jest.Mock).mockResolvedValue(undefined);
+    (clearPendingSwap as jest.Mock).mockResolvedValue(undefined);
     (isP2PKSecret as jest.Mock).mockReturnValue(false);
     (meltTokens as jest.Mock).mockResolvedValue({
       paid: true,
       payment_preimage: 'txid123',
       fee_paid: 2,
+    });
+    (swapTokens as jest.Mock).mockResolvedValue({
+      signatures: [],
     });
   });
 
@@ -216,79 +232,199 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).not.toHaveBeenCalled();
     });
 
-    it('should provide melt change outputs and save returned change proofs', async () => {
+    it('should pre-swap when melt needs change, then submit exact proofs without melt change outputs', async () => {
       (loadProofs as jest.Mock).mockResolvedValue(changeProofs);
       (selectProofsForAmount as jest.Mock).mockReturnValue(changeProofs);
-      (createBlindedOutputs as jest.Mock).mockResolvedValue({
-        outputs: [{ amount: 4, B_: 'B4', id: 'keyset1' }, { amount: 8, B_: 'B8', id: 'keyset1' }],
-        blindingData: [{ amount: 4 }, { amount: 8 }],
+      (createBlindedOutputs as jest.Mock)
+        .mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'Bm4', id: 'keyset1' },
+            { amount: 32, B_: 'Bm32', id: 'keyset1' },
+            { amount: 64, B_: 'Bm64', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'melt4' },
+            { amount: 32, secret: 'melt32' },
+            { amount: 64, secret: 'melt64' },
+          ],
+        })
+        .mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'Bc4', id: 'keyset1' },
+            { amount: 8, B_: 'Bc8', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'change4' },
+            { amount: 8, secret: 'change8' },
+          ],
+        });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [
+          { id: 'keyset1', C_: 'Cm4' },
+          { id: 'keyset1', C_: 'Cc4' },
+          { id: 'keyset1', C_: 'Cc8' },
+          { id: 'keyset1', C_: 'Cm32' },
+          { id: 'keyset1', C_: 'Cm64' },
+        ],
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         paid: true,
         payment_preimage: 'txid123',
         fee_paid: 2,
-        change: [{ id: 'keyset1', C_: 'C8' }, { id: 'keyset1', C_: 'C4' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 8, secret: 'new1', C: 'C8', id: 'keyset1' },
-        { amount: 4, secret: 'new2', C: 'C4', id: 'keyset1' },
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 4, secret: 'change4', C: 'Cc4', id: 'keyset1' },
+        { amount: 8, secret: 'change8', C: 'Cc8', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
       ]);
 
       const result = await completeMelt('quote123', 100);
 
       expect(result.paid).toBe(true);
-      expect(createBlindedOutputs).toHaveBeenCalledWith([8, 4], 'keyset1');
-      expect(meltTokens).toHaveBeenCalledWith(
-        'quote123',
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(1, [64, 32, 4], 'keyset1');
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(2, [8, 4], 'keyset1');
+      expect(savePendingSwap).toHaveBeenCalledWith(expect.objectContaining({
+        inputProofs: changeProofs,
+        secretTypeMap: {
+          melt4: 'change',
+          change4: 'change',
+          change8: 'change',
+          melt32: 'change',
+          melt64: 'change',
+        },
+      }));
+      expect(swapTokens).toHaveBeenCalledWith(
         changeProofs,
-        [{ amount: 8, B_: 'B8', id: 'keyset1' }, { amount: 4, B_: 'B4', id: 'keyset1' }]
+        [
+          { amount: 4, B_: 'Bm4', id: 'keyset1' },
+          { amount: 4, B_: 'Bc4', id: 'keyset1' },
+          { amount: 8, B_: 'Bc8', id: 'keyset1' },
+          { amount: 32, B_: 'Bm32', id: 'keyset1' },
+          { amount: 64, B_: 'Bm64', id: 'keyset1' },
+        ],
       );
+      expect(updateSwapWithResponse).toHaveBeenCalled();
       expect(unblindSignatures).toHaveBeenCalledWith(
-        [{ id: 'keyset1', C_: 'C8' }, { id: 'keyset1', C_: 'C4' }],
-        [{ amount: 8 }, { amount: 4 }],
+        [
+          { id: 'keyset1', C_: 'Cm4' },
+          { id: 'keyset1', C_: 'Cc4' },
+          { id: 'keyset1', C_: 'Cc8' },
+          { id: 'keyset1', C_: 'Cm32' },
+          { id: 'keyset1', C_: 'Cm64' },
+        ],
+        [
+          { amount: 4, secret: 'melt4' },
+          { amount: 4, secret: 'change4' },
+          { amount: 8, secret: 'change8' },
+          { amount: 32, secret: 'melt32' },
+          { amount: 64, secret: 'melt64' },
+        ],
         unitKeyData.keysets[0].keys,
         'keyset1'
       );
-      expect(removeProofs).toHaveBeenCalledWith(changeProofs);
       expect(addProofs).toHaveBeenCalledWith([
-        { amount: 8, secret: 'new1', C: 'C8', id: 'keyset1' },
-        { amount: 4, secret: 'new2', C: 'C4', id: 'keyset1' },
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 4, secret: 'change4', C: 'Cc4', id: 'keyset1' },
+        { amount: 8, secret: 'change8', C: 'Cc8', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
+      ]);
+      expect(removeProofs).toHaveBeenNthCalledWith(1, changeProofs);
+      expect(clearPendingSwap).toHaveBeenCalled();
+      expect(meltTokens).toHaveBeenCalledWith(
+        'quote123',
+        [
+          { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+          { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+          { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
+        ],
+        []
+      );
+      expect(removeProofs).toHaveBeenNthCalledWith(2, [
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
       ]);
     });
 
-    it('should subtract input_fee_ppk when calculating change outputs', async () => {
+    it('should respect input_fee_ppk when pre-swapping exact melt proofs', async () => {
       const proof100 = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
-      const proof2 = { amount: 2, secret: 's2', C: 'C2', id: 'keyset1' };
+      const proof4 = { amount: 4, secret: 's2', C: 'C2', id: 'keyset1' };
       const feeKeyData = {
         keysets: [{ ...unitKeyData.keysets[0], input_fee_ppk: 500 }],
       };
       (getOrFetchKeys as jest.Mock).mockResolvedValue(feeKeyData);
-      (loadProofs as jest.Mock).mockResolvedValue([proof100, proof2]);
+      (loadProofs as jest.Mock).mockResolvedValue([proof100, proof4]);
       (selectProofsForAmount as jest.Mock)
         .mockReturnValueOnce([proof100])
-        .mockReturnValueOnce([proof100, proof2]);
-      (createBlindedOutputs as jest.Mock).mockResolvedValue({
-        outputs: [{ amount: 1, B_: 'B1', id: 'keyset1' }],
-        blindingData: [{ amount: 1 }],
+        .mockReturnValueOnce([proof100, proof4]);
+      (createBlindedOutputs as jest.Mock)
+        .mockResolvedValueOnce({
+          outputs: [
+            { amount: 2, B_: 'Bm2', id: 'keyset1' },
+            { amount: 4, B_: 'Bm4', id: 'keyset1' },
+            { amount: 32, B_: 'Bm32', id: 'keyset1' },
+            { amount: 64, B_: 'Bm64', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 2, secret: 'melt2' },
+            { amount: 4, secret: 'melt4' },
+            { amount: 32, secret: 'melt32' },
+            { amount: 64, secret: 'melt64' },
+          ],
+        })
+        .mockResolvedValueOnce({
+          outputs: [{ amount: 1, B_: 'Bc1', id: 'keyset1' }],
+          blindingData: [{ amount: 1, secret: 'change1' }],
+        });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [
+          { id: 'keyset1', C_: 'Cc1' },
+          { id: 'keyset1', C_: 'Cm2' },
+          { id: 'keyset1', C_: 'Cm4' },
+          { id: 'keyset1', C_: 'Cm32' },
+          { id: 'keyset1', C_: 'Cm64' },
+        ],
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         paid: true,
         payment_preimage: 'txid123',
-        change: [{ id: 'keyset1', C_: 'C1' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 1, secret: 'new1', C: 'C1', id: 'keyset1' },
+        { amount: 1, secret: 'change1', C: 'Cc1', id: 'keyset1' },
+        { amount: 2, secret: 'melt2', C: 'Cm2', id: 'keyset1' },
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
       ]);
 
       await completeMelt('quote123', 100);
 
-      expect(selectProofsForAmount).toHaveBeenNthCalledWith(1, [proof100, proof2], 100);
-      expect(selectProofsForAmount).toHaveBeenNthCalledWith(2, [proof100, proof2], 101);
-      expect(createBlindedOutputs).toHaveBeenCalledWith([1], 'keyset1');
+      expect(selectProofsForAmount).toHaveBeenNthCalledWith(1, [proof100, proof4], 102);
+      expect(selectProofsForAmount).toHaveBeenNthCalledWith(2, [proof100, proof4], 103);
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(1, [64, 32, 4, 2], 'keyset1');
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(2, [1], 'keyset1');
+      expect(swapTokens).toHaveBeenCalledWith(
+        [proof100, proof4],
+        [
+          { amount: 1, B_: 'Bc1', id: 'keyset1' },
+          { amount: 2, B_: 'Bm2', id: 'keyset1' },
+          { amount: 4, B_: 'Bm4', id: 'keyset1' },
+          { amount: 32, B_: 'Bm32', id: 'keyset1' },
+          { amount: 64, B_: 'Bm64', id: 'keyset1' },
+        ],
+      );
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
-        [proof100, proof2],
-        [{ amount: 1, B_: 'B1', id: 'keyset1' }]
+        [
+          { amount: 2, secret: 'melt2', C: 'Cm2', id: 'keyset1' },
+          { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+          { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+          { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
+        ],
+        []
       );
     });
 
@@ -306,29 +442,49 @@ describe('cashuMeltOperations', () => {
       (getOrFetchKeys as jest.Mock).mockResolvedValue(keyDataWithLargeDenominations);
       (loadProofs as jest.Mock).mockResolvedValue([proof65536]);
       (selectProofsForAmount as jest.Mock).mockReturnValue([proof65536]);
-      (createBlindedOutputs as jest.Mock).mockResolvedValue({
-        outputs: [{ amount: 32768, B_: 'B32768', id: 'keyset1' }],
-        blindingData: [{ amount: 32768 }],
+      (createBlindedOutputs as jest.Mock)
+        .mockResolvedValueOnce({
+          outputs: [{ amount: 32768, B_: 'Bm32768', id: 'keyset1' }],
+          blindingData: [{ amount: 32768, secret: 'melt32768' }],
+        })
+        .mockResolvedValueOnce({
+          outputs: [{ amount: 32768, B_: 'Bc32768', id: 'keyset1' }],
+          blindingData: [{ amount: 32768, secret: 'change32768' }],
+        });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [
+          { id: 'keyset1', amount: 32768, C_: 'Cm32768' },
+          { id: 'keyset1', amount: 32768, C_: 'Cc32768' },
+        ],
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         state: 'PENDING',
         outpoint: 'broadcasttxid123:0',
-        change: [{ id: 'keyset1', amount: 32768, C_: 'C32768' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 32768, secret: 'new32768', C: 'C32768', id: 'keyset1' },
+        { amount: 32768, secret: 'melt32768', C: 'Cm32768', id: 'keyset1' },
+        { amount: 32768, secret: 'change32768', C: 'Cc32768', id: 'keyset1' },
       ]);
 
       await completeMelt('quote123', 32768);
 
-      expect(createBlindedOutputs).toHaveBeenCalledWith([32768], 'keyset1');
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(1, [32768], 'keyset1');
+      expect(createBlindedOutputs).toHaveBeenNthCalledWith(2, [32768], 'keyset1');
+      expect(swapTokens).toHaveBeenCalledWith(
+        [proof65536],
+        [
+          { amount: 32768, B_: 'Bm32768', id: 'keyset1' },
+          { amount: 32768, B_: 'Bc32768', id: 'keyset1' },
+        ],
+      );
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
-        [proof65536],
-        [{ amount: 32768, B_: 'B32768', id: 'keyset1' }]
+        [{ amount: 32768, secret: 'melt32768', C: 'Cm32768', id: 'keyset1' }],
+        []
       );
       expect(addProofs).toHaveBeenCalledWith([
-        { amount: 32768, secret: 'new32768', C: 'C32768', id: 'keyset1' },
+        { amount: 32768, secret: 'melt32768', C: 'Cm32768', id: 'keyset1' },
+        { amount: 32768, secret: 'change32768', C: 'Cc32768', id: 'keyset1' },
       ]);
     });
 
@@ -367,6 +523,66 @@ describe('cashuMeltOperations', () => {
       await expect(completeMelt('quote123', 100)).rejects.toThrow('Mint did not confirm the withdrawal');
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
+      expect(removeSpentProofs).toHaveBeenCalledTimes(1);
+    });
+
+    it('should reconcile spent proofs when melt submission fails after a pre-swap', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue(changeProofs);
+      (selectProofsForAmount as jest.Mock).mockReturnValue(changeProofs);
+      (createBlindedOutputs as jest.Mock)
+        .mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'Bm4', id: 'keyset1' },
+            { amount: 32, B_: 'Bm32', id: 'keyset1' },
+            { amount: 64, B_: 'Bm64', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'melt4' },
+            { amount: 32, secret: 'melt32' },
+            { amount: 64, secret: 'melt64' },
+          ],
+        })
+        .mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'Bc4', id: 'keyset1' },
+            { amount: 8, B_: 'Bc8', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'change4' },
+            { amount: 8, secret: 'change8' },
+          ],
+        });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [
+          { id: 'keyset1', C_: 'Cm4' },
+          { id: 'keyset1', C_: 'Cc4' },
+          { id: 'keyset1', C_: 'Cc8' },
+          { id: 'keyset1', C_: 'Cm32' },
+          { id: 'keyset1', C_: 'Cm64' },
+        ],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 4, secret: 'change4', C: 'Cc4', id: 'keyset1' },
+        { amount: 8, secret: 'change8', C: 'Cc8', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
+      ]);
+      (meltTokens as jest.Mock).mockRejectedValueOnce(new Error('Withdrawal failed - your ecash tokens remain valid, please try again'));
+      (removeSpentProofs as jest.Mock).mockResolvedValueOnce({ removed: 0, kept: 5 });
+
+      await expect(completeMelt('quote123', 100)).rejects.toThrow(
+        'Withdrawal failed - your ecash tokens remain valid, please try again'
+      );
+
+      expect(addProofs).toHaveBeenCalled();
+      expect(removeProofs).toHaveBeenCalledWith(changeProofs);
+      expect(removeSpentProofs).toHaveBeenCalledTimes(1);
+      expect(removeProofs).not.toHaveBeenCalledWith([
+        { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
+        { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
+        { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
+      ]);
     });
 
     it('should accept cashu-ts v4 PAID state responses without paid boolean', async () => {

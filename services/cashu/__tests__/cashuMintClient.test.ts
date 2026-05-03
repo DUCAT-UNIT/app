@@ -314,12 +314,17 @@ describe('cashuMintClient', () => {
         quote: 'meltquote123',
         amount: 1000,
         fee: 10,
+        unit: 'unit',
       };
       (postJSON as jest.Mock).mockResolvedValue([mockQuote]);
 
       const result = await createMeltQuote('tb1pwithdraw', 1000);
 
-      expect(result).toEqual(mockQuote);
+      expect(result).toEqual({
+        ...mockQuote,
+        fee: 0,
+        fee_reserve: 0,
+      });
       expect(postJSON).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/quote/onchain`,
         expect.objectContaining({
@@ -332,6 +337,22 @@ describe('cashuMintClient', () => {
       );
     });
 
+    it('should ignore stale UNIT melt fees from the mint response', async () => {
+      (postJSON as jest.Mock).mockResolvedValue([{
+        quote: 'meltquote123',
+        amount: 10616,
+        unit: 'unit',
+        fee: 1000,
+      }]);
+
+      await expect(createMeltQuote('tb1pwithdraw', 10616)).resolves.toMatchObject({
+        quote: 'meltquote123',
+        amount: 10616,
+        fee: 0,
+        fee_reserve: 0,
+      });
+    });
+
     it('should throw on error', async () => {
       (postJSON as jest.Mock).mockRejectedValue(new Error('Invalid address'));
 
@@ -341,12 +362,16 @@ describe('cashuMintClient', () => {
 
   describe('checkMeltQuote', () => {
     it('should check melt quote status', async () => {
-      const mockQuote = { quote: 'meltquote123', state: 'PENDING' };
+      const mockQuote = { quote: 'meltquote123', state: 'PENDING', unit: 'unit', fee: 1000 };
       (getJSON as jest.Mock).mockResolvedValue(mockQuote);
 
       const result = await checkMeltQuote('meltquote123');
 
-      expect(result).toEqual(mockQuote);
+      expect(result).toEqual({
+        ...mockQuote,
+        fee: 0,
+        fee_reserve: 0,
+      });
       expect(getJSON).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/quote/onchain/meltquote123`,
         expect.any(Object)

@@ -13,6 +13,7 @@ import {
 import {
   createMeltQuote,
   meltTokens as meltTokensAPI,
+  swapTokens as swapTokensAPI,
   MeltQuote,
   MeltResponse,
 } from '../cashuMintClient';
@@ -25,8 +26,12 @@ import {
 } from '../crypto';
 import type { BlindedOutput, BlindingData } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
-import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
+import { loadProofs, removeProofs, addProofs, removeSpentProofs } from '../cashuProofManager';
+import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
+import {
+  normalizeCashuAmount,
+  normalizeOptionalCashuAmount,
+} from '../cashuTsCompat';
 import { isP2PKSecret } from '../p2pk';
 
 export interface MeltQuoteResult {
@@ -157,10 +162,7 @@ export interface MeltResult {
 interface PreparedMeltSpend {
   selectedProofs: CashuProof[];
   proofsToMelt: CashuProof[];
-  changeOutputs: BlindedOutput[];
-  changeBlindingData: Parameters<typeof unblindSignatures>[1];
-  changeKeys: Record<number | string, string>;
-  changeKeysetId: string;
+  didPreSwap: boolean;
 }
 
 const splitMeltChangeAmount = (
@@ -189,29 +191,169 @@ const splitMeltChangeAmount = (
   return denominations;
 };
 
-const orderMeltChangeOutputs = (
-  outputs: BlindedOutput[],
-  blindingData: BlindingData[],
-  amounts: number[]
-): { outputs: BlindedOutput[]; blindingData: BlindingData[] } => {
-  const pairs = outputs.map((output, index) => ({
-    output,
-    blindingData: blindingData[index],
-  }));
+interface ExactMeltPlan {
+  total: number;
+  amounts: number[];
+  inputFees: number;
+}
 
-  const ordered = amounts.map((amount) => {
-    const index = pairs.findIndex(pair => pair.output.amount === amount);
-    if (index === -1) {
-      throw new Error(`Unable to prepare melt change output for amount ${amount}`);
+interface TypedBlindedOutput {
+  output: BlindedOutput;
+  blindingData: BlindingData;
+  type: 'melt' | 'change';
+}
+
+const getInputFeeForOutputCount = (outputCount: number, keyData: MintKeys, keysetId: string): number => {
+  const keyset = findKeysetById(keyData, keysetId);
+  const inputFeePpk = normalizeCashuAmount(keyset?.input_fee_ppk ?? 0, 'input_fee_ppk');
+  return Math.floor(((outputCount * inputFeePpk) + 999) / 1000);
+};
+
+const getExactMeltPlan = (
+  baseAmount: number,
+  keyData: MintKeys,
+  keysetId: string,
+  keys: Record<number | string, string>
+): ExactMeltPlan => {
+  let total = baseAmount;
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const amounts = splitMeltChangeAmount(total, keys);
+    const inputFees = getInputFeeForOutputCount(amounts.length, keyData, keysetId);
+    const nextTotal = baseAmount + inputFees;
+
+    if (nextTotal === total) {
+      return { total, amounts, inputFees };
     }
 
-    return pairs.splice(index, 1)[0];
-  });
+    total = nextTotal;
+  }
+
+  throw new Error('Unable to calculate exact melt proof amount with input fees');
+};
+
+const createTypedBlindedOutputs = async (
+  meltAmounts: number[],
+  changeAmounts: number[],
+  keysetId: string
+): Promise<{
+  outputs: BlindedOutput[];
+  blindingData: BlindingData[];
+  meltSecrets: Set<string>;
+  recoverySecretTypeMap: Record<string, 'change'>;
+}> => {
+  const melt = await createBlindedOutputs(meltAmounts, keysetId);
+  const change = changeAmounts.length > 0
+    ? await createBlindedOutputs(changeAmounts, keysetId)
+    : { outputs: [] as BlindedOutput[], blindingData: [] as BlindingData[] };
+
+  const pairs: TypedBlindedOutput[] = [
+    ...melt.outputs.map((output, index) => ({
+      output,
+      blindingData: melt.blindingData[index],
+      type: 'melt' as const,
+    })),
+    ...change.outputs.map((output, index) => ({
+      output,
+      blindingData: change.blindingData[index],
+      type: 'change' as const,
+    })),
+  ].sort((a, b) => a.output.amount - b.output.amount);
+
+  const meltSecrets = new Set(
+    pairs
+      .filter(pair => pair.type === 'melt')
+      .map(pair => pair.blindingData.secret)
+  );
+  const recoverySecretTypeMap = Object.fromEntries(
+    pairs.map(pair => [pair.blindingData.secret, 'change' as const])
+  );
 
   return {
-    outputs: ordered.map(pair => pair.output),
-    blindingData: ordered.map(pair => pair.blindingData),
+    outputs: pairs.map(pair => pair.output),
+    blindingData: pairs.map(pair => pair.blindingData),
+    meltSecrets,
+    recoverySecretTypeMap,
   };
+};
+
+const prepareExactMeltProofs = async (
+  selectedProofs: CashuProof[],
+  selectedAmount: number,
+  inputFees: number,
+  exactMeltPlan: ExactMeltPlan,
+  keyData: MintKeys,
+): Promise<CashuProof[]> => {
+  const unitKeyset = selectActiveUnitKeyset(keyData);
+  const keysetId = unitKeyset.id;
+  const keys = unitKeyset.keys!;
+  const outputAmount = selectedAmount - inputFees;
+  const changeAmount = outputAmount - exactMeltPlan.total;
+
+  if (changeAmount < 0) {
+    throw new Error('Selected proofs do not cover exact melt amount plus input fees');
+  }
+
+  const changeAmounts = changeAmount > 0
+    ? splitMeltChangeAmount(changeAmount, keys)
+    : [];
+  const {
+    outputs,
+    blindingData,
+    meltSecrets,
+    recoverySecretTypeMap,
+  } = await createTypedBlindedOutputs(exactMeltPlan.amounts, changeAmounts, keysetId);
+
+  await savePendingSwap({
+    inputProofs: selectedProofs,
+    blindingData,
+    keys,
+    keysetId,
+    // If the app exits after swap but before melt, all swapped proofs should
+    // be restored as normal wallet proofs by the existing swap recovery path.
+    secretTypeMap: recoverySecretTypeMap,
+  });
+
+  const response = await swapTokensAPI(selectedProofs, outputs);
+  await updateSwapWithResponse({
+    signatures: response.signatures,
+  });
+
+  const signedKeysetId = response.signatures[0]?.id || keysetId;
+  const signedKeyset = findKeysetById(keyData, signedKeysetId);
+  const unblindKeys = signedKeyset?.keys ?? keys;
+  const allNewProofs = unblindSignatures(
+    response.signatures,
+    blindingData,
+    unblindKeys,
+    signedKeysetId
+  );
+
+  const expectedOutputAmount = selectedAmount - inputFees;
+  const actualOutputAmount = sumProofs(allNewProofs);
+  if (actualOutputAmount !== expectedOutputAmount) {
+    throw new Error(`Swap verification failed: expected ${expectedOutputAmount} but received ${actualOutputAmount}`);
+  }
+
+  const proofsToMelt = allNewProofs.filter(proof => meltSecrets.has(proof.secret));
+  if (sumProofs(proofsToMelt) !== exactMeltPlan.total) {
+    throw new Error(`Swap verification failed: exact melt proofs do not total ${exactMeltPlan.total}`);
+  }
+
+  await addProofs(allNewProofs);
+  await removeProofs(selectedProofs);
+  await clearPendingSwap();
+
+  logger.info('Prepared exact proofs for melt via swap', {
+    selectedAmount,
+    inputFees,
+    exactMeltTotal: exactMeltPlan.total,
+    changeAmount,
+    meltProofCount: proofsToMelt.length,
+    outputCount: outputs.length,
+  });
+
+  return proofsToMelt;
 };
 
 const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<PreparedMeltSpend> => {
@@ -225,68 +367,40 @@ const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<
     proofs: spendableProofs.map(p => ({ amount: p.amount, id: p.id }))
   });
 
+  const unitKeyset = selectActiveUnitKeyset(keyData);
+  const exactMeltPlan = getExactMeltPlan(baseAmount, keyData, unitKeyset.id, unitKeyset.keys!);
   const {
     selectedProofs,
     selectedAmount,
     inputFees,
-  } = selectProofsForAmountIncludingFees(spendableProofs, baseAmount, keyData);
+  } = selectProofsForAmountIncludingFees(spendableProofs, exactMeltPlan.total, keyData);
 
-  const changeAmount = selectedAmount - baseAmount - inputFees;
-  if (changeAmount < 0) {
+  const directChangeAmount = selectedAmount - baseAmount - inputFees;
+  if (directChangeAmount < 0) {
     throw new Error('Selected proofs do not cover melt amount plus input fees');
   }
 
-  if (changeAmount === 0) {
+  if (directChangeAmount === 0) {
     return {
       selectedProofs,
       proofsToMelt: selectedProofs,
-      changeOutputs: [],
-      changeBlindingData: [],
-      changeKeys: {},
-      changeKeysetId: '',
+      didPreSwap: false,
     };
   }
 
-  const unitKeyset = selectActiveUnitKeyset(keyData);
-  const changeAmounts = splitMeltChangeAmount(changeAmount, unitKeyset.keys!);
-  const { outputs, blindingData } = await createBlindedOutputs(changeAmounts, unitKeyset.id);
-  const orderedChange = orderMeltChangeOutputs(outputs, blindingData, changeAmounts);
+  const proofsToMelt = await prepareExactMeltProofs(
+    selectedProofs,
+    selectedAmount,
+    inputFees,
+    exactMeltPlan,
+    keyData,
+  );
 
   return {
     selectedProofs,
-    proofsToMelt: selectedProofs,
-    changeOutputs: orderedChange.outputs,
-    changeBlindingData: orderedChange.blindingData,
-    changeKeys: unitKeyset.keys!,
-    changeKeysetId: unitKeyset.id,
+    proofsToMelt,
+    didPreSwap: true,
   };
-};
-
-const unblindMeltChange = (
-  resultChange: Array<{ C_: string; id?: string; amount?: CashuAmountLike }> | undefined,
-  prepared: PreparedMeltSpend,
-  keyData: MintKeys
-): CashuProof[] | null => {
-  if (prepared.changeOutputs.length === 0) {
-    return null;
-  }
-
-  if (!resultChange || resultChange.length === 0) {
-    throw new Error('Mint did not return melt change signatures');
-  }
-
-  const signedKeysetId = resultChange[0]?.id || prepared.changeKeysetId;
-  const signedKeyset = signedKeysetId
-    ? findKeysetById(keyData, signedKeysetId)
-    : undefined;
-  const keys = signedKeyset?.keys ?? prepared.changeKeys;
-
-  return unblindSignatures(
-    resultChange,
-    prepared.changeBlindingData,
-    keys,
-    signedKeysetId || prepared.changeKeysetId
-  );
 };
 
 const ACCEPTED_MELT_STATES = new Set(['PAID', 'PENDING']);
@@ -320,35 +434,27 @@ const getMeltFee = (result: Pick<MeltResponse, 'fee_paid' | 'fee'>): number => {
  * Step 2: Send proofs and optional change outputs to the mint.
  */
 export const completeMelt = async (quoteId: string, totalAmount: number): Promise<MeltResult> => {
-  let changeProofs: CashuProof[] | null = null;
-  let selectedProofs: CashuProof[] | null = null;
+  let preparedSpend: PreparedMeltSpend | null = null;
 
   try {
     logger.info('Completing melt', { quoteId, totalAmount });
 
     const keyData = await getOrFetchKeys();
     const prepared = await prepareMeltSpend(totalAmount, keyData);
-    selectedProofs = prepared.selectedProofs;
+    preparedSpend = prepared;
 
-    // Melt tokens - this is the critical step that broadcasts the transaction
-    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    // Melt exact proofs only. The advertised onchain/unit response does not
+    // return NUT-08 change, so any needed change is created via swap first.
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
     assertMeltPaid(result);
-    changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
-    // ONLY NOW that melt succeeded, remove the spent proofs
-    if (changeProofs) {
-      // Had change: remove old proofs, add change
-      await removeProofs(selectedProofs);
-      await addProofs(changeProofs);
-      logger.info('Melt succeeded - removed old proofs and added change', {
-        removedCount: selectedProofs.length,
-        changeCount: changeProofs.length,
-      });
-    } else {
-      // No change: just remove the proofs
-      await removeProofs(selectedProofs);
-      logger.info('Melt succeeded - removed spent proofs', { count: selectedProofs.length });
-    }
+    // ONLY NOW that melt succeeded, remove the proofs that were submitted.
+    // Pre-swap change was already saved before melt submission.
+    await removeProofs(prepared.proofsToMelt);
+    logger.info('Melt succeeded - removed spent proofs', {
+      count: prepared.proofsToMelt.length,
+      didPreSwap: prepared.didPreSwap,
+    });
 
     const newBalance = await getBalance();
 
@@ -365,8 +471,25 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       balance: newBalance,
     };
   } catch (error: unknown) {
-    logger.error('Failed to complete melt', { error: (error as Error).message, hasSelectedProofs: !!selectedProofs });
-    throw error;
+    const originalError = error instanceof Error ? error : new Error(String(error));
+    logger.error('Failed to complete melt', {
+      error: originalError.message,
+      hasPreparedSpend: !!preparedSpend,
+      didPreSwap: preparedSpend?.didPreSwap ?? false,
+    });
+    try {
+      const cleanup = await removeSpentProofs();
+      logger.info('Reconciled proofs after failed melt', {
+        removed: cleanup.removed,
+        kept: cleanup.kept,
+        didPreSwap: preparedSpend?.didPreSwap ?? false,
+      });
+    } catch (cleanupError) {
+      logger.warn('Failed to reconcile proofs after failed melt', {
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      });
+    }
+    throw originalError;
   }
 };
 
@@ -383,25 +506,24 @@ export interface MeltWithoutCleanupResult {
  * Returns the proofs that need to be removed so caller can wait for tx confirmation
  */
 export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: number): Promise<MeltWithoutCleanupResult> => {
-  let changeProofs: CashuProof[] | null = null;
-  let selectedProofs: CashuProof[] | null = null;
+  let preparedSpend: PreparedMeltSpend | null = null;
 
   try {
     logger.info('Completing melt without cleanup', { quoteId, totalAmount });
 
     const keyData = await getOrFetchKeys();
     const prepared = await prepareMeltSpend(totalAmount, keyData);
-    selectedProofs = prepared.selectedProofs;
+    preparedSpend = prepared;
 
     // Melt tokens
-    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, prepared.changeOutputs);
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
     assertMeltPaid(result);
-    changeProofs = unblindMeltChange(result.change, prepared, keyData);
 
     logger.info('Melt completed without cleanup', {
       paid: result.paid,
       state: result.state,
       txid: getMeltTxid(result),
+      didPreSwap: prepared.didPreSwap,
     });
 
     // Return the proofs that need to be removed later
@@ -409,11 +531,15 @@ export const completeMeltWithoutCleanup = async (quoteId: string, totalAmount: n
       paid: isMeltPaid(result),
       txid: getMeltTxid(result),
       fee: getMeltFee(result),
-      proofsToRemove: selectedProofs,
-      changeProofs: changeProofs,
+      proofsToRemove: prepared.proofsToMelt,
+      changeProofs: null,
     };
   } catch (error: unknown) {
-    logger.error('Failed to complete melt without cleanup', { error: (error as Error).message, hasSelectedProofs: !!selectedProofs });
+    logger.error('Failed to complete melt without cleanup', {
+      error: (error as Error).message,
+      hasPreparedSpend: !!preparedSpend,
+      didPreSwap: preparedSpend?.didPreSwap ?? false,
+    });
     throw error;
   }
 };

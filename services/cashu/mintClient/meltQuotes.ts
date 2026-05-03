@@ -16,6 +16,7 @@ export interface MeltQuote {
   amount?: number;
   fee?: number;
   fee_reserve?: number;
+  unit?: string;
   state?: string;
   paid?: boolean;
   expiry?: number;
@@ -53,6 +54,11 @@ const normalizeMeltQuote = (quote: MeltQuoteWire): MeltQuote => {
   if (amount !== undefined) normalized.amount = amount;
   if (fee !== undefined) normalized.fee = fee;
   if (feeReserve !== undefined) normalized.fee_reserve = feeReserve;
+
+  if (!normalized.unit || normalized.unit === CASHU_UNIT) {
+    normalized.fee = 0;
+    normalized.fee_reserve = 0;
+  }
 
   return normalized;
 };

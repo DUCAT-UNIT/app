@@ -363,7 +363,7 @@ interface RemoveSpentProofsResult {
  * Checks proof states with the mint and removes any that are already spent
  */
 export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
-  return withProofLock(async () => {
+  const result = await withProofLock(async () => {
     logger.info('Starting cleanup of spent proofs');
 
     // Get all proofs from wallet
@@ -409,4 +409,10 @@ export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
       kept: validProofs.length,
     };
   });
+
+  if (result.removed > 0) {
+    notifyProofChange();
+  }
+
+  return result;
 };
