@@ -16,6 +16,7 @@ import type { StackScreenProps } from '@react-navigation/stack';
 
 type RepayStackParamList = {
   RepayInput: undefined;
+  RepayFunding: undefined;
   RepayConfirm: undefined;
   RepayProcessing: undefined;
   RepaySuccess: { vaultTxid?: string };

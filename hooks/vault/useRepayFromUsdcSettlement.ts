@@ -52,6 +52,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
   const store = useRepay();
   const {
     repayAmountUsd,
+    repayFundingAsset,
     error: storeError,
     setError,
     setRepayQuote: setRepayStoreQuote,
@@ -65,6 +66,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
 
   const {
     kind: settlementKind,
+    requestedPayoutAsset: persistedRequestedPayoutAsset,
     redemptionId: persistedRedemptionId,
     cashuMeltTxid: persistedCashuMeltTxid,
     startOperation,
@@ -129,51 +131,10 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     [wallet?.taprootAddress],
   );
 
-  const quoteRepaySettlement = useCallback(
+  const quoteUsdcRepaySettlement = useCallback(
     async (amountUsd: number) => {
       if (!wallet?.taprootAddress) {
         throw new Error('Wallet not connected');
-      }
-
-      const canRepayDirectly = await hasSpendableDirectUnitBalance(amountUsd);
-      if (canRepayDirectly) {
-        logger.debug('[VaultRepayFromUsdc] Direct UNIT funding available, skipping Sepolia quote', {
-          currentAccount,
-          amountUsd,
-        });
-        setRepayStoreQuote('0', '0');
-        setTurboRepayQuote('0', '0');
-        setRepayQuote('0', '0');
-        return {
-          fundingAsset: 'UNIT' as const,
-          requiredUsdcIn: '0',
-          estimatedSepoliaFeeEth: '0',
-          requiredTurboUnitIn: '0',
-          estimatedTurboUnitFee: '0',
-        };
-      }
-
-      const turboQuote = await getTurboRepayQuote(amountUsd);
-      if (turboQuote) {
-        const requiredTurboUnitIn = formatSmallestUnitAmount(turboQuote.total);
-        const estimatedTurboUnitFee = formatSmallestUnitAmount(turboQuote.fee);
-        logger.debug('[VaultRepayFromUsdc] TurboUNIT funding available, using Cashu melt quote', {
-          currentAccount,
-          amountUsd,
-          quoteId: turboQuote.quoteId,
-          total: turboQuote.total,
-          fee: turboQuote.fee,
-        });
-        setRepayStoreQuote('0', '0');
-        setTurboRepayQuote(requiredTurboUnitIn, estimatedTurboUnitFee);
-        setRepayQuote('0', '0');
-        return {
-          fundingAsset: 'TURBOUNIT' as const,
-          requiredUsdcIn: '0',
-          estimatedSepoliaFeeEth: '0',
-          requiredTurboUnitIn,
-          estimatedTurboUnitFee,
-        };
       }
 
       const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
@@ -181,10 +142,10 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         setRepayStoreQuote(null, null);
         setTurboRepayQuote(null, null);
         setRepayQuote(null, null);
-        throw new Error('Not enough spendable UNIT or TurboUNIT to repay this amount.');
+        throw new Error('Sepolia USDC repay is not enabled.');
       }
 
-      logger.debug('[VaultRepayFromUsdc] Quoting repay', {
+      logger.debug('[VaultRepayFromUsdc] Sepolia USDC funding selected, quoting repay', {
         currentAccount,
         amountUsd,
         destinationTaprootAddress: wallet.taprootAddress,
@@ -215,8 +176,82 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     },
     [
       currentAccount,
+      setRepayQuote,
+      setRepayStoreQuote,
+      setTurboRepayQuote,
+      wallet?.taprootAddress,
+    ],
+  );
+
+  const quoteRepaySettlement = useCallback(
+    async (amountUsd: number) => {
+      if (!wallet?.taprootAddress) {
+        throw new Error('Wallet not connected');
+      }
+
+      if (repayFundingAsset === 'UNIT') {
+        const canRepayDirectly = await hasSpendableDirectUnitBalance(amountUsd);
+        if (!canRepayDirectly) {
+          setRepayStoreQuote(null, null);
+          setTurboRepayQuote(null, null);
+          setRepayQuote(null, null);
+          throw new Error('Not enough spendable UNIT to repay this amount.');
+        }
+
+        logger.debug('[VaultRepayFromUsdc] Direct UNIT funding selected, skipping settlement quote', {
+          currentAccount,
+          amountUsd,
+        });
+        setRepayStoreQuote('0', '0');
+        setTurboRepayQuote('0', '0');
+        setRepayQuote('0', '0');
+        return {
+          fundingAsset: 'UNIT' as const,
+          requiredUsdcIn: '0',
+          estimatedSepoliaFeeEth: '0',
+          requiredTurboUnitIn: '0',
+          estimatedTurboUnitFee: '0',
+        };
+      }
+
+      if (repayFundingAsset === 'TURBOUNIT') {
+        const turboQuote = await getTurboRepayQuote(amountUsd);
+        if (!turboQuote) {
+          setRepayStoreQuote(null, null);
+          setTurboRepayQuote(null, null);
+          setRepayQuote(null, null);
+          throw new Error('Not enough TurboUNIT to repay this amount.');
+        }
+
+        const requiredTurboUnitIn = formatSmallestUnitAmount(turboQuote.total);
+        const estimatedTurboUnitFee = formatSmallestUnitAmount(turboQuote.fee);
+        logger.debug('[VaultRepayFromUsdc] TurboUNIT funding selected, using Cashu melt quote', {
+          currentAccount,
+          amountUsd,
+          quoteId: turboQuote.quoteId,
+          total: turboQuote.total,
+          fee: turboQuote.fee,
+        });
+        setRepayStoreQuote('0', '0');
+        setTurboRepayQuote(requiredTurboUnitIn, estimatedTurboUnitFee);
+        setRepayQuote('0', '0');
+        return {
+          fundingAsset: 'TURBOUNIT' as const,
+          requiredUsdcIn: '0',
+          estimatedSepoliaFeeEth: '0',
+          requiredTurboUnitIn,
+          estimatedTurboUnitFee,
+        };
+      }
+
+      return quoteUsdcRepaySettlement(amountUsd);
+    },
+    [
+      currentAccount,
       getTurboRepayQuote,
       hasSpendableDirectUnitBalance,
+      quoteUsdcRepaySettlement,
+      repayFundingAsset,
       setRepayQuote,
       setRepayStoreQuote,
       setTurboRepayQuote,
@@ -296,22 +331,31 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     setError(null);
 
     try {
-      const canRepayDirectly = await hasSpendableDirectUnitBalance(repayAmountUsd);
-      const turboQuote = canRepayDirectly ? null : await getTurboRepayQuote(repayAmountUsd);
-      const canRepayWithTurboUnit = !!turboQuote || (
+      const requestedPayoutAsset = settlementKind === 'repay'
+        && (persistedCashuMeltTxid || persistedRedemptionId)
+        ? persistedRequestedPayoutAsset
+        : repayFundingAsset;
+      const canRepayDirectly = requestedPayoutAsset === 'UNIT'
+        ? await hasSpendableDirectUnitBalance(repayAmountUsd)
+        : false;
+      const turboQuote = requestedPayoutAsset === 'TURBOUNIT'
+        ? await getTurboRepayQuote(repayAmountUsd)
+        : null;
+      const canRepayWithTurboUnit = requestedPayoutAsset === 'TURBOUNIT' && (!!turboQuote || (
         settlementKind === 'repay' &&
         !!persistedCashuMeltTxid
-      );
+      ));
       const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
-      if (!canRepayDirectly && !canRepayWithTurboUnit && !usdcFeaturesEnabled) {
-        throw new Error('Not enough spendable UNIT or TurboUNIT to repay this amount.');
+      if (requestedPayoutAsset === 'UNIT' && !canRepayDirectly) {
+        throw new Error('Not enough spendable UNIT to repay this amount.');
+      }
+      if (requestedPayoutAsset === 'TURBOUNIT' && !canRepayWithTurboUnit) {
+        throw new Error('Not enough TurboUNIT to repay this amount.');
+      }
+      if (requestedPayoutAsset === 'USDC' && !usdcFeaturesEnabled) {
+        throw new Error('Sepolia USDC repay is not enabled.');
       }
 
-      const requestedPayoutAsset = canRepayDirectly
-        ? 'UNIT'
-        : canRepayWithTurboUnit
-          ? 'TURBOUNIT'
-          : 'USDC';
       startOperation('repay', repayAmountUsd, requestedPayoutAsset);
       logger.debug('[VaultRepayFromUsdc] Starting repay settlement', {
         currentAccount,
@@ -321,7 +365,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       });
 
       const quote = requestedPayoutAsset === 'USDC'
-        ? await quoteRepaySettlement(repayAmountUsd)
+        ? await quoteUsdcRepaySettlement(repayAmountUsd)
         : {
           fundingAsset: requestedPayoutAsset,
           requiredUsdcIn: '0',
@@ -450,7 +494,11 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         scope: 'useRepayFromUsdcSettlement',
       });
-      if (!message.includes('Not enough spendable UNIT') && !message.includes('Not enough TurboUNIT')) {
+      if (
+        !message.includes('Not enough spendable UNIT')
+        && !message.includes('Not enough TurboUNIT')
+        && !message.includes('Sepolia USDC repay is not enabled')
+      ) {
         markNeedsRetry(message);
       }
       setError(message);
@@ -465,10 +513,13 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     hasSpendableDirectUnitBalance,
     markNeedsRetry,
     persistedCashuMeltTxid,
+    persistedRequestedPayoutAsset,
     persistedRedemptionId,
     quoteRepaySettlement,
+    quoteUsdcRepaySettlement,
     rawRepay,
     refreshCashuBalance,
+    repayFundingAsset,
     setCashuMeltQuote,
     setCashuMeltTxid,
     setPhase,

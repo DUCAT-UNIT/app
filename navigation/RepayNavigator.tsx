@@ -7,6 +7,7 @@ import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import {
   RepayInputScreen as RepayInputScreenComponent,
+  RepayFundingScreen as RepayFundingScreenComponent,
   RepayConfirmScreen as RepayConfirmScreenComponent,
   RepayProcessingScreen as RepayProcessingScreenComponent,
   RepaySuccessScreen as RepaySuccessScreenComponent,
@@ -18,6 +19,7 @@ import type { RepayStackParamList } from './types';
 type AnyComponent = React.ComponentType<any>;
 
 const RepayInputScreen: AnyComponent = withErrorBoundary(RepayInputScreenComponent, { boundaryName: 'RepayInput', fallbackMessage: 'Unable to load repay input. Please try again.' });
+const RepayFundingScreen: AnyComponent = withErrorBoundary(RepayFundingScreenComponent, { boundaryName: 'RepayFunding', fallbackMessage: 'Unable to load repay funding selection. Please try again.' });
 const RepayConfirmScreen: AnyComponent = withErrorBoundary(RepayConfirmScreenComponent, { boundaryName: 'RepayConfirm', fallbackMessage: 'Unable to load repay confirmation. Please try again.' });
 const RepayProcessingScreen: AnyComponent = withErrorBoundary(RepayProcessingScreenComponent, { boundaryName: 'RepayProcessing', fallbackMessage: 'Unable to load repay processing. Please try again.' });
 const RepaySuccessScreen: AnyComponent = withErrorBoundary(RepaySuccessScreenComponent, { boundaryName: 'RepaySuccess', fallbackMessage: 'Unable to load repay success. Please try again.' });
@@ -39,6 +41,7 @@ export default function RepayNavigator(): React.JSX.Element {
       }}
     >
       <Stack.Screen name="RepayInput" component={RepayInputScreen} />
+      <Stack.Screen name="RepayFunding" component={RepayFundingScreen} />
       <Stack.Screen name="RepayConfirm" component={RepayConfirmScreen} />
       <Stack.Screen name="RepayProcessing" component={RepayProcessingScreen} />
       <Stack.Screen name="RepaySuccess" component={RepaySuccessScreen} />

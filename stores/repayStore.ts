@@ -17,6 +17,7 @@ import {
   createVaultOperationStore,
   computeVaultHealth,
 } from './vault';
+import type { VaultSettlementRequestedAsset } from './vaultSettlementStore';
 import type {
   CommonVaultState,
   CommonVaultActions,
@@ -37,6 +38,7 @@ interface RepaySpecificState {
   availableUsdcBalance: number; // Available Sepolia USDC that can be swapped back into UNIT for repay
   availableTurboUnitBalance: number; // Available TurboUNIT that can be melted back into UNIT for repay
   availableDirectUnitBalance: number; // Spendable Mutinynet UNIT already in-wallet for direct repay resume
+  repayFundingAsset: VaultSettlementRequestedAsset;
   estimatedUsdcIn: string | null;
   estimatedSepoliaFeeEth: string | null;
   estimatedTurboUnitIn: string | null;
@@ -53,6 +55,7 @@ interface RepaySpecificActions {
   setAvailableUsdcBalance: (balance: number) => void;
   setAvailableTurboUnitBalance: (balance: number) => void;
   setAvailableDirectUnitBalance: (balance: number) => void;
+  setRepayFundingAsset: (asset: VaultSettlementRequestedAsset) => void;
   setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
   setTurboRepayQuote: (estimatedTurboUnitIn: string | null, estimatedTurboUnitFee: string | null) => void;
   setIssueTxid: (txid: string | null) => void;
@@ -74,6 +77,7 @@ const repaySpecificInitialState: RepaySpecificState = {
   availableUsdcBalance: 0,
   availableTurboUnitBalance: 0,
   availableDirectUnitBalance: 0,
+  repayFundingAsset: 'UNIT',
   estimatedUsdcIn: null,
   estimatedSepoliaFeeEth: null,
   estimatedTurboUnitIn: null,
@@ -106,6 +110,18 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
     setAvailableDirectUnitBalance: (availableDirectUnitBalance: number) => {
       logger.debug('[RepayStore] setAvailableDirectUnitBalance:', availableDirectUnitBalance);
       set({ availableDirectUnitBalance } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
+    },
+
+    setRepayFundingAsset: (repayFundingAsset: VaultSettlementRequestedAsset) => {
+      logger.debug('[RepayStore] setRepayFundingAsset:', repayFundingAsset);
+      set({
+        repayFundingAsset,
+        estimatedUsdcIn: null,
+        estimatedSepoliaFeeEth: null,
+        estimatedTurboUnitIn: null,
+        estimatedTurboUnitFee: null,
+        error: null,
+      } as Partial<CommonVaultState & CommonVaultActions & RepayExtension>);
     },
 
     setRepayQuote: (estimatedUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => {
@@ -196,6 +212,7 @@ export const useRepay = () => {
   const availableUsdcBalance = useRepayStore((state) => state.availableUsdcBalance);
   const availableTurboUnitBalance = useRepayStore((state) => state.availableTurboUnitBalance);
   const availableDirectUnitBalance = useRepayStore((state) => state.availableDirectUnitBalance);
+  const repayFundingAsset = useRepayStore((state) => state.repayFundingAsset);
   const estimatedUsdcIn = useRepayStore((state) => state.estimatedUsdcIn);
   const estimatedSepoliaFeeEth = useRepayStore((state) => state.estimatedSepoliaFeeEth);
   const estimatedTurboUnitIn = useRepayStore((state) => state.estimatedTurboUnitIn);
@@ -215,6 +232,7 @@ export const useRepay = () => {
   const setAvailableUsdcBalance = useRepayStore((state) => state.setAvailableUsdcBalance);
   const setAvailableTurboUnitBalance = useRepayStore((state) => state.setAvailableTurboUnitBalance);
   const setAvailableDirectUnitBalance = useRepayStore((state) => state.setAvailableDirectUnitBalance);
+  const setRepayFundingAsset = useRepayStore((state) => state.setRepayFundingAsset);
   const setRepayQuote = useRepayStore((state) => state.setRepayQuote);
   const setTurboRepayQuote = useRepayStore((state) => state.setTurboRepayQuote);
   const setCurrentStep = useRepayStore((state) => state.setCurrentStep);
@@ -271,6 +289,7 @@ export const useRepay = () => {
     availableTurboUnitBalanceUsd,
     availableDirectUnitBalance,
     availableDirectUnitBalanceUsd,
+    repayFundingAsset,
     estimatedUsdcIn,
     estimatedSepoliaFeeEth,
     estimatedTurboUnitIn,
@@ -305,6 +324,7 @@ export const useRepay = () => {
     setAvailableUsdcBalance,
     setAvailableTurboUnitBalance,
     setAvailableDirectUnitBalance,
+    setRepayFundingAsset,
     setTurboRepayQuote,
     setCurrentStep,
     setProcessingStep,

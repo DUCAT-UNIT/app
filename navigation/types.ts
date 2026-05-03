@@ -64,6 +64,7 @@ export type DepositStackParamList = {
  */
 export type RepayStackParamList = {
   RepayInput: undefined;
+  RepayFunding: undefined;
   RepayConfirm: undefined;
   RepayProcessing: undefined;
   RepaySuccess: { vaultTxid?: string };

@@ -114,11 +114,15 @@ const wallet = {
 
 function configure({
   settlementKind = null,
+  repayFundingAsset = 'UNIT',
+  persistedRequestedPayoutAsset = 'UNIT',
   persistedRedemptionId = null,
   rawRepayResult = { txid: 'repay-txid', vaultTxid: 'vault-txid' },
   rawRepayError = null,
 }: {
   settlementKind?: 'repay' | null;
+  repayFundingAsset?: 'UNIT' | 'TURBOUNIT' | 'USDC';
+  persistedRequestedPayoutAsset?: 'UNIT' | 'TURBOUNIT' | 'USDC';
   persistedRedemptionId?: string | null;
   rawRepayResult?: { txid: string; vaultTxid: string } | null;
   rawRepayError?: string | null;
@@ -137,6 +141,7 @@ function configure({
   });
   (useRepay as jest.Mock).mockReturnValue({
     repayAmountUsd: 50,
+    repayFundingAsset,
     error: null,
     setError: mockSetError,
     setRepayQuote: mockSetRepayStoreQuote,
@@ -144,6 +149,7 @@ function configure({
   });
   (useVaultSettlementStore as unknown as jest.Mock).mockReturnValue({
     kind: settlementKind,
+    requestedPayoutAsset: persistedRequestedPayoutAsset,
     redemptionId: persistedRedemptionId,
     cashuMeltTxid: null,
     startOperation: mockStartOperation,
@@ -201,6 +207,7 @@ function configure({
 describe('useRepayFromUsdcSettlement', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRuneUtxos.mockReset();
     mockGetBoolean.mockResolvedValue(true);
     configure();
     mockRuneUtxos.mockResolvedValue([{ txid: 'unit-utxo' }]);
@@ -222,7 +229,7 @@ describe('useRepayFromUsdcSettlement', () => {
   });
 
   it('quotes Sepolia redemption when direct UNIT is not available', async () => {
-    mockRuneUtxos.mockResolvedValueOnce([]);
+    configure({ repayFundingAsset: 'USDC' });
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
 
     await expect(result.current.quoteRepayFromUsdc(50)).resolves.toEqual({
@@ -236,7 +243,7 @@ describe('useRepayFromUsdcSettlement', () => {
   });
 
   it('quotes TurboUNIT melt when direct UNIT is unavailable and Cashu balance covers the quote', async () => {
-    mockRuneUtxos.mockResolvedValueOnce([]);
+    configure({ repayFundingAsset: 'TURBOUNIT' });
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
 
@@ -275,8 +282,8 @@ describe('useRepayFromUsdcSettlement', () => {
   });
 
   it('blocks USDC repayment fallback when USDC features are disabled', async () => {
+    configure({ repayFundingAsset: 'USDC' });
     mockGetBoolean.mockResolvedValue(false);
-    mockRuneUtxos.mockResolvedValue([]);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
 
@@ -288,13 +295,12 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(requestRedemption).not.toHaveBeenCalled();
     expect(mockStartOperation).not.toHaveBeenCalled();
     expect(mockMarkNeedsRetry).not.toHaveBeenCalled();
-    expect(mockSetError).toHaveBeenLastCalledWith('Not enough spendable UNIT or TurboUNIT to repay this amount.');
+    expect(mockSetError).toHaveBeenLastCalledWith('Sepolia USDC repay is not enabled.');
   });
 
   it('submits USDC redemption, waits for release, then repays the vault', async () => {
+    configure({ repayFundingAsset: 'USDC' });
     mockRuneUtxos
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
@@ -322,8 +328,8 @@ describe('useRepayFromUsdcSettlement', () => {
   });
 
   it('melts TurboUNIT, waits for released UNIT, then repays the vault', async () => {
+    configure({ repayFundingAsset: 'TURBOUNIT' });
     mockRuneUtxos
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ txid: 'melted-unit-utxo' }]);
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
@@ -349,10 +355,12 @@ describe('useRepayFromUsdcSettlement', () => {
   });
 
   it('resumes an existing redemption instead of burning USDC again', async () => {
-    configure({ settlementKind: 'repay', persistedRedemptionId: 'release-existing' });
+    configure({
+      settlementKind: 'repay',
+      persistedRequestedPayoutAsset: 'USDC',
+      persistedRedemptionId: 'release-existing',
+    });
     mockRuneUtxos
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
 

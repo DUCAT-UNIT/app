@@ -15,6 +15,7 @@ export { default as DepositProcessingScreen } from './DepositProcessingScreen';
 
 // Repay screens
 export { default as RepayInputScreen } from './RepayInputScreen';
+export { default as RepayFundingScreen } from './RepayFundingScreen';
 export { default as RepayConfirmScreen } from './RepayConfirmScreen';
 export { default as RepayProcessingScreen } from './RepayProcessingScreen';
 

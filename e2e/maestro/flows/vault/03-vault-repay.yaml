@@ -33,6 +33,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Continue to confirm
 - tapOn:
     id: "vault-repay-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-funding-continue-btn"
+    timeout: 10000
+- tapOn:
+    id: "vault-repay-funding-continue-btn"
+
 - extendedWaitUntil:
     visible:
       id: "vault-repay-confirm-screen"

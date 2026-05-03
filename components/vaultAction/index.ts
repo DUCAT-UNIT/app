@@ -16,3 +16,4 @@ export type { UnitAmountSliderProps } from './UnitAmountSlider';
 
 export { ReceiveAssetBadge, getReceiveAssetMeta } from './ReceiveAssetBadge';
 export { ReceiveAssetStep } from './ReceiveAssetStep';
+export { RepayFundingStep } from './RepayFundingStep';

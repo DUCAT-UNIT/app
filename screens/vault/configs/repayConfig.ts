@@ -18,6 +18,7 @@ import type {
 
 export const repayRoutes = {
   input: 'RepayInput',
+  selection: 'RepayFunding',
   confirm: 'RepayConfirm',
   processing: 'RepayProcessing',
   success: 'RepaySuccess',
@@ -210,24 +211,29 @@ export function createRepayConfirmConfig({
 
   getSummaryRows: (store, _btcPrice): SummaryRow[] => {
     const newDebt = Math.max(0, store.currentUnitBorrowed - store.repayAmountUsd);
-    const canFundDirectly = store.availableDirectUnitBalanceUsd >= store.repayAmountUsd;
-    const canFundTurboUnit = allowTurboUnit && store.availableTurboUnitBalanceUsd >= store.repayAmountUsd;
-    const useDirectUnit = canFundDirectly || (store.estimatedUsdcIn === '0' && store.estimatedTurboUnitIn === '0');
+    const fundingAsset = store.repayFundingAsset === 'USDC' && !allowUsdc
+      ? 'UNIT'
+      : store.repayFundingAsset;
 
     const rows: SummaryRow[] = [];
-    if (useDirectUnit) {
+    rows.push({
+      label: 'Repay With',
+      currentValue: fundingAsset === 'TURBOUNIT'
+        ? 'TurboUNIT'
+        : fundingAsset === 'USDC'
+          ? 'Sepolia USDC'
+          : 'Direct UNIT',
+    });
+
+    if (fundingAsset === 'UNIT') {
       rows.push({
-        label: 'Funding Path',
-        currentValue: 'Direct UNIT',
+        label: 'Estimated UNIT Spend',
+        currentValue: `${store.repayAmountUsd.toFixed(2)} UNIT`,
       });
-    } else if (canFundTurboUnit || store.estimatedTurboUnitIn) {
+    } else if (fundingAsset === 'TURBOUNIT' && allowTurboUnit) {
       rows.push(
         {
-          label: 'Funding Path',
-          currentValue: 'TurboUNIT',
-        },
-        {
-          label: 'Estimated TurboUNIT Spend',
+          label: 'Estimated TurboUNIT Melt',
           currentValue: store.estimatedTurboUnitIn ? `${store.estimatedTurboUnitIn} TurboUNIT` : 'Refreshing...',
         },
       );
@@ -237,7 +243,7 @@ export function createRepayConfirmConfig({
           currentValue: `${store.estimatedTurboUnitFee} TurboUNIT`,
         });
       }
-    } else if (allowUsdc) {
+    } else if (fundingAsset === 'USDC' && allowUsdc) {
       rows.push(
         {
           label: 'Estimated Sepolia USDC Spend',
@@ -251,7 +257,7 @@ export function createRepayConfirmConfig({
     } else {
       rows.push({
         label: 'Funding Path',
-        currentValue: 'UNIT or TurboUNIT',
+        currentValue: allowTurboUnit ? 'UNIT or TurboUNIT' : 'UNIT',
       });
     }
 

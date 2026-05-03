@@ -18,6 +18,29 @@ appId: com.ducatprotocol.DucatProtocolWallet
             - tapOn:
                 id: "vault-repay-continue-btn"
 
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-funding-continue-btn"
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: "vault-repay-funding-usdc-card"
+          direction: DOWN
+          timeout: 5000
+      - tapOn:
+          id: "vault-repay-funding-usdc-card"
+      - tapOn:
+          id: "vault-repay-funding-continue-btn"
+      - runFlow: ../helpers/dismiss-debug-warning.yaml
+      - runFlow:
+          when:
+            visible:
+              id: "vault-repay-funding-continue-btn"
+          commands:
+            - tapOn:
+                id: "vault-repay-funding-continue-btn"
+
 - extendedWaitUntil:
     visible:
       id: "vault-repay-confirm-screen"

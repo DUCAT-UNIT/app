@@ -69,6 +69,8 @@ export interface DepositVaultStore extends VaultStoreState {
 export interface RepayVaultStore extends VaultStoreState {
   repayAmountUsd: number;
   setRepayAmountUsd: (amount: number) => void;
+  repayFundingAsset: VaultSettlementRequestedAsset;
+  setRepayFundingAsset: (asset: VaultSettlementRequestedAsset) => void;
   maxRepayableUsd: number;
   availableRepayBalanceUsd: number;
   availableTurboUnitBalanceUsd: number;

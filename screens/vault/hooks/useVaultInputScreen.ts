@@ -263,7 +263,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     if (storedReceiveAsset && receiveAsset && storedReceiveAsset !== receiveAsset && 'setReceiveAsset' in store) {
       (store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }).setReceiveAsset(receiveAsset);
     }
-    if (config.routes.selection && 'setReceiveAsset' in store) {
+    if (config.routes.selection) {
       store.setCurrentStep('payout');
       navigation.navigate(config.routes.selection);
       return;
