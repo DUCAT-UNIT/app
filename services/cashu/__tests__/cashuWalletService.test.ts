@@ -1281,13 +1281,25 @@ describe('cashuWalletService', () => {
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
 
-        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
+        (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'B4', id: 'keyset1' },
+            { amount: 8, B_: 'B8', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'change4', r: 'r4', B_: 'B4' },
+            { amount: 8, secret: 'change8', r: 'r8', B_: 'B8' },
+          ],
+        });
 
         (cashuMintClient.meltTokens as jest.Mock).mockResolvedValueOnce({
           paid: true,
           payment_preimage: 'txid123',
           fee_paid: 0,
-          change: mockSignatures,
+          change: [
+            { amount: 8, C_: 'C8', id: 'keyset1' },
+            { amount: 4, C_: 'C4', id: 'keyset1' },
+          ],
         });
         (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce(changeProofs);
 
@@ -1295,7 +1307,10 @@ describe('cashuWalletService', () => {
 
         expect(result.paid).toBe(true);
         expect(result.txid).toBe('txid123');
-        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs, mockOutputs);
+        expect(cashuMintClient.meltTokens).toHaveBeenCalledWith('melt123', selectedProofs, [
+          { amount: 8, B_: 'B8', id: 'keyset1' },
+          { amount: 4, B_: 'B4', id: 'keyset1' },
+        ]);
         expect(cashuMintClient.swapTokens).not.toHaveBeenCalled();
       });
 
@@ -1305,7 +1320,16 @@ describe('cashuWalletService', () => {
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockProofs));
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
-        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
+        (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'B4', id: 'keyset1' },
+            { amount: 8, B_: 'B8', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'change4', r: 'r4', B_: 'B4' },
+            { amount: 8, secret: 'change8', r: 'r8', B_: 'B8' },
+          ],
+        });
 
         (cashuMintClient.meltTokens as jest.Mock).mockRejectedValueOnce(new Error('Melt failed'));
 
@@ -1352,12 +1376,24 @@ describe('cashuWalletService', () => {
           .mockResolvedValueOnce(null);
 
         (cashuCrypto.selectProofsForAmount as jest.Mock).mockReturnValueOnce(selectedProofs);
-        (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([4, 8]);
+        (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValueOnce({
+          outputs: [
+            { amount: 4, B_: 'B4', id: 'keyset1' },
+            { amount: 8, B_: 'B8', id: 'keyset1' },
+          ],
+          blindingData: [
+            { amount: 4, secret: 'change4', r: 'r4', B_: 'B4' },
+            { amount: 8, secret: 'change8', r: 'r8', B_: 'B8' },
+          ],
+        });
 
         (cashuMintClient.meltTokens as jest.Mock).mockResolvedValueOnce({
           paid: true,
           payment_preimage: 'txid123',
-          change: mockSignatures,
+          change: [
+            { amount: 8, C_: 'C8', id: 'keyset1' },
+            { amount: 4, C_: 'C4', id: 'keyset1' },
+          ],
         });
         (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce(changeProofs);
 

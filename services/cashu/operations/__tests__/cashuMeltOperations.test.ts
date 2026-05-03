@@ -59,7 +59,6 @@ import { createMeltQuote, meltTokens } from '../../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
-  splitAmount,
   selectProofsForAmount,
 } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
@@ -220,10 +219,9 @@ describe('cashuMeltOperations', () => {
     it('should provide melt change outputs and save returned change proofs', async () => {
       (loadProofs as jest.Mock).mockResolvedValue(changeProofs);
       (selectProofsForAmount as jest.Mock).mockReturnValue(changeProofs);
-      (splitAmount as jest.Mock).mockReturnValue([8, 4]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
-        outputs: [{ amount: 8, B_: 'B8', id: 'keyset1' }, { amount: 4, B_: 'B4', id: 'keyset1' }],
-        blindingData: [{ amount: 8 }, { amount: 4 }],
+        outputs: [{ amount: 4, B_: 'B4', id: 'keyset1' }, { amount: 8, B_: 'B8', id: 'keyset1' }],
+        blindingData: [{ amount: 4 }, { amount: 8 }],
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         paid: true,
@@ -239,11 +237,17 @@ describe('cashuMeltOperations', () => {
       const result = await completeMelt('quote123', 100);
 
       expect(result.paid).toBe(true);
-      expect(splitAmount).toHaveBeenCalledWith(12);
+      expect(createBlindedOutputs).toHaveBeenCalledWith([8, 4], 'keyset1');
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
         changeProofs,
         [{ amount: 8, B_: 'B8', id: 'keyset1' }, { amount: 4, B_: 'B4', id: 'keyset1' }]
+      );
+      expect(unblindSignatures).toHaveBeenCalledWith(
+        [{ id: 'keyset1', C_: 'C8' }, { id: 'keyset1', C_: 'C4' }],
+        [{ amount: 8 }, { amount: 4 }],
+        unitKeyData.keysets[0].keys,
+        'keyset1'
       );
       expect(removeProofs).toHaveBeenCalledWith(changeProofs);
       expect(addProofs).toHaveBeenCalledWith([
@@ -263,7 +267,6 @@ describe('cashuMeltOperations', () => {
       (selectProofsForAmount as jest.Mock)
         .mockReturnValueOnce([proof100])
         .mockReturnValueOnce([proof100, proof2]);
-      (splitAmount as jest.Mock).mockReturnValue([1]);
       (createBlindedOutputs as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 1, B_: 'B1', id: 'keyset1' }],
         blindingData: [{ amount: 1 }],
@@ -281,12 +284,52 @@ describe('cashuMeltOperations', () => {
 
       expect(selectProofsForAmount).toHaveBeenNthCalledWith(1, [proof100, proof2], 100);
       expect(selectProofsForAmount).toHaveBeenNthCalledWith(2, [proof100, proof2], 101);
-      expect(splitAmount).toHaveBeenCalledWith(1);
+      expect(createBlindedOutputs).toHaveBeenCalledWith([1], 'keyset1');
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
         [proof100, proof2],
         [{ amount: 1, B_: 'B1', id: 'keyset1' }]
       );
+    });
+
+    it('should use mint-compatible denominations for large melt change', async () => {
+      const proof65536 = { amount: 65536, secret: 's1', C: 'C1', id: 'keyset1' };
+      const keyDataWithLargeDenominations = {
+        keysets: [{
+          ...unitKeyData.keysets[0],
+          keys: {
+            ...unitKeyData.keysets[0].keys,
+            32768: 'key32768',
+          },
+        }],
+      };
+      (getOrFetchKeys as jest.Mock).mockResolvedValue(keyDataWithLargeDenominations);
+      (loadProofs as jest.Mock).mockResolvedValue([proof65536]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([proof65536]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 32768, B_: 'B32768', id: 'keyset1' }],
+        blindingData: [{ amount: 32768 }],
+      });
+      (meltTokens as jest.Mock).mockResolvedValue({
+        state: 'PENDING',
+        outpoint: 'broadcasttxid123:0',
+        change: [{ id: 'keyset1', amount: 32768, C_: 'C32768' }],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 32768, secret: 'new32768', C: 'C32768', id: 'keyset1' },
+      ]);
+
+      await completeMelt('quote123', 32768);
+
+      expect(createBlindedOutputs).toHaveBeenCalledWith([32768], 'keyset1');
+      expect(meltTokens).toHaveBeenCalledWith(
+        'quote123',
+        [proof65536],
+        [{ amount: 32768, B_: 'B32768', id: 'keyset1' }]
+      );
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 32768, secret: 'new32768', C: 'C32768', id: 'keyset1' },
+      ]);
     });
 
     it('should reject change when no active unit keyset is available', async () => {

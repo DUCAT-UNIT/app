@@ -20,10 +20,10 @@ import type { MintKeys } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
-  splitAmount,
   sumProofs,
   CashuProof,
 } from '../crypto';
+import type { BlindedOutput, BlindingData } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
 import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
 import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
@@ -157,11 +157,62 @@ export interface MeltResult {
 interface PreparedMeltSpend {
   selectedProofs: CashuProof[];
   proofsToMelt: CashuProof[];
-  changeOutputs: Array<{ amount: number; B_: string; id?: string }>;
+  changeOutputs: BlindedOutput[];
   changeBlindingData: Parameters<typeof unblindSignatures>[1];
   changeKeys: Record<number | string, string>;
   changeKeysetId: string;
 }
+
+const splitMeltChangeAmount = (
+  amount: number,
+  keys: Record<number | string, string>
+): number[] => {
+  const denominations: number[] = [];
+  let remaining = amount;
+  let bit = 1;
+
+  while (remaining > 0) {
+    if (remaining % 2 === 1) {
+      denominations.push(bit);
+    }
+    remaining = Math.floor(remaining / 2);
+    bit *= 2;
+  }
+
+  denominations.reverse();
+
+  const missingDenomination = denominations.find(denomination => !keys[denomination]);
+  if (missingDenomination !== undefined) {
+    throw new Error(`Mint keyset cannot sign melt change denomination ${missingDenomination}`);
+  }
+
+  return denominations;
+};
+
+const orderMeltChangeOutputs = (
+  outputs: BlindedOutput[],
+  blindingData: BlindingData[],
+  amounts: number[]
+): { outputs: BlindedOutput[]; blindingData: BlindingData[] } => {
+  const pairs = outputs.map((output, index) => ({
+    output,
+    blindingData: blindingData[index],
+  }));
+
+  const ordered = amounts.map((amount) => {
+    const index = pairs.findIndex(pair => pair.output.amount === amount);
+    if (index === -1) {
+      throw new Error(`Unable to prepare melt change output for amount ${amount}`);
+    }
+
+    return pairs.splice(index, 1)[0];
+  });
+
+  return {
+    outputs: ordered.map(pair => pair.output),
+    blindingData: ordered.map(pair => pair.blindingData),
+  };
+};
 
 const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<PreparedMeltSpend> => {
   const allProofs = await loadProofs();
@@ -197,14 +248,15 @@ const prepareMeltSpend = async (baseAmount: number, keyData: MintKeys): Promise<
   }
 
   const unitKeyset = selectActiveUnitKeyset(keyData);
-  const changeAmounts = splitAmount(changeAmount);
+  const changeAmounts = splitMeltChangeAmount(changeAmount, unitKeyset.keys!);
   const { outputs, blindingData } = await createBlindedOutputs(changeAmounts, unitKeyset.id);
+  const orderedChange = orderMeltChangeOutputs(outputs, blindingData, changeAmounts);
 
   return {
     selectedProofs,
     proofsToMelt: selectedProofs,
-    changeOutputs: outputs,
-    changeBlindingData: blindingData,
+    changeOutputs: orderedChange.outputs,
+    changeBlindingData: orderedChange.blindingData,
     changeKeys: unitKeyset.keys!,
     changeKeysetId: unitKeyset.id,
   };
