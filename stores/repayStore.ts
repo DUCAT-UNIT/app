@@ -177,12 +177,11 @@ export const useRepayStore = createVaultOperationStore<RepayExtension>(
         availableTurboUnitBalance,
         availableDirectUnitBalance,
       } = get();
-      // The repay can be funded by either direct released UNIT already in-wallet
-      // or by TurboUNIT/Sepolia USDC that will be converted back into UNIT.
+      // The UNIT path can spend on-chain UNIT plus UNIT released from TurboUNIT.
+      // USDC remains a separate funding path while the developer flag is enabled.
       const availableRepayFunding = Math.max(
         availableUsdcBalance,
-        availableTurboUnitBalance,
-        availableDirectUnitBalance,
+        availableDirectUnitBalance + availableTurboUnitBalance,
       );
       return Math.min(currentUnitBorrowed, availableRepayFunding);
     },
@@ -268,7 +267,7 @@ export const useRepay = () => {
   // Can only repay up to the debt amount or available balance, whichever is smaller
   const maxRepayable = Math.min(
     currentUnitBorrowed,
-    Math.max(availableUsdcBalance, availableTurboUnitBalance, availableDirectUnitBalance),
+    Math.max(availableUsdcBalance, availableDirectUnitBalance + availableTurboUnitBalance),
   );
   const maxRepayableUsd = protocolUnitToUsd(maxRepayable);
   const availableRepayBalanceUsd = protocolUnitToUsd(availableUsdcBalance);

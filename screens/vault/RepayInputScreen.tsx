@@ -10,6 +10,7 @@ import { useBalance, useEvmAssets } from '../../contexts/WalletDataContext';
 import { useRepayFromUsdcSettlement } from '../../hooks/vault';
 import { useRepay } from '../../stores/repayStore';
 import { getRunesAmount } from '../../utils/runesHelper';
+import { getRepayableTurboUnitContribution } from '../../utils/turboRepay';
 import VaultInputScreen from './VaultInputScreen';
 import { repayInputConfig } from './configs';
 
@@ -23,6 +24,7 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
     setAvailableRepayBalanceUsd,
     setAvailableTurboUnitBalance,
     setAvailableDirectUnitBalance,
+    setRepayAmountUnit,
   } = store;
   const { loadVaultData } = useRepayFromUsdcSettlement();
   const { runesBalance } = useBalance();
@@ -44,8 +46,7 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
   }, [runesBalance]);
 
   const turboUnitBalanceUsd = useMemo((): number => {
-    const parsed = (cashuBalance || 0) / 100;
-    return Number.isFinite(parsed) ? parsed : 0;
+    return getRepayableTurboUnitContribution(cashuBalance);
   }, [cashuBalance]);
 
   // Sync the currently repayable face value into the repay store.
@@ -60,6 +61,12 @@ export default function RepayInputScreenNew({ navigation }: RepayInputScreenNewP
   useEffect(() => {
     setAvailableTurboUnitBalance(turboUnitBalanceUsd);
   }, [setAvailableTurboUnitBalance, turboUnitBalanceUsd]);
+
+  useEffect(() => {
+    if (store.repayAmountUnit > store.maxRepayable && store.maxRepayable >= 0) {
+      setRepayAmountUnit(store.maxRepayable);
+    }
+  }, [setRepayAmountUnit, store.maxRepayable, store.repayAmountUnit]);
 
   return (
     <VaultInputScreen

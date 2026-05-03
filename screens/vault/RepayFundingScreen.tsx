@@ -30,14 +30,15 @@ export default function RepayFundingScreen({ navigation }: RepayFundingScreenPro
   const { settingsHandlers } = useSettingsHandlers();
   const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
   const effectiveFundingAsset = resolveVaultSettlementRequestedAsset(repayFundingAsset, allowUsdc);
+  const unitAndTurboBalanceUsd = availableDirectUnitBalanceUsd + availableTurboUnitBalanceUsd;
 
   const balances = useMemo(
     () => ({
       UNIT: availableDirectUnitBalanceUsd,
-      TURBOUNIT: availableTurboUnitBalanceUsd,
+      TURBOUNIT: availableTurboUnitBalanceUsd > 0 ? unitAndTurboBalanceUsd : 0,
       USDC: allowUsdc ? availableRepayBalanceUsd : 0,
     }),
-    [allowUsdc, availableDirectUnitBalanceUsd, availableRepayBalanceUsd, availableTurboUnitBalanceUsd],
+    [allowUsdc, availableDirectUnitBalanceUsd, availableRepayBalanceUsd, availableTurboUnitBalanceUsd, unitAndTurboBalanceUsd],
   );
 
   useEffect(() => {

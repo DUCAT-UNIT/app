@@ -9,6 +9,7 @@ import { StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { usePrice } from '../../stores/priceStore';
+import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useVaultData, useBalance } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
@@ -64,8 +65,11 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
 
   // Get wallet balances for button states
   const { segwitBalance, runesBalance } = useBalance();
+  const { balance: cashuBalance } = useCashuBalanceState();
   const walletBtcBalance = segwitBalance || 0;
   const walletUnitBalance = getRunesAmount(runesBalance);
+  const walletTurboUnitBalance = (cashuBalance || 0) / 100;
+  const walletRepayBalance = walletUnitBalance + walletTurboUnitBalance;
 
   // Mark as loaded once we have data (prevents skeleton on background refresh)
   if (vaultData !== null) {
@@ -206,6 +210,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
           isPendingTransaction={!!pendingTransaction}
           walletBtcBalance={walletBtcBalance}
           walletUnitBalance={walletUnitBalance}
+          walletRepayBalance={walletRepayBalance}
           onChartPress={handleChartPress}
           onBorrowPress={handleBorrowPress}
           onRepayPress={handleRepayPress}

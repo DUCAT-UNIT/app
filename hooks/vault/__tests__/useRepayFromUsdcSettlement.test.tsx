@@ -117,6 +117,7 @@ function configure({
   repayFundingAsset = 'UNIT',
   persistedRequestedPayoutAsset = 'UNIT',
   persistedRedemptionId = null,
+  availableDirectUnitBalance = 0,
   rawRepayResult = { txid: 'repay-txid', vaultTxid: 'vault-txid' },
   rawRepayError = null,
 }: {
@@ -124,6 +125,7 @@ function configure({
   repayFundingAsset?: 'UNIT' | 'TURBOUNIT' | 'USDC';
   persistedRequestedPayoutAsset?: 'UNIT' | 'TURBOUNIT' | 'USDC';
   persistedRedemptionId?: string | null;
+  availableDirectUnitBalance?: number;
   rawRepayResult?: { txid: string; vaultTxid: string } | null;
   rawRepayError?: string | null;
 } = {}): void {
@@ -142,6 +144,7 @@ function configure({
   (useRepay as jest.Mock).mockReturnValue({
     repayAmountUsd: 50,
     repayFundingAsset,
+    availableDirectUnitBalance,
     error: null,
     setError: mockSetError,
     setRepayQuote: mockSetRepayStoreQuote,
@@ -187,13 +190,13 @@ function configure({
   (requestMelt as jest.Mock).mockResolvedValue({
     quoteId: 'melt-1',
     amount: 5000,
-    fee: 10,
-    total: 5010,
+    fee: 0,
+    total: 5000,
   });
   (completeMelt as jest.Mock).mockResolvedValue({
     paid: true,
     txid: 'melt-txid',
-    fee: 10,
+    fee: 0,
     balance: 0,
   });
   (waitForRedemptionRelease as jest.Mock).mockResolvedValue({
@@ -251,14 +254,37 @@ describe('useRepayFromUsdcSettlement', () => {
       fundingAsset: 'TURBOUNIT',
       requiredUsdcIn: '0',
       estimatedSepoliaFeeEth: '0',
-      requiredTurboUnitIn: '50.10',
-      estimatedTurboUnitFee: '0.10',
+      requiredTurboUnitIn: '50.00',
+      estimatedTurboUnitFee: '0.00',
     });
 
     expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
     expect(mockSetRepayStoreQuote).toHaveBeenCalledWith('0', '0');
-    expect(mockSetTurboRepayQuote).toHaveBeenCalledWith('50.10', '0.10');
+    expect(mockSetTurboRepayQuote).toHaveBeenCalledWith('50.00', '0.00');
     expect(quoteVaultRepaySettlement).not.toHaveBeenCalled();
+  });
+
+  it('quotes only the TurboUNIT shortfall when direct UNIT covers part of the repay', async () => {
+    configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 40 });
+    (getCashuBalance as jest.Mock).mockResolvedValueOnce(2000);
+    (requestMelt as jest.Mock).mockResolvedValueOnce({
+      quoteId: 'melt-shortfall',
+      amount: 1000,
+      fee: 0,
+      total: 1000,
+    });
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+
+    await expect(result.current.quoteRepaySettlement(50)).resolves.toEqual({
+      fundingAsset: 'TURBOUNIT',
+      requiredUsdcIn: '0',
+      estimatedSepoliaFeeEth: '0',
+      requiredTurboUnitIn: '10.00',
+      estimatedTurboUnitFee: '0.00',
+    });
+
+    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 1000);
+    expect(mockSetTurboRepayQuote).toHaveBeenCalledWith('10.00', '0.00');
   });
 
   it('executes a repay directly when spendable UNIT already exists', async () => {
@@ -343,7 +369,7 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(mockStartOperation).toHaveBeenCalledWith('repay', 50, 'TURBOUNIT');
     expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
     expect(mockSetCashuMeltQuote).toHaveBeenCalledWith('melt-1');
-    expect(completeMelt).toHaveBeenCalledWith('melt-1', 5010);
+    expect(completeMelt).toHaveBeenCalledWith('melt-1', 5000);
     expect(mockSetCashuMeltTxid).toHaveBeenCalledWith('melt-txid');
     expect(requestRedemption).not.toHaveBeenCalled();
     expect(mockSetPhase.mock.calls.map(([phase]) => phase)).toEqual([
@@ -351,7 +377,53 @@ describe('useRepayFromUsdcSettlement', () => {
       'waiting_turbo_release',
       'repaying_vault',
     ]);
-    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.10');
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('melts only the TurboUNIT shortfall before repaying with combined UNIT', async () => {
+    configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 40 });
+    mockRuneUtxos
+      .mockResolvedValueOnce([{ txid: 'combined-unit-utxo' }]);
+    (getCashuBalance as jest.Mock).mockResolvedValueOnce(2000);
+    (requestMelt as jest.Mock).mockResolvedValueOnce({
+      quoteId: 'melt-shortfall',
+      amount: 1000,
+      fee: 0,
+      total: 1000,
+    });
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 1000);
+    expect(completeMelt).toHaveBeenCalledWith('melt-shortfall', 1000);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '10.00');
+  });
+
+  it('shows a specific retryable message when the TurboUNIT mint cannot broadcast withdrawal', async () => {
+    configure({ repayFundingAsset: 'TURBOUNIT' });
+    (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
+    (completeMelt as jest.Mock).mockRejectedValueOnce(
+      new Error('Withdrawal failed - your ecash tokens remain valid, please try again')
+    );
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    const displayMessage =
+      'The TurboUNIT mint could not broadcast the UNIT withdrawal. Your TurboUNIT remains in your wallet. Try a smaller amount or try again later.';
+    expect(repayResult).toBeNull();
+    expect(mockMarkNeedsRetry).toHaveBeenCalledWith(displayMessage);
+    expect(mockSetError).toHaveBeenLastCalledWith(displayMessage);
+    expect(mockSetCashuMeltTxid).not.toHaveBeenCalled();
+    expect(mockRawRepay).not.toHaveBeenCalled();
   });
 
   it('resumes an existing redemption instead of burning USDC again', async () => {

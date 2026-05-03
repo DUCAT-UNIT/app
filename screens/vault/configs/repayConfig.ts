@@ -44,7 +44,7 @@ export const repayInputConfig: VaultInputScreenConfig<
   getAmountConfig: (store) => ({
     value: store.repayAmountUsd,
     setValue: store.setRepayAmountUsd,
-    maxValue: Math.max(0, Math.floor(store.maxRepayableUsd || 0)),
+    maxValue: Math.max(0, Math.round((store.maxRepayableUsd || 0) * 100) / 100),
     label: 'USD to Repay',
     isUnitAmount: true,
     displayUnitLabel: 'USD',
@@ -108,9 +108,9 @@ export const repayInputConfig: VaultInputScreenConfig<
     const repayBalanceUsd = additionalData?.repayBalanceUsd ?? 0;
     const directUnitBalanceUsd = additionalData?.directUnitBalanceUsd ?? 0;
     const turboUnitBalanceUsd = additionalData?.turboUnitBalanceUsd ?? 0;
+    const unitAndTurboBalanceUsd = directUnitBalanceUsd + (allowTurboUnit ? turboUnitBalanceUsd : 0);
     const maxFundingUsd = Math.max(
-      directUnitBalanceUsd,
-      allowTurboUnit ? turboUnitBalanceUsd : 0,
+      unitAndTurboBalanceUsd,
       allowUsdc ? repayBalanceUsd : 0,
     );
 
@@ -123,7 +123,7 @@ export const repayInputConfig: VaultInputScreenConfig<
     if (amount > maxFundingUsd) {
       if (directUnitBalanceUsd > 0 || turboUnitBalanceUsd > 0) {
         errors.push(
-          `Insufficient repayable balance. You have ${formatVaultUsd(directUnitBalanceUsd)} in spendable UNIT, ${formatVaultUsd(turboUnitBalanceUsd)} in TurboUNIT, and ${formatVaultUsd(allowUsdc ? repayBalanceUsd : 0)} in Sepolia USDC.`,
+          `Insufficient repayable balance. You have ${formatVaultUsd(unitAndTurboBalanceUsd)} across spendable UNIT and TurboUNIT, and ${formatVaultUsd(allowUsdc ? repayBalanceUsd : 0)} in Sepolia USDC.`,
         );
       } else if (allowUsdc) {
         errors.push(`Insufficient Sepolia USDC or TurboUNIT balance. You have ${formatVaultUsd(repayBalanceUsd)} in Sepolia USDC and ${formatVaultUsd(turboUnitBalanceUsd)} in TurboUNIT.`);

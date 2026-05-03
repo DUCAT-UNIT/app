@@ -46,9 +46,9 @@ const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
   },
   TURBOUNIT: {
     title: 'Repay with TurboUNIT',
-    subtitle: 'Melt ecash first',
-    description: 'Melt TurboUNIT into UNIT, then use the released UNIT to repay the vault.',
-    balanceLabel: 'TurboUNIT',
+    subtitle: 'Use UNIT + TurboUNIT',
+    description: 'Melt only the needed TurboUNIT, then repay with your combined UNIT balance.',
+    balanceLabel: 'UNIT + TurboUNIT',
     icon: 'unit_logo',
     bullets: [
       { icon: 'flash-outline', label: 'Uses your TurboUNIT balance' },

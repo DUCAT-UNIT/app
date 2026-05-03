@@ -21,6 +21,9 @@ import { useRepayVault, type UseRepayVaultResult } from './useRepayVault';
 
 const RELEASED_UNIT_RETRY_MS = 5_000;
 const RELEASED_UNIT_TIMEOUT_MS = 180_000;
+const CASHU_MINT_WITHDRAWAL_FAILURE = 'Withdrawal failed - your ecash tokens remain valid';
+const TURBOUNIT_MINT_WITHDRAWAL_FAILURE_MESSAGE =
+  'The TurboUNIT mint could not broadcast the UNIT withdrawal. Your TurboUNIT remains in your wallet. Try a smaller amount or try again later.';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -31,6 +34,20 @@ function delay(ms: number): Promise<void> {
 
 function formatSmallestUnitAmount(amount: number): string {
   return formatVaultSettlementAmountInput(amount / 100);
+}
+
+function getRepayDisplayError(message: string): string {
+  if (message.includes(CASHU_MINT_WITHDRAWAL_FAILURE)) {
+    return TURBOUNIT_MINT_WITHDRAWAL_FAILURE_MESSAGE;
+  }
+  return message;
+}
+
+interface TurboRepayQuote {
+  meltAmount: number;
+  quote: MeltQuoteResult | null;
+  total: number;
+  fee: number;
 }
 
 export interface UseRepayFromUsdcSettlementResult extends UseRepayVaultResult {
@@ -53,6 +70,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
   const {
     repayAmountUsd,
     repayFundingAsset,
+    availableDirectUnitBalance,
     error: storeError,
     setError,
     setRepayQuote: setRepayStoreQuote,
@@ -109,26 +127,49 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     ],
   );
 
+  const getRequiredTurboMeltAmount = useCallback(
+    (amountUsd: number): number => {
+      const requiredAmount = Math.round(amountUsd * 100);
+      const availableDirectUnitAmount = Math.max(0, Math.round((availableDirectUnitBalance || 0) * 100));
+      return Math.max(0, requiredAmount - availableDirectUnitAmount);
+    },
+    [availableDirectUnitBalance],
+  );
+
   const getTurboRepayQuote = useCallback(
-    async (amountUsd: number): Promise<MeltQuoteResult | null> => {
+    async (amountUsd: number): Promise<TurboRepayQuote | null> => {
       if (!wallet?.taprootAddress) {
         throw new Error('Wallet not connected');
       }
 
-      const requiredAmount = Math.round(amountUsd * 100);
+      const meltAmount = getRequiredTurboMeltAmount(amountUsd);
+      if (meltAmount <= 0) {
+        return {
+          meltAmount: 0,
+          quote: null,
+          total: 0,
+          fee: 0,
+        };
+      }
+
       const cashuBalance = await getCashuBalance();
-      if (cashuBalance < requiredAmount) {
+      if (cashuBalance < meltAmount) {
         return null;
       }
 
-      const quote = await requestMelt(wallet.taprootAddress, requiredAmount);
+      const quote = await requestMelt(wallet.taprootAddress, meltAmount);
       if (cashuBalance < quote.total) {
         return null;
       }
 
-      return quote;
+      return {
+        meltAmount,
+        quote,
+        total: quote.total,
+        fee: quote.fee,
+      };
     },
-    [wallet?.taprootAddress],
+    [getRequiredTurboMeltAmount, wallet?.taprootAddress],
   );
 
   const quoteUsdcRepaySettlement = useCallback(
@@ -142,6 +183,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         setRepayStoreQuote(null, null);
         setTurboRepayQuote(null, null);
         setRepayQuote(null, null);
+        setError('Sepolia USDC repay is not enabled.');
         throw new Error('Sepolia USDC repay is not enabled.');
       }
 
@@ -165,6 +207,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       setRepayStoreQuote(quote.requiredUsdcIn, quote.estimatedSepoliaFeeEth);
       setTurboRepayQuote(null, null);
       setRepayQuote(quote.requiredUsdcIn, quote.estimatedSepoliaFeeEth);
+      setError(null);
 
       return {
         fundingAsset: 'USDC' as const,
@@ -176,6 +219,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     },
     [
       currentAccount,
+      setError,
       setRepayQuote,
       setRepayStoreQuote,
       setTurboRepayQuote,
@@ -195,6 +239,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           setRepayStoreQuote(null, null);
           setTurboRepayQuote(null, null);
           setRepayQuote(null, null);
+          setError('Not enough spendable UNIT to repay this amount.');
           throw new Error('Not enough spendable UNIT to repay this amount.');
         }
 
@@ -205,6 +250,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         setRepayStoreQuote('0', '0');
         setTurboRepayQuote('0', '0');
         setRepayQuote('0', '0');
+        setError(null);
         return {
           fundingAsset: 'UNIT' as const,
           requiredUsdcIn: '0',
@@ -220,7 +266,8 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           setRepayStoreQuote(null, null);
           setTurboRepayQuote(null, null);
           setRepayQuote(null, null);
-          throw new Error('Not enough TurboUNIT to repay this amount.');
+          setError('Not enough UNIT plus TurboUNIT to repay this amount.');
+          throw new Error('Not enough UNIT plus TurboUNIT to repay this amount.');
         }
 
         const requiredTurboUnitIn = formatSmallestUnitAmount(turboQuote.total);
@@ -228,13 +275,15 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         logger.debug('[VaultRepayFromUsdc] TurboUNIT funding selected, using Cashu melt quote', {
           currentAccount,
           amountUsd,
-          quoteId: turboQuote.quoteId,
+          meltAmount: turboQuote.meltAmount,
+          quoteId: turboQuote.quote?.quoteId ?? null,
           total: turboQuote.total,
           fee: turboQuote.fee,
         });
         setRepayStoreQuote('0', '0');
         setTurboRepayQuote(requiredTurboUnitIn, estimatedTurboUnitFee);
         setRepayQuote('0', '0');
+        setError(null);
         return {
           fundingAsset: 'TURBOUNIT' as const,
           requiredUsdcIn: '0',
@@ -252,6 +301,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       hasSpendableDirectUnitBalance,
       quoteUsdcRepaySettlement,
       repayFundingAsset,
+      setError,
       setRepayQuote,
       setRepayStoreQuote,
       setTurboRepayQuote,
@@ -350,7 +400,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         throw new Error('Not enough spendable UNIT to repay this amount.');
       }
       if (requestedPayoutAsset === 'TURBOUNIT' && !canRepayWithTurboUnit) {
-        throw new Error('Not enough TurboUNIT to repay this amount.');
+        throw new Error('Not enough UNIT plus TurboUNIT to repay this amount.');
       }
       if (requestedPayoutAsset === 'USDC' && !usdcFeaturesEnabled) {
         throw new Error('Sepolia USDC repay is not enabled.');
@@ -390,25 +440,30 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             cashuMeltTxid: persistedCashuMeltTxid,
           });
         } else {
-          setPhase('melting_turbo_repay');
           const activeTurboQuote = turboQuote ?? await getTurboRepayQuote(repayAmountUsd);
           if (!activeTurboQuote) {
-            throw new Error('Not enough TurboUNIT to repay this amount.');
+            throw new Error('Not enough UNIT plus TurboUNIT to repay this amount.');
           }
-          const quoteId = activeTurboQuote.quoteId;
-          const quoteTotal = activeTurboQuote.total;
-          setCashuMeltQuote(quoteId);
-          const meltResult = await completeMelt(quoteId, quoteTotal);
-          setCashuMeltTxid(meltResult.txid);
-          await refreshCashuBalance().catch(() => undefined);
-          logger.debug('[VaultRepayFromUsdc] TurboUNIT melt submitted', {
-            currentAccount,
-            quoteId,
-            txid: meltResult.txid,
-          });
+          if (activeTurboQuote.quote && activeTurboQuote.meltAmount > 0) {
+            setPhase('melting_turbo_repay');
+            const quoteId = activeTurboQuote.quote.quoteId;
+            const quoteTotal = activeTurboQuote.quote.total;
+            setCashuMeltQuote(quoteId);
+            const meltResult = await completeMelt(quoteId, quoteTotal);
+            setCashuMeltTxid(meltResult.txid);
+            await refreshCashuBalance().catch(() => undefined);
+            logger.debug('[VaultRepayFromUsdc] TurboUNIT melt submitted', {
+              currentAccount,
+              quoteId,
+              txid: meltResult.txid,
+              meltAmount: activeTurboQuote.meltAmount,
+            });
+          }
         }
 
-        setPhase('waiting_turbo_release');
+        if (turboQuote?.meltAmount || persistedCashuMeltTxid) {
+          setPhase('waiting_turbo_release');
+        }
       } else if (!canRepayDirectly) {
         if (settlementKind === 'repay' && persistedRedemptionId) {
           logger.debug('[VaultRepayFromUsdc] Resuming existing redemption', {
@@ -491,17 +546,18 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to repay';
+      const displayMessage = getRepayDisplayError(message);
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         scope: 'useRepayFromUsdcSettlement',
       });
       if (
         !message.includes('Not enough spendable UNIT')
-        && !message.includes('Not enough TurboUNIT')
+        && !message.includes('Not enough UNIT plus TurboUNIT')
         && !message.includes('Sepolia USDC repay is not enabled')
       ) {
-        markNeedsRetry(message);
+        markNeedsRetry(displayMessage);
       }
-      setError(message);
+      setError(displayMessage);
       return null;
     } finally {
       setIsSettling(false);
