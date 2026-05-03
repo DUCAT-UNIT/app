@@ -38,11 +38,6 @@
     "coverage",
     "ios",
     "android",
-    "bridge-service",
-    "evm",
-    "evm/artifacts",
-    "evm/cache",
-    "bridge-service/dist",
     "web/pool-dashboard",
     "vendor",
     "tmp"

@@ -10,7 +10,6 @@ const root = resolve(__dirname, '..');
 const APP_CODE_ROOTS = [
   'App.tsx',
   'app.config.ts',
-  'bridge-service',
   'components',
   'constants',
   'contexts',
