@@ -22,8 +22,8 @@
         "applinks:ducatprotocol.com"
       ],
       "usesIcloudStorage": true,
-      "iCloudContainerEnvironment": "Production",
       "entitlements": {
+        "com.apple.developer.icloud-container-environment": "Production",
         "com.apple.developer.icloud-container-identifiers": [
           "iCloud.com.ducatprotocol.DucatProtocolWallet"
         ],
