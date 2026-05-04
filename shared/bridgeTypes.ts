@@ -33,17 +33,6 @@ export interface BridgeIntent {
   requiresManualRecovery?: boolean;
 }
 
-export interface BridgeDeposit {
-  id: string;
-  intentId: string;
-  txid: string;
-  amount: string;
-  confirmations: number;
-  observedAt: string;
-  custodyAddress: string;
-  exactMatch: boolean;
-}
-
 export interface RedemptionRequest {
   id: string;
   createdAt: string;
@@ -56,27 +45,6 @@ export interface RedemptionRequest {
   releaseTxid?: string;
   status: RedemptionStatus;
   error?: string;
-}
-
-export interface PoolPosition {
-  reserveWunit: string;
-  reserveUsdc: string;
-  amplification: number;
-  swapFeeBps: number;
-  totalLpSupply: string;
-  virtualPrice?: string;
-  paused?: boolean;
-}
-
-export interface ReconciliationSnapshot {
-  asOf: string;
-  lockedUnit: string;
-  circulatingWunit: string;
-  pendingReleaseUnit: string;
-  availableBacking: string;
-  isBacked: boolean;
-  drift: string;
-  alert?: string;
 }
 
 export interface CreateBridgeIntentRequest {
