@@ -1,6 +1,11 @@
 import { getRedemptionStatus, trackRedemption } from './bridgeApiService';
 import { deriveSepoliaAccount, getSepoliaProvider } from './evmWalletService';
-import { useEvmTransactionCheckpointStore, type EvmTransactionCheckpoint } from '../stores/evmTransactionCheckpointStore';
+import {
+  hydrateEvmTransactionCheckpointFallbacks,
+  persistEvmTransactionCheckpointsNow,
+  useEvmTransactionCheckpointStore,
+  type EvmTransactionCheckpoint,
+} from '../stores/evmTransactionCheckpointStore';
 import type { RedemptionRequest, TrackRedemptionRequest } from '../shared/bridgeTypes';
 import { logger } from '../utils/logger';
 
@@ -25,6 +30,8 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 export async function reconcileSubmittedEvmTransactionCheckpoints(): Promise<EvmTransactionCheckpointReconciliationResult> {
+  await hydrateEvmTransactionCheckpointFallbacks();
+
   const recoverable = useEvmTransactionCheckpointStore
     .getState()
     .checkpoints
@@ -43,6 +50,7 @@ export async function reconcileSubmittedEvmTransactionCheckpoints(): Promise<Evm
   }
 
   const provider = getSepoliaProvider();
+  let changed = false;
 
   for (const checkpoint of recoverable) {
     result.checked += 1;
@@ -51,6 +59,7 @@ export async function reconcileSubmittedEvmTransactionCheckpoints(): Promise<Evm
       if (!receipt) {
         if (checkpoint.status === 'failed') {
           useEvmTransactionCheckpointStore.getState().markSubmitted(checkpoint.txHash);
+          changed = true;
         }
         result.pending += 1;
         continue;
@@ -62,9 +71,11 @@ export async function reconcileSubmittedEvmTransactionCheckpoints(): Promise<Evm
           checkpoint.txHash,
           'Sepolia transaction reverted on-chain.',
         );
+        changed = true;
         result.failed += 1;
       } else {
         useEvmTransactionCheckpointStore.getState().markConfirmed(checkpoint.txHash, receiptHash);
+        changed = true;
         result.confirmed += 1;
       }
     } catch (error) {
@@ -74,6 +85,10 @@ export async function reconcileSubmittedEvmTransactionCheckpoints(): Promise<Evm
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  if (changed) {
+    await persistEvmTransactionCheckpointsNow();
   }
 
   return result;
@@ -106,7 +121,7 @@ function buildRedemptionTrackingPayload(
     requester,
     destinationTaprootAddress: checkpoint.destinationTaprootAddress,
     amount: checkpoint.amount,
-    sourceAsset: 'wUNIT',
+    sourceAsset: checkpoint.asset === 'USDC' ? 'USDC' : 'wUNIT',
     burnTxHash: checkpoint.receiptTxHash || checkpoint.txHash,
   };
 }

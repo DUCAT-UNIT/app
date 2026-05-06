@@ -12,6 +12,9 @@ import {
   recoverSwapProofsFromTransaction,
   recoverPendingSwap,
   checkAndRecoverSwaps,
+  persistRecoveredSwapSendProofs,
+  loadRecoveredOutgoingSwapTokens,
+  clearRecoveredOutgoingSwapToken,
   PendingSwapTransaction,
 } from '../cashuSwapRecovery';
 
@@ -33,25 +36,46 @@ jest.mock('../../../utils/logger', () => ({
 
 // Mock functions - prefixed with 'mock' to be accessible in jest.mock factory
 const mockUnblindSignatures = jest.fn();
+const mockEncodeToken = jest.fn((_proofs?: unknown, _mintUrl?: unknown) => 'cashuA_mock_token');
+const mockSumProofs = jest.fn((proofs: Array<{ amount: number }>) =>
+  proofs.reduce((sum, proof) => sum + proof.amount, 0)
+);
 const mockAddProofs = jest.fn();
 const mockLoadProofs = jest.fn();
 const mockSaveProofs = jest.fn();
-const mockWithProofLock = jest.fn(async (fn: () => Promise<unknown>) => fn());
+const mockWithProofLock = jest.fn(
+  async (fn: (context: { account: string; storageKey: string }) => Promise<unknown>) =>
+    fn({ account: 'tb1ptest', storageKey: 'cashu_proofs_tb1ptest' })
+);
 const mockGetCurrentCashuAccount = jest.fn<string | null, []>(() => null);
+const mockRestoreSignatures = jest.fn();
+const mockCheckProofsSpent = jest.fn();
 
 // Use jest.mock with factory - mock-prefixed variables are allowed
 jest.mock('../crypto', () => ({
   __esModule: true,
   unblindSignatures: (...args: unknown[]) => mockUnblindSignatures(...args),
+  encodeToken: (proofs: unknown, mintUrl: unknown) => mockEncodeToken(proofs, mintUrl),
+  sumProofs: (proofs: Array<{ amount: number }>) => mockSumProofs(proofs),
 }));
 
 jest.mock('../cashuProofManager', () => ({
   __esModule: true,
   addProofs: (...args: unknown[]) => mockAddProofs(...args),
   loadProofs: (...args: unknown[]) => mockLoadProofs(...args),
+  loadProofsForStorageKey: (...args: unknown[]) => mockLoadProofs(...args),
   saveProofs: (...args: unknown[]) => mockSaveProofs(...args),
-  withProofLock: (fn: () => Promise<unknown>) => mockWithProofLock(fn),
+  saveProofsForStorageKey: (proofs: unknown) => mockSaveProofs(proofs),
+  withProofLock: (fn: (context: { account: string; storageKey: string }) => Promise<unknown>) =>
+    mockWithProofLock(fn),
   getCurrentCashuAccount: () => mockGetCurrentCashuAccount(),
+}));
+
+jest.mock('../cashuMintClient', () => ({
+  __esModule: true,
+  MINT_URL: 'https://mint.test',
+  restoreSignatures: (...args: unknown[]) => mockRestoreSignatures(...args),
+  checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
 }));
 
 describe('cashuSwapRecovery', () => {
@@ -69,9 +93,9 @@ describe('cashuSwapRecovery', () => {
   const mockKeys = { '1': 'key1', '2': 'key2' };
 
   const mockSecretTypeMap = {
-    'new1': 'send' as const,
-    'new2': 'change' as const,
-    'new3': 'p2pk' as const,
+    new1: 'send' as const,
+    new2: 'change' as const,
+    new3: 'p2pk' as const,
   };
 
   beforeEach(() => {
@@ -80,6 +104,10 @@ describe('cashuSwapRecovery', () => {
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
     mockGetCurrentCashuAccount.mockReturnValue(null);
+    mockRestoreSignatures.mockRejectedValue(new Error('restore unsupported'));
+    mockCheckProofsSpent.mockResolvedValue({
+      states: mockInputProofs.map((proof) => ({ Y: proof.secret, state: 'UNSPENT' })),
+    });
   });
 
   describe('savePendingSwap', () => {
@@ -94,8 +122,13 @@ describe('cashuSwapRecovery', () => {
 
       expect(id).toMatch(/^swap_\d+_/);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        'cashu_pending_swap',
+        expect.stringMatching(/^cashu_pending_swap_swap_\d+_/),
         expect.stringContaining('"status":"pending"'),
+        expect.any(Object)
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'cashu_pending_swaps_v1',
+        expect.stringContaining(id),
         expect.any(Object)
       );
     });
@@ -136,6 +169,38 @@ describe('cashuSwapRecovery', () => {
         })
       ).rejects.toThrow('Storage error');
     });
+
+    it('should not overwrite a corrupt swap registry and should write a legacy fallback', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swaps_v1') {
+          return Promise.resolve('{bad json');
+        }
+        return Promise.resolve(null);
+      });
+
+      const id = await savePendingSwap({
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+      });
+
+      expect(id).toMatch(/^swap_\d+_/);
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+        ([key]) => key === 'cashu_pending_swaps_v1',
+      )).toBe(false);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^cashu_pending_swaps_v1_corrupt_/),
+        '{bad json',
+        expect.any(Object),
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'cashu_pending_swap',
+        expect.stringContaining(id),
+        expect.any(Object),
+      );
+    });
   });
 
   describe('updateSwapWithResponse', () => {
@@ -150,7 +215,12 @@ describe('cashuSwapRecovery', () => {
         secretTypeMap: mockSecretTypeMap,
         status: 'pending',
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swap') {
+          return Promise.resolve(JSON.stringify(pendingTxn));
+        }
+        return Promise.resolve(null);
+      });
 
       const swapResponse = {
         signatures: [{ C_: 'sig1', id: 'keyset1', amount: 64 }],
@@ -158,9 +228,7 @@ describe('cashuSwapRecovery', () => {
 
       await updateSwapWithResponse(swapResponse);
 
-      const savedData = JSON.parse(
-        (SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]
-      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData.status).toBe('swapped');
       expect(savedData.swapResponse).toEqual(swapResponse);
     });
@@ -184,7 +252,12 @@ describe('cashuSwapRecovery', () => {
         status: 'pending',
         taprootAddress: 'tb1pother',
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swap') {
+          return Promise.resolve(JSON.stringify(pendingTxn));
+        }
+        return Promise.resolve(null);
+      });
 
       await updateSwapWithResponse({ signatures: [{ C_: 'sig1' }] });
 
@@ -205,9 +278,42 @@ describe('cashuSwapRecovery', () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
       (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
-      await expect(
-        updateSwapWithResponse({ signatures: [] })
-      ).rejects.toThrow('Storage error');
+      await expect(updateSwapWithResponse({ signatures: [] })).rejects.toThrow('Storage error');
+    });
+
+    it('keeps a recoverable legacy response if the primary swapped entry write fails', async () => {
+      const pendingTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+        status: 'pending',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swap_swap_123') {
+          return Promise.resolve(JSON.stringify(pendingTxn));
+        }
+        return Promise.resolve(null);
+      });
+      (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swap_swap_123') {
+          return Promise.reject(new Error('Primary write failed'));
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const swapResponse = { signatures: [{ C_: 'sig1', id: 'keyset1', amount: 64 }] };
+
+      await expect(updateSwapWithResponse(swapResponse, 'swap_123')).resolves.toBeUndefined();
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'cashu_pending_swap',
+        expect.stringContaining('"status":"swapped"'),
+        expect.any(Object)
+      );
     });
   });
 
@@ -255,7 +361,7 @@ describe('cashuSwapRecovery', () => {
       expect(result?.keys).toEqual(pendingTxn.keys);
     });
 
-    it('should clear and return null if swap is too old (> 1 hour)', async () => {
+    it('should keep old pending swaps so recovery can inspect mint state', async () => {
       const oldTxn: PendingSwapTransaction = {
         id: 'swap_123',
         timestamp: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
@@ -270,8 +376,9 @@ describe('cashuSwapRecovery', () => {
 
       const result = await loadPendingSwap();
 
-      expect(result).toBeNull();
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(oldTxn.id);
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     });
 
     it('should handle parse errors gracefully', async () => {
@@ -290,7 +397,7 @@ describe('cashuSwapRecovery', () => {
       expect(result).toBeNull();
     });
 
-    it('should clear and return null for pending status', async () => {
+    it('should clear and return null for pending status when inputs are unspent', async () => {
       const pendingTxn: PendingSwapTransaction = {
         id: 'swap_123',
         timestamp: Date.now(),
@@ -306,7 +413,76 @@ describe('cashuSwapRecovery', () => {
       const result = await recoverPendingSwap();
 
       expect(result).toBeNull();
+      expect(mockRestoreSignatures).toHaveBeenCalled();
+      expect(mockCheckProofsSpent).toHaveBeenCalledWith(mockInputProofs);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
+    });
+
+    it('should restore an interrupted pending swap before recovering proofs', async () => {
+      const pendingTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+        status: 'pending',
+      };
+      const restoredSignatures = [
+        { C_: 'sig1', id: 'keyset1', amount: 64 },
+        { C_: 'sig2', id: 'keyset1', amount: 32 },
+        { C_: 'sig3', id: 'keyset1', amount: 16 },
+      ];
+
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
+      mockRestoreSignatures.mockResolvedValue({ signatures: restoredSignatures });
+      mockUnblindSignatures.mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C2', id: 'keyset1' },
+        { amount: 16, secret: 'new3', C: 'C3', id: 'keyset1' },
+      ]);
+
+      const result = await recoverPendingSwap();
+
+      expect(mockRestoreSignatures).toHaveBeenCalledWith([
+        { amount: 64, B_: 'B1', id: 'keyset1' },
+        { amount: 32, B_: 'B2', id: 'keyset1' },
+        { amount: 16, B_: 'B3', id: 'keyset1' },
+      ]);
+      expect(mockUnblindSignatures).toHaveBeenCalledWith(
+        restoredSignatures,
+        mockBlindingData,
+        mockKeys,
+        'keyset1'
+      );
+      expect(result?.sendProofs).toHaveLength(2);
+      expect(result?.changeProofs).toHaveLength(1);
+    });
+
+    it('should keep pending swap evidence when restore fails and inputs may be spent', async () => {
+      const pendingTxn: PendingSwapTransaction = {
+        id: 'swap_123',
+        timestamp: Date.now(),
+        inputProofs: mockInputProofs,
+        blindingData: mockBlindingData,
+        keys: mockKeys,
+        keysetId: 'keyset1',
+        secretTypeMap: mockSecretTypeMap,
+        status: 'pending',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTxn));
+      mockCheckProofsSpent.mockResolvedValue({
+        states: mockInputProofs.map((proof, index) => ({
+          Y: proof.secret,
+          state: index === 0 ? 'SPENT' : 'UNSPENT',
+        })),
+      });
+
+      const result = await recoverPendingSwap();
+
+      expect(result).toBeNull();
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     });
 
     it('should recover and split proofs from swapped status', () => {
@@ -339,15 +515,18 @@ describe('cashuSwapRecovery', () => {
         swappedTxn.swapResponse!.signatures,
         swappedTxn.blindingData,
         swappedTxn.keys,
-        'keyset1',
+        'keyset1'
       );
       expect(result).toEqual({
         recovered: true,
+        swapId: 'swap_123',
+        taprootAddress: undefined,
         changeProofs: [{ amount: 32, secret: 'new2', C: 'C2', id: 'keyset1' }],
         sendProofs: [
           { amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' },
           { amount: 16, secret: 'new3', C: 'C3', id: 'keyset1' },
         ],
+        sendProofKind: 'mixed',
       });
     });
 
@@ -458,7 +637,7 @@ describe('cashuSwapRecovery', () => {
         swappedTxn.swapResponse!.signatures,
         swappedTxn.blindingData,
         swappedTxn.keys,
-        'fallback-keyset',
+        'fallback-keyset'
       );
       expect(result?.changeProofs).toEqual([
         { amount: 32, secret: 'new2', C: 'C2', id: 'fallback-keyset' },
@@ -478,7 +657,7 @@ describe('cashuSwapRecovery', () => {
       };
 
       expect(() => recoverSwapProofsFromTransaction(pendingTxn, mockUnblindSignatures)).toThrow(
-        'Pending swap is not recoverable',
+        'Pending swap is not recoverable'
       );
     });
   });
@@ -492,8 +671,10 @@ describe('cashuSwapRecovery', () => {
 
       await persistRecoveredSwapChangeProofs({
         recovered: true,
+        swapId: 'swap_123',
         changeProofs: [{ amount: 64, secret: 'new1', C: 'C1', id: 'keyset1' }],
         sendProofs: [],
+        sendProofKind: 'none',
       });
 
       expect(mockWithProofLock).toHaveBeenCalled();
@@ -510,12 +691,61 @@ describe('cashuSwapRecovery', () => {
 
       await persistRecoveredSwapChangeProofs({
         recovered: true,
+        swapId: 'swap_123',
         changeProofs: [{ amount: 64, secret: 'existing_secret', C: 'C1', id: 'keyset1' }],
         sendProofs: [],
+        sendProofKind: 'none',
       });
 
       expect(mockWithProofLock).toHaveBeenCalled();
       expect(mockSaveProofs).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('outgoing swap token recovery', () => {
+    it('persists recovered recipient proofs as an outgoing token', async () => {
+      await persistRecoveredSwapSendProofs({
+        recovered: true,
+        swapId: 'swap_123',
+        taprootAddress: 'tb1paccount',
+        changeProofs: [],
+        sendProofs: [{ amount: 64, secret: 'send1', C: 'C1', id: 'keyset1' }],
+        sendProofKind: 'send',
+      });
+
+      expect(mockEncodeToken).toHaveBeenCalledWith(
+        [{ amount: 64, secret: 'send1', C: 'C1', id: 'keyset1' }],
+        expect.any(String)
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'cashu_recovered_outgoing_swap_tokens_v1',
+        expect.stringContaining('cashuA_mock_token'),
+        expect.any(Object)
+      );
+    });
+
+    it('loads and clears recovered outgoing tokens', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(
+        JSON.stringify([
+          {
+            id: 'swap_123:outgoing',
+            token: 'cashuA_mock_token',
+            amount: 64,
+            kind: 'send',
+            sourceSwapId: 'swap_123',
+            createdAt: Date.now(),
+          },
+        ])
+      );
+
+      await expect(loadRecoveredOutgoingSwapTokens()).resolves.toHaveLength(1);
+      await clearRecoveredOutgoingSwapToken('cashuA_mock_token');
+
+      expect(SecureStore.setItemAsync).toHaveBeenLastCalledWith(
+        'cashu_recovered_outgoing_swap_tokens_v1',
+        '[]',
+        expect.any(Object)
+      );
     });
   });
 
@@ -534,7 +764,7 @@ describe('cashuSwapRecovery', () => {
         blindingData: mockBlindingData,
         keys: mockKeys,
         keysetId: 'keyset1',
-        secretTypeMap: { 'new1': 'change' },
+        secretTypeMap: { new1: 'change' },
         status: 'swapped',
         swapResponse: {
           signatures: [{ C_: 'sig1', id: 'keyset1', amount: 64 }],
@@ -549,7 +779,6 @@ describe('cashuSwapRecovery', () => {
 
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith('cashu_pending_swap');
     });
-
 
     it('should handle errors gracefully', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));

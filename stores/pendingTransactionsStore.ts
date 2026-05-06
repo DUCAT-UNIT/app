@@ -20,6 +20,7 @@ import {
   cleanupInvalidTransactions as cleanupInvalid,
   markUtxosAsSpent as markSpent,
   unmarkUtxosAsSpent as unmarkSpent,
+  getPendingInputUtxoKeys,
 } from '../utils/pendingTransactionsUtils';
 import type {
   UnconfirmedBalance,
@@ -30,10 +31,7 @@ import type {
 } from '../utils/pendingTransactionsUtils';
 
 import type { UtxoRef } from '../types/assets';
-import {
-  operationJournalId,
-  useOperationJournalStore,
-} from './operationJournalStore';
+import { operationJournalId, useOperationJournalStore } from './operationJournalStore';
 import type { TransactionDisplayKind } from '../utils/transactionMerging';
 
 export type PendingTransactionDisplayKind = TransactionDisplayKind;
@@ -61,6 +59,7 @@ interface PendingTransactionsState {
   pendingTransactions: Record<string, PendingTransaction>;
   spentUtxos: Set<string>;
   currentAccount: number;
+  hydratedAccount: number | null;
 }
 
 interface PendingTransactionsActions {
@@ -74,16 +73,16 @@ interface PendingTransactionsActions {
     inputUtxos?: Array<{ txid: string; vout: number }>,
     options?: {
       displayKind?: PendingTransactionDisplayKind;
-    },
+    }
   ) => Promise<void>;
   confirmTransaction: (txid: string) => Promise<void>;
-  invalidateTransaction: (
-    txid: string,
-    reason?: string,
-  ) => Promise<string[]>;
+  invalidateTransaction: (txid: string, reason?: string) => Promise<string[]>;
 
   // UTXO getters
-  getUnconfirmedUTXOs: (addressType?: AddressType, excludeFromIntent?: TransactionIntent | null) => UnconfirmedUTXO[];
+  getUnconfirmedUTXOs: (
+    addressType?: AddressType,
+    excludeFromIntent?: TransactionIntent | null
+  ) => UnconfirmedUTXO[];
   getUnconfirmedBalance: (addressType?: AddressType) => UnconfirmedBalance;
 
   // UTXO management
@@ -104,16 +103,21 @@ const initialState: PendingTransactionsState = {
   pendingTransactions: {},
   spentUtxos: new Set(),
   currentAccount: 0,
+  hydratedAccount: null,
 };
 
-function sendJournalScope(transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>): string {
+function sendJournalScope(
+  transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>
+): string {
   if (transaction.displayKind === 'turbo_mint_claim') {
     return 'turbounit-claim';
   }
   return transaction.assetType === 'UNIT' ? 'unit-send' : 'btc-send';
 }
 
-function sendJournalLabel(transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>): string {
+function sendJournalLabel(
+  transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>
+): string {
   if (transaction.displayKind === 'turbo_mint_claim') {
     return 'TurboUNIT claim submitted';
   }
@@ -124,10 +128,7 @@ function sendJournalKind(assetType: 'BTC' | 'UNIT'): 'btc_send' | 'unit_send' {
   return assetType === 'UNIT' ? 'unit_send' : 'btc_send';
 }
 
-function recordPendingSendJournal(
-  accountIndex: number,
-  transaction: PendingTransaction,
-): void {
+function recordPendingSendJournal(accountIndex: number, transaction: PendingTransaction): void {
   const now = transaction.timestamp || Date.now();
   const id = operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid);
 
@@ -150,17 +151,25 @@ function recordPendingSendJournal(
 }
 
 function markPendingSendConfirmed(accountIndex: number, transaction: PendingTransaction): void {
-  useOperationJournalStore.getState().markConfirmed(
-    operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
-    transaction.txid,
-  );
+  useOperationJournalStore
+    .getState()
+    .markConfirmed(
+      operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
+      transaction.txid
+    );
 }
 
-function markPendingSendFailed(accountIndex: number, transaction: PendingTransaction, reason: string): void {
-  useOperationJournalStore.getState().markFailed(
-    operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
-    reason,
-  );
+function markPendingSendFailed(
+  accountIndex: number,
+  transaction: PendingTransaction,
+  reason: string
+): void {
+  useOperationJournalStore
+    .getState()
+    .markFailed(
+      operationJournalId(sendJournalScope(transaction), accountIndex, transaction.txid),
+      reason
+    );
 }
 
 // Storage helpers
@@ -173,11 +182,16 @@ const savePendingTransactions = async (
   accountIndex: number
 ): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(getStorageKey(accountIndex, 'txs'), JSON.stringify(txs), DEVICE_ONLY);
+    await SecureStore.setItemAsync(
+      getStorageKey(accountIndex, 'txs'),
+      JSON.stringify(txs),
+      DEVICE_ONLY
+    );
   } catch (error: unknown) {
     logger.error('Error saving pending transactions:', {
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
   }
 };
 
@@ -192,6 +206,86 @@ const saveSpentUtxos = async (spent: Set<string>, accountIndex: number): Promise
     logger.error('Error saving spent UTXOs:', {
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
+  }
+};
+
+const quarantineCorruptPendingStorage = async (
+  storageKey: string,
+  stored: string,
+  reason: string
+): Promise<void> => {
+  const quarantineKey = `${storageKey}_corrupt_${Date.now()}`;
+  try {
+    await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
+    logger.warn('[PendingTransactionsStore] Quarantined corrupt pending storage', {
+      storageKey,
+      quarantineKey,
+      reason,
+    });
+  } catch (error) {
+    logger.error('[PendingTransactionsStore] Failed to quarantine corrupt pending storage', {
+      storageKey,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const parsePendingTransactionsStorage = async (
+  storageKey: string,
+  stored: string
+): Promise<Record<string, PendingTransaction>> => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    await quarantineCorruptPendingStorage(storageKey, stored, 'invalid JSON');
+    throw new Error(`Pending transactions storage corrupted: ${storageKey}`);
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    await quarantineCorruptPendingStorage(storageKey, stored, 'invalid transaction map');
+    throw new Error(`Pending transactions storage corrupted: ${storageKey}`);
+  }
+
+  return parsed as Record<string, PendingTransaction>;
+};
+
+const parseSpentUtxosStorage = async (
+  storageKey: string,
+  stored: string
+): Promise<Set<string>> => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    await quarantineCorruptPendingStorage(storageKey, stored, 'invalid JSON');
+    throw new Error(`Spent UTXO storage corrupted: ${storageKey}`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    await quarantineCorruptPendingStorage(storageKey, stored, 'invalid spent UTXO list');
+    throw new Error(`Spent UTXO storage corrupted: ${storageKey}`);
+  }
+
+  return new Set(parsed.filter((item): item is string => typeof item === 'string'));
+};
+
+const ensureAccountHydratedForMutation = async (
+  getState: () => PendingTransactionsStore,
+  accountIndex: number
+): Promise<void> => {
+  if (getState().hydratedAccount === accountIndex) {
+    return;
+  }
+
+  await getState().loadFromStorage(accountIndex);
+
+  if (getState().hydratedAccount !== accountIndex) {
+    throw new Error(
+      `Pending transaction storage for account ${accountIndex} is not hydrated; refusing to mutate pending locks.`
+    );
   }
 };
 
@@ -201,18 +295,19 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Load from storage for a specific account
   loadFromStorage: async (accountIndex: number) => {
-    const { currentAccount: prevAccount, pendingTransactions: prevTxs } = get();
+    const { currentAccount: prevAccount, pendingTransactions: prevTxs, hydratedAccount } = get();
     const prevTxCount = Object.keys(prevTxs).length;
 
     logger.info('[loadFromStorage] Called with:', {
       newAccount: accountIndex,
       prevAccount,
       prevPendingTxCount: prevTxCount,
+      hydratedAccount,
     });
 
-    // Only reset if account actually changed
-    if (accountIndex === prevAccount) {
-      logger.info('[loadFromStorage] Same account, skipping reset');
+    // Only skip once this account has actually been hydrated from storage.
+    if (accountIndex === prevAccount && hydratedAccount === accountIndex) {
+      logger.info('[loadFromStorage] Same account already hydrated, skipping reset');
       return;
     }
 
@@ -221,49 +316,79 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       pendingTransactions: {},
       spentUtxos: new Set(),
       currentAccount: accountIndex,
+      hydratedAccount: null,
     });
 
-    logger.info('[PendingTransactionsStore] Loading data for account', { currentAccount: accountIndex });
+    logger.info('[PendingTransactionsStore] Loading data for account', {
+      currentAccount: accountIndex,
+    });
+
+    let pendingTransactions: Record<string, PendingTransaction> = {};
+    let spentUtxos = new Set<string>();
 
     try {
       const txsKey = getStorageKey(accountIndex, 'txs');
       const stored = await SecureStore.getItemAsync(txsKey);
       if (stored) {
-        const pendingTransactions = JSON.parse(stored) as Record<string, PendingTransaction>;
-        set({ pendingTransactions });
-        Object.values(pendingTransactions).forEach((transaction) => {
-          if (transaction.status === 'pending') {
-            recordPendingSendJournal(accountIndex, transaction);
-          }
-        });
+        pendingTransactions = await parsePendingTransactionsStorage(txsKey, stored);
       }
     } catch (error: unknown) {
       logger.error('Error loading pending transactions:', {
         error: error instanceof Error ? error.message : String(error),
       });
+      return;
     }
 
     try {
       const spentKey = getStorageKey(accountIndex, 'spent');
       const stored = await SecureStore.getItemAsync(spentKey);
       if (stored) {
-        set({ spentUtxos: new Set(JSON.parse(stored)) });
+        spentUtxos = await parseSpentUtxosStorage(spentKey, stored);
       }
     } catch (error: unknown) {
       logger.error('Error loading spent UTXOs:', {
         error: error instanceof Error ? error.message : String(error),
       });
+      return;
     }
+
+    getPendingInputUtxoKeys(pendingTransactions as Record<string, UtilsPendingTransaction>)
+      .forEach((key) => spentUtxos.add(key));
+
+    set({
+      pendingTransactions,
+      spentUtxos,
+      hydratedAccount: accountIndex,
+    });
+    Object.values(pendingTransactions).forEach((transaction) => {
+      if (transaction.status === 'pending') {
+        recordPendingSendJournal(accountIndex, transaction);
+      }
+    });
   },
 
   // Add a new pending transaction
-  addPendingTransaction: async (txid, outputs, assetType, parentTxid = null, sentAmount, inputUtxos, options) => {
-    const { pendingTransactions, currentAccount } = get();
+  addPendingTransaction: async (
+    txid,
+    outputs,
+    assetType,
+    parentTxid = null,
+    sentAmount,
+    inputUtxos,
+    options
+  ) => {
+    let { pendingTransactions, spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, spentUtxos, currentAccount } = get());
 
     logger.info('[addPendingTransaction] Adding pending tx:', {
       txid: txid.slice(0, 16) + '...',
       outputCount: outputs.length,
-      outputs: outputs.map(o => ({ address: o.address?.slice(0, 15) + '...', value: o.value, vout: o.vout })),
+      outputs: outputs.map((o) => ({
+        address: o.address?.slice(0, 15) + '...',
+        value: o.value,
+        vout: o.vout,
+      })),
       assetType,
       parentTxid: parentTxid?.slice(0, 16),
       currentAccount,
@@ -284,13 +409,31 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       displayKind: options?.displayKind,
     };
 
-    const updated = {
-      ...pendingTransactions,
-      [txid]: newTx,
-    };
+    let updatedPendingTransactions =
+      pendingTransactions as Record<string, UtilsPendingTransaction>;
 
-    set({ pendingTransactions: updated });
+    inputUtxos?.forEach(({ txid: inputTxid, vout }) => {
+      updatedPendingTransactions = removeUtxoFromPending(
+        updatedPendingTransactions,
+        inputTxid,
+        vout
+      );
+    });
+
+    const updated = {
+      ...updatedPendingTransactions,
+      [txid]: newTx,
+    } as Record<string, PendingTransaction>;
+    const updatedSpentUtxos = inputUtxos?.length ? markSpent(spentUtxos, inputUtxos) : spentUtxos;
+
+    set({
+      pendingTransactions: updated,
+      spentUtxos: updatedSpentUtxos,
+    });
     await savePendingTransactions(updated, currentAccount);
+    if (inputUtxos?.length) {
+      await saveSpentUtxos(updatedSpentUtxos, currentAccount);
+    }
     recordPendingSendJournal(currentAccount, newTx);
 
     logger.info('[addPendingTransaction] Pending transactions after add:', {
@@ -300,7 +443,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Confirm transaction and remove from pending
   confirmTransaction: async (txid) => {
-    const { pendingTransactions, spentUtxos, currentAccount } = get();
+    let { pendingTransactions, spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, spentUtxos, currentAccount } = get());
 
     const confirmedTx = pendingTransactions[txid];
     const updated: Record<string, PendingTransaction> = { ...pendingTransactions };
@@ -322,7 +467,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
         logger.debug('[confirmTransaction] Cleared UTXO:', key);
       });
     } else {
-      logger.warn('[confirmTransaction] No inputUtxos tracked for tx', { txid: txid.slice(0, 16) + '...' });
+      logger.warn('[confirmTransaction] No inputUtxos tracked for tx', {
+        txid: txid.slice(0, 16) + '...',
+      });
     }
 
     set({
@@ -330,8 +477,8 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       spentUtxos: updatedSpentUtxos,
     });
 
-    await savePendingTransactions(updated, currentAccount);
     await saveSpentUtxos(updatedSpentUtxos, currentAccount);
+    await savePendingTransactions(updated, currentAccount);
     if (confirmedTx) {
       markPendingSendConfirmed(currentAccount, confirmedTx);
     }
@@ -339,14 +486,27 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Invalidate transaction and all children
   invalidateTransaction: async (txid, reason = 'Parent transaction failed') => {
-    const { pendingTransactions, currentAccount } = get();
+    let { pendingTransactions, spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, spentUtxos, currentAccount } = get());
 
     const { updated, invalidated } = invalidateTransactionTree(
       pendingTransactions as Record<string, UtilsPendingTransaction>,
       txid
     );
 
-    set({ pendingTransactions: updated as Record<string, PendingTransaction> });
+    const updatedSpentUtxos = new Set(spentUtxos);
+    invalidated.forEach((invalidatedTxid) => {
+      pendingTransactions[invalidatedTxid]?.inputUtxos?.forEach(({ txid: inputTxid, vout }) => {
+        updatedSpentUtxos.delete(`${inputTxid}:${vout}`);
+      });
+    });
+
+    set({
+      pendingTransactions: updated as Record<string, PendingTransaction>,
+      spentUtxos: updatedSpentUtxos,
+    });
+    await saveSpentUtxos(updatedSpentUtxos, currentAccount);
     await savePendingTransactions(updated as Record<string, PendingTransaction>, currentAccount);
 
     // Show warning if any transactions were invalidated
@@ -389,8 +549,14 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
     const txCount = Object.keys(pendingTransactions).length;
     logger.debug('[getUnconfirmedUTXOs] Pending transactions count:', { count: txCount });
     logger.debug('[getUnconfirmedUTXOs] Address type filter:', { addressType });
-    logger.debug('[getUnconfirmedUTXOs] Excluded keys:', { count: excludedKeys.size, keys: Array.from(excludedKeys).slice(0, 3) });
-    logger.debug('[getUnconfirmedUTXOs] Spent UTXOs:', { count: spentUtxos.size, keys: Array.from(spentUtxos).slice(0, 3) });
+    logger.debug('[getUnconfirmedUTXOs] Excluded keys:', {
+      count: excludedKeys.size,
+      keys: Array.from(excludedKeys).slice(0, 3),
+    });
+    logger.debug('[getUnconfirmedUTXOs] Spent UTXOs:', {
+      count: spentUtxos.size,
+      keys: Array.from(spentUtxos).slice(0, 3),
+    });
 
     // Log each pending transaction
     Object.entries(pendingTransactions).forEach(([txid, tx]) => {
@@ -398,7 +564,11 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
         txid: txid.slice(0, 16) + '...',
         status: tx.status,
         outputCount: tx.outputs?.length || 0,
-        outputs: tx.outputs?.map(o => ({ address: o.address?.slice(0, 10) + '...', value: o.value, vout: o.vout })),
+        outputs: tx.outputs?.map((o) => ({
+          address: o.address?.slice(0, 10) + '...',
+          value: o.value,
+          vout: o.vout,
+        })),
       });
     });
 
@@ -421,7 +591,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Mark single UTXO as spent
   markUtxoAsSpent: async (txid, vout) => {
-    const { pendingTransactions, currentAccount } = get();
+    let { pendingTransactions, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, currentAccount } = get());
 
     const updated = removeUtxoFromPending(
       pendingTransactions as Record<string, UtilsPendingTransaction>,
@@ -435,7 +607,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Mark multiple UTXOs as spent
   markUtxosAsSpent: async (utxos) => {
-    const { spentUtxos, currentAccount } = get();
+    let { spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ spentUtxos, currentAccount } = get());
     const updated = markSpent(spentUtxos, utxos);
     set({ spentUtxos: updated });
     await saveSpentUtxos(updated, currentAccount);
@@ -443,7 +617,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Unmark UTXOs as spent
   unmarkUtxosAsSpent: async (utxos) => {
-    const { spentUtxos, currentAccount } = get();
+    let { spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ spentUtxos, currentAccount } = get());
     const updated = unmarkSpent(spentUtxos, utxos);
     set({ spentUtxos: updated });
     await saveSpentUtxos(updated, currentAccount);
@@ -462,7 +638,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
 
   // Cleanup invalid transactions
   cleanupInvalidTransactions: async () => {
-    const { pendingTransactions, currentAccount } = get();
+    let { pendingTransactions, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, currentAccount } = get());
 
     const { updated, cleaned } = cleanupInvalid(
       pendingTransactions as Record<string, UtilsPendingTransaction>

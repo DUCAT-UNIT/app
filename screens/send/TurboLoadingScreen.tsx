@@ -3,7 +3,7 @@
  * Shows while preparing the transaction
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { NavigationProp, RouteProp, StackActions } from '@react-navigation/native';
 import { COLORS } from '../../theme';
@@ -12,6 +12,7 @@ import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { logger } from '../../utils/logger';
 import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
+import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/pendingTransactionsUtils';
 
 /**
  * Route parameters for TurboLoadingScreen
@@ -38,6 +39,11 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow, sendAssetType: currentAssetType, sendAmount: currentAmount, sendRecipient: currentRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
+  const getPendingTransactionsForCleanup = useCallback(
+    () =>
+      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
+    []
+  );
   const hasStarted = useRef(false);
   const hasNavigated = useRef(false);
   const errorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -131,7 +137,11 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
 
       // Clean up any stuck UTXOs before showing error
       const cleanupAndShowError = async () => {
-        await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+        await releaseOrphanedUtxos(
+          getSpentUtxos,
+          unmarkUtxosAsSpent,
+          getPendingTransactionsForCleanup
+        );
 
         // Reset send flow to clear any stale state
         resetSendFlow();
@@ -155,7 +165,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
 
       cleanupAndShowError();
     }
-  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, mintQuoteId, mintAmount, resetSendFlow]);
+  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactionsForCleanup, mintQuoteId, mintAmount, resetSendFlow]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {
@@ -165,7 +175,11 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
           hasNavigated.current = true;
 
           // Clean up any stuck UTXOs
-          await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+          await releaseOrphanedUtxos(
+            getSpentUtxos,
+            unmarkUtxosAsSpent,
+            getPendingTransactionsForCleanup
+          );
 
           // Reset send flow
           resetSendFlow();
@@ -202,7 +216,11 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
       // Only cleanup if we started but didn't successfully create an intent
       if (hasStarted.current && !intentCreated.current) {
         const cleanup = async () => {
-          await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+          await releaseOrphanedUtxos(
+            getSpentUtxos,
+            unmarkUtxosAsSpent,
+            getPendingTransactionsForCleanup
+          );
           resetSendFlow();
         };
         cleanup();

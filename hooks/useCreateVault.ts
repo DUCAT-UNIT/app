@@ -54,12 +54,19 @@ export interface UseCreateVaultResult {
 }
 
 export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVaultResult {
-  const { wallet } = useWallet();
+  const { wallet, currentAccount } = useWallet();
   const { segwitBalance } = useBalance();
   const { btcPrice } = usePrice();
-  const setPendingTransaction = usePendingVaultTransactionStore((s) => s.setPendingTransaction);
+  const setPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.setPendingTransactionForAccount
+  );
+  const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.clearPendingTransactionForAccount
+  );
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
+  const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
+  const unmarkUtxosAsSpent = usePendingTransactionsStore((s) => s.unmarkUtxosAsSpent);
   const showSnackbar = useNotificationStore((s) => s.showSnackbar);
 
   const {
@@ -157,6 +164,21 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         }
       }
 
+      let guardianSubmitAttempted = false;
+      let localVaultRecoveryWrittenBeforeSubmit = false;
+      const spentInputsForPreSubmitRollback: Array<{ txid: string; vout: number }> = [];
+      const recordPreSubmitRollbackInputs = (inputs: Array<{ txid: string; vout: number }>): void => {
+        for (const input of inputs) {
+          if (
+            !spentInputsForPreSubmitRollback.some(
+              (existing) => existing.txid === input.txid && existing.vout === input.vout
+            )
+          ) {
+            spentInputsForPreSubmitRollback.push(input);
+          }
+        }
+      };
+
       try {
         // Step 1: Creating VaultWallet and config
         updateProcessingStep(1);
@@ -191,29 +213,36 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
 
         const liquidationPrice = computeLiquidationPrice(protocolUnitAmount, btcAmount);
 
-        const vaultReq = await createVaultReqOpen(
-          vaultWallet,
-          vaultConfig,
-          acctRes,
-          {
+	        const vaultReq = await createVaultReqOpen(
+	          vaultWallet,
+	          vaultConfig,
+	          acctRes,
+	          {
             feeRate: selectedFeeRate,
             isMaxDeposit: params.isMaxDeposit || false,
-            liquidationPrice,
-          }
-        );
+	            liquidationPrice,
+	          }
+	        );
 
-        // Step 4: Submit to guardian
-        updateProcessingStep(4);
-        logger.debug('[useCreateVault] Step 4: Submitting to guardian...');
+	        const pendingVaultTx = {
+	          txid: vaultReq.issue_txid,
+	          vaultTxid: vaultReq.vault_txid,
+	          action: 'open' as const,
+	          btcAmt: Math.round(btcAmount * 100_000_000),
+	          unitAmt: Math.round(protocolUnitAmount * 100),
+	          timestamp: Date.now(),
+	          vaultPubkey: wallet.taprootPubkey || '',
+	        };
+	        await setPendingTransactionForAccount(pendingVaultTx, currentAccount);
+	        localVaultRecoveryWrittenBeforeSubmit = true;
 
-        const resultTxid = await guardianSendReqOpen(gclient, vaultReq);
-
-        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
-        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
-          vaultReq,
-          wallet,
+	        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+	        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
+	          vaultReq,
+	          wallet,
           livePendingTransactions,
         );
+        recordPreSubmitRollbackInputs(spentInputs);
 
         for (const spentInput of spentInputs) {
           if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
@@ -221,13 +250,17 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           }
         }
 
-        if (outputs.length > 0) {
-          await addPendingTransaction(
-            resultTxid,
-            outputs,
-            'UNIT',
-            parentTxid,
-            Math.round(protocolUnitAmount * 100),
+        if (spentInputs.length > 0) {
+          await markUtxosAsSpent(spentInputs);
+        }
+
+	        if (outputs.length > 0 || spentInputs.length > 0) {
+	          await addPendingTransaction(
+	            vaultReq.issue_txid,
+	            outputs,
+	            'UNIT',
+	            parentTxid,
+	            Math.round(protocolUnitAmount * 100),
             spentInputs,
           );
         }
@@ -238,6 +271,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           wallet,
           latestPendingTransactions,
         );
+        recordPreSubmitRollbackInputs(finalizationPendingData.spentInputs);
 
         for (const spentInput of finalizationPendingData.spentInputs) {
           if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
@@ -245,9 +279,16 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           }
         }
 
-        if (
-          vaultReq.vault_txid !== resultTxid &&
-          finalizationPendingData.outputs.length > 0
+        if (finalizationPendingData.spentInputs.length > 0) {
+          await markUtxosAsSpent(finalizationPendingData.spentInputs);
+        }
+
+	        if (
+	          vaultReq.vault_txid !== vaultReq.issue_txid &&
+	          (
+	            finalizationPendingData.outputs.length > 0 ||
+	            finalizationPendingData.spentInputs.length > 0
+          )
         ) {
           await addPendingTransaction(
             vaultReq.vault_txid,
@@ -255,22 +296,19 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
             'BTC',
             finalizationPendingData.parentTxid,
             undefined,
-            finalizationPendingData.spentInputs,
-          );
-        }
+	            finalizationPendingData.spentInputs,
+	          );
+	        }
 
-        setTxid(resultTxid);
-        setVaultTxid(vaultReq.vault_txid);
+	        // Step 4: Submit to guardian only after local recovery and UTXO locks are durable.
+	        updateProcessingStep(4);
+	        logger.debug('[useCreateVault] Step 4: Submitting to guardian...');
 
-        await setPendingTransaction({
-          txid: resultTxid,
-          vaultTxid: vaultReq.vault_txid,
-          action: 'open',
-          btcAmt: Math.round(btcAmount * 100_000_000),
-          unitAmt: Math.round(protocolUnitAmount * 100),
-          timestamp: Date.now(),
-          vaultPubkey: wallet.taprootPubkey || '',
-        });
+	        guardianSubmitAttempted = true;
+	        const resultTxid = await guardianSendReqOpen(gclient, vaultReq);
+
+	        setTxid(resultTxid);
+	        setVaultTxid(vaultReq.vault_txid);
 
         showSnackbar({
           title: 'Vault transaction confirming',
@@ -293,6 +331,30 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           stack: errorStack,
           errorName: err instanceof Error ? err.name : typeof err,
         });
+        if (!guardianSubmitAttempted) {
+          if (spentInputsForPreSubmitRollback.length > 0) {
+            try {
+              await unmarkUtxosAsSpent(spentInputsForPreSubmitRollback);
+            } catch (rollbackError) {
+              logger.error('[useCreateVault] Failed to roll back pre-submit UTXO locks:', {
+                error:
+                  rollbackError instanceof Error
+                    ? rollbackError.message
+                    : String(rollbackError),
+              });
+            }
+          }
+
+          if (localVaultRecoveryWrittenBeforeSubmit) {
+            try {
+              await clearPendingTransactionForAccount(currentAccount);
+            } catch (clearError) {
+              logger.error('[useCreateVault] Failed to clear pre-submit vault recovery lock:', {
+                error: clearError instanceof Error ? clearError.message : String(clearError),
+              });
+            }
+          }
+        }
         setError(errorMessage);
         setCurrentStep('confirm'); // Go back to confirm step on error
         return null;
@@ -316,9 +378,13 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
       setVaultTxid,
       setCurrentStep,
       updateProcessingStep,
-      setPendingTransaction,
+      setPendingTransactionForAccount,
+      clearPendingTransactionForAccount,
+      currentAccount,
       addPendingTransaction,
       markUtxoAsSpent,
+      markUtxosAsSpent,
+      unmarkUtxosAsSpent,
       showSnackbar,
       options.deferSuccessTransition,
     ]

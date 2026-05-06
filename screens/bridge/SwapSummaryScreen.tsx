@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +45,7 @@ import { useNotifications } from '../../stores/notificationStore';
 import { COLORS } from '../../theme';
 import { logger } from '../../utils/logger';
 import { releaseOrphanedUtxos } from '../../utils/pendingTransactionsUtils';
+import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/pendingTransactionsUtils';
 import {
   describeEvmRecoveryCheckpoint,
   formatEvmCheckpointReconciliationSummary,
@@ -117,7 +118,7 @@ function toUnitSmallestUnits(value: string): number {
 
 function isQuoteWorseThanMinimum(
   nextQuote: CrossChainSwapQuote,
-  previousQuote: CrossChainSwapQuote,
+  previousQuote: CrossChainSwapQuote
 ): boolean {
   const nextAmountOut = Number(nextQuote.amountOut);
   const previousMinimumOut = Number(previousQuote.minimumAmountOut);
@@ -129,7 +130,7 @@ function isQuoteWorseThanMinimum(
 }
 
 function getUnitBalanceValue(
-  runesBalance: Array<{ amount?: string | number } | unknown> | null | undefined,
+  runesBalance: Array<{ amount?: string | number } | unknown> | null | undefined
 ): number {
   if (!runesBalance || runesBalance.length === 0) {
     return 0;
@@ -147,9 +148,12 @@ function getUnitBalanceValue(
   return 0;
 }
 
-function toTransactionBuilderUnconfirmedUtxo(
-  utxo: { txid: string; vout: number; value?: number; runeAmount?: number },
-): { txid: string; vout: number; value: number; runeAmount?: number } {
+function toTransactionBuilderUnconfirmedUtxo(utxo: {
+  txid: string;
+  vout: number;
+  value?: number;
+  runeAmount?: number;
+}): { txid: string; vout: number; value: number; runeAmount?: number } {
   return {
     txid: utxo.txid,
     vout: utxo.vout,
@@ -170,13 +174,11 @@ function SummaryRow({
   return (
     <View style={styles.summaryRow}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={[styles.summaryValue, emphasized && styles.summaryValueEmphasized]}>{value}</Text>
+      <Text style={[styles.summaryValue, emphasized && styles.summaryValueEmphasized]}>
+        {value}
+      </Text>
     </View>
   );
-}
-
-function shouldBypassBiometricReauth(error?: string): boolean {
-  return error === 'not_enrolled' || error === 'not_available' || error === 'passcode_not_set';
 }
 
 export default function SwapSummaryScreen({
@@ -194,6 +196,11 @@ export default function SwapSummaryScreen({
   const getSpentUtxos = usePendingTransactionsStore((state) => state.getSpentUtxos);
   const markUtxosAsSpent = usePendingTransactionsStore((state) => state.markUtxosAsSpent);
   const unmarkUtxosAsSpent = usePendingTransactionsStore((state) => state.unmarkUtxosAsSpent);
+  const getPendingTransactionsForCleanup = useCallback(
+    () =>
+      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
+    []
+  );
   const {
     selectedFeeRate,
     setIntentStep,
@@ -229,7 +236,8 @@ export default function SwapSummaryScreen({
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [bridgeIntent, setBridgeIntent] = useState<BridgeIntent | null>(null);
-  const [bridgePreparationState, setBridgePreparationState] = useState<BridgePreparationState>('idle');
+  const [bridgePreparationState, setBridgePreparationState] =
+    useState<BridgePreparationState>('idle');
   const [bridgePreparationError, setBridgePreparationError] = useState<string | null>(null);
   const [swapLoadError, setSwapLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
@@ -287,7 +295,7 @@ export default function SwapSummaryScreen({
           const nextEstimate = await estimateUsdcToUnitSwapExecution(
             currentAccount,
             amountIn,
-            wallet.taprootAddress,
+            wallet.taprootAddress
           );
 
           if (active) {
@@ -299,7 +307,9 @@ export default function SwapSummaryScreen({
       } catch (error) {
         if (active) {
           setEstimate(null);
-          setSwapLoadError(error instanceof Error ? error.message : 'Unable to load the live swap quote and costs.');
+          setSwapLoadError(
+            error instanceof Error ? error.message : 'Unable to load the live swap quote and costs.'
+          );
         }
       } finally {
         if (active) {
@@ -313,7 +323,14 @@ export default function SwapSummaryScreen({
     return () => {
       active = false;
     };
-  }, [amountIn, currentAccount, isBridgeDirection, reloadNonce, sourceAsset, wallet?.taprootAddress]);
+  }, [
+    amountIn,
+    currentAccount,
+    isBridgeDirection,
+    reloadNonce,
+    sourceAsset,
+    wallet?.taprootAddress,
+  ]);
 
   useEffect(() => {
     if (!isBridgeDirection || !amountIn || Number(amountIn) <= 0 || !sepoliaAddress) {
@@ -363,7 +380,7 @@ export default function SwapSummaryScreen({
           screen: 'SwapSummary',
         });
         setBridgePreparationError(
-          error instanceof Error ? error.message : 'Unable to prepare the bridge review.',
+          error instanceof Error ? error.message : 'Unable to prepare the bridge review.'
         );
         setBridgePreparationState('failed');
       }
@@ -414,19 +431,25 @@ export default function SwapSummaryScreen({
         });
         setBridgePreparationState('building_send');
 
-        await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+        await releaseOrphanedUtxos(
+          getSpentUtxos,
+          unmarkUtxosAsSpent,
+          getPendingTransactionsForCleanup
+        );
 
         const availableUnitBalance = getUnitBalanceValue(
-          runesBalance as Array<{ amount?: string | number } | unknown> | null | undefined,
+          runesBalance as Array<{ amount?: string | number } | unknown> | null | undefined
         );
         if (!Number.isFinite(availableUnitBalance) || availableUnitBalance <= 0) {
           throw new Error('No UNIT balance available for the bridge send.');
         }
 
-        const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', null)
-          .map(toTransactionBuilderUnconfirmedUtxo);
-        const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', null)
-          .map(toTransactionBuilderUnconfirmedUtxo);
+        const unconfirmedTaprootUtxos = getUnconfirmedUTXOs('taproot', null).map(
+          toTransactionBuilderUnconfirmedUtxo
+        );
+        const unconfirmedSegwitUtxos = getUnconfirmedUTXOs('segwit', null).map(
+          toTransactionBuilderUnconfirmedUtxo
+        );
         const nextSendIntent = await createUnitIntentService(
           bridgeIntent.depositAddress,
           bridgeIntent.amount,
@@ -435,7 +458,7 @@ export default function SwapSummaryScreen({
           currentAccount,
           unconfirmedTaprootUtxos,
           unconfirmedSegwitUtxos,
-          getSpentUtxos(),
+          getSpentUtxos()
         );
 
         const utxosToLock: UtxoRef[] = [];
@@ -450,7 +473,10 @@ export default function SwapSummaryScreen({
           });
         }
         if (nextSendIntent.satUtxo) {
-          utxosToLock.push({ txid: nextSendIntent.satUtxo.txid, vout: nextSendIntent.satUtxo.vout });
+          utxosToLock.push({
+            txid: nextSendIntent.satUtxo.txid,
+            vout: nextSendIntent.satUtxo.vout,
+          });
         }
 
         if (utxosToLock.length > 0) {
@@ -480,7 +506,11 @@ export default function SwapSummaryScreen({
         if (lockedUtxos.length > 0) {
           await unmarkUtxosAsSpent(lockedUtxos);
         }
-        await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+        await releaseOrphanedUtxos(
+          getSpentUtxos,
+          unmarkUtxosAsSpent,
+          getPendingTransactionsForCleanup
+        );
 
         if (!isMountedRef.current || bridgeSendBuildKeyRef.current !== buildKey) {
           return;
@@ -491,7 +521,7 @@ export default function SwapSummaryScreen({
           screen: 'SwapSummary',
         });
         setBridgePreparationError(
-          error instanceof Error ? error.message : 'Unable to build the UNIT send for this bridge.',
+          error instanceof Error ? error.message : 'Unable to build the UNIT send for this bridge.'
         );
         setBridgePreparationState('failed');
       }
@@ -509,6 +539,7 @@ export default function SwapSummaryScreen({
     bridgePreparationState,
     currentAccount,
     getSpentUtxos,
+    getPendingTransactionsForCleanup,
     getUnconfirmedUTXOs,
     isBridgeDirection,
     markUtxosAsSpent,
@@ -526,10 +557,10 @@ export default function SwapSummaryScreen({
 
   useEffect(() => {
     if (
-      !isBridgeDirection
-      || bridgePreparationState === 'idle'
-      || bridgePreparationState === 'ready'
-      || bridgePreparationState === 'failed'
+      !isBridgeDirection ||
+      bridgePreparationState === 'idle' ||
+      bridgePreparationState === 'ready' ||
+      bridgePreparationState === 'failed'
     ) {
       return undefined;
     }
@@ -543,7 +574,7 @@ export default function SwapSummaryScreen({
           ? 'Bridge request timed out while creating the deposit address.'
           : phase === 'syncing_send'
             ? 'Bridge send details did not sync into the wallet.'
-            : 'Building the final send review took too long.',
+            : 'Building the final send review took too long.'
       );
       setBridgePreparationState('failed');
     }, 20_000);
@@ -554,24 +585,20 @@ export default function SwapSummaryScreen({
   }, [bridgePreparationState, isBridgeDirection]);
 
   const maxInputAmount = limit?.maxInputAmount || '0';
-  const exceedsMax = Number(amountIn) > 0 && Number(maxInputAmount) > 0 && Number(amountIn) > Number(maxInputAmount);
+  const exceedsMax =
+    Number(amountIn) > 0 && Number(maxInputAmount) > 0 && Number(amountIn) > Number(maxInputAmount);
   const insufficientEth =
-    !isBridgeDirection
-    && estimate !== null
-    && estimate.hasEnoughEth === false;
+    !isBridgeDirection && estimate !== null && estimate.hasEnoughEth === false;
   const insufficientSource =
-    !isBridgeDirection
-    && estimate !== null
-    && estimate.hasEnoughUsdc === false;
+    !isBridgeDirection && estimate !== null && estimate.hasEnoughUsdc === false;
   const swapPreflightBlocked = !isBridgeDirection && estimate !== null && !estimate.canExecute;
-  const swapBlockingReasons = !isBridgeDirection ? estimate?.blockingReasons ?? [] : [];
-  const routeLabel = isBridgeDirection ? 'UNIT → wUNIT → Sepolia USDC' : 'Sepolia USDC → wUNIT → UNIT';
+  const swapBlockingReasons = !isBridgeDirection ? (estimate?.blockingReasons ?? []) : [];
+  const routeLabel = isBridgeDirection
+    ? 'UNIT → wUNIT → Sepolia USDC'
+    : 'Sepolia USDC → wUNIT → UNIT';
   const receiveLabel = isBridgeDirection ? 'Estimated receive' : 'You receive';
   const bridgeReviewReady =
-    isBridgeDirection
-    && bridgePreparationState === 'ready'
-    && !!bridgeIntent
-    && !!reviewSendIntent;
+    isBridgeDirection && bridgePreparationState === 'ready' && !!bridgeIntent && !!reviewSendIntent;
   const swapRecoveryCheckpoint = useMemo(() => {
     if (isBridgeDirection) {
       return null;
@@ -582,20 +609,26 @@ export default function SwapSummaryScreen({
       currentAccount,
       amountIn,
       wallet?.taprootAddress,
-      quote?.amountOut,
+      quote?.amountOut
     );
-  }, [amountIn, currentAccount, evmCheckpoints, isBridgeDirection, quote?.amountOut, wallet?.taprootAddress]);
+  }, [
+    amountIn,
+    currentAccount,
+    evmCheckpoints,
+    isBridgeDirection,
+    quote?.amountOut,
+    wallet?.taprootAddress,
+  ]);
   const swapRecoveryCopy = useMemo(
-    () => (swapRecoveryCheckpoint ? describeEvmRecoveryCheckpoint(swapRecoveryCheckpoint, 'swap') : null),
-    [swapRecoveryCheckpoint],
+    () =>
+      swapRecoveryCheckpoint ? describeEvmRecoveryCheckpoint(swapRecoveryCheckpoint, 'swap') : null,
+    [swapRecoveryCheckpoint]
   );
   const canOpenRedeemRecovery = Boolean(
-    swapRecoveryCheckpoint
-    && wallet?.taprootAddress
-    && (
-      swapRecoveryCheckpoint.kind === 'redemption'
-      || (swapRecoveryCheckpoint.kind === 'swap' && swapRecoveryCheckpoint.status === 'confirmed')
-    ),
+    swapRecoveryCheckpoint &&
+      wallet?.taprootAddress &&
+      (swapRecoveryCheckpoint.kind === 'redemption' ||
+        (swapRecoveryCheckpoint.kind === 'swap' && swapRecoveryCheckpoint.status === 'confirmed'))
   );
 
   const title = isBridgeDirection ? 'Review bridge + swap' : 'Review swap + redeem';
@@ -654,7 +687,7 @@ export default function SwapSummaryScreen({
     } catch (error) {
       Alert.alert(
         'Status check failed',
-        error instanceof Error ? error.message : 'Unable to check Sepolia transactions.',
+        error instanceof Error ? error.message : 'Unable to check Sepolia transactions.'
       );
     } finally {
       setCheckpointReconciling(false);
@@ -662,9 +695,10 @@ export default function SwapSummaryScreen({
   };
 
   const handleOpenRedeemRecovery = (): void => {
-    const redeemAmount = swapRecoveryCheckpoint?.kind === 'redemption'
-      ? swapRecoveryCheckpoint.amount
-      : quote?.amountOut;
+    const redeemAmount =
+      swapRecoveryCheckpoint?.kind === 'redemption'
+        ? swapRecoveryCheckpoint.amount
+        : quote?.amountOut;
 
     navigation.navigate('SepoliaRedeem', {
       sourceAsset: 'wUNIT',
@@ -687,14 +721,14 @@ export default function SwapSummaryScreen({
       if (isQuoteWorseThanMinimum(latestQuote, quote)) {
         Alert.alert(
           'Quote changed',
-          `The pool now returns ${formatTokenAmount(latestQuote.amountOut)} ${destinationAsset}, below the prior minimum of ${formatTokenAmount(quote.minimumAmountOut)} ${destinationAsset}. Review the updated quote before signing.`,
+          `The pool now returns ${formatTokenAmount(latestQuote.amountOut)} ${destinationAsset}, below the prior minimum of ${formatTokenAmount(quote.minimumAmountOut)} ${destinationAsset}. Review the updated quote before signing.`
         );
         return;
       }
     } catch (error) {
       Alert.alert(
         'Quote refresh failed',
-        error instanceof Error ? error.message : 'Refresh the quote and try again before signing.',
+        error instanceof Error ? error.message : 'Refresh the quote and try again before signing.'
       );
       return;
     } finally {
@@ -708,10 +742,10 @@ export default function SwapSummaryScreen({
 
       const biometricResult = await authenticateWithBiometrics(
         'Authenticate to sign your bridge send',
-        'Use PIN',
+        'Use PIN'
       );
 
-      if (!biometricResult.success && !shouldBypassBiometricReauth(biometricResult.error)) {
+      if (!biometricResult.success) {
         if (biometricResult.error && biometricResult.error !== 'user_cancel') {
           Alert.alert('Authentication failed', biometricResult.error);
         }
@@ -723,7 +757,9 @@ export default function SwapSummaryScreen({
         const txid = await signIntent();
 
         if (!txid) {
-          throw new Error('The bridge send was not broadcast. No UNIT transfer was submitted to the bridge deposit address.');
+          throw new Error(
+            'The bridge send was not broadcast. No UNIT transfer was submitted to the bridge deposit address.'
+          );
         }
 
         await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
@@ -733,7 +769,7 @@ export default function SwapSummaryScreen({
       } catch (error) {
         Alert.alert(
           'Bridge send failed',
-          error instanceof Error ? error.message : 'Unable to sign and submit the bridge send.',
+          error instanceof Error ? error.message : 'Unable to sign and submit the bridge send.'
         );
       } finally {
         setExecuting(false);
@@ -747,7 +783,10 @@ export default function SwapSummaryScreen({
     }
 
     if (exceedsMax) {
-      Alert.alert('Swap too large', `Current max is ${formatTokenAmount(maxInputAmount)} ${sourceAsset}.`);
+      Alert.alert(
+        'Swap too large',
+        `Current max is ${formatTokenAmount(maxInputAmount)} ${sourceAsset}.`
+      );
       return;
     }
 
@@ -756,13 +795,16 @@ export default function SwapSummaryScreen({
         'Swap preflight failed',
         swapBlockingReasons.length > 0
           ? swapBlockingReasons.join('\n')
-          : 'Refresh the quote and balances before signing.',
+          : 'Refresh the quote and balances before signing.'
       );
       return;
     }
 
-    const biometricResult = await authenticateWithBiometrics('Authenticate to sign your swap', 'Use PIN');
-    if (!biometricResult.success && !shouldBypassBiometricReauth(biometricResult.error)) {
+    const biometricResult = await authenticateWithBiometrics(
+      'Authenticate to sign your swap',
+      'Use PIN'
+    );
+    if (!biometricResult.success) {
       if (biometricResult.error && biometricResult.error !== 'user_cancel') {
         Alert.alert('Authentication failed', biometricResult.error);
       }
@@ -775,9 +817,11 @@ export default function SwapSummaryScreen({
         currentAccount,
         amountIn,
         wallet.taprootAddress,
-        signingQuote.minimumAmountOut,
+        signingQuote.minimumAmountOut
       );
-      await registerSwapTxid(result.burnTxHash, toUnitSmallestUnits(result.redeemedAmount), { confirmed: true });
+      await registerSwapTxid(result.burnTxHash, toUnitSmallestUnits(result.redeemedAmount), {
+        confirmed: true,
+      });
       await fetchTransactionHistory();
       showToast('Swap submitted', 'success');
       navigation.navigate('AssetDetail', { assetType: 'UNIT' });
@@ -791,7 +835,11 @@ export default function SwapSummaryScreen({
   return (
     <SafeAreaView style={styles.safeArea} testID="cross-chain-swap-summary-screen">
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack} testID="cross-chain-swap-summary-back-btn">
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBack}
+          testID="cross-chain-swap-summary-back-btn"
+        >
           <Icon name="back" size={20} color={COLORS.WHITE} />
         </TouchableOpacity>
 
@@ -800,11 +848,19 @@ export default function SwapSummaryScreen({
 
         {(!isBridgeDirection || !bridgeReviewReady || !bridgeIntent || !reviewSendIntent) && (
           <View style={styles.summaryCard}>
-            <SummaryRow label="You pay" value={`${formatTokenAmount(amountIn)} ${sourceAsset}`} emphasized />
+            <SummaryRow
+              label="You pay"
+              value={`${formatTokenAmount(amountIn)} ${sourceAsset}`}
+              emphasized
+            />
             <View style={styles.divider} />
             <SummaryRow
               label={receiveLabel}
-              value={loading ? 'Refreshing…' : `${formatTokenAmount(quote?.amountOut || '0')} ${destinationAsset}`}
+              value={
+                loading
+                  ? 'Refreshing…'
+                  : `${formatTokenAmount(quote?.amountOut || '0')} ${destinationAsset}`
+              }
               emphasized
             />
             <View style={styles.divider} />
@@ -812,9 +868,18 @@ export default function SwapSummaryScreen({
             {!isBridgeDirection && <SummaryRow label="Sepolia gas" value={feeSummary} />}
             {!isBridgeDirection && estimate && (
               <>
-                <SummaryRow label="Current pool max" value={`${formatTokenAmount(maxInputAmount)} ${sourceAsset}`} />
-                <SummaryRow label="Sepolia USDC balance" value={`${formatTokenAmount(estimate.usdcBalance)} USDC`} />
-                <SummaryRow label="Expected wUNIT" value={`${formatTokenAmount(estimate.expectedWunitAmount)} wUNIT`} />
+                <SummaryRow
+                  label="Current pool max"
+                  value={`${formatTokenAmount(maxInputAmount)} ${sourceAsset}`}
+                />
+                <SummaryRow
+                  label="Sepolia USDC balance"
+                  value={`${formatTokenAmount(estimate.usdcBalance)} USDC`}
+                />
+                <SummaryRow
+                  label="Expected wUNIT"
+                  value={`${formatTokenAmount(estimate.expectedWunitAmount)} wUNIT`}
+                />
                 <SummaryRow label="Gas units" value={formatGasUnits(estimate.totalGasUnits)} />
                 <SummaryRow label="Gas price" value={`${estimate.gasPriceGwei} gwei`} />
               </>
@@ -836,7 +901,9 @@ export default function SwapSummaryScreen({
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Estimated receive:</Text>
                 <Text style={[styles.detailValue, styles.detailValueStrong]}>
-                  {loading ? 'Refreshing…' : `${formatTokenAmount(quote?.amountOut || '0')} ${destinationAsset}`}
+                  {loading
+                    ? 'Refreshing…'
+                    : `${formatTokenAmount(quote?.amountOut || '0')} ${destinationAsset}`}
                 </Text>
               </View>
               <View style={styles.detailRowLast}>
@@ -912,7 +979,9 @@ export default function SwapSummaryScreen({
             <Text style={styles.noteTitle}>Sepolia ETH balance</Text>
             <Text style={styles.noteBody}>
               {formatEthAmount(ethBalance)}
-              {insufficientEth ? ' available, which is below the estimated gas needed.' : ' available.'}
+              {insufficientEth
+                ? ' available, which is below the estimated gas needed.'
+                : ' available.'}
             </Text>
           </View>
         )}
@@ -922,9 +991,13 @@ export default function SwapSummaryScreen({
             <Text style={styles.warningTitle}>{swapRecoveryCopy.title}</Text>
             <Text style={styles.warningBody}>{swapRecoveryCopy.body}</Text>
             <Text style={styles.warningBody}>Status: {swapRecoveryCheckpoint.status}</Text>
-            <Text style={styles.warningBody}>Tx: {shortEvmTxHash(swapRecoveryCheckpoint.txHash)}</Text>
+            <Text style={styles.warningBody}>
+              Tx: {shortEvmTxHash(swapRecoveryCheckpoint.txHash)}
+            </Text>
             {swapRecoveryCheckpoint.amount && (
-              <Text style={styles.warningBody}>Amount: {formatTokenAmount(swapRecoveryCheckpoint.amount)}</Text>
+              <Text style={styles.warningBody}>
+                Amount: {formatTokenAmount(swapRecoveryCheckpoint.amount)}
+              </Text>
             )}
             {checkpointRecoveryMessage && (
               <Text style={styles.warningBody} testID="cross-chain-swap-recovery-message">
@@ -933,7 +1006,10 @@ export default function SwapSummaryScreen({
             )}
             <View style={styles.recoveryActionRow}>
               <TouchableOpacity
-                style={[styles.recoveryActionButton, checkpointReconciling && styles.recoveryActionButtonDisabled]}
+                style={[
+                  styles.recoveryActionButton,
+                  checkpointReconciling && styles.recoveryActionButtonDisabled,
+                ]}
                 onPress={handleReconcileEvmCheckpoints}
                 disabled={checkpointReconciling}
                 testID="cross-chain-swap-recovery-reconcile-btn"
@@ -961,7 +1037,8 @@ export default function SwapSummaryScreen({
           <View style={styles.warningCard}>
             <Text style={styles.warningTitle}>Swap too large</Text>
             <Text style={styles.warningBody}>
-              Current max size is {formatTokenAmount(maxInputAmount)} {sourceAsset}. Reduce the amount before signing.
+              Current max size is {formatTokenAmount(maxInputAmount)} {sourceAsset}. Reduce the
+              amount before signing.
             </Text>
           </View>
         )}
@@ -970,7 +1047,9 @@ export default function SwapSummaryScreen({
           <View style={styles.warningCard} testID="cross-chain-swap-readiness-card">
             <Text style={styles.warningTitle}>Sepolia preflight blocked</Text>
             {swapBlockingReasons.map((reason) => (
-              <Text key={reason} style={styles.warningBody}>{reason}</Text>
+              <Text key={reason} style={styles.warningBody}>
+                {reason}
+              </Text>
             ))}
           </View>
         )}
@@ -993,19 +1072,27 @@ export default function SwapSummaryScreen({
         <TouchableOpacity
           style={[
             styles.primaryButton,
-            (
-              loading
-              || executing
-              || exceedsMax
-              || insufficientEth
-              || insufficientSource
-              || swapPreflightBlocked
-              || !quote
-              || (isBridgeDirection && !bridgeReviewReady)
-            ) && styles.primaryButtonDisabled,
+            (loading ||
+              executing ||
+              exceedsMax ||
+              insufficientEth ||
+              insufficientSource ||
+              swapPreflightBlocked ||
+              !quote ||
+              (isBridgeDirection && !bridgeReviewReady)) &&
+              styles.primaryButtonDisabled,
           ]}
           onPress={handleConfirm}
-          disabled={loading || executing || exceedsMax || insufficientEth || insufficientSource || swapPreflightBlocked || !quote || (isBridgeDirection && !bridgeReviewReady)}
+          disabled={
+            loading ||
+            executing ||
+            exceedsMax ||
+            insufficientEth ||
+            insufficientSource ||
+            swapPreflightBlocked ||
+            !quote ||
+            (isBridgeDirection && !bridgeReviewReady)
+          }
           testID="cross-chain-swap-summary-confirm-btn"
         >
           {executing ? (

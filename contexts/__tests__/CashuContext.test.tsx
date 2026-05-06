@@ -39,17 +39,23 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   clearWallet: jest.fn(),
+  removeProofs: jest.fn(),
+  removeSpentProofs: jest.fn(),
   sendP2PKToken: jest.fn(),
   setCurrentAccount: jest.fn(),
 }));
 
 const mockCheckAndRecoverSwaps = jest.fn();
+const mockLoadRecoveredOutgoingSwapTokens = jest.fn();
+const mockClearRecoveredOutgoingSwapToken = jest.fn();
 const mockRecoverUnclaimedMintQuotes = jest.fn();
 const mockRecoverPendingTurboSend = jest.fn();
 const mockRefreshPersistedTurboMintSettlementStatus = jest.fn();
 
 jest.mock('../../services/cashu/cashuSwapRecovery', () => ({
   checkAndRecoverSwaps: () => mockCheckAndRecoverSwaps(),
+  loadRecoveredOutgoingSwapTokens: () => mockLoadRecoveredOutgoingSwapTokens(),
+  clearRecoveredOutgoingSwapToken: (...args: unknown[]) => mockClearRecoveredOutgoingSwapToken(...args),
 }));
 
 jest.mock('../../services/cashu/cashuMintQuoteRecovery', () => ({
@@ -155,9 +161,13 @@ jest.mock('../../hooks/useCashuSendReceive', () => ({
 // Import after mocks are set up
 import { CashuProvider, useCashu, useCashuBalanceState, useCashuOperations } from '../CashuContext';
 import type { CashuContextValue, CashuBalanceValue, CashuOperationsValue } from '../CashuContext';
-import { clearWallet } from '../../services/cashu/cashuWalletService';
+import { clearWallet, removeProofs, removeSpentProofs } from '../../services/cashu/cashuWalletService';
+import { saveSentLockedToken } from '../../services/cashu/cashuLockedTokensService';
 
 const mockClearWallet = clearWallet as jest.Mock;
+const mockRemoveProofs = removeProofs as jest.Mock;
+const mockRemoveSpentProofs = removeSpentProofs as jest.Mock;
+const mockSaveSentLockedToken = saveSentLockedToken as jest.Mock;
 
 describe('CashuContext', () => {
   beforeEach(() => {
@@ -174,6 +184,7 @@ describe('CashuContext', () => {
     mockFinishMelt.mockResolvedValue({ paid: true });
     mockReceive.mockResolvedValue({ amount: 100 });
     mockSend.mockResolvedValue({ token: 'cashu-token' });
+    mockRemoveSpentProofs.mockResolvedValue({ removed: 0, kept: 0 });
     mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValue({
       status: 'idle',
       message: 'No persisted TurboUNIT mint settlement is available to refresh.',
@@ -635,6 +646,10 @@ describe('CashuContext', () => {
   describe('recovery flows', () => {
     beforeEach(() => {
       mockCheckAndRecoverSwaps.mockResolvedValue(undefined);
+      mockLoadRecoveredOutgoingSwapTokens.mockResolvedValue([]);
+      mockClearRecoveredOutgoingSwapToken.mockResolvedValue(undefined);
+      mockSaveSentLockedToken.mockResolvedValue(undefined);
+      mockRemoveProofs.mockResolvedValue(undefined);
       mockRecoverUnclaimedMintQuotes.mockResolvedValue({ recovered: 0, totalAmountRecovered: 0 });
       mockRecoverPendingTurboSend.mockResolvedValue({ recovered: false });
       mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValue({
@@ -672,10 +687,149 @@ describe('CashuContext', () => {
 
       expect(mockRunAfterInteractions).toHaveBeenCalled();
       expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
+      expect(mockRemoveSpentProofs).toHaveBeenCalled();
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
       expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('restores recovered outgoing swap tokens into visible sent-token history', async () => {
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1psender' };
+      mockLoadRecoveredOutgoingSwapTokens.mockResolvedValueOnce([
+        {
+          id: 'swap-1:outgoing',
+          token: 'cashuA_recovered_token',
+          amount: 1200,
+          kind: 'p2pk',
+          sourceSwapId: 'swap-1',
+          taprootAddress: 'tb1psender',
+          recipient: 'tb1precipient',
+          createdAt: Date.now(),
+        },
+      ]);
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockSaveSentLockedToken).toHaveBeenCalledWith(
+        'cashuA_recovered_token',
+        'tb1precipient',
+        1200,
+        null,
+        null,
+        'tb1psender'
+      );
+      expect(mockClearRecoveredOutgoingSwapToken).toHaveBeenCalledWith('cashuA_recovered_token');
+    });
+
+    it('removes local proofs when recovering a direct outgoing Cashu token', async () => {
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1psender' };
+      const proofsToRemove = [{ amount: 64, secret: 's1', C: 'C1', id: 'keyset1' }];
+      mockLoadRecoveredOutgoingSwapTokens.mockResolvedValueOnce([
+        {
+          id: 'direct-send:outgoing',
+          token: 'cashuA_direct_send_token',
+          amount: 64,
+          kind: 'send',
+          sourceSwapId: 'direct-send',
+          taprootAddress: 'tb1psender',
+          proofsToRemove,
+          createdAt: Date.now(),
+        },
+      ]);
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockSaveSentLockedToken).toHaveBeenCalledWith(
+        'cashuA_direct_send_token',
+        'Recovered Cashu token',
+        64,
+        null,
+        null,
+        'tb1psender'
+      );
+      expect(mockRemoveProofs).toHaveBeenCalledWith(proofsToRemove);
+      expect(mockClearRecoveredOutgoingSwapToken).toHaveBeenCalledWith('cashuA_direct_send_token');
+    });
+
+    it('should retry startup recovery if the scheduled task is cancelled before it starts', async () => {
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1ptest123' };
+      let deferredRecovery: (() => void) | null = null;
+      const cancelScheduledRecovery = jest.fn();
+      mockRunAfterInteractions.mockImplementationOnce((callback: () => void) => {
+        deferredRecovery = callback;
+        return { cancel: cancelScheduledRecovery };
+      });
+
+      let renderer: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      expect(deferredRecovery).toBeDefined();
+      expect(mockCheckAndRecoverSwaps).not.toHaveBeenCalled();
+
+      mockWallet = null;
+      mockIsAuthenticated = false;
+      act(() => {
+        renderer!.update(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      expect(cancelScheduledRecovery).toHaveBeenCalled();
+
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1ptest123' };
+      mockIsAuthenticated = true;
+      mockRunAfterInteractions.mockImplementationOnce((callback: () => void) => {
+        callback();
+        return { cancel: jest.fn() };
+      });
+
+      act(() => {
+        renderer!.update(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
     });
 
     it('should check TurboUNIT mint recovery when the app returns active after lock', async () => {
@@ -711,7 +865,35 @@ describe('CashuContext', () => {
       });
 
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockRemoveSpentProofs).toHaveBeenCalled();
       expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should continue refresh when spent proof reconciliation fails', async () => {
+      mockRemoveSpentProofs.mockRejectedValue(new Error('state check failed'));
+
+      let contextValue: CashuContextValue | null = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await contextValue!.refresh();
+      });
+
+      expect(mockRemoveSpentProofs).toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
     });
 

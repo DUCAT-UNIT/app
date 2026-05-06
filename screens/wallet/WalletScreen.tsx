@@ -473,6 +473,7 @@ const WalletScreen = React.memo(function WalletScreen({
             hasVault={hasVault}
             wallet={_wallet}
             vaultData={vaultData}
+            currentAccount={currentAccount}
             visible={showLiquidations}
             onClose={handleLiquidationClose}
             onToggle={toggleLiquidations}

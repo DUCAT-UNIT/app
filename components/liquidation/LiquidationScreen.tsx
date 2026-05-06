@@ -48,6 +48,7 @@ export interface LiquidationScreenProps {
   hasVault: boolean;
   wallet: WalletAddresses | null;
   vaultData: VaultData | null;
+  currentAccount: number;
   visible: boolean;
   onClose: () => void;
   onToggle: () => void;
@@ -62,6 +63,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   hasVault,
   wallet,
   vaultData,
+  currentAccount,
   visible,
   onClose,
 }: LiquidationScreenProps): React.ReactElement | null {
@@ -114,6 +116,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     vaultDebt,
     btcPrice,
     vaultData,
+    currentAccount,
   });
 
   // ── Callbacks ────────────────────────────────────────────────────

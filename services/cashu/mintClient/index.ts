@@ -10,5 +10,5 @@ export { createMintQuote, checkMintQuote, mintTokens, deriveMintQuoteState, getM
 export type { MintQuote, BlindedOutput, MintResponse } from './mintQuotes';
 export { createMeltQuote, checkMeltQuote, meltTokens } from './meltQuotes';
 export type { MeltQuote, MeltResponse } from './meltQuotes';
-export { swapTokens, checkProofsSpent } from './mintSwap';
+export { swapTokens, restoreSignatures, checkProofsSpent } from './mintSwap';
 export type { ProofState, CheckStateResponse } from './mintSwap';

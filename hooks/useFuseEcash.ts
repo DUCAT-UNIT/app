@@ -8,7 +8,12 @@ import { Alert } from 'react-native';
 import { analytics } from '../services/analyticsService';
 import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { logger } from '../utils/logger';
-import { requestMaxMelt, completeMeltWithoutCleanup, cleanupMeltProofs } from '../services/cashu/cashuWalletService';
+import {
+  requestMaxMelt,
+  completeMeltWithoutCleanup,
+  cleanupMeltProofs,
+  removeSpentProofs,
+} from '../services/cashu/cashuWalletService';
 
 interface TransactionOutput {
   scriptpubkey_address?: string;
@@ -40,6 +45,22 @@ const CASHU_UNIT_DISPLAY_SCALE = 100;
 const formatTurboUnitAmount = (amount: number): string =>
   (amount / CASHU_UNIT_DISPLAY_SCALE).toFixed(2);
 
+interface MeltErrorMetadata {
+  meltSubmissionStatus?: 'not_submitted' | 'unknown' | 'accepted' | 'rejected';
+  spentProofsRemoved?: number;
+}
+
+const getMeltErrorMetadata = (error: unknown): MeltErrorMetadata => {
+  if (!error || typeof error !== 'object') {
+    return {};
+  }
+  const maybeMetadata = error as MeltErrorMetadata;
+  return {
+    meltSubmissionStatus: maybeMetadata.meltSubmissionStatus,
+    spentProofsRemoved: maybeMetadata.spentProofsRemoved,
+  };
+};
+
 export function useFuseEcash({
   cashuBalance,
   taprootAddress,
@@ -60,6 +81,8 @@ export function useFuseEcash({
         {
           text: 'Withdraw',
           onPress: async () => {
+            let meltSubmitted = false;
+            let cleanupFailed = false;
             try {
               // Request the largest quote the current balance can cover after fees.
               const quote = await requestMaxMelt(taprootAddress, cashuBalance);
@@ -71,14 +94,35 @@ export function useFuseEcash({
 
               // Complete melt but keep proofs until we see the tx
               const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
+              meltSubmitted = true;
 
               // Clean up proofs immediately after successful melt
               logger.debug('[Fuse] Melt successful, cleaning up proofs');
-              await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+              try {
+                await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+              } catch (cleanupError) {
+                cleanupFailed = true;
+                logger.error('[Fuse] Melt accepted but local cleanup failed', {
+                  error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+                });
+                try {
+                  const cleanup = await removeSpentProofs();
+                  logger.info('[Fuse] Reconciled spent proofs after cleanup failure', {
+                    removed: cleanup.removed,
+                    kept: cleanup.kept,
+                  });
+                } catch (reconcileError) {
+                  logger.error('[Fuse] Failed to reconcile spent proofs after cleanup failure', {
+                    error: reconcileError instanceof Error ? reconcileError.message : String(reconcileError),
+                  });
+                }
+              }
 
               Alert.alert(
                 'Withdrawal submitted',
-                `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Waiting for transaction to appear on-chain...`
+                cleanupFailed
+                  ? `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Local TurboUNIT cleanup did not finish; refresh before sending TurboUNIT again.`
+                  : `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Waiting for transaction to appear on-chain...`
               );
 
               // Poll for transaction
@@ -125,7 +169,25 @@ export function useFuseEcash({
               }
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : String(error);
-              Alert.alert('Withdrawal failed', `Your TurboUNIT tokens remain valid. ${message}`);
+              const meltMetadata = getMeltErrorMetadata(error);
+              const submissionAccepted =
+                meltSubmitted ||
+                meltMetadata.meltSubmissionStatus === 'accepted' ||
+                (meltMetadata.spentProofsRemoved ?? 0) > 0;
+              const submissionUnknown =
+                !submissionAccepted && meltMetadata.meltSubmissionStatus === 'unknown';
+              Alert.alert(
+                submissionAccepted
+                  ? 'Withdrawal submitted'
+                  : submissionUnknown
+                    ? 'Withdrawal status unknown'
+                    : 'Withdrawal failed',
+                submissionAccepted
+                  ? `The mint accepted the withdrawal, but local cleanup did not finish. Refresh before sending TurboUNIT again. ${message}`
+                  : submissionUnknown
+                    ? `The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. ${message}`
+                  : `Your TurboUNIT tokens remain valid. ${message}`
+              );
             }
           },
         },

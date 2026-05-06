@@ -7,11 +7,11 @@ import type { PasskeyGetRequest } from 'react-native-passkey';
 import { Passkey } from 'react-native-passkey';
 import { DEFAULT_WALLET_DERIVATION_MODE } from '../../constants/bitcoin';
 import { PASSKEY } from '../../constants/security';
-import type { AesGcmKey,PasskeyBackupData } from '../../types/crypto';
+import type { AesGcmKey, PasskeyBackupData } from '../../types/crypto';
 import { deriveAddressesFromMnemonic } from '../../utils/bitcoin';
 import { SECURE_KEYS } from '../../utils/constants';
 import { logger } from '../../utils/logger';
-import { checkICloudAvailability,loadFromICloud } from '../icloudStorage';
+import { checkICloudAvailability, loadFromICloud } from '../icloudStorage';
 const { getRandomValues } = require('react-native-quick-crypto');
 
 // Timeout for native passkey dialog to prevent indefinite hangs
@@ -25,8 +25,9 @@ const PASSKEY_NATIVE_TIMEOUT_MS = 30000;
 const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error('Passkey authentication timed out — please try again or use your PIN')),
-      PASSKEY_NATIVE_TIMEOUT_MS,
+      () =>
+        reject(new Error('Passkey authentication timed out — please try again or use your PIN')),
+      PASSKEY_NATIVE_TIMEOUT_MS
     );
     (timeout as { unref?: () => void }).unref?.();
 
@@ -36,24 +37,23 @@ const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
 import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
-cacheSessionMnemonic,
-saveMnemonic,
-saveCachedAddresses,
-saveCurrentAccount,
-saveToMultiAccountCache,
+  cacheSessionMnemonic,
+  saveCachedAddresses,
+  saveCurrentAccount,
+  saveToMultiAccountCache,
 } from '../secureStorageService';
-import { getWalletDerivationMode,setWalletDerivationMode } from '../walletDerivationService';
+import { getWalletDerivationMode, setWalletDerivationMode } from '../walletDerivationService';
 
 import {
-isLegacyPasskeyDerivationVersion,
-isPasskeySupported,
-PASSKEY_DERIVATION_VERSION,
-PASSKEY_KEYS,
-PRF_SALT,
-resolvePasskeyDerivationVersion,
-toBase64Url
+  isLegacyPasskeyDerivationVersion,
+  isPasskeySupported,
+  PASSKEY_DERIVATION_VERSION,
+  PASSKEY_KEYS,
+  PRF_SALT,
+  resolvePasskeyDerivationVersion,
+  toBase64Url,
 } from './core';
-import { decryptMnemonic,deriveEncryptionKey } from './encryption';
+import { decryptMnemonic, deriveEncryptionKey } from './encryption';
 
 const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
@@ -130,9 +130,10 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     } catch (nativeError: unknown) {
       // react-native-passkey throws raw objects, not Error instances
       if (nativeError instanceof Error) throw nativeError;
-      const msg = typeof nativeError === 'object' && nativeError !== null
-        ? (nativeError as { message?: string }).message || JSON.stringify(nativeError)
-        : String(nativeError);
+      const msg =
+        typeof nativeError === 'object' && nativeError !== null
+          ? (nativeError as { message?: string }).message || JSON.stringify(nativeError)
+          : String(nativeError);
       throw new Error(msg);
     }
 
@@ -154,7 +155,9 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     if (usePrf) {
       const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
       prfSecret = prfResultRaw
-        ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+        ? prfResultRaw instanceof Uint8Array
+          ? prfResultRaw
+          : new Uint8Array(prfResultRaw)
         : null;
       if (!prfSecret) {
         logger.error('PRF was enabled but authenticator returned no PRF result');
@@ -180,7 +183,12 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     // Derive encryption key. If PRF is enabled, uses authenticator-derived secret;
     // otherwise falls back to credential IDs (legacy path).
     const encryptionKey = await deriveEncryptionKey(
-      credentialId, userHandle, pin, pinSalt, false, prfSecret
+      credentialId,
+      userHandle,
+      pin,
+      pinSalt,
+      false,
+      prfSecret
     );
 
     if (isLegacyPasskeyDerivationVersion(derivationVersion)) {
@@ -195,10 +203,9 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       encryptionKey
     );
 
-    // Persist the plain mnemonic to SecureStore so future unlocks (after the
-    // session cache is cleared on background) can reload it without triggering
-    // the native WebAuthn passkey dialog every time.
-    await saveMnemonic(mnemonic);
+    // Keep passkey-unlocked seed material session-only. Persisting it back to
+    // the generic mnemonic key would let later unlocks bypass passkey gating.
+    cacheSessionMnemonic(mnemonic);
 
     // Get current account index
     const accountIndex = parseInt(
@@ -254,7 +261,9 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     debugSteps += '2. Checking iCloud availability...\n';
     const iCloudCheck = await checkICloudAvailability();
     if (!iCloudCheck.available) {
-      throw new Error(`${debugSteps}❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled\n3. This app has permission to use iCloud`);
+      throw new Error(
+        `${debugSteps}❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled\n3. This app has permission to use iCloud`
+      );
     }
     debugSteps += '✅ iCloud is available\n';
 
@@ -323,7 +332,9 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       if (usePrf) {
         const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
         prfSecret = prfResultRaw
-          ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+          ? prfResultRaw instanceof Uint8Array
+            ? prfResultRaw
+            : new Uint8Array(prfResultRaw)
           : null;
         if (!prfSecret) {
           throw new Error('PRF result missing from authenticator during recovery');
@@ -370,7 +381,9 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       debugSteps += `✅ Pepper restored from backup (length: ${backup.pepper.length})\n`;
       logger.debug('Pepper restored from iCloud backup for key derivation');
     } else {
-      logger.warn('No pepper in iCloud backup (v2 format) - key derivation will generate a new one, decryption will likely fail');
+      logger.warn(
+        'No pepper in iCloud backup (v2 format) - key derivation will generate a new one, decryption will likely fail'
+      );
       debugSteps += '⚠️ No pepper in backup (v2 format) - recovery may fail\n';
     }
 
@@ -385,7 +398,12 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     let encryptionKey: AesGcmKey;
     try {
       encryptionKey = await deriveEncryptionKey(
-        credentialId, userHandle, pin, pinSalt, false, prfSecret
+        credentialId,
+        userHandle,
+        pin,
+        pinSalt,
+        false,
+        prfSecret
       );
       debugSteps += '✅ Encryption key derived\n';
     } catch (keyError: unknown) {
@@ -417,13 +435,15 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       if (!backup.pepper) {
         throw new Error(
           `${debugSteps}❌ Decryption failed (backup missing pepper).\n\n` +
-          'This backup was created before the pepper fix (v2 format). ' +
-          'The device-bound pepper used during encryption was not included in the backup, ' +
-          'so cross-device recovery is not possible. ' +
-          'Please restore from the original device where the wallet was created.'
+            'This backup was created before the pepper fix (v2 format). ' +
+            'The device-bound pepper used during encryption was not included in the backup, ' +
+            'so cross-device recovery is not possible. ' +
+            'Please restore from the original device where the wallet was created.'
         );
       }
-      throw new Error(`${debugSteps}❌ Decryption failed: ${(decryptError as Error).message}\n\nThis usually means wrong PIN.`);
+      throw new Error(
+        `${debugSteps}❌ Decryption failed: ${(decryptError as Error).message}\n\nThis usually means wrong PIN.`
+      );
     }
 
     logger.debug('Mnemonic decrypted successfully');
@@ -441,7 +461,11 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     if (backup.tag) {
       await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, backup.tag, DEVICE_ONLY);
     }
-    await SecureStore.setItemAsync(PASSKEY_KEYS.PRF_ENABLED, usePrf ? 'true' : 'false', DEVICE_ONLY);
+    await SecureStore.setItemAsync(
+      PASSKEY_KEYS.PRF_ENABLED,
+      usePrf ? 'true' : 'false',
+      DEVICE_ONLY
+    );
     await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, DEVICE_ONLY);
     await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
 
@@ -455,10 +479,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt, DEVICE_ONLY);
     await savePinWithExistingSalt(pin, pinSalt);
 
-    await Promise.all([
-      saveCachedAddresses(0, addresses),
-      saveToMultiAccountCache(0, addresses),
-    ]);
+    await Promise.all([saveCachedAddresses(0, addresses), saveToMultiAccountCache(0, addresses)]);
 
     logger.debug('Wallet recovered successfully from iCloud');
 

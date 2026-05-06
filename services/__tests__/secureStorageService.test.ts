@@ -19,6 +19,18 @@ import {
   deleteWalletData,
 } from '../secureStorageService';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from '../liquidation/recoveryKeys';
+import { EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY } from '../../stores/evmTransactionCheckpointStore';
+import { OPERATION_JOURNAL_STORAGE_KEY } from '../../stores/operationJournalStore';
+import { TURBO_PROCESSING_STORAGE_KEY } from '../../stores/turboProcessingStore';
+import { VAULT_SETTLEMENT_STORAGE_KEY } from '../../stores/vaultSettlementStore';
+import {
+  LIQUIDATION_TXIDS_KEY,
+  SWAP_TXIDS_KEY,
+  SWAP_TXIDS_MIGRATION_V2_KEY,
+} from '../transactionHistoryService';
+import { VAULT_SETTLEMENT_HISTORY_STORAGE_KEY } from '../vaultSettlementHistoryService';
 
 // Mock expo-secure-store
 jest.mock('expo-secure-store');
@@ -188,6 +200,15 @@ describe('SecureStorageService', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should reject invalid account indexes without writing storage', async () => {
+      mockSetItemAsync.mockResolvedValue();
+
+      await expect(saveCurrentAccount(-1)).resolves.toBe(false);
+      await expect(saveCurrentAccount(1.5)).resolves.toBe(false);
+
+      expect(mockSetItemAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe('getCurrentAccount', () => {
@@ -208,12 +229,29 @@ describe('SecureStorageService', () => {
       expect(result).toBe(0);
     });
 
-    it('should return 0 on storage error', async () => {
+    it('should throw on storage error', async () => {
       mockGetItemAsync.mockRejectedValue(new Error('Storage error'));
 
-      const result = await getCurrentAccount();
+      await expect(getCurrentAccount()).rejects.toThrow('Storage error');
+    });
 
-      expect(result).toBe(0);
+    it.each(['abc', '-1', '1.5', '', '  '])(
+      'should throw on invalid stored account index %p',
+      async (storedAccount) => {
+        mockGetItemAsync.mockResolvedValue(storedAccount);
+
+        await expect(getCurrentAccount()).rejects.toThrow(
+          `Invalid current account index: ${storedAccount}`
+        );
+      }
+    );
+
+    it('should throw on unsafe stored account index', async () => {
+      mockGetItemAsync.mockResolvedValue('9007199254740992');
+
+      await expect(getCurrentAccount()).rejects.toThrow(
+        'Invalid current account index: 9007199254740992'
+      );
     });
 
     it('should parse account index as integer', async () => {
@@ -259,6 +297,15 @@ describe('SecureStorageService', () => {
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_user_handle_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_pepper_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_creation_method_v1');
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(OPERATION_JOURNAL_STORAGE_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(TURBO_PROCESSING_STORAGE_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(VAULT_SETTLEMENT_STORAGE_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(VAULT_SETTLEMENT_HISTORY_STORAGE_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(SWAP_TXIDS_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(SWAP_TXIDS_MIGRATION_V2_KEY);
+      expect(AsyncStorage.removeItem).toHaveBeenCalledWith(LIQUIDATION_TXIDS_KEY);
     });
 
     it('should clear iCloud backup when requested (clearICloudBackup=true)', async () => {
@@ -273,6 +320,33 @@ describe('SecureStorageService', () => {
 
       await expect(deleteWalletData()).resolves.toBeUndefined();
       expect(mockDeleteItemAsync).toHaveBeenCalled();
+    });
+
+    it('should delete registered Cashu recovery records during wallet deletion', async () => {
+      mockDeleteItemAsync.mockResolvedValue();
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'cashu_pending_swaps_v1') {
+          return Promise.resolve(JSON.stringify(['swap-1', 'swap-2']));
+        }
+        if (key === 'cashu_pending_turbo_sends_v1') {
+          return Promise.resolve(JSON.stringify(['cashu_pending_turbo_send_tb1psender']));
+        }
+        if (key === 'cashu_failed_proof_recovery_keys_v1') {
+          return Promise.resolve(JSON.stringify(['cashu_failed_proofs_1']));
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(deleteWalletData()).resolves.toBeUndefined();
+
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_swap_swap-1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_swap_swap-2');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_turbo_send_tb1psender');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_failed_proofs_1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_swaps_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_turbo_sends_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_recovered_outgoing_swap_tokens_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_failed_proofs_latest_v1');
     });
 
     it('should continue even if passkey clear fails (via dynamic import error)', async () => {

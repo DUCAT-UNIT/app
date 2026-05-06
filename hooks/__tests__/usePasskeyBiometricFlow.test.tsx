@@ -1,21 +1,19 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { Keyboard } from 'react-native';
-import { setBiometricEnabled as persistBiometricEnabled } from '../../services/biometricService';
+import {
+  authenticateWithBiometrics,
+  setBiometricEnabled as persistBiometricEnabled,
+} from '../../services/biometricService';
 import { isPasskeyUpgradeRecommended } from '../../services/passkey';
 import { usePasskeyBiometricFlow } from '../usePasskeyBiometricFlow';
-import * as LocalAuthentication from 'expo-local-authentication';
 
 jest.mock('../../services/biometricService', () => ({
+  authenticateWithBiometrics: jest.fn(),
   setBiometricEnabled: jest.fn(),
 }));
 
 jest.mock('../../services/passkey', () => ({
   isPasskeyUpgradeRecommended: jest.fn(),
-}));
-
-jest.mock('expo-local-authentication', () => ({
-  __esModule: true,
-  authenticateAsync: jest.fn(),
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -24,12 +22,12 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+const mockAuthenticateWithBiometrics = authenticateWithBiometrics as jest.MockedFunction<
+  typeof authenticateWithBiometrics
+>;
 const mockPersistBiometricEnabled = persistBiometricEnabled as jest.MockedFunction<typeof persistBiometricEnabled>;
 const mockIsPasskeyUpgradeRecommended = isPasskeyUpgradeRecommended as jest.MockedFunction<
   typeof isPasskeyUpgradeRecommended
->;
-const mockAuthenticateAsync = LocalAuthentication.authenticateAsync as jest.MockedFunction<
-  typeof LocalAuthentication.authenticateAsync
 >;
 const mockKeyboardDismiss = jest.fn();
 Object.defineProperty(Keyboard, 'dismiss', {
@@ -55,8 +53,8 @@ describe('usePasskeyBiometricFlow', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockIsPasskeyUpgradeRecommended.mockResolvedValue(false);
+    mockAuthenticateWithBiometrics.mockResolvedValue({ success: true });
     mockPersistBiometricEnabled.mockResolvedValue(true);
-    mockAuthenticateAsync.mockResolvedValue({ success: true });
   });
 
   it('checks whether a passkey upgrade is recommended when passkeys are enabled', async () => {
@@ -135,10 +133,10 @@ describe('usePasskeyBiometricFlow', () => {
 
     expect(mockPersistBiometricEnabled).toHaveBeenCalledWith(true);
     expect(setBiometricEnabled).toHaveBeenCalledWith(true);
-    expect(mockAuthenticateAsync).toHaveBeenCalledWith({
-      promptMessage: 'Authenticate to enable biometric login',
-      fallbackLabel: 'Use PIN instead',
-    });
+    expect(mockAuthenticateWithBiometrics).toHaveBeenCalledWith(
+      'Authenticate to enable biometric login',
+      'Use PIN instead'
+    );
     expect(result.current.showBiometricSetupModal).toBe(false);
   });
 

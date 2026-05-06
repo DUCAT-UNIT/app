@@ -12,8 +12,12 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
+import { checkMintStatus, completeMint } from './operations/cashuMintOperations';
+import { clearRecoveredOutgoingSwapToken } from './cashuSwapRecovery';
+import { getCurrentCashuAccount } from './cashuProofManager';
 
 const PENDING_TURBO_SEND_KEY = 'cashu_pending_turbo_send';
+const PENDING_TURBO_SEND_REGISTRY_KEY = 'cashu_pending_turbo_sends_v1';
 
 export interface PendingTurboSend {
   /** Mint quote ID for tracking */
@@ -33,6 +37,220 @@ export interface PendingTurboSend {
   /** Shortened URL for the token (set after URL shortening) */
   shortUrl?: string;
 }
+
+interface PendingTurboSendEntry {
+  pending: PendingTurboSend;
+  storageKey: string;
+  legacy: boolean;
+}
+
+interface PendingTurboSendSelector {
+  quoteId?: string;
+  senderTaprootAddress?: string | null;
+}
+
+const safeStorageSegment = (value: string): string =>
+  value.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+const turboSendStorageKey = (senderTaprootAddress: string, quoteId: string): string =>
+  `${PENDING_TURBO_SEND_KEY}_${safeStorageSegment(senderTaprootAddress)}_${safeStorageSegment(quoteId)}`;
+
+const quarantineCorruptTurboSendRegistry = async (
+  stored: string,
+  reason: string
+): Promise<void> => {
+  const quarantineKey = `${PENDING_TURBO_SEND_REGISTRY_KEY}_corrupt_${Date.now()}`;
+  try {
+    await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
+    logger.warn('[TurboRecovery] Quarantined corrupt turbo send registry', {
+      quarantineKey,
+      reason,
+    });
+  } catch (error) {
+    logger.error('[TurboRecovery] Failed to quarantine corrupt turbo send registry', {
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const loadTurboSendRegistry = async (strict = false): Promise<string[]> => {
+  const stored = await SecureStore.getItemAsync(PENDING_TURBO_SEND_REGISTRY_KEY);
+  if (!stored) {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored) as unknown;
+  } catch (error) {
+    await quarantineCorruptTurboSendRegistry(stored, 'invalid JSON');
+    logger.error('[TurboRecovery] Failed to parse turbo send registry', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    if (strict) {
+      throw new Error('Turbo send registry corrupted: invalid JSON');
+    }
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) {
+    await quarantineCorruptTurboSendRegistry(stored, 'invalid registry');
+    if (strict) {
+      throw new Error('Turbo send registry corrupted: invalid registry');
+    }
+    return [];
+  }
+
+  return parsed.filter((key): key is string => typeof key === 'string');
+};
+
+const saveTurboSendRegistry = async (keys: string[]): Promise<void> => {
+  await SecureStore.setItemAsync(
+    PENDING_TURBO_SEND_REGISTRY_KEY,
+    JSON.stringify(Array.from(new Set(keys))),
+    DEVICE_ONLY
+  );
+};
+
+const loadTurboSendEntryForKey = async (
+  storageKey: string,
+  legacy = false
+): Promise<PendingTurboSendEntry | null> => {
+  const stored = await SecureStore.getItemAsync(storageKey);
+  if (!stored) {
+    return null;
+  }
+
+  return {
+    pending: JSON.parse(stored) as PendingTurboSend,
+    storageKey,
+    legacy,
+  };
+};
+
+const deleteTurboSendEntry = async (entry: PendingTurboSendEntry): Promise<void> => {
+  await SecureStore.deleteItemAsync(entry.storageKey);
+  if (!entry.legacy) {
+    const registry = await loadTurboSendRegistry();
+    await saveTurboSendRegistry(registry.filter((key) => key !== entry.storageKey));
+    await deleteLegacyTurboSendIfMatches(entry.pending);
+  }
+};
+
+const isCurrentAccountTurboSend = (pending: PendingTurboSend): boolean => {
+  const currentAccount = getCurrentCashuAccount();
+  return !currentAccount || !pending.senderTaprootAddress || pending.senderTaprootAddress === currentAccount;
+};
+
+const matchesTurboSendSelector = (
+  pending: PendingTurboSend,
+  selector?: PendingTurboSendSelector
+): boolean => {
+  if (!selector) {
+    return isCurrentAccountTurboSend(pending);
+  }
+
+  if (selector.quoteId && pending.quoteId !== selector.quoteId) {
+    return false;
+  }
+
+  if (
+    selector.senderTaprootAddress &&
+    pending.senderTaprootAddress !== selector.senderTaprootAddress
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const isSameTurboSend = (a: PendingTurboSend, b: PendingTurboSend): boolean =>
+  a.quoteId === b.quoteId && a.senderTaprootAddress === b.senderTaprootAddress;
+
+const deleteLegacyTurboSendIfMatches = async (pending: PendingTurboSend): Promise<void> => {
+  try {
+    const legacyEntry = await loadTurboSendEntryForKey(PENDING_TURBO_SEND_KEY, true);
+    if (legacyEntry && isSameTurboSend(legacyEntry.pending, pending)) {
+      await SecureStore.deleteItemAsync(PENDING_TURBO_SEND_KEY);
+    }
+  } catch (error) {
+    logger.warn('[TurboRecovery] Failed to clear matching legacy turbo fallback', {
+      quoteId: pending.quoteId.substring(0, 8),
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const isExpiredUnfundedTurboSend = (pending: PendingTurboSend): boolean => {
+  const EXPIRY_MS = 24 * 60 * 60 * 1000;
+  return Date.now() - pending.createdAt > EXPIRY_MS && pending.stage === 'waiting_for_mint';
+};
+
+const loadPendingTurboSendEntry = async (
+  selector?: PendingTurboSendSelector
+): Promise<PendingTurboSendEntry | null> => {
+  const registry = await loadTurboSendRegistry();
+  const entries: PendingTurboSendEntry[] = [];
+
+  for (const key of registry) {
+    try {
+      const entry = await loadTurboSendEntryForKey(key);
+      if (entry) {
+        entries.push(entry);
+      }
+    } catch (error) {
+      logger.error('[TurboRecovery] Failed to load pending turbo send entry', {
+        key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  try {
+    const legacyEntry = await loadTurboSendEntryForKey(PENDING_TURBO_SEND_KEY, true);
+    if (
+      legacyEntry &&
+      !entries.some((entry) => entry.pending.quoteId === legacyEntry.pending.quoteId)
+    ) {
+      entries.push(legacyEntry);
+    }
+  } catch (error) {
+    logger.error('[TurboRecovery] Failed to load legacy pending turbo send', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  const sortedEntries = entries.sort((a, b) => a.pending.createdAt - b.pending.createdAt);
+  for (const entry of sortedEntries) {
+    if (!matchesTurboSendSelector(entry.pending, selector)) {
+      continue;
+    }
+
+    if (isExpiredUnfundedTurboSend(entry.pending)) {
+      logger.info('[TurboRecovery] Pending turbo send expired, removing');
+      await deleteTurboSendEntry(entry);
+      continue;
+    }
+
+    return entry;
+  }
+
+  return null;
+};
+
+const updateTurboSendEntry = async (
+  entry: PendingTurboSendEntry,
+  stage: PendingTurboSend['stage'],
+  data?: { token?: string; shortUrl?: string }
+): Promise<void> => {
+  const { pending } = entry;
+  pending.stage = stage;
+  if (data?.token) pending.token = data.token;
+  if (data?.shortUrl) pending.shortUrl = data.shortUrl;
+  await SecureStore.setItemAsync(entry.storageKey, JSON.stringify(pending), DEVICE_ONLY);
+  logger.debug('[TurboRecovery] Updated turbo send stage', { stage, hasToken: !!data?.token });
+};
 
 /**
  * Save a pending turbo send before starting the flow
@@ -54,7 +272,35 @@ export const savePendingTurboSend = async (
       stage: 'waiting_for_mint',
     };
 
-    await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pendingSend), DEVICE_ONLY);
+    const storageKey = turboSendStorageKey(senderTaprootAddress, quoteId);
+    await SecureStore.setItemAsync(
+      PENDING_TURBO_SEND_KEY,
+      JSON.stringify(pendingSend),
+      DEVICE_ONLY
+    );
+    await SecureStore.setItemAsync(
+      storageKey,
+      JSON.stringify(pendingSend),
+      DEVICE_ONLY
+    );
+    let registrySaved = false;
+    try {
+      const registry = await loadTurboSendRegistry(true);
+      await saveTurboSendRegistry([...registry, storageKey]);
+      registrySaved = true;
+    } catch (registryError) {
+      logger.warn('[TurboRecovery] Failed to update turbo send registry; writing legacy fallback', {
+        error: registryError instanceof Error ? registryError.message : String(registryError),
+      });
+      await SecureStore.setItemAsync(
+        PENDING_TURBO_SEND_KEY,
+        JSON.stringify(pendingSend),
+        DEVICE_ONLY
+      );
+    }
+    if (registrySaved) {
+      await deleteLegacyTurboSendIfMatches(pendingSend);
+    }
 
     logger.info('[TurboRecovery] Saved pending turbo send', {
       quoteId: quoteId.substring(0, 8),
@@ -65,6 +311,7 @@ export const savePendingTurboSend = async (
     logger.error('[TurboRecovery] Failed to save pending turbo send', {
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
   }
 };
 
@@ -75,16 +322,13 @@ export const savePendingTurboSend = async (
  */
 export const updateTurboSendStage = async (
   stage: PendingTurboSend['stage'],
-  data?: { token?: string; shortUrl?: string }
+  data?: { token?: string; shortUrl?: string },
+  selector?: PendingTurboSendSelector
 ): Promise<void> => {
   try {
-    const pending = await loadPendingTurboSend();
-    if (pending) {
-      pending.stage = stage;
-      if (data?.token) pending.token = data.token;
-      if (data?.shortUrl) pending.shortUrl = data.shortUrl;
-      await SecureStore.setItemAsync(PENDING_TURBO_SEND_KEY, JSON.stringify(pending), DEVICE_ONLY);
-      logger.debug('[TurboRecovery] Updated turbo send stage', { stage, hasToken: !!data?.token });
+    const entry = await loadPendingTurboSendEntry(selector);
+    if (entry) {
+      await updateTurboSendEntry(entry, stage, data);
     }
   } catch (error) {
     logger.error('[TurboRecovery] Failed to update turbo send stage', {
@@ -96,24 +340,12 @@ export const updateTurboSendStage = async (
 /**
  * Load the pending turbo send (if any)
  */
-export const loadPendingTurboSend = async (): Promise<PendingTurboSend | null> => {
+export const loadPendingTurboSend = async (
+  selector?: PendingTurboSendSelector
+): Promise<PendingTurboSend | null> => {
   try {
-    const stored = await SecureStore.getItemAsync(PENDING_TURBO_SEND_KEY);
-    if (!stored) {
-      return null;
-    }
-
-    const pending: PendingTurboSend = JSON.parse(stored);
-
-    // Expire after 24 hours
-    const EXPIRY_MS = 24 * 60 * 60 * 1000;
-    if (Date.now() - pending.createdAt > EXPIRY_MS) {
-      logger.info('[TurboRecovery] Pending turbo send expired, removing');
-      await clearPendingTurboSend();
-      return null;
-    }
-
-    return pending;
+    const entry = await loadPendingTurboSendEntry(selector);
+    return entry?.pending ?? null;
   } catch (error) {
     logger.error('[TurboRecovery] Failed to load pending turbo send', {
       error: error instanceof Error ? error.message : String(error),
@@ -125,9 +357,16 @@ export const loadPendingTurboSend = async (): Promise<PendingTurboSend | null> =
 /**
  * Clear the pending turbo send (after successful completion)
  */
-export const clearPendingTurboSend = async (): Promise<void> => {
+export const clearPendingTurboSend = async (
+  selector?: PendingTurboSendSelector
+): Promise<void> => {
   try {
-    await SecureStore.deleteItemAsync(PENDING_TURBO_SEND_KEY);
+    const entry = await loadPendingTurboSendEntry(selector);
+    if (entry) {
+      await deleteTurboSendEntry(entry);
+    } else {
+      await SecureStore.deleteItemAsync(PENDING_TURBO_SEND_KEY);
+    }
     logger.info('[TurboRecovery] Cleared pending turbo send');
   } catch (error) {
     logger.error('[TurboRecovery] Failed to clear pending turbo send', {
@@ -164,17 +403,31 @@ export interface TurboRecoveryResult {
 }
 
 export const recoverPendingTurboSend = async (
-  sendP2PKToken: (amount: number, pubkey: string, options: Record<string, unknown>) => Promise<{ token: string } | null>,
+  sendP2PKToken: (
+    amount: number,
+    pubkey: string,
+    options: Record<string, unknown>,
+    onProgress?: (current: number, total: number, message: string) => void,
+    recipientAddressForRecovery?: string | null
+  ) => Promise<{ token: string } | null>,
   extractPubkey: (address: string) => string | null,
   shortenToken: (token: string) => Promise<string>,
-  saveToken: (token: string, recipient: string, amount: number, txid: string | null, shortUrl: string, senderAddress: string | undefined) => Promise<void>
+  saveToken: (
+    token: string,
+    recipient: string,
+    amount: number,
+    txid: string | null,
+    shortUrl: string | null,
+    senderAddress: string | undefined
+  ) => Promise<void>
 ): Promise<TurboRecoveryResult> => {
   try {
-    const pending = await loadPendingTurboSend();
+    const entry = await loadPendingTurboSendEntry();
 
-    if (!pending) {
+    if (!entry) {
       return { recovered: false };
     }
+    const pending = entry.pending;
 
     logger.info('[TurboRecovery] Found pending turbo send, attempting recovery', {
       quoteId: pending.quoteId.substring(0, 8),
@@ -184,10 +437,34 @@ export const recoverPendingTurboSend = async (
     });
 
     // If we're still waiting for mint, the mint quote recovery will handle it
-    // We only need to resume if mint completed but P2PK wasn't sent
+    // We also check the mint directly so a crash after completeMint but before
+    // updating this stage cannot leave the Turbo send stuck forever.
     if (pending.stage === 'waiting_for_mint') {
-      logger.debug('[TurboRecovery] Still waiting for mint, mint quote recovery will handle this');
-      return { recovered: false };
+      const mintStatus = await checkMintStatus(pending.quoteId);
+      if (mintStatus.availableAmount > 0 || mintStatus.state === 'PAID') {
+        const claimAmount =
+          mintStatus.availableAmount > 0 ? mintStatus.availableAmount : pending.amount;
+        await completeMint(pending.quoteId, claimAmount);
+        await updateTurboSendEntry(entry, 'mint_completed');
+        pending.stage = 'mint_completed';
+        logger.info('[TurboRecovery] Recovered completed mint for waiting turbo send', {
+          quoteId: pending.quoteId.substring(0, 8),
+          amount: claimAmount,
+        });
+      } else if (mintStatus.state === 'ISSUED') {
+        await updateTurboSendEntry(entry, 'mint_completed');
+        pending.stage = 'mint_completed';
+        logger.info(
+          '[TurboRecovery] Mint already issued for waiting turbo send, resuming P2PK creation',
+          {
+            quoteId: pending.quoteId.substring(0, 8),
+            state: mintStatus.state,
+          }
+        );
+      } else {
+        logger.debug('[TurboRecovery] Still waiting for mint payment');
+        return { recovered: false };
+      }
     }
 
     // Mint completed but P2PK not created/sent - resume from here
@@ -200,7 +477,13 @@ export const recoverPendingTurboSend = async (
       }
 
       // Create P2PK token
-      const result = await sendP2PKToken(pending.amount, recipientPubkey, {});
+      const result = await sendP2PKToken(
+        pending.amount,
+        recipientPubkey,
+        {},
+        undefined,
+        pending.recipient
+      );
       if (!result?.token) {
         throw new Error('sendP2PKToken returned no token');
       }
@@ -208,19 +491,35 @@ export const recoverPendingTurboSend = async (
       logger.info('[TurboRecovery] P2PK token created successfully');
 
       // Persist the token before any URL/history work so another crash can retry safely.
-      await updateTurboSendStage('p2pk_created', { token: result.token });
+      await updateTurboSendEntry(entry, 'p2pk_created', { token: result.token });
+      await saveToken(
+        result.token,
+        pending.recipient,
+        pending.amount,
+        null,
+        null,
+        pending.senderTaprootAddress
+      );
 
       // Generate shortened URL
       const shortUrl = await shortenToken(result.token);
-      await updateTurboSendStage('p2pk_created', { token: result.token, shortUrl });
+      await updateTurboSendEntry(entry, 'p2pk_created', { token: result.token, shortUrl });
       logger.info('[TurboRecovery] Generated short URL', { shortUrlLength: shortUrl.length });
 
       // Save the token
-      await saveToken(result.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
+      await saveToken(
+        result.token,
+        pending.recipient,
+        pending.amount,
+        null,
+        shortUrl,
+        pending.senderTaprootAddress
+      );
+      await clearRecoveredOutgoingSwapToken(result.token);
       logger.info('[TurboRecovery] Token saved successfully');
 
       // Clear the pending send
-      await clearPendingTurboSend();
+      await deleteTurboSendEntry(entry);
 
       return {
         recovered: true,
@@ -240,13 +539,21 @@ export const recoverPendingTurboSend = async (
       }
 
       // Re-generate short URL if not saved
-      const shortUrl = pending.shortUrl || await shortenToken(pending.token);
-      await updateTurboSendStage('p2pk_created', { token: pending.token, shortUrl });
+      const shortUrl = pending.shortUrl || (await shortenToken(pending.token));
+      await updateTurboSendEntry(entry, 'p2pk_created', { token: pending.token, shortUrl });
       // Re-save the locked token
-      await saveToken(pending.token, pending.recipient, pending.amount, null, shortUrl, pending.senderTaprootAddress);
+      await saveToken(
+        pending.token,
+        pending.recipient,
+        pending.amount,
+        null,
+        shortUrl,
+        pending.senderTaprootAddress
+      );
+      await clearRecoveredOutgoingSwapToken(pending.token);
       logger.info('[TurboRecovery] Re-saved token from recovery data');
 
-      await clearPendingTurboSend();
+      await deleteTurboSendEntry(entry);
       return {
         recovered: true,
         token: pending.token,

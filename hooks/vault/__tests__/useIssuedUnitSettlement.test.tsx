@@ -82,10 +82,13 @@ jest.mock('../../../stores/notificationStore', () => ({
 }));
 
 jest.mock('../../../stores/pendingTransactionsStore', () => ({
-  usePendingTransactionsStore: jest.fn(),
+  usePendingTransactionsStore: Object.assign(jest.fn(), {
+    getState: jest.fn(),
+  }),
 }));
 
 jest.mock('../../../stores/vaultSettlementStore', () => ({
+  persistVaultSettlementNow: jest.fn().mockResolvedValue(undefined),
   useVaultSettlementStore: Object.assign(jest.fn(), {
     getState: jest.fn(),
   }),
@@ -159,20 +162,25 @@ function configureIssuedUnitSettlement({
     selector({ showSnackbar: mockShowSnackbar })
   );
   (useTransactionPolling as jest.Mock).mockReturnValue({ startPolling: mockStartPolling });
-  (usePendingTransactionsStore as unknown as jest.Mock).mockImplementation((selector) =>
-    selector({
-      pendingTransactions: {
-        [pendingInputHash]: { status: 'pending' },
-      },
-      getUnconfirmedUTXOs: mockGetUnconfirmedUTXOs,
-      getSpentUtxos: mockGetSpentUtxos,
-      markUtxoAsSpent: mockMarkUtxoAsSpent,
-      markUtxosAsSpent: mockMarkUtxosAsSpent,
-      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
-      addPendingTransaction: mockAddPendingTransaction,
-      confirmTransaction: mockConfirmTransaction,
-    })
+  const pendingTransactionsStoreMock = usePendingTransactionsStore as unknown as jest.Mock & {
+    getState: jest.Mock;
+  };
+  const pendingTransactionsState = {
+    pendingTransactions: {
+      [pendingInputHash]: { status: 'pending' },
+    },
+    getUnconfirmedUTXOs: mockGetUnconfirmedUTXOs,
+    getSpentUtxos: mockGetSpentUtxos,
+    markUtxoAsSpent: mockMarkUtxoAsSpent,
+    markUtxosAsSpent: mockMarkUtxosAsSpent,
+    unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+    addPendingTransaction: mockAddPendingTransaction,
+    confirmTransaction: mockConfirmTransaction,
+  };
+  pendingTransactionsStoreMock.mockImplementation((selector) =>
+    selector(pendingTransactionsState)
   );
+  pendingTransactionsStoreMock.getState.mockReturnValue(pendingTransactionsState);
   const vaultSettlementStoreMock = useVaultSettlementStore as unknown as jest.Mock & {
     getState: jest.Mock;
   };
@@ -221,7 +229,7 @@ function configureIssuedUnitSettlement({
   });
   (signIntentService as jest.Mock).mockResolvedValue({
     signedTxHex: 'signed-bridge-send',
-    txid: 'signed-txid',
+    txid: 'broadcast-txid',
   });
   (broadcastTransaction as jest.Mock).mockResolvedValue('broadcast-txid');
   (waitForBridgeSettlement as jest.Mock).mockResolvedValue({
@@ -338,6 +346,9 @@ describe('useIssuedUnitSettlement', () => {
     );
     expect(broadcastTransaction).toHaveBeenCalledWith('signed-bridge-send');
     expect(mockSetBridgeSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockSetBridgeSendTxid.mock.invocationCallOrder[0]).toBeLessThan(
+      (broadcastTransaction as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(mockMarkUtxoAsSpent).toHaveBeenCalledWith(pendingInputHash, 2);
     expect(mockAddPendingTransaction).toHaveBeenCalledWith(
       'broadcast-txid',
@@ -346,6 +357,9 @@ describe('useIssuedUnitSettlement', () => {
       pendingInputHash,
       5000,
       [{ txid: pendingInputHash, vout: 2 }],
+    );
+    expect(mockAddPendingTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      (broadcastTransaction as jest.Mock).mock.invocationCallOrder[0],
     );
     expect(mockStartPolling).toHaveBeenCalledWith(
       'broadcast-txid',
@@ -401,6 +415,31 @@ describe('useIssuedUnitSettlement', () => {
       duration: 7000,
     });
     expect(mockSetBridgeSendTxid).not.toHaveBeenCalled();
+    expect(mockCompleteSettlement).not.toHaveBeenCalled();
+  });
+
+  it('unlocks reserved bridge inputs when pending tracking fails before broadcast', async () => {
+    mockAddPendingTransaction.mockRejectedValueOnce(new Error('pending tracking failed'));
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+    let settlementResult: unknown;
+
+    await act(async () => {
+      settlementResult = await result.current.settleIssuedUnitToUsdc('borrow', 50);
+    });
+
+    expect(settlementResult).toEqual({
+      status: 'needs_retry',
+      bridgeIntentId: 'bridge-intent-1',
+      error: 'pending tracking failed',
+    });
+    expect(broadcastTransaction).not.toHaveBeenCalled();
+    expect(mockSetBridgeSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockSetBridgeSendTxid).toHaveBeenLastCalledWith(null);
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'unit-input', vout: 0 },
+      { txid: 'sat-input', vout: 1 },
+    ]);
+    expect(mockMarkNeedsRetry).toHaveBeenCalledWith('pending tracking failed');
     expect(mockCompleteSettlement).not.toHaveBeenCalled();
   });
 
@@ -471,11 +510,42 @@ describe('useIssuedUnitSettlement', () => {
       [{ txid: pendingInputHash, vout: 2 }],
       { displayKind: 'turbo_mint_claim' },
     );
+    expect(mockSetCashuMintSendTxid.mock.invocationCallOrder[0]).toBeLessThan(
+      (broadcastTransaction as jest.Mock).mock.invocationCallOrder[0],
+    );
+    expect(mockAddPendingTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      (broadcastTransaction as jest.Mock).mock.invocationCallOrder[0],
+    );
     expect(checkMintStatus).toHaveBeenCalledWith('cashu-quote-1');
     expect(completeMint).toHaveBeenCalledWith('cashu-quote-1', 5000);
     expect(mockConfirmTransaction).toHaveBeenCalledWith('broadcast-txid');
     expect(mockFetchTransactionHistory).toHaveBeenCalled();
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('unlocks reserved Turbo mint inputs when pending tracking fails before broadcast', async () => {
+    mockAddPendingTransaction.mockRejectedValueOnce(new Error('turbo pending tracking failed'));
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+    let settlementResult: unknown;
+
+    await act(async () => {
+      settlementResult = await result.current.settleIssuedUnitToTurboUnit('borrow', 50);
+    });
+
+    expect(settlementResult).toEqual({
+      status: 'needs_retry',
+      cashuMintQuoteId: 'cashu-quote-1',
+      error: 'turbo pending tracking failed',
+    });
+    expect(broadcastTransaction).not.toHaveBeenCalled();
+    expect(mockSetCashuMintSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockSetCashuMintSendTxid).toHaveBeenLastCalledWith(null);
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'unit-input', vout: 0 },
+      { txid: 'sat-input', vout: 1 },
+    ]);
+    expect(mockMarkNeedsRetry).toHaveBeenCalledWith('turbo pending tracking failed');
+    expect(mockCompleteSettlement).not.toHaveBeenCalled();
   });
 
   it('rejects settlement immediately when wallet addresses are missing', async () => {

@@ -82,6 +82,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     invalidateTransaction,
     markUtxoAsSpent,
     markUtxosAsSpent,
+    unmarkUtxosAsSpent,
   } = usePendingTransactionsStore();
 
   // Execution state
@@ -117,6 +118,8 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   const { broadcast } = useTransactionBroadcast({
     wallet,
     pendingTransactions,
+    getPendingTransactions: () =>
+      usePendingTransactionsStore.getState?.()?.pendingTransactions ?? pendingTransactions,
     sendAssetType,
     sendAmount,
     setSendIntent,
@@ -127,6 +130,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     getSnackbarAction,
     markUtxoAsSpent,
     markUtxosAsSpent,
+    unmarkUtxosAsSpent,
     addPendingTransaction,
     confirmTransaction,
     invalidateTransaction,

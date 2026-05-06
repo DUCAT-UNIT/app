@@ -8,6 +8,8 @@ import {
   removeMintQuote,
   loadMintQuotes,
   updateMintQuoteState,
+  ensureMintQuoteClaimCanBePersisted,
+  persistMintQuoteClaim,
   recoverUnclaimedMintQuotes,
   clearAllMintQuotes,
   PersistedMintQuote,
@@ -47,6 +49,7 @@ jest.mock('../../storagePolicy', () => ({
 
 import { checkMintQuote } from '../cashuMintClient';
 import { completeMint } from '../operations/cashuMintOperations';
+import { getCurrentCashuAccount } from '../cashuProofManager';
 
 describe('cashuMintQuoteRecovery', () => {
   beforeEach(() => {
@@ -54,6 +57,7 @@ describe('cashuMintQuoteRecovery', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (getCurrentCashuAccount as jest.Mock).mockReturnValue(null);
   });
 
   describe('saveMintQuote', () => {
@@ -111,17 +115,37 @@ describe('cashuMintQuoteRecovery', () => {
       expect(savedData[0].createdAt).toBeGreaterThanOrEqual(beforeTime);
     });
 
-    it('should handle save errors gracefully', async () => {
+    it('should throw on save errors so callers do not continue without recovery', async () => {
       (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
-      // Should not throw
       await expect(
         saveMintQuote({
           quoteId: 'quote123',
           amount: 1000,
           depositAddress: 'tb1ptest',
         })
-      ).resolves.not.toThrow();
+      ).rejects.toThrow('Storage error');
+    });
+
+    it('should not overwrite corrupt mint quote storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('{bad json');
+
+      await expect(
+        saveMintQuote({
+          quoteId: 'quote123',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+        })
+      ).rejects.toThrow('Mint quote recovery storage corrupted');
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+        ([key]) => key === 'cashu_pending_mint_quotes',
+      )).toBe(false);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^cashu_pending_mint_quotes_corrupt_/),
+        '{bad json',
+        expect.any(Object),
+      );
     });
   });
 
@@ -169,6 +193,34 @@ describe('cashuMintQuoteRecovery', () => {
       await removeMintQuote('nonexistent');
 
       expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should preserve other account quotes when removing a current account quote', async () => {
+      (getCurrentCashuAccount as jest.Mock).mockReturnValue('account_a');
+      const existingQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote_a',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          taprootAddress: 'account_a',
+          createdAt: Date.now(),
+          state: 'UNPAID',
+        },
+        {
+          quoteId: 'quote_b',
+          amount: 2000,
+          depositAddress: 'tb1ptest2',
+          taprootAddress: 'account_b',
+          createdAt: Date.now(),
+          state: 'PAID',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingQuotes));
+
+      await removeMintQuote('quote_a');
+
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData).toEqual([existingQuotes[1]]);
     });
 
     it('should handle errors gracefully', async () => {
@@ -252,12 +304,44 @@ describe('cashuMintQuoteRecovery', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalled();
     });
 
-    it('should handle parse errors gracefully', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('invalid json');
+    it('should keep expired quotes that have persisted claim data', async () => {
+      const now = Date.now();
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'old_claim_quote',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: now - 25 * 60 * 60 * 1000,
+          state: 'PENDING',
+          claim: {
+            amount: 1000,
+            signatures: [],
+            blindingData: [],
+            keys: {},
+            keysetId: 'keyset',
+            signedKeysetId: 'signed-keyset',
+            createdAt: now - 25 * 60 * 60 * 1000,
+          },
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
 
       const quotes = await loadMintQuotes();
 
-      expect(quotes).toEqual([]);
+      expect(quotes).toEqual(storedQuotes);
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should fail closed and quarantine corrupt quote storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('invalid json');
+
+      await expect(loadMintQuotes()).rejects.toThrow('Mint quote recovery storage corrupted');
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^cashu_pending_mint_quotes_corrupt_/),
+        'invalid json',
+        expect.any(Object),
+      );
     });
   });
 
@@ -300,6 +384,31 @@ describe('cashuMintQuoteRecovery', () => {
       (SecureStore.getItemAsync as jest.Mock).mockRejectedValue('string error');
 
       await expect(updateMintQuoteState('quote123', 'PAID')).resolves.not.toThrow();
+    });
+  });
+
+  describe('claim persistence preconditions', () => {
+    it('should throw if a mint claim has no durable quote record', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify([]));
+
+      await expect(ensureMintQuoteClaimCanBePersisted('missing_quote')).rejects.toThrow(
+        'Mint quote recovery record missing'
+      );
+    });
+
+    it('should throw instead of silently ignoring a claim for a missing quote', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify([]));
+
+      await expect(
+        persistMintQuoteClaim('missing_quote', {
+          amount: 1000,
+          signatures: [],
+          blindingData: [],
+          keys: {},
+          keysetId: 'keyset',
+          signedKeysetId: 'keyset',
+        })
+      ).rejects.toThrow('Mint quote recovery record missing');
     });
   });
 

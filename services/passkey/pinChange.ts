@@ -19,7 +19,7 @@ const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error('Passkey authentication timed out — please try again')),
-      PASSKEY_NATIVE_TIMEOUT_MS,
+      PASSKEY_NATIVE_TIMEOUT_MS
     );
     (timeout as { unref?: () => void }).unref?.();
 
@@ -40,7 +40,6 @@ const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DE
 
 // Module-level lock to prevent concurrent PIN changes
 let pinChangeInProgress = false;
-const PIN_CHANGE_TIMEOUT_MS = 30000; // 30 seconds max
 
 // Reset function for testing only
 export const _resetPinChangeState = (): void => {
@@ -80,28 +79,34 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
     // Step 1: Backup current state in case we need to rollback
     const oldPinHash = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const oldPinSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
+    const oldPinSaltHmac = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT_HMAC);
     const oldPinVersion = await SecureStore.getItemAsync(SECURE_KEYS.PIN_VERSION);
     const oldEncryptedMnemonic = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
     const oldIv = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
     const oldTag = await SecureStore.getItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
+
+    const restoreItem = async (key: string, value: string | null): Promise<void> => {
+      if (value === null) {
+        await SecureStore.deleteItemAsync(key);
+        return;
+      }
+      await SecureStore.setItemAsync(key, value, DEVICE_ONLY);
+    };
 
     // Helper to rollback PIN and passkey data to pre-change state
     const rollback = async (reason: string): Promise<void> => {
       logger.error('PIN change failed, rolling back to old PIN', { reason });
       try {
         if (oldPinHash && oldPinSalt) {
-          await SecureStore.setItemAsync(SECURE_KEYS.PIN, oldPinHash, DEVICE_ONLY);
-          await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, oldPinSalt, DEVICE_ONLY);
-          if (oldPinVersion) {
-            await SecureStore.setItemAsync(SECURE_KEYS.PIN_VERSION, oldPinVersion, DEVICE_ONLY);
-          }
+          await restoreItem(SECURE_KEYS.PIN, oldPinHash);
+          await restoreItem(SECURE_KEYS.PIN_SALT, oldPinSalt);
+          await restoreItem(SECURE_KEYS.PIN_SALT_HMAC, oldPinSaltHmac);
+          await restoreItem(SECURE_KEYS.PIN_VERSION, oldPinVersion);
         }
         if (oldEncryptedMnemonic && oldIv) {
-          await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, oldEncryptedMnemonic, DEVICE_ONLY);
-          await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_IV, oldIv, DEVICE_ONLY);
-          if (oldTag) {
-            await SecureStore.setItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG, oldTag, DEVICE_ONLY);
-          }
+          await restoreItem(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, oldEncryptedMnemonic);
+          await restoreItem(PASSKEY_KEYS.ENCRYPTION_IV, oldIv);
+          await restoreItem(PASSKEY_KEYS.ENCRYPTION_TAG, oldTag);
         }
         logger.debug('Successfully rolled back to old PIN');
       } catch (rollbackError) {
@@ -111,15 +116,6 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
         );
       }
     };
-
-    // Timeout protection via Promise.race: guarantees rollback on timeout
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error('PIN change timed out after 30 seconds'));
-      }, PIN_CHANGE_TIMEOUT_MS);
-      (timeoutId as { unref?: () => void }).unref?.();
-    });
 
     const pinChangeWork = async (): Promise<PinChangeResult> => {
       // Step 2: Save new PIN (generates new salt)
@@ -138,11 +134,7 @@ export const atomicPinChangeWithPasskey = async (newPin: string): Promise<PinCha
     };
 
     try {
-      return await Promise.race([pinChangeWork(), timeoutPromise]).finally(() => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-      });
+      return await pinChangeWork();
     } catch (error: unknown) {
       // Rollback on any failure (including timeout)
       try {
@@ -228,7 +220,9 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
       const authResult = await withPasskeyTimeout(Passkey.get(requestJson));
       const prfResultRaw = authResult.clientExtensionResults?.prf?.results?.first ?? null;
       prfSecret = prfResultRaw
-        ? (prfResultRaw instanceof Uint8Array ? prfResultRaw : new Uint8Array(prfResultRaw))
+        ? prfResultRaw instanceof Uint8Array
+          ? prfResultRaw
+          : new Uint8Array(prfResultRaw)
         : null;
 
       if (!prfSecret) {
@@ -248,7 +242,12 @@ export const reencryptPasskeyMnemonicAfterPinChange = async (newPin: string): Pr
 
     // Derive encryption key using NEW PIN + PRF secret (or credential IDs for legacy)
     const encryptionKey = await deriveEncryptionKey(
-      credentialId, userHandle, newPin, newPinSalt, false, prfSecret
+      credentialId,
+      userHandle,
+      newPin,
+      newPinSalt,
+      false,
+      prfSecret
     );
 
     // Encrypt mnemonic with new key

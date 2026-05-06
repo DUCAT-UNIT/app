@@ -1,5 +1,11 @@
-import { getBridgeIntentByClientRequestId, getBridgeStatus, getRedemptionStatus } from './bridgeApiService';
+import {
+  getBridgeIntentByClientRequestId,
+  getBridgeStatus,
+  getRedemptionStatus,
+  trackRedemption,
+} from './bridgeApiService';
 import { checkMintQuote, deriveMintQuoteState } from './cashu/cashuMintClient';
+import { deriveSepoliaAccount } from './evmWalletService';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -36,8 +42,16 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function isMissingBackendRecord(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('404') || normalized.includes('not found');
+}
+
 export function formatVaultSettlementAmountInput(amountUsd: number): string {
-  return amountUsd.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
+  return amountUsd
+    .toFixed(2)
+    .replace(/\.00$/, '')
+    .replace(/(\.\d)0$/, '$1');
 }
 
 export async function quoteVaultBorrowSettlement(amountUsd: number): Promise<{
@@ -56,7 +70,7 @@ export async function quoteVaultBorrowSettlement(amountUsd: number): Promise<{
 export async function quoteVaultRepaySettlement(
   accountIndex: number,
   amountUsd: number,
-  destinationTaprootAddress: string,
+  destinationTaprootAddress: string
 ): Promise<{
   requiredUsdcIn: string;
   estimatedSepoliaFeeEth: string;
@@ -66,7 +80,7 @@ export async function quoteVaultRepaySettlement(
   const gasEstimate = await estimateUsdcToUnitSwapExecution(
     accountIndex,
     requiredUsdcIn,
-    destinationTaprootAddress,
+    destinationTaprootAddress
   );
 
   return {
@@ -77,7 +91,7 @@ export async function quoteVaultRepaySettlement(
 
 export async function waitForBridgeSettlement(
   intentId: string,
-  timeoutMs = BRIDGE_SETTLEMENT_TIMEOUT_MS,
+  timeoutMs = BRIDGE_SETTLEMENT_TIMEOUT_MS
 ): Promise<BridgeIntent> {
   const deadline = Date.now() + timeoutMs;
   const pollId = useSwapDiagnosticsStore.getState().startPoll({
@@ -122,9 +136,8 @@ export async function waitForBridgeSettlement(
       useSwapDiagnosticsStore.getState().completePoll(pollId, {
         status: intent.status === 'failed' ? 'error' : 'success',
         lastStatus: intent.status,
-        lastMessage: intent.status === 'failed'
-          ? 'Bridge settlement failed'
-          : 'Bridge settlement completed',
+        lastMessage:
+          intent.status === 'failed' ? 'Bridge settlement failed' : 'Bridge settlement completed',
         lastError: intent.error ?? null,
       });
       return intent;
@@ -146,7 +159,7 @@ export async function waitForBridgeSettlement(
 
 export async function waitForRedemptionRelease(
   redemptionId: string,
-  timeoutMs = REDEMPTION_RELEASE_TIMEOUT_MS,
+  timeoutMs = REDEMPTION_RELEASE_TIMEOUT_MS
 ): Promise<RedemptionRequest> {
   const deadline = Date.now() + timeoutMs;
   const pollId = useSwapDiagnosticsStore.getState().startPoll({
@@ -184,9 +197,10 @@ export async function waitForRedemptionRelease(
       useSwapDiagnosticsStore.getState().completePoll(pollId, {
         status: redemption.status === 'failed' ? 'error' : 'success',
         lastStatus: redemption.status,
-        lastMessage: redemption.status === 'failed'
-          ? 'Redemption release failed'
-          : 'Redemption release completed',
+        lastMessage:
+          redemption.status === 'failed'
+            ? 'Redemption release failed'
+            : 'Redemption release completed',
         lastError: redemption.error ?? null,
       });
       return redemption;
@@ -257,7 +271,9 @@ function bridgePayoutAsset(intent: BridgeIntent): VaultSettlementPayoutAsset {
   return intent.payoutAsset || (intent.status === 'fulfilled' ? 'USDC' : 'wUNIT');
 }
 
-async function refreshPersistedBridgeIntent(intentId: string): Promise<VaultSettlementRefreshResult> {
+async function refreshPersistedBridgeIntent(
+  intentId: string
+): Promise<VaultSettlementRefreshResult> {
   let intent: BridgeIntent;
   try {
     intent = await getBridgeStatus(intentId);
@@ -308,11 +324,9 @@ async function refreshPersistedBridgeIntent(intentId: string): Promise<VaultSett
   if (intent.status === 'fulfilled' || intent.status === 'minted_no_swap') {
     const payoutAsset = bridgePayoutAsset(intent);
     const payoutAmount = intent.payoutAmount || intent.fulfilledAmount || null;
-    useVaultSettlementStore.getState().completeSettlement(
-      payoutAsset,
-      payoutAmount,
-      intent.sepoliaTxHash || null,
-    );
+    useVaultSettlementStore
+      .getState()
+      .completeSettlement(payoutAsset, payoutAmount, intent.sepoliaTxHash || null);
     recordOneShotSettlementPoll({
       kind: 'bridge_settlement',
       label: 'Bridge settlement refresh',
@@ -347,7 +361,7 @@ async function refreshPersistedBridgeIntent(intentId: string): Promise<VaultSett
 }
 
 async function refreshPersistedBridgeClientRequest(
-  clientRequestId: string,
+  clientRequestId: string
 ): Promise<VaultSettlementRefreshResult> {
   let intent: BridgeIntent | null;
   try {
@@ -387,23 +401,64 @@ async function refreshPersistedBridgeClientRequest(
   return refreshPersistedBridgeIntent(intent.id);
 }
 
-async function refreshPersistedRedemption(redemptionId: string): Promise<VaultSettlementRefreshResult> {
+async function refreshPersistedRedemption(
+  redemptionId: string
+): Promise<VaultSettlementRefreshResult> {
   let redemption: RedemptionRequest;
   try {
     redemption = await getRedemptionStatus(redemptionId);
   } catch (error) {
     const message = getErrorMessage(error);
-    recordOneShotSettlementPoll({
-      kind: 'redemption_release',
-      label: 'Redemption release refresh',
-      subject: redemptionId,
-      lastError: message,
-      terminalStatus: 'error',
-    });
-    return {
-      status: 'error',
-      message,
-    };
+    const settlement = useVaultSettlementStore.getState();
+
+    if (
+      isMissingBackendRecord(message) &&
+      settlement.accountIndex !== null &&
+      settlement.taprootAddress &&
+      settlement.redemptionBurnTxHash
+    ) {
+      try {
+        const requester = await deriveSepoliaAccount(settlement.accountIndex);
+        redemption = await trackRedemption({
+          id: redemptionId,
+          requester: requester.address,
+          destinationTaprootAddress: settlement.taprootAddress,
+          amount: formatVaultSettlementAmountInput(settlement.faceValueUsd),
+          sourceAsset: settlement.requestedPayoutAsset === 'USDC' ? 'USDC' : 'wUNIT',
+          burnTxHash: settlement.redemptionBurnTxHash,
+        });
+        logger.info('[VaultSettlement] Re-tracked persisted redemption burn', {
+          redemptionId,
+          accountIndex: settlement.accountIndex,
+          burnTxHash: settlement.redemptionBurnTxHash,
+        });
+      } catch (trackError) {
+        const trackMessage = getErrorMessage(trackError);
+        recordOneShotSettlementPoll({
+          kind: 'redemption_release',
+          label: 'Redemption release refresh',
+          subject: redemptionId,
+          lastError: trackMessage,
+          terminalStatus: 'error',
+        });
+        return {
+          status: 'error',
+          message: trackMessage,
+        };
+      }
+    } else {
+      recordOneShotSettlementPoll({
+        kind: 'redemption_release',
+        label: 'Redemption release refresh',
+        subject: redemptionId,
+        lastError: message,
+        terminalStatus: 'error',
+      });
+      return {
+        status: 'error',
+        message,
+      };
+    }
   }
 
   const metadata = {
@@ -495,14 +550,14 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
 
   if (isFullyIssued) {
     if (cashuMintSendTxid) {
-      await usePendingTransactionsStore.getState().confirmTransaction(cashuMintSendTxid).catch(() => undefined);
+      await usePendingTransactionsStore
+        .getState()
+        .confirmTransaction(cashuMintSendTxid)
+        .catch(() => undefined);
     }
 
     const issuedSmallestUnits =
-      amountIssued ||
-      amountPaid ||
-      mintQuote.amount ||
-      Math.round(settlement.faceValueUsd * 100);
+      amountIssued || amountPaid || mintQuote.amount || Math.round(settlement.faceValueUsd * 100);
     const payoutAmount = formatVaultSettlementAmountInput(issuedSmallestUnits / 100);
     useVaultSettlementStore.getState().completeSettlement('TURBOUNIT', payoutAmount);
 
@@ -517,15 +572,22 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
 
   return {
     status: 'pending',
-    message: mintState === 'PAID'
-      ? 'TurboUNIT mint is paid and ready to claim.'
-      : 'TurboUNIT mint is still processing.',
+    message:
+      mintState === 'PAID'
+        ? 'TurboUNIT mint is paid and ready to claim.'
+        : 'TurboUNIT mint is still processing.',
     lastStatus: mintState,
   };
 }
 
 export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSettlementRefreshResult> {
-  const { bridgeClientRequestId, bridgeIntentId, cashuMintQuoteId, redemptionId, requestedPayoutAsset } = useVaultSettlementStore.getState();
+  const {
+    bridgeClientRequestId,
+    bridgeIntentId,
+    cashuMintQuoteId,
+    redemptionId,
+    requestedPayoutAsset,
+  } = useVaultSettlementStore.getState();
 
   if (redemptionId) {
     return refreshPersistedRedemption(redemptionId);
@@ -553,7 +615,7 @@ export function getVaultSettlementStatusMessage(
   kind: VaultSettlementKind | null,
   phase: VaultSettlementPhase,
   fallbackStep: number,
-  includeSepoliaCopy = true,
+  includeSepoliaCopy = true
 ): string {
   if (phase === 'idle' || phase === 'quoting' || phase === 'issuing_vault') {
     switch (fallbackStep) {
@@ -578,7 +640,9 @@ export function getVaultSettlementStatusMessage(
 
   switch (phase) {
     case 'creating_bridge':
-      return includeSepoliaCopy ? 'Preparing Sepolia settlement...' : 'Preparing USDC settlement...';
+      return includeSepoliaCopy
+        ? 'Preparing Sepolia settlement...'
+        : 'Preparing USDC settlement...';
     case 'building_bridge_send':
       return 'Preparing UNIT bridge send...';
     case 'signing_bridge_send':
@@ -586,7 +650,9 @@ export function getVaultSettlementStatusMessage(
     case 'broadcasting_bridge_send':
       return 'Broadcasting the bridge send...';
     case 'waiting_bridge_fulfillment':
-      return includeSepoliaCopy ? 'Waiting for Sepolia USDC settlement...' : 'Waiting for USDC settlement...';
+      return includeSepoliaCopy
+        ? 'Waiting for Sepolia USDC settlement...'
+        : 'Waiting for USDC settlement...';
     case 'creating_turbo_mint':
       return 'Preparing TurboUNIT mint quote...';
     case 'building_turbo_send':
@@ -602,7 +668,9 @@ export function getVaultSettlementStatusMessage(
     case 'waiting_turbo_release':
       return 'Waiting for melted UNIT on Mutinynet...';
     case 'swapping_repay':
-      return includeSepoliaCopy ? 'Swapping Sepolia USDC into UNIT on Sepolia...' : 'Swapping USDC into UNIT...';
+      return includeSepoliaCopy
+        ? 'Swapping Sepolia USDC into UNIT on Sepolia...'
+        : 'Swapping USDC into UNIT...';
     case 'waiting_redemption_release':
       return 'Waiting for released UNIT on Mutinynet...';
     case 'repaying_vault':

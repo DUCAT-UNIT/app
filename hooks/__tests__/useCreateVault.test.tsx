@@ -28,7 +28,11 @@ jest.mock('../../services/vaultOperationsService', () => ({
   createVaultConfig: jest.fn(() => ({ unit_amount: 100, btc_amount: 0.001 })),
   guardianOpenVaultReserve: jest.fn().mockResolvedValue({ account: 'res123' }),
   guardianSendReqOpen: jest.fn().mockResolvedValue('txid123'),
-  createVaultReqOpen: jest.fn().mockResolvedValue({ psbt: 'psbt123', vault_txid: 'vaulttxid123' }),
+  createVaultReqOpen: jest.fn().mockResolvedValue({
+    psbt: 'psbt123',
+    issue_txid: 'txid123',
+    vault_txid: 'vaulttxid123',
+  }),
 }));
 
 jest.mock('../../services/vaultWalletService', () => ({
@@ -61,29 +65,38 @@ jest.mock('../../stores/vaultCreationStore', () => ({
 }));
 
 const mockSetPendingVaultTransaction = jest.fn().mockResolvedValue(undefined);
+const mockSetPendingVaultTransactionForAccount = jest.fn().mockResolvedValue(undefined);
+const mockClearPendingVaultTransactionForAccount = jest.fn().mockResolvedValue(undefined);
 const mockAddPendingTransaction = jest.fn().mockResolvedValue(undefined);
 const mockMarkUtxoAsSpent = jest.fn().mockResolvedValue(undefined);
+const mockMarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
+const mockUnmarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
 const mockShowSnackbar = jest.fn();
 const mockPendingTransactions: Record<string, unknown> = {};
+const mockPendingTransactionsStoreState = {
+  pendingTransactions: mockPendingTransactions,
+  addPendingTransaction: mockAddPendingTransaction,
+  markUtxoAsSpent: mockMarkUtxoAsSpent,
+  markUtxosAsSpent: mockMarkUtxosAsSpent,
+  unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+};
 
 jest.mock('../../stores/pendingVaultTransactionStore', () => ({
   usePendingVaultTransactionStore: jest.fn((selector) => selector({
     pendingTransaction: null,
     setPendingTransaction: mockSetPendingVaultTransaction,
+    setPendingTransactionForAccount: mockSetPendingVaultTransactionForAccount,
+    clearPendingTransactionForAccount: mockClearPendingVaultTransactionForAccount,
   })),
 }));
 
 jest.mock('../../stores/pendingTransactionsStore', () => {
-  const store = {
-    pendingTransactions: mockPendingTransactions,
-    addPendingTransaction: mockAddPendingTransaction,
-    markUtxoAsSpent: mockMarkUtxoAsSpent,
-  };
-
-  const usePendingTransactionsStore = jest.fn((selector) => selector(store)) as jest.Mock & {
+  const usePendingTransactionsStore = jest.fn((selector) =>
+    selector(mockPendingTransactionsStoreState)
+  ) as jest.Mock & {
     getState: jest.Mock;
   };
-  usePendingTransactionsStore.getState = jest.fn(() => store);
+  usePendingTransactionsStore.getState = jest.fn(() => mockPendingTransactionsStoreState);
 
   return {
     usePendingTransactionsStore,
@@ -117,6 +130,7 @@ jest.mock('../../contexts/WalletContext', () => ({
       taprootAddress: 'tb1ptest...',
       taprootPubkey: 'pubkey2',
     },
+    currentAccount: 0,
   })),
 }));
 
@@ -140,11 +154,22 @@ import { guardianSendReqOpen } from '../../services/vaultOperationsService';
 describe('useCreateVault', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    const { usePendingTransactionsStore } = require('../../stores/pendingTransactionsStore');
+    usePendingTransactionsStore.mockImplementation((selector: any) =>
+      selector(mockPendingTransactionsStoreState)
+    );
+    usePendingTransactionsStore.getState.mockImplementation(() => mockPendingTransactionsStoreState);
     // Reset store state
     mockVaultCreationStore.loading = false;
     mockVaultCreationStore.error = null;
     mockVaultCreationStore.txid = null;
     mockVaultCreationStore.vaultTxid = null;
+    mockSetPendingVaultTransactionForAccount.mockResolvedValue(undefined);
+    mockClearPendingVaultTransactionForAccount.mockResolvedValue(undefined);
+    mockAddPendingTransaction.mockResolvedValue(undefined);
+    mockMarkUtxoAsSpent.mockResolvedValue(undefined);
+    mockMarkUtxosAsSpent.mockResolvedValue(undefined);
+    mockUnmarkUtxosAsSpent.mockResolvedValue(undefined);
   });
 
   it('should return initial state', () => {
@@ -302,6 +327,102 @@ describe('useCreateVault', () => {
       );
     });
 
+    it('should track issue spent inputs even when there is no change output', async () => {
+      const { extractVaultIssuePendingData } = require('../../services/vault/pendingIssueOutputs');
+      const spentInputs = [{ txid: 'funding-txid', vout: 1 }];
+      extractVaultIssuePendingData.mockReturnValueOnce({
+        outputs: [],
+        spentInputs,
+        parentTxid: null,
+      });
+
+      const { result } = renderHook(() => useCreateVault());
+
+      await act(async () => {
+        await result.current!.createVault();
+      });
+
+      expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+        'txid123',
+        [],
+        'UNIT',
+        null,
+        10000,
+        spentInputs,
+      );
+    });
+
+    it('should abort before guardian submit when pending vault persistence fails', async () => {
+      mockSetPendingVaultTransactionForAccount.mockRejectedValueOnce(new Error('SecureStore full'));
+
+      const { result } = renderHook(() => useCreateVault());
+
+      let txid;
+      await act(async () => {
+        txid = await result.current!.createVault();
+      });
+
+	      expect(txid).toBeNull();
+	      expect(guardianSendReqOpen).not.toHaveBeenCalled();
+	      expect(mockMarkUtxosAsSpent).not.toHaveBeenCalled();
+	      expect(mockAddPendingTransaction).not.toHaveBeenCalled();
+	      expect(mockVaultCreationStore.setError).toHaveBeenCalledWith('SecureStore full');
+	    });
+
+    it('should roll back vault locks when pending transaction tracking fails before guardian submit', async () => {
+      const { extractVaultIssuePendingData } = require('../../services/vault/pendingIssueOutputs');
+      const spentInputs = [{ txid: 'funding-txid', vout: 3 }];
+      extractVaultIssuePendingData.mockReturnValueOnce({
+        outputs: [],
+        spentInputs,
+        parentTxid: null,
+      });
+      mockAddPendingTransaction.mockRejectedValueOnce(new Error('pending tx write failed'));
+
+      const { result } = renderHook(() => useCreateVault());
+
+      let txid;
+      await act(async () => {
+        txid = await result.current!.createVault();
+      });
+
+      expect(txid).toBeNull();
+      expect(guardianSendReqOpen).not.toHaveBeenCalled();
+      expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+      expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+      expect(mockClearPendingVaultTransactionForAccount).toHaveBeenCalledWith(0);
+      expect(mockVaultCreationStore.setError).toHaveBeenCalledWith('pending tx write failed');
+    });
+
+    it('should track vault finalization spent inputs even when there is no change output', async () => {
+      const {
+        extractVaultFinalizationPendingData,
+      } = require('../../services/vault/pendingIssueOutputs');
+      const spentInputs = [{ txid: 'vault-funding-txid', vout: 0 }];
+      extractVaultFinalizationPendingData.mockReturnValueOnce({
+        outputs: [],
+        spentInputs,
+        parentTxid: null,
+      });
+
+      const { result } = renderHook(() => useCreateVault());
+
+      await act(async () => {
+        await result.current!.createVault();
+      });
+
+      expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+        'vaulttxid123',
+        [],
+        'BTC',
+        null,
+        undefined,
+        spentInputs,
+      );
+    });
+
     it('should handle wallet with missing pubkeys', async () => {
       const { useWallet } = require('../../contexts/WalletContext');
       const { createVaultWallet } = require('../../services/vaultWalletService');
@@ -316,6 +437,7 @@ describe('useCreateVault', () => {
           taprootAddress: 'tb1ptest...',
           taprootPubkey: undefined, // Will use || ''
         },
+        currentAccount: 0,
       });
 
       const { result } = renderHook(() => useCreateVault());

@@ -69,7 +69,7 @@ interface MockPsbtData {
   inputs: Array<{
     witnessUtxo?: {
       script: Buffer;
-      value: number;
+      value: number | bigint;
     };
     tapKeySig?: Buffer;
   }>;
@@ -699,7 +699,7 @@ describe('transactionService', () => {
               {
                 witnessUtxo: {
                   script: Buffer.from('001400000000', 'hex'),
-                  value: 20000,
+                  value: BigInt(5_020_000),
                 },
               },
               {
@@ -899,7 +899,7 @@ describe('transactionService', () => {
               {
                 witnessUtxo: {
                   script: Buffer.from('001400000000', 'hex'),
-                  value: 20000,
+                  value: BigInt(5_020_000),
                 },
               },
             ],
@@ -963,6 +963,7 @@ describe('transactionService', () => {
           recipient: (mockPsbt as any).__recipient,
           sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
+          fee: 20_000,
           addressType: 'segwit' as const,
           inputs: [{ txid: 'tx1', vout: 0 }, { txid: 'tx2', vout: 1 }],
           psbt: 'mock_btc_psbt_base64',
@@ -1022,6 +1023,7 @@ describe('transactionService', () => {
           recipient: (mockPsbt as any).__recipient,
           sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
+          fee: 20_000,
           addressType: 'taproot' as const,
           inputs: [{ txid: 'tx1', vout: 0 }],
           psbt: 'mock_taproot_psbt_base64',

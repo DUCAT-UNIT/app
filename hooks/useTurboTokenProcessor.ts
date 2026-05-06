@@ -59,6 +59,8 @@ export function useTurboTokenProcessor({
   const hasWallet = !!wallet;
   // Get stable references to store actions to avoid re-renders
   const consumePendingToken = useTokenProcessingStore((state) => state.consumePendingToken);
+  const hydratePendingToken = useTokenProcessingStore((state) => state.hydratePendingToken);
+  const clearPendingToken = useTokenProcessingStore((state) => state.clearPendingToken);
   const registerTokenCheckCallback = useTokenProcessingStore((state) => state.registerTokenCheckCallback);
   const unregisterTokenCheckCallback = useTokenProcessingStore((state) => state.unregisterTokenCheckCallback);
   const triggerWalletReload = useTokenProcessingStore((state) => state.triggerWalletReload);
@@ -141,6 +143,7 @@ export function useTurboTokenProcessor({
 
       // Mark as processed
       await markTokenAsProcessed(token);
+      clearPendingToken();
 
       // Set success message
       if (mountedRef.current) {
@@ -212,7 +215,7 @@ export function useTurboTokenProcessor({
 
                   await new Promise(resolve => setTimeout(resolve, 1000));
                   // Set pending token via store for retry
-                  setPendingToken(tokenToRetry);
+                  await setPendingToken(tokenToRetry);
                 } catch (err: unknown) {
                   logger.error('[TURBO] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
                   showSnackbar({
@@ -232,7 +235,7 @@ export function useTurboTokenProcessor({
         message: snackbarConfig.description || errorMessage,
       }];
     }
-  }, [receive, wallet, fetchBalance, refreshCashu, dismissSnackbar, switchAccount, showSnackbar, scheduleWalletReload, triggerWalletReload, setPendingToken]);
+  }, [receive, wallet, fetchBalance, refreshCashu, dismissSnackbar, switchAccount, showSnackbar, scheduleWalletReload, triggerWalletReload, setPendingToken, clearPendingToken]);
 
   // Poll for pending tokens using the store AND global turboGlobal
   React.useEffect(() => {
@@ -268,15 +271,28 @@ export function useTurboTokenProcessor({
     });
     diagnosticsPollIdRef.current = pollId;
 
-    const checkPendingToken = () => {
+    const checkPendingToken = async () => {
       // First check the Zustand store
       let token = consumePendingToken();
       let tokenSource = 'store';
 
       // Also check turboGlobal (used by deep link handler)
       if (!token && turboGlobal.pendingCashuToken) {
-        token = turboGlobal.pendingCashuToken;
+        const globalToken = turboGlobal.pendingCashuToken;
         tokenSource = 'turbo_global';
+        try {
+          await setPendingToken(globalToken);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error('[TURBO] Failed to persist pending turboGlobal token', { error: errorMessage });
+          useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
+            lastStatus: 'queue_error',
+            lastError: errorMessage,
+          });
+          return;
+        }
+        token = globalToken;
+        consumePendingToken();
         turboGlobal.pendingCashuToken = undefined; // Clear it
         logger.debug('[TURBO] Found pending token from turboGlobal', { tokenLength: token?.length });
       }
@@ -309,17 +325,34 @@ export function useTurboTokenProcessor({
       checkQueuedSnackbars?.();
     };
 
-    // Check immediately and poll
+    let cancelled = false;
+
+    // Check immediately after hydrating any token queued before app exit.
     logger.debug('[TURBO] Starting token polling');
-    checkPendingToken();
+    hydratePendingToken()
+      .catch((error) => {
+        logger.error('[TURBO] Failed to hydrate pending token:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          void checkPendingToken();
+        }
+      });
     // 2s poll interval — balances responsiveness with CPU usage
-    const interval = setInterval(checkPendingToken, 2000);
+    const interval = setInterval(() => {
+      void checkPendingToken();
+    }, 2000);
     (interval as { unref?: () => void }).unref?.();
 
     // Register callback for external triggering via store
-    registerTokenCheckCallback(checkPendingToken);
+    registerTokenCheckCallback(() => {
+      void checkPendingToken();
+    });
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
       unregisterTokenCheckCallback();
       if (diagnosticsPollIdRef.current === pollId) {
@@ -327,7 +360,7 @@ export function useTurboTokenProcessor({
         diagnosticsPollIdRef.current = null;
       }
     };
-  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, consumePendingToken, registerTokenCheckCallback, unregisterTokenCheckCallback, checkQueuedSnackbars, hasWallet]);
+  }, [isAuthenticated, shouldShowPinOverlay, isVerifyingToken, processToken, consumePendingToken, hydratePendingToken, registerTokenCheckCallback, unregisterTokenCheckCallback, checkQueuedSnackbars, hasWallet, setPendingToken]);
 
   return { isVerifyingToken };
 }

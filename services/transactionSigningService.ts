@@ -34,6 +34,7 @@ export interface TransactionIntent {
   addressType?: 'taproot' | 'segwit';
   recipient?: string;
   amount?: number;
+  fee?: number;
   sourceAddress?: string;
   feeAddress?: string;
   inputs?: Array<{
@@ -88,10 +89,7 @@ function verifyUnitRunestone(
   const expectedAmount = BigInt(intent.amount!);
   const expectedRuneId = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
 
-  if (
-    edict.id.block !== expectedRuneId.block ||
-    edict.id.tx !== expectedRuneId.tx
-  ) {
+  if (edict.id.block !== expectedRuneId.block || edict.id.tx !== expectedRuneId.tx) {
     throw new Error('SECURITY: UNIT PSBT runestone does not match the approved rune ID');
   }
 
@@ -123,9 +121,11 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
   const normalizedFee = feeAddress ? validateAndNormalizeAddress(feeAddress) : null;
 
   let recipientValue = 0n;
+  let totalOutputValue = 0n;
   const recipientOutputIndexes: number[] = [];
 
   psbt.txOutputs.forEach((output, index) => {
+    totalOutputValue += output.value;
     if (output.script[0] === 0x6a) {
       if (intent.assetType !== 'UNIT') {
         throw new Error('SECURITY: BTC PSBT contains unexpected OP_RETURN output');
@@ -161,8 +161,31 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
     return;
   }
 
-  if (recipientValue < BigInt(expectedAmount)) {
+  const expectedRecipientValue = BigInt(expectedAmount);
+  if (recipientValue < expectedRecipientValue) {
     throw new Error('SECURITY: Recipient amount in PSBT is less than approved amount');
+  }
+  if (recipientValue > expectedRecipientValue) {
+    throw new Error('SECURITY: Recipient amount in PSBT is greater than approved amount');
+  }
+
+  if (intent.fee === undefined) {
+    throw new Error('SECURITY: Missing approved fee for BTC PSBT validation');
+  }
+
+  const totalInputValue = psbt.data.inputs.reduce((sum, input, index) => {
+    const value = input.witnessUtxo?.value;
+    if (value === undefined) {
+      throw new Error(`SECURITY: Input ${index} has no witnessUtxo value - cannot verify fee`);
+    }
+    return sum + value;
+  }, 0n);
+  const actualFee = totalInputValue - totalOutputValue;
+  if (actualFee < 0n) {
+    throw new Error('SECURITY: PSBT outputs exceed input value');
+  }
+  if (actualFee > BigInt(intent.fee)) {
+    throw new Error('SECURITY: BTC PSBT fee exceeds approved amount');
   }
 }
 
@@ -182,8 +205,12 @@ const deriveSigningKeys = (
   const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
   return {
-    segwitChild: root.derivePath(getDerivationPathForType('segwit', currentAccount, derivationMode)),
-    taprootChild: root.derivePath(getDerivationPathForType('taproot', currentAccount, derivationMode)),
+    segwitChild: root.derivePath(
+      getDerivationPathForType('segwit', currentAccount, derivationMode)
+    ),
+    taprootChild: root.derivePath(
+      getDerivationPathForType('taproot', currentAccount, derivationMode)
+    ),
   };
   // Note: seed and root are destroyed when this function returns
 };
@@ -232,14 +259,14 @@ export const signIntent = async (
     const witnessScript = input.witnessUtxo?.script;
 
     if (!witnessScript) {
-      throw new Error(
-        `SECURITY: Input ${i} has no witnessUtxo script - cannot verify ownership`
-      );
+      throw new Error(`SECURITY: Input ${i} has no witnessUtxo script - cannot verify ownership`);
     }
 
     const witnessHex = Buffer.from(witnessScript).toString('hex');
-    const matchesSegwit = expectedSegwitScript && witnessHex === Buffer.from(expectedSegwitScript).toString('hex');
-    const matchesTaproot = expectedTaprootScript && witnessHex === Buffer.from(expectedTaprootScript).toString('hex');
+    const matchesSegwit =
+      expectedSegwitScript && witnessHex === Buffer.from(expectedSegwitScript).toString('hex');
+    const matchesTaproot =
+      expectedTaprootScript && witnessHex === Buffer.from(expectedTaprootScript).toString('hex');
 
     if (!matchesSegwit && !matchesTaproot) {
       throw new Error(

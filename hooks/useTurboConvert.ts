@@ -13,12 +13,14 @@ import { requestMint } from '../services/cashu/cashuWalletService';
 import type { RuneBalance } from '../services/balanceService';
 import type { MinimalNavigation } from '../navigation/types';
 import type { UtxoRef } from '../types/assets';
+import type { PendingTransaction as UtilsPendingTransaction } from '../utils/pendingTransactionsUtils';
 
 interface UseTurboConvertParams {
   runesBalance: RuneBalance[] | null;
   navigation: MinimalNavigation;
   getSpentUtxos: () => Set<string>;
   unmarkUtxosAsSpent: (utxos: UtxoRef[]) => Promise<void>;
+  getPendingTransactions?: () => Record<string, UtilsPendingTransaction>;
 }
 
 interface UseTurboConvertReturn {
@@ -30,6 +32,7 @@ export function useTurboConvert({
   navigation,
   getSpentUtxos,
   unmarkUtxosAsSpent,
+  getPendingTransactions,
 }: UseTurboConvertParams): UseTurboConvertReturn {
   const handleTurboPress = useCallback(async () => {
     const unitRunesAmount = getRunesAmount(runesBalance);
@@ -39,8 +42,8 @@ export function useTurboConvert({
       return;
     }
 
-    // Clear any stuck spent UTXOs before starting
-    await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+  // Clear any stuck spent UTXOs before starting
+    await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
 
     try {
       // Request mint quote — mint expects smallest units (cents), not display units
@@ -63,7 +66,7 @@ export function useTurboConvert({
     } catch (error: unknown) {
       Alert.alert('Error', `Failed to convert: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [runesBalance, navigation, getSpentUtxos, unmarkUtxosAsSpent]);
+  }, [runesBalance, navigation, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions]);
 
   return { handleTurboPress };
 }

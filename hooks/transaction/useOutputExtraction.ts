@@ -34,6 +34,7 @@ export interface UseOutputExtractionOptions {
     taprootAddress?: string;
   } | null;
   pendingTransactions: Record<string, { status: string }>;
+  getPendingTransactions?: () => Record<string, { status: string }>;
   markUtxoAsSpent: (txid: string, vout: number) => Promise<void>;
 }
 
@@ -49,6 +50,7 @@ export interface UseOutputExtractionResult {
 export function useOutputExtraction({
   wallet,
   pendingTransactions,
+  getPendingTransactions,
   markUtxoAsSpent,
 }: UseOutputExtractionOptions): UseOutputExtractionResult {
   const extractOutputs = useCallback(
@@ -64,6 +66,7 @@ export function useOutputExtraction({
 
       logger.debug('🔍 Extracting outputs from broadcasted tx');
       logger.debug('Total outputs in tx:', tx.outs.length);
+      const currentPendingTransactions = getPendingTransactions?.() ?? pendingTransactions;
 
       // Process inputs - mark as spent and track parent transactions
       for (const input of tx.ins) {
@@ -74,7 +77,7 @@ export function useOutputExtraction({
         spentInputs.push({ txid: inputTxid, vout: inputVout });
 
         // Check if this input is spending from a pending transaction
-        if (pendingTransactions[inputTxid]?.status === 'pending') {
+        if (currentPendingTransactions[inputTxid]?.status === 'pending') {
           if (!parentTxid) {
             parentTxid = inputTxid;
           }
@@ -134,7 +137,7 @@ export function useOutputExtraction({
 
       return { outputs, spentInputs, parentTxid };
     },
-    [wallet, pendingTransactions, markUtxoAsSpent]
+    [wallet, pendingTransactions, getPendingTransactions, markUtxoAsSpent]
   );
 
   return {

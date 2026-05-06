@@ -150,6 +150,39 @@ describe('useAccountSwitcher', () => {
     expect(result.current!.switchingAccount).toBe(false);
   });
 
+  it('should keep switchingAccount true until Cashu account storage is refreshed', async () => {
+    let resolveCashu: (() => void) | undefined;
+    const mockResetAndRefreshCashu = jest.fn(
+      () => new Promise<void>((resolve) => (resolveCashu = resolve))
+    );
+
+    const { result } = renderHook(() =>
+      useAccountSwitcher({
+        switchAccountContext: mockSwitchAccountContext,
+        resetAndRefreshCashu: mockResetAndRefreshCashu,
+      })
+    );
+
+    let switchPromise: Promise<void>;
+    act(() => {
+      switchPromise = result.current!.switchAccount(2);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockResetAndRefreshCashu).toHaveBeenCalledWith(mockAddresses.taprootAddress);
+    expect(result.current!.switchingAccount).toBe(true);
+
+    await act(async () => {
+      resolveCashu!();
+      await switchPromise!;
+    });
+
+    expect(result.current!.switchingAccount).toBe(false);
+  });
+
   it('should show alert on switch error', async () => {
     const mockError = new Error('Switch failed');
     mockSwitchAccountContext = jest.fn().mockRejectedValue(mockError);

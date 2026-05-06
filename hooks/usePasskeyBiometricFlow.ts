@@ -7,8 +7,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Keyboard } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { setBiometricEnabled as persistBiometricEnabled } from '../services/biometricService';
+import {
+  authenticateWithBiometrics,
+  setBiometricEnabled as persistBiometricEnabled,
+} from '../services/biometricService';
 import { isPasskeyUpgradeRecommended } from '../services/passkey';
 import { logger } from '../utils/logger';
 
@@ -50,7 +52,9 @@ export function usePasskeyBiometricFlow({
   setIsAuthenticated,
 }: UsePasskeyBiometricFlowParams): UsePasskeyBiometricFlowReturn {
   const [showPasskeyMigrationModal, setShowPasskeyMigrationModal] = useState(false);
-  const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(null);
+  const [passkeyMigrationData, setPasskeyMigrationData] = useState<PasskeyMigrationData | null>(
+    null
+  );
   const [showBiometricSetupModal, setShowBiometricSetupModal] = useState(false);
   const [passkeyUpgradeRecommended, setPasskeyUpgradeRecommended] = useState(false);
 
@@ -60,7 +64,9 @@ export function usePasskeyBiometricFlow({
 
     if (!passkeyEnabled) {
       setPasskeyUpgradeRecommended(false);
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
 
     const check = async () => {
@@ -76,7 +82,9 @@ export function usePasskeyBiometricFlow({
     };
 
     check();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [passkeyEnabled]);
 
   // Dismiss all modals (used when locking the app)
@@ -118,16 +126,23 @@ export function usePasskeyBiometricFlow({
 
   const handleBiometricSetupEnable = useCallback(async () => {
     try {
-      await persistBiometricEnabled(true);
+      const result = await authenticateWithBiometrics(
+        'Authenticate to enable biometric login',
+        'Use PIN instead'
+      );
+      if (!result.success) {
+        return;
+      }
+
+      if (!(await persistBiometricEnabled(true))) {
+        throw new Error('Failed to persist biometric preference');
+      }
       setBiometricEnabled(true);
-
-      await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Authenticate to enable biometric login',
-        fallbackLabel: 'Use PIN instead',
+    } catch (error: unknown) {
+      logger.warn('[usePasskeyBiometricFlow] Failed to enable biometric setup', {
+        error: error instanceof Error ? error.message : String(error),
       });
-
-      setShowBiometricSetupModal(false);
-    } catch {
+    } finally {
       setShowBiometricSetupModal(false);
     }
   }, [setBiometricEnabled]);

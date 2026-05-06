@@ -29,6 +29,12 @@ jest.mock('../../../utils/logger', () => ({
   },
 }));
 
+jest.mock('../cashuProofManager', () => ({
+  getCurrentCashuAccount: jest.fn(() => null),
+}));
+
+import { getCurrentCashuAccount } from '../cashuProofManager';
+
 describe('cashuTurboRecovery', () => {
   const mockQuoteId = 'quote123456';
   const mockRecipient = 'tb1precipientsaddress1234567890';
@@ -40,6 +46,7 @@ describe('cashuTurboRecovery', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
     (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+    (getCurrentCashuAccount as jest.Mock).mockReturnValue(null);
   });
 
   describe('savePendingTurboSend', () => {
@@ -47,7 +54,7 @@ describe('cashuTurboRecovery', () => {
       await savePendingTurboSend(mockQuoteId, mockRecipient, mockAmount, mockSenderAddress);
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        'cashu_pending_turbo_send',
+        expect.stringMatching(/^cashu_pending_turbo_send_tb1psendersaddress1234567890_quote123456$/),
         expect.stringContaining(mockQuoteId),
         expect.any(Object)
       );
@@ -77,12 +84,58 @@ describe('cashuTurboRecovery', () => {
       expect(savedData.createdAt).toBeGreaterThanOrEqual(beforeTime);
     });
 
-    it('should handle storage errors gracefully', async () => {
+    it('should throw on storage errors before starting the turbo send', async () => {
       (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       await expect(
         savePendingTurboSend(mockQuoteId, mockRecipient, mockAmount, mockSenderAddress)
-      ).resolves.not.toThrow();
+      ).rejects.toThrow('Storage error');
+    });
+
+    it('should not overwrite a corrupt turbo registry and should write a legacy fallback', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_turbo_sends_v1') {
+          return Promise.resolve('not json');
+        }
+        return Promise.resolve(null);
+      });
+
+      await savePendingTurboSend(mockQuoteId, mockRecipient, mockAmount, mockSenderAddress);
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+        ([key]) => key === 'cashu_pending_turbo_sends_v1',
+      )).toBe(false);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^cashu_pending_turbo_sends_v1_corrupt_/),
+        'not json',
+        expect.any(Object),
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'cashu_pending_turbo_send',
+        expect.stringContaining(mockQuoteId),
+        expect.any(Object),
+      );
+    });
+
+    it('should keep separate pending sends for different quotes on the same account', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_turbo_sends_v1') {
+          return Promise.resolve(JSON.stringify(['cashu_pending_turbo_send_existing_quote']));
+        }
+        return Promise.resolve(null);
+      });
+
+      await savePendingTurboSend(mockQuoteId, mockRecipient, mockAmount, mockSenderAddress);
+
+      const registryWrite = (SecureStore.setItemAsync as jest.Mock).mock.calls.find(
+        ([key]) => key === 'cashu_pending_turbo_sends_v1'
+      );
+      expect(registryWrite).toBeDefined();
+      const registry = JSON.parse(registryWrite[1]);
+      expect(registry).toEqual([
+        'cashu_pending_turbo_send_existing_quote',
+        'cashu_pending_turbo_send_tb1psendersaddress1234567890_quote123456',
+      ]);
     });
   });
 
@@ -96,7 +149,12 @@ describe('cashuTurboRecovery', () => {
         createdAt: Date.now(),
         stage: 'waiting_for_mint',
       };
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pending));
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_turbo_send') {
+          return Promise.resolve(JSON.stringify(pending));
+        }
+        return Promise.resolve(null);
+      });
 
       await updateTurboSendStage('mint_completed');
 
@@ -116,6 +174,51 @@ describe('cashuTurboRecovery', () => {
       (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Storage error'));
 
       await expect(updateTurboSendStage('mint_completed')).resolves.not.toThrow();
+    });
+
+    it('updates the selected quote instead of the oldest pending turbo send', async () => {
+      const olderPending: PendingTurboSend = {
+        quoteId: 'quote_old',
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now() - 1000,
+        stage: 'waiting_for_mint',
+      };
+      const selectedPending: PendingTurboSend = {
+        quoteId: 'quote_new',
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now(),
+        stage: 'waiting_for_mint',
+      };
+
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_turbo_sends_v1') {
+          return Promise.resolve(JSON.stringify(['turbo_old', 'turbo_new']));
+        }
+        if (key === 'turbo_old') return Promise.resolve(JSON.stringify(olderPending));
+        if (key === 'turbo_new') return Promise.resolve(JSON.stringify(selectedPending));
+        return Promise.resolve(null);
+      });
+
+      await updateTurboSendStage(
+        'p2pk_created',
+        { token: 'cashuBselected' },
+        { quoteId: 'quote_new', senderTaprootAddress: mockSenderAddress }
+      );
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'turbo_new',
+        expect.stringContaining('cashuBselected'),
+        expect.any(Object)
+      );
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(
+        'turbo_old',
+        expect.any(String),
+        expect.any(Object)
+      );
     });
   });
 
@@ -157,6 +260,56 @@ describe('cashuTurboRecovery', () => {
 
       expect(result).toBeNull();
       expect(SecureStore.deleteItemAsync).toHaveBeenCalled();
+    });
+
+    it('should keep expired pending sends once a P2PK token is recoverable', async () => {
+      const expiredWithToken: PendingTurboSend = {
+        quoteId: mockQuoteId,
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now() - 25 * 60 * 60 * 1000,
+        stage: 'p2pk_created',
+        token: 'cashuBtoken',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(expiredWithToken));
+
+      const result = await loadPendingTurboSend();
+
+      expect(result).toEqual(expiredWithToken);
+      expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should load the pending send for the current Cashu account', async () => {
+      const pendingA: PendingTurboSend = {
+        quoteId: 'quote_a',
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: 'account_a',
+        createdAt: Date.now(),
+        stage: 'waiting_for_mint',
+      };
+      const pendingB: PendingTurboSend = {
+        quoteId: 'quote_b',
+        recipient: mockRecipient,
+        amount: mockAmount,
+        senderTaprootAddress: 'account_b',
+        createdAt: Date.now(),
+        stage: 'mint_completed',
+      };
+      (getCurrentCashuAccount as jest.Mock).mockReturnValue('account_b');
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'cashu_pending_turbo_sends_v1') {
+          return Promise.resolve(JSON.stringify(['turbo_a', 'turbo_b']));
+        }
+        if (key === 'turbo_a') return Promise.resolve(JSON.stringify(pendingA));
+        if (key === 'turbo_b') return Promise.resolve(JSON.stringify(pendingB));
+        return Promise.resolve(null);
+      });
+
+      const result = await loadPendingTurboSend();
+
+      expect(result).toEqual(pendingB);
     });
 
     it('should handle parse errors gracefully', async () => {
@@ -276,8 +429,22 @@ describe('cashuTurboRecovery', () => {
       expect(result.amount).toBe(mockAmount);
 
       expect(mockExtractPubkey).toHaveBeenCalledWith(mockRecipient);
-      expect(mockSendP2PKToken).toHaveBeenCalledWith(mockAmount, '02abc123pubkey', {});
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(
+        mockAmount,
+        '02abc123pubkey',
+        {},
+        undefined,
+        mockRecipient
+      );
       expect(mockShortenToken).toHaveBeenCalledWith('cashuBtoken123');
+      expect(mockSaveToken).toHaveBeenCalledWith(
+        'cashuBtoken123',
+        mockRecipient,
+        mockAmount,
+        null,
+        null,
+        mockSenderAddress
+      );
       expect(mockSaveToken).toHaveBeenCalledWith(
         'cashuBtoken123',
         mockRecipient,

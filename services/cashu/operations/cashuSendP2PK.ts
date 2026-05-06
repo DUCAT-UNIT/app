@@ -4,34 +4,28 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { getBalance,getOrFetchKeys } from '../cashuBalanceService';
+import { getBalance, getOrFetchKeys } from '../cashuBalanceService';
+import { selectActiveUnitKeyset, selectProofsForAmountIncludingFees } from '../cashuKeysetUtils';
+import { MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { addProofs, getCurrentCashuAccount, loadProofs, removeProofs } from '../cashuProofManager';
 import {
-selectActiveUnitKeyset,
-selectProofsForAmountIncludingFees,
-} from '../cashuKeysetUtils';
-import { MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
-import { addProofs,loadProofs,removeProofs } from '../cashuProofManager';
-import {
-clearPendingSwap,
-savePendingSwap,
-updateSwapWithResponse,
+  clearPendingSwap,
+  persistOutgoingSwapToken,
+  savePendingSwap,
+  updateSwapWithResponse,
 } from '../cashuSwapRecovery';
 import {
-BlindedMessage,
-BlindedOutput,
-BlindingData,
-createBlindedMessage,
-encodeToken,
-generateSecret,
-splitAmount,
-sumProofs,
-unblindSignatures
+  BlindedMessage,
+  BlindedOutput,
+  BlindingData,
+  createBlindedMessage,
+  encodeToken,
+  generateSecret,
+  splitAmount,
+  sumProofs,
+  unblindSignatures,
 } from '../crypto';
-import {
-createP2PKSecret,
-isP2PKSecret,
-P2PKOptions,
-} from '../p2pk';
+import { createP2PKSecret, isP2PKSecret, P2PKOptions } from '../p2pk';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -89,14 +83,14 @@ const createBlindedOutputsWithSecrets = async (
   // Sort outputs by amount per NUT-03
   const combined: BlindedOutputWithData[] = outputs.map((output, i) => ({
     output,
-    blindingData: blindingData[i]
+    blindingData: blindingData[i],
   }));
 
   combined.sort((a, b) => a.output.amount - b.output.amount);
 
   return {
-    outputs: combined.map(c => c.output),
-    blindingData: combined.map(c => c.blindingData)
+    outputs: combined.map((c) => c.output),
+    blindingData: combined.map((c) => c.blindingData),
   };
 };
 
@@ -108,8 +102,10 @@ export const sendP2PKToken = async (
   amount: number,
   recipientPubkey: string,
   options: P2PKOptions = {},
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  recipientAddressForRecovery?: string | null
 ): Promise<SendP2PKTokenResult> => {
+  let pendingSwapId: string | null = null;
   try {
     const totalSteps = 4; // Selecting, Creating secrets, Swapping, Saving
     let currentStep = 0;
@@ -119,7 +115,6 @@ export const sendP2PKToken = async (
       recipientPubkeyLength: recipientPubkey.length,
     });
 
-
     // Step 1: Select proofs
     if (onProgress) onProgress(++currentStep, totalSteps, 'Selecting proofs');
 
@@ -127,8 +122,11 @@ export const sendP2PKToken = async (
     const allProofs = await loadProofs();
     logger.info('Loaded all proofs for P2PK send', { count: allProofs.length });
 
-    const unlockedProofs = allProofs.filter(p => !isP2PKSecret(p.secret));
-    logger.info('Filtered unlocked proofs', { unlocked: unlockedProofs.length, locked: allProofs.length - unlockedProofs.length });
+    const unlockedProofs = allProofs.filter((p) => !isP2PKSecret(p.secret));
+    logger.info('Filtered unlocked proofs', {
+      unlocked: unlockedProofs.length,
+      locked: allProofs.length - unlockedProofs.length,
+    });
 
     logger.info('Proof selection for P2PK token', {
       totalProofs: allProofs.length,
@@ -137,11 +135,11 @@ export const sendP2PKToken = async (
     });
 
     const keyData = await getOrFetchKeys();
-    const {
-      selectedProofs,
-      selectedAmount,
-      inputFees,
-    } = selectProofsForAmountIncludingFees(unlockedProofs, amount, keyData);
+    const { selectedProofs, selectedAmount, inputFees } = selectProofsForAmountIncludingFees(
+      unlockedProofs,
+      amount,
+      keyData
+    );
 
     logger.info('Selected proofs for P2PK token', {
       requested: amount,
@@ -199,14 +197,16 @@ export const sendP2PKToken = async (
     });
 
     if (selectedAmount - inputFees !== totalOutputAmount) {
-      throw new Error(`Amount mismatch: input=${selectedAmount}, inputFees=${inputFees}, output=${totalOutputAmount}, diff=${selectedAmount - inputFees - totalOutputAmount}`);
+      throw new Error(
+        `Amount mismatch: input=${selectedAmount}, inputFees=${inputFees}, output=${totalOutputAmount}, diff=${selectedAmount - inputFees - totalOutputAmount}`
+      );
     }
 
     // Track which secrets are P2PK vs normal (for identification after sorting)
     // This is needed because createBlindedOutputsWithSecrets sorts outputs by amount
-    const secretTypeMap = new Map<string, 'p2pk' | 'change'>(); 
-    p2pkSecrets.forEach(secret => secretTypeMap.set(secret, 'p2pk'));
-    changeSecrets.forEach(secret => secretTypeMap.set(secret, 'change'));
+    const secretTypeMap = new Map<string, 'p2pk' | 'change'>();
+    p2pkSecrets.forEach((secret) => secretTypeMap.set(secret, 'p2pk'));
+    changeSecrets.forEach((secret) => secretTypeMap.set(secret, 'change'));
 
     // Convert Map to plain object for serialization
     const secretTypeRecord: Record<string, 'p2pk' | 'change'> = {};
@@ -228,14 +228,18 @@ export const sendP2PKToken = async (
       changeSecretsCount: changeSecrets.length,
     });
 
-    const { outputs, blindingData } = await createBlindedOutputsWithSecrets(allSecrets, allAmounts, keysetId);
+    const { outputs, blindingData } = await createBlindedOutputsWithSecrets(
+      allSecrets,
+      allAmounts,
+      keysetId
+    );
 
     // Step 3: Swap with mint (with recovery protection)
     if (onProgress) onProgress(++currentStep, totalSteps, 'Swapping with mint');
 
     // CRITICAL: Save pending swap BEFORE calling the mint
     // This allows recovery if app crashes after swap but before saving proofs
-    await savePendingSwap({
+    pendingSwapId = await savePendingSwap({
       inputProofs: selectedProofs,
       blindingData,
       keys,
@@ -247,9 +251,12 @@ export const sendP2PKToken = async (
     const response = await swapTokensAPI(selectedProofs, outputs);
 
     // CRITICAL: Save the mint's response immediately for recovery
-    await updateSwapWithResponse({
-      signatures: response.signatures,
-    });
+    await updateSwapWithResponse(
+      {
+        signatures: response.signatures,
+      },
+      pendingSwapId
+    );
 
     // Unblind all
     const allNewProofs = unblindSignatures(
@@ -276,8 +283,10 @@ export const sendP2PKToken = async (
 
     // Split into send and change using secret type instead of array slicing
     // This works correctly even after sorting because we identify by the secret itself
-    const proofsToSend = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'p2pk');
-    const changeProofs = allNewProofs.filter(proof => secretTypeMap.get(proof.secret) === 'change');
+    const proofsToSend = allNewProofs.filter((proof) => secretTypeMap.get(proof.secret) === 'p2pk');
+    const changeProofs = allNewProofs.filter(
+      (proof) => secretTypeMap.get(proof.secret) === 'change'
+    );
 
     // Debug logging for proof amounts and secret types
     const sendTotal = proofsToSend.reduce((sum, p) => sum + p.amount, 0);
@@ -296,15 +305,32 @@ export const sendP2PKToken = async (
     // Log secret types to verify correct identification
     logger.info('Send proof secret types', {
       count: proofsToSend.length,
-      areAllP2PK: proofsToSend.every(p => p.secret.startsWith('["P2PK"'))
+      areAllP2PK: proofsToSend.every((p) => p.secret.startsWith('["P2PK"')),
     });
     logger.info('Change proof secret types', {
       count: changeProofs.length,
-      areAllNormal: changeProofs.every(p => !p.secret.startsWith('["P2PK"'))
+      areAllNormal: changeProofs.every((p) => !p.secret.startsWith('["P2PK"')),
     });
 
     // Step 4: Save to wallet (order matters for recovery!)
     if (onProgress) onProgress(++currentStep, totalSteps, 'Saving to wallet');
+
+    // Encode and durably persist the outgoing token before mutating proofs or
+    // clearing swap recovery. If the app dies after this point, startup can
+    // recover the recipient token from storage.
+    const token = encodeToken(proofsToSend, MINT_URL);
+    if (pendingSwapId) {
+      await persistOutgoingSwapToken({
+        id: `${pendingSwapId}:outgoing`,
+        token,
+        amount: sumProofs(proofsToSend),
+        kind: 'p2pk',
+        sourceSwapId: pendingSwapId,
+        taprootAddress: getCurrentCashuAccount(),
+        recipient: recipientAddressForRecovery ?? null,
+        createdAt: Date.now(),
+      });
+    }
 
     // CRITICAL: Save change proofs FIRST, then remove spent proofs
     // This order ensures we never lose change if app crashes mid-operation
@@ -343,16 +369,18 @@ export const sendP2PKToken = async (
     }
 
     // CRITICAL: Clear the pending swap AFTER all proofs are saved
-    await clearPendingSwap();
-
-    // Encode token for sending (P2PK locked)
-    const token = encodeToken(proofsToSend, MINT_URL);
+    await clearPendingSwap(pendingSwapId ?? undefined);
 
     const newBalance = await getBalance();
 
     const currentProofs = await loadProofs();
     const currentTotal = sumProofs(currentProofs);
-    logger.info('P2PK token created', { amount, locked: true, newBalance, balanceChange: newBalance - (currentTotal - selectedAmount) });
+    logger.info('P2PK token created', {
+      amount,
+      locked: true,
+      newBalance,
+      balanceChange: newBalance - (currentTotal - selectedAmount),
+    });
 
     return {
       token,

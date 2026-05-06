@@ -35,7 +35,8 @@ jest.mock('expo-crypto', () => ({
 interface MockStoreState {
   pendingToken: string | null;
   consumePendingToken: jest.Mock<string | null, []>;
-  setPendingToken: jest.Mock<void, [string]>;
+  hydratePendingToken: jest.Mock<Promise<string | null>, []>;
+  setPendingToken: jest.Mock<Promise<void>, [string]>;
   clearPendingToken: jest.Mock<void, []>;
   registerTokenCheckCallback: jest.Mock<void, [() => void]>;
   unregisterTokenCheckCallback: jest.Mock<void, []>;
@@ -46,7 +47,8 @@ interface MockStoreState {
 let mockStoreState: MockStoreState = {
   pendingToken: null,
   consumePendingToken: jest.fn(() => null),
-  setPendingToken: jest.fn(),
+  hydratePendingToken: jest.fn().mockResolvedValue(null),
+  setPendingToken: jest.fn().mockResolvedValue(undefined),
   clearPendingToken: jest.fn(),
   registerTokenCheckCallback: jest.fn(),
   unregisterTokenCheckCallback: jest.fn(),
@@ -91,7 +93,8 @@ describe('useTurboTokenProcessor', () => {
     mockStoreState = {
       pendingToken: null,
       consumePendingToken: jest.fn(() => null),
-      setPendingToken: jest.fn(),
+      hydratePendingToken: jest.fn().mockResolvedValue(null),
+      setPendingToken: jest.fn().mockResolvedValue(undefined),
       clearPendingToken: jest.fn(),
       registerTokenCheckCallback: jest.fn(),
       unregisterTokenCheckCallback: jest.fn(),
@@ -196,6 +199,7 @@ describe('useTurboTokenProcessor', () => {
       await waitFor(() => {
         expect(mockProps.fetchBalance).toHaveBeenCalled();
         expect(mockProps.refreshCashu).toHaveBeenCalled();
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalled();
       });
     });
 
@@ -536,7 +540,12 @@ describe('useTurboTokenProcessor', () => {
     it('should poll for pending tokens at 2000ms intervals', async () => {
       renderHook(() => useTurboTokenProcessor(mockProps as any));
 
-      // Should check immediately
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should check immediately after pending-token hydration
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(1);
 
       // Advance timer by 2000ms

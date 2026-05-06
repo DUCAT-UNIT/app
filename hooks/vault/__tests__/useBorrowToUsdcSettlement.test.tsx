@@ -11,9 +11,17 @@ jest.mock('../../../stores/borrowStore', () => ({
 }));
 
 jest.mock('../../../stores/vaultSettlementStore', () => ({
+  persistVaultSettlementNow: jest.fn().mockResolvedValue(undefined),
   useVaultSettlementStore: jest.fn(),
   resolveVaultSettlementRequestedAsset: (asset: string, allowUsdc: boolean) =>
     asset === 'USDC' && !allowUsdc ? 'UNIT' : asset,
+}));
+
+jest.mock('../../../contexts/WalletContext', () => ({
+  useWallet: jest.fn(() => ({
+    currentAccount: 4,
+    wallet: { taprootAddress: 'tb1pwallet' },
+  })),
 }));
 
 jest.mock('../../../services/vaultSettlementService', () => ({
@@ -104,7 +112,12 @@ describe('useBorrowToUsdcSettlement', () => {
     });
 
     expect(borrowResult).toEqual({ txid: 'issue-txid', vaultTxid: 'vault-txid' });
-    expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'UNIT');
+    expect(mockStartOperation).toHaveBeenCalledWith(
+      'borrow',
+      123.45,
+      'UNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSetPhase).toHaveBeenCalledWith('issuing_vault');
     expect(mockBorrow).toHaveBeenCalledTimes(1);
     expect(mockSetIssueResult).toHaveBeenCalledWith('issue-txid', 'vault-txid');
@@ -124,7 +137,12 @@ describe('useBorrowToUsdcSettlement', () => {
     });
 
     expect(borrowResult).toEqual({ txid: 'issue-txid', vaultTxid: 'vault-txid' });
-    expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'USDC');
+    expect(mockStartOperation).toHaveBeenCalledWith(
+      'borrow',
+      123.45,
+      'USDC',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSetIssueResult).toHaveBeenCalledWith('issue-txid', 'vault-txid');
     expect(mockSettleIssuedUnitToUsdc).toHaveBeenCalledWith('borrow', 123.45);
     expect(mockSettleIssuedUnitToTurboUnit).not.toHaveBeenCalled();
@@ -140,7 +158,12 @@ describe('useBorrowToUsdcSettlement', () => {
       await result.current.borrow();
     });
 
-    expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'TURBOUNIT');
+    expect(mockStartOperation).toHaveBeenCalledWith(
+      'borrow',
+      123.45,
+      'TURBOUNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSettleIssuedUnitToTurboUnit).toHaveBeenCalledWith('borrow', 123.45);
     expect(mockSettleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockCompleteSettlement).not.toHaveBeenCalled();
@@ -156,7 +179,12 @@ describe('useBorrowToUsdcSettlement', () => {
       await result.current.borrow();
     });
 
-    expect(mockStartOperation).toHaveBeenCalledWith('borrow', 123.45, 'UNIT');
+    expect(mockStartOperation).toHaveBeenCalledWith(
+      'borrow',
+      123.45,
+      'UNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockCompleteSettlement).toHaveBeenCalledWith('UNIT', '123.45-formatted');
     expect(mockSettleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockSetCurrentStep).toHaveBeenCalledWith('success');

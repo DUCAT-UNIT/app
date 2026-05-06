@@ -80,10 +80,17 @@ jest.mock('../../stores/notificationStore', () => ({
 
 // Pending vault transaction store
 const mockSetPendingTransaction = jest.fn().mockResolvedValue(undefined);
+const mockSetPendingTransactionForAccount = jest.fn().mockResolvedValue(undefined);
 jest.mock('../../stores/pendingVaultTransactionStore', () => ({
   usePendingVaultTransactionStore: (
-    selector: (s: { setPendingTransaction: jest.Mock }) => unknown
-  ) => selector({ setPendingTransaction: mockSetPendingTransaction }),
+    selector: (s: {
+      setPendingTransaction: jest.Mock;
+      setPendingTransactionForAccount: jest.Mock;
+    }) => unknown
+  ) => selector({
+    setPendingTransaction: mockSetPendingTransaction,
+    setPendingTransactionForAccount: mockSetPendingTransactionForAccount,
+  }),
 }));
 
 // Price store
@@ -99,7 +106,7 @@ const mockWallet = {
   taprootPubkey: 'pubkey_taproot',
 };
 jest.mock('../../contexts/WalletContext', () => ({
-  useWallet: () => ({ wallet: mockWallet }),
+  useWallet: () => ({ wallet: mockWallet, currentAccount: 0 }),
 }));
 
 // Vault data context
@@ -284,6 +291,7 @@ describe('useVaultOperation integration', () => {
     );
     mockCalculateLiquidationPrice.mockReturnValue(30000);
     mockSetPendingTransaction.mockResolvedValue(undefined);
+    mockSetPendingTransactionForAccount.mockResolvedValue(undefined);
 
     // Reset store state defaults
     mockStoreState.amount = 1_000_000;
@@ -350,11 +358,12 @@ describe('useVaultOperation integration', () => {
       await result.current!.execute();
     });
 
-    expect(mockSetPendingTransaction).toHaveBeenCalledTimes(1);
-    const pendingTx = mockSetPendingTransaction.mock.calls[0][0];
+    expect(mockSetPendingTransactionForAccount).toHaveBeenCalledTimes(1);
+    const pendingTx = mockSetPendingTransactionForAccount.mock.calls[0][0];
     expect(pendingTx.vaultTxid).toBe('vault-tx-abc');
     expect(pendingTx.action).toBe('deposit');
     expect(pendingTx.vaultPubkey).toBe('pubkey_taproot');
+    expect(mockSetPendingTransactionForAccount.mock.calls[0][1]).toBe(0);
   });
 
   it('should show snackbar notification on success', async () => {

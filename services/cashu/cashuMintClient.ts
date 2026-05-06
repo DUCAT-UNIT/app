@@ -21,6 +21,7 @@ export {
   checkMeltQuote,
   meltTokens,
   swapTokens,
+  restoreSignatures,
   checkProofsSpent
 } from './mintClient';
 

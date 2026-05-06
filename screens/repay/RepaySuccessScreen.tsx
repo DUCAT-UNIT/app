@@ -5,7 +5,10 @@
 import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useRepay } from '../../stores/repayStore';
-import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  shouldPreserveVaultSettlementRecovery,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
@@ -30,6 +33,7 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   const { settingsHandlers } = useSettingsHandlers();
   const {
     kind,
+    phase,
     payoutAsset,
     payoutAmount,
     error: settlementError,
@@ -59,7 +63,9 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   }, []);
 
   const handleDone = useCallback(() => {
-    resetSettlement();
+    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+      resetSettlement();
+    }
     reset();
     navigation.getParent()?.reset({
       index: 0,
@@ -81,7 +87,7 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
         },
       ],
     });
-  }, [resetSettlement, reset, navigation]);
+  }, [phase, resetSettlement, reset, navigation]);
 
   const repaidFromUsdc = settingsHandlers.usdcFeaturesEnabled && kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
   const repaidFromTurboUnit = kind === 'repay' && payoutAsset === 'TURBOUNIT' && payoutAmount;

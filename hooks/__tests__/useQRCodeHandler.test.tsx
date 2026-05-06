@@ -67,7 +67,7 @@ jest.mock('../../services/cashu/cashuTsCompat', () => ({
 }));
 
 // Mock tokenProcessingStore
-const mockSetPendingToken = jest.fn();
+const mockSetPendingToken = jest.fn().mockResolvedValue(undefined);
 const mockIsTokenProcessed = jest.fn();
 const mockTriggerTokenCheck = jest.fn();
 jest.mock('../../stores/tokenProcessingStore', () => ({

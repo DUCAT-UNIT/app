@@ -67,8 +67,8 @@ export type TransactionAmount = RuneTransferAmount | BTCTransactionAmount;
 
 // Registry of known swap txids — persisted via AsyncStorage
 // Shows as "Swap" entries in history with UNIT amount
-const SWAP_TXIDS_KEY = '@ducat/swap_txids';
-const SWAP_TXIDS_MIGRATION_V2_KEY = '@ducat/swap_txids_migrated_v2';
+export const SWAP_TXIDS_KEY = '@ducat/swap_txids';
+export const SWAP_TXIDS_MIGRATION_V2_KEY = '@ducat/swap_txids_migrated_v2';
 interface SwapTxRecord {
   txid: string;
   unitAmount: number;
@@ -126,7 +126,7 @@ export async function registerSwapTxid(
 
 // Registry of known liquidation (repo) txids — persisted via AsyncStorage
 // so they survive app restarts until vault API indexes them
-const LIQUIDATION_TXIDS_KEY = '@ducat/liquidation_txids';
+export const LIQUIDATION_TXIDS_KEY = '@ducat/liquidation_txids';
 let knownLiquidationTxids = new Set<string>();
 let liqTxidsLoaded = false;
 

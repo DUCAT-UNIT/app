@@ -3,10 +3,20 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, ActivityIndicator, ScrollView, TextInput, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  ActivityIndicator,
+  ScrollView,
+  TextInput,
+  StyleSheet,
+} from 'react-native';
 import * as Device from 'expo-device';
 import { COLORS } from '../theme';
 import { addPasskeyToExistingWallet, isPasskeySupported } from '../services/passkey';
+import { verifyPin } from '../services/pinService';
 import { withMnemonic } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 import { useResponsive } from '../hooks/useResponsive';
@@ -46,12 +56,14 @@ export default function PasskeyMigrationModal({
   }, [visible]);
 
   const title = mode === 'upgrade' ? 'Upgrade Passkey Security?' : 'Enable Passkey Recovery?';
-  const description = mode === 'upgrade'
-    ? 'Upgrade this wallet to the stronger PRF-backed passkey derivation. You will need your current PIN once to re-encrypt the wallet backup.'
-    : 'Secure your wallet with passkey and back it up to iCloud for easy recovery across devices.';
-  const successMessage = mode === 'upgrade'
-    ? 'Passkey upgraded. This wallet now uses the stronger recovery derivation.'
-    : 'Passkey enabled! Your wallet is now backed up to iCloud.';
+  const description =
+    mode === 'upgrade'
+      ? 'Upgrade this wallet to the stronger PRF-backed passkey derivation. You will need your current PIN once to re-encrypt the wallet backup.'
+      : 'Secure your wallet with passkey and back it up to iCloud for easy recovery across devices.';
+  const successMessage =
+    mode === 'upgrade'
+      ? 'Passkey upgraded. This wallet now uses the stronger recovery derivation.'
+      : 'Passkey enabled! Your wallet is now backed up to iCloud.';
   const actionLabel = mode === 'upgrade' ? 'Upgrade Passkey' : 'Enable Passkey';
 
   const completePasskeyEnable = async (pinToUse: string) => {
@@ -71,6 +83,12 @@ export default function PasskeyMigrationModal({
       const deviceName = Device.deviceName || 'iPhone';
       const userName = `${deviceName}-DUCAT_APP`;
       const displayName = `${deviceName} - Ducat`;
+      const pinVerification = await verifyPin(pinToUse);
+      if (!pinVerification.success) {
+        setPinError(pinVerification.error);
+        showToast(pinVerification.error, 'error');
+        return;
+      }
 
       await withMnemonic(async (mnemonic) => {
         await addPasskeyToExistingWallet(mnemonic, userName, displayName, pinToUse);
@@ -85,9 +103,12 @@ export default function PasskeyMigrationModal({
         action: 'completePasskeyEnable',
       });
 
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (typeof error === 'string' ? error : 'Passkey setup failed. Please try again.');
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : 'Passkey setup failed. Please try again.';
       const wasCancelled = /cancel|abort/i.test(errorMessage);
       showToast(wasCancelled ? 'Passkey setup cancelled' : errorMessage, 'error');
       onClose();
@@ -206,9 +227,7 @@ export default function PasskeyMigrationModal({
                   testID="passkey-upgrade-pin-input"
                 />
                 {pinError ? (
-                  <Text style={[localStyles.pinErrorText, pinErrorStyle]}>
-                    {pinError}
-                  </Text>
+                  <Text style={[localStyles.pinErrorText, pinErrorStyle]}>{pinError}</Text>
                 ) : null}
               </View>
             )}
@@ -248,7 +267,15 @@ export default function PasskeyMigrationModal({
                     borderRadius: s(radii.lg),
                   },
                 ]}
-                onPress={step === 'pin' ? () => { setStep('prompt'); setPin(''); setPinError(''); } : handleSkip}
+                onPress={
+                  step === 'pin'
+                    ? () => {
+                        setStep('prompt');
+                        setPin('');
+                        setPinError('');
+                      }
+                    : handleSkip
+                }
                 disabled={isAdding}
               >
                 <Text style={[styles.biometricPromptButtonTextNo, { fontSize: sf(fontSizes.md) }]}>

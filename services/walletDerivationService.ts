@@ -27,9 +27,10 @@ export const getWalletDerivationMode = async (): Promise<WalletDerivationMode> =
       return storedMode;
     }
   } catch (error: unknown) {
-    logger.warn('Failed to load wallet derivation mode, using legacy compatibility mode', {
+    logger.error('Failed to load wallet derivation mode', {
       error: error instanceof Error ? error.message : String(error),
     });
+    throw error;
   }
 
   // Backward compatibility: wallets created before explicit derivation mode tracking
@@ -44,4 +45,3 @@ export const setWalletDerivationMode = async (
   await SecureStore.setItemAsync(WALLET_DERIVATION_MODE_KEY, mode, DEVICE_ONLY);
   cachedMode = mode;
 };
-

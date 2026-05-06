@@ -40,6 +40,7 @@ import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore'
 import { usePrice } from '../../stores/priceStore';
 import { COLORS } from '../../theme';
 import type { DisplayAssetType } from '../../types/assets';
+import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/pendingTransactionsUtils';
 import { getRunesAmount } from '../../utils/runesHelper';
 
 /**
@@ -472,6 +473,8 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
     navigation,
     getSpentUtxos,
     unmarkUtxosAsSpent,
+    getPendingTransactions: () =>
+      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
   });
 
   useRedeemCashuToken({ fetchTransactionHistory });

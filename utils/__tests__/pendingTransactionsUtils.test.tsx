@@ -13,6 +13,8 @@ import {
   cleanupInvalidTransactions,
   markUtxosAsSpent,
   unmarkUtxosAsSpent,
+  getPendingInputUtxoKeys,
+  releaseOrphanedUtxos,
   PendingTransaction,
   UnconfirmedUTXO,
 } from '../pendingTransactionsUtils';
@@ -169,6 +171,31 @@ describe('getUnconfirmedUTXOsFromPending', () => {
 
     expect(result.length).toBe(1);
     expect(result[0].vout).toBe(1);
+  });
+
+  it('should exclude outputs already spent by another pending transaction input', () => {
+    const pendingTxs = {
+      parent: {
+        txid: 'parent',
+        status: 'pending',
+        outputs: [
+          { vout: 0, address: 'tb1qsegwit', value: 50000 },
+          { vout: 1, address: 'tb1qsegwit', value: 30000 },
+        ],
+      },
+      child: {
+        txid: 'child',
+        status: 'pending',
+        outputs: [],
+        inputUtxos: [{ txid: 'parent', vout: 0 }],
+      },
+    } as Record<string, PendingTransaction>;
+
+    const result = getUnconfirmedUTXOsFromPending(pendingTxs, 'all', new Set<string>());
+
+    expect(result).toEqual([
+      expect.objectContaining({ txid: 'parent', vout: 1 }),
+    ]);
   });
 
   it('should skip invalid transactions', () => {
@@ -539,5 +566,73 @@ describe('unmarkUtxosAsSpent', () => {
     const result = unmarkUtxosAsSpent(spentUtxos, utxos);
 
     expect(result).toEqual(spentUtxos);
+  });
+});
+
+describe('getPendingInputUtxoKeys', () => {
+  it('collects inputs from pending transactions only', () => {
+    const pendingTxs = {
+      pending: {
+        txid: 'pending',
+        status: 'pending',
+        outputs: [],
+        inputUtxos: [
+          { txid: 'input-a', vout: 0 },
+          { txid: 'input-b', vout: 2 },
+        ],
+      },
+      invalid: {
+        txid: 'invalid',
+        status: 'invalid',
+        outputs: [],
+        inputUtxos: [{ txid: 'input-c', vout: 1 }],
+      },
+    } as Record<string, PendingTransaction>;
+
+    const keys = getPendingInputUtxoKeys(pendingTxs);
+
+    expect(keys).toEqual(new Set(['input-a:0', 'input-b:2']));
+  });
+});
+
+describe('releaseOrphanedUtxos', () => {
+  it('does not release spent locks that belong to pending transaction inputs', async () => {
+    const unmarkFn = jest.fn().mockResolvedValue(undefined);
+    const pendingTxs = {
+      tx1: {
+        txid: 'tx1',
+        status: 'pending',
+        outputs: [],
+        inputUtxos: [{ txid: 'protected', vout: 0 }],
+      },
+    } as Record<string, PendingTransaction>;
+
+    await releaseOrphanedUtxos(
+      () => new Set(['protected:0', 'orphan:1']),
+      unmarkFn,
+      () => pendingTxs
+    );
+
+    expect(unmarkFn).toHaveBeenCalledWith([{ txid: 'orphan', vout: 1 }]);
+  });
+
+  it('skips unmarking when all spent locks are protected by pending transactions', async () => {
+    const unmarkFn = jest.fn().mockResolvedValue(undefined);
+    const pendingTxs = {
+      tx1: {
+        txid: 'tx1',
+        status: 'pending',
+        outputs: [],
+        inputUtxos: [{ txid: 'protected', vout: 0 }],
+      },
+    } as Record<string, PendingTransaction>;
+
+    await releaseOrphanedUtxos(
+      () => new Set(['protected:0']),
+      unmarkFn,
+      () => pendingTxs
+    );
+
+    expect(unmarkFn).not.toHaveBeenCalled();
   });
 });

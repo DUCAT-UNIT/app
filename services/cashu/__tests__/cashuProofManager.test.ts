@@ -44,7 +44,9 @@ describe('cashuProofManager', () => {
     jest.clearAllMocks();
     mockStorage = {};
     // Reset the mock implementations to use fresh mockStorage
-    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => Promise.resolve(mockStorage[key] || null));
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) =>
+      Promise.resolve(mockStorage[key] || null)
+    );
     (SecureStore.setItemAsync as jest.Mock).mockImplementation((key, value) => {
       mockStorage[key] = value;
       return Promise.resolve();
@@ -108,12 +110,13 @@ describe('cashuProofManager', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('should return empty array on error (line 195-197)', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Storage read error'));
+    it('should fail closed on storage read errors', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(
+        new Error('Storage read error')
+      );
 
-      const result = await loadProofsPartial(10);
+      await expect(loadProofsPartial(10)).rejects.toThrow('Storage read error');
 
-      expect(result).toEqual([]);
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to load proofs',
         expect.objectContaining({ error: 'Storage read error' })
@@ -148,24 +151,27 @@ describe('cashuProofManager', () => {
       expect(result).toEqual(storedProofs);
     });
 
-    it('should return empty array on error (line 99-101)', async () => {
+    it('should fail closed on storage read errors', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Storage error'));
 
-      const result = await loadProofs();
+      await expect(loadProofs()).rejects.toThrow('Storage error');
 
-      expect(result).toEqual([]);
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to load proofs',
         expect.objectContaining({ error: 'Storage error' })
       );
     });
 
-    it('should handle invalid JSON gracefully', async () => {
+    it('should quarantine invalid JSON and fail closed', async () => {
       mockStorage['cashu_proofs_test_load_account'] = 'invalid json {{{';
 
-      const result = await loadProofs();
+      await expect(loadProofs()).rejects.toThrow('Cashu proof storage corrupted: invalid JSON');
 
-      expect(result).toEqual([]);
+      expect(
+        Object.keys(mockStorage).some((key) =>
+          key.startsWith('cashu_proofs_test_load_account_corrupt_')
+        )
+      ).toBe(true);
     });
   });
 
@@ -288,9 +294,7 @@ describe('cashuProofManager', () => {
       expect(mockStorage['cashu_proofs_migration_test_account']).toBe(JSON.stringify(globalProofs));
       // Old key should be deleted
       expect(mockStorage['cashu_proofs']).toBeUndefined();
-      expect(logger.info).toHaveBeenCalledWith(
-        'Deleted old global proofs storage'
-      );
+      expect(logger.info).toHaveBeenCalledWith('Deleted old global proofs storage');
     });
 
     it('should skip migration if account-specific proofs already exist (line 31-34)', async () => {

@@ -3,11 +3,11 @@
  * Shared logic for all vault confirm screens
  */
 
-import * as LocalAuthentication from 'expo-local-authentication';
 import { useCallback,useMemo,useRef,useState } from 'react';
 import { Alert } from 'react-native';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../../contexts/WalletDataContext';
+import { authenticateWithBiometrics } from '../../../services/biometricService';
 import {
   requiresVaultSettlementUnitSend,
   resolveVaultSettlementRequestedAsset,
@@ -136,20 +136,12 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
     try {
       setIsAuthenticating(true);
 
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-      if (!isE2E() && hasHardware && isEnrolled) {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: config.authMessage,
-          fallbackLabel: 'Use PIN',
-          cancelLabel: 'Cancel',
-          disableDeviceFallback: false,
-        });
+      if (!isE2E()) {
+        const result = await authenticateWithBiometrics(config.authMessage, 'Use PIN');
 
         if (!result.success) {
           if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', 'Please try again');
+            Alert.alert('Authentication Failed', result.error || 'Please try again');
           }
           setIsAuthenticating(false);
           setIsSubmitting(false);

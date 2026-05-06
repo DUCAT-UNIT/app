@@ -8,14 +8,24 @@ import { selectActiveUnitKeyset, findKeysetById } from '../cashuKeysetUtils';
 import { getMintQuoteSigningKey, signMintQuoteOutputs } from '../cashuQuoteSigner';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import {
-checkMintQuote,
-createMintQuote,
-MintQuote,
-mintTokens as mintTokensAPI,
+  checkMintQuote,
+  createMintQuote,
+  MintQuote,
+  mintTokens as mintTokensAPI,
 } from '../cashuMintClient';
-import { removeMintQuote,saveMintQuote,updateMintQuoteState } from '../cashuMintQuoteRecovery';
+import {
+  ensureMintQuoteClaimCanBePersisted,
+  persistMintQuoteClaim,
+  removeMintQuote,
+  saveMintQuote,
+  updateMintQuoteState,
+} from '../cashuMintQuoteRecovery';
+import {
+  clearProofRecoveryRecord,
+  persistProofRecoveryRecord,
+} from '../cashuProofRecoveryQueue';
 import { addProofs } from '../cashuProofManager';
-import { CashuProof,createBlindedOutputs,splitAmount,unblindSignatures } from '../crypto';
+import { CashuProof, createBlindedOutputs, splitAmount, unblindSignatures } from '../crypto';
 import { deriveMintQuoteState } from '../mintClient/mintQuotes';
 
 export interface MintQuoteResult {
@@ -93,7 +103,7 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
       state: quote.state,
       amountPaid: quote.amount_paid,
       amountIssued: quote.amount_issued,
-      fullQuote: quote
+      fullQuote: quote,
     });
 
     const amountPaid = quote.amount_paid;
@@ -120,6 +130,8 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
  * Step 3: Once paid, claim tokens from mint
  */
 export const completeMint = async (quoteId: string, amount: number): Promise<CashuProof[]> => {
+  let claimPersisted = false;
+
   try {
     logger.info('Completing mint', { quoteId, amount });
 
@@ -162,6 +174,7 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     if (paidQuote.pubkey && paidQuote.pubkey !== signingKey.pubkey) {
       throw new Error('Mint quote pubkey does not match wallet signing key');
     }
+    await ensureMintQuoteClaimCanBePersisted(quoteId);
     const signature = signMintQuoteOutputs(quoteId, outputs, signingKey.privateKey);
     const response = await mintTokensAPI(quoteId, outputs, signature);
 
@@ -185,7 +198,51 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
       }
     }
 
-    // Unblind signatures to create proofs
+    try {
+      await persistMintQuoteClaim(quoteId, {
+        amount: availableAmount,
+        signatures: response.signatures,
+        blindingData,
+        keys: unblindKeys,
+        keysetId,
+        signedKeysetId,
+      });
+      claimPersisted = true;
+    } catch (persistError) {
+      logger.error('Failed to persist mint claim after signatures; saving proofs immediately', {
+        error: persistError instanceof Error ? persistError.message : String(persistError),
+      });
+      const proofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        unblindKeys,
+        signedKeysetId
+      );
+      let recoveryKey: string | null = null;
+      try {
+        recoveryKey = await persistProofRecoveryRecord(
+          proofs,
+          availableAmount,
+          'mint_claim',
+          persistError instanceof Error ? persistError.message : String(persistError)
+        );
+      } catch (recoveryError) {
+        logger.error('Failed to persist mint claim proofs in recovery queue', {
+          quoteId,
+          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+          proofCount: proofs.length,
+          amount: availableAmount,
+        });
+      }
+      await addProofs(proofs);
+      if (recoveryKey) {
+        await clearProofRecoveryRecord(recoveryKey);
+      }
+      await removeMintQuote(quoteId);
+      return proofs;
+    }
+
+    // Unblind signatures to create proofs only after the claim response is durable.
     const proofs = unblindSignatures(
       response.signatures,
       blindingData,
@@ -204,8 +261,9 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     return proofs;
   } catch (error: unknown) {
     logger.error('Failed to complete mint', { error: (error as Error).message });
-    // Reset state so recovery can try again
-    await updateMintQuoteState(quoteId, 'PAID');
+    // If the mint already returned signatures, retrying mintTokens can fail as
+    // already issued. Leave the persisted claim for recovery instead.
+    await updateMintQuoteState(quoteId, claimPersisted ? 'PENDING' : 'PAID');
     throw error;
   }
 };

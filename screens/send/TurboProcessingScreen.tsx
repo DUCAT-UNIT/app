@@ -20,7 +20,9 @@ interface TurboProcessingScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
 }
 
-export default function TurboProcessingScreen({ navigation }: TurboProcessingScreenProps): React.JSX.Element {
+export default function TurboProcessingScreen({
+  navigation,
+}: TurboProcessingScreenProps): React.JSX.Element {
   const { sendAmount, sendRecipient } = useSendFlow();
   const { wallet } = useWallet();
   const [currentMessage, setCurrentMessage] = useState('Starting...');
@@ -32,7 +34,8 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
   const currentMessageRef = useRef(currentMessage);
 
   // Get store actions
-  const { startProcessing, updateProgress, completeProcessing, failProcessing } = useTurboProcessingStore();
+  const { startProcessing, updateProgress, completeProcessing, failProcessing } =
+    useTurboProcessingStore();
 
   useEffect(() => {
     currentStepRef.current = currentStep;
@@ -77,8 +80,8 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack()
-          }
+            onPress: () => navigation.goBack(),
+          },
         ]
       );
     }, 60000); // 60 second timeout
@@ -86,7 +89,10 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
 
     const createToken = async () => {
       try {
-        logger.info('TurboProcessing: Starting token creation', { amount: sendAmount, recipient: sendRecipient });
+        logger.info('TurboProcessing: Starting token creation', {
+          amount: sendAmount,
+          recipient: sendRecipient,
+        });
 
         const amountInSmallestUnits = Math.round(parseFloat(sendAmount) * 100);
 
@@ -141,7 +147,8 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
             setCurrentStep(step);
             setCurrentMessage(message);
             await updateProgress(step, message);
-          }
+          },
+          sendRecipient
         );
         logger.info('sendP2PKToken completed successfully');
 
@@ -150,21 +157,39 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         setCurrentMessage('Shortening URL');
         await updateProgress(5, 'Shortening URL');
 
-        // Generate shortened URL and save token to storage
-        let shortUrl;
-        try {
-          const { generateTurboDeeplink, saveSentLockedToken } = await import('../../services/cashu/cashuLockedTokensService');
+        // Generate shortened URL and save token to storage. This is critical:
+        // sendP2PKToken has already spent local proofs, so the token must be
+        // durable before showing success.
+        const { generateTurboDeeplink, saveSentLockedToken } = await import(
+          '../../services/cashu/cashuLockedTokensService'
+        );
+        const { clearRecoveredOutgoingSwapToken } = await import(
+          '../../services/cashu/cashuSwapRecovery'
+        );
 
-          shortUrl = await generateTurboDeeplink(token, sendRecipient, amountInSmallestUnits);
-          logger.info('Generated short URL', { shortUrlLength: shortUrl.length });
+        await saveSentLockedToken(
+          token,
+          sendRecipient,
+          amountInSmallestUnits,
+          null,
+          null,
+          wallet?.taprootAddress
+        );
+        logger.info('Token saved to storage before URL shortening');
 
-          await saveSentLockedToken(token, sendRecipient, amountInSmallestUnits, null, shortUrl, wallet?.taprootAddress);
-          logger.info('Token saved to storage with short URL');
-        } catch (storageError) {
-          const storageErrorMsg = storageError instanceof Error ? storageError.message : 'Unknown error';
-          logger.error('Failed to generate/save token:', { error: storageErrorMsg });
-          // Non-critical - continue anyway
-        }
+        const shortUrl = await generateTurboDeeplink(token, sendRecipient, amountInSmallestUnits);
+        logger.info('Generated short URL', { shortUrlLength: shortUrl.length });
+
+        await saveSentLockedToken(
+          token,
+          sendRecipient,
+          amountInSmallestUnits,
+          null,
+          shortUrl,
+          wallet?.taprootAddress
+        );
+        await clearRecoveredOutgoingSwapToken(token);
+        logger.info('Token saved to storage with short URL');
 
         // Clear timeout on success
         clearProcessingTimeout();
@@ -193,16 +218,12 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
         await failProcessing();
 
         // Show error and go back
-        Alert.alert(
-          'Error',
-          `Failed to create token: ${errorMessage}`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }
-          ]
-        );
+        Alert.alert('Error', `Failed to create token: ${errorMessage}`, [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]);
       }
     };
 
@@ -213,14 +234,32 @@ export default function TurboProcessingScreen({ navigation }: TurboProcessingScr
       clearProcessingTimeout();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigation, sendAmount, sendRecipient, wallet?.taprootAddress, startProcessing, updateProgress, completeProcessing, failProcessing]);
+  }, [
+    navigation,
+    sendAmount,
+    sendRecipient,
+    wallet?.taprootAddress,
+    startProcessing,
+    updateProgress,
+    completeProcessing,
+    failProcessing,
+  ]);
 
   return (
     <View style={localStyles.container} testID="turbo-processing-screen">
       <View style={localStyles.content}>
-        <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={localStyles.spinner} testID="turbo-processing-spinner" />
-        <Text style={localStyles.title} testID="turbo-processing-title">Creating Token</Text>
-        <Text style={localStyles.message} testID="turbo-processing-message">{currentMessage}</Text>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.PRIMARY_BLUE}
+          style={localStyles.spinner}
+          testID="turbo-processing-spinner"
+        />
+        <Text style={localStyles.title} testID="turbo-processing-title">
+          Creating Token
+        </Text>
+        <Text style={localStyles.message} testID="turbo-processing-message">
+          {currentMessage}
+        </Text>
         {totalSteps > 0 && (
           <Text style={localStyles.progress} testID="turbo-processing-progress">
             {currentStep} / {totalSteps}

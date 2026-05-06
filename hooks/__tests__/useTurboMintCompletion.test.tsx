@@ -325,7 +325,13 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockCompleteMint).not.toHaveBeenCalled();
-      expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(
+        100,
+        '02pubkey123',
+        {},
+        undefined,
+        'tb1precipient789'
+      );
     });
 
     it('should create P2PK token when turboRecipient is provided', async () => {
@@ -342,7 +348,13 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockExtractPubkeyFromTaprootAddress).toHaveBeenCalledWith('tb1precipient789');
-      expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(
+        100,
+        '02pubkey123',
+        {},
+        undefined,
+        'tb1precipient789'
+      );
       expect(mockShortenCashuToken).toHaveBeenCalledWith('cashuAtoken123');
       expect(mockSaveSentLockedToken).toHaveBeenCalled();
     });
@@ -513,6 +525,8 @@ describe('useTurboMintCompletion', () => {
 
       // Should still transition to ready on error
       expect(result.current!.processingStage).toBe('ready');
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith('Storage string error');
+      expect(notify.transaction.success).not.toHaveBeenCalledWith('send');
     });
   });
 });

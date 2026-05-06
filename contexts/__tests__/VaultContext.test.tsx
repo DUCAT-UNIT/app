@@ -23,6 +23,7 @@ jest.mock('../../hooks/useVaultDataFetch', () => ({
 jest.mock('../WalletContext', () => ({
   useWallet: jest.fn(() => ({
     wallet: { taprootAddress: 'tb1pvault' },
+    currentAccount: 0,
   })),
 }));
 
@@ -39,6 +40,7 @@ const mockPendingVaultStore = {
     action: string;
   },
   clearPendingTransaction: jest.fn(),
+  clearPendingTransactionForAccount: jest.fn(),
 };
 
 jest.mock('../../stores/pendingVaultTransactionStore', () => {
@@ -143,6 +145,7 @@ describe('VaultContext', () => {
     jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
     mockPendingVaultStore.pendingTransaction = null;
     mockPendingVaultStore.clearPendingTransaction = jest.fn();
+    mockPendingVaultStore.clearPendingTransactionForAccount = jest.fn();
     mockNotificationStore.snackbar = null;
     mockNotificationStore.showSnackbar = jest.fn();
     mockSendFlowStore.intentStep = 'idle';
@@ -200,7 +203,7 @@ describe('VaultContext', () => {
       );
     });
 
-    expect(mockPendingVaultStore.clearPendingTransaction).toHaveBeenCalled();
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
     expect(mockNotificationStore.showSnackbar).toHaveBeenCalledWith({
       type: 'success',
       action: 'open',
@@ -229,7 +232,7 @@ describe('VaultContext', () => {
       );
     });
 
-    expect(mockPendingVaultStore.clearPendingTransaction).toHaveBeenCalled();
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
     expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
   });
 

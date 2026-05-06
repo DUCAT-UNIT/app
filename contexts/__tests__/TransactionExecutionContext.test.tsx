@@ -29,7 +29,11 @@ interface RenderHookOptions {
 function renderHook<T>(
   hook: () => T,
   { wrapper: Wrapper }: RenderHookOptions = {}
-): { result: { current: T | null }; rerender: (element: React.ReactElement) => void; unmount: () => void } {
+): {
+  result: { current: T | null };
+  rerender: (element: React.ReactElement) => void;
+  unmount: () => void;
+} {
   const result: { current: T | null } = { current: null };
 
   function TestComponent(): null {
@@ -40,7 +44,11 @@ function renderHook<T>(
   let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
-      ? create(<Wrapper><TestComponent /></Wrapper>)
+      ? create(
+          <Wrapper>
+            <TestComponent />
+          </Wrapper>
+        )
       : create(<TestComponent />);
   });
 
@@ -87,6 +95,7 @@ describe('TransactionExecutionContext', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.restoreAllMocks(); // Restore all spies
+    delete (usePendingTransactionsStore as unknown as { getState?: jest.Mock }).getState;
     mockIsE2E.mockReturnValue(false);
 
     (useSendFlow as jest.Mock).mockReturnValue({
@@ -114,8 +123,12 @@ describe('TransactionExecutionContext', () => {
       invalidateTransaction: jest.fn(),
       markUtxoAsSpent: jest.fn(),
       markUtxosAsSpent: jest.fn(),
+      unmarkUtxosAsSpent: jest.fn(),
     });
 
+    jest
+      .spyOn(bitcoin.Transaction, 'fromHex')
+      .mockReturnValue({ ins: [], outs: [] } as unknown as bitcoin.Transaction);
     jest.spyOn(TransactionSigningService, 'signIntent').mockResolvedValue(mockSignedIntent as any);
     jest.spyOn(TransactionBroadcastService, 'broadcastTransaction').mockResolvedValue('mock_txid');
   });
@@ -183,12 +196,14 @@ describe('TransactionExecutionContext', () => {
     expect(mockSetIntentStep).toHaveBeenCalledWith('broadcasting');
   });
 
-  it('returns null from signIntent when broadcast fails after signing', async () => {
+  it('returns signed txid from signIntent when broadcast status is unknown', async () => {
     (TransactionService.signIntent as jest.Mock).mockResolvedValue({
       signedTxHex: 'signed_hex',
       txid: 'signed_but_not_broadcast_txid',
     });
-    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(
+      new Error('Network error')
+    );
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
@@ -209,9 +224,9 @@ describe('TransactionExecutionContext', () => {
       txid = await result.current!.signIntent();
     });
 
-    expect(txid).toBeNull();
+    expect(txid).toBe('signed_but_not_broadcast_txid');
     expect(mockShowSnackbar).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
-    expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
+    expect(mockSetIntentStep).toHaveBeenCalledWith('pending');
     expect(mockSetSendIntent).not.toHaveBeenCalledWith(null);
   });
 
@@ -577,7 +592,9 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+    jest
+      .spyOn(bitcoin.Transaction, 'fromHex')
+      .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
     const signedIntent = {
@@ -646,7 +663,9 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+    jest
+      .spyOn(bitcoin.Transaction, 'fromHex')
+      .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
     // Intent with runeUtxos but some missing runeAmount
@@ -720,7 +739,9 @@ describe('TransactionExecutionContext', () => {
       outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
     };
 
-    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+    jest
+      .spyOn(bitcoin.Transaction, 'fromHex')
+      .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
     jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1qtest');
 
     (useTransactionBuild as jest.Mock).mockReturnValue({
@@ -815,7 +836,9 @@ describe('TransactionExecutionContext', () => {
       setSendIntent: mockSetSendIntent,
     });
 
-    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_unit_notify');
+    (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue(
+      'mock_txid_unit_notify'
+    );
 
     let confirmCallback: (isConfirmed: boolean) => void;
     mockStartTransactionPolling.mockImplementation((txid, onConfirm) => {
@@ -853,7 +876,7 @@ describe('TransactionExecutionContext', () => {
     );
   });
 
-  it('should invalidate transaction on broadcast error when intent has txid', async () => {
+  it('should keep transaction pending on broadcast error after submit attempt', async () => {
     const mockInvalidateTransaction = jest.fn();
 
     (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
@@ -875,7 +898,9 @@ describe('TransactionExecutionContext', () => {
       setSendIntent: mockSetSendIntent,
     });
 
-    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(
+      new Error('Network error')
+    );
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
@@ -895,12 +920,71 @@ describe('TransactionExecutionContext', () => {
       await result.current!.broadcastIntent();
     });
 
-    expect(mockInvalidateTransaction).toHaveBeenCalledWith('existing_txid', 'Transaction broadcast failed');
+    expect(mockInvalidateTransaction).not.toHaveBeenCalled();
+    expect(mockSetIntentStep).toHaveBeenCalledWith('pending');
     expect(mockShowSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'error',
+        message: expect.stringContaining('Broadcast status unknown'),
       })
     );
+  });
+
+  it('rolls back input locks when pending tracking fails before broadcast', async () => {
+    const mockAddPendingTransaction = jest.fn().mockRejectedValue(new Error('storage failed'));
+    const mockMarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
+    const mockUnmarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
+    const mockInvalidateTransaction = jest.fn().mockResolvedValue([]);
+    const inputTxid = 'a'.repeat(64);
+
+    (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
+      pendingTransactions: {},
+      addPendingTransaction: mockAddPendingTransaction,
+      confirmTransaction: jest.fn(),
+      invalidateTransaction: mockInvalidateTransaction,
+      markUtxoAsSpent: jest.fn(),
+      markUtxosAsSpent: mockMarkUtxosAsSpent,
+      unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
+    });
+
+    jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue({
+      ins: [{ hash: Buffer.from(inputTxid, 'hex'), index: 1 }],
+      outs: [],
+    } as unknown as bitcoin.Transaction);
+
+    (useTransactionBuild as jest.Mock).mockReturnValue({
+      sendIntent: mockSignedIntent,
+      setSendIntent: mockSetSendIntent,
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TransactionExecutionProvider
+        currentAccount={0}
+        showSnackbar={mockShowSnackbar}
+        startTransactionPolling={mockStartTransactionPolling}
+        sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+        notificationsEnabled={true}
+        fetchBalance={mockFetchBalance}
+      >
+        {children}
+      </TransactionExecutionProvider>
+    );
+    const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+    await act(async () => {
+      await result.current!.broadcastIntent();
+    });
+
+    const spentInputs = [{ txid: inputTxid, vout: 1 }];
+    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+    expect(mockAddPendingTransaction).toHaveBeenCalled();
+    expect(TransactionService.broadcastTransaction).not.toHaveBeenCalled();
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+    expect(mockInvalidateTransaction).toHaveBeenCalledWith(
+      'mock_txid',
+      'Transaction broadcast failed'
+    );
+    expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
   });
 
   it('should handle missing signed transaction when broadcasting', async () => {
@@ -942,7 +1026,9 @@ describe('TransactionExecutionContext', () => {
       setSendIntent: mockSetSendIntent,
     });
 
-    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(new Error('Network error'));
+    (TransactionService.broadcastTransaction as jest.Mock).mockRejectedValue(
+      new Error('Network error')
+    );
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <TransactionExecutionProvider
@@ -965,9 +1051,10 @@ describe('TransactionExecutionContext', () => {
     expect(mockShowSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'error',
+        message: expect.stringContaining('Broadcast status unknown'),
       })
     );
-    expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
+    expect(mockSetIntentStep).toHaveBeenCalledWith('pending');
   });
 
   it('should send notification when transaction confirms', async () => {
@@ -1322,9 +1409,7 @@ describe('TransactionExecutionContext', () => {
 
       // Mock bitcoin.Transaction.fromHex to return a transaction with change output
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex'), index: 0 }],
         outs: [
           {
             script: Buffer.from('mock_script_1'),
@@ -1337,10 +1422,13 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // Mock address decoding - first output is recipient, second is change
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
+      jest
+        .spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('bc1qrecipient')
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
 
@@ -1407,9 +1495,7 @@ describe('TransactionExecutionContext', () => {
 
       // Mock transaction with rune return output
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex'), index: 0 }],
         outs: [
           {
             script: Buffer.from('mock_script_0'),
@@ -1426,10 +1512,13 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // Mock address decoding - vout 0 is rune return (taproot), vout 1 is recipient, vout 2 is btc change (segwit)
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
+      jest
+        .spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1ptest') // Our taproot address
         .mockReturnValueOnce('bc1precipient')
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
@@ -1502,9 +1591,7 @@ describe('TransactionExecutionContext', () => {
       });
 
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex') }],
         outs: [
           {
             script: Buffer.from('mock_script_0'),
@@ -1517,9 +1604,12 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
+      jest
+        .spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1ptest') // Our taproot address
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
 
@@ -1541,7 +1631,9 @@ describe('TransactionExecutionContext', () => {
         setSendIntent: mockSetSendIntent,
       });
 
-      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_multi_utxo');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue(
+        'mock_txid_multi_utxo'
+      );
 
       const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
@@ -1603,7 +1695,9 @@ describe('TransactionExecutionContext', () => {
         outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
       jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1qtest');
 
       (useTransactionBuild as jest.Mock).mockReturnValue({
@@ -1668,7 +1762,9 @@ describe('TransactionExecutionContext', () => {
         outs: [{ script: Buffer.from('mock_script'), value: 10000 }],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
       jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValue('tb1ptest');
 
       // Intent with empty runeUtxos array but has runeUtxo (backward compat)
@@ -1686,7 +1782,9 @@ describe('TransactionExecutionContext', () => {
         setSendIntent: mockSetSendIntent,
       });
 
-      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('mock_txid_fallback');
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue(
+        'mock_txid_fallback'
+      );
 
       const wrapper = ({ children }: { children: React.ReactNode }) => (
         <TransactionExecutionProvider
@@ -1741,7 +1839,7 @@ describe('TransactionExecutionContext', () => {
       // The hash in tx.ins is reversed, so we need to reverse the parent txid
       const mockTx = {
         ins: [
-          { hash: Buffer.from(pendingParentTxid, 'hex').reverse() } // Spending from pending tx
+          { hash: Buffer.from(pendingParentTxid, 'hex').reverse() }, // Spending from pending tx
         ],
         outs: [
           {
@@ -1751,10 +1849,11 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
-        .mockReturnValueOnce('tb1qtest'); // Our segwit address
+      jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValueOnce('tb1qtest'); // Our segwit address
 
       const signedIntent = {
         ...mockSignedIntent,
@@ -1799,6 +1898,77 @@ describe('TransactionExecutionContext', () => {
       );
     });
 
+    it('should use live pending transactions when detecting broadcast parents', async () => {
+      const mockAddPendingTransaction = jest.fn();
+      const mockMarkUtxoAsSpent = jest.fn();
+      const pendingParentTxid = 'c'.repeat(64);
+
+      // Simulate a stale render snapshot while the Zustand store has the current parent.
+      (usePendingTxs as jest.Mock).mockReturnValue({});
+      (usePendingTransactionsStore as unknown as jest.Mock & { getState?: jest.Mock }).getState =
+        jest.fn(() => ({
+          pendingTransactions: {
+            [pendingParentTxid]: {
+              status: 'pending',
+              outputs: [{ address: 'tb1qtest', value: 50000, vout: 0 }],
+            },
+          },
+        }));
+
+      (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({
+        addPendingTransaction: mockAddPendingTransaction,
+        confirmTransaction: jest.fn(),
+        invalidateTransaction: jest.fn(),
+        markUtxoAsSpent: mockMarkUtxoAsSpent,
+        markUtxosAsSpent: jest.fn(),
+      });
+
+      const mockTx = {
+        ins: [{ hash: Buffer.from(pendingParentTxid, 'hex').reverse(), index: 0 }],
+        outs: [{ script: Buffer.from('mock_script'), value: 40000 }],
+      };
+
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest.spyOn(bitcoin.address, 'fromOutputScript').mockReturnValueOnce('tb1qtest');
+
+      (useTransactionBuild as jest.Mock).mockReturnValue({
+        sendIntent: { ...mockSignedIntent, signedTxHex: 'mock_signed_hex' },
+        setSendIntent: mockSetSendIntent,
+      });
+
+      (TransactionService.broadcastTransaction as jest.Mock).mockResolvedValue('child_txid');
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <TransactionExecutionProvider
+          currentAccount={0}
+          showSnackbar={mockShowSnackbar}
+          startTransactionPolling={mockStartTransactionPolling}
+          sendTransactionConfirmedNotification={mockSendTransactionConfirmedNotification}
+          notificationsEnabled={true}
+          fetchBalance={mockFetchBalance}
+        >
+          {children}
+        </TransactionExecutionProvider>
+      );
+      const { result } = renderHook(() => useTransactionExecution(), { wrapper });
+
+      await act(async () => {
+        await result.current!.broadcastIntent();
+      });
+
+      expect(mockMarkUtxoAsSpent).toHaveBeenCalledWith(pendingParentTxid, 0);
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+        'child_txid',
+        [{ address: 'tb1qtest', value: 40000, vout: 0 }],
+        'BTC',
+        pendingParentTxid,
+        100000,
+        expect.any(Array)
+      );
+    });
+
     it('should not track outputs when there are no change outputs', async () => {
       const mockAddPendingTransaction = jest.fn();
 
@@ -1813,9 +1983,7 @@ describe('TransactionExecutionContext', () => {
 
       // Mock transaction with no change outputs (all to recipient)
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex'), index: 0 }],
         outs: [
           {
             script: Buffer.from('mock_script_1'),
@@ -1824,7 +1992,9 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       const fromOutputScriptSpy = jest.spyOn(bitcoin.address, 'fromOutputScript');
       fromOutputScriptSpy.mockClear();
@@ -1860,8 +2030,11 @@ describe('TransactionExecutionContext', () => {
         await result.current!.broadcastIntent();
       });
 
-      // Should not call addPendingTransaction when no change outputs
-      expect(mockAddPendingTransaction).not.toHaveBeenCalled();
+      // Even without change outputs, the broadcast path now persists spent inputs
+      // so a restart cannot reuse inputs from a transaction that reached the network.
+      expect(mockAddPendingTransaction).toHaveBeenCalledWith('mock_txid', [], 'BTC', null, 100000, [
+        { txid: 'a'.repeat(64), vout: 0 },
+      ]);
     });
 
     it('should handle OP_RETURN outputs gracefully', async () => {
@@ -1878,9 +2051,7 @@ describe('TransactionExecutionContext', () => {
 
       // Mock transaction with OP_RETURN and change output
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex') }],
         outs: [
           {
             script: Buffer.from('mock_op_return_script'),
@@ -1893,11 +2064,16 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
       // First call throws (OP_RETURN can't be decoded), second succeeds
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
-        .mockImplementationOnce(() => { throw new Error('Invalid script'); })
+      jest
+        .spyOn(bitcoin.address, 'fromOutputScript')
+        .mockImplementationOnce(() => {
+          throw new Error('Invalid script');
+        })
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
 
       const signedIntent = {
@@ -1990,9 +2166,12 @@ describe('TransactionExecutionContext', () => {
         await result.current!.broadcastIntent();
       });
 
-      // Should not crash, just continue with broadcast
-      expect(result.current!.broadcastedTxid).toBe('mock_txid');
+      // Broadcast succeeded, but recovery state could not be saved. This must fail
+      // closed instead of clearing the intent and pretending the send is tracked.
+      expect(result.current!.broadcastedTxid).toBeNull();
       expect(mockAddPendingTransaction).not.toHaveBeenCalled();
+      expect(mockShowSnackbar).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+      expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
     });
 
     it('should not add rune amount when runeChangeAmount is zero', async () => {
@@ -2014,9 +2193,7 @@ describe('TransactionExecutionContext', () => {
       });
 
       const mockTx = {
-        ins: [
-          { hash: Buffer.from('a'.repeat(64), 'hex') }
-        ],
+        ins: [{ hash: Buffer.from('a'.repeat(64), 'hex') }],
         outs: [
           {
             script: Buffer.from('mock_script_0'),
@@ -2029,9 +2206,12 @@ describe('TransactionExecutionContext', () => {
         ],
       };
 
-      jest.spyOn(bitcoin.Transaction, 'fromHex').mockReturnValue(mockTx as unknown as bitcoin.Transaction);
+      jest
+        .spyOn(bitcoin.Transaction, 'fromHex')
+        .mockReturnValue(mockTx as unknown as bitcoin.Transaction);
 
-      jest.spyOn(bitcoin.address, 'fromOutputScript')
+      jest
+        .spyOn(bitcoin.address, 'fromOutputScript')
         .mockReturnValueOnce('tb1ptest') // Our taproot address
         .mockReturnValueOnce('tb1qtest'); // Our segwit address
 

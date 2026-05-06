@@ -6,10 +6,13 @@
 
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
+import { DEVICE_ONLY } from '../services/storagePolicy';
 import { logger } from '../utils/logger';
 
 // Max entries before evicting oldest half
 const MAX_PROCESSED_HASHES = 1000;
+export const PENDING_TOKEN_KEY = 'pending_turbo_cashu_token_v1';
 
 interface TokenProcessingState {
   // Pending token to be processed
@@ -24,11 +27,13 @@ interface TokenProcessingState {
 
 interface TokenProcessingActions {
   // Set a pending token for processing
-  setPendingToken: (token: string) => void;
+  setPendingToken: (token: string) => Promise<void>;
   // Clear the pending token (after processing)
   clearPendingToken: () => void;
   // Get and clear pending token atomically
   consumePendingToken: () => string | null;
+  // Restore a pending token that was queued before app exit
+  hydratePendingToken: () => Promise<string | null>;
   // Mark a token as processed (by its hash)
   markTokenProcessed: (token: string) => Promise<void>;
   // Check if token was already processed
@@ -70,14 +75,27 @@ function clearTokenCheckTimer(): void {
 export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) => ({
   ...initialState,
 
-  setPendingToken: (token: string) => {
+  setPendingToken: async (token: string) => {
     logger.debug('[TokenProcessingStore] Setting pending token');
+    try {
+      await SecureStore.setItemAsync(PENDING_TOKEN_KEY, token, DEVICE_ONLY);
+    } catch (error) {
+      logger.error('[TokenProcessingStore] Failed to persist pending token', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
     set({ pendingToken: token });
   },
 
   clearPendingToken: () => {
     logger.debug('[TokenProcessingStore] Clearing pending token');
     set({ pendingToken: null });
+    Promise.resolve(SecureStore.deleteItemAsync(PENDING_TOKEN_KEY)).catch((error) => {
+      logger.error('[TokenProcessingStore] Failed to clear persisted pending token', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   },
 
   consumePendingToken: () => {
@@ -87,6 +105,28 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
       set({ pendingToken: null });
       return pendingToken;
     }
+    return null;
+  },
+
+  hydratePendingToken: async () => {
+    const { pendingToken } = get();
+    if (pendingToken) {
+      return pendingToken;
+    }
+
+    try {
+      const storedToken = await SecureStore.getItemAsync(PENDING_TOKEN_KEY);
+      if (storedToken) {
+        logger.debug('[TokenProcessingStore] Hydrated persisted pending token');
+        set({ pendingToken: storedToken });
+        return storedToken;
+      }
+    } catch (error) {
+      logger.error('[TokenProcessingStore] Failed to hydrate pending token', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return null;
   },
 
@@ -166,6 +206,11 @@ export const useTokenProcessingStore = create<TokenProcessingStore>((set, get) =
     logger.debug('[TokenProcessingStore] Resetting state');
     clearTokenCheckTimer();
     set(initialState);
+    Promise.resolve(SecureStore.deleteItemAsync(PENDING_TOKEN_KEY)).catch((error) => {
+      logger.error('[TokenProcessingStore] Failed to clear persisted pending token during reset', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   },
 }));
 

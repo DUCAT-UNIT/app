@@ -46,6 +46,37 @@ VaultOperationConfig,
 VaultWalletData,
 } from './vaultOperationTypes';
 
+interface VaultRequestTxidLike {
+  issue_txid?: string;
+  repay_txid?: string;
+  vault_txid?: string;
+}
+
+function extractTxidsFromVaultRequest(
+  request: unknown
+): { txid?: string; vaultTxid: string } | null {
+  if (!request || typeof request !== 'object') {
+    return null;
+  }
+
+  const txRequest = request as VaultRequestTxidLike;
+  if (typeof txRequest.vault_txid !== 'string' || txRequest.vault_txid.length === 0) {
+    return null;
+  }
+
+  return {
+    txid: txRequest.issue_txid || txRequest.repay_txid,
+    vaultTxid: txRequest.vault_txid,
+  };
+}
+
+function txidResultsMatch(
+  left: { txid?: string; vaultTxid: string },
+  right: { txid?: string; vaultTxid: string }
+): boolean {
+  return left.txid === right.txid && left.vaultTxid === right.vaultTxid;
+}
+
 /**
  * Base hook for all vault operations
  *
@@ -73,7 +104,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   } = config;
 
   // Wallet and price context
-  const { wallet } = useWallet();
+  const { wallet, currentAccount } = useWallet();
   const { btcPrice } = usePrice();
   const { vaultData: contextVaultData } = useVaultData();
 
@@ -102,11 +133,16 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   } = actions;
 
   // Global store actions
-  const setPendingTransaction = usePendingVaultTransactionStore(
-    (s) => s.setPendingTransaction
+  const setPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.setPendingTransactionForAccount
+  );
+  const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.clearPendingTransactionForAccount
   );
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
+  const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
+  const unmarkUtxosAsSpent = usePendingTransactionsStore((s) => s.unmarkUtxosAsSpent);
   const showSnackbar = useNotificationStore((s) => s.showSnackbar);
 
   // Operation state
@@ -258,6 +294,21 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setCurrentStep('processing');
     analytics.track(VAULT_EVENTS.VAULT_OPERATION_STARTED, { operation: operationName });
 
+    let guardianSubmitAttempted = false;
+    let localVaultRecoveryWrittenBeforeSubmit = false;
+    const spentInputsForPreSubmitRollback: Array<{ txid: string; vout: number }> = [];
+    const recordPreSubmitRollbackInputs = (inputs: Array<{ txid: string; vout: number }>): void => {
+      for (const input of inputs) {
+        if (
+          !spentInputsForPreSubmitRollback.some(
+            (existing) => existing.txid === input.txid && existing.vout === input.vout
+          )
+        ) {
+          spentInputsForPreSubmitRollback.push(input);
+        }
+      }
+    };
+
     try {
       // Step 1: Build VaultProfile and create config
       updateProcessingStep(1);
@@ -310,98 +361,131 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
       const oracleQuote = await fetchPriceQuote(liquidationPrice);
 
-      const request = await createRequest({
-        vaultWallet,
-        config: operationConfig,
-        reservationResult,
-        feeRate: selectedFeeRate,
+	      const request = await createRequest({
+	        vaultWallet,
+	        config: operationConfig,
+	        reservationResult,
+	        feeRate: selectedFeeRate,
         oracleQuote,
-        vaultProfile,
-      });
+	        vaultProfile,
+	      });
 
-      // Step 4: Submit to guardian
-      updateProcessingStep(4);
-      logger.debug(`[${operationName}] Step 4: Submitting to guardian...`);
+	      const persistVaultRecovery = async (
+	        recoveryResult: { txid?: string; vaultTxid: string }
+	      ): Promise<void> => {
+	        const pendingTx = createPendingTransaction({
+	          config: operationConfig,
+	          result: recoveryResult,
+	          taprootPubkey: wallet!.taprootPubkey || '',
+	        });
 
-      const result = await sendRequest(gclient, request);
-      const { txid, vaultTxid: resultVaultTxid } = extractResult(result);
+	        await setPendingTransactionForAccount(pendingTx, currentAccount);
+	        localVaultRecoveryWrittenBeforeSubmit = !guardianSubmitAttempted;
 
-      // Update store
-      if (hasIssueTxid && setIssueTxid && txid) {
-        setIssueTxid(txid);
-      }
-      setVaultTxid(resultVaultTxid);
-      if (!deferSuccessTransition) {
-        setCurrentStep('success');
-      }
+	        if (recoveryResult.txid) {
+	          const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+	          const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
+	            request as {
+	              issue_txhex?: string;
+	              repay_txhex?: string;
+	              vault_txhex?: string;
+	            },
+	            wallet,
+	            livePendingTransactions,
+	          );
+	          recordPreSubmitRollbackInputs(spentInputs);
 
-      // Track pending transaction
-      const pendingTx = createPendingTransaction({
-        config: operationConfig,
-        result: { txid, vaultTxid: resultVaultTxid },
-        taprootPubkey: wallet!.taprootPubkey || '',
-      });
+	          for (const spentInput of spentInputs) {
+	            if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
+	              await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+	            }
+	          }
 
-      if (txid) {
-        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
-        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
-          request as {
-            issue_txhex?: string;
-            vault_txhex?: string;
-          },
-          wallet,
-          livePendingTransactions,
-        );
+	          if (spentInputs.length > 0) {
+	            await markUtxosAsSpent(spentInputs);
+	          }
 
-        for (const spentInput of spentInputs) {
-          if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
-            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
-          }
-        }
+	          if (outputs.length > 0 || spentInputs.length > 0) {
+	            await addPendingTransaction(
+	              recoveryResult.txid,
+	              outputs,
+	              'UNIT',
+	              parentTxid,
+	              pendingTx.unitAmt,
+	              spentInputs,
+	            );
+	          }
+	        }
 
-        if (outputs.length > 0) {
-          await addPendingTransaction(
-            txid,
-            outputs,
-            'UNIT',
-            parentTxid,
-            pendingTx.unitAmt,
-            spentInputs,
-          );
-        }
+	        const shouldTrackVaultTx = Boolean(recoveryResult.vaultTxid) && recoveryResult.vaultTxid !== recoveryResult.txid;
+	        if (shouldTrackVaultTx) {
+	          const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+	          const finalizationPendingData = extractVaultFinalizationPendingData(
+	            request as {
+	              issue_txhex?: string;
+	              repay_txhex?: string;
+	              vault_txhex?: string;
+	            },
+	            wallet,
+	            latestPendingTransactions,
+	          );
+	          recordPreSubmitRollbackInputs(finalizationPendingData.spentInputs);
 
-        const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
-        const finalizationPendingData = extractVaultFinalizationPendingData(
-          request as {
-            issue_txhex?: string;
-            vault_txhex?: string;
-          },
-          wallet,
-          latestPendingTransactions,
-        );
+	          for (const spentInput of finalizationPendingData.spentInputs) {
+	            if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
+	              await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+	            }
+	          }
 
-        for (const spentInput of finalizationPendingData.spentInputs) {
-          if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
-            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
-          }
-        }
+	          if (finalizationPendingData.spentInputs.length > 0) {
+	            await markUtxosAsSpent(finalizationPendingData.spentInputs);
+	          }
 
-        if (
-          resultVaultTxid !== txid &&
-          finalizationPendingData.outputs.length > 0
-        ) {
-          await addPendingTransaction(
-            resultVaultTxid,
-            finalizationPendingData.outputs,
-            'BTC',
-            finalizationPendingData.parentTxid,
-            undefined,
-            finalizationPendingData.spentInputs,
-          );
-        }
-      }
+	          if (
+	            finalizationPendingData.outputs.length > 0 ||
+	            finalizationPendingData.spentInputs.length > 0
+	          ) {
+	            await addPendingTransaction(
+	              recoveryResult.vaultTxid,
+	              finalizationPendingData.outputs,
+	              'BTC',
+	              finalizationPendingData.parentTxid,
+	              undefined,
+	              finalizationPendingData.spentInputs,
+	            );
+	          }
+	        }
+	      };
 
-      await setPendingTransaction(pendingTx);
+	      // Step 4: Submit to guardian
+	      updateProcessingStep(4);
+	      logger.debug(`[${operationName}] Step 4: Submitting to guardian...`);
+
+	      const requestTxids = extractTxidsFromVaultRequest(request);
+	      if (!requestTxids) {
+	        throw new Error(
+	          `${operationName} request did not include transaction IDs; refusing to submit without a recovery checkpoint.`
+	        );
+	      }
+	      await persistVaultRecovery(requestTxids);
+
+	      guardianSubmitAttempted = true;
+	      const result = await sendRequest(gclient, request);
+	      const { txid, vaultTxid: resultVaultTxid } = extractResult(result);
+	      const resultTxids = { txid, vaultTxid: resultVaultTxid };
+
+	      if (!txidResultsMatch(requestTxids, resultTxids)) {
+	        await persistVaultRecovery(resultTxids);
+	      }
+
+	      // Update store
+	      if (hasIssueTxid && setIssueTxid && txid) {
+	        setIssueTxid(txid);
+	      }
+	      setVaultTxid(resultVaultTxid);
+	      if (!deferSuccessTransition) {
+	        setCurrentStep('success');
+	      }
 
       // Show confirmation snackbar
       showSnackbar({
@@ -433,6 +517,30 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         message: errorMessage,
         stack: errorStack,
       });
+      if (!guardianSubmitAttempted) {
+        if (spentInputsForPreSubmitRollback.length > 0) {
+          try {
+            await unmarkUtxosAsSpent(spentInputsForPreSubmitRollback);
+          } catch (rollbackError) {
+            logger.error(`[${operationName}] Failed to roll back pre-submit vault UTXO locks:`, {
+              error:
+                rollbackError instanceof Error
+                  ? rollbackError.message
+                  : String(rollbackError),
+            });
+          }
+        }
+
+        if (localVaultRecoveryWrittenBeforeSubmit) {
+          try {
+            await clearPendingTransactionForAccount(currentAccount);
+          } catch (clearError) {
+            logger.error(`[${operationName}] Failed to clear pre-submit vault recovery lock:`, {
+              error: clearError instanceof Error ? clearError.message : String(clearError),
+            });
+          }
+        }
+      }
       analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, { operation: operationName, error: errorMessage });
       setError(errorMessage);
       setCurrentStep('confirm');
@@ -469,9 +577,13 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setCurrentStep,
     updateProcessingStep,
     buildVaultProfileFromData,
-    setPendingTransaction,
+    setPendingTransactionForAccount,
+    currentAccount,
+    clearPendingTransactionForAccount,
     addPendingTransaction,
     markUtxoAsSpent,
+    markUtxosAsSpent,
+    unmarkUtxosAsSpent,
     showSnackbar,
   ]);
 

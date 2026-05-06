@@ -28,6 +28,7 @@ interface PendingTransactionLike {
 
 interface VaultIssueRequestLike {
   issue_txhex?: string;
+  repay_txhex?: string;
   vault_txhex?: string;
 }
 
@@ -133,7 +134,7 @@ export function extractVaultIssuePendingData(
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
 ): VaultIssuePendingData {
-  return extractPendingTxData(request.issue_txhex, wallet, pendingTransactions);
+  return extractPendingTxData(request.issue_txhex || request.repay_txhex, wallet, pendingTransactions);
 }
 
 export function extractVaultFinalizationPendingData(

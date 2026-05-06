@@ -659,6 +659,24 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).not.toHaveBeenCalled();
     });
 
+    it('should reconcile spent proofs and mark status unknown when melt submission errors', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockRejectedValue(new Error('Network dropped after submit'));
+      (removeSpentProofs as jest.Mock).mockResolvedValueOnce({ removed: 1, kept: 0 });
+
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toMatchObject({
+        message: 'Network dropped after submit',
+        meltSubmissionStatus: 'unknown',
+        spentProofsRemoved: 1,
+      });
+
+      expect(removeSpentProofs).toHaveBeenCalled();
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
     it('should accept state PAID responses without paid boolean', async () => {
       const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
       (loadProofs as jest.Mock).mockResolvedValue([exactProof]);

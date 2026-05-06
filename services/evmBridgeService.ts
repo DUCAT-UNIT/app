@@ -13,6 +13,8 @@ import { trackRedemption } from './bridgeApiService';
 import { getSepoliaProvider, withSepoliaSigner } from './evmWalletService';
 import type { SwapQuote, TrackRedemptionRequest } from '../shared/bridgeTypes';
 import {
+  persistEvmTransactionCheckpointsNow,
+  persistEvmTransactionCheckpointFallback,
   useEvmTransactionCheckpointStore,
   type EvmTransactionCheckpointInput,
 } from '../stores/evmTransactionCheckpointStore';
@@ -48,6 +50,14 @@ export interface RedemptionExecutionResult {
   sourceAsset: SepoliaAsset;
   preparationSwap?: SwapExecutionResult;
   trackRedemptionError?: string;
+}
+
+export interface RedemptionSubmission {
+  releaseId: string;
+  burnTxHash: string;
+  amount: string;
+  sourceAsset: SepoliaAsset;
+  destinationTaprootAddress: string;
 }
 
 export interface CrossChainSwapQuote {
@@ -248,12 +258,20 @@ interface BlockscoutTransactionsResponse {
 }
 
 function assertBridgeContractsConfigured(): void {
-  if (!EVM_CONFIG.wunitAddress || !EVM_CONFIG.bridgeRouterAddress || !EVM_CONFIG.stablePoolAddress) {
+  if (
+    !EVM_CONFIG.wunitAddress ||
+    !EVM_CONFIG.bridgeRouterAddress ||
+    !EVM_CONFIG.stablePoolAddress
+  ) {
     throw new Error('Sepolia bridge contracts are not configured');
   }
 }
 
-function getTokenConfig(token: SepoliaAsset): { address: string; index: number; opposite: SepoliaAsset } {
+function getTokenConfig(token: SepoliaAsset): {
+  address: string;
+  index: number;
+  opposite: SepoliaAsset;
+} {
   if (token === 'wUNIT') {
     if (!EVM_CONFIG.wunitAddress) {
       throw new Error('Sepolia wUNIT contract is not configured');
@@ -272,13 +290,13 @@ async function queryTransferLogsInChunks(
   contract: Contract,
   filter: ReturnType<Contract['filters']['Transfer']>,
   fromBlock: number,
-  toBlock: number,
+  toBlock: number
 ): Promise<EventLog[]> {
   const results: EventLog[] = [];
 
   for (let start = fromBlock; start <= toBlock; start += HISTORY_QUERY_CHUNK_SIZE) {
     const end = Math.min(start + HISTORY_QUERY_CHUNK_SIZE - 1, toBlock);
-    const events = await contract.queryFilter(filter, start, end) as EventLog[];
+    const events = (await contract.queryFilter(filter, start, end)) as EventLog[];
     results.push(...events);
   }
 
@@ -289,7 +307,7 @@ async function ensureAllowance(
   accountIndex: number,
   token: SepoliaAsset,
   spender: string,
-  amount: bigint,
+  amount: bigint
 ): Promise<string | undefined> {
   return withSepoliaSigner(accountIndex, async (wallet) => {
     const tokenContract = new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
@@ -311,7 +329,7 @@ async function ensureAllowance(
       spender,
     });
     const approval = await tokenContract.approve(spender, MaxUint256);
-    recordSubmittedEvmTx({
+    await recordSubmittedEvmTx({
       accountIndex,
       kind: 'approval',
       txHash: approval.hash,
@@ -327,9 +345,9 @@ async function ensureAllowance(
     let receipt: { hash?: string } | null;
     try {
       receipt = await approval.wait(EVM_CONFIG.confirmations);
-      markConfirmedEvmTx(approval.hash, receipt?.hash || approval.hash);
+      await markConfirmedEvmTx(approval.hash, receipt?.hash || approval.hash);
     } catch (error) {
-      markFailedEvmTx(approval.hash, error);
+      await markFailedEvmTx(approval.hash, error);
       throw error;
     }
     logger.debug('[SepoliaBridge] Approval confirmed', {
@@ -344,7 +362,7 @@ async function ensureAllowance(
 
 async function estimateGasOrFallback(
   estimate: () => Promise<bigint>,
-  fallback: bigint,
+  fallback: bigint
 ): Promise<bigint> {
   try {
     return await estimate();
@@ -356,7 +374,7 @@ async function estimateGasOrFallback(
 function parsePositiveAmountUnits(
   amount: string,
   decimals: number,
-  asset: SepoliaTransferAsset,
+  asset: SepoliaTransferAsset
 ): bigint {
   const normalized = amount.trim();
   if (!/^\d+(\.\d+)?$/.test(normalized)) {
@@ -382,21 +400,17 @@ function getTransferDecimals(asset: SepoliaTransferAsset): number {
 }
 
 function formatTransferAmount(amountUnits: bigint, asset: SepoliaTransferAsset): string {
-  return asset === 'ETH'
-    ? formatEther(amountUnits)
-    : formatUnits(amountUnits, EVM_DECIMALS);
+  return asset === 'ETH' ? formatEther(amountUnits) : formatUnits(amountUnits, EVM_DECIMALS);
 }
 
 function buildBlockingReasons(checks: Array<{ passed: boolean; message: string }>): string[] {
-  return checks
-    .filter((check) => !check.passed)
-    .map((check) => check.message);
+  return checks.filter((check) => !check.passed).map((check) => check.message);
 }
 
 function assertCanExecutePreflight(
   canExecute: boolean,
   blockingReasons: string[],
-  fallbackMessage: string,
+  fallbackMessage: string
 ): void {
   if (canExecute) {
     return;
@@ -458,7 +472,8 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
     return {
       kind: 'allowance_race',
       retryable: true,
-      userMessage: 'Token allowance changed while submitting. Refresh balances and retry the approval/swap.',
+      userMessage:
+        'Token allowance changed while submitting. Refresh balances and retry the approval/swap.',
       rawMessage,
     };
   }
@@ -472,7 +487,8 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
     return {
       kind: 'replacement_transaction',
       retryable: true,
-      userMessage: 'Sepolia nonce state changed while submitting. Refresh the wallet state and retry.',
+      userMessage:
+        'Sepolia nonce state changed while submitting. Refresh the wallet state and retry.',
       rawMessage,
     };
   }
@@ -486,7 +502,8 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
     return {
       kind: 'reverted',
       retryable: false,
-      userMessage: 'Sepolia transaction reverted. Check pool liquidity, allowances, and contract readiness before retrying.',
+      userMessage:
+        'Sepolia transaction reverted. Check pool liquidity, allowances, and contract readiness before retrying.',
       rawMessage,
     };
   }
@@ -495,7 +512,8 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
     return {
       kind: 'timeout',
       retryable: true,
-      userMessage: 'Sepolia RPC timed out. The transaction may still be pending; check pending activity before retrying.',
+      userMessage:
+        'Sepolia RPC timed out. The transaction may still be pending; check pending activity before retrying.',
       rawMessage,
     };
   }
@@ -510,7 +528,8 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
     return {
       kind: 'rpc_unavailable',
       retryable: true,
-      userMessage: 'Sepolia RPC is unavailable or rate limited. Wait briefly, check pending activity, and retry.',
+      userMessage:
+        'Sepolia RPC is unavailable or rate limited. Wait briefly, check pending activity, and retry.',
       rawMessage,
     };
   }
@@ -523,16 +542,55 @@ export function classifyEvmExecutionError(error: unknown): EvmExecutionErrorClas
   };
 }
 
-function recordSubmittedEvmTx(input: EvmTransactionCheckpointInput): void {
+async function persistEvmCheckpointBestEffort(stage: string, txHash: string): Promise<boolean> {
+  try {
+    await persistEvmTransactionCheckpointsNow();
+    return true;
+  } catch (error) {
+    let fallbackPersisted = false;
+    const checkpoint = useEvmTransactionCheckpointStore
+      .getState()
+      .checkpoints
+      .find((item) => item.txHash === txHash);
+    if (checkpoint) {
+      try {
+        await persistEvmTransactionCheckpointFallback(checkpoint);
+        fallbackPersisted = true;
+      } catch (fallbackError) {
+        logger.error('[SepoliaBridge] Failed to persist fallback EVM transaction checkpoint', {
+          stage,
+          txHash,
+          error: getErrorMessage(fallbackError),
+        });
+      }
+    }
+    logger.warn('[SepoliaBridge] Failed to persist EVM transaction checkpoint', {
+      stage,
+      txHash,
+      error: getErrorMessage(error),
+    });
+    return fallbackPersisted;
+  }
+}
+
+async function recordSubmittedEvmTx(input: EvmTransactionCheckpointInput): Promise<void> {
   useEvmTransactionCheckpointStore.getState().recordSubmitted(input);
+  const persisted = await persistEvmCheckpointBestEffort('submitted', input.txHash);
+  if (!persisted) {
+    throw new Error(
+      `Sepolia ${input.kind} transaction ${input.txHash} was submitted, but its recovery checkpoint could not be saved. Check this transaction on Sepolia before retrying.`
+    );
+  }
 }
 
-function markConfirmedEvmTx(txHash: string, receiptTxHash?: string | null): void {
+async function markConfirmedEvmTx(txHash: string, receiptTxHash?: string | null): Promise<void> {
   useEvmTransactionCheckpointStore.getState().markConfirmed(txHash, receiptTxHash);
+  await persistEvmCheckpointBestEffort('confirmed', txHash);
 }
 
-function markFailedEvmTx(txHash: string, error: unknown): void {
+async function markFailedEvmTx(txHash: string, error: unknown): Promise<void> {
   useEvmTransactionCheckpointStore.getState().markFailed(txHash, getErrorMessage(error));
+  await persistEvmCheckpointBestEffort('failed', txHash);
 }
 
 function getEventLogIndex(event: EventLog): number | null {
@@ -592,7 +650,9 @@ function assertMutinynetTaprootDestination(destinationTaprootAddress: string): s
     throw new Error(validation.error || 'Enter a valid Mutinynet Taproot address');
   }
   if (validation.type !== 'taproot') {
-    throw new Error(`Redemption destination must be a Mutinynet Taproot address (${TAPROOT_ADDRESS_PREFIX}...).`);
+    throw new Error(
+      `Redemption destination must be a Mutinynet Taproot address (${TAPROOT_ADDRESS_PREFIX}...).`
+    );
   }
 
   return trimmed;
@@ -639,7 +699,10 @@ function getUnitUsdcPoolContracts(): UnitUsdcPoolDashboard['contracts'] {
 
 function formatDashboardNumber(value: number, decimals = 6): string {
   if (!Number.isFinite(value)) return '0';
-  const trimmed = value.toFixed(decimals).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const trimmed = value
+    .toFixed(decimals)
+    .replace(/(\.\d*?)0+$/, '$1')
+    .replace(/\.$/, '');
   return trimmed || '0';
 }
 
@@ -671,8 +734,8 @@ export async function getEvmBalances(accountIndex: number): Promise<EvmBalances>
       : null;
     const [ethBalance, usdcBalance, wunitBalance] = await Promise.all([
       provider.getBalance(wallet.address),
-      usdc ? usdc.balanceOf(wallet.address) as Promise<bigint> : Promise.resolve(0n),
-      wunit ? wunit.balanceOf(wallet.address) as Promise<bigint> : Promise.resolve(0n),
+      usdc ? (usdc.balanceOf(wallet.address) as Promise<bigint>) : Promise.resolve(0n),
+      wunit ? (wunit.balanceOf(wallet.address) as Promise<bigint>) : Promise.resolve(0n),
     ]);
 
     return {
@@ -684,10 +747,7 @@ export async function getEvmBalances(accountIndex: number): Promise<EvmBalances>
   });
 }
 
-export async function quoteSwap(
-  tokenIn: SepoliaAsset,
-  amountIn: string,
-): Promise<SwapQuote> {
+export async function quoteSwap(tokenIn: SepoliaAsset, amountIn: string): Promise<SwapQuote> {
   assertBridgeContractsConfigured();
 
   const amountInUnits = parsePositiveAmountUnits(amountIn, EVM_DECIMALS, tokenIn);
@@ -695,8 +755,7 @@ export async function quoteSwap(
   const provider = getSepoliaProvider();
   const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, provider);
   const rawAmountOut = (await pool.quoteSwap(index, amountInUnits)) as bigint;
-  const minimumAmountOut =
-    (rawAmountOut * BigInt(10_000 - EVM_CONFIG.swapSlippageBps)) / 10_000n;
+  const minimumAmountOut = (rawAmountOut * BigInt(10_000 - EVM_CONFIG.swapSlippageBps)) / 10_000n;
 
   return {
     tokenIn,
@@ -711,7 +770,7 @@ export async function quoteSwap(
 
 export async function quoteUnitUsdcSwap(
   tokenIn: CrossChainSwapAsset,
-  amountIn: string,
+  amountIn: string
 ): Promise<CrossChainSwapQuote> {
   const poolQuote = await quoteSwap(tokenIn === 'UNIT' ? 'wUNIT' : 'USDC', amountIn);
 
@@ -744,7 +803,7 @@ export async function getCrossChainSwapLimit(): Promise<CrossChainSwapLimit> {
 }
 
 export async function getUnitUsdcPoolDashboard(
-  accountIndex?: number,
+  accountIndex?: number
 ): Promise<UnitUsdcPoolDashboard> {
   const readiness = getUnitUsdcPoolReadiness();
   const contracts = getUnitUsdcPoolContracts();
@@ -762,7 +821,8 @@ export async function getUnitUsdcPoolDashboard(
       maxInputAmount: null,
       quoteSamples: [],
       wallet: null,
-      error: 'Sepolia RPC, USDC, wUNIT, and stable pool contracts must be configured to read the UNIT/USDC pool.',
+      error:
+        'Sepolia RPC, USDC, wUNIT, and stable pool contracts must be configured to read the UNIT/USDC pool.',
     };
   }
 
@@ -774,21 +834,23 @@ export async function getUnitUsdcPoolDashboard(
     const reserveWunit = balances[0] ?? 0n;
     const reserveUsdc = balances[1] ?? 0n;
 
-    const quoteSamples = await Promise.all(sampleAmounts.map(async (amountIn) => {
-      const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
-      const [unitToUsdcOut, usdcToUnitOut] = await Promise.all([
-        pool.quoteSwap(0, amountInUnits) as Promise<bigint>,
-        pool.quoteSwap(1, amountInUnits) as Promise<bigint>,
-      ]);
+    const quoteSamples = await Promise.all(
+      sampleAmounts.map(async (amountIn) => {
+        const amountInUnits = parseUnits(amountIn, EVM_DECIMALS);
+        const [unitToUsdcOut, usdcToUnitOut] = await Promise.all([
+          pool.quoteSwap(0, amountInUnits) as Promise<bigint>,
+          pool.quoteSwap(1, amountInUnits) as Promise<bigint>,
+        ]);
 
-      return {
-        amountIn,
-        unitToUsdcOut: formatUnits(unitToUsdcOut, EVM_DECIMALS),
-        unitToUsdcImpactBps: calculateQuoteImpactBps(amountInUnits, unitToUsdcOut),
-        usdcToUnitOut: formatUnits(usdcToUnitOut, EVM_DECIMALS),
-        usdcToUnitImpactBps: calculateQuoteImpactBps(amountInUnits, usdcToUnitOut),
-      };
-    }));
+        return {
+          amountIn,
+          unitToUsdcOut: formatUnits(unitToUsdcOut, EVM_DECIMALS),
+          unitToUsdcImpactBps: calculateQuoteImpactBps(amountInUnits, unitToUsdcOut),
+          usdcToUnitOut: formatUnits(usdcToUnitOut, EVM_DECIMALS),
+          usdcToUnitImpactBps: calculateQuoteImpactBps(amountInUnits, usdcToUnitOut),
+        };
+      })
+    );
 
     let wallet: UnitUsdcPoolWalletState | null = null;
     if (typeof accountIndex === 'number') {
@@ -810,7 +872,7 @@ export async function getUnitUsdcPoolDashboard(
           usdc.allowance(signer.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
           wunit.allowance(signer.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
           EVM_CONFIG.bridgeRouterAddress
-            ? wunit.allowance(signer.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>
+            ? (wunit.allowance(signer.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>)
             : Promise.resolve(0n),
         ]);
 
@@ -824,7 +886,8 @@ export async function getUnitUsdcPoolDashboard(
           bridgeRouterWunitAllowance: formatUnits(bridgeRouterWunitAllowance, EVM_DECIMALS),
           canSwapUsdcSample: usdcBalance >= sampleUnits && stablePoolUsdcAllowance >= sampleUnits,
           canSwapUnitSample: wunitBalance >= sampleUnits && stablePoolWunitAllowance >= sampleUnits,
-          canRedeemUnitSample: wunitBalance >= sampleUnits && bridgeRouterWunitAllowance >= sampleUnits,
+          canRedeemUnitSample:
+            wunitBalance >= sampleUnits && bridgeRouterWunitAllowance >= sampleUnits,
         };
       });
     }
@@ -840,10 +903,15 @@ export async function getUnitUsdcPoolDashboard(
       },
       impliedUnitPriceUsdc: calculateImpliedUnitPriceUsdc(reserveWunit, reserveUsdc),
       imbalanceBps: calculateImbalanceBps(reserveWunit, reserveUsdc),
-      maxInputAmount: formatUnits(reserveWunit < reserveUsdc ? reserveWunit : reserveUsdc, EVM_DECIMALS),
+      maxInputAmount: formatUnits(
+        reserveWunit < reserveUsdc ? reserveWunit : reserveUsdc,
+        EVM_DECIMALS
+      ),
       quoteSamples,
       wallet,
-      error: readiness.bridgeContracts ? null : 'Pool is readable, but full bridge/redemption config is incomplete.',
+      error: readiness.bridgeContracts
+        ? null
+        : 'Pool is readable, but full bridge/redemption config is incomplete.',
     };
   } catch (error: unknown) {
     logger.warn('[SepoliaBridge] Failed to load UNIT/USDC pool dashboard', {
@@ -869,7 +937,7 @@ export async function executeSwap(
   accountIndex: number,
   tokenIn: SepoliaAsset,
   amountIn: string,
-  expectedMinimumAmountOut?: string,
+  expectedMinimumAmountOut?: string
 ): Promise<SwapExecutionResult> {
   assertBridgeContractsConfigured();
 
@@ -883,7 +951,7 @@ export async function executeSwap(
     : 0n;
   if (expectedMinimumAmountOutUnits > 0n && quotedAmountOutUnits < expectedMinimumAmountOutUnits) {
     throw new Error(
-      `Swap quote changed. Expected at least ${formatUnits(expectedMinimumAmountOutUnits, EVM_DECIMALS)} ${opposite}, current quote returns ${quoted.amountOut} ${opposite}. Refresh the quote and try again.`,
+      `Swap quote changed. Expected at least ${formatUnits(expectedMinimumAmountOutUnits, EVM_DECIMALS)} ${opposite}, current quote returns ${quoted.amountOut} ${opposite}. Refresh the quote and try again.`
     );
   }
   const minimumAmountOutUnits =
@@ -903,7 +971,7 @@ export async function executeSwap(
     const tokenInBalance = (await tokenInContract.balanceOf(wallet.address)) as bigint;
     if (tokenInBalance < amountInUnits) {
       throw new Error(
-        `Not enough ${tokenIn}. Need ${formatTransferAmount(amountInUnits, tokenIn)}, available ${formatTransferAmount(tokenInBalance, tokenIn)}.`,
+        `Not enough ${tokenIn}. Need ${formatTransferAmount(amountInUnits, tokenIn)}, available ${formatTransferAmount(tokenInBalance, tokenIn)}.`
       );
     }
   });
@@ -912,7 +980,7 @@ export async function executeSwap(
     accountIndex,
     tokenIn,
     EVM_CONFIG.stablePoolAddress,
-    amountInUnits,
+    amountInUnits
   );
 
   return withSepoliaSigner(accountIndex, async (wallet) => {
@@ -920,7 +988,7 @@ export async function executeSwap(
     const beforeBalance = (await tokenOut.balanceOf(wallet.address)) as bigint;
     const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, wallet);
     const swapTx = await pool.swap(index, amountInUnits, minimumAmountOutUnits, wallet.address);
-    recordSubmittedEvmTx({
+    await recordSubmittedEvmTx({
       accountIndex,
       kind: 'swap',
       txHash: swapTx.hash,
@@ -936,9 +1004,9 @@ export async function executeSwap(
     let receipt: { hash?: string } | null;
     try {
       receipt = await swapTx.wait(EVM_CONFIG.confirmations);
-      markConfirmedEvmTx(swapTx.hash, receipt?.hash || swapTx.hash);
+      await markConfirmedEvmTx(swapTx.hash, receipt?.hash || swapTx.hash);
     } catch (error) {
-      markFailedEvmTx(swapTx.hash, error);
+      await markFailedEvmTx(swapTx.hash, error);
       throw error;
     }
     const afterBalance = (await tokenOut.balanceOf(wallet.address)) as bigint;
@@ -967,7 +1035,7 @@ export async function executeSwap(
 export async function estimateUsdcToUnitSwapExecution(
   accountIndex: number,
   amountIn: string,
-  destinationTaprootAddress: string,
+  destinationTaprootAddress: string
 ): Promise<CrossChainSwapExecutionEstimate> {
   assertBridgeContractsConfigured();
 
@@ -982,14 +1050,15 @@ export async function estimateUsdcToUnitSwapExecution(
     const wunit = new Contract(EVM_CONFIG.wunitAddress, ERC20_ABI, wallet);
     const pool = new Contract(EVM_CONFIG.stablePoolAddress, POOL_ABI, wallet);
     const router = new Contract(EVM_CONFIG.bridgeRouterAddress, ROUTER_ABI, wallet);
-    const [usdcAllowance, wunitAllowance, usdcBalance, wunitBalance, ethBalance, feeData] = await Promise.all([
-      usdc.allowance(wallet.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
-      wunit.allowance(wallet.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>,
-      usdc.balanceOf(wallet.address) as Promise<bigint>,
-      wunit.balanceOf(wallet.address) as Promise<bigint>,
-      provider.getBalance(wallet.address),
-      provider.getFeeData(),
-    ]);
+    const [usdcAllowance, wunitAllowance, usdcBalance, wunitBalance, ethBalance, feeData] =
+      await Promise.all([
+        usdc.allowance(wallet.address, EVM_CONFIG.stablePoolAddress) as Promise<bigint>,
+        wunit.allowance(wallet.address, EVM_CONFIG.bridgeRouterAddress) as Promise<bigint>,
+        usdc.balanceOf(wallet.address) as Promise<bigint>,
+        wunit.balanceOf(wallet.address) as Promise<bigint>,
+        provider.getBalance(wallet.address),
+        provider.getFeeData(),
+      ]);
 
     const requiresUsdcApproval = usdcAllowance < amountInUnits;
     const requiresWunitApproval = wunitAllowance < redemptionAmountUnits;
@@ -1001,27 +1070,38 @@ export async function estimateUsdcToUnitSwapExecution(
     if (requiresUsdcApproval) {
       gasSegments.push(
         await estimateGasOrFallback(
-          () => usdc.approve.estimateGas(EVM_CONFIG.stablePoolAddress, MaxUint256) as Promise<bigint>,
-          FALLBACK_USDC_APPROVAL_GAS,
-        ),
+          () =>
+            usdc.approve.estimateGas(EVM_CONFIG.stablePoolAddress, MaxUint256) as Promise<bigint>,
+          FALLBACK_USDC_APPROVAL_GAS
+        )
       );
     }
 
     gasSegments.push(
       hasEnoughUsdcForDirectEstimate
         ? await estimateGasOrFallback(
-            () => pool.swap.estimateGas(1, amountInUnits, minimumAmountOutUnits, wallet.address) as Promise<bigint>,
-            FALLBACK_SWAP_GAS,
+            () =>
+              pool.swap.estimateGas(
+                1,
+                amountInUnits,
+                minimumAmountOutUnits,
+                wallet.address
+              ) as Promise<bigint>,
+            FALLBACK_SWAP_GAS
           )
-        : FALLBACK_SWAP_GAS,
+        : FALLBACK_SWAP_GAS
     );
 
     if (requiresWunitApproval) {
       gasSegments.push(
         await estimateGasOrFallback(
-          () => wunit.approve.estimateGas(EVM_CONFIG.bridgeRouterAddress, MaxUint256) as Promise<bigint>,
-          FALLBACK_WUNIT_APPROVAL_GAS,
-        ),
+          () =>
+            wunit.approve.estimateGas(
+              EVM_CONFIG.bridgeRouterAddress,
+              MaxUint256
+            ) as Promise<bigint>,
+          FALLBACK_WUNIT_APPROVAL_GAS
+        )
       );
     }
 
@@ -1032,11 +1112,11 @@ export async function estimateUsdcToUnitSwapExecution(
               router.requestRedemption.estimateGas(
                 id(`${wallet.address}:${normalizedDestination}:estimate`),
                 redemptionAmountUnits,
-                normalizedDestination,
+                normalizedDestination
               ) as Promise<bigint>,
-            FALLBACK_REDEMPTION_GAS,
+            FALLBACK_REDEMPTION_GAS
           )
-        : FALLBACK_REDEMPTION_GAS,
+        : FALLBACK_REDEMPTION_GAS
     );
 
     const totalGasUnits = gasSegments.reduce((sum, value) => sum + value, 0n);
@@ -1085,7 +1165,10 @@ export async function quoteUsdcForExactWunit(amountOut: string): Promise<string>
   let high = targetOutUnits;
 
   while (true) {
-    const quoted = parseUnits((await quoteSwap('USDC', formatUnits(high, EVM_DECIMALS))).amountOut, EVM_DECIMALS);
+    const quoted = parseUnits(
+      (await quoteSwap('USDC', formatUnits(high, EVM_DECIMALS))).amountOut,
+      EVM_DECIMALS
+    );
     if (quoted >= targetOutUnits) {
       break;
     }
@@ -1098,7 +1181,10 @@ export async function quoteUsdcForExactWunit(amountOut: string): Promise<string>
 
   for (let iteration = 0; iteration < 24; iteration += 1) {
     const mid = (low + high) / 2n;
-    const quoted = parseUnits((await quoteSwap('USDC', formatUnits(mid, EVM_DECIMALS))).amountOut, EVM_DECIMALS);
+    const quoted = parseUnits(
+      (await quoteSwap('USDC', formatUnits(mid, EVM_DECIMALS))).amountOut,
+      EVM_DECIMALS
+    );
     if (quoted >= targetOutUnits) {
       high = mid;
     } else {
@@ -1115,6 +1201,7 @@ export async function requestRedemption(
   destinationTaprootAddress: string,
   sourceAsset: SepoliaAsset = 'wUNIT',
   maxSourceAmount?: string,
+  onSubmitted?: (submission: RedemptionSubmission) => Promise<void> | void
 ): Promise<RedemptionExecutionResult> {
   assertBridgeContractsConfigured();
 
@@ -1127,12 +1214,12 @@ export async function requestRedemption(
     accountIndex,
     amount,
     normalizedDestination,
-    sourceAsset,
+    sourceAsset
   );
   assertCanExecutePreflight(
     initialPreflight.canExecute,
     initialPreflight.blockingReasons,
-    'Redemption preflight failed. Refresh balances and try again.',
+    'Redemption preflight failed. Refresh balances and try again.'
   );
   logger.debug('[SepoliaBridge] Starting redemption request', {
     accountIndex,
@@ -1155,48 +1242,53 @@ export async function requestRedemption(
       const quotedUsdcAmountUnits = parsePositiveAmountUnits(usdcAmount, EVM_DECIMALS, 'USDC');
       if (quotedUsdcAmountUnits > maxSourceAmountUnits) {
         throw new Error(
-          `This redemption now needs ${usdcAmount} USDC, which exceeds your entered amount of ${maxSourceAmount} USDC. Refresh the quote or reduce the size.`,
+          `This redemption now needs ${usdcAmount} USDC, which exceeds your entered amount of ${maxSourceAmount} USDC. Refresh the quote or reduce the size.`
         );
       }
     }
-    preparationSwap = await executeSwap(accountIndex, 'USDC', usdcAmount);
+    const preSwapBalances = await getEvmBalances(accountIndex);
+    const preSwapWunitUnits = parseUnits(preSwapBalances.wunit, EVM_DECIMALS);
+    preparationSwap = await executeSwap(accountIndex, 'USDC', usdcAmount, amount);
     const postSwapBalances = await getEvmBalances(accountIndex);
     latestBalances = postSwapBalances;
     const postSwapWunitUnits = parseUnits(postSwapBalances.wunit, EVM_DECIMALS);
+    const swapWunitDelta = postSwapWunitUnits - preSwapWunitUnits;
     logger.debug('[SepoliaBridge] Post-swap balances before redemption', {
       accountIndex,
       usdc: postSwapBalances.usdc,
       wunit: postSwapBalances.wunit,
       eth: postSwapBalances.eth,
       requiredWunit: amount,
+      swapWunitDelta: formatUnits(swapWunitDelta, EVM_DECIMALS),
     });
-    if (postSwapWunitUnits < redemptionAmountUnits) {
+    if (swapWunitDelta < redemptionAmountUnits) {
       throw new Error('USDC to wUNIT swap did not return enough wUNIT for redemption');
     }
     redeemAmountUnits = redemptionAmountUnits;
   }
 
-  latestBalances = latestBalances || await getEvmBalances(accountIndex);
+  latestBalances = latestBalances || (await getEvmBalances(accountIndex));
   const availableWunitUnits = parseUnits(latestBalances.wunit, EVM_DECIMALS);
   if (availableWunitUnits < redeemAmountUnits) {
     throw new Error(
-      `Not enough wUNIT. Need ${formatUnits(redeemAmountUnits, EVM_DECIMALS)}, available ${latestBalances.wunit}.`,
+      `Not enough wUNIT. Need ${formatUnits(redeemAmountUnits, EVM_DECIMALS)}, available ${latestBalances.wunit}.`
     );
   }
 
-  const burnEstimate = sourceAsset === 'wUNIT'
-    ? initialPreflight
-    : await estimateRedemptionExecution(
-        accountIndex,
-        formatUnits(redeemAmountUnits, EVM_DECIMALS),
-        normalizedDestination,
-        'wUNIT',
-      );
+  const burnEstimate =
+    sourceAsset === 'wUNIT'
+      ? initialPreflight
+      : await estimateRedemptionExecution(
+          accountIndex,
+          formatUnits(redeemAmountUnits, EVM_DECIMALS),
+          normalizedDestination,
+          'wUNIT'
+        );
   const availableEthWei = parseUnits(latestBalances.eth, 18);
   const requiredFeeWei = parseUnits(burnEstimate.totalFeeEth, 18);
   if (availableEthWei < requiredFeeWei) {
     throw new Error(
-      `Not enough Sepolia ETH for redemption gas. Need ${burnEstimate.totalFeeEth} ETH, available ${latestBalances.eth} ETH.`,
+      `Not enough Sepolia ETH for redemption gas. Need ${burnEstimate.totalFeeEth} ETH, available ${latestBalances.eth} ETH.`
     );
   }
 
@@ -1204,7 +1296,7 @@ export async function requestRedemption(
     accountIndex,
     'wUNIT',
     EVM_CONFIG.bridgeRouterAddress,
-    redeemAmountUnits,
+    redeemAmountUnits
   );
 
   return withSepoliaSigner(accountIndex, async (wallet) => {
@@ -1221,13 +1313,13 @@ export async function requestRedemption(
     const requestTx = await router.requestRedemption(
       releaseId,
       redeemAmountUnits,
-      normalizedDestination,
+      normalizedDestination
     );
-    recordSubmittedEvmTx({
+    await recordSubmittedEvmTx({
       accountIndex,
       kind: 'redemption',
       txHash: requestTx.hash,
-      asset: 'wUNIT',
+      asset: sourceAsset,
       amount: formatUnits(redeemAmountUnits, EVM_DECIMALS),
       spender: EVM_CONFIG.bridgeRouterAddress,
       recipient: null,
@@ -1236,12 +1328,19 @@ export async function requestRedemption(
       releaseId,
       destinationTaprootAddress: normalizedDestination,
     });
+    await onSubmitted?.({
+      releaseId,
+      burnTxHash: requestTx.hash,
+      amount: formatUnits(redeemAmountUnits, EVM_DECIMALS),
+      sourceAsset,
+      destinationTaprootAddress: normalizedDestination,
+    });
     let receipt: { hash?: string } | null;
     try {
       receipt = await requestTx.wait(EVM_CONFIG.confirmations);
-      markConfirmedEvmTx(requestTx.hash, receipt?.hash || requestTx.hash);
+      await markConfirmedEvmTx(requestTx.hash, receipt?.hash || requestTx.hash);
     } catch (error) {
-      markFailedEvmTx(requestTx.hash, error);
+      await markFailedEvmTx(requestTx.hash, error);
       throw error;
     }
     logger.debug('[SepoliaBridge] Redemption confirmed', {
@@ -1291,21 +1390,30 @@ export async function executeUsdcToUnitSwap(
   accountIndex: number,
   amountIn: string,
   destinationTaprootAddress: string,
-  expectedMinimumWunitOut?: string,
+  expectedMinimumWunitOut?: string
 ): Promise<RedemptionExecutionResult> {
   const normalizedDestination = assertMutinynetTaprootDestination(destinationTaprootAddress);
-  const preflight = await estimateUsdcToUnitSwapExecution(accountIndex, amountIn, normalizedDestination);
+  const preflight = await estimateUsdcToUnitSwapExecution(
+    accountIndex,
+    amountIn,
+    normalizedDestination
+  );
   assertCanExecutePreflight(
     preflight.canExecute,
     preflight.blockingReasons,
-    'USDC to UNIT swap preflight failed. Refresh balances and try again.',
+    'USDC to UNIT swap preflight failed. Refresh balances and try again.'
   );
-  const preparationSwap = await executeSwap(accountIndex, 'USDC', amountIn, expectedMinimumWunitOut);
+  const preparationSwap = await executeSwap(
+    accountIndex,
+    'USDC',
+    amountIn,
+    expectedMinimumWunitOut
+  );
   const redemption = await requestRedemption(
     accountIndex,
     preparationSwap.amountOut,
     normalizedDestination,
-    'wUNIT',
+    'wUNIT'
   );
 
   return {
@@ -1319,7 +1427,7 @@ export async function estimateRedemptionExecution(
   accountIndex: number,
   amount: string,
   destinationTaprootAddress: string,
-  sourceAsset: SepoliaAsset = 'wUNIT',
+  sourceAsset: SepoliaAsset = 'wUNIT'
 ): Promise<RedemptionExecutionEstimate> {
   assertBridgeContractsConfigured();
 
@@ -1329,7 +1437,7 @@ export async function estimateRedemptionExecution(
     const estimate = await estimateUsdcToUnitSwapExecution(
       accountIndex,
       requiredUsdcIn,
-      normalizedDestination,
+      normalizedDestination
     );
 
     return {
@@ -1359,9 +1467,13 @@ export async function estimateRedemptionExecution(
     if (requiresWunitApproval) {
       gasSegments.push(
         await estimateGasOrFallback(
-          () => wunit.approve.estimateGas(EVM_CONFIG.bridgeRouterAddress, MaxUint256) as Promise<bigint>,
-          FALLBACK_WUNIT_APPROVAL_GAS,
-        ),
+          () =>
+            wunit.approve.estimateGas(
+              EVM_CONFIG.bridgeRouterAddress,
+              MaxUint256
+            ) as Promise<bigint>,
+          FALLBACK_WUNIT_APPROVAL_GAS
+        )
       );
     }
 
@@ -1372,11 +1484,11 @@ export async function estimateRedemptionExecution(
               router.requestRedemption.estimateGas(
                 id(`${wallet.address}:${normalizedDestination}:estimate`),
                 redemptionAmountUnits,
-                normalizedDestination,
+                normalizedDestination
               ) as Promise<bigint>,
-            FALLBACK_REDEMPTION_GAS,
+            FALLBACK_REDEMPTION_GAS
           )
-        : FALLBACK_REDEMPTION_GAS,
+        : FALLBACK_REDEMPTION_GAS
     );
 
     const totalGasUnits = gasSegments.reduce((sum, value) => sum + value, 0n);
@@ -1425,7 +1537,7 @@ export async function estimateSepoliaTokenTransfer(
   accountIndex: number,
   token: SepoliaTransferAsset,
   recipient: string,
-  amount: string,
+  amount: string
 ): Promise<SepoliaTokenTransferEstimate> {
   if (!isAddress(recipient)) {
     throw new Error('Enter a valid Ethereum address');
@@ -1434,55 +1546,57 @@ export async function estimateSepoliaTokenTransfer(
   const amountUnits = parsePositiveAmountUnits(amount, getTransferDecimals(token), token);
 
   return withSepoliaSigner(accountIndex, async (wallet, provider) => {
-    const tokenContract = token === 'ETH'
-      ? null
-      : new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
+    const tokenContract =
+      token === 'ETH' ? null : new Contract(getTokenConfig(token).address, ERC20_ABI, wallet);
     const [gasEstimate, feeData, ethBalance, tokenBalance] = await Promise.all([
       token === 'ETH'
         ? estimateGasOrFallback(
             () => wallet.estimateGas({ to: recipient, value: amountUnits }),
-            FALLBACK_ETH_TRANSFER_GAS,
+            FALLBACK_ETH_TRANSFER_GAS
           )
         : estimateGasOrFallback(
             () => tokenContract!.transfer.estimateGas(recipient, amountUnits) as Promise<bigint>,
-            FALLBACK_ERC20_TRANSFER_GAS,
+            FALLBACK_ERC20_TRANSFER_GAS
           ),
       provider.getFeeData(),
       provider.getBalance(wallet.address),
       token === 'ETH'
         ? Promise.resolve(amountUnits)
-        : tokenContract!.balanceOf(wallet.address) as Promise<bigint>,
+        : (tokenContract!.balanceOf(wallet.address) as Promise<bigint>),
     ]);
 
     const feePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
     const totalFeeWei = gasEstimate * feePerGas;
     const requiredEthWei = token === 'ETH' ? amountUnits + totalFeeWei : totalFeeWei;
-    const hasEnoughAsset = token === 'ETH' ? ethBalance >= amountUnits : tokenBalance >= amountUnits;
+    const hasEnoughAsset =
+      token === 'ETH' ? ethBalance >= amountUnits : tokenBalance >= amountUnits;
     const hasEnoughEth = ethBalance >= requiredEthWei;
-    const blockingReasons = token === 'ETH'
-      ? buildBlockingReasons([
-          {
-            passed: hasEnoughEth,
-            message: `Not enough Sepolia ETH. Need ${formatEther(requiredEthWei)} ETH including gas, available ${formatEther(ethBalance)} ETH.`,
-          },
-        ])
-      : buildBlockingReasons([
-          {
-            passed: hasEnoughAsset,
-            message: `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`,
-          },
-          {
-            passed: hasEnoughEth,
-            message: `Not enough Sepolia ETH for gas. Need ${formatEther(totalFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
-          },
-        ]);
+    const blockingReasons =
+      token === 'ETH'
+        ? buildBlockingReasons([
+            {
+              passed: hasEnoughEth,
+              message: `Not enough Sepolia ETH. Need ${formatEther(requiredEthWei)} ETH including gas, available ${formatEther(ethBalance)} ETH.`,
+            },
+          ])
+        : buildBlockingReasons([
+            {
+              passed: hasEnoughAsset,
+              message: `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`,
+            },
+            {
+              passed: hasEnoughEth,
+              message: `Not enough Sepolia ETH for gas. Need ${formatEther(totalFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+            },
+          ]);
 
     return {
       gasUnits: gasEstimate.toString(),
       totalFeeEth: formatEther(totalFeeWei),
       gasPriceGwei: formatUnits(feePerGas, 'gwei'),
       walletAddress: wallet.address,
-      assetBalance: token === 'ETH' ? formatEther(ethBalance) : formatTransferAmount(tokenBalance, token),
+      assetBalance:
+        token === 'ETH' ? formatEther(ethBalance) : formatTransferAmount(tokenBalance, token),
       ethBalance: formatEther(ethBalance),
       requiredAssetAmount: formatTransferAmount(amountUnits, token),
       requiredEth: formatEther(requiredEthWei),
@@ -1498,7 +1612,7 @@ export async function sendSepoliaToken(
   accountIndex: number,
   token: SepoliaTransferAsset,
   recipient: string,
-  amount: string,
+  amount: string
 ): Promise<SepoliaTokenTransferResult> {
   if (!isAddress(recipient)) {
     throw new Error('Enter a valid Ethereum address');
@@ -1511,7 +1625,7 @@ export async function sendSepoliaToken(
       const [gasEstimate, feeData, ethBalance] = await Promise.all([
         estimateGasOrFallback(
           () => wallet.estimateGas({ to: recipient, value: amountUnits }),
-          FALLBACK_ETH_TRANSFER_GAS,
+          FALLBACK_ETH_TRANSFER_GAS
         ),
         provider.getFeeData(),
         provider.getBalance(wallet.address),
@@ -1522,12 +1636,12 @@ export async function sendSepoliaToken(
 
       if (ethBalance < requiredWei) {
         throw new Error(
-          `Not enough Sepolia ETH. Need ${formatEther(requiredWei)} ETH including estimated gas, available ${formatEther(ethBalance)} ETH.`,
+          `Not enough Sepolia ETH. Need ${formatEther(requiredWei)} ETH including estimated gas, available ${formatEther(ethBalance)} ETH.`
         );
       }
 
       const transferTx = await wallet.sendTransaction({ to: recipient, value: amountUnits });
-      recordSubmittedEvmTx({
+      await recordSubmittedEvmTx({
         accountIndex,
         kind: 'transfer',
         txHash: transferTx.hash,
@@ -1556,7 +1670,7 @@ export async function sendSepoliaToken(
       tokenContract.balanceOf(wallet.address) as Promise<bigint>,
       estimateGasOrFallback(
         () => tokenContract.transfer.estimateGas(recipient, amountUnits) as Promise<bigint>,
-        FALLBACK_ERC20_TRANSFER_GAS,
+        FALLBACK_ERC20_TRANSFER_GAS
       ),
       provider.getFeeData(),
       provider.getBalance(wallet.address),
@@ -1566,18 +1680,18 @@ export async function sendSepoliaToken(
 
     if (tokenBalance < amountUnits) {
       throw new Error(
-        `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`,
+        `Not enough ${token}. Need ${formatTransferAmount(amountUnits, token)}, available ${formatTransferAmount(tokenBalance, token)}.`
       );
     }
 
     if (ethBalance < estimatedFeeWei) {
       throw new Error(
-        `Not enough Sepolia ETH for gas. Need ${formatEther(estimatedFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`,
+        `Not enough Sepolia ETH for gas. Need ${formatEther(estimatedFeeWei)} ETH, available ${formatEther(ethBalance)} ETH.`
       );
     }
 
     const transferTx = await tokenContract.transfer(recipient, amountUnits);
-    recordSubmittedEvmTx({
+    await recordSubmittedEvmTx({
       accountIndex,
       kind: 'transfer',
       txHash: transferTx.hash,
@@ -1602,7 +1716,7 @@ export async function sendSepoliaToken(
 
 export async function fetchSepoliaTokenHistory(
   accountIndex: number,
-  token: SepoliaAsset,
+  token: SepoliaAsset
 ): Promise<SepoliaAssetHistoryItem[]> {
   return withSepoliaSigner(accountIndex, async (wallet, provider) => {
     const tokenContract = new Contract(getTokenConfig(token).address, ERC20_ABI, provider);
@@ -1610,10 +1724,20 @@ export async function fetchSepoliaTokenHistory(
     const fromBlock = Math.max(latestBlock - HISTORY_BLOCK_LOOKBACK, 0);
     const walletAddress = wallet.address.toLowerCase();
 
-    const [incomingEvents, outgoingEvents] = await Promise.all([
-      queryTransferLogsInChunks(tokenContract, tokenContract.filters.Transfer(null, wallet.address), fromBlock, latestBlock),
-      queryTransferLogsInChunks(tokenContract, tokenContract.filters.Transfer(wallet.address, null), fromBlock, latestBlock),
-    ]) as [EventLog[], EventLog[]];
+    const [incomingEvents, outgoingEvents] = (await Promise.all([
+      queryTransferLogsInChunks(
+        tokenContract,
+        tokenContract.filters.Transfer(null, wallet.address),
+        fromBlock,
+        latestBlock
+      ),
+      queryTransferLogsInChunks(
+        tokenContract,
+        tokenContract.filters.Transfer(wallet.address, null),
+        fromBlock,
+        latestBlock
+      ),
+    ])) as [EventLog[], EventLog[]];
 
     const grouped = new Map<string, { sent: bigint; received: bigint; blockNumber: number }>();
     const seenEventKeys = new Set<string>();
@@ -1657,7 +1781,7 @@ export async function fetchSepoliaTokenHistory(
         if (block?.timestamp) {
           blockTimes.set(blockNumber, block.timestamp);
         }
-      }),
+      })
     );
 
     const displayAssetType: DisplayAssetType = token === 'USDC' ? 'USDC' : 'UNIT';
@@ -1666,9 +1790,7 @@ export async function fetchSepoliaTokenHistory(
       .map(([txid, entry]) => {
         const netAmount = entry.received - entry.sent;
         const isSelfTransfer = entry.sent > 0n && entry.sent === entry.received;
-        const displayAmount = isSelfTransfer
-          ? entry.sent
-          : netAmount < 0n ? -netAmount : netAmount;
+        const displayAmount = isSelfTransfer ? entry.sent : netAmount < 0n ? -netAmount : netAmount;
         const absoluteAmount = Number(formatUnits(displayAmount, EVM_DECIMALS));
         return {
           txid,
@@ -1689,7 +1811,9 @@ export async function fetchSepoliaTokenHistory(
   });
 }
 
-export async function fetchSepoliaEthHistory(accountIndex: number): Promise<SepoliaAssetHistoryItem[]> {
+export async function fetchSepoliaEthHistory(
+  accountIndex: number
+): Promise<SepoliaAssetHistoryItem[]> {
   return withSepoliaSigner(accountIndex, async (wallet) => {
     const walletAddress = wallet.address.toLowerCase();
     const url = `${SEPOLIA_BLOCKSCOUT_API_BASE_URL}/addresses/${wallet.address}/transactions`;
@@ -1718,9 +1842,12 @@ export async function fetchSepoliaEthHistory(accountIndex: number): Promise<Sepo
         }
 
         const failed = item.status === 'error' || item.result === 'error';
-        const blockNumber = typeof item.block_number === 'number'
-          ? item.block_number
-          : typeof item.block === 'number' ? item.block : null;
+        const blockNumber =
+          typeof item.block_number === 'number'
+            ? item.block_number
+            : typeof item.block === 'number'
+              ? item.block
+              : null;
 
         return {
           txid,

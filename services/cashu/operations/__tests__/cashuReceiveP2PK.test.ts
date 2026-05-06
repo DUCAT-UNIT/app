@@ -58,6 +58,13 @@ jest.mock('../../cashuBalanceService', () => ({
 
 jest.mock('../../cashuProofManager', () => ({
   addProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(() => null),
+}));
+
+jest.mock('../../cashuSwapRecovery', () => ({
+  savePendingSwap: jest.fn().mockResolvedValue('swap-1'),
+  updateSwapWithResponse: jest.fn().mockResolvedValue(undefined),
+  clearPendingSwap: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { receiveP2PKToken } from '../cashuReceiveP2PK';

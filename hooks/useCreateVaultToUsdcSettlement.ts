@@ -1,7 +1,13 @@
 import { useCallback, useMemo } from 'react';
-import { useCreateVault, type CreateVaultParams, type UseCreateVaultResult } from './useCreateVault';
+import { useWallet } from '../contexts/WalletContext';
+import {
+  useCreateVault,
+  type CreateVaultParams,
+  type UseCreateVaultResult,
+} from './useCreateVault';
 import { useVaultCreation, useVaultCreationStore } from '../stores/vaultCreationStore';
 import {
+  persistVaultSettlementNow,
   resolveVaultSettlementRequestedAsset,
   useVaultSettlementStore,
 } from '../stores/vaultSettlementStore';
@@ -10,12 +16,15 @@ import { formatVaultSettlementAmountInput } from '../services/vaultSettlementSer
 import { getBoolean, SettingKeys } from '../services/settingsService';
 
 export interface UseCreateVaultToUsdcSettlementResult extends UseCreateVaultResult {
-  quoteBorrowToUsdc: (amountUsd: number) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
+  quoteBorrowToUsdc: (
+    amountUsd: number
+  ) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
   createVault: (params?: CreateVaultParams) => Promise<string | null>;
 }
 
 export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlementResult {
   const rawCreateVault = useCreateVault({ deferSuccessTransition: true });
+  const { wallet, currentAccount } = useWallet();
   const { borrowAmountUsd, receiveAsset, setCurrentStep } = useVaultCreation();
   const {
     startOperation,
@@ -24,19 +33,23 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
     completeSettlement,
     reset: resetSettlement,
   } = useVaultSettlementStore();
-  const {
-    quoteBorrowToUsdc,
-    settleIssuedUnitToUsdc,
-    settleIssuedUnitToTurboUnit,
-  } = useIssuedUnitSettlement();
+  const { quoteBorrowToUsdc, settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } =
+    useIssuedUnitSettlement();
 
   const createVault = useCallback(
     async (params?: CreateVaultParams) => {
       const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
-      const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
+      const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(
+        receiveAsset,
+        usdcFeaturesEnabled
+      );
 
-      startOperation('open', borrowAmountUsd, requestedReceiveAsset);
+      startOperation('open', borrowAmountUsd, requestedReceiveAsset, {
+        accountIndex: currentAccount,
+        taprootAddress: wallet?.taprootAddress ?? null,
+      });
       setPhase('issuing_vault');
+      await persistVaultSettlementNow();
 
       const issueTxid = await rawCreateVault.createVault(params);
       if (!issueTxid) {
@@ -45,8 +58,10 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
 
       const latestVaultCreationState = useVaultCreationStore.getState();
       setIssueResult(issueTxid, latestVaultCreationState.vaultTxid);
+      await persistVaultSettlementNow();
       if (requestedReceiveAsset === 'UNIT') {
         completeSettlement('UNIT', formatVaultSettlementAmountInput(borrowAmountUsd));
+        await persistVaultSettlementNow();
       } else if (requestedReceiveAsset === 'USDC') {
         const settlement = await settleIssuedUnitToUsdc('open', borrowAmountUsd);
         const canComplete =
@@ -79,7 +94,9 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       settleIssuedUnitToUsdc,
       settleIssuedUnitToTurboUnit,
       setCurrentStep,
-    ],
+      currentAccount,
+      wallet?.taprootAddress,
+    ]
   );
 
   const cancel = useCallback(() => {
@@ -94,6 +111,6 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       cancel,
       quoteBorrowToUsdc,
     }),
-    [rawCreateVault, createVault, cancel, quoteBorrowToUsdc],
+    [rawCreateVault, createVault, cancel, quoteBorrowToUsdc]
   );
 }

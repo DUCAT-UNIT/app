@@ -3,32 +3,30 @@
  * Handles receiving tokens from QR codes or text
  */
 
-import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../../utils/logger';
 import { getCurrentAccount } from '../../secureStorageService';
-import { DEVICE_ONLY } from '../../storagePolicy';
 import { getOrFetchKeys } from '../cashuBalanceService';
-import { checkProofsSpent,MINT_URL,swapTokens as swapTokensAPI } from '../cashuMintClient';
-import { addProofs,loadProofs } from '../cashuProofManager';
+import { checkProofsSpent, MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import { addProofs, loadProofs } from '../cashuProofManager';
+import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
+import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
 import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
 import {
-createBlindedOutputs,
-decodeToken,
-decodeTokenMetadata,
-splitAmount,
-sumProofs,
-unblindSignatures
+  createBlindedOutputs,
+  decodeToken,
+  decodeTokenMetadata,
+  splitAmount,
+  sumProofs,
+  unblindSignatures,
 } from '../crypto';
 import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
 import {
-findAccountForP2PKToken,
-getP2PKRecipient,
-isP2PKLocked,
-signP2PKProofs,
-verifyP2PKWitness,
+  findAccountForP2PKToken,
+  getP2PKRecipient,
+  isP2PKLocked,
+  signP2PKProofs,
+  verifyP2PKWitness,
 } from '../p2pk';
-
-const FAILED_PROOF_RECOVERY_KEYS = 'cashu_failed_proof_recovery_keys_v1';
 
 export interface ReceiveTokenResult {
   amount: number;
@@ -97,8 +95,8 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // Check if we already have any of these proofs (prevent duplicate receives)
     const t2 = Date.now();
     const existingProofs = await loadProofs();
-    const existingSecrets = new Set(existingProofs.map(p => p.secret));
-    const hasDuplicate = proofs.some(p => existingSecrets.has(p.secret));
+    const existingSecrets = new Set(existingProofs.map((p) => p.secret));
+    const hasDuplicate = proofs.some((p) => existingSecrets.has(p.secret));
     const duplicateCheckTime = Date.now() - t2;
 
     logger.cashu('duplicate_check', {
@@ -118,16 +116,18 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     if (!Array.isArray(spendCheck?.states) || spendCheck.states.length !== proofs.length) {
       throw new Error('Unable to verify token spend state with mint');
     }
-    if (spendCheck.states.some((s) => {
-      const state = (s as { state: string }).state;
-      return state === 'SPENT';
-    })) {
+    if (
+      spendCheck.states.some((s) => {
+        const state = (s as { state: string }).state;
+        return state === 'SPENT';
+      })
+    ) {
       throw new Error('Token proofs already spent');
     }
 
     // Check if any proofs are P2PK locked (do this first, it's fast)
     const t3 = Date.now();
-    const hasP2PKProofs = proofs.some(p => isP2PKLocked(p));
+    const hasP2PKProofs = proofs.some((p) => isP2PKLocked(p));
     const p2pkDetectionTime = Date.now() - t3;
 
     logger.cashu('p2pk_detection', {
@@ -166,18 +166,26 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
         if (!accountMatch) {
           logger.error('[P2PK TOKEN] ❌ No matching account found for P2PK token');
-          throw new Error('This token is not locked to any of your accounts. Make sure you are using the correct wallet.');
+          throw new Error(
+            'This token is not locked to any of your accounts. Make sure you are using the correct wallet.'
+          );
         }
 
         logger.info(`[P2PK TOKEN] ✅ Token locked to account: ${accountMatch.accountIndex}`);
-        logger.info(`[P2PK TOKEN] 🔄 Comparing: current=${currentAccountIndex}, lockedTo=${accountMatch.accountIndex}`);
+        logger.info(
+          `[P2PK TOKEN] 🔄 Comparing: current=${currentAccountIndex}, lockedTo=${accountMatch.accountIndex}`
+        );
 
         if (accountMatch.accountIndex !== currentAccountIndex) {
           logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
-          throw new Error(`This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`);
+          throw new Error(
+            `This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`
+          );
         }
 
-        logger.info('✅ P2PK token verified for current account', { accountIndex: currentAccountIndex });
+        logger.info('✅ P2PK token verified for current account', {
+          accountIndex: currentAccountIndex,
+        });
 
         // Use the private key from accountMatch - this is the correct key for this specific token
         p2pkPrivateKey = accountMatch.privateKey;
@@ -229,15 +237,33 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     if (outputAmount <= 0) {
       throw new Error('Token amount does not cover mint input fees');
     }
-    const amounts = splitAmount(outputAmount);
-    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
-    logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
+	    const amounts = splitAmount(outputAmount);
+	    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+	    logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
+	    const pendingSwapId = await savePendingSwap({
+	      inputProofs: proofsToSwap,
+	      blindingData,
+	      keys,
+	      keysetId,
+	      secretTypeMap: Object.fromEntries(
+	        blindingData.map((item) => [item.secret, 'change' as const])
+	      ),
+	    });
 
-    // Swap: give received proofs (signed if P2PK), get new proofs
-    const t7 = Date.now();
-    logger.info('Swapping tokens', { inputCount: proofsToSwap.length, outputCount: outputs.length });
-    const response = await swapTokensAPI(proofsToSwap, outputs);
-    logger.info('[PERF] Swap API call took', { durationMs: Date.now() - t7 });
+	    // Swap: give received proofs (signed if P2PK), get new proofs
+	    const t7 = Date.now();
+	    logger.info('Swapping tokens', {
+	      inputCount: proofsToSwap.length,
+	      outputCount: outputs.length,
+	    });
+	    const response = await swapTokensAPI(proofsToSwap, outputs);
+	    await updateSwapWithResponse(
+	      {
+	        signatures: response.signatures,
+	      },
+	      pendingSwapId
+	    );
+	    logger.info('[PERF] Swap API call took', { durationMs: Date.now() - t7 });
 
     // Unblind to create our new proofs
     const t8 = Date.now();
@@ -268,14 +294,33 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     const MAX_RETRIES = 3;
     let saveSuccess = false;
     let lastError: Error | null = null;
+    let recoveryKey: string | null = null;
+
+    try {
+      recoveryKey = await persistProofRecoveryRecord(
+        newProofs,
+        outputAmount,
+        hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token'
+      );
+    } catch (recoveryError) {
+      logger.error('Failed to pre-store received proofs in recovery queue', {
+        error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        proofCount: newProofs.length,
+        amount: outputAmount,
+      });
+    }
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         await addProofs(newProofs);
         saveSuccess = true;
-        logger.info('Successfully saved received proofs', {
-          attempt,
-          proofCount: newProofs.length,
+	        if (recoveryKey) {
+	          await clearProofRecoveryRecord(recoveryKey);
+	        }
+	        await clearPendingSwap(pendingSwapId);
+	        logger.info('Successfully saved received proofs', {
+	          attempt,
+	          proofCount: newProofs.length,
           amount: outputAmount,
         });
         break;
@@ -289,7 +334,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
         // Wait before retrying (exponential backoff: 100ms, 200ms, 400ms)
         if (attempt < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+          await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
         }
       }
     }
@@ -304,28 +349,25 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
         recoveryNote: 'Proofs were received from the mint but could not be persisted locally',
       });
 
-      // Attempt to store in a recovery queue
-      try {
-        const recoveryKey = `cashu_failed_proofs_${Date.now()}`;
-        const existingRegistryRaw = await SecureStore.getItemAsync(FAILED_PROOF_RECOVERY_KEYS);
-        const existingRegistry = existingRegistryRaw ? JSON.parse(existingRegistryRaw) as string[] : [];
-        const updatedRegistry = Array.from(new Set([...existingRegistry, recoveryKey]));
-        await SecureStore.setItemAsync(recoveryKey, JSON.stringify({
-          proofs: newProofs,
-          amount: outputAmount,
-          timestamp: new Date().toISOString(),
-          error: lastError?.message,
-        }), DEVICE_ONLY);
-        await SecureStore.setItemAsync(FAILED_PROOF_RECOVERY_KEYS, JSON.stringify(updatedRegistry), DEVICE_ONLY);
-        logger.info('Stored failed proofs in recovery queue', { recoveryKey });
-      } catch (recoveryError) {
-        logger.error('Failed to store proofs in recovery queue', {
-          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
-        });
+      if (!recoveryKey) {
+        try {
+          recoveryKey = await persistProofRecoveryRecord(
+            newProofs,
+            outputAmount,
+            hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token',
+            lastError?.message
+          );
+        } catch (recoveryError) {
+          logger.error('Failed to store proofs in recovery queue', {
+            error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+          });
+        }
       }
 
       // Re-throw the error to notify the user
-      throw new Error(`Critical error: Received proofs from mint but failed to save locally. Error: ${lastError?.message}. Proofs logged for recovery.`);
+      throw new Error(
+        `Critical error: Received proofs from mint but failed to save locally. Error: ${lastError?.message}. Proofs logged for recovery.`
+      );
     }
 
     const saveTime = Date.now() - t9;

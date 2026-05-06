@@ -3,10 +3,18 @@
  * Switches between Auth flow and Main app based on authentication state
  */
 
-import { NavigationContainer,NavigationContainerRef,Route } from '@react-navigation/native';
-import { createStackNavigator,StackNavigationOptions } from '@react-navigation/stack';
-import React,{ createRef,useCallback,useEffect,useRef } from 'react';
-import { ActivityIndicator,Alert,InteractionManager,Keyboard,StyleSheet,Text,View } from 'react-native';
+import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
+import { createStackNavigator, StackNavigationOptions } from '@react-navigation/stack';
+import React, { createRef, useCallback, useEffect, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  InteractionManager,
+  Keyboard,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import BiometricSetupModal from '../components/BiometricSetupModal';
 import MutinynetBanner from '../components/MutinynetBanner';
 import PasskeyMigrationModal from '../components/PasskeyMigrationModal';
@@ -15,30 +23,32 @@ import LockScreen from '../screens/auth/LockScreen';
 import VaultSuccessPreviewScreenComponent from '../screens/dev/VaultSuccessPreviewScreen';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import {
-authenticateWithBiometrics,
-setBiometricEnabled as persistBiometricEnabled,
+  authenticateWithBiometrics,
+  setBiometricEnabled as persistBiometricEnabled,
 } from '../services/biometricService';
+import { isPasskeyEnabled } from '../services/passkey';
+import { hasSessionMnemonic } from '../services/secureStorageService';
 import { COLORS } from '../theme';
 import {
-AuthStack,
-BorrowNavigator,
-DepositNavigator,
-MainTabs,
-RepayNavigator,
-SendNavigator,
-VaultCreateNavigator,
-WithdrawNavigator,
+  AuthStack,
+  BorrowNavigator,
+  DepositNavigator,
+  MainTabs,
+  RepayNavigator,
+  SendNavigator,
+  VaultCreateNavigator,
+  WithdrawNavigator,
 } from './navigators';
 
 import {
-useAirdrop,
-useAuthFlowHandlers,
-useAuthSession,
-useBalance,
-useCashuOperations,
-useOnboardingFlow,
-useSettingsHandlers,
-useWallet,
+  useAirdrop,
+  useAuthFlowHandlers,
+  useAuthSession,
+  useBalance,
+  useCashuOperations,
+  useOnboardingFlow,
+  useSettingsHandlers,
+  useWallet,
 } from '../contexts';
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useNavigationState } from '../hooks/useNavigationState';
@@ -98,10 +108,13 @@ const PinSetupScreen: AnyComponent = withErrorBoundary(PinSetupScreenComponent, 
   fallbackMessage: 'Unable to load PIN setup. Please restart the app.',
 });
 
-const VaultSuccessPreviewScreen: AnyComponent = withErrorBoundary(VaultSuccessPreviewScreenComponent, {
-  boundaryName: 'VaultSuccessPreviewScreen',
-  fallbackMessage: 'Unable to load success preview. Please try again.',
-});
+const VaultSuccessPreviewScreen: AnyComponent = withErrorBoundary(
+  VaultSuccessPreviewScreenComponent,
+  {
+    boundaryName: 'VaultSuccessPreviewScreen',
+    fallbackMessage: 'Unable to load success preview. Please try again.',
+  }
+);
 
 // Create linking config once
 const linking = createLinkingConfig();
@@ -119,7 +132,10 @@ interface PinChangeOverlayProps {
   onPinChangeComplete: () => Promise<void>;
   onCancel: () => Promise<void>;
   fetchBalance: () => Promise<void>;
-  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info' | 'progress' | 'pending' | 'submitted') => void;
+  showToast: (
+    message: string,
+    type?: 'success' | 'error' | 'warning' | 'info' | 'progress' | 'pending' | 'submitted'
+  ) => void;
 }
 
 const PinChangeOverlay = React.memo(function PinChangeOverlay({
@@ -172,8 +188,7 @@ const LockScreenRoute = React.memo(function LockScreenRoute({
   );
 });
 
-const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(
-): React.JSX.Element {
+const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(): React.JSX.Element {
   return (
     <View style={styles.loadingOverlay}>
       <View style={styles.loadingContainer}>
@@ -187,7 +202,9 @@ const TokenVerificationOverlay = React.memo(function TokenVerificationOverlay(
 export default function RootNavigator(): React.JSX.Element {
   // Track current route name for navigation state change logging
   const currentRouteNameRef = useRef('');
-  const pendingScreenLogTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const pendingScreenLogTaskRef = useRef<ReturnType<
+    typeof InteractionManager.runAfterInteractions
+  > | null>(null);
   const pendingInactivityResetRef = useRef(false);
 
   const onNavigationStateChange = useCallback((): void => {
@@ -229,33 +246,41 @@ export default function RootNavigator(): React.JSX.Element {
   const { settingsHandlers } = useSettingsHandlers();
 
   // Notification tap response handler — routes to appropriate screen
-  const handleNotificationResponse = useCallback((dataType: NotificationDataType) => {
-    if (!navigationRef.current?.isReady() || !isAuthenticated) return;
+  const handleNotificationResponse = useCallback(
+    (dataType: NotificationDataType) => {
+      if (!navigationRef.current?.isReady() || !isAuthenticated) return;
 
-    logger.info('[RootNavigator] Routing notification tap', { dataType });
+      logger.info('[RootNavigator] Routing notification tap', { dataType });
 
-    switch (dataType) {
-      case 'tx_confirmed':
-      case 'swap_complete':
-        // Stay on wallet — already the default screen
-        break;
-      case 'vault_health':
-        navigationRef.current.navigate('Main', {
-          screen: 'WalletTab',
-          params: { screen: 'VaultDetail' },
-        } as never);
-        break;
-      case 'liquidation_opportunity':
-        // Navigate to main tab (liquidation is accessible from there)
-        navigationRef.current.navigate('Main');
-        break;
-      default:
-        break;
-    }
-  }, [isAuthenticated]);
+      switch (dataType) {
+        case 'tx_confirmed':
+        case 'swap_complete':
+          // Stay on wallet — already the default screen
+          break;
+        case 'vault_health':
+          navigationRef.current.navigate('Main', {
+            screen: 'WalletTab',
+            params: { screen: 'VaultDetail' },
+          } as never);
+          break;
+        case 'liquidation_opportunity':
+          // Navigate to main tab (liquidation is accessible from there)
+          navigationRef.current.navigate('Main');
+          break;
+        default:
+          break;
+      }
+    },
+    [isAuthenticated]
+  );
 
   // Initialize push notification hooks (foreground handler + response listener)
-  useNotificationsPush(handleNotificationResponse, wallet?.segwitAddress, settingsHandlers.notificationsEnabled, wallet?.taprootPubkey);
+  useNotificationsPush(
+    handleNotificationResponse,
+    wallet?.segwitAddress,
+    settingsHandlers.notificationsEnabled,
+    wallet?.taprootPubkey
+  );
 
   // Deep notification response listener — handles taps when app was killed/backgrounded
   useEffect(() => {
@@ -345,7 +370,13 @@ export default function RootNavigator(): React.JSX.Element {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isAuthenticated, shouldShowAuth, shouldShowPinOverlay, shouldShowLockOverlay, loadPersistedState]);
+  }, [
+    isAuthenticated,
+    shouldShowAuth,
+    shouldShowPinOverlay,
+    shouldShowLockOverlay,
+    loadPersistedState,
+  ]);
 
   // Get handlers from context (needed for handleLock)
   const {
@@ -389,20 +420,23 @@ export default function RootNavigator(): React.JSX.Element {
 
     // Lock the app
     setIsAuthenticated(false);
-  }, [setIsAuthenticated, dismissSnackbar, hidePasskeyMigrationPrompt, hideBiometricSetupPrompt, setShowAirdropModal]);
+  }, [
+    setIsAuthenticated,
+    dismissSnackbar,
+    hidePasskeyMigrationPrompt,
+    hideBiometricSetupPrompt,
+    setShowAirdropModal,
+  ]);
 
   const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
     try {
-      const result = await authenticateWithBiometrics(
-        'Authenticate to enable Face ID',
-        'Cancel'
-      );
+      const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
 
       if (!result.success) {
         return;
       }
 
-      if (!await persistBiometricEnabled(true)) {
+      if (!(await persistBiometricEnabled(true))) {
         throw new Error('Failed to persist biometric preference');
       }
 
@@ -418,37 +452,49 @@ export default function RootNavigator(): React.JSX.Element {
 
   // Handle biometric authentication with proper post-auth flow
   const handleBiometricAuth = useCallback(async () => {
-    logger.debug('[RootNavigator] handleBiometricAuth called', { biometricEnabled, isBiometricSupported });
+    logger.debug('[RootNavigator] handleBiometricAuth called', {
+      biometricEnabled,
+      isBiometricSupported,
+    });
     try {
       if (biometricEnabled) {
-        const result = await authenticateWithBiometrics(
-          'Authenticate to unlock wallet',
-          'Use PIN'
-        );
+        const result = await authenticateWithBiometrics('Authenticate to unlock wallet', 'Use PIN');
 
         if (result.success) {
+          const passkeyEnabled = await isPasskeyEnabled();
+          if (passkeyEnabled && !hasSessionMnemonic()) {
+            Alert.alert(
+              'Use PIN To Unlock',
+              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'
+            );
+            return;
+          }
           setIsAuthenticated(true);
           handleLockScreenAuthenticatedWrapper();
         }
       } else {
         // Biometrics not enabled - prompt user to enable
-        Alert.alert(
-          'Face ID',
-          'Use Face ID for quick and secure access to your wallet.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                enableBiometricFromPrompt();
-              },
+        Alert.alert('Face ID', 'Use Face ID for quick and secure access to your wallet.', [
+          {
+            text: 'Continue',
+            onPress: () => {
+              enableBiometricFromPrompt();
             },
-          ]
-        );
+          },
+        ]);
       }
     } catch (error) {
-      logger.error('[RootNavigator] Biometric auth error:', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('[RootNavigator] Biometric auth error:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-  }, [biometricEnabled, isBiometricSupported, setIsAuthenticated, enableBiometricFromPrompt, handleLockScreenAuthenticatedWrapper]);
+  }, [
+    biometricEnabled,
+    isBiometricSupported,
+    setIsAuthenticated,
+    enableBiometricFromPrompt,
+    handleLockScreenAuthenticatedWrapper,
+  ]);
 
   // Reset wallet from lock screen — escape hatch when user cannot authenticate
   const handleResetWalletFromLockScreen = useCallback(async () => {
@@ -482,7 +528,12 @@ export default function RootNavigator(): React.JSX.Element {
   });
 
   const handleRootTouchStart = useCallback(() => {
-    if (!isAuthenticated || shouldShowAuth || shouldShowLockOverlay || pendingInactivityResetRef.current) {
+    if (
+      !isAuthenticated ||
+      shouldShowAuth ||
+      shouldShowLockOverlay ||
+      pendingInactivityResetRef.current
+    ) {
       return;
     }
 
@@ -492,7 +543,6 @@ export default function RootNavigator(): React.JSX.Element {
       resetInactivityTimer();
     });
   }, [isAuthenticated, resetInactivityTimer, shouldShowAuth, shouldShowLockOverlay]);
-
 
   // Handle passkey enabled - show biometric setup prompt only if not already enabled
   const handlePasskeyEnabled = useCallback(async () => {
@@ -510,7 +560,11 @@ export default function RootNavigator(): React.JSX.Element {
       style={styles.container}
       onTouchStart={shouldShowLockOverlay || shouldShowAuth ? undefined : handleRootTouchStart}
     >
-      <NavigationContainer linking={linking} ref={navigationRef} onStateChange={onNavigationStateChange}>
+      <NavigationContainer
+        linking={linking}
+        ref={navigationRef}
+        onStateChange={onNavigationStateChange}
+      >
         <Stack.Navigator
           screenOptions={{
             headerShown: false,

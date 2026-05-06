@@ -4,7 +4,10 @@ import { renderHook, waitFor } from '@testing-library/react-native';
 import { EvmAssetsProvider, useEvmAssets } from '../EvmAssetsContext';
 import { isEvmBridgeConfigured, isSepoliaRpcConfigured } from '../../constants/evm';
 import { fetchSepoliaEthHistory, fetchSepoliaTokenHistory, getEvmBalances } from '../../services/evmBridgeService';
-import { reconcileSubmittedEvmTransactionCheckpoints } from '../../services/evmTransactionCheckpointService';
+import {
+  recoverConfirmedRedemptionTracking,
+  reconcileSubmittedEvmTransactionCheckpoints,
+} from '../../services/evmTransactionCheckpointService';
 import { refreshPersistedVaultSettlementStatus } from '../../services/vaultSettlementService';
 import { resetEvmTransactionCheckpointStore, useEvmTransactionCheckpointStore } from '../../stores/evmTransactionCheckpointStore';
 import { resetUsdcFeatureFlagStore, useUsdcFeatureFlagStore } from '../../stores/usdcFeatureFlagStore';
@@ -26,6 +29,7 @@ jest.mock('../../services/evmBridgeService', () => ({
 }));
 
 jest.mock('../../services/evmTransactionCheckpointService', () => ({
+  recoverConfirmedRedemptionTracking: jest.fn(),
   reconcileSubmittedEvmTransactionCheckpoints: jest.fn(),
 }));
 
@@ -84,6 +88,13 @@ describe('EvmAssetsContext', () => {
       confirmed: 0,
       failed: 0,
       errors: 0,
+    });
+    (recoverConfirmedRedemptionTracking as jest.Mock).mockResolvedValue({
+      checked: 0,
+      alreadyTracked: 0,
+      tracked: 0,
+      failed: 0,
+      lastRedemption: null,
     });
   });
 
@@ -210,6 +221,26 @@ describe('EvmAssetsContext', () => {
     await waitFor(() => expect(fetchSepoliaTokenHistory).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(fetchSepoliaEthHistory).toHaveBeenCalledTimes(2));
     expect(refreshPersistedVaultSettlementStatus).not.toHaveBeenCalled();
+  });
+
+  it('recovers confirmed redemption tracking after startup checkpoint reconciliation', async () => {
+    (isSepoliaRpcConfigured as jest.Mock).mockReturnValue(true);
+    (isEvmBridgeConfigured as jest.Mock).mockReturnValue(true);
+    (reconcileSubmittedEvmTransactionCheckpoints as jest.Mock).mockResolvedValue({
+      checked: 1,
+      pending: 0,
+      confirmed: 1,
+      failed: 0,
+      errors: 0,
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EvmAssetsProvider>{children}</EvmAssetsProvider>
+    );
+    renderHook(() => useEvmAssets(), { wrapper });
+
+    await waitFor(() => expect(reconcileSubmittedEvmTransactionCheckpoints).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(recoverConfirmedRedemptionTracking).toHaveBeenCalledTimes(1));
   });
 
   it('includes pending transfer checkpoints in Sepolia asset history before the indexer confirms them', async () => {

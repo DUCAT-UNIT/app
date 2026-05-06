@@ -19,6 +19,7 @@ interface ErrorWithCode extends Error {
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
   setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
   AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 8,
 }));
 
@@ -96,6 +97,7 @@ describe('Passkey PIN Change', () => {
   const mockNewPin = '654321';
   const mockOldPinHash = 'old-hash';
   const mockOldPinSalt = 'a'.repeat(64); // 64 hex chars
+  const mockOldPinSaltHmac = 'old-salt-hmac';
   const mockNewPinSalt = 'b'.repeat(64); // 64 hex chars
   const mockOldEncrypted = 'old-encrypted';
   const mockOldIv = 'old-iv';
@@ -130,6 +132,7 @@ describe('Passkey PIN Change', () => {
     (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
       if (key === SECURE_KEYS.PIN) return Promise.resolve(mockOldPinHash);
       if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockNewPinSalt);
+      if (key === SECURE_KEYS.PIN_SALT_HMAC) return Promise.resolve(mockOldPinSaltHmac);
       if (key === SECURE_KEYS.PIN_VERSION) return Promise.resolve('v1');
       if (key === PASSKEY_KEYS.ENCRYPTED_MNEMONIC) return Promise.resolve(mockOldEncrypted);
       if (key === PASSKEY_KEYS.ENCRYPTION_IV) return Promise.resolve(mockOldIv);
@@ -210,6 +213,7 @@ describe('Passkey PIN Change', () => {
       (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
         if (key === SECURE_KEYS.PIN) return Promise.resolve(mockOldPinHash);
         if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockOldPinSalt);
+        if (key === SECURE_KEYS.PIN_SALT_HMAC) return Promise.resolve(mockOldPinSaltHmac);
         if (key === SECURE_KEYS.PIN_VERSION) return Promise.resolve('v1');
         if (key === PASSKEY_KEYS.ENCRYPTED_MNEMONIC) return Promise.resolve(mockOldEncrypted);
         if (key === PASSKEY_KEYS.ENCRYPTION_IV) return Promise.resolve(mockOldIv);
@@ -225,6 +229,7 @@ describe('Passkey PIN Change', () => {
       expect(result.success).toBe(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN, mockOldPinHash, DEVICE_ONLY);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockOldPinSalt, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT_HMAC, mockOldPinSaltHmac, DEVICE_ONLY);
       expect(logger.debug).toHaveBeenCalledWith('Successfully rolled back to old PIN');
     });
 

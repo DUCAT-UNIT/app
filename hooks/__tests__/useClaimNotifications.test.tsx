@@ -28,7 +28,7 @@ jest.mock('@react-navigation/native', () => ({
 
 // Mock tokenProcessingStore
 const mockTriggerWalletReload = jest.fn();
-const mockSetPendingToken = jest.fn();
+const mockSetPendingToken = jest.fn().mockResolvedValue(undefined);
 const mockTriggerTokenCheck = jest.fn();
 jest.mock('../../stores/tokenProcessingStore', () => ({
   useTokenProcessingStore: (selector: (store: Record<string, unknown>) => unknown) => {

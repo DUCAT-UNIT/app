@@ -162,7 +162,7 @@ export function useQRCodeHandler({
 
           // Store token in store for processing
           logger.debug('[useQRCodeHandler] Processing new token');
-          tokenStore.setPendingToken(trimmedData);
+          await tokenStore.setPendingToken(trimmedData);
 
           // Close scanner immediately
           setShowQRScanner(false);
@@ -341,7 +341,7 @@ export function useQRCodeHandler({
 
           // Close scanner FIRST, then hand the token to the unified processor.
           setShowQRScanner(false);
-          tokenStore.setPendingToken(token);
+          await tokenStore.setPendingToken(token);
           tokenStore.triggerTokenCheck();
         } else {
           setShowQRScanner(false);

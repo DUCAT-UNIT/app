@@ -1,10 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { act } from '@testing-library/react-native';
 import {
+  EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY,
   EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY,
   EVM_TRANSACTION_CHECKPOINT_TTL_MS,
   MAX_EVM_TRANSACTION_CHECKPOINTS,
+  hydrateEvmTransactionCheckpointFallbacks,
   normalizeEvmTransactionCheckpointState,
+  persistEvmTransactionCheckpointFallback,
+  persistEvmTransactionCheckpointsNow,
   resetEvmTransactionCheckpointStore,
   useEvmTransactionCheckpointStore,
 } from '../evmTransactionCheckpointStore';
@@ -97,6 +102,88 @@ describe('evmTransactionCheckpointStore', () => {
     });
   });
 
+  it('can force a durable checkpoint write after an irreversible broadcast', async () => {
+    act(() => {
+      useEvmTransactionCheckpointStore.getState().recordSubmitted({
+        accountIndex: 2,
+        kind: 'redemption',
+        txHash: '0xdurable',
+        asset: 'wUNIT',
+        amount: '7',
+        spender: '0xrouter',
+        recipient: null,
+        tokenIn: 'wUNIT',
+        tokenOut: 'UNIT',
+        releaseId: 'release-durable',
+        destinationTaprootAddress: 'tb1pdurable',
+      });
+    });
+
+    (AsyncStorage.setItem as jest.Mock).mockClear();
+
+    await persistEvmTransactionCheckpointsNow();
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY,
+      expect.stringContaining('0xdurable'),
+    );
+    const persisted = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
+    expect(persisted).toMatchObject({
+      version: 1,
+      state: {
+        checkpoints: [
+          expect.objectContaining({
+            txHash: '0xdurable',
+            status: 'submitted',
+            releaseId: 'release-durable',
+          }),
+        ],
+      },
+    });
+  });
+
+  it('hydrates submitted checkpoints from the SecureStore fallback', async () => {
+    act(() => {
+      useEvmTransactionCheckpointStore.getState().recordSubmitted({
+        accountIndex: 1,
+        kind: 'redemption',
+        txHash: '0xfallback',
+        asset: 'wUNIT',
+        amount: '4',
+        spender: '0xrouter',
+        recipient: null,
+        tokenIn: 'wUNIT',
+        tokenOut: 'UNIT',
+        releaseId: 'release-fallback',
+        destinationTaprootAddress: 'tb1pfallback',
+      });
+    });
+    const checkpoint = useEvmTransactionCheckpointStore.getState().checkpoints[0];
+    await persistEvmTransactionCheckpointFallback(checkpoint);
+
+    const fallbackPayload = (SecureStore.setItemAsync as jest.Mock).mock.calls.find(
+      ([key]) => key === EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY,
+    )?.[1] as string;
+    expect(fallbackPayload).toContain('0xfallback');
+
+    resetEvmTransactionCheckpointStore();
+    jest.clearAllMocks();
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(fallbackPayload);
+
+    await expect(hydrateEvmTransactionCheckpointFallbacks()).resolves.toBe(1);
+
+    expect(useEvmTransactionCheckpointStore.getState().checkpoints[0]).toMatchObject({
+      txHash: '0xfallback',
+      status: 'submitted',
+      releaseId: 'release-fallback',
+    });
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY,
+      expect.stringContaining('0xfallback'),
+    );
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+  });
+
   it('can restore ambiguous failed checkpoints back to submitted', () => {
     act(() => {
       useEvmTransactionCheckpointStore.getState().recordSubmitted({
@@ -130,10 +217,17 @@ describe('evmTransactionCheckpointStore', () => {
       {
         checkpoints: [
           {
-            id: 'old',
+            id: 'old-terminal',
+            kind: 'approval',
+            status: 'confirmed',
+            txHash: '0xoldterminal',
+            updatedAt: now - EVM_TRANSACTION_CHECKPOINT_TTL_MS - 1,
+          },
+          {
+            id: 'old-submitted',
             kind: 'approval',
             status: 'submitted',
-            txHash: '0xold',
+            txHash: '0xoldsubmitted',
             updatedAt: now - EVM_TRANSACTION_CHECKPOINT_TTL_MS - 1,
           },
           {
@@ -162,6 +256,13 @@ describe('evmTransactionCheckpointStore', () => {
     );
 
     expect(state.checkpoints).toEqual([
+      expect.objectContaining({
+        id: 'old-submitted',
+        chain: 'sepolia',
+        kind: 'approval',
+        status: 'submitted',
+        txHash: '0xoldsubmitted',
+      }),
       expect.objectContaining({
         id: 'fresh',
         chain: 'sepolia',

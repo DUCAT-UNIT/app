@@ -88,6 +88,41 @@ describe('cashuLockedTokensService', () => {
       expect(savedData).toHaveLength(2);
     });
 
+    it('should update an existing token instead of duplicating it', async () => {
+      const existingTokens = [
+        {
+          id: 'existing1',
+          token: 'cashuBtoken123',
+          recipient: 'old-recipient',
+          amount: 1000,
+          timestamp: 1000,
+          txid: null,
+          shortUrl: null,
+          taprootAddress: 'tb1psender',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingTokens));
+
+      await saveSentLockedToken(
+        'cashuBtoken123',
+        'tb1precipient',
+        1000,
+        null,
+        'https://short.url',
+        'tb1psender'
+      );
+
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData).toHaveLength(1);
+      expect(savedData[0]).toMatchObject({
+        id: 'existing1',
+        token: 'cashuBtoken123',
+        recipient: 'tb1precipient',
+        shortUrl: 'https://short.url',
+        timestamp: 1000,
+      });
+    });
+
     it('should limit to MAX_STORED_TOKENS (100)', async () => {
       // Create 100 existing tokens
       const existingTokens = Array.from({ length: 100 }, (_, i) => ({
@@ -103,12 +138,58 @@ describe('cashuLockedTokensService', () => {
       expect(savedData).toHaveLength(100); // Should still be 100 (kept last 100)
     });
 
+    it('should keep the newest sent tokens when trimming storage', async () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      const existingTokens = Array.from({ length: 100 }, (_, i) => ({
+        id: `token${i}`,
+        token: `token${i}`,
+        recipient: 'recipient',
+        amount: i,
+        timestamp: i,
+        txid: null,
+        shortUrl: null,
+        taprootAddress: 'tb1psender',
+      }));
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingTokens));
+
+      try {
+        await saveSentLockedToken('newToken', 'recipient', 500);
+      } finally {
+        nowSpy.mockRestore();
+      }
+
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData).toHaveLength(100);
+      expect(savedData.some((token: any) => token.id === 'token0')).toBe(false);
+      expect(savedData.some((token: any) => token.id === 'token99')).toBe(true);
+      expect(savedData.some((token: any) => token.token === 'newToken')).toBe(true);
+    });
+
     it('should throw on storage error', async () => {
       (SecureStore.setItemAsync as jest.Mock).mockRejectedValue(new Error('Storage full'));
 
       await expect(
         saveSentLockedToken('token', 'recipient', 100)
       ).rejects.toThrow('Storage full');
+    });
+
+    it('should not overwrite corrupt sent token storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('{bad json');
+
+      await expect(saveSentLockedToken('token', 'recipient', 100)).rejects.toThrow(
+        'sent token storage corrupted'
+      );
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls).not.toContainEqual([
+        'sent_turbo_tokens',
+        expect.any(String),
+        expect.any(Object),
+      ]);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^sent_turbo_tokens_corrupt_/),
+        '{bad json',
+        expect.any(Object),
+      );
     });
   });
 
@@ -179,6 +260,19 @@ describe('cashuLockedTokensService', () => {
       const tokens = await getSentLockedTokens();
 
       expect(tokens).toEqual([]);
+    });
+
+    it('should return empty array and quarantine corrupt sent token storage for display reads', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('not json');
+
+      const tokens = await getSentLockedTokens();
+
+      expect(tokens).toEqual([]);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^sent_turbo_tokens_corrupt_/),
+        'not json',
+        expect.any(Object),
+      );
     });
   });
 
@@ -370,6 +464,25 @@ describe('cashuLockedTokensService', () => {
       await expect(
         saveReceivedToken('token', 'sender', 100, 'address')
       ).rejects.toThrow('Storage error');
+    });
+
+    it('should not overwrite corrupt received token storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('not json');
+
+      await expect(
+        saveReceivedToken('token', 'sender', 100, 'address')
+      ).rejects.toThrow('received token storage corrupted');
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls).not.toContainEqual([
+        'received_turbo_tokens',
+        expect.any(String),
+        expect.any(Object),
+      ]);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^received_turbo_tokens_corrupt_/),
+        'not json',
+        expect.any(Object),
+      );
     });
   });
 

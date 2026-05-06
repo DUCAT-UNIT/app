@@ -5,7 +5,6 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationProp } from '@react-navigation/native';
-import * as LocalAuthentication from 'expo-local-authentication';
 import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import { ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +13,7 @@ import Icon from '../../components/icons';
 import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
+import { authenticateWithBiometrics } from '../../services/biometricService';
 import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
 import {
@@ -108,22 +108,12 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
     try {
       setIsAuthenticating(true);
 
-      // Check if biometrics are available
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-      if (!isE2E() && hasHardware && isEnrolled) {
-        // Authenticate with biometrics
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Authenticate to create vault',
-          fallbackLabel: 'Use PIN',
-          cancelLabel: 'Cancel',
-          disableDeviceFallback: false,
-        });
+      if (!isE2E()) {
+        const result = await authenticateWithBiometrics('Authenticate to create vault', 'Use PIN');
 
         if (!result.success) {
           if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', 'Please try again');
+            Alert.alert('Authentication Failed', result.error || 'Please try again');
           }
           setIsAuthenticating(false);
           return;

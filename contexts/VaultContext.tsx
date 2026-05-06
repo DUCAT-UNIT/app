@@ -52,7 +52,7 @@ interface VaultProviderProps {
 }
 
 export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
-  const { wallet } = useWallet();
+  const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuthSession();
 
   const vault = useVaultDataFetch(isAuthenticated ? wallet : null);
@@ -83,7 +83,7 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
         const confirmedAction = pendingVaultTx.action;
         const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
         logger.info('[VaultContext] Vault transaction confirmed', { action: confirmedAction, txid: confirmedTxid });
-        usePendingVaultTransactionStore.getState().clearPendingTransaction();
+        void usePendingVaultTransactionStore.getState().clearPendingTransactionForAccount(currentAccount);
         const currentSnackbar = useNotificationStore.getState().snackbar;
         const intentStep = useSendFlowStore.getState().intentStep;
         if (!currentSnackbar && intentStep === 'idle') {
@@ -97,7 +97,7 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
         }
       }
     }
-  }, [pendingVaultTx, vault.vaultTransactions]);
+  }, [pendingVaultTx, vault.vaultTransactions, currentAccount]);
 
   // ============================================================
   // VAULT HEALTH ALERTS (local notifications)

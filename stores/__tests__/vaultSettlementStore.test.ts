@@ -3,7 +3,9 @@ import { act } from '@testing-library/react-native';
 import {
   initialVaultSettlementState,
   normalizeVaultSettlementPersistedState,
+  persistVaultSettlementNow,
   resetVaultSettlementStore,
+  shouldPreserveVaultSettlementRecovery,
   useVaultSettlementStore,
   VAULT_SETTLEMENT_PERSIST_TTL_MS,
   VAULT_SETTLEMENT_STORAGE_KEY,
@@ -98,6 +100,38 @@ describe('vaultSettlementStore', () => {
     });
   });
 
+  it('can force a durable settlement write before external settlement work continues', async () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('repay', 42, 'USDC', {
+        accountIndex: 3,
+        taprootAddress: 'tb1prepay',
+      });
+      state.setRedemptionResult('release-durable', '0xburn');
+      state.setPhase('waiting_redemption_release');
+    });
+
+    (AsyncStorage.setItem as jest.Mock).mockClear();
+
+    await persistVaultSettlementNow();
+
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      VAULT_SETTLEMENT_STORAGE_KEY,
+      expect.stringContaining('release-durable'),
+    );
+    const persisted = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
+    expect(persisted).toMatchObject({
+      version: 1,
+      state: {
+        accountIndex: 3,
+        taprootAddress: 'tb1prepay',
+        phase: 'waiting_redemption_release',
+        redemptionId: 'release-durable',
+        redemptionBurnTxHash: '0xburn',
+      },
+    });
+  });
+
   it('resets persisted state back to idle', () => {
     act(() => {
       const state = useVaultSettlementStore.getState();
@@ -116,6 +150,64 @@ describe('vaultSettlementStore', () => {
       redemptionId: null,
       updatedAt: 0,
     });
+  });
+
+  it('does not overwrite an active settlement on the same account', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('borrow', 75, 'USDC', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setBridgeIntent('intent-to-preserve', 'tb1pdeposit');
+    });
+
+    expect(() =>
+      useVaultSettlementStore.getState().startOperation('repay', 25, 'USDC', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      })
+    ).toThrow('A vault settlement is still pending. Resume or reset it before starting another.');
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'borrow',
+      phase: 'quoting',
+      bridgeIntentId: 'intent-to-preserve',
+    });
+  });
+
+  it('preserves active state when resuming the same settlement', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setCashuMeltQuote('melt-quote-to-preserve');
+      state.setPhase('melting_turbo_repay');
+    });
+
+    act(() => {
+      useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'repay',
+      phase: 'melting_turbo_repay',
+      cashuMeltQuoteId: 'melt-quote-to-preserve',
+    });
+  });
+
+  it('classifies active settlement phases as recovery records that success screens must keep', () => {
+    expect(shouldPreserveVaultSettlementRecovery('idle')).toBe(false);
+    expect(shouldPreserveVaultSettlementRecovery('settled')).toBe(false);
+    expect(shouldPreserveVaultSettlementRecovery('pending_settlement')).toBe(true);
+    expect(shouldPreserveVaultSettlementRecovery('needs_retry')).toBe(true);
+    expect(shouldPreserveVaultSettlementRecovery('waiting_bridge_fulfillment')).toBe(true);
+    expect(shouldPreserveVaultSettlementRecovery('waiting_turbo_mint')).toBe(true);
   });
 
   describe('normalizeVaultSettlementPersistedState', () => {
@@ -155,13 +247,29 @@ describe('vaultSettlementStore', () => {
       });
     });
 
-    it('drops stale or malformed persisted settlement state', () => {
+    it('keeps stale active recovery state but drops stale terminal state', () => {
       expect(
         normalizeVaultSettlementPersistedState(
           {
             kind: 'open',
             phase: 'waiting_bridge_fulfillment',
             bridgeIntentId: 'stale-intent',
+            updatedAt: now - VAULT_SETTLEMENT_PERSIST_TTL_MS - 1,
+          },
+          now,
+        ),
+      ).toMatchObject({
+        kind: 'open',
+        phase: 'waiting_bridge_fulfillment',
+        bridgeIntentId: 'stale-intent',
+      });
+
+      expect(
+        normalizeVaultSettlementPersistedState(
+          {
+            kind: 'open',
+            phase: 'settled',
+            bridgeIntentId: 'settled-intent',
             updatedAt: now - VAULT_SETTLEMENT_PERSIST_TTL_MS - 1,
           },
           now,

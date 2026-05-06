@@ -32,6 +32,7 @@ import {
   checkMintQuote,
   mintTokens,
   swapTokens,
+  restoreSignatures,
   createMeltQuote,
   checkMeltQuote,
   meltTokens,
@@ -305,6 +306,47 @@ describe('cashuMintClient', () => {
       (postJSON as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       await expect(swapTokens([], [])).rejects.toThrow('Network error');
+    });
+  });
+
+  describe('restoreSignatures', () => {
+    it('should restore signatures in the requested output order', async () => {
+      (postJSON as jest.Mock).mockResolvedValue({
+        outputs: [
+          { amount: 32, B_: 'b2' },
+          { amount: 64, B_: 'b1' },
+        ],
+        signatures: [
+          { C_: 'sig2', amount: 32 },
+          { C_: 'sig1', amount: 64 },
+        ],
+      });
+
+      const outputs = [{ amount: 64, B_: 'b1' }, { amount: 32, B_: 'b2' }];
+      const result = await restoreSignatures(outputs);
+
+      expect(result).toEqual({
+        signatures: [
+          { C_: 'sig1', amount: 64 },
+          { C_: 'sig2', amount: 32 },
+        ],
+      });
+      expect(postJSON).toHaveBeenCalledWith(
+        `${MINT_URL}/v1/restore`,
+        { outputs },
+        expect.any(Object)
+      );
+    });
+
+    it('should throw when restore returns only partial signatures', async () => {
+      (postJSON as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64, B_: 'b1' }],
+        signatures: [{ C_: 'sig1', amount: 64 }],
+      });
+
+      await expect(
+        restoreSignatures([{ amount: 64, B_: 'b1' }, { amount: 32, B_: 'b2' }])
+      ).rejects.toThrow('Restore returned partial signatures');
     });
   });
 

@@ -121,6 +121,24 @@ describe('cashuWalletService', () => {
 
   const testAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
   const proofStorageKey = `cashu_proofs_${testAddress}`;
+  const mintQuoteStorageKey = 'cashu_pending_mint_quotes';
+
+  const seedMintQuoteRecovery = (
+    storage: Record<string, string>,
+    quoteId: string,
+    amount: number
+  ) => {
+    storage[mintQuoteStorageKey] = JSON.stringify([
+      {
+        quoteId,
+        amount,
+        depositAddress: 'tb1pmintdeposit',
+        taprootAddress: testAddress,
+        createdAt: Date.now(),
+        state: 'PAID',
+      },
+    ]);
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -275,24 +293,21 @@ describe('cashuWalletService', () => {
         expect(result).toEqual([]);
       });
 
-      it('should handle storage errors and return empty array', async () => {
+      it('should fail closed on storage errors', async () => {
         (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Storage error'));
 
-        const result = await cashuWalletService.loadProofs();
+        await expect(cashuWalletService.loadProofs()).rejects.toThrow('Storage error');
 
-        expect(result).toEqual([]);
         expect(logger.error).toHaveBeenCalledWith('Failed to load proofs',
           expect.objectContaining({ error: 'Storage error' })
         );
       });
 
-      it('should handle corrupted JSON data', async () => {
+      it('should quarantine corrupted JSON data and fail closed', async () => {
         (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce('invalid json {');
 
-        const result = await cashuWalletService.loadProofs();
-
-        expect(result).toEqual([]);
-        expect(logger.error).toHaveBeenCalled();
+        await expect(cashuWalletService.loadProofs())
+          .rejects.toThrow('Cashu proof storage corrupted: invalid JSON');
       });
     });
 
@@ -308,7 +323,9 @@ describe('cashuWalletService', () => {
           version: 1,
           proofs: mockProofs,
         });
-        expect(logger.info).toHaveBeenCalledWith('Saved proofs to storage', { count: 4 });
+        expect(logger.info).toHaveBeenCalledWith('Saved proofs to storage',
+          expect.objectContaining({ count: 4 })
+        );
       });
 
       it('should throw error if verification fails', async () => {
@@ -599,6 +616,7 @@ describe('cashuWalletService', () => {
           storage[key] = value;
           return Promise.resolve();
         });
+        seedMintQuoteRecovery(storage, 'quote123', 3);
 
         const result = await cashuWalletService.completeMint('quote123', 3);
 
@@ -611,6 +629,7 @@ describe('cashuWalletService', () => {
 
       it('should throw error if no unit keyset is available', async () => {
         (cashuMintClient.getKeys as jest.Mock).mockResolvedValueOnce({ keysets: [] });
+        seedMintQuoteRecovery(mockSecureStorage, 'quote123', 1000);
 
         await expect(cashuWalletService.completeMint('quote123', 1000))
           .rejects.toThrow('No active unit keyset available from mint');
@@ -618,6 +637,7 @@ describe('cashuWalletService', () => {
 
       it('should handle mint completion errors', async () => {
         (cashuMintClient.mintTokens as jest.Mock).mockRejectedValueOnce(new Error('Mint error'));
+        seedMintQuoteRecovery(mockSecureStorage, 'quote123', 1000);
 
         await expect(cashuWalletService.completeMint('quote123', 1000))
           .rejects.toThrow('Mint error');
@@ -643,6 +663,7 @@ describe('cashuWalletService', () => {
           storage[key] = value;
           return Promise.resolve();
         });
+        seedMintQuoteRecovery(storage, 'quote123', amount);
 
         await cashuWalletService.completeMint('quote123', amount);
 
@@ -763,12 +784,10 @@ describe('cashuWalletService', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle SecureStore failures gracefully', async () => {
+    it('should fail closed on SecureStore failures', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockRejectedValue(new Error('Storage unavailable'));
 
-      const result = await cashuWalletService.loadProofs();
-
-      expect(result).toEqual([]);
+      await expect(cashuWalletService.loadProofs()).rejects.toThrow('Storage unavailable');
       expect(logger.error).toHaveBeenCalled();
     });
 
@@ -787,18 +806,17 @@ describe('cashuWalletService', () => {
         amount_paid: 1000,
         amount_issued: 0,
       });
+      seedMintQuoteRecovery(mockSecureStorage, 'quote123', 1000);
 
       await expect(cashuWalletService.completeMint('quote123', 1000))
         .rejects.toThrow('No active unit keyset available');
     });
 
-    it('should handle malformed proof data', async () => {
+    it('should quarantine malformed proof data and fail closed', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce('not valid json');
 
-      const result = await cashuWalletService.loadProofs();
-
-      expect(result).toEqual([]);
-      expect(logger.error).toHaveBeenCalled();
+      await expect(cashuWalletService.loadProofs())
+        .rejects.toThrow('Cashu proof storage corrupted: invalid JSON');
     });
 
     it('should handle saveProofs failures', async () => {
@@ -943,6 +961,7 @@ describe('cashuWalletService', () => {
         storage[key] = value;
         return Promise.resolve();
       });
+      seedMintQuoteRecovery(storage, 'quote1', 1000);
 
       const proofs = await cashuWalletService.completeMint('quote1', 1000);
       expect(proofs).toEqual(mockProofs);

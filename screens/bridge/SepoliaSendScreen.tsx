@@ -59,10 +59,6 @@ interface SepoliaSendScreenProps {
 const SLIDER_HORIZONTAL_INSET = 12;
 const SLIDER_THUMB_SIZE = 24;
 
-function shouldBypassBiometricReauth(error?: string): boolean {
-  return error === 'not_enrolled' || error === 'not_available' || error === 'passcode_not_set';
-}
-
 function formatTokenAmount(value: string): string {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -486,7 +482,7 @@ export default function SepoliaSendScreen({
         'Use PIN',
       );
 
-      if (!biometricResult.success && !shouldBypassBiometricReauth(biometricResult.error)) {
+      if (!biometricResult.success) {
         if (biometricResult.error && biometricResult.error !== 'user_cancel') {
           Alert.alert('Authentication failed', biometricResult.error);
         }

@@ -2,10 +2,14 @@ import {
   resetReconciliationWorkerForTests,
   runWalletReconciliationCycle,
 } from '../reconciliationWorker';
-import { reconcileSubmittedEvmTransactionCheckpoints } from '../evmTransactionCheckpointService';
+import {
+  recoverConfirmedRedemptionTracking,
+  reconcileSubmittedEvmTransactionCheckpoints,
+} from '../evmTransactionCheckpointService';
 import { refreshPersistedVaultSettlementStatus } from '../vaultSettlementService';
 
 jest.mock('../evmTransactionCheckpointService', () => ({
+  recoverConfirmedRedemptionTracking: jest.fn(),
   reconcileSubmittedEvmTransactionCheckpoints: jest.fn(),
 }));
 
@@ -45,6 +49,13 @@ describe('reconciliationWorker', () => {
       failed: 0,
       errors: 0,
     });
+    (recoverConfirmedRedemptionTracking as jest.Mock).mockResolvedValue({
+      checked: 0,
+      alreadyTracked: 0,
+      tracked: 0,
+      failed: 0,
+      lastRedemption: null,
+    });
     (refreshPersistedVaultSettlementStatus as jest.Mock).mockResolvedValue({
       status: 'idle',
       message: 'No pending settlement',
@@ -74,6 +85,7 @@ describe('reconciliationWorker', () => {
     expect(cycleInput.fetchBalance).toHaveBeenCalled();
     expect(cycleInput.fetchVaultTransactions).toHaveBeenCalled();
     expect(cycleInput.fetchTransactionHistory).toHaveBeenCalled();
+    expect(recoverConfirmedRedemptionTracking).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes EVM views when checkpoint reconciliation changes state', async () => {

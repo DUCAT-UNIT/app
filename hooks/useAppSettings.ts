@@ -62,7 +62,10 @@ interface UseAppSettingsReturn {
   cancelNotificationsToggle: () => void;
 }
 
-export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppSettingsParams): UseAppSettingsReturn {
+export function useAppSettings({
+  biometricEnabled,
+  setIsAuthenticated,
+}: UseAppSettingsParams): UseAppSettingsReturn {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -81,13 +84,18 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
         setShowZeroAssets(await getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false));
         setAdvancedMode(await getBoolean(SettingKeys.ADVANCED_MODE, false));
         setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 10000));
-        setAutoLockTimeoutMs(await getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT_MS));
-        const storedUsdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+        setAutoLockTimeoutMs(
+          await getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT_MS)
+        );
+        const storedUsdcFeaturesEnabled = await getBoolean(
+          SettingKeys.USDC_FEATURES_ENABLED,
+          false
+        );
         setUsdcFeaturesEnabled(storedUsdcFeaturesEnabled);
         useUsdcFeatureFlagStore.getState().setEnabled(storedUsdcFeaturesEnabled);
       } catch (error: unknown) {
         logger.warn('Failed to load app settings', {
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     };
@@ -98,17 +106,23 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     setUsdcFeaturesEnabled(mirroredUsdcFeaturesEnabled);
   }, [mirroredUsdcFeaturesEnabled]);
 
-  const persistBooleanOrThrow = useCallback(async (key: string, value: boolean, failureMessage: string) => {
-    if (!await setBoolean(key, value)) {
-      throw new Error(failureMessage);
-    }
-  }, []);
+  const persistBooleanOrThrow = useCallback(
+    async (key: string, value: boolean, failureMessage: string) => {
+      if (!(await setBoolean(key, value))) {
+        throw new Error(failureMessage);
+      }
+    },
+    []
+  );
 
-  const persistNumberOrThrow = useCallback(async (key: string, value: number, failureMessage: string) => {
-    if (!await setNumber(key, value)) {
-      throw new Error(failureMessage);
-    }
-  }, []);
+  const persistNumberOrThrow = useCallback(
+    async (key: string, value: number, failureMessage: string) => {
+      if (!(await setNumber(key, value))) {
+        throw new Error(failureMessage);
+      }
+    },
+    []
+  );
 
   const resetE2ESettings = useCallback(async (): Promise<void> => {
     if (!__DEV__) return;
@@ -220,7 +234,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           logger.warn('Biometric auth failed for notifications toggle', {
-            error: message
+            error: message,
           });
           if (message.includes('persist')) {
             notify.settings.notificationsFailed();
@@ -270,7 +284,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       setNotificationsEnabled(!newValue);
       logger.error('Failed to save notification setting', {
         error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newValue
+        attemptedValue: newValue,
       });
       notify.settings.notificationsFailed();
     }
@@ -285,7 +299,9 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       await clearWallet();
       notify.cashu.cacheCleared();
     } catch (error) {
-      logger.warn('Failed to clear Cashu cache', { error: error instanceof Error ? error.message : String(error) });
+      logger.warn('Failed to clear Cashu cache', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       notify.cashu.cacheClearFailed();
     }
   }, []);
@@ -326,87 +342,101 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       await clearSentLockedTokens();
       notify.cashu.lockedTokensCleared();
     } catch (error) {
-      logger.warn('Failed to clear locked tokens', { error: error instanceof Error ? error.message : String(error) });
+      logger.warn('Failed to clear locked tokens', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       notify.cashu.lockedTokensClearFailed();
     }
   }, []);
 
-  const handleEcashThresholdChange = useCallback(async (newThreshold: number): Promise<void> => {
-    logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
-    const previousThreshold = ecashThreshold;
-    setEcashThreshold(newThreshold);
-    try {
-      await persistNumberOrThrow(
-        SettingKeys.ECASH_THRESHOLD,
-        newThreshold,
-        'Failed to persist ecash threshold'
-      );
-    } catch (error: unknown) {
-      setEcashThreshold(previousThreshold);
-      logger.warn('Failed to save ecash threshold', {
-        error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newThreshold,
-      });
-    }
-  }, [ecashThreshold, persistNumberOrThrow]);
+  const handleEcashThresholdChange = useCallback(
+    async (newThreshold: number): Promise<void> => {
+      logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
+      const previousThreshold = ecashThreshold;
+      setEcashThreshold(newThreshold);
+      try {
+        await persistNumberOrThrow(
+          SettingKeys.ECASH_THRESHOLD,
+          newThreshold,
+          'Failed to persist ecash threshold'
+        );
+      } catch (error: unknown) {
+        setEcashThreshold(previousThreshold);
+        logger.warn('Failed to save ecash threshold', {
+          error: error instanceof Error ? error.message : String(error),
+          attemptedValue: newThreshold,
+        });
+      }
+    },
+    [ecashThreshold, persistNumberOrThrow]
+  );
 
-  const handleAutoLockTimeoutChange = useCallback(async (newTimeoutMs: number): Promise<void> => {
-    const previousTimeout = autoLockTimeoutMs;
-    setAutoLockTimeoutMs(newTimeoutMs);
-    try {
-      await persistNumberOrThrow(
-        SettingKeys.AUTO_LOCK_TIMEOUT,
-        newTimeoutMs,
-        'Failed to persist auto-lock timeout'
-      );
-      notify.success('Auto-lock time updated');
-    } catch (error: unknown) {
-      setAutoLockTimeoutMs(previousTimeout);
-      logger.warn('Failed to save auto-lock timeout', {
-        error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newTimeoutMs,
-      });
-      notify.settings.failed('auto-lock time');
-    }
-  }, [autoLockTimeoutMs, persistNumberOrThrow]);
+  const handleAutoLockTimeoutChange = useCallback(
+    async (newTimeoutMs: number): Promise<void> => {
+      const previousTimeout = autoLockTimeoutMs;
+      setAutoLockTimeoutMs(newTimeoutMs);
+      try {
+        await persistNumberOrThrow(
+          SettingKeys.AUTO_LOCK_TIMEOUT,
+          newTimeoutMs,
+          'Failed to persist auto-lock timeout'
+        );
+        notify.success('Auto-lock time updated');
+      } catch (error: unknown) {
+        setAutoLockTimeoutMs(previousTimeout);
+        logger.warn('Failed to save auto-lock timeout', {
+          error: error instanceof Error ? error.message : String(error),
+          attemptedValue: newTimeoutMs,
+        });
+        notify.settings.failed('auto-lock time');
+      }
+    },
+    [autoLockTimeoutMs, persistNumberOrThrow]
+  );
 
-  const handleEnableUsdcFeatures = useCallback(async (password: string): Promise<boolean> => {
-    const normalizedPassword = normalizeUsdcFeaturePassword(password);
-    const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-    const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
-    const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-    const allowDevelopmentAutomationBypass = normalizedPassword.length === 0 && (
-      hasActiveE2EBypass()
-    );
-    if (
-      !allowDevelopmentAutomationBypass
-      &&
-      normalizedPassword !== expectedPassword
-      && canonicalPassword !== expectedCanonicalPassword
-    ) {
-      notify.error('Incorrect Enable USDC password');
-      return false;
-    }
+  const handleEnableUsdcFeatures = useCallback(
+    async (password: string): Promise<boolean> => {
+      if (!__DEV__ && !hasActiveE2EBypass()) {
+        notify.error('USDC features are not enabled in this build');
+        return false;
+      }
 
-    const previousValue = usdcFeaturesEnabled;
-    setUsdcFeaturesEnabled(true);
-    useUsdcFeatureFlagStore.getState().setEnabled(true);
-    try {
-      await persistBooleanOrThrow(
-        SettingKeys.USDC_FEATURES_ENABLED,
-        true,
-        'Failed to persist USDC feature flag'
-      );
-      notify.success('USDC features enabled');
-      return true;
-    } catch (error: unknown) {
-      logger.warn('Failed to enable USDC features', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      notify.settings.failed('USDC features');
-      return true;
-    }
-  }, [persistBooleanOrThrow, usdcFeaturesEnabled]);
+      const normalizedPassword = normalizeUsdcFeaturePassword(password);
+      const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
+      const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
+      const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
+      const allowDevelopmentAutomationBypass =
+        normalizedPassword.length === 0 && hasActiveE2EBypass();
+      if (
+        !allowDevelopmentAutomationBypass &&
+        normalizedPassword !== expectedPassword &&
+        canonicalPassword !== expectedCanonicalPassword
+      ) {
+        notify.error('Incorrect Enable USDC password');
+        return false;
+      }
+
+      const previousValue = usdcFeaturesEnabled;
+      setUsdcFeaturesEnabled(true);
+      useUsdcFeatureFlagStore.getState().setEnabled(true);
+      try {
+        await persistBooleanOrThrow(
+          SettingKeys.USDC_FEATURES_ENABLED,
+          true,
+          'Failed to persist USDC feature flag'
+        );
+        notify.success('USDC features enabled');
+        return true;
+      } catch (error: unknown) {
+        logger.warn('Failed to enable USDC features', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        notify.settings.failed('USDC features');
+        return true;
+      }
+    },
+    [persistBooleanOrThrow, usdcFeaturesEnabled]
+  );
 
   const handleDisableUsdcFeatures = useCallback(async (): Promise<void> => {
     const previousValue = usdcFeaturesEnabled;

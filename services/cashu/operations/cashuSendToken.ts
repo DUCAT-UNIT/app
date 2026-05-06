@@ -4,10 +4,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import {
-  selectActiveUnitKeyset,
-  selectProofsForAmountIncludingFees,
-} from '../cashuKeysetUtils';
+import { selectActiveUnitKeyset, selectProofsForAmountIncludingFees } from '../cashuKeysetUtils';
 import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
 import {
   createBlindedOutputs,
@@ -19,11 +16,12 @@ import {
   CashuProof,
 } from '../crypto';
 import { getOrFetchKeys, getBalance } from '../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs } from '../cashuProofManager';
+import { loadProofs, removeProofs, addProofs, getCurrentCashuAccount } from '../cashuProofManager';
 import {
   savePendingSwap,
   updateSwapWithResponse,
   clearPendingSwap,
+  persistOutgoingSwapToken,
 } from '../cashuSwapRecovery';
 
 export interface SendTokenResult {
@@ -40,6 +38,8 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
   let selectedProofs: CashuProof[] | null = null;
   let changeProofs: CashuProof[] | null = null;
   let didSwap = false;
+  let pendingSwapId: string | null = null;
+  let outgoingTokenPersisted = false;
 
   try {
     logger.info('Sending token', { amount, returnChange });
@@ -87,10 +87,10 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       const changeAmounts = splitAmount(changeAmount);
 
       // Create blinded outputs for both
-      const { outputs, blindingData } = await createBlindedOutputs([
-        ...sendAmounts,
-        ...changeAmounts,
-      ], keysetId);
+      const { outputs, blindingData } = await createBlindedOutputs(
+        [...sendAmounts, ...changeAmounts],
+        keysetId
+      );
 
       // Track which secrets are send vs change (by index before sorting)
       // For regular sendToken, first N outputs are send, rest are change
@@ -101,12 +101,12 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
 
       // CRITICAL: Save pending swap BEFORE calling the mint
       // This allows recovery if app crashes after swap but before saving proofs
-      await savePendingSwap({
+      pendingSwapId = await savePendingSwap({
         inputProofs: selectedProofs,
         blindingData,
         keys,
         keysetId,
-        secretTypeMap: secretTypeMap as Record<string, 'p2pk' | 'change'>,
+        secretTypeMap: secretTypeMap as Record<string, 'p2pk' | 'send' | 'change'>,
       });
 
       // Double-spend guard: verify none of the selected proofs are already spent
@@ -133,9 +133,12 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       didSwap = true;
 
       // CRITICAL: Save the mint's response immediately for recovery
-      await updateSwapWithResponse({
-        signatures: response.signatures,
-      });
+      await updateSwapWithResponse(
+        {
+          signatures: response.signatures,
+        },
+        pendingSwapId
+      );
 
       // Unblind all
       const allNewProofs = unblindSignatures(
@@ -161,12 +164,36 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
       }
 
       // Split into send and change using secret type (handles sorted outputs correctly)
-      proofsToSend = allNewProofs.filter(proof => secretTypeMap[proof.secret] === 'send');
-      changeProofs = allNewProofs.filter(proof => secretTypeMap[proof.secret] === 'change');
+      proofsToSend = allNewProofs.filter((proof) => secretTypeMap[proof.secret] === 'send');
+      changeProofs = allNewProofs.filter((proof) => secretTypeMap[proof.secret] === 'change');
 
       logger.info('Swap completed', {
         sendProofs: proofsToSend.length,
         changeProofs: changeProofs.length,
+      });
+    }
+
+    // Encode and journal the outgoing token before mutating local proofs. Swap
+    // recovery can reconstruct swap-backed sends; exact sends need their own
+    // proof-removal list because no mint swap journal exists.
+    const token = encodeToken(proofsToSend, MINT_URL);
+    const outgoingRecoveryId =
+      pendingSwapId ?? `direct_send_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    await persistOutgoingSwapToken({
+      id: `${outgoingRecoveryId}:outgoing`,
+      token,
+      amount: sumProofs(proofsToSend),
+      kind: 'send',
+      sourceSwapId: outgoingRecoveryId,
+      taprootAddress: getCurrentCashuAccount(),
+      proofsToRemove: didSwap ? undefined : proofsToSend,
+      createdAt: Date.now(),
+    });
+    outgoingTokenPersisted = true;
+
+    if (didSwap && pendingSwapId) {
+      logger.info('Persisted outgoing swap token recovery record before clearing swap', {
+        pendingSwapId,
       });
     }
 
@@ -212,11 +239,8 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
 
     // CRITICAL: Clear the pending swap AFTER all proofs are saved
     if (didSwap) {
-      await clearPendingSwap();
+      await clearPendingSwap(pendingSwapId ?? undefined);
     }
-
-    // Encode token for sending
-    const token = encodeToken(proofsToSend, MINT_URL);
 
     const newBalance = await getBalance();
 
@@ -238,10 +262,12 @@ export const sendToken = async (amount: number, returnChange = true): Promise<Se
         // Save change proofs FIRST
         await addProofs(changeProofs);
         await removeProofs(selectedProofs);
-        // Clear pending swap after successful recovery
-        await clearPendingSwap();
+        if (outgoingTokenPersisted) {
+          await clearPendingSwap(pendingSwapId ?? undefined);
+        }
         logger.info('Successfully saved change proofs after send token failure', {
           changeCount: changeProofs.length,
+          outgoingTokenPersisted,
         });
       } catch (saveError) {
         logger.error('CRITICAL: Failed to save change proofs after send token failure!', {

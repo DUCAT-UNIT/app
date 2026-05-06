@@ -5,7 +5,10 @@
 import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess, { buildVaultSuccessTxItems } from '../../components/vault/VaultActionSuccess';
 import { useBorrow } from '../../stores/borrowStore';
-import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  shouldPreserveVaultSettlementRecovery,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
 import { registerVaultSettlementHistory } from '../../services/vaultSettlementHistoryService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
@@ -65,7 +68,9 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
   }, []);
 
   const handleDone = useCallback(() => {
-    resetSettlement();
+    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+      resetSettlement();
+    }
     reset();
     navigation.getParent()?.reset({
       index: 0,
@@ -87,7 +92,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
         },
       ],
     });
-  }, [resetSettlement, reset, navigation]);
+  }, [phase, resetSettlement, reset, navigation]);
 
   const successUnit =
     showUsdcPayout

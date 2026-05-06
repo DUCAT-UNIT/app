@@ -6,7 +6,10 @@
 import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess, { buildVaultSuccessTxItems } from '../../components/vault/VaultActionSuccess';
 import { useVaultCreation } from '../../stores/vaultCreationStore';
-import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  shouldPreserveVaultSettlementRecovery,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { usePrice } from '../../stores/priceStore';
@@ -64,14 +67,16 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
 
   // Handle done - reset state and go back to wallet
   const handleDone = useCallback(() => {
-    resetSettlement();
+    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+      resetSettlement();
+    }
     reset();
     // Navigate back to main screen
     navigation.getParent()?.reset({
       index: 0,
       routes: [{ name: 'Main' }],
     });
-  }, [resetSettlement, reset, navigation]);
+  }, [phase, resetSettlement, reset, navigation]);
 
   const successUnit =
     showUsdcPayout

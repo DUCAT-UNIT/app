@@ -12,6 +12,10 @@ import {
 import { LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
 import { executeLiquidation } from '../../services/liquidation/execution';
 import { waitForMempool, broadcastSwapTx } from '../../services/liquidation/swapService';
+import {
+  clearPendingLiquidationSwapBroadcast,
+  savePendingLiquidationSwapBroadcast,
+} from '../../services/liquidation/liquidationSwapBroadcastRecovery';
 import { registerSwapTxid } from '../../services/transactionHistoryService';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
@@ -40,6 +44,7 @@ interface UseLiquidationExecutionParams {
       master_id: string;
     };
   } | null;
+  currentAccount: number;
 }
 
 interface UseLiquidationExecutionReturn {
@@ -54,6 +59,7 @@ export function useLiquidationExecution({
   vaultDebt,
   btcPrice,
   vaultData,
+  currentAccount,
 }: UseLiquidationExecutionParams): UseLiquidationExecutionReturn {
   const store = useLiquidationFlowStore;
 
@@ -110,6 +116,33 @@ export function useLiquidationExecution({
         (acc, v) => acc + (v.claimAmountPartial || v.claimAmountBtc),
         0,
       );
+      const unitAmt = Math.round(selectedVaults.reduce((acc, v) => acc + v.unit, 0) * 100);
+      const swapUnitAmount = selectedVaults.reduce((acc, v) => acc + v.unit, 0);
+      let preSubmitSwapRecoveryRepoTxid: string | null = null;
+
+      const persistRepoPendingTransaction = async (txid: string, vaultTxid?: string) => {
+        await usePendingVaultTransactionStore.getState().setPendingTransactionForAccount({
+          txid,
+          vaultTxid,
+          action: 'repo' as const,
+          btcAmt: Math.round(deficitBtc * 100_000_000),
+          unitAmt,
+          timestamp: Date.now(),
+          vaultPubkey: wallet?.taprootPubkey || '',
+        }, currentAccount);
+      };
+
+      const persistSwapBroadcastRecovery = async (
+        repoTxid: string,
+        swapTxHex: string
+      ): Promise<void> => {
+        await savePendingLiquidationSwapBroadcast({
+          repoTxid,
+          swapTxHex,
+          unitAmount: swapUnitAmount,
+          createdAt: Date.now(),
+        });
+      };
 
       const result = await executeLiquidation({
         liquidVaults: selectedVaults,
@@ -130,11 +163,17 @@ export function useLiquidationExecution({
           master_id: vaultData?.vaultInfo?.master_id || '',
         },
         onProgress: (msg) => store.getState().setProcessingMessage(msg),
+        onRequestCreated: async ({ txid, vaultTxid, swapPsbtHex }) => {
+          await persistRepoPendingTransaction(txid, vaultTxid);
+          if (swapPsbtHex) {
+            await persistSwapBroadcastRecovery(txid, swapPsbtHex);
+            preSubmitSwapRecoveryRepoTxid = txid;
+          }
+        },
       });
 
       if (result.success) {
         store.getState().setResultTxid(result.txid || null);
-        store.getState().setCurrentStep('success');
         if (result.txid) analytics.trackTransaction(LIQUIDATION_EVENTS.LIQUIDATION_COMPLETED, result.txid);
 
         // Register liquidation TX for push-notification monitoring (fire-and-forget)
@@ -144,19 +183,21 @@ export function useLiquidationExecution({
 
         // Add as pending vault transaction
         if (result.txid) {
-          void usePendingVaultTransactionStore.getState().setPendingTransaction({
-            txid: result.txid,
-            vaultTxid: result.vaultTxid,
-            action: 'repo' as const,
-            btcAmt: Math.round(deficitBtc * 100_000_000),
-            unitAmt: Math.round(selectedVaults.reduce((acc, v) => acc + v.unit, 0) * 100),
-            timestamp: Date.now(),
-            vaultPubkey: wallet?.taprootPubkey || '',
+          await persistRepoPendingTransaction(result.txid, result.vaultTxid).catch((pendingError) => {
+            logger.error('[Liquidation] Repo submitted but pending vault lock could not be persisted', {
+              txid: result.txid,
+              error: pendingError instanceof Error ? pendingError.message : String(pendingError),
+            });
           });
         }
 
         // Background swap broadcast: wait for repo TX in mempool, then broadcast swap
         if (result.swapPsbtHex && result.txid) {
+          await persistSwapBroadcastRecovery(result.txid, result.swapPsbtHex);
+          if (preSubmitSwapRecoveryRepoTxid && preSubmitSwapRecoveryRepoTxid !== result.txid) {
+            await clearPendingLiquidationSwapBroadcast(preSubmitSwapRecoveryRepoTxid);
+          }
+
           void (async () => {
             const swapPollId = useSwapDiagnosticsStore.getState().startPoll({
               id: `liquidation-swap-broadcast:${result.txid}`,
@@ -203,8 +244,8 @@ export function useLiquidationExecution({
                   },
                 });
                 // Register swap txid so it shows as "Swap" in history with UNIT amount
-                const swapUnitAmount = store.getState().vaultsFull.reduce((acc, v) => acc + v.unit, 0);
                 await registerSwapTxid(swapTxid, swapUnitAmount);
+                await clearPendingLiquidationSwapBroadcast(result.txid!);
                 logger.info('[Liquidation] Swap broadcast success', { swapTxid });
                 // Notify user that UNIT swap arrived
                 void sendLocalNotification({
@@ -232,6 +273,7 @@ export function useLiquidationExecution({
             }
           })();
         }
+        store.getState().setCurrentStep('success');
       } else {
         store.getState().setError(result.error || 'Liquidation failed');
         store.getState().setCurrentStep('error');
@@ -244,7 +286,7 @@ export function useLiquidationExecution({
       store.getState().setError(err instanceof Error ? err.message : 'Liquidation failed');
       store.getState().setCurrentStep('error');
     }
-  }, [wallet, vaultCollateral, vaultDebt, btcPrice, vaultData]);
+  }, [wallet, vaultCollateral, vaultDebt, btcPrice, vaultData, currentAccount]);
 
   const resetAfterSuccess = useCallback(() => {
     store.getState().reset();

@@ -31,6 +31,8 @@ export type VaultSettlementPhase =
 export type VaultSettlementPayoutAsset = 'USDC' | 'wUNIT' | 'UNIT' | 'TURBOUNIT';
 
 interface VaultSettlementState {
+  accountIndex: number | null;
+  taprootAddress: string | null;
   kind: VaultSettlementKind | null;
   phase: VaultSettlementPhase;
   faceValueUsd: number;
@@ -64,6 +66,10 @@ interface VaultSettlementActions {
     kind: VaultSettlementKind,
     faceValueUsd: number,
     requestedPayoutAsset?: VaultSettlementRequestedAsset,
+    context?: {
+      accountIndex?: number | null;
+      taprootAddress?: string | null;
+    }
   ) => void;
   setQuote: (estimatedUsdcOut: string | null, minimumUsdcOut: string | null) => void;
   setRepayQuote: (requiredUsdcIn: string | null, estimatedSepoliaFeeEth: string | null) => void;
@@ -71,16 +77,16 @@ interface VaultSettlementActions {
   setIssueResult: (issueTxid: string, vaultTxid?: string | null) => void;
   setBridgeClientRequestId: (clientRequestId: string) => void;
   setBridgeIntent: (intentId: string, depositAddress: string) => void;
-  setBridgeSendTxid: (txid: string) => void;
+  setBridgeSendTxid: (txid: string | null) => void;
   setCashuMintQuote: (quoteId: string, depositAddress: string) => void;
-  setCashuMintSendTxid: (txid: string) => void;
+  setCashuMintSendTxid: (txid: string | null) => void;
   setCashuMeltQuote: (quoteId: string) => void;
   setCashuMeltTxid: (txid: string) => void;
   setRedemptionResult: (redemptionId: string, burnTxHash: string) => void;
   completeSettlement: (
     asset: VaultSettlementPayoutAsset,
     amount: string | null,
-    sepoliaTxHash?: string | null,
+    sepoliaTxHash?: string | null
   ) => void;
   markPendingSettlement: (error?: string | null) => void;
   markNeedsRetry: (error: string) => void;
@@ -120,6 +126,8 @@ const phases: VaultSettlementPhase[] = [
 const payoutAssets: VaultSettlementPayoutAsset[] = ['USDC', 'wUNIT', 'UNIT', 'TURBOUNIT'];
 
 export const initialVaultSettlementState: VaultSettlementState = {
+  accountIndex: null,
+  taprootAddress: null,
   kind: null,
   phase: 'idle',
   faceValueUsd: 0,
@@ -162,12 +170,14 @@ function stringOrNull(value: unknown): string | null {
 
 export function resolveVaultSettlementRequestedAsset(
   asset: VaultSettlementRequestedAsset,
-  allowUsdc: boolean,
+  allowUsdc: boolean
 ): VaultSettlementRequestedAsset {
   return asset === 'USDC' && !allowUsdc ? 'UNIT' : asset;
 }
 
-export function requiresVaultSettlementUnitSend(asset: VaultSettlementRequestedAsset | null | undefined): boolean {
+export function requiresVaultSettlementUnitSend(
+  asset: VaultSettlementRequestedAsset | null | undefined
+): boolean {
   return asset === 'USDC' || asset === 'TURBOUNIT';
 }
 
@@ -175,30 +185,49 @@ function finiteNonNegative(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
+function integerOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function isActiveSettlement(state: VaultSettlementState): boolean {
+  return state.phase !== 'idle' && state.phase !== 'settled' && state.kind !== null;
+}
+
+function isRecoveryCriticalPhase(phase: VaultSettlementPhase): boolean {
+  return phase !== 'idle' && phase !== 'settled';
+}
+
+export function shouldPreserveVaultSettlementRecovery(phase: VaultSettlementPhase): boolean {
+  return isRecoveryCriticalPhase(phase);
+}
+
 export function normalizeVaultSettlementPersistedState(
   value: unknown,
-  now = Date.now(),
+  now = Date.now()
 ): VaultSettlementState {
   if (!isRecord(value)) {
     return { ...initialVaultSettlementState };
   }
 
   const phase = isOneOf(value.phase, phases) ? value.phase : null;
-  const kind = value.kind === null || value.kind === undefined
-    ? null
-    : isOneOf(value.kind, settlementKinds)
-      ? value.kind
-      : null;
+  const kind =
+    value.kind === null || value.kind === undefined
+      ? null
+      : isOneOf(value.kind, settlementKinds)
+        ? value.kind
+        : null;
   const updatedAt = finiteNonNegative(value.updatedAt);
   const boundedUpdatedAt = updatedAt > now + 60_000 ? now : updatedAt;
   const isStale = boundedUpdatedAt > 0 && now - boundedUpdatedAt > VAULT_SETTLEMENT_PERSIST_TTL_MS;
 
-  if (!phase || isStale || (phase !== 'idle' && !kind)) {
+  if (!phase || (isStale && !isRecoveryCriticalPhase(phase)) || (phase !== 'idle' && !kind)) {
     return { ...initialVaultSettlementState };
   }
 
   return {
     ...initialVaultSettlementState,
+    accountIndex: integerOrNull(value.accountIndex),
+    taprootAddress: stringOrNull(value.taprootAddress),
     kind,
     phase,
     faceValueUsd: finiteNonNegative(value.faceValueUsd),
@@ -232,6 +261,8 @@ export function normalizeVaultSettlementPersistedState(
 
 function persistableState(state: VaultSettlementStore): VaultSettlementState {
   return {
+    accountIndex: state.accountIndex,
+    taprootAddress: state.taprootAddress,
     kind: state.kind,
     phase: state.phase,
     faceValueUsd: state.faceValueUsd,
@@ -273,14 +304,46 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
       return {
         ...initialVaultSettlementState,
 
-        startOperation: (kind, faceValueUsd, requestedPayoutAsset = 'UNIT') =>
+        startOperation: (kind, faceValueUsd, requestedPayoutAsset = 'UNIT', context = {}) => {
+          const current = useVaultSettlementStore.getState();
+          const nextAccountIndex = context.accountIndex ?? null;
+          const nextTaprootAddress = context.taprootAddress ?? null;
+
+          if (isActiveSettlement(current)) {
+            const accountMismatch =
+              current.accountIndex !== null &&
+              nextAccountIndex !== null &&
+              current.accountIndex !== nextAccountIndex;
+            const addressMismatch =
+              current.taprootAddress !== null &&
+              nextTaprootAddress !== null &&
+              current.taprootAddress !== nextTaprootAddress;
+
+            if (accountMismatch || addressMismatch) {
+              throw new Error('A vault settlement is still pending on another wallet account.');
+            }
+
+            if (
+              current.kind === kind &&
+              current.faceValueUsd === faceValueUsd &&
+              current.requestedPayoutAsset === requestedPayoutAsset
+            ) {
+              return;
+            }
+
+            throw new Error('A vault settlement is still pending. Resume or reset it before starting another.');
+          }
+
           update({
             ...initialVaultSettlementState,
+            accountIndex: nextAccountIndex,
+            taprootAddress: nextTaprootAddress,
             kind,
             faceValueUsd,
             requestedPayoutAsset,
             phase: 'quoting',
-          }),
+          });
+        },
 
         setQuote: (estimatedUsdcOut, minimumUsdcOut) =>
           update({
@@ -367,10 +430,20 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
         ...currentState,
         ...normalizeVaultSettlementPersistedState(persistedState),
       }),
-    },
-  ),
+    }
+  )
 );
 
 export const resetVaultSettlementStore = () => {
   useVaultSettlementStore.setState(initialVaultSettlementState);
+};
+
+export const persistVaultSettlementNow = async (): Promise<void> => {
+  await AsyncStorage.setItem(
+    VAULT_SETTLEMENT_STORAGE_KEY,
+    JSON.stringify({
+      state: persistableState(useVaultSettlementStore.getState()),
+      version: 1,
+    }),
+  );
 };

@@ -5,17 +5,37 @@
  * - CashuOperationsContext: operations (stable references)
  */
 
-import React,{ createContext,ReactNode,useCallback,useContext,useEffect,useMemo,useRef,useState } from 'react';
-import { AppState,InteractionManager } from 'react-native';
+import React, {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { AppState, InteractionManager } from 'react-native';
 import { useCashuBalance } from '../hooks/useCashuBalance';
 import { useCashuMelt } from '../hooks/useCashuMelt';
 import { useCashuMint } from '../hooks/useCashuMint';
 import { useCashuSendReceive } from '../hooks/useCashuSendReceive';
 import { saveSentLockedToken } from '../services/cashu/cashuLockedTokensService';
 import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
-import { checkAndRecoverSwaps } from '../services/cashu/cashuSwapRecovery';
+import { recoverFailedProofSaves } from '../services/cashu/cashuProofRecoveryQueue';
+import {
+  checkAndRecoverSwaps,
+  clearRecoveredOutgoingSwapToken,
+  loadRecoveredOutgoingSwapTokens,
+} from '../services/cashu/cashuSwapRecovery';
 import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
-import { clearWallet,sendP2PKToken,setCurrentAccount } from '../services/cashu/cashuWalletService';
+import {
+  clearWallet,
+  removeProofs,
+  removeSpentProofs,
+  sendP2PKToken,
+  setCurrentAccount,
+} from '../services/cashu/cashuWalletService';
 import { refreshPersistedTurboMintSettlementStatus } from '../services/vaultSettlementService';
 import type {
   MeltQuoteResult,
@@ -65,7 +85,10 @@ export interface CashuOperationsValue {
   checkAndCompleteMint: (quoteId: string) => Promise<MintCheckResult>;
   removePendingMint: (quoteId: string) => void;
   addPendingMint: (quoteId: string, amount: number) => void;
-  autoMint: (amountSats: number, onSuccess?: (data: AutoMintSuccessData) => void) => Promise<MintQuoteResult>;
+  autoMint: (
+    amountSats: number,
+    onSuccess?: (data: AutoMintSuccessData) => void
+  ) => Promise<MintQuoteResult>;
   receive: (token: string) => Promise<ReceiveTokenResult>;
   send: (amount: number) => Promise<SendTokenResult>;
   startMelt: (address: string, amount: number) => Promise<MeltQuoteResult>;
@@ -125,13 +148,9 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const prevWalletRef = useRef<typeof wallet | null>(null);
 
   // Balance management
-  const {
-    balance,
-    setBalance,
-    error,
-    setError,
-    fetchBalance,
-  } = useCashuBalance({ wallet: activeWallet });
+  const { balance, setBalance, error, setError, fetchBalance } = useCashuBalance({
+    wallet: activeWallet,
+  });
 
   // Mint operations
   const {
@@ -144,42 +163,50 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   } = useCashuMint({ fetchBalance, setIsLoading, setError });
 
   // Melt operations
-  const {
-    startMelt,
-    finishMelt,
-  } = useCashuMelt({ setIsLoading, setError, setBalance });
+  const { startMelt, finishMelt } = useCashuMelt({ setIsLoading, setError, setBalance });
 
   // Send/Receive operations
-  const {
-    receive,
-    send,
-  } = useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress: activeWallet?.taprootAddress });
+  const { receive, send } = useCashuSendReceive({
+    setIsLoading,
+    setError,
+    setBalance,
+    fetchBalance,
+    taprootAddress: activeWallet?.taprootAddress,
+  });
 
   /**
    * Add an externally-created mint quote to the pending mints list.
    * Used by the threshold conversion flow which creates its own quote
    * via useEcashThresholdManager but needs app-level polling to complete it.
    */
-  const addPendingMint = useCallback((quoteId: string, amount: number) => {
-    setPendingMints((prev) => {
-      // Don't add duplicates
-      if (prev.some(m => m.quoteId === quoteId)) {
-        logger.debug('[CashuContext] addPendingMint: already exists', { quoteId: quoteId.substring(0, 8) });
-        return prev;
-      }
-      logger.debug('[CashuContext] addPendingMint: adding to pending mints', { quoteId: quoteId.substring(0, 8), amount });
-      return [
-        ...prev,
-        {
-          quoteId,
+  const addPendingMint = useCallback(
+    (quoteId: string, amount: number) => {
+      setPendingMints((prev) => {
+        // Don't add duplicates
+        if (prev.some((m) => m.quoteId === quoteId)) {
+          logger.debug('[CashuContext] addPendingMint: already exists', {
+            quoteId: quoteId.substring(0, 8),
+          });
+          return prev;
+        }
+        logger.debug('[CashuContext] addPendingMint: adding to pending mints', {
+          quoteId: quoteId.substring(0, 8),
           amount,
-          depositAddress: '', // Not needed for completion polling
-          state: 'UNPAID',
-          createdAt: Date.now(),
-        },
-      ];
-    });
-  }, [setPendingMints]);
+        });
+        return [
+          ...prev,
+          {
+            quoteId,
+            amount,
+            depositAddress: '', // Not needed for completion polling
+            state: 'UNPAID',
+            createdAt: Date.now(),
+          },
+        ];
+      });
+    },
+    [setPendingMints]
+  );
 
   // Track wallet for reference (account switch reset is handled by useAccountSwitcher)
   useEffect(() => {
@@ -191,43 +218,146 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const foregroundRecoveryInFlightRef = useRef(false);
   const hasSeenAuthenticatedWalletRef = useRef(false);
 
-  const runTurboMintForegroundRecovery = useCallback(async (source: string) => {
-    if (!activeWallet?.taprootAddress || foregroundRecoveryInFlightRef.current) {
-      return;
-    }
-
-    foregroundRecoveryInFlightRef.current = true;
-    try {
-      logger.info('[CashuContext] Checking TurboUNIT mint recovery after foreground', { source });
-      const mintRecovery = await recoverUnclaimedMintQuotes();
-      const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
-
-      if (mintRecovery.recovered > 0 || turboMintSettlement.status === 'settled') {
-        await fetchBalance();
+  const recoverOutgoingSwapTokens = useCallback(
+    async (source: string): Promise<number> => {
+      const recoveredTokens = await loadRecoveredOutgoingSwapTokens();
+      if (recoveredTokens.length === 0) {
+        return 0;
       }
-    } catch (foregroundRecoveryError) {
-      logger.error('[CashuContext] TurboUNIT foreground recovery failed', {
+
+      let recovered = 0;
+      for (const recoveredToken of recoveredTokens) {
+        const recipient =
+          recoveredToken.recipient ||
+          (recoveredToken.kind === 'send' ? 'Recovered Cashu token' : 'Recovered P2PK token');
+
+        try {
+          await saveSentLockedToken(
+            recoveredToken.token,
+            recipient,
+            recoveredToken.amount,
+            null,
+            null,
+            recoveredToken.taprootAddress ?? activeWallet?.taprootAddress ?? null
+          );
+          if (recoveredToken.proofsToRemove?.length) {
+            await removeProofs(recoveredToken.proofsToRemove);
+          }
+          await clearRecoveredOutgoingSwapToken(recoveredToken.token);
+          recovered += 1;
+          logger.info('[CashuContext] Recovered outgoing Cashu token from swap journal', {
+            source,
+            kind: recoveredToken.kind,
+            amount: recoveredToken.amount,
+            hasRecipient: Boolean(recoveredToken.recipient),
+          });
+        } catch (error) {
+          logger.error('[CashuContext] Failed to recover outgoing Cashu token', {
+            source,
+            kind: recoveredToken.kind,
+            amount: recoveredToken.amount,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      return recovered;
+    },
+    [activeWallet?.taprootAddress]
+  );
+
+  const runTurboMintForegroundRecovery = useCallback(
+    async (source: string) => {
+      if (!activeWallet?.taprootAddress || foregroundRecoveryInFlightRef.current) {
+        return;
+      }
+
+      foregroundRecoveryInFlightRef.current = true;
+      try {
+        logger.info('[CashuContext] Checking TurboUNIT mint recovery after foreground', { source });
+        const proofSaveRecovery = await recoverFailedProofSaves();
+        const mintRecovery = await recoverUnclaimedMintQuotes();
+        const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
+        const outgoingTokenRecovery = await recoverOutgoingSwapTokens(source);
+
+        if (
+          proofSaveRecovery.recovered > 0 ||
+          mintRecovery.recovered > 0 ||
+          turboMintSettlement.status === 'settled' ||
+          outgoingTokenRecovery > 0
+        ) {
+          await fetchBalance();
+        }
+      } catch (foregroundRecoveryError) {
+        logger.error('[CashuContext] TurboUNIT foreground recovery failed', {
+          source,
+          error:
+            foregroundRecoveryError instanceof Error
+              ? foregroundRecoveryError.message
+              : String(foregroundRecoveryError),
+        });
+      } finally {
+        foregroundRecoveryInFlightRef.current = false;
+      }
+    },
+    [activeWallet?.taprootAddress, fetchBalance, recoverOutgoingSwapTokens]
+  );
+
+  const reconcileSpentProofs = useCallback(async (source: string) => {
+    try {
+      const cleanup = await removeSpentProofs();
+      if (cleanup.removed > 0) {
+        logger.info('[CashuContext] Removed spent Cashu proofs during recovery', {
+          source,
+          removed: cleanup.removed,
+          kept: cleanup.kept,
+        });
+      }
+      return cleanup;
+    } catch (spentProofError) {
+      logger.error('[CashuContext] Spent proof reconciliation failed', {
         source,
-        error: foregroundRecoveryError instanceof Error ? foregroundRecoveryError.message : String(foregroundRecoveryError),
+        error: spentProofError instanceof Error ? spentProofError.message : String(spentProofError),
       });
-    } finally {
-      foregroundRecoveryInFlightRef.current = false;
+      return { removed: 0, kept: 0 };
     }
-  }, [activeWallet?.taprootAddress, fetchBalance]);
+  }, []);
 
   useEffect(() => {
     if (recoveryChecked.current || !activeWallet?.taprootAddress) {
       return;
     }
-    recoveryChecked.current = true;
     let cancelled = false;
+    let recoveryStarted = false;
 
     const runRecovery = async () => {
+      if (recoveryChecked.current) {
+        return;
+      }
+      recoveryChecked.current = true;
+      recoveryStarted = true;
+
       try {
         // Check for pending swap recovery (proofs lost mid-swap)
         logger.info('[CashuContext] Checking for pending swap recovery...');
         await checkAndRecoverSwaps();
         if (cancelled) return;
+
+        await recoverOutgoingSwapTokens('startup');
+        if (cancelled) return;
+
+        await reconcileSpentProofs('startup');
+        if (cancelled) return;
+
+        logger.info('[CashuContext] Checking for failed proof save recovery...');
+        const proofSaveRecovery = await recoverFailedProofSaves();
+        if (cancelled) return;
+        if (proofSaveRecovery.recovered > 0) {
+          logger.info('[CashuContext] Recovered failed proof saves on startup', {
+            recovered: proofSaveRecovery.recovered,
+            totalAmount: proofSaveRecovery.totalAmountRecovered,
+          });
+        }
 
         // Check for unclaimed mint quotes (paid but not claimed)
         logger.info('[CashuContext] Checking for unclaimed mint quotes...');
@@ -290,13 +420,22 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     return () => {
       cancelled = true;
       task.cancel();
+      if (!recoveryStarted) {
+        recoveryChecked.current = false;
+      }
     };
-  }, [activeWallet?.taprootAddress, fetchBalance]);
+  }, [
+    activeWallet?.taprootAddress,
+    fetchBalance,
+    reconcileSpentProofs,
+    recoverOutgoingSwapTokens,
+  ]);
 
   useEffect(() => {
     let previousState = AppState.currentState;
     const subscription = AppState.addEventListener('change', (nextState) => {
-      const wasLockedOrBackgrounded = previousState === 'inactive' || previousState === 'background';
+      const wasLockedOrBackgrounded =
+        previousState === 'inactive' || previousState === 'background';
       previousState = nextState;
 
       if (wasLockedOrBackgrounded && nextState === 'active') {
@@ -345,6 +484,27 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
    */
   const refresh = useCallback(async () => {
     // First, check for any paid but unclaimed mint quotes
+    await reconcileSpentProofs('manual_refresh');
+
+    try {
+      logger.info('[CashuContext] Checking for failed proof save recovery...');
+      const proofSaveRecovery = await recoverFailedProofSaves();
+
+      if (proofSaveRecovery.recovered > 0) {
+        logger.info('[CashuContext] Recovered failed proof saves', {
+          recovered: proofSaveRecovery.recovered,
+          totalAmount: proofSaveRecovery.totalAmountRecovered,
+        });
+      }
+    } catch (proofSaveRecoveryError) {
+      logger.error('[CashuContext] Failed proof save recovery failed', {
+        error:
+          proofSaveRecoveryError instanceof Error
+            ? proofSaveRecoveryError.message
+            : String(proofSaveRecoveryError),
+      });
+    }
+
     try {
       logger.info('[CashuContext] Checking for unclaimed mint quotes...');
       const recoveryResult = await recoverUnclaimedMintQuotes();
@@ -357,7 +517,10 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       }
     } catch (mintQuoteRecoveryError) {
       logger.error('[CashuContext] Mint quote recovery failed', {
-        error: mintQuoteRecoveryError instanceof Error ? mintQuoteRecoveryError.message : String(mintQuoteRecoveryError),
+        error:
+          mintQuoteRecoveryError instanceof Error
+            ? mintQuoteRecoveryError.message
+            : String(mintQuoteRecoveryError),
       });
     }
 
@@ -370,105 +533,152 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       }
     } catch (turboMintSettlementError) {
       logger.error('[CashuContext] TurboUNIT vault settlement recovery failed', {
-        error: turboMintSettlementError instanceof Error ? turboMintSettlementError.message : String(turboMintSettlementError),
+        error:
+          turboMintSettlementError instanceof Error
+            ? turboMintSettlementError.message
+            : String(turboMintSettlementError),
       });
     }
 
     // Also check for swap recovery
     try {
       await checkAndRecoverSwaps();
+      await recoverOutgoingSwapTokens('manual_refresh');
     } catch (swapRecoveryError) {
       logger.error('[CashuContext] Swap recovery failed during refresh', {
-        error: swapRecoveryError instanceof Error ? swapRecoveryError.message : String(swapRecoveryError),
+        error:
+          swapRecoveryError instanceof Error
+            ? swapRecoveryError.message
+            : String(swapRecoveryError),
       });
     }
 
     // Finally, refresh balance
     await fetchBalance();
-  }, [fetchBalance]);
+  }, [fetchBalance, reconcileSpentProofs, recoverOutgoingSwapTokens]);
 
   /**
    * Reset and refresh for account switching
    * Called by useAccountSwitcher to ensure clean state
    */
-  const resetAndRefresh = useCallback(async (newTaprootAddress?: string) => {
-    // Reset state immediately (synchronous) for snappy UI
-    setBalance(0);
-    setPendingMints([]);
-    setError(null);
+  const resetAndRefresh = useCallback(
+    async (newTaprootAddress?: string) => {
+      // Reset state immediately (synchronous) for snappy UI
+      setBalance(0);
+      setPendingMints([]);
+      setError(null);
 
-    // CRITICAL: Set the current account BEFORE fetching balance
-    // This ensures we read from the correct storage key
-    if (newTaprootAddress) {
-      setCurrentAccount(newTaprootAddress);
-      logger.debug('[CashuContext] resetAndRefresh: Set current account to', { address: newTaprootAddress.substring(0, 20) + '...' });
-    }
+      // CRITICAL: Set the current account BEFORE fetching balance
+      // This ensures we read from the correct storage key
+      if (newTaprootAddress) {
+        await setCurrentAccount(newTaprootAddress);
+        logger.debug('[CashuContext] resetAndRefresh: Set current account to', {
+          address: newTaprootAddress.substring(0, 20) + '...',
+        });
+      }
 
-    // Then fetch fresh balance from the correct account
-    await fetchBalance();
-  }, [setBalance, setPendingMints, setError, fetchBalance]);
+      // Then fetch fresh balance from the correct account
+      await fetchBalance();
+    },
+    [setBalance, setPendingMints, setError, fetchBalance]
+  );
 
   // Memoize balance context value (changes frequently)
-  const balanceValue = useMemo((): CashuBalanceValue => ({
-    balance,
-    isLoading,
-    error,
-    pendingMints: pendingMints as PendingMint[],
-  }), [balance, isLoading, error, pendingMints]);
+  const balanceValue = useMemo(
+    (): CashuBalanceValue => ({
+      balance,
+      isLoading,
+      error,
+      pendingMints: pendingMints as PendingMint[],
+    }),
+    [balance, isLoading, error, pendingMints]
+  );
 
   // Tracked wrappers for analytics
-  const trackedStartMint = useCallback(async (amount: number) => {
-    analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount });
-    return startMint(amount);
-  }, [startMint]);
+  const trackedStartMint = useCallback(
+    async (amount: number) => {
+      analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount });
+      return startMint(amount);
+    },
+    [startMint]
+  );
 
-  const trackedCheckAndCompleteMint = useCallback(async (quoteId: string) => {
-    const result = await checkAndCompleteMint(quoteId);
-    if (result.completed) analytics.track(CASHU_EVENTS.CASHU_MINT_COMPLETED, { amount: result.amount });
-    return result;
-  }, [checkAndCompleteMint]);
+  const trackedCheckAndCompleteMint = useCallback(
+    async (quoteId: string) => {
+      const result = await checkAndCompleteMint(quoteId);
+      if (result.completed)
+        analytics.track(CASHU_EVENTS.CASHU_MINT_COMPLETED, { amount: result.amount });
+      return result;
+    },
+    [checkAndCompleteMint]
+  );
 
-  const trackedReceive = useCallback(async (token: string) => {
-    const result = await receive(token);
-    analytics.track(CASHU_EVENTS.CASHU_TOKEN_RECEIVED);
-    return result;
-  }, [receive]);
+  const trackedReceive = useCallback(
+    async (token: string) => {
+      const result = await receive(token);
+      analytics.track(CASHU_EVENTS.CASHU_TOKEN_RECEIVED);
+      return result;
+    },
+    [receive]
+  );
 
-  const trackedSend = useCallback(async (amount: number) => {
-    const result = await send(amount);
-    analytics.track(CASHU_EVENTS.CASHU_TOKEN_SENT, { amount });
-    return result;
-  }, [send]);
+  const trackedSend = useCallback(
+    async (amount: number) => {
+      const result = await send(amount);
+      analytics.track(CASHU_EVENTS.CASHU_TOKEN_SENT, { amount });
+      return result;
+    },
+    [send]
+  );
 
-  const trackedStartMelt = useCallback(async (address: string, amount: number) => {
-    analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount });
-    return startMelt(address, amount);
-  }, [startMelt]);
+  const trackedStartMelt = useCallback(
+    async (address: string, amount: number) => {
+      analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount });
+      return startMelt(address, amount);
+    },
+    [startMelt]
+  );
 
-  const trackedFinishMelt = useCallback(async (quoteId: string, totalAmount: number) => {
-    const result = await finishMelt(quoteId, totalAmount);
-    analytics.track(CASHU_EVENTS.CASHU_MELT_COMPLETED, { amount: totalAmount });
-    return result;
-  }, [finishMelt]);
+  const trackedFinishMelt = useCallback(
+    async (quoteId: string, totalAmount: number) => {
+      const result = await finishMelt(quoteId, totalAmount);
+      analytics.track(CASHU_EVENTS.CASHU_MELT_COMPLETED, { amount: totalAmount });
+      return result;
+    },
+    [finishMelt]
+  );
 
   // Memoize operations context value (stable references)
-  const operationsValue = useMemo((): CashuOperationsValue => ({
-    startMint: trackedStartMint,
-    checkAndCompleteMint: trackedCheckAndCompleteMint,
-    removePendingMint,
-    addPendingMint,
-    autoMint,
-    receive: trackedReceive,
-    send: trackedSend,
-    startMelt: trackedStartMelt,
-    finishMelt: trackedFinishMelt,
-    refresh,
-    resetAndRefresh,
-    reset,
-  }), [
-    trackedStartMint, trackedCheckAndCompleteMint, removePendingMint, addPendingMint, autoMint,
-    trackedReceive, trackedSend, trackedStartMelt, trackedFinishMelt, refresh, resetAndRefresh, reset,
-  ]);
+  const operationsValue = useMemo(
+    (): CashuOperationsValue => ({
+      startMint: trackedStartMint,
+      checkAndCompleteMint: trackedCheckAndCompleteMint,
+      removePendingMint,
+      addPendingMint,
+      autoMint,
+      receive: trackedReceive,
+      send: trackedSend,
+      startMelt: trackedStartMelt,
+      finishMelt: trackedFinishMelt,
+      refresh,
+      resetAndRefresh,
+      reset,
+    }),
+    [
+      trackedStartMint,
+      trackedCheckAndCompleteMint,
+      removePendingMint,
+      addPendingMint,
+      autoMint,
+      trackedReceive,
+      trackedSend,
+      trackedStartMelt,
+      trackedFinishMelt,
+      refresh,
+      resetAndRefresh,
+      reset,
+    ]
+  );
 
   return (
     <CashuBalanceContext.Provider value={balanceValue}>
