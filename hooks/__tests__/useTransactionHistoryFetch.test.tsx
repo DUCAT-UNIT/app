@@ -6,9 +6,22 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTransactionHistoryFetch } from '../useTransactionHistoryFetch';
 import * as transactionHistoryService from '../../services/transactionHistoryService';
+import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 
 // Mock transaction history service
 jest.mock('../../services/transactionHistoryService');
+
+const mockConfirmTransaction = jest.fn();
+const mockPendingTransactionsState = jest.fn(() => ({
+  pendingTransactions: {},
+  confirmTransaction: mockConfirmTransaction,
+}));
+
+jest.mock('../../stores/pendingTransactionsStore', () => ({
+  usePendingTransactionsStore: {
+    getState: () => mockPendingTransactionsState(),
+  },
+}));
 
 // Helper to render hooks
 function renderHook<T>(hook: () => T) {
@@ -37,6 +50,10 @@ describe('useTransactionHistoryFetch', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPendingTransactionsState.mockReturnValue({
+      pendingTransactions: {},
+      confirmTransaction: mockConfirmTransaction,
+    });
   });
 
   afterEach(() => {
@@ -67,7 +84,9 @@ describe('useTransactionHistoryFetch', () => {
       },
     ];
 
-    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(mockHistory);
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(
+      mockHistory
+    );
 
     const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
 
@@ -139,7 +158,9 @@ describe('useTransactionHistoryFetch', () => {
       },
     ];
 
-    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(mockHistory);
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(
+      mockHistory
+    );
 
     const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
 
@@ -176,7 +197,9 @@ describe('useTransactionHistoryFetch', () => {
       },
     ];
 
-    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(pendingHistory);
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(
+      pendingHistory
+    );
 
     const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
 
@@ -188,13 +211,50 @@ describe('useTransactionHistoryFetch', () => {
     expect(result.current!.transactionHistory[0].status.confirmed).toBe(false);
 
     // Second fetch - transaction now confirmed
-    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(confirmedHistory);
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue(
+      confirmedHistory
+    );
 
     await act(async () => {
       await result.current!.fetchTransactionHistory();
     });
 
     expect(result.current!.transactionHistory[0].status.confirmed).toBe(true);
+  });
+
+  it('should remove matching pending store transactions when history confirms them', async () => {
+    mockConfirmTransaction.mockResolvedValue(undefined);
+    mockPendingTransactionsState.mockReturnValue({
+      pendingTransactions: {
+        tx1: {
+          txid: 'tx1',
+          outputs: [],
+          parentTxid: null,
+          assetType: 'BTC',
+          status: 'pending',
+          timestamp: 123,
+        },
+      },
+      confirmTransaction: mockConfirmTransaction,
+    });
+
+    (transactionHistoryService.fetchAllTransactionHistory as jest.Mock).mockResolvedValue([
+      {
+        txid: 'tx1',
+        status: { confirmed: true, block_height: 100 },
+        value: 100000,
+      },
+    ]);
+
+    const { result } = renderHook(() => useTransactionHistoryFetch(mockWallet));
+
+    await act(async () => {
+      await result.current!.fetchTransactionHistory();
+      await Promise.resolve();
+    });
+
+    expect(usePendingTransactionsStore.getState().pendingTransactions).toHaveProperty('tx1');
+    expect(mockConfirmTransaction).toHaveBeenCalledWith('tx1');
   });
 
   it('should clear error on successful fetch after error', async () => {
@@ -227,9 +287,7 @@ describe('useTransactionHistoryFetch', () => {
   it('should allow retry when a previous history request is stale', async () => {
     let now = 1_000;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
-    const freshHistory = [
-      { txid: 'fresh-tx', status: { confirmed: true, block_height: 123 } },
-    ];
+    const freshHistory = [{ txid: 'fresh-tx', status: { confirmed: true, block_height: 123 } }];
 
     (transactionHistoryService.fetchAllTransactionHistory as jest.Mock)
       .mockReturnValueOnce(new Promise(() => undefined))

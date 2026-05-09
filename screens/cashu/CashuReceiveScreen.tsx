@@ -71,17 +71,28 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'choose') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-screen">
-        <Header title="Receive Turbo UNIT" onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
+        <Header
+          title="Receive Turbo UNIT"
+          onBack={() => navigation.goBack()}
+          testID="cashu-receive-header"
+          backTestID="cashu-receive-back-btn"
+        />
         <View style={styles.choiceContainer}>
-          <TouchableScale style={styles.choiceCard} onPress={() => setMode('mint')} testID="cashu-receive-mint-btn">
+          <TouchableScale
+            style={styles.choiceCard}
+            onPress={() => setMode('mint')}
+            testID="cashu-receive-mint-btn"
+          >
             <Icon name="btc_logo" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Mint from Runes</Text>
-            <Text style={styles.choiceDesc}>
-              Deposit UNIT runes to mint Turbo UNIT
-            </Text>
+            <Text style={styles.choiceDesc}>Deposit UNIT runes to mint Turbo UNIT</Text>
           </TouchableScale>
 
-          <TouchableScale style={styles.choiceCard} onPress={() => setMode('receive')} testID="cashu-receive-token-btn">
+          <TouchableScale
+            style={styles.choiceCard}
+            onPress={() => setMode('receive')}
+            testID="cashu-receive-token-btn"
+          >
             <Icon name="qr_code" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Receive Token</Text>
             <Text style={styles.choiceDesc}>
@@ -97,7 +108,12 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'mint' && mintQuote) {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-qr-screen">
-        <Header title="Deposit Runes" onBack={resetMintQuote} testID="cashu-mint-qr-header" backTestID="cashu-mint-qr-back-btn" />
+        <Header
+          title="Deposit Runes"
+          onBack={resetMintQuote}
+          testID="cashu-mint-qr-header"
+          backTestID="cashu-mint-qr-back-btn"
+        />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.qrContainer} testID="cashu-mint-qr-code">
             <QRCode
@@ -128,14 +144,14 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
                 {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
             </View>
-            <Text style={styles.addressText} testID="cashu-mint-address">{mintQuote.depositAddress}</Text>
+            <Text style={styles.addressText} testID="cashu-mint-address">
+              {mintQuote.depositAddress}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.waitingContainer} testID="cashu-mint-waiting">
             <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.waitingText}>
-              Waiting for deposit confirmation...
-            </Text>
+            <Text style={styles.waitingText}>Waiting for deposit confirmation...</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -146,7 +162,12 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'mint') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-screen">
-        <Header title="Mint Turbo UNIT" onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
+        <Header
+          title="Mint Turbo UNIT"
+          onBack={() => setMode('choose')}
+          testID="cashu-mint-header"
+          backTestID="cashu-mint-back-btn"
+        />
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Amount (sats)</Text>
           <View style={styles.inputWrapper}>
@@ -175,7 +196,8 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
           </TouchableScale>
 
           <Text style={styles.helpText}>
-            This will send UNIT to the mint and automatically issue Turbo UNIT once the transaction confirms.
+            This will send UNIT to the mint and automatically issue Turbo UNIT once the transaction
+            confirms.
           </Text>
         </View>
       </SafeAreaView>
@@ -185,7 +207,12 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   // Receive mode
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-token-screen">
-      <Header title="Receive Token" onBack={() => setMode('choose')} testID="cashu-receive-token-header" backTestID="cashu-receive-token-back-btn" />
+      <Header
+        title="Receive Token"
+        onBack={() => setMode('choose')}
+        testID="cashu-receive-token-header"
+        backTestID="cashu-receive-token-back-btn"
+      />
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Turbo UNIT Token</Text>
         <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
@@ -217,7 +244,8 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
         </TouchableScale>
 
         <Text style={styles.helpText}>
-          You can also scan QR codes with your phone's camera app, then copy the token and paste it here.
+          You can also scan QR codes with your phone's camera app, then copy the token and paste it
+          here.
         </Text>
 
         <TouchableScale
@@ -259,7 +287,7 @@ function Header({ title, onBack, testID, backTestID }: HeaderProps): React.JSX.E
   return (
     <View style={styles.header} testID={testID}>
       <TouchableOpacity onPress={onBack} testID={backTestID}>
-        <Icon name="arrow_left" size={24} color={COLORS.TEXT_PRIMARY} />
+        <Icon name="back" size={24} color={COLORS.TEXT_PRIMARY} />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>{title}</Text>
       <View style={{ width: 24 }} />

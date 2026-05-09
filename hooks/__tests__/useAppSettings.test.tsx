@@ -5,6 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 import * as biometricService from '../../services/biometricService';
 import { useAppSettings, type UseAppSettingsParams } from '../useAppSettings';
 import { notify } from '../../utils/notify';
@@ -72,6 +73,7 @@ describe('useAppSettings', () => {
     jest.clearAllMocks();
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(null);
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
     (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
   });
 
@@ -100,6 +102,20 @@ describe('useAppSettings', () => {
 
       expect(result.current!.notificationsEnabled).toBe(true);
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith('notificationsEnabled');
+    });
+
+    it('should migrate notifications to enabled when OS permission is already granted and no preference exists', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(result.current!.notificationsEnabled).toBe(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
     });
 
     it('should load showZeroAssets from SecureStore', async () => {
@@ -235,9 +251,15 @@ describe('useAppSettings', () => {
     });
 
     it('should enable notifications when biometric auth succeeds', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({
+        success: true,
+      });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       act(() => {
         result.current!.handleNotificationsToggle();
@@ -258,7 +280,9 @@ describe('useAppSettings', () => {
     });
 
     it('should redirect to PIN when biometric auth fails', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: false });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({
+        success: false,
+      });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -277,7 +301,9 @@ describe('useAppSettings', () => {
     });
 
     it('should handle biometric authentication errors', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(
+        new Error('Auth error')
+      );
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -294,7 +320,9 @@ describe('useAppSettings', () => {
     });
 
     it('should not crash when notify is not available on auth error', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(
+        new Error('Auth error')
+      );
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -439,8 +467,12 @@ describe('useAppSettings', () => {
       });
 
       // Functions should remain stable due to useCallback/useMemo
-      expect(result.current!.handleNotificationsToggle).toBe(firstResult!.handleNotificationsToggle);
-      expect(result.current!.cancelNotificationsToggle).toBe(firstResult!.cancelNotificationsToggle);
+      expect(result.current!.handleNotificationsToggle).toBe(
+        firstResult!.handleNotificationsToggle
+      );
+      expect(result.current!.cancelNotificationsToggle).toBe(
+        firstResult!.cancelNotificationsToggle
+      );
     });
   });
 
@@ -619,7 +651,6 @@ describe('useAppSettings', () => {
     });
 
     it('should not crash when notify is not available on error', async () => {
-
       const { result } = renderHook(() => useAppSettings(mockProps));
 
       // Should not throw even when dynamic import fails and showToast is undefined
@@ -650,7 +681,6 @@ describe('useAppSettings', () => {
     });
 
     it('should show error notification when dynamic import fails', async () => {
-
       const { result } = renderHook(() => useAppSettings(mockProps));
 
       await act(async () => {

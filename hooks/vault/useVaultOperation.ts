@@ -34,6 +34,7 @@ import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
+import { getNotificationsEnabled } from '../../services/settingsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import {
   getPendingVaultOperationMessage,
@@ -426,8 +427,10 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         operation: operationName,
       });
 
-      // Register vault TX for push-notification monitoring (fire-and-forget)
-      watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
+      // Register vault TX for push-notification monitoring only when explicitly enabled.
+      if (await getNotificationsEnabled()) {
+        void watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
+      }
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {

@@ -5,7 +5,13 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getNotificationsEnabled } from '../services/settingsService';
+import * as Notifications from 'expo-notifications';
+import {
+  exists,
+  getNotificationsEnabled,
+  setNotificationsEnabled as persistNotificationsEnabled,
+  SettingKeys,
+} from '../services/settingsService';
 
 interface UseNotificationsPreferenceReturn {
   notificationsEnabled: boolean;
@@ -23,7 +29,18 @@ export function useNotificationsPreference(): UseNotificationsPreferenceReturn {
   useEffect(() => {
     const loadNotificationsPreference = async () => {
       try {
-        setNotificationsEnabled(await getNotificationsEnabled());
+        const hasStoredPreference = await exists(SettingKeys.NOTIFICATIONS_ENABLED);
+        let enabled = await getNotificationsEnabled();
+
+        if (!hasStoredPreference) {
+          const permissions = await Notifications.getPermissionsAsync();
+          if (permissions.status === 'granted') {
+            enabled = true;
+            await persistNotificationsEnabled(true);
+          }
+        }
+
+        setNotificationsEnabled(enabled);
       } finally {
         setIsLoading(false);
       }
