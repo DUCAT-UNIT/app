@@ -62,6 +62,8 @@ const withdrawSpecificInitialState: WithdrawSpecificState = {
   withdrawAmountSats: 0,
 };
 
+const MAX_WITHDRAW_HEALTH_BUFFER_SATS = 1_000;
+
 export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
   'withdraw',
   (set, get, { initialState }) => ({
@@ -130,7 +132,9 @@ export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
 
       // Max withdrawable is current - minimum (in sats)
       const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-      return Math.floor(maxWithdrawableBtc * 100_000_000);
+      const maxWithdrawableSats = Math.floor(maxWithdrawableBtc * 100_000_000);
+
+      return Math.max(0, maxWithdrawableSats - MAX_WITHDRAW_HEALTH_BUFFER_SATS);
     },
 
     // Override reset to include withdraw-specific state

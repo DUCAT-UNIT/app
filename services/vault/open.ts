@@ -5,12 +5,14 @@
 import type {
   GuardianSocket,
   UnitAccountResponse,
+  VaultOpenCtx,
   VaultWallet,
   WalletVaultOpenConfig,
   WalletVaultOpenRequest,
 } from '@ducat-unit/client-sdk';
+import { VaultAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
-import { VAULT_CONFIG } from '../../utils/constants';
+import { BITCOIN_TX, VAULT_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { withGuardianTimeout } from '../guardianService';
@@ -26,6 +28,89 @@ export interface CreateVaultReqOptions {
   isMaxDeposit: boolean;
   liquidationPrice: number;
   utxos?: Utxo[];
+}
+
+const MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS = 50_000;
+
+function isInsufficientSatsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /insufficient sats/i.test(message);
+}
+
+function createOpenCtx(
+  wallet: VaultWallet,
+  acctRes: UnitAccountResponse,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  vaultConfig: WalletVaultOpenConfig
+): VaultOpenCtx {
+  return wallet.vault.open.ctx(acctRes.mint_account, oracleQuote, vaultConfig);
+}
+
+function getOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): number {
+  return VaultAPI.open.get_change(vaultCtx as never, utxos as never);
+}
+
+function assertOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): void {
+  const changeSats = getOpenChange(vaultCtx, utxos);
+
+  if (changeSats < 0) {
+    throw new Error(
+      'Not enough BTC to cover the vault deposit and transaction fee. Try a slightly smaller deposit.'
+    );
+  }
+
+  if (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT) {
+    throw new Error('Vault deposit would leave dust change. Try a slightly smaller amount.');
+  }
+}
+
+function isSameUtxoSet(first: Utxo[], second: Utxo[]): boolean {
+  if (first.length !== second.length) return false;
+
+  const key = (utxo: Utxo): string => `${utxo.txid}:${utxo.vout}:${utxo.value}`;
+  const firstKeys = new Set(first.map(key));
+  return second.every((utxo) => firstKeys.has(key(utxo)));
+}
+
+function resolveOpenContext(
+  wallet: VaultWallet,
+  acctRes: UnitAccountResponse,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  vaultConfig: WalletVaultOpenConfig,
+  utxos: Utxo[],
+  isMaxDeposit: boolean
+): VaultOpenCtx {
+  let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
+  const changeSats = getOpenChange(vaultCtx, utxos);
+
+  if (changeSats < 0 || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
+    const requestedAmount = vaultConfig.deposit_amount;
+    const zeroDepositCtx = createOpenCtx(wallet, acctRes, oracleQuote, {
+      ...vaultConfig,
+      deposit_amount: 0,
+    });
+    const maxSafeDeposit = Math.floor(getOpenChange(zeroDepositCtx, utxos));
+    const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
+    const canAutoAdjust =
+      isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;
+
+    if (maxSafeDeposit > 0 && canAutoAdjust) {
+      vaultConfig.deposit_amount = maxSafeDeposit;
+      vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
+      assertOpenChange(vaultCtx, utxos);
+      logger.info('[VaultOps] Adjusted near-max vault open deposit to exact safe amount', {
+        requestedAmount,
+        adjustedAmount: maxSafeDeposit,
+        adjustmentSats,
+        previousChangeSats: changeSats,
+        utxoCount: utxos.length,
+      });
+      return vaultCtx;
+    }
+  }
+
+  assertOpenChange(vaultCtx, utxos);
+  return vaultCtx;
 }
 
 /**
@@ -106,23 +191,63 @@ export async function createVaultReqOpen(
     // Fetch oracle price quote (staleness enforced in service)
     const oracleQuote = await fetchPriceQuote(options.liquidationPrice);
 
-    // Create vault context
-    const vaultCtx = wallet.vault.open.ctx(
-      acctRes.mint_account,
-      oracleQuote,
-      vaultConfig
-    );
+    let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
 
     // Get UTXOs for the transaction
     let utxos = options.utxos;
-    if (!options.isMaxDeposit && !utxos) {
+    if (!utxos) {
       const txQuote = wallet.vault.open.quote(vaultCtx);
       const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * options.feeRate;
-      utxos = await wallet.fetch.sats_utxos(costWithVins);
+      try {
+        utxos = options.isMaxDeposit
+          ? await wallet.fetch.sats_utxos()
+          : await wallet.fetch.sats_utxos(costWithVins);
+      } catch (error) {
+        if (!isInsufficientSatsError(error)) {
+          throw error;
+        }
+        utxos = await wallet.fetch.sats_utxos();
+      }
     }
 
     if (!utxos || utxos.length === 0) {
       throw new Error('No UTXOs available for vault deposit');
+    }
+
+    try {
+      vaultCtx = resolveOpenContext(
+        wallet,
+        acctRes,
+        oracleQuote,
+        vaultConfig,
+        utxos,
+        options.isMaxDeposit
+      );
+    } catch (error) {
+      if (options.utxos) {
+        throw error;
+      }
+
+      const allUtxos = await wallet.fetch.sats_utxos();
+      if (allUtxos.length === 0 || isSameUtxoSet(utxos, allUtxos)) {
+        throw error;
+      }
+
+      vaultCtx = resolveOpenContext(
+        wallet,
+        acctRes,
+        oracleQuote,
+        vaultConfig,
+        allUtxos,
+        options.isMaxDeposit
+      );
+      logger.debug('[VaultOps] Retried vault open with all BTC UTXOs', {
+        previousUtxoCount: utxos.length,
+        allUtxoCount: allUtxos.length,
+        depositAmount: vaultConfig.deposit_amount,
+        changeSats: getOpenChange(vaultCtx, allUtxos),
+      });
+      utxos = allUtxos;
     }
 
     // Check if batch signing is allowed (native segwit addresses)

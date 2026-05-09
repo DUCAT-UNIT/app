@@ -22,6 +22,9 @@ jest.mock('@ducat-unit/client-sdk', () => ({
     deposit: {
       get_change: jest.fn(() => 1_000),
     },
+    open: {
+      get_change: jest.fn(() => 1_000),
+    },
   },
 }));
 
@@ -978,6 +981,64 @@ describe('Vault Request Creation', () => {
       );
     });
 
+    it('should adjust a near-max vault open deposit to the exact safe amount', async () => {
+      const { createVaultReqOpen } = require('../open');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+      const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
+      fetchPriceQuote.mockResolvedValue(mockOracleQuote);
+
+      const getChange = VaultAPI.open.get_change as jest.Mock;
+      getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
+        if (ctx.deposit_amount === 10_000) return -250;
+        if (ctx.deposit_amount === 0) return 9_750;
+        if (ctx.deposit_amount === 9_750) return 0;
+        return 1_000;
+      });
+
+      try {
+        const mockWallet = {
+          vault: {
+            open: {
+              ctx: jest.fn((_acct, _quote, config) => ({ ...config })),
+              quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
+              req: jest.fn().mockResolvedValue({
+                issue_txid: 'open_issue',
+                vault_txid: 'open_vault',
+                issue_txhex: '0200000001',
+                vault_txhex: '0200000002',
+              }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10_000 }]),
+          },
+          acct: {
+            sats: { address: 'tb1qtest' },
+          },
+        };
+
+        const vaultConfig = {
+          borrow_amount: 1_000,
+          deposit_amount: 10_000,
+          vault_label: 'test',
+          tx_feerate: 5,
+        };
+        const acctRes = { mint_account: 'mint_open' };
+        const options = { feeRate: 5, isMaxDeposit: false, liquidationPrice: 45_000 };
+
+        await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
+
+        expect(vaultConfig.deposit_amount).toBe(9_750);
+        expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
+          expect.objectContaining({ deposit_amount: 9_750 }),
+          [{ txid: 'utxo1', vout: 0, value: 10_000 }],
+          true
+        );
+      } finally {
+        getChange.mockReturnValue(1_000);
+      }
+    });
+
     it('should handle errors during vault creation', async () => {
       const { createVaultReqOpen } = require('../open');
       const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
@@ -1236,6 +1297,47 @@ describe('Vault Request Creation', () => {
 
       // Should NOT call fetch.sats_utxos since utxos were provided
       expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+    });
+
+    it('should adjust a near-max vault deposit to the exact safe amount', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+
+      const getChange = VaultAPI.deposit.get_change as jest.Mock;
+      getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
+        if (ctx.deposit_amount === 10_000) return -250;
+        if (ctx.deposit_amount === 0) return 9_750;
+        if (ctx.deposit_amount === 9_750) return 0;
+        return 1_000;
+      });
+
+      try {
+        const mockWallet = {
+          vault: {
+            deposit: {
+              ctx: jest.fn((_quote, _profile, config) => ({ ...config })),
+              quote: jest.fn().mockReturnValue({ total_cost: 500 }),
+              req: jest.fn().mockResolvedValue({ vault_txid: 'deposit_vault' }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10_000 }]),
+          },
+        };
+
+        const depositConfig = { deposit_amount: 10_000, tx_feerate: 5 };
+        const options = { feeRate: 5, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+        await createVaultReqDeposit(mockWallet as any, depositConfig, options);
+
+        expect(depositConfig.deposit_amount).toBe(9_750);
+        expect(mockWallet.vault.deposit.req).toHaveBeenCalledWith(
+          expect.objectContaining({ deposit_amount: 9_750 }),
+          [{ txid: 'utxo1', vout: 0, value: 10_000 }]
+        );
+      } finally {
+        getChange.mockReturnValue(1_000);
+      }
     });
 
     it('should handle errors during deposit request creation', async () => {

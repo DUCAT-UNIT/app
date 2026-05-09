@@ -76,6 +76,16 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(23_400_000);
+    expect(result.current!.maxWithdrawable).toBe(23_399_000);
+  });
+
+  it('should not offer a dust max withdraw that sits on the health boundary', () => {
+    act(() => {
+      useWithdrawStore.getState().setCurrentVaultData(5001, 0.09963611);
+      useWithdrawStore.getState().setBitcoinPrice(80326);
+    });
+
+    const { result } = renderHook(() => useWithdraw());
+    expect(result.current!.maxWithdrawable).toBe(1203);
   });
 });

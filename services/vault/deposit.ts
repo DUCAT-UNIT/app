@@ -31,6 +31,8 @@ export interface CreateDepositReqOptions {
   utxos?: Utxo[];
 }
 
+const MAX_AUTO_ADJUST_DEPOSIT_SATS = 50_000;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -41,6 +43,15 @@ function isInsufficientSatsError(error: unknown): boolean {
 
 function getDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): number {
   return VaultAPI.deposit.get_change(vaultCtx as never, utxos as never);
+}
+
+function createDepositCtx(
+  wallet: VaultWallet,
+  oracleQuote: PriceQuote,
+  vaultProfile: VaultProfile,
+  depositConfig: WalletVaultDepositConfig
+): VaultDepositCtx {
+  return wallet.vault.deposit.ctx(oracleQuote, vaultProfile, depositConfig);
 }
 
 function assertDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): void {
@@ -55,6 +66,55 @@ function assertDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): void {
   if (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT) {
     throw new Error('Deposit would leave dust change. Try a slightly smaller amount.');
   }
+}
+
+function isSameUtxoSet(first: Utxo[], second: Utxo[]): boolean {
+  if (first.length !== second.length) return false;
+
+  const key = (utxo: Utxo): string => `${utxo.txid}:${utxo.vout}:${utxo.value}`;
+  const firstKeys = new Set(first.map(key));
+  return second.every((utxo) => firstKeys.has(key(utxo)));
+}
+
+function resolveDepositContext(
+  wallet: VaultWallet,
+  oracleQuote: PriceQuote,
+  vaultProfile: VaultProfile,
+  depositConfig: WalletVaultDepositConfig,
+  utxos: Utxo[],
+  isMaxAmount: boolean | undefined
+): VaultDepositCtx {
+  let vaultCtx = createDepositCtx(wallet, oracleQuote, vaultProfile, depositConfig);
+  const changeSats = getDepositChange(vaultCtx, utxos);
+
+  if (changeSats < 0 || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
+    const requestedAmount = depositConfig.deposit_amount;
+    const zeroDepositCtx = createDepositCtx(wallet, oracleQuote, vaultProfile, {
+      ...depositConfig,
+      deposit_amount: 0,
+    });
+    const maxSafeDeposit = Math.floor(getDepositChange(zeroDepositCtx, utxos));
+    const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
+    const canAutoAdjust =
+      Boolean(isMaxAmount) || adjustmentSats <= MAX_AUTO_ADJUST_DEPOSIT_SATS;
+
+    if (maxSafeDeposit > 0 && canAutoAdjust) {
+      depositConfig.deposit_amount = maxSafeDeposit;
+      vaultCtx = createDepositCtx(wallet, oracleQuote, vaultProfile, depositConfig);
+      assertDepositChange(vaultCtx, utxos);
+      logger.info('[VaultOps] Adjusted near-max deposit to exact safe amount', {
+        requestedAmount,
+        adjustedAmount: maxSafeDeposit,
+        adjustmentSats,
+        previousChangeSats: changeSats,
+        utxoCount: utxos.length,
+      });
+      return vaultCtx;
+    }
+  }
+
+  assertDepositChange(vaultCtx, utxos);
+  return vaultCtx;
 }
 
 /**
@@ -119,12 +179,7 @@ export async function createVaultReqDeposit(
         depositAmount: depositConfig.deposit_amount,
       });
 
-      // Create deposit context
-      const vaultCtx: VaultDepositCtx = wallet.vault.deposit.ctx(
-        oracleQuote,
-        vaultProfile,
-        depositConfig
-      );
+      let vaultCtx = createDepositCtx(wallet, oracleQuote, vaultProfile, depositConfig);
 
       // Get UTXOs for the transaction
       let utxos = options.utxos;
@@ -150,7 +205,14 @@ export async function createVaultReqDeposit(
             throw new Error('No UTXOs available for deposit transaction');
           }
 
-          assertDepositChange(vaultCtx, allUtxos);
+          vaultCtx = resolveDepositContext(
+            wallet,
+            oracleQuote,
+            vaultProfile,
+            depositConfig,
+            allUtxos,
+            options.isMaxAmount
+          );
           logger.debug('[VaultOps] Falling back to all BTC UTXOs for near-max deposit', {
             utxoCount: allUtxos.length,
             depositAmount: depositConfig.deposit_amount,
@@ -164,7 +226,45 @@ export async function createVaultReqDeposit(
         throw new Error('No UTXOs available for deposit transaction');
       }
 
-      assertDepositChange(vaultCtx, utxos);
+      try {
+        vaultCtx = resolveDepositContext(
+          wallet,
+          oracleQuote,
+          vaultProfile,
+          depositConfig,
+          utxos,
+          options.isMaxAmount
+        );
+      } catch (error) {
+        if (options.utxos) {
+          throw error;
+        }
+
+        const allUtxos = await withVaultBuildTimeout(
+          wallet.fetch.sats_utxos(),
+          'Timed out fetching BTC UTXOs for max deposit. Please try again.'
+        );
+
+        if (allUtxos.length === 0 || isSameUtxoSet(utxos, allUtxos)) {
+          throw error;
+        }
+
+        vaultCtx = resolveDepositContext(
+          wallet,
+          oracleQuote,
+          vaultProfile,
+          depositConfig,
+          allUtxos,
+          options.isMaxAmount
+        );
+        logger.debug('[VaultOps] Retried deposit with all BTC UTXOs', {
+          previousUtxoCount: utxos.length,
+          allUtxoCount: allUtxos.length,
+          depositAmount: depositConfig.deposit_amount,
+          changeSats: getDepositChange(vaultCtx, allUtxos),
+        });
+        utxos = allUtxos;
+      }
 
       let depositReq: WalletVaultDepositRequest;
       setPendingVaultSigningOperation({
@@ -230,20 +330,20 @@ export async function guardianSendReqDeposit(
 
     return { vault_txid };
   } catch (error) {
-    let errorMessage: string;
+    let guardianErrorMessage: string;
     if (error instanceof Error) {
-      errorMessage = error.message;
+      guardianErrorMessage = error.message;
     } else if (typeof error === 'object' && error !== null) {
       // Guardian errors may be objects with various properties
-      errorMessage = JSON.stringify(error);
+      guardianErrorMessage = JSON.stringify(error);
     } else {
-      errorMessage = String(error);
+      guardianErrorMessage = String(error);
     }
     logger.error('[VaultOps] Failed to submit deposit request:', {
-      message: errorMessage,
+      message: guardianErrorMessage,
       errorType: typeof error,
       errorKeys: typeof error === 'object' && error !== null ? Object.keys(error) : [],
     });
-    throw new Error(`Failed to submit deposit request: ${errorMessage}`);
+    throw new Error(`Failed to submit deposit request: ${guardianErrorMessage}`);
   }
 }
