@@ -28,13 +28,13 @@ export default function AssetSelectorScreen({ navigation }: AssetSelectorScreenP
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { setSendAssetType } = useSendFlow();
-  const { balance: cashuBalance } = useCashuBalanceState();
+  const { balance: cashuBalance, btcBalanceSats: cashuBtcBalanceSats } = useCashuBalanceState();
   const { s, sf } = useResponsive();
 
   // Memoize balance calculations to prevent recalculation on every render
   const btcBalance = useMemo(
-    () => (segwitBalance || 0) + (taprootBalance || 0),
-    [segwitBalance, taprootBalance]
+    () => (segwitBalance || 0) + (taprootBalance || 0) + ((cashuBtcBalanceSats || 0) / 100_000_000),
+    [segwitBalance, taprootBalance, cashuBtcBalanceSats]
   );
 
   // For UNIT, combine on-chain runes + ecash balance

@@ -16,6 +16,7 @@ import { fetchPriceQuote } from '../oracleService';
 import { withGuardianTimeout } from '../guardianService';
 import { generateVaultName } from '../../utils/vaultUtils';
 import { checkBatchAllowed, extractOpReturnFromTxHex, Utxo, withVaultOperationLock } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -106,7 +107,10 @@ export async function createVaultReqOpen(
 
       try {
         // Fetch oracle price quote (staleness enforced in service)
-        const oracleQuote = await fetchPriceQuote(options.liquidationPrice);
+        const oracleQuote = await withVaultBuildTimeout(
+          fetchPriceQuote(options.liquidationPrice),
+          'Timed out fetching oracle price quote. Please try again.'
+        );
 
         // Create vault context
         const vaultCtx = wallet.vault.open.ctx(acctRes.mint_account, oracleQuote, vaultConfig);
@@ -116,7 +120,10 @@ export async function createVaultReqOpen(
         if (!options.isMaxDeposit && !utxos) {
           const txQuote = wallet.vault.open.quote(vaultCtx);
           const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * options.feeRate;
-          utxos = await wallet.fetch.sats_utxos(costWithVins);
+          utxos = await withVaultBuildTimeout(
+            wallet.fetch.sats_utxos(costWithVins),
+            'Timed out fetching BTC UTXOs for vault creation. Please try again.'
+          );
         }
 
         if (!utxos || utxos.length === 0) {
@@ -133,7 +140,10 @@ export async function createVaultReqOpen(
           satsUtxos: utxos,
         });
         try {
-          vaultReq = await wallet.vault.open.req(vaultCtx, utxos, isBatch);
+          vaultReq = await withVaultBuildTimeout(
+            wallet.vault.open.req(vaultCtx, utxos, isBatch),
+            'Timed out building the vault creation transaction. Please try again.'
+          );
         } finally {
           clearPendingVaultSigningOperation();
         }

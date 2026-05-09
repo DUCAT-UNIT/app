@@ -11,7 +11,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
-import { checkMintQuote, type MintResponse } from './cashuMintClient';
+import { checkMintQuote, restoreSignatures, type MintResponse } from './cashuMintClient';
 import { deriveMintQuoteState, getMintQuoteAvailableAmount } from './mintClient/mintQuotes';
 // Lazy import to break circular dependency:
 // cashuMintOperations → cashuMintQuoteRecovery → cashuMintOperations
@@ -27,6 +27,8 @@ const lazyCompleteMint = async (
 import { DEVICE_ONLY } from '../storagePolicy';
 import { getCurrentCashuAccount } from './cashuProofManager';
 import type { BlindingData } from './crypto';
+import { assertResponseSignaturesUseExpectedKeyset } from './cashuKeysetUtils';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 const PENDING_MINT_QUOTES_KEY = 'cashu_pending_mint_quotes';
 
@@ -46,6 +48,7 @@ export interface PersistedMintQuote {
   taprootAddress?: string | null;
   createdAt: number;
   state: 'UNPAID' | 'PAID' | 'ISSUED' | 'PENDING';
+  unit?: CashuUnit;
   failCount?: number; // Track consecutive claim failures
   lastError?: string; // Last error message for debugging
   claim?: PersistedMintClaim;
@@ -53,11 +56,11 @@ export interface PersistedMintQuote {
 
 export interface PersistedMintClaim {
   amount: number;
-  signatures: MintResponse['signatures'];
+  signatures?: MintResponse['signatures'];
   blindingData: BlindingData[];
   keys: Record<number | string, string>;
   keysetId: string;
-  signedKeysetId: string;
+  signedKeysetId?: string;
   createdAt: number;
 }
 
@@ -89,16 +92,38 @@ export const saveMintQuote = async (
   try {
     const quotes = await loadAllMintQuotes();
 
-    // Don't add duplicates
-    if (quotes.some((q) => q.quoteId === quote.quoteId)) {
-      logger.debug('[MintQuoteRecovery] Quote already exists', {
-        quoteId: quote.quoteId.substring(0, 8),
-      });
+    const existingQuote = quotes.find((q) => q.quoteId === quote.quoteId);
+    if (existingQuote) {
+      const nextUnit = quote.unit ?? existingQuote.unit ?? DEFAULT_CASHU_UNIT;
+      const nextTaprootAddress = existingQuote.taprootAddress ?? getCurrentCashuAccount() ?? undefined;
+      const changed =
+        existingQuote.amount !== quote.amount ||
+        existingQuote.depositAddress !== quote.depositAddress ||
+        (existingQuote.unit ?? DEFAULT_CASHU_UNIT) !== nextUnit ||
+        existingQuote.taprootAddress !== nextTaprootAddress;
+
+      if (changed) {
+        existingQuote.amount = quote.amount;
+        existingQuote.depositAddress = quote.depositAddress;
+        existingQuote.unit = nextUnit;
+        existingQuote.taprootAddress = nextTaprootAddress;
+        await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes), DEVICE_ONLY);
+        logger.info('[MintQuoteRecovery] Updated existing mint quote recovery record', {
+          quoteId: quote.quoteId.substring(0, 8),
+          amount: quote.amount,
+          unit: nextUnit,
+        });
+      } else {
+        logger.debug('[MintQuoteRecovery] Quote already exists', {
+          quoteId: quote.quoteId.substring(0, 8),
+        });
+      }
       return;
     }
 
     const newQuote: PersistedMintQuote = {
       ...quote,
+      unit: quote.unit ?? DEFAULT_CASHU_UNIT,
       taprootAddress: getCurrentCashuAccount(),
       createdAt: Date.now(),
       state: 'UNPAID',
@@ -222,7 +247,7 @@ export const persistMintQuoteClaim = async (
 
     logger.info('[MintQuoteRecovery] Persisted mint claim response', {
       quoteId: quoteId.substring(0, 8),
-      signatureCount: claim.signatures.length,
+      signatureCount: claim.signatures?.length ?? 0,
       amount: claim.amount,
     });
   } catch (error) {
@@ -280,11 +305,27 @@ const isPermanentFailure = (errorMsg: string): boolean => {
   );
 };
 
+const isExpiredMintQuote = (quote: PersistedMintQuote): boolean =>
+  Date.now() - quote.createdAt >= QUOTE_EXPIRY_MS;
+
 const belongsToCurrentCashuAccount = (
   quote: PersistedMintQuote,
   currentAccount = getCurrentCashuAccount()
 ): boolean => {
-  return !quote.taprootAddress || !currentAccount || quote.taprootAddress === currentAccount;
+  if (!quote.taprootAddress) {
+    return true;
+  }
+  if (!currentAccount) {
+    return false;
+  }
+  return quote.taprootAddress === currentAccount;
+};
+
+const normalizePersistedMintQuote = (quote: PersistedMintQuote): PersistedMintQuote => {
+  const unit = quote.unit === undefined || quote.unit === null
+    ? DEFAULT_CASHU_UNIT
+    : normalizeCashuUnit(quote.unit);
+  return { ...quote, unit };
 };
 
 const loadAllMintQuotes = async (): Promise<PersistedMintQuote[]> => {
@@ -309,32 +350,7 @@ const loadAllMintQuotes = async (): Promise<PersistedMintQuote[]> => {
     throw new Error('Mint quote recovery storage corrupted: invalid quote list');
   }
 
-  const quotes = parsed as PersistedMintQuote[];
-  const now = Date.now();
-  const nonExpiredQuotes = quotes.filter((q) => {
-    const expired = now - q.createdAt >= QUOTE_EXPIRY_MS;
-    return !expired || q.state !== 'UNPAID' || !!q.claim;
-  });
-
-  if (nonExpiredQuotes.length !== quotes.length) {
-    try {
-      await SecureStore.setItemAsync(
-        PENDING_MINT_QUOTES_KEY,
-        JSON.stringify(nonExpiredQuotes),
-        DEVICE_ONLY
-      );
-      logger.info('[MintQuoteRecovery] Cleaned up expired quotes', {
-        removed: quotes.length - nonExpiredQuotes.length,
-        remaining: nonExpiredQuotes.length,
-      });
-    } catch (error) {
-      logger.warn('[MintQuoteRecovery] Failed to clean expired quotes', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  return nonExpiredQuotes;
+  return (parsed as PersistedMintQuote[]).map(normalizePersistedMintQuote);
 };
 
 export interface MintQuoteRecoveryResult {
@@ -357,16 +373,98 @@ const recoverPersistedMintClaim = async (
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { addProofs } = require('./cashuProofManager') as typeof import('./cashuProofManager');
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { unblindSignatures } = require('./crypto') as typeof import('./crypto');
+  const { sumProofs, unblindSignatures } = require('./crypto') as typeof import('./crypto');
 
-  const proofs = unblindSignatures(
-    quote.claim.signatures,
-    quote.claim.blindingData,
-    quote.claim.keys,
-    quote.claim.signedKeysetId || quote.claim.keysetId
+  let signatures = quote.claim.signatures;
+  let signedKeysetId = quote.claim.signedKeysetId || quote.claim.keysetId;
+  const keys = quote.claim.keys;
+
+  if (!signatures || signatures.length === 0) {
+    if (quote.state === 'PENDING' && Date.now() - quote.claim.createdAt < STALE_PENDING_MS) {
+      logger.debug('[MintQuoteRecovery] Skipping active persisted mint claim without signatures', {
+        quoteId: quote.quoteId.substring(0, 8),
+      });
+      return;
+    }
+
+    const mintQuote = await checkMintQuote(quote.quoteId);
+    const mintState = deriveMintQuoteState(mintQuote);
+    const availableAmount = getMintQuoteAvailableAmount(mintQuote);
+    const hasMintAccounting =
+      mintQuote.amount_paid !== undefined || mintQuote.amount_issued !== undefined;
+    const canClaim = availableAmount > 0 || (!hasMintAccounting && mintState === 'PAID');
+
+    if (canClaim) {
+      const claimAmount = availableAmount > 0 ? availableAmount : (mintQuote.amount ?? quote.amount);
+      const proofs = (quote.unit ?? DEFAULT_CASHU_UNIT) === DEFAULT_CASHU_UNIT
+        ? await lazyCompleteMint(quote.quoteId, claimAmount)
+        : await lazyCompleteMint(quote.quoteId, claimAmount, quote.unit);
+
+      result.recovered++;
+      result.totalAmountRecovered += claimAmount;
+
+      logger.info('[MintQuoteRecovery] Recovered persisted mint claim by retrying claim', {
+        quoteId: quote.quoteId.substring(0, 8),
+        amount: claimAmount,
+        proofCount: proofs.length,
+      });
+      return;
+    }
+
+    const outputs = quote.claim.blindingData.map((item) => ({
+      amount: item.amount,
+      B_: item.B_,
+      id: quote.claim!.keysetId,
+    }));
+    const restoredResponse = await restoreSignatures(outputs);
+    if (restoredResponse.signatures.length !== quote.claim.blindingData.length) {
+      throw new Error('Restored mint signature count does not match claim outputs');
+    }
+    signatures = restoredResponse.signatures;
+    signedKeysetId = assertResponseSignaturesUseExpectedKeyset(
+      signatures,
+      quote.claim.keysetId,
+      `Recovered mint ${quote.unit ?? DEFAULT_CASHU_UNIT} claim`
+    );
+    await persistMintQuoteClaim(quote.quoteId, {
+      amount: quote.claim.amount,
+      signatures,
+      blindingData: quote.claim.blindingData,
+      keys,
+      keysetId: quote.claim.keysetId,
+      signedKeysetId,
+    });
+
+    logger.info('[MintQuoteRecovery] Restored interrupted mint claim signatures', {
+      quoteId: quote.quoteId.substring(0, 8),
+      signatureCount: signatures.length,
+    });
+  }
+
+  if (!signatures || signatures.length === 0) {
+    throw new Error('Persisted mint claim has no recoverable signatures');
+  }
+
+  signedKeysetId = assertResponseSignaturesUseExpectedKeyset(
+    signatures,
+    quote.claim.keysetId,
+    `Recovered mint ${quote.unit ?? DEFAULT_CASHU_UNIT} claim`
   );
 
-  await addProofs(proofs);
+  const proofs = unblindSignatures(
+    signatures,
+    quote.claim.blindingData,
+    keys,
+    signedKeysetId || quote.claim.keysetId
+  );
+  const proofTotal = sumProofs(proofs);
+  if (proofTotal !== quote.claim.amount) {
+    throw new Error(
+      `Recovered mint claim verification failed: expected ${quote.claim.amount} but received ${proofTotal}`
+    );
+  }
+
+  await addProofs(proofs, true, quote.unit ?? DEFAULT_CASHU_UNIT);
   await removeMintQuote(quote.quoteId);
 
   result.recovered++;
@@ -467,7 +565,9 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
             await updateMintQuoteState(quote.quoteId, 'PENDING');
 
             // Complete the mint (claim tokens) - use mint's amount to match deposit
-            const proofs = await lazyCompleteMint(quote.quoteId, claimAmount);
+            const proofs = (quote.unit ?? DEFAULT_CASHU_UNIT) === DEFAULT_CASHU_UNIT
+              ? await lazyCompleteMint(quote.quoteId, claimAmount)
+              : await lazyCompleteMint(quote.quoteId, claimAmount, quote.unit);
 
             // Remove the quote after successful claim
             await removeMintQuote(quote.quoteId);
@@ -534,8 +634,14 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
           });
           await removeMintQuote(quote.quoteId);
         } else if (mintState === 'UNPAID') {
-          // Still waiting for payment - keep in list
-          await updateMintQuoteState(quote.quoteId, 'UNPAID');
+          if (isExpiredMintQuote(quote)) {
+            logger.info('[MintQuoteRecovery] Expired unpaid quote still unpaid, keeping for late payment recovery', {
+              quoteId: quote.quoteId.substring(0, 8),
+            });
+          } else {
+            // Still waiting for payment - keep in list
+            await updateMintQuoteState(quote.quoteId, 'UNPAID');
+          }
         }
       } catch (checkError) {
         const errorMsg = checkError instanceof Error ? checkError.message : String(checkError);

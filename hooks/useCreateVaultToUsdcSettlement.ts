@@ -51,8 +51,18 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       setPhase('issuing_vault');
       await persistVaultSettlementNow();
 
-      const issueTxid = await rawCreateVault.createVault(params);
+      let issueTxid: string | null;
+      try {
+        issueTxid = await rawCreateVault.createVault(params);
+      } catch (error) {
+        resetSettlement();
+        await persistVaultSettlementNow();
+        throw error;
+      }
+
       if (!issueTxid) {
+        resetSettlement();
+        await persistVaultSettlementNow();
         return null;
       }
 
@@ -91,6 +101,7 @@ export function useCreateVaultToUsdcSettlement(): UseCreateVaultToUsdcSettlement
       rawCreateVault,
       setIssueResult,
       completeSettlement,
+      resetSettlement,
       settleIssuedUnitToUsdc,
       settleIssuedUnitToTurboUnit,
       setCurrentStep,

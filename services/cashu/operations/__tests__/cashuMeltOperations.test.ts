@@ -44,6 +44,7 @@ jest.mock('../../cashuProofManager', () => ({
   removeProofs: jest.fn(),
   addProofs: jest.fn(),
   removeSpentProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(() => 'tb1paccount'),
 }));
 
 jest.mock('../../cashuSwapRecovery', () => ({
@@ -70,7 +71,13 @@ import {
   selectProofsForAmount,
 } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs, removeSpentProofs } from '../../cashuProofManager';
+import {
+  loadProofs,
+  removeProofs,
+  addProofs,
+  removeSpentProofs,
+  getCurrentCashuAccount,
+} from '../../cashuProofManager';
 import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../../cashuSwapRecovery';
 import { isP2PKSecret } from '../../p2pk';
 
@@ -100,6 +107,7 @@ describe('cashuMeltOperations', () => {
     (removeProofs as jest.Mock).mockResolvedValue(undefined);
     (addProofs as jest.Mock).mockResolvedValue(undefined);
     (removeSpentProofs as jest.Mock).mockResolvedValue({ removed: 0, kept: 1 });
+    (getCurrentCashuAccount as jest.Mock).mockReturnValue('tb1paccount');
     (savePendingSwap as jest.Mock).mockResolvedValue('swap-1');
     (updateSwapWithResponse as jest.Mock).mockResolvedValue(undefined);
     (clearPendingSwap as jest.Mock).mockResolvedValue(undefined);

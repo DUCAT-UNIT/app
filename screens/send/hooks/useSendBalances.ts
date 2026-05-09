@@ -21,6 +21,8 @@ export interface UseSendBalancesResult {
   unitBalance: number;
   /** Max sendable BTC (balance - fees) */
   maxSendableBtc: number;
+  /** Max sendable Turbo BTC in BTC units */
+  maxSendableTurboBtc: number;
   /** Max sendable UNIT */
   maxSendableUnit: number;
   /** BTC balance in satoshis */
@@ -33,7 +35,7 @@ export function useSendBalances({
   estimatedFeeSats,
 }: UseSendBalancesOptions): UseSendBalancesResult {
   const { segwitBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
-  const { balance: cashuBalance } = useCashuBalanceState();
+  const { balance: cashuBalance, btcBalanceSats: cashuBtcBalanceSats } = useCashuBalanceState();
 
   // Balance calculations (include unconfirmed for transaction chaining)
   const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
@@ -56,6 +58,11 @@ export function useSendBalances({
     return Math.max(0, btcBalance - feeBtc);
   }, [btcBalance, estimatedFeeSats]);
 
+  const maxSendableTurboBtc = useMemo(
+    () => Math.max(0, (cashuBtcBalanceSats || 0) / 100_000_000),
+    [cashuBtcBalanceSats]
+  );
+
   // For UNIT: max sendable = unit balance (but need BTC for fees)
   const maxSendableUnit = unitBalance;
 
@@ -66,6 +73,7 @@ export function useSendBalances({
     btcBalance,
     unitBalance,
     maxSendableBtc,
+    maxSendableTurboBtc,
     maxSendableUnit,
     btcBalanceSats,
     hasSufficientBtcForUnitFees,

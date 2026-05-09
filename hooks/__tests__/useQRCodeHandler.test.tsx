@@ -78,6 +78,13 @@ jest.mock('../../stores/tokenProcessingStore', () => ({
   }),
 }));
 
+const mockInitializeTokenStorage = jest.fn().mockResolvedValue(undefined);
+const mockPersistedIsTokenProcessed = jest.fn();
+jest.mock('../../services/turbo/turboTokenStorage', () => ({
+  initializeTokenStorage: (...args: unknown[]) => mockInitializeTokenStorage(...args),
+  isTokenProcessed: (...args: unknown[]) => mockPersistedIsTokenProcessed(...args),
+}));
+
 // Mock atob for base64 decoding
 global.atob = jest.fn((str) => Buffer.from(str, 'base64').toString('utf8'));
 
@@ -124,6 +131,8 @@ describe('useQRCodeHandler', () => {
     // Clear store mock default behavior
     mockSetPendingToken.mockClear();
     mockIsTokenProcessed.mockResolvedValue(false);
+    mockInitializeTokenStorage.mockResolvedValue(undefined);
+    mockPersistedIsTokenProcessed.mockResolvedValue(false);
     mockTriggerTokenCheck.mockClear();
 
     mockProps = {
@@ -287,7 +296,28 @@ describe('useQRCodeHandler', () => {
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'error',
-        action: 'swap',
+        action: 'claim',
+        description: 'Token already claimed',
+      });
+      expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
+    });
+
+    it('should show error snackbar for durably processed token after restart', async () => {
+      mockIsTokenProcessed.mockResolvedValue(false);
+      mockPersistedIsTokenProcessed.mockResolvedValue(true);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('cashuBtestP2PKtoken');
+      });
+
+      expect(mockInitializeTokenStorage).toHaveBeenCalled();
+      expect(mockPersistedIsTokenProcessed).toHaveBeenCalledWith('cashuBtestP2PKtoken');
+      expect(mockSetPendingToken).not.toHaveBeenCalled();
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
         description: 'Token already claimed',
       });
       expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
@@ -324,7 +354,7 @@ describe('useQRCodeHandler', () => {
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
-        description: 'Successfully claimed 100 UNIT',
+        description: 'Successfully claimed 1.00 UNIT',
       });
     });
 
@@ -341,8 +371,35 @@ describe('useQRCodeHandler', () => {
 
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'error',
-        action: 'swap',
+        action: 'claim',
         description: 'All proofs in this token have been spent',
+      });
+    });
+
+    it('should fail closed when the mint returns an incomplete proof-state response', async () => {
+      mockDecodeToken.mockReturnValue({
+        proofs: [
+          { id: 'proof1', amount: 50, secret: 'secret1', C: 'C1' },
+          { id: 'proof2', amount: 50, secret: 'secret2', C: 'C2' },
+        ],
+        amount: 100,
+        mint: 'https://mint.example.com',
+      });
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'UNSPENT' }],
+      });
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('cashuBtesttoken');
+      });
+
+      expect(mockProps.receiveCashuToken).not.toHaveBeenCalled();
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Failed to process token: Unable to verify token spend state with mint',
       });
     });
 
@@ -409,7 +466,7 @@ describe('useQRCodeHandler', () => {
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
-        description: 'Successfully claimed 100 UNIT',
+        description: 'Successfully claimed 1.00 UNIT',
       });
     });
 
@@ -539,7 +596,7 @@ describe('useQRCodeHandler', () => {
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'success',
         action: 'claim',
-        description: 'Successfully claimed 100 UNIT',
+        description: 'Successfully claimed 1.00 UNIT',
       });
     });
 
@@ -684,6 +741,24 @@ describe('useQRCodeHandler', () => {
       });
 
       expectTurboTokenQueued('cashuBtokenparam');
+    });
+
+    it('should reject durably processed Turbo URLs after restart', async () => {
+      mockPersistedIsTokenProcessed.mockResolvedValue(true);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!('https://redeem.ducatprotocol.com?token=cashuBtokenparam');
+      });
+
+      expect(mockSetPendingToken).not.toHaveBeenCalled();
+      expect(mockProps.showSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        action: 'claim',
+        description: 'Token already claimed',
+      });
+      expect(mockProps.setShowQRScanner).toHaveBeenCalledWith(false);
     });
 
     it('should handle unit URL with hash token parameter', async () => {

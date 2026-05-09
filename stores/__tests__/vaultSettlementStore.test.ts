@@ -13,7 +13,7 @@ import {
 
 const getPersistedSettlementState = () => {
   const calls = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-    ([key]) => key === VAULT_SETTLEMENT_STORAGE_KEY,
+    ([key]) => key === VAULT_SETTLEMENT_STORAGE_KEY
   );
   expect(calls.length).toBeGreaterThan(0);
   return JSON.parse(calls[calls.length - 1][1]);
@@ -100,6 +100,28 @@ describe('vaultSettlementStore', () => {
     });
   });
 
+  it('persists the Cashu mint quote amount for TurboUNIT settlement recovery', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('borrow', 50, 'TURBOUNIT');
+      state.setCashuMintQuote('cashu-quote-1', 'tb1pmint', 5050);
+      state.setPhase('building_turbo_send');
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      cashuMintQuoteId: 'cashu-quote-1',
+      cashuMintDepositAddress: 'tb1pmint',
+      cashuMintQuoteAmount: 5050,
+    });
+
+    const persisted = getPersistedSettlementState();
+    expect(persisted.state).toMatchObject({
+      cashuMintQuoteId: 'cashu-quote-1',
+      cashuMintDepositAddress: 'tb1pmint',
+      cashuMintQuoteAmount: 5050,
+    });
+  });
+
   it('can force a durable settlement write before external settlement work continues', async () => {
     act(() => {
       const state = useVaultSettlementStore.getState();
@@ -117,7 +139,7 @@ describe('vaultSettlementStore', () => {
 
     expect(AsyncStorage.setItem).toHaveBeenCalledWith(
       VAULT_SETTLEMENT_STORAGE_KEY,
-      expect.stringContaining('release-durable'),
+      expect.stringContaining('release-durable')
     );
     const persisted = JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]);
     expect(persisted).toMatchObject({
@@ -176,6 +198,32 @@ describe('vaultSettlementStore', () => {
     });
   });
 
+  it('allows a new operation to replace transient pre-issue state', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('open', 75, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setPhase('issuing_vault');
+    });
+
+    act(() => {
+      useVaultSettlementStore.getState().startOperation('open', 90, 'UNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'open',
+      phase: 'quoting',
+      faceValueUsd: 90,
+      requestedPayoutAsset: 'UNIT',
+      issueTxid: null,
+    });
+  });
+
   it('preserves active state when resuming the same settlement', () => {
     act(() => {
       const state = useVaultSettlementStore.getState();
@@ -222,13 +270,14 @@ describe('vaultSettlementStore', () => {
           estimatedSepoliaFeeEth: '0.001',
           bridgeIntentId: 'ignored-for-repay-but-safe',
           bridgeClientRequestId: 'client-request-2',
+          cashuMintQuoteAmount: 5050,
           redemptionId: 'redemption-2',
           redemptionBurnTxHash: '0xabc',
           payoutAsset: 'wUNIT',
           payoutAmount: '125',
           updatedAt: now - 1000,
         },
-        now,
+        now
       );
 
       expect(state).toMatchObject({
@@ -240,6 +289,7 @@ describe('vaultSettlementStore', () => {
         estimatedSepoliaFeeEth: '0.001',
         redemptionId: 'redemption-2',
         bridgeClientRequestId: 'client-request-2',
+        cashuMintQuoteAmount: 5050,
         redemptionBurnTxHash: '0xabc',
         payoutAsset: 'wUNIT',
         payoutAmount: '125',
@@ -256,8 +306,8 @@ describe('vaultSettlementStore', () => {
             bridgeIntentId: 'stale-intent',
             updatedAt: now - VAULT_SETTLEMENT_PERSIST_TTL_MS - 1,
           },
-          now,
-        ),
+          now
+        )
       ).toMatchObject({
         kind: 'open',
         phase: 'waiting_bridge_fulfillment',
@@ -272,17 +322,70 @@ describe('vaultSettlementStore', () => {
             bridgeIntentId: 'settled-intent',
             updatedAt: now - VAULT_SETTLEMENT_PERSIST_TTL_MS - 1,
           },
-          now,
-        ),
+          now
+        )
       ).toEqual(initialVaultSettlementState);
 
       expect(
-        normalizeVaultSettlementPersistedState({ kind: 'open', phase: 'not-a-phase', updatedAt: now }, now),
+        normalizeVaultSettlementPersistedState(
+          { kind: 'open', phase: 'not-a-phase', updatedAt: now },
+          now
+        )
       ).toEqual(initialVaultSettlementState);
 
       expect(
-        normalizeVaultSettlementPersistedState({ phase: 'pending_settlement', updatedAt: now }, now),
+        normalizeVaultSettlementPersistedState({ phase: 'pending_settlement', updatedAt: now }, now)
       ).toEqual(initialVaultSettlementState);
+    });
+
+    it('drops transient pre-issue state without an issue transaction', () => {
+      expect(
+        normalizeVaultSettlementPersistedState(
+          {
+            kind: 'open',
+            phase: 'issuing_vault',
+            faceValueUsd: 100,
+            requestedPayoutAsset: 'TURBOUNIT',
+            updatedAt: now - 1000,
+          },
+          now
+        )
+      ).toEqual(initialVaultSettlementState);
+    });
+
+    it('drops retry state without a recovery handle', () => {
+      expect(
+        normalizeVaultSettlementPersistedState(
+          {
+            kind: 'repay',
+            phase: 'needs_retry',
+            faceValueUsd: 25,
+            requestedPayoutAsset: 'TURBOUNIT',
+            error: 'Unable to create TurboUNIT melt quote.',
+            updatedAt: now - 1000,
+          },
+          now
+        )
+      ).toEqual(initialVaultSettlementState);
+
+      expect(
+        normalizeVaultSettlementPersistedState(
+          {
+            kind: 'repay',
+            phase: 'needs_retry',
+            faceValueUsd: 25,
+            requestedPayoutAsset: 'TURBOUNIT',
+            cashuMeltQuoteId: 'melt-quote-1',
+            error: 'Retry TurboUNIT melt.',
+            updatedAt: now - 1000,
+          },
+          now
+        )
+      ).toMatchObject({
+        kind: 'repay',
+        phase: 'needs_retry',
+        cashuMeltQuoteId: 'melt-quote-1',
+      });
     });
 
     it('clamps impossible future timestamps during rehydrate', () => {
@@ -293,7 +396,7 @@ describe('vaultSettlementStore', () => {
           bridgeIntentId: 'intent-1',
           updatedAt: now + 120_000,
         },
-        now,
+        now
       );
 
       expect(state.updatedAt).toBe(now);

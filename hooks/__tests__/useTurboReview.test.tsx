@@ -30,6 +30,7 @@ let mockRequestMintImpl = jest.fn().mockResolvedValue({
   depositAddress: 'bc1qtest',
   amount: 100,
 });
+const mockSavePendingTurboSend = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   __esModule: true,
@@ -37,7 +38,10 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
   getBalance: jest.fn((...args) => mockGetBalanceImpl(...args)),
 }));
 
-import { requestMint, getBalance } from '../../services/cashu/cashuWalletService';
+jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
+  __esModule: true,
+  savePendingTurboSend: (...args: unknown[]) => mockSavePendingTurboSend(...args),
+}));
 
 // Helper to render hooks with props
 function renderHookWithProps(props: any) {
@@ -71,6 +75,7 @@ describe('useTurboReview', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetBalanceImpl = jest.fn().mockResolvedValue(100);
+    mockSavePendingTurboSend.mockResolvedValue(undefined);
     mockRequestMintImpl = jest.fn().mockResolvedValue({
       quoteId: 'quote123',
       depositAddress: 'bc1qtest',
@@ -88,6 +93,7 @@ describe('useTurboReview', () => {
       navigation: mockNavigation,
       isCashuMint: false,
       cashuQuoteId: null,
+      senderTaprootAddress: 'tb1psender',
     };
   });
 
@@ -247,7 +253,9 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {
+        senderTaprootAddress: 'tb1psender',
+      });
       expect(result.current!.isRequestingMint).toBe(false);
     });
 
@@ -284,7 +292,9 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {
+        senderTaprootAddress: 'tb1psender',
+      });
     });
 
     it('should handle fractional amounts correctly', async () => {
@@ -301,7 +311,9 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing');
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {
+        senderTaprootAddress: 'tb1psender',
+      });
     });
 
     it('should set isRequestingMint to true during balance check', async () => {
@@ -369,6 +381,12 @@ describe('useTurboReview', () => {
 
     it('should request mint and navigate to Processing with turbo params', async () => {
       mockProps.sendRecipient = 'original_recipient';
+      mockProps.senderTaprootAddress = 'tb1psender';
+      mockRequestMintImpl.mockResolvedValue({
+        quoteId: 'quote123',
+        depositAddress: 'bc1qtest',
+        amount: 20,
+      });
       const { result, rerender } = renderHookWithProps(mockProps);
 
       // Simulate state where insufficientTurboAmount is set
@@ -388,7 +406,15 @@ describe('useTurboReview', () => {
         await result.current!.handleUseTurbo();
       });
 
-      expect(mockRequestMintImpl).toHaveBeenCalled();
+      expect(mockRequestMintImpl).toHaveBeenCalledWith(20);
+      expect(mockSavePendingTurboSend).toHaveBeenCalledWith(
+        'quote123',
+        'original_recipient',
+        50,
+        'tb1psender',
+        undefined,
+        20
+      );
       expect(mockProps.setSendRecipient).toHaveBeenCalledWith('bc1qtest');
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
         fromScreen: 'SendInput',
@@ -396,7 +422,9 @@ describe('useTurboReview', () => {
         isTurbo: true,
         mintQuoteId: 'quote123',
         mintAmount: 50, // insufficientTurboAmount (0.5) * 100
+        mintClaimAmount: 20,
         turboRecipient: 'original_recipient',
+        senderTaprootAddress: 'tb1psender',
       });
     });
 
@@ -404,6 +432,7 @@ describe('useTurboReview', () => {
       const { logger } = require('../../utils/logger');
       mockRequestMintImpl.mockRejectedValue(new Error('Mint request failed'));
       mockProps.sendRecipient = 'original_recipient';
+      mockProps.senderTaprootAddress = 'tb1psender';
       const { result, rerender } = renderHookWithProps(mockProps);
 
       // First trigger the insufficient balance flow to set insufficientTurboAmount
@@ -439,6 +468,7 @@ describe('useTurboReview', () => {
         amount: undefined, // Missing amount
       });
       mockProps.sendRecipient = 'original_recipient';
+      mockProps.senderTaprootAddress = 'tb1psender';
       const { result, rerender } = renderHookWithProps(mockProps);
 
       // First trigger the insufficient balance flow to set insufficientTurboAmount

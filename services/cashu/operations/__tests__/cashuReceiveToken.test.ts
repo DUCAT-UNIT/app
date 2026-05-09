@@ -61,7 +61,7 @@ jest.mock('../../cashuBalanceService', () => ({
 jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   addProofs: jest.fn(),
-  getCurrentCashuAccount: jest.fn(() => null),
+  getCurrentCashuAccount: jest.fn(() => 'tb1paccount'),
 }));
 
 jest.mock('../../cashuSwapRecovery', () => ({
@@ -77,6 +77,7 @@ import { isP2PKLocked, getP2PKRecipient, findAccountForP2PKToken, getP2PKPrivate
 import { getCurrentAccount } from '../../../secureStorageService';
 import { getOrFetchKeys } from '../../cashuBalanceService';
 import { loadProofs, addProofs } from '../../cashuProofManager';
+import { savePendingSwap } from '../../cashuSwapRecovery';
 
 describe('cashuReceiveToken', () => {
   beforeEach(() => {
@@ -89,8 +90,8 @@ describe('cashuReceiveToken', () => {
 
   describe('receiveToken', () => {
     const mockProofs = [
-      { amount: 64, secret: 's1', C: 'C1', id: 'id' },
-      { amount: 32, secret: 's2', C: 'C2', id: 'id' },
+      { amount: 64, secret: 's1', C: 'C1', id: 'keyset1' },
+      { amount: 32, secret: 's2', C: 'C2', id: 'keyset1' },
     ];
 
     const mockToken = {
@@ -99,9 +100,9 @@ describe('cashuReceiveToken', () => {
       amount: 96,
     };
 
-    it('should receive token successfully', async () => {
-      (decodeToken as jest.Mock).mockReturnValue(mockToken);
-      (loadProofs as jest.Mock).mockResolvedValue([]);
+	    it('should receive token successfully', async () => {
+	      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+	      (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
@@ -115,18 +116,61 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
-        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+        { amount: 64, secret: 'new1', C: 'C', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
       ]);
 
       const result = await receiveToken('cashuBtoken...');
 
-      expect(result.amount).toBe(96);
-      expect(result.proofCount).toBe(2);
-      expect(addProofs).toHaveBeenCalled();
-    });
+	      expect(result.amount).toBe(96);
+	      expect(result.proofCount).toBe(2);
+	      expect(addProofs).toHaveBeenCalled();
+	    });
 
-    it('should throw error for invalid token format', async () => {
+	    it('should receive sat tokens into the sat proof store using the sat keyset', async () => {
+	      const satProofs = [
+	        { amount: 64, secret: 'sat1', C: 'C1', id: 'satset1' },
+	        { amount: 32, secret: 'sat2', C: 'C2', id: 'satset1' },
+	      ];
+	      (decodeToken as jest.Mock).mockReturnValue({
+	        mint: 'https://mint.test.com',
+	        proofs: satProofs,
+	        amount: 96,
+	        unit: 'sat',
+	      });
+	      (loadProofs as jest.Mock).mockResolvedValue([]);
+	      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+	        keysets: [
+	          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+	          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
+	        ],
+	      });
+	      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+	      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+	        outputs: [{ amount: 64, id: 'satset1' }, { amount: 32, id: 'satset1' }],
+	        blindingData: [{ secret: 'new1', amount: 64 }, { secret: 'new2', amount: 32 }],
+	      });
+	      (swapTokens as jest.Mock).mockResolvedValue({
+	        signatures: [{ id: 'satset1' }, {}],
+	      });
+	      (unblindSignatures as jest.Mock).mockReturnValue([
+	        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
+	        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
+	      ]);
+
+	      const result = await receiveToken('cashuBsat...', 'sat');
+
+	      expect(result.amount).toBe(96);
+	      expect(loadProofs).toHaveBeenCalledWith('sat');
+	      expect(savePendingSwap).toHaveBeenCalledWith(expect.objectContaining({ unit: 'sat' }));
+	      expect(addProofs).toHaveBeenCalledWith([
+	        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
+	        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
+	      ], true, 'sat');
+	    });
+
+	    it('should throw error for invalid token format', async () => {
       (decodeToken as jest.Mock).mockReturnValue(null);
 
       await expect(receiveToken('invalid')).rejects.toThrow('Invalid token format');
@@ -144,6 +188,19 @@ describe('cashuReceiveToken', () => {
       );
     });
 
+    it('should reject a token whose decoded unit does not match the expected unit', async () => {
+      (decodeToken as jest.Mock).mockReturnValue({
+        ...mockToken,
+        unit: 'unit',
+      });
+
+      await expect(receiveToken('cashuBtoken...', 'sat')).rejects.toThrow(
+        'Expected Cashu sat token but received unit'
+      );
+      expect(loadProofs).not.toHaveBeenCalled();
+      expect(swapTokens).not.toHaveBeenCalled();
+    });
+
     it('should throw error for duplicate token', async () => {
       (decodeToken as jest.Mock).mockReturnValue(mockToken);
       (loadProofs as jest.Mock).mockResolvedValue([{ secret: 's1' }]); // Already have this proof
@@ -151,9 +208,24 @@ describe('cashuReceiveToken', () => {
       await expect(receiveToken('cashuBtoken...')).rejects.toThrow('Token already received');
     });
 
+    it('should reject pending token proofs before swapping them', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (checkProofsSpent as jest.Mock).mockResolvedValueOnce({
+        states: [{ state: 'UNSPENT' }, { state: 'PENDING' }],
+      });
+
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
+        'Token proofs are not spendable'
+      );
+
+      expect(swapTokens).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
     it('should throw error when P2PK token has no matching account (line 94-95)', async () => {
       const p2pkProofs = [
-        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1' },
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1', id: 'keyset1' },
       ];
       (decodeToken as jest.Mock).mockReturnValue({
         mint: 'https://mint.test.com',
@@ -173,7 +245,7 @@ describe('cashuReceiveToken', () => {
 
     it('should throw error when P2PK token belongs to different account', async () => {
       const p2pkProofs = [
-        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1' },
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1', id: 'keyset1' },
       ];
       (decodeToken as jest.Mock).mockReturnValue({
         mint: 'https://mint.test.com',
@@ -193,7 +265,7 @@ describe('cashuReceiveToken', () => {
 
     it('should warn when recipient pubkey cannot be extracted (line 108)', async () => {
       const p2pkProofs = [
-        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1' },
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1', id: 'keyset1' },
       ];
       (decodeToken as jest.Mock).mockReturnValue({
         mint: 'https://mint.test.com',
@@ -217,7 +289,7 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
+        { amount: 64, secret: 's1', C: 'C1', id: 'keyset1' },
       ]);
 
       const { logger } = require('../../../../utils/logger');
@@ -246,8 +318,8 @@ describe('cashuReceiveToken', () => {
         signatures: [{}, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
-        { amount: 32, secret: 's2', C: 'C2', id: 'id2' },
+        { amount: 64, secret: 's1', C: 'C1', id: 'keyset1' },
+        { amount: 32, secret: 's2', C: 'C2', id: 'keyset1' },
       ]);
 
       const result = await receiveToken('cashuBtoken...');
@@ -257,7 +329,7 @@ describe('cashuReceiveToken', () => {
 
     it('should handle P2PK token successfully with correct account', async () => {
       const p2pkProofs = [
-        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1' },
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"pubkey123\"}]', C: 'C1', id: 'keyset1' },
       ];
       (decodeToken as jest.Mock).mockReturnValue({
         mint: 'https://mint.test.com',
@@ -283,7 +355,7 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 's1', C: 'C1', id: 'id1' },
+        { amount: 64, secret: 's1', C: 'C1', id: 'keyset1' },
       ]);
 
       const result = await receiveToken('cashuBtoken...');
@@ -318,8 +390,8 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
-        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+        { amount: 64, secret: 'new1', C: 'C', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
       ]);
 
       // Fail first, succeed second
@@ -358,8 +430,8 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
-        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+        { amount: 64, secret: 'new1', C: 'C', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
       ]);
 
       // Fail all attempts
@@ -406,8 +478,8 @@ describe('cashuReceiveToken', () => {
         signatures: [{ id: 'keyset1' }, {}],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
-        { amount: 64, secret: 'new1', C: 'C', id: 'id' },
-        { amount: 32, secret: 'new2', C: 'C', id: 'id' },
+        { amount: 64, secret: 'new1', C: 'C', id: 'keyset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
       ]);
       (addProofs as jest.Mock).mockRejectedValue(new Error('Storage error'));
 

@@ -4,7 +4,16 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Animated, Share, ViewStyle, TextStyle, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  Share,
+  ViewStyle,
+  TextStyle,
+  StyleSheet,
+} from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AddressRow from '../../components/receive/AddressRow';
 import QRModal from '../../components/receive/QRModal';
@@ -99,7 +108,8 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   const handleCopyAddress = (address: string, type: string): void => {
     Clipboard.setString(address);
-    showToast(`${type} address copied to clipboard`);
+    const label = type.toLowerCase().endsWith('address') ? type : `${type} address`;
+    showToast(`${label} copied to clipboard`);
   };
 
   // Set up swipe dismiss callback to do EXACTLY what back button does
@@ -128,7 +138,13 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
   // Handle auto-opening QR modal when sheet opens
   React.useEffect(() => {
-    if (showReceiveSheet && autoOpenQR && preSelectedAddress && preSelectedType && !hasAutoOpenedRef.current) {
+    if (
+      showReceiveSheet &&
+      autoOpenQR &&
+      preSelectedAddress &&
+      preSelectedType &&
+      !hasAutoOpenedRef.current
+    ) {
       hasAutoOpenedRef.current = true;
       // Delay to ensure animation is ready
       autoOpenTimerRef.current = setTimeout(() => {

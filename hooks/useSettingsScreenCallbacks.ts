@@ -99,10 +99,28 @@ export function useSettingsScreenCallbacks({
       onRemoveSpentProofs: async () => {
         try {
           const { removeSpentProofs } = await import('../services/cashu/cashuWalletService');
-          const result = await removeSpentProofs();
+          const [unitCleanup, satCleanup] = await Promise.allSettled([
+            removeSpentProofs('unit'),
+            removeSpentProofs('sat'),
+          ]);
+          const unitResult = unitCleanup.status === 'fulfilled'
+            ? unitCleanup.value
+            : { removed: 0, kept: 0 };
+          const satResult = satCleanup.status === 'fulfilled'
+            ? satCleanup.value
+            : { removed: 0, kept: 0 };
+          const cleanupErrors = [unitCleanup, satCleanup]
+            .filter((cleanup): cleanup is PromiseRejectedResult => cleanup.status === 'rejected')
+            .map((cleanup) => cleanup.reason instanceof Error ? cleanup.reason.message : String(cleanup.reason));
+          const result = {
+            removed: unitResult.removed + satResult.removed,
+            kept: unitResult.kept + satResult.kept,
+          };
           Alert.alert(
-            'Spent Proofs Removed',
-            `Removed ${result.removed} spent proofs. Kept ${result.kept} valid proofs.`
+            cleanupErrors.length > 0 ? 'Spent Proof Cleanup Partially Failed' : 'Spent Proofs Removed',
+            cleanupErrors.length > 0
+              ? `Removed ${result.removed} spent proofs. Kept ${result.kept} valid proofs. Errors: ${cleanupErrors.join('; ')}`
+              : `Removed ${result.removed} spent proofs. Kept ${result.kept} valid proofs.`
           );
         } catch (error: unknown) {
           Alert.alert('Error', `Failed to remove spent proofs: ${error instanceof Error ? error.message : String(error)}`);

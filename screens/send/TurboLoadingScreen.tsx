@@ -24,6 +24,7 @@ interface TurboLoadingRouteParams {
   isTurbo?: boolean;
   mintQuoteId?: string;
   mintAmount?: number;
+  senderTaprootAddress?: string;
 }
 
 /**
@@ -35,7 +36,7 @@ interface TurboLoadingScreenProps {
 }
 
 export default function TurboLoadingScreen({ navigation, route }: TurboLoadingScreenProps): React.JSX.Element {
-  const { prefillAddress, prefillAmount, assetType, isTurbo, mintQuoteId, mintAmount } = route.params || {};
+  const { prefillAddress, prefillAmount, assetType, isTurbo, mintQuoteId, mintAmount, senderTaprootAddress } = route.params || {};
   const { setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos, intentStep, resetSendFlow, sendAssetType: currentAssetType, sendAmount: currentAmount, sendRecipient: currentRecipient } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
@@ -49,6 +50,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   const errorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentCreated = useRef(false);
   const stateInitialized = useRef(false);
+  const timeoutAlertShown = useRef(false);
 
   const clearErrorTimeout = () => {
     if (errorTimeout.current) {
@@ -63,6 +65,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
     hasNavigated.current = false;
     intentCreated.current = false;
     stateInitialized.current = false;
+    timeoutAlertShown.current = false;
   }, [prefillAddress, prefillAmount, assetType]);
 
   // Set the send flow values - this happens once when the component mounts
@@ -125,6 +128,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
           isTurbo,
           mintQuoteId,
           mintAmount,
+          senderTaprootAddress,
         })
       );
     }
@@ -165,39 +169,17 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
 
       cleanupAndShowError();
     }
-  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactionsForCleanup, mintQuoteId, mintAmount, resetSendFlow]);
+  }, [intentStep, sendIntent, navigation, isTurbo, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactionsForCleanup, mintQuoteId, mintAmount, senderTaprootAddress, resetSendFlow]);
 
   // Set a timeout to detect if intent creation is taking too long
   useEffect(() => {
     if (hasStarted.current && !hasNavigated.current) {
       errorTimeout.current = setTimeout(async () => {
-        if (!hasNavigated.current) {
-          hasNavigated.current = true;
-
-          // Clean up any stuck UTXOs
-          await releaseOrphanedUtxos(
-            getSpentUtxos,
-            unmarkUtxosAsSpent,
-            getPendingTransactionsForCleanup
-          );
-
-          // Reset send flow
-          resetSendFlow();
-
-          const parent = navigation.getParent();
+        if (!hasNavigated.current && !timeoutAlertShown.current) {
+          timeoutAlertShown.current = true;
           Alert.alert(
-            'Taking Too Long',
-            'Transaction creation is taking longer than expected. Please try again.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  if (parent) {
-                    parent.goBack();
-                  }
-                }
-              }
-            ]
+            'Still Working',
+            'Transaction creation is taking longer than expected. Keep this screen open while it finishes.'
           );
         }
       }, 10000); // 10 second timeout
@@ -232,7 +214,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   return (
     <View style={styles.container} testID="turbo-loading-screen">
       <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} testID="turbo-loading-spinner" />
-      <Text style={styles.loadingText} testID="turbo-loading-text">Preparing to fall off the map</Text>
+      <Text style={styles.loadingText} testID="turbo-loading-text">Preparing Turbo transaction...</Text>
     </View>
   );
 }

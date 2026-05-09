@@ -5,6 +5,11 @@ import { getTxUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 import { useSendFlowStore } from '../stores/sendFlowStore';
+import {
+  cashuUnitTokenSymbol,
+  DEFAULT_CASHU_UNIT,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
 
 interface NavigationWithParent {
   getParent: () => { goBack: () => void } | undefined;
@@ -13,6 +18,7 @@ interface NavigationWithParent {
 interface UseConfirmationHandlersParams {
   broadcastedTxid: string | undefined;
   turboDeeplink: string | undefined;
+  cashuUnit?: CashuUnit;
   fetchTransactionHistory: (() => void) | undefined;
   navigation: NavigationWithParent;
 }
@@ -34,6 +40,7 @@ interface UseConfirmationHandlersReturn {
 export function useConfirmationHandlers({
   broadcastedTxid,
   turboDeeplink,
+  cashuUnit = DEFAULT_CASHU_UNIT,
   fetchTransactionHistory,
   navigation,
 }: UseConfirmationHandlersParams): UseConfirmationHandlersReturn {
@@ -49,14 +56,14 @@ export function useConfirmationHandlers({
         logger.debug('[useConfirmationHandlers] Sharing Turbo deeplink:', turboDeeplink);
         await Share.share({
           message: turboDeeplink,
-          title: 'Receive UNIT',
+          title: `Receive ${cashuUnitTokenSymbol(cashuUnit)}`,
         });
       } catch (error: unknown) {
         logger.error('[useConfirmationHandlers] Failed to share link:', { error: error instanceof Error ? error.message : String(error) });
         notify.link.shareFailed();
       }
     }
-  }, [turboDeeplink]);
+  }, [turboDeeplink, cashuUnit]);
 
   const handleCopyDeeplink = useCallback(async () => {
     if (turboDeeplink) {

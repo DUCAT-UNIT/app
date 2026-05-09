@@ -29,6 +29,8 @@ interface AmountSectionProps {
   onFeeRateChange: (rate: number) => void;
   /** Estimated fee in satoshis */
   estimatedFeeSats: number;
+  /** Whether to show the on-chain fee selector footer */
+  showFeeSelector?: boolean;
 }
 
 export function AmountSection({
@@ -41,15 +43,16 @@ export function AmountSection({
   selectedFeeRate,
   onFeeRateChange,
   estimatedFeeSats,
+  showFeeSelector = true,
 }: AmountSectionProps): React.JSX.Element {
-  const renderFooter = () => (
+  const renderFooter = showFeeSelector ? () => (
     <FeeRateDropdown
       selectedRate={selectedFeeRate}
       onRateChange={onFeeRateChange}
       estimatedFeeSats={estimatedFeeSats}
       transparent
     />
-  );
+  ) : undefined;
 
   return (
     <View style={styles.section}>

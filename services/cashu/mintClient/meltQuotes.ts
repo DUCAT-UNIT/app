@@ -10,6 +10,7 @@ import {
   normalizeOptionalCashuAmount,
   type CashuAmountLike,
 } from '../cashuTsCompat';
+import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 
 export interface MeltQuote {
   quote: string;
@@ -44,7 +45,10 @@ export interface MeltResponse {
   change?: Array<{ C_: string; id?: string; amount?: number | CashuAmountLike }>;
 }
 
-const normalizeMeltQuote = (quote: MeltQuoteWire): MeltQuote => {
+const normalizeMeltQuote = (
+  quote: MeltQuoteWire,
+  fallbackUnit: CashuUnit = DEFAULT_CASHU_UNIT
+): MeltQuote => {
   const { amount: rawAmount, fee: rawFee, fee_reserve: rawFeeReserve, ...rest } = quote;
   const normalized: MeltQuote = { ...rest };
   const amount = normalizeOptionalCashuAmount(rawAmount, 'melt quote amount');
@@ -55,7 +59,8 @@ const normalizeMeltQuote = (quote: MeltQuoteWire): MeltQuote => {
   if (fee !== undefined) normalized.fee = fee;
   if (feeReserve !== undefined) normalized.fee_reserve = feeReserve;
 
-  if (!normalized.unit || normalized.unit === CASHU_UNIT) {
+  const effectiveUnit = normalized.unit ?? fallbackUnit;
+  if (effectiveUnit === CASHU_UNIT) {
     normalized.fee = 0;
     normalized.fee_reserve = 0;
   }
@@ -69,16 +74,22 @@ const normalizeMeltQuote = (quote: MeltQuoteWire): MeltQuote => {
  * @param amount - Amount in UNIT smallest units
  * @returns Quote with ID, amount, and fee
  */
-export const createMeltQuote = async (address: string, amount: number): Promise<MeltQuote> => {
+export const createMeltQuote = async (
+  address: string,
+  amount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MeltQuote> => {
   try {
-    logger.info('Creating melt quote', { address, amount });
+    logger.info('Creating melt quote', { address, amount, unit });
 
-    const response = await postJSON<MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain`, {
+    const body = {
       request: address,
       amount,
-      unit: CASHU_UNIT,
-      rune_id: RUNE_ID,
-    }, {
+      unit,
+      ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
+    };
+
+    const response = await postJSON<MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain`, body, {
       timeout: 10000,
       description: 'Create melt quote',
     });
@@ -89,7 +100,7 @@ export const createMeltQuote = async (address: string, amount: number): Promise<
       : Array.isArray(responseWithQuotes.quotes)
         ? responseWithQuotes.quotes
         : [response as MeltQuoteWire];
-    const normalizedQuotes = quotes.map(normalizeMeltQuote);
+    const normalizedQuotes = quotes.map((quote) => normalizeMeltQuote(quote, unit));
     if (normalizedQuotes.length === 0) {
       throw new Error('Mint returned no melt quote options');
     }

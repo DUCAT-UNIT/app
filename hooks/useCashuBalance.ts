@@ -8,9 +8,11 @@ import { logger } from '../utils/logger';
 import { getBalance, setCurrentAccount, subscribeToProofChanges } from '../services/cashu/cashuWalletService';
 import { usePolling } from './usePolling';
 import type { WalletAddresses } from '../contexts/WalletContext';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
 
 interface UseCashuBalanceParams {
   wallet: WalletAddresses | null;
+  unit?: CashuUnit;
 }
 
 interface UseCashuBalanceReturn {
@@ -21,7 +23,10 @@ interface UseCashuBalanceReturn {
   fetchBalance: (fullLoad?: boolean) => Promise<number>;
 }
 
-export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBalanceReturn {
+export function useCashuBalance({
+  wallet,
+  unit = DEFAULT_CASHU_UNIT,
+}: UseCashuBalanceParams): UseCashuBalanceReturn {
   const [balance, setBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const balanceRef = useRef(0);  // Track balance for error fallback without causing dependency loops
@@ -34,6 +39,11 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
       backgroundLoadTimerRef.current = null;
     }
   }, []);
+  const readBalance = useCallback(
+    (fullLoad: boolean) =>
+      unit === DEFAULT_CASHU_UNIT ? getBalance(fullLoad) : getBalance(fullLoad, unit),
+    [unit]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -60,7 +70,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
     try {
       if (!fullLoad) {
         // Fast initial load - only first 25 proofs
-        const quickBalance = await getBalance(false);
+        const quickBalance = await readBalance(false);
         if (mountedRef.current) {
           setBalance(quickBalance);
           setError(null);
@@ -71,7 +81,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         backgroundLoadTimerRef.current = setTimeout(async () => {
           backgroundLoadTimerRef.current = null;
           try {
-            const fullBalance = await getBalance(true);
+            const fullBalance = await readBalance(true);
             if (mountedRef.current) {
               setBalance(fullBalance);
             }
@@ -84,7 +94,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
         return quickBalance;
       } else {
         // Full load
-        const newBalance = await getBalance(true);
+        const newBalance = await readBalance(true);
         if (mountedRef.current) {
           setBalance(newBalance);
           setError(null);
@@ -99,7 +109,7 @@ export function useCashuBalance({ wallet }: UseCashuBalanceParams): UseCashuBala
       }
       return balanceRef.current;  // Use ref instead of state to avoid dependency loop
     }
-  }, [wallet?.taprootAddress, clearBackgroundLoadTimer]);  // Safe: only changes on account/auth transitions
+  }, [wallet?.taprootAddress, clearBackgroundLoadTimer, readBalance]);  // Safe: only changes on account/auth transitions
 
   // Update cashu account when wallet changes
   // Reset balance to 0 immediately, then set account and fetch correct balance

@@ -15,6 +15,7 @@ import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
 import { checkProofsSpent, MINT_URL, restoreSignatures } from './cashuMintClient';
+import { assertResponseSignaturesUseExpectedKeyset } from './cashuKeysetUtils';
 import {
   getCurrentCashuAccount,
   loadProofsForStorageKey,
@@ -23,6 +24,7 @@ import {
 } from './cashuProofManager';
 import { encodeToken, sumProofs, unblindSignatures, type BlindingData, type CashuProof } from './crypto';
 import type { CashuAmountLike } from './cashuTsCompat';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 const PENDING_SWAP_KEY = 'cashu_pending_swap';
 const PENDING_SWAP_REGISTRY_KEY = 'cashu_pending_swaps_v1';
@@ -58,12 +60,16 @@ export interface PendingSwapTransaction {
   // Status tracking
   status: 'pending' | 'swapped' | 'completed' | 'failed';
   taprootAddress?: string | null;
+  unit?: CashuUnit;
+  recipient?: string | null;
 }
 
 export interface RecoveredSwapProofs {
   recovered: true;
   swapId: string;
   taprootAddress?: string | null;
+  unit?: CashuUnit;
+  recipient?: string | null;
   changeProofs: CashuProof[];
   sendProofs: CashuProof[];
   sendProofKind: 'send' | 'p2pk' | 'mixed' | 'none';
@@ -76,6 +82,7 @@ export interface RecoveredOutgoingSwapToken {
   kind: 'send' | 'p2pk' | 'mixed';
   sourceSwapId: string;
   taprootAddress?: string | null;
+  unit?: CashuUnit;
   recipient?: string | null;
   proofsToRemove?: CashuProof[];
   createdAt: number;
@@ -96,6 +103,58 @@ type UnblindSignatures = (
 ) => CashuProof[];
 
 const getPendingSwapStorageKey = (swapId: string): string => `${PENDING_SWAP_KEY}_${swapId}`;
+
+const normalizeStoredSwapUnit = (unit: unknown): CashuUnit | undefined => {
+  if (unit === undefined || unit === null) {
+    return undefined;
+  }
+  if (typeof unit !== 'string') {
+    throw new Error('Invalid Cashu swap recovery unit');
+  }
+  const normalized = normalizeCashuUnit(unit);
+  return normalized === DEFAULT_CASHU_UNIT ? undefined : normalized;
+};
+
+const parsePendingSwapTransaction = (stored: string): PendingSwapTransaction => {
+  const txn = JSON.parse(stored) as PendingSwapTransaction;
+  return {
+    ...txn,
+    unit: normalizeStoredSwapUnit(txn.unit),
+  };
+};
+
+const parseRecoveredOutgoingSwapTokens = (stored: string): RecoveredOutgoingSwapToken[] => {
+  const tokens = JSON.parse(stored) as RecoveredOutgoingSwapToken[];
+  if (!Array.isArray(tokens)) {
+    throw new Error('Invalid recovered outgoing token list');
+  }
+  return tokens.map((token) => ({
+    ...token,
+    unit: normalizeStoredSwapUnit(token.unit),
+  }));
+};
+
+const quarantineCorruptRecoveryBlob = async (
+  key: string,
+  stored: string,
+  reason: string
+): Promise<void> => {
+  const quarantineKey = `${key}_corrupt_${Date.now()}`;
+  try {
+    await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
+    logger.warn('[SwapRecovery] Quarantined corrupt recovery blob', {
+      key,
+      quarantineKey,
+      reason,
+    });
+  } catch (error) {
+    logger.error('[SwapRecovery] Failed to quarantine corrupt recovery blob', {
+      key,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
 
 const quarantineCorruptSwapRegistry = async (
   stored: string,
@@ -170,7 +229,13 @@ const unregisterPendingSwap = async (swapId: string): Promise<void> => {
 
 const isCurrentAccountSwap = (txn: PendingSwapTransaction): boolean => {
   const currentAccount = getCurrentCashuAccount();
-  return !txn.taprootAddress || !currentAccount || txn.taprootAddress === currentAccount;
+  if (!txn.taprootAddress) {
+    return true;
+  }
+  if (!currentAccount) {
+    return false;
+  }
+  return txn.taprootAddress === currentAccount;
 };
 
 const loadPendingSwapEntryById = async (swapId: string): Promise<PendingSwapEntry | null> => {
@@ -181,7 +246,7 @@ const loadPendingSwapEntryById = async (swapId: string): Promise<PendingSwapEntr
   }
 
   return {
-    txn: JSON.parse(stored) as PendingSwapTransaction,
+    txn: parsePendingSwapTransaction(stored),
     storageKey,
     legacy: false,
   };
@@ -194,10 +259,52 @@ const loadLegacyPendingSwapEntry = async (): Promise<PendingSwapEntry | null> =>
   }
 
   return {
-    txn: JSON.parse(stored) as PendingSwapTransaction,
+    txn: parsePendingSwapTransaction(stored),
     storageKey: PENDING_SWAP_KEY,
     legacy: true,
   };
+};
+
+const swapRecoveryRank = (entry: PendingSwapEntry): number => {
+  if (entry.txn.status === 'swapped' && entry.txn.swapResponse) {
+    return 4;
+  }
+  if (entry.txn.swapResponse) {
+    return 3;
+  }
+  if (entry.txn.status === 'pending') {
+    return 2;
+  }
+  return 1;
+};
+
+const chooseRecoverableSwapEntry = (
+  current: PendingSwapEntry,
+  candidate: PendingSwapEntry
+): PendingSwapEntry => {
+  const currentRank = swapRecoveryRank(current);
+  const candidateRank = swapRecoveryRank(candidate);
+
+  if (candidateRank !== currentRank) {
+    return candidateRank > currentRank ? candidate : current;
+  }
+
+  if (candidate.txn.timestamp !== current.txn.timestamp) {
+    return candidate.txn.timestamp > current.txn.timestamp ? candidate : current;
+  }
+
+  return current.legacy && !candidate.legacy ? candidate : current;
+};
+
+const mergePendingSwapEntries = (entries: PendingSwapEntry[]): PendingSwapEntry[] => {
+  const byId = new Map<string, PendingSwapEntry>();
+
+  for (const entry of entries) {
+    const existing = byId.get(entry.txn.id);
+    byId.set(entry.txn.id, existing ? chooseRecoverableSwapEntry(existing, entry) : entry);
+  }
+
+  return Array.from(byId.values());
 };
 
 const deletePendingSwapEntry = async (swapId: string, legacy = false): Promise<void> => {
@@ -236,7 +343,7 @@ const loadPendingSwapEntries = async (): Promise<PendingSwapEntry[]> => {
 
   try {
     const legacyEntry = await loadLegacyPendingSwapEntry();
-    if (legacyEntry && !entries.some((entry) => entry.txn.id === legacyEntry.txn.id)) {
+    if (legacyEntry) {
       entries.push(legacyEntry);
     }
   } catch (error) {
@@ -245,7 +352,7 @@ const loadPendingSwapEntries = async (): Promise<PendingSwapEntry[]> => {
     });
   }
 
-  return entries;
+  return mergePendingSwapEntries(entries);
 };
 
 const findPendingSwapEntry = async (swapId?: string): Promise<PendingSwapEntry | null> => {
@@ -274,23 +381,28 @@ export const savePendingSwap = async (
 ): Promise<string> => {
   const random = Buffer.from(crypto.getRandomBytes(8)).toString('hex');
   const id = `swap_${Date.now()}_${random}`;
+  const { unit, ...txnWithoutUnit } = txn;
   const pendingTxn: PendingSwapTransaction = {
-    ...txn,
+    ...txnWithoutUnit,
     id,
     timestamp: Date.now(),
     status: 'pending',
     taprootAddress: getCurrentCashuAccount(),
   };
+  if (unit && unit !== DEFAULT_CASHU_UNIT) {
+    pendingTxn.unit = unit;
+  }
 
   try {
+    let fallbackSaved = false;
     let registrySaved = false;
     try {
-      await registerPendingSwap(id);
-      registrySaved = true;
-    } catch (registryError) {
-      logger.warn('[SwapRecovery] Failed to update swap registry; writing legacy fallback', {
+      await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(pendingTxn), DEVICE_ONLY);
+      fallbackSaved = true;
+    } catch (fallbackError) {
+      logger.warn('[SwapRecovery] Failed to write pending swap legacy fallback', {
         id,
-        error: registryError instanceof Error ? registryError.message : String(registryError),
+        error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
       });
     }
 
@@ -300,8 +412,18 @@ export const savePendingSwap = async (
       DEVICE_ONLY
     );
 
-    if (!registrySaved) {
-      await SecureStore.setItemAsync(PENDING_SWAP_KEY, JSON.stringify(pendingTxn), DEVICE_ONLY);
+    try {
+      await registerPendingSwap(id);
+      registrySaved = true;
+    } catch (registryError) {
+      logger.warn('[SwapRecovery] Failed to update swap registry; relying on legacy fallback', {
+        id,
+        error: registryError instanceof Error ? registryError.message : String(registryError),
+      });
+    }
+
+    if (!registrySaved && !fallbackSaved) {
+      throw new Error('Failed to persist pending swap recovery index');
     }
     logger.info('[SwapRecovery] Saved pending swap transaction', {
       id,
@@ -322,7 +444,8 @@ export const savePendingSwap = async (
  */
 export const updateSwapWithResponse = async (
   swapResponse: PendingSwapTransaction['swapResponse'],
-  swapId?: string
+  swapId?: string,
+  signedKeyset?: { keysetId: string; keys: Record<string | number, string> }
 ): Promise<void> => {
   try {
     const entry = await findPendingSwapEntry(swapId);
@@ -334,8 +457,8 @@ export const updateSwapWithResponse = async (
     const txn = entry.txn;
     const currentAccount = getCurrentCashuAccount();
 
-    if (txn.taprootAddress && currentAccount && txn.taprootAddress !== currentAccount) {
-      logger.info('[SwapRecovery] Pending swap belongs to a different account, ignoring', {
+    if (txn.taprootAddress && (!currentAccount || txn.taprootAddress !== currentAccount)) {
+      logger.info('[SwapRecovery] Pending swap is not for the active account, ignoring', {
         pendingAccount: txn.taprootAddress,
         currentAccount,
       });
@@ -343,6 +466,10 @@ export const updateSwapWithResponse = async (
     }
     txn.swapResponse = swapResponse;
     txn.status = 'swapped';
+    if (signedKeyset) {
+      txn.keysetId = signedKeyset.keysetId;
+      txn.keys = signedKeyset.keys as Record<string, string>;
+    }
 
     let fallbackSaved = false;
     let primarySaved = false;
@@ -376,12 +503,6 @@ export const updateSwapWithResponse = async (
       throw primaryError || fallbackError || new Error('Failed to persist swapped Cashu response');
     }
 
-    if (primarySaved && !entry.legacy) {
-      const legacyEntry = await loadLegacyPendingSwapEntry().catch(() => null);
-      if (legacyEntry?.txn.id === txn.id) {
-        await SecureStore.deleteItemAsync(PENDING_SWAP_KEY);
-      }
-    }
     logger.info('[SwapRecovery] Updated swap with mint response', {
       id: txn.id,
       signatureCount: swapResponse?.signatures?.length,
@@ -413,10 +534,13 @@ export const clearPendingSwap = async (swapId?: string): Promise<void> => {
       if (entry.legacy) {
         return false;
       }
-      if (!currentAccount) {
-        return entries.length === 1;
+      if (!entry.txn.taprootAddress) {
+        return true;
       }
-      return !entry.txn.taprootAddress || entry.txn.taprootAddress === currentAccount;
+      if (!currentAccount) {
+        return false;
+      }
+      return entry.txn.taprootAddress === currentAccount;
     });
 
     for (const entry of entriesToClear) {
@@ -435,24 +559,52 @@ export const clearPendingSwap = async (swapId?: string): Promise<void> => {
 };
 
 export const loadRecoveredOutgoingSwapTokens = async (): Promise<RecoveredOutgoingSwapToken[]> => {
+  const stored = await SecureStore.getItemAsync(RECOVERED_OUTGOING_SWAP_TOKENS_KEY);
+  if (!stored) {
+    return [];
+  }
+
+  let tokens: RecoveredOutgoingSwapToken[];
   try {
-    const stored = await SecureStore.getItemAsync(RECOVERED_OUTGOING_SWAP_TOKENS_KEY);
-    if (!stored) {
-      return [];
-    }
-
-    const tokens = JSON.parse(stored) as RecoveredOutgoingSwapToken[];
-    const currentAccount = getCurrentCashuAccount();
-
-    return tokens.filter(
-      (token) => !token.taprootAddress || !currentAccount || token.taprootAddress === currentAccount
-    );
+    const parsedTokens = parseRecoveredOutgoingSwapTokens(stored);
+    parsedTokens.forEach((token) => {
+      if (
+        typeof token.id !== 'string' ||
+        typeof token.token !== 'string' ||
+        typeof token.amount !== 'number' ||
+        !Number.isFinite(token.amount) ||
+        typeof token.sourceSwapId !== 'string' ||
+        typeof token.createdAt !== 'number' ||
+        !Number.isFinite(token.createdAt) ||
+        !['send', 'p2pk', 'mixed'].includes(token.kind)
+      ) {
+        throw new Error('Invalid recovered outgoing token record');
+      }
+    });
+    tokens = parsedTokens;
   } catch (error) {
+    await quarantineCorruptRecoveryBlob(
+      RECOVERED_OUTGOING_SWAP_TOKENS_KEY,
+      stored,
+      error instanceof Error ? error.message : String(error)
+    );
     logger.error('[SwapRecovery] Failed to load recovered outgoing tokens', {
       error: error instanceof Error ? error.message : String(error),
     });
-    return [];
+    throw error;
   }
+
+  const currentAccount = getCurrentCashuAccount();
+
+  return tokens.filter((token) => {
+    if (!token.taprootAddress) {
+      return true;
+    }
+    if (!currentAccount) {
+      return false;
+    }
+    return token.taprootAddress === currentAccount;
+  });
 };
 
 export const persistOutgoingSwapToken = async (
@@ -460,7 +612,7 @@ export const persistOutgoingSwapToken = async (
 ): Promise<void> => {
   try {
     const stored = await SecureStore.getItemAsync(RECOVERED_OUTGOING_SWAP_TOKENS_KEY);
-    const existing = stored ? (JSON.parse(stored) as RecoveredOutgoingSwapToken[]) : [];
+    const existing = stored ? parseRecoveredOutgoingSwapTokens(stored) : [];
     const withoutDuplicate = existing.filter(
       (item) => item.token !== token.token && item.sourceSwapId !== token.sourceSwapId
     );
@@ -493,7 +645,7 @@ export const clearRecoveredOutgoingSwapToken = async (token: string): Promise<vo
       return;
     }
 
-    const existing = JSON.parse(stored) as RecoveredOutgoingSwapToken[];
+    const existing = parseRecoveredOutgoingSwapTokens(stored);
     const filtered = existing.filter((item) => item.token !== token);
 
     if (filtered.length !== existing.length) {
@@ -575,12 +727,21 @@ export function recoverSwapProofsFromTransaction(
     throw new Error('Pending swap is not recoverable');
   }
 
+  const signedKeysetId = assertResponseSignaturesUseExpectedKeyset(
+    pendingTxn.swapResponse.signatures,
+    pendingTxn.keysetId,
+    `Recovered Cashu ${pendingTxn.unit ?? DEFAULT_CASHU_UNIT} swap`
+  );
   const allNewProofs = unblindSignatures(
     pendingTxn.swapResponse.signatures,
     pendingTxn.blindingData,
     pendingTxn.keys,
-    pendingTxn.swapResponse.signatures[0]?.id || pendingTxn.keysetId
+    signedKeysetId
   );
+  const unknownProofs = allNewProofs.filter((proof) => !pendingTxn.secretTypeMap[proof.secret]);
+  if (unknownProofs.length > 0) {
+    throw new Error(`Recovered swap has ${unknownProofs.length} unclassified outputs`);
+  }
 
   const changeProofs = allNewProofs.filter(
     (proof) => pendingTxn.secretTypeMap[proof.secret] === 'change'
@@ -599,6 +760,13 @@ export function recoverSwapProofsFromTransaction(
         : sendTypes.size === 1 && sendTypes.has('send')
           ? 'send'
           : 'mixed';
+  const expectedOutputAmount = pendingTxn.blindingData.reduce((sum, item) => sum + item.amount, 0);
+  const recoveredOutputAmount = sumProofs([...changeProofs, ...sendProofs]);
+  if (recoveredOutputAmount !== expectedOutputAmount) {
+    throw new Error(
+      `Recovered swap amount mismatch: expected ${expectedOutputAmount} but recovered ${recoveredOutputAmount}`
+    );
+  }
 
   logger.info('[SwapRecovery] Recovered proofs from pending swap', {
     id: pendingTxn.id,
@@ -608,14 +776,19 @@ export function recoverSwapProofsFromTransaction(
     sendProofKind,
   });
 
-  return {
+  const recovered: RecoveredSwapProofs = {
     recovered: true,
     swapId: pendingTxn.id,
     taprootAddress: pendingTxn.taprootAddress,
+    recipient: pendingTxn.recipient,
     changeProofs,
     sendProofs,
     sendProofKind,
   };
+  if (pendingTxn.unit && pendingTxn.unit !== DEFAULT_CASHU_UNIT) {
+    recovered.unit = pendingTxn.unit;
+  }
+  return recovered;
 }
 
 export async function persistRecoveredSwapChangeProofs(
@@ -637,7 +810,7 @@ export async function persistRecoveredSwapChangeProofs(
     } else {
       logger.info('[SwapRecovery] Change proofs already in wallet, skipping');
     }
-  });
+  }, recovery.unit ?? DEFAULT_CASHU_UNIT);
 }
 
 export async function persistRecoveredSwapSendProofs(recovery: RecoveredSwapProofs): Promise<void> {
@@ -645,7 +818,8 @@ export async function persistRecoveredSwapSendProofs(recovery: RecoveredSwapProo
     return;
   }
 
-  const token = encodeToken(recovery.sendProofs, MINT_URL);
+  const unit = recovery.unit ?? DEFAULT_CASHU_UNIT;
+  const token = encodeToken(recovery.sendProofs, MINT_URL, unit);
   await persistOutgoingSwapToken({
     id: `${recovery.swapId}:outgoing`,
     token,
@@ -653,6 +827,8 @@ export async function persistRecoveredSwapSendProofs(recovery: RecoveredSwapProo
     kind: recovery.sendProofKind,
     sourceSwapId: recovery.swapId,
     taprootAddress: recovery.taprootAddress,
+    recipient: recovery.recipient ?? null,
+    unit,
     createdAt: Date.now(),
   });
 }

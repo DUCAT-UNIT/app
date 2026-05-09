@@ -2,7 +2,7 @@
   "expo": {
     "name": "DUCAT",
     "slug": "ducat-wallet",
-    "version": "0.0.4",
+    "version": "0.0.6",
     "orientation": "portrait",
     "icon": "./assets/logos/icon.png",
     "userInterfaceStyle": "dark",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ducatprotocol.DucatProtocolWallet",
-      "buildNumber": "16",
+      "buildNumber": "2",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"

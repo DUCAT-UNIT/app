@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useCreateVaultToUsdcSettlement } from '../useCreateVaultToUsdcSettlement';
+import { persistVaultSettlementNow } from '../../stores/vaultSettlementStore';
 
 const mockRawCreateVault = {
   createVault: jest.fn(),
@@ -226,8 +227,23 @@ describe('useCreateVaultToUsdcSettlement', () => {
     );
     expect(mockSettlementStore.setIssueResult).not.toHaveBeenCalled();
     expect(mockSettlementStore.completeSettlement).not.toHaveBeenCalled();
+    expect(mockSettlementStore.reset).toHaveBeenCalled();
+    expect(persistVaultSettlementNow).toHaveBeenCalledTimes(2);
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockVaultCreationState.setCurrentStep).not.toHaveBeenCalledWith('success');
+  });
+
+  it('clears pre-issue settlement state when raw vault creation throws', async () => {
+    mockRawCreateVault.createVault.mockRejectedValueOnce(new Error('Oracle unavailable'));
+    const { result } = renderHook(() => useCreateVaultToUsdcSettlement());
+
+    await act(async () => {
+      await expect(result.current.createVault()).rejects.toThrow('Oracle unavailable');
+    });
+
+    expect(mockSettlementStore.reset).toHaveBeenCalled();
+    expect(persistVaultSettlementNow).toHaveBeenCalledTimes(2);
+    expect(mockSettlementStore.setIssueResult).not.toHaveBeenCalled();
   });
 
   it('exposes the USDC quote function from the settlement hook', async () => {

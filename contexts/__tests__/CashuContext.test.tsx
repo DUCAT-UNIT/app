@@ -50,6 +50,7 @@ const mockLoadRecoveredOutgoingSwapTokens = jest.fn();
 const mockClearRecoveredOutgoingSwapToken = jest.fn();
 const mockRecoverUnclaimedMintQuotes = jest.fn();
 const mockRecoverPendingTurboSend = jest.fn();
+const mockClearPendingTurboSend = jest.fn();
 const mockRefreshPersistedTurboMintSettlementStatus = jest.fn();
 
 jest.mock('../../services/cashu/cashuSwapRecovery', () => ({
@@ -63,6 +64,7 @@ jest.mock('../../services/cashu/cashuMintQuoteRecovery', () => ({
 }));
 
 jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
+  clearPendingTurboSend: (...args: unknown[]) => mockClearPendingTurboSend(...args),
   recoverPendingTurboSend: (...args: unknown[]) => mockRecoverPendingTurboSend(...args),
 }));
 
@@ -161,12 +163,18 @@ jest.mock('../../hooks/useCashuSendReceive', () => ({
 // Import after mocks are set up
 import { CashuProvider, useCashu, useCashuBalanceState, useCashuOperations } from '../CashuContext';
 import type { CashuContextValue, CashuBalanceValue, CashuOperationsValue } from '../CashuContext';
-import { clearWallet, removeProofs, removeSpentProofs } from '../../services/cashu/cashuWalletService';
+import {
+  clearWallet,
+  removeProofs,
+  removeSpentProofs,
+  setCurrentAccount,
+} from '../../services/cashu/cashuWalletService';
 import { saveSentLockedToken } from '../../services/cashu/cashuLockedTokensService';
 
 const mockClearWallet = clearWallet as jest.Mock;
 const mockRemoveProofs = removeProofs as jest.Mock;
 const mockRemoveSpentProofs = removeSpentProofs as jest.Mock;
+const mockSetCurrentAccount = setCurrentAccount as jest.Mock;
 const mockSaveSentLockedToken = saveSentLockedToken as jest.Mock;
 
 describe('CashuContext', () => {
@@ -185,6 +193,7 @@ describe('CashuContext', () => {
     mockReceive.mockResolvedValue({ amount: 100 });
     mockSend.mockResolvedValue({ token: 'cashu-token' });
     mockRemoveSpentProofs.mockResolvedValue({ removed: 0, kept: 0 });
+    mockSetCurrentAccount.mockResolvedValue(undefined);
     mockRefreshPersistedTurboMintSettlementStatus.mockResolvedValue({
       status: 'idle',
       message: 'No persisted TurboUNIT mint settlement is available to refresh.',
@@ -686,10 +695,43 @@ describe('CashuContext', () => {
       });
 
       expect(mockRunAfterInteractions).toHaveBeenCalled();
+      expect(mockSetCurrentAccount).toHaveBeenCalledWith('tb1ptest123');
+      expect(mockSetCurrentAccount.mock.invocationCallOrder[0]).toBeLessThan(
+        mockCheckAndRecoverSwaps.mock.invocationCallOrder[0]
+      );
       expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
       expect(mockRemoveSpentProofs).toHaveBeenCalled();
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockRefreshPersistedTurboMintSettlementStatus).toHaveBeenCalled();
+      expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should continue startup recovery when swap recovery fails', async () => {
+      mockWallet = { address: 'tb1ptest', taprootAddress: 'tb1ptest123' };
+      mockCheckAndRecoverSwaps.mockRejectedValueOnce(new Error('Swap recovery failed'));
+      mockRecoverUnclaimedMintQuotes.mockResolvedValueOnce({
+        recovered: 1,
+        totalAmountRecovered: 250,
+      });
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <div>Test</div>
+          </CashuProvider>
+        );
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockCheckAndRecoverSwaps).toHaveBeenCalled();
+      expect(mockLoadRecoveredOutgoingSwapTokens).toHaveBeenCalled();
+      expect(mockRemoveSpentProofs).toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockRecoverPendingTurboSend).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
     });
@@ -893,6 +935,39 @@ describe('CashuContext', () => {
       });
 
       expect(mockRemoveSpentProofs).toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockFetchBalance).toHaveBeenCalled();
+    });
+
+    it('should still reconcile Turbo BTC proofs when TurboUNIT reconciliation fails', async () => {
+      let contextValue: CashuContextValue | null = null;
+
+      function Consumer() {
+        contextValue = useCashu();
+        return null;
+      }
+
+      act(() => {
+        create(
+          <CashuProvider>
+            <Consumer />
+          </CashuProvider>
+        );
+      });
+
+      mockRemoveSpentProofs.mockReset();
+      mockRemoveSpentProofs
+        .mockRejectedValueOnce(new Error('unit state check failed'))
+        .mockResolvedValueOnce({ removed: 2, kept: 3 });
+      mockRecoverUnclaimedMintQuotes.mockClear();
+      mockFetchBalance.mockClear();
+
+      await act(async () => {
+        await contextValue!.refresh();
+      });
+
+      expect(mockRemoveSpentProofs).toHaveBeenCalledWith('unit');
+      expect(mockRemoveSpentProofs).toHaveBeenCalledWith('sat');
       expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockFetchBalance).toHaveBeenCalled();
     });

@@ -18,6 +18,7 @@ import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { withVaultOperationLock, checkBatchAllowed, Utxo } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -99,103 +100,109 @@ export async function createVaultReqRepay(
 ): Promise<WalletVaultRepayRequest> {
   // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
   return withVaultOperationLock(async () => {
-  logger.debug('[VaultOps] Creating repay request...');
+    logger.debug('[VaultOps] Creating repay request...');
 
-  try {
-    const { feeRate, oracleQuote, vaultProfile } = options;
-
-    // SECURITY: Re-validate oracle price freshness before building transaction.
-    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
-      throw new Error(
-        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
-      );
-    }
-
-    logger.debug('[VaultOps] Repay context inputs:', {
-      mintAccount: !!acctRes.mint_account,
-      oracleQuote: !!oracleQuote,
-      vaultProfile: {
-        acct_id: vaultProfile.acct_id,
-        guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
-        master_id: vaultProfile.master_id,
-        vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
-        hasRdata: !!vaultProfile.rdata,
-        hasUtxo: !!vaultProfile.utxo,
-      },
-      repayAmount: repayConfig.repay_amount,
-    });
-
-    // Create repay context
-    const vaultCtx: VaultRepayCtx = wallet.vault.repay.ctx(
-      acctRes.mint_account,
-      oracleQuote,
-      vaultProfile,
-      repayConfig
-    );
-
-    // Get transaction quote
-    const txQuote = wallet.vault.repay.quote(vaultCtx);
-    logger.debug('[VaultOps] Repay tx quote:', {
-      totalCost: txQuote.total_cost,
-    });
-
-    // Get sats UTXOs for transaction fees
-    let satsUtxos = options.utxos;
-    if (!satsUtxos) {
-      const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
-      satsUtxos = await wallet.fetch.sats_utxos(costWithVins);
-    }
-
-    if (!satsUtxos || satsUtxos.length === 0) {
-      throw new Error('No sats UTXOs available for repay transaction fees');
-    }
-
-    // Get UNIT UTXOs for burning (required for repay)
-    // NOTE: rune_utxos may include UTXOs that are in pending transactions.
-    // The Guardian will reject double-spend attempts, but the error message may be confusing.
-    logger.debug('[VaultOps] Fetching UNIT UTXOs for repay (no spent-filter available via SDK)', {
-      requiredAmount: vaultCtx.repay_amount,
-    });
-    const unitUtxos = await wallet.fetch.rune_utxos(
-      VAULT_CONFIG.RUNE_LABEL,
-      vaultCtx.repay_amount
-    );
-
-    if (!unitUtxos || unitUtxos.length === 0) {
-      throw new Error('No UNIT UTXOs available to repay. Make sure you have enough UNIT tokens.');
-    }
-
-    logger.debug('[VaultOps] UTXOs for repay:', {
-      satsUtxosCount: satsUtxos.length,
-      unitUtxosCount: unitUtxos.length,
-    });
-
-    // Check if batch signing is allowed
-    const isBatch = checkBatchAllowed(wallet);
-
-    let repayReq: WalletVaultRepayRequest;
-    setPendingVaultSigningOperation({
-      action: 'repay',
-      ctx: vaultCtx,
-      satsUtxos,
-      unitUtxos,
-    });
     try {
-      repayReq = await wallet.vault.repay.req(vaultCtx, satsUtxos, unitUtxos, isBatch);
-    } finally {
-      clearPendingVaultSigningOperation();
+      const { feeRate, oracleQuote, vaultProfile } = options;
+
+      // SECURITY: Re-validate oracle price freshness before building transaction.
+      const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+      if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+        throw new Error(
+          `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+        );
+      }
+
+      logger.debug('[VaultOps] Repay context inputs:', {
+        mintAccount: !!acctRes.mint_account,
+        oracleQuote: !!oracleQuote,
+        vaultProfile: {
+          acct_id: vaultProfile.acct_id,
+          guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
+          master_id: vaultProfile.master_id,
+          vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
+          hasRdata: !!vaultProfile.rdata,
+          hasUtxo: !!vaultProfile.utxo,
+        },
+        repayAmount: repayConfig.repay_amount,
+      });
+
+      // Create repay context
+      const vaultCtx: VaultRepayCtx = wallet.vault.repay.ctx(
+        acctRes.mint_account,
+        oracleQuote,
+        vaultProfile,
+        repayConfig
+      );
+
+      // Get transaction quote
+      const txQuote = wallet.vault.repay.quote(vaultCtx);
+      logger.debug('[VaultOps] Repay tx quote:', {
+        totalCost: txQuote.total_cost,
+      });
+
+      // Get sats UTXOs for transaction fees
+      let satsUtxos = options.utxos;
+      if (!satsUtxos) {
+        const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+        satsUtxos = await withVaultBuildTimeout(
+          wallet.fetch.sats_utxos(costWithVins),
+          'Timed out fetching BTC UTXOs for repay. Please try again.'
+        );
+      }
+
+      if (!satsUtxos || satsUtxos.length === 0) {
+        throw new Error('No sats UTXOs available for repay transaction fees');
+      }
+
+      // Get UNIT UTXOs for burning (required for repay)
+      // NOTE: rune_utxos may include UTXOs that are in pending transactions.
+      // The Guardian will reject double-spend attempts, but the error message may be confusing.
+      logger.debug('[VaultOps] Fetching UNIT UTXOs for repay (no spent-filter available via SDK)', {
+        requiredAmount: vaultCtx.repay_amount,
+      });
+      const unitUtxos = await withVaultBuildTimeout(
+        wallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, vaultCtx.repay_amount),
+        'Timed out fetching UNIT UTXOs for repay. Please try again.'
+      );
+
+      if (!unitUtxos || unitUtxos.length === 0) {
+        throw new Error('No UNIT UTXOs available to repay. Make sure you have enough UNIT tokens.');
+      }
+
+      logger.debug('[VaultOps] UTXOs for repay:', {
+        satsUtxosCount: satsUtxos.length,
+        unitUtxosCount: unitUtxos.length,
+      });
+
+      // Check if batch signing is allowed
+      const isBatch = checkBatchAllowed(wallet);
+
+      let repayReq: WalletVaultRepayRequest;
+      setPendingVaultSigningOperation({
+        action: 'repay',
+        ctx: vaultCtx,
+        satsUtxos,
+        unitUtxos,
+      });
+      try {
+        repayReq = await withVaultBuildTimeout(
+          wallet.vault.repay.req(vaultCtx, satsUtxos, unitUtxos, isBatch),
+          'Timed out building the repay transaction. Please try again.'
+        );
+      } finally {
+        clearPendingVaultSigningOperation();
+      }
+
+      logger.debug('[VaultOps] Repay request created:', {
+        sats_inputs_count: repayReq.sats_inputs?.length,
+      });
+
+      return repayReq;
+    } catch (error) {
+      logger.error('[VaultOps] Failed to create repay request:', { error });
+      throw error;
     }
-
-    logger.debug('[VaultOps] Repay request created:', {
-      sats_inputs_count: repayReq.sats_inputs?.length,
-    });
-
-    return repayReq;
-  } catch (error) {
-    logger.error('[VaultOps] Failed to create repay request:', { error });
-    throw error;
-  }
   }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
@@ -220,10 +227,10 @@ export async function guardianSendReqRepay(
     // This mirrors the web frontend behavior and was empirically determined.
     await new Promise((resolve) => setTimeout(resolve, 350));
 
-    const guardRes = await withGuardianTimeout(
+    const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
-    ) as VaultRepayResponse;
+    )) as VaultRepayResponse;
 
     const txid = guardRes.repay_txid;
     const vault_txid = guardRes.vault_txid;

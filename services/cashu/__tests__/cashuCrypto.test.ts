@@ -261,6 +261,18 @@ describe('cashuCrypto', () => {
       expect(decoded.mint).toBe(mint);
       expect(decoded.proofs).toEqual(proofs);
     });
+
+    it('should preserve sat unit in encoded BTC Cashu tokens', () => {
+      const proofs = [{ amount: 1000, secret: 'sats', C: VALID_C, id: UNIT_KEYSET_ID }];
+      const mint = 'https://testmint.com';
+
+      const encoded = encodeToken(proofs, mint, 'sat');
+      const decoded = decodeToken(encoded, [UNIT_KEYSET_ID]);
+
+      expect(decoded.unit).toBe('sat');
+      expect(decoded.amount).toBe(1000);
+      expect(decoded.proofs).toEqual(proofs);
+    });
   });
 
   describe('decodeToken', () => {

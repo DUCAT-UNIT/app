@@ -101,9 +101,39 @@ describe('processEcashTokens', () => {
       expect(result[0].tokenData).toBe(token);
     });
 
-    it('should set assetType to UNIT for every ecash token', () => {
+    it('should default legacy ecash token records to UNIT', () => {
       const result = processEcashTokens([makeReceivedToken(), makeSentToken()], emptySelfClaimed, undefined);
       result.forEach(tx => expect(tx.txData?.assetType).toBe('UNIT'));
+    });
+
+    it('should map sat ecash token records to BTC amounts in sats', () => {
+      const result = processEcashTokens(
+        [
+          makeReceivedToken({ id: 'sat-recv', amount: 12_345, unit: 'sat' }),
+          makeSentToken({ id: 'sat-send', amount: 5_000, unit: 'sat' }),
+        ],
+        emptySelfClaimed,
+        undefined
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          txid: 'sat-recv',
+          txData: expect.objectContaining({
+            amount: 12_345,
+            assetType: 'BTC',
+            numericAmount: 12_345,
+          }),
+        }),
+        expect.objectContaining({
+          txid: 'sat-send',
+          txData: expect.objectContaining({
+            amount: -5_000,
+            assetType: 'BTC',
+            numericAmount: -5_000,
+          }),
+        }),
+      ]);
     });
   });
 
@@ -184,18 +214,32 @@ describe('processEcashTokens', () => {
   });
 
   describe('self-send filter', () => {
-    it('should exclude a received token whose taprootAddress matches the current user taprootAddress', () => {
+    it('should include a received token whose account taprootAddress matches the current user taprootAddress', () => {
       const token = makeReceivedToken({ taprootAddress: 'tb1pMINE' });
       const result = processEcashTokens([token], emptySelfClaimed, 'tb1pMINE');
 
-      expect(result).toHaveLength(0);
+      expect(result).toHaveLength(1);
     });
 
-    it('should include a received token when taprootAddress does NOT match', () => {
-      const token = makeReceivedToken({ taprootAddress: 'tb1pOTHER' });
-      const result = processEcashTokens([token], emptySelfClaimed, 'tb1pMINE');
+    it('should exclude a received duplicate when its token matches a self-claimed sent token', () => {
+      const sentToken = makeSentToken({
+        id: 'self-claimed-send',
+        token: 'cashuBsame-token',
+        claimed: true,
+      });
+      const receivedToken = makeReceivedToken({
+        id: 'received-duplicate',
+        token: 'cashuBsame-token',
+        taprootAddress: 'tb1pMINE',
+      });
+      const result = processEcashTokens(
+        [sentToken, receivedToken],
+        new Set(['self-claimed-send']),
+        'tb1pMINE'
+      );
 
       expect(result).toHaveLength(1);
+      expect(result[0].txid).toBe('self-claimed-send');
     });
 
     it('should include a received token when its taprootAddress is null', () => {
@@ -249,6 +293,17 @@ describe('findSelfClaimedTokenIds', () => {
       });
 
       const result = findSelfClaimedTokenIds([token], 'my-pubkey-hex');
+      expect(result.has('sent-1')).toBe(true);
+    });
+
+    it('should return the id of a sent token whose recipient matches the current taproot address and is claimed', () => {
+      const token = makeSentToken({
+        id: 'sent-1',
+        recipient: 'tb1pselfaddress',
+        claimed: true,
+      });
+
+      const result = findSelfClaimedTokenIds([token], null, 'tb1pSELFADDRESS');
       expect(result.has('sent-1')).toBe(true);
     });
 

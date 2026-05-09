@@ -69,7 +69,10 @@ describe('cashuBalanceService', () => {
 
     it('should return cached keys when valid and not expired', async () => {
       const mockKeysetData = {
-        keysets: [{ id: 'keyset1', keys: { 1: 'key1' } }],
+        keysets: [
+          { id: 'unit-keyset', unit: 'unit', keys: { 1: 'key1' } },
+          { id: 'sat-keyset', unit: 'sat', keys: { 1: 'key2' } },
+        ],
       };
       const cachedData = {
         keysetData: mockKeysetData,
@@ -81,6 +84,28 @@ describe('cashuBalanceService', () => {
 
       expect(getKeys).not.toHaveBeenCalled();
       expect(result).toEqual(mockKeysetData);
+    });
+
+    it('should refetch when cached keys are missing the sat keyset', async () => {
+      const cachedData = {
+        keysetData: {
+          keysets: [{ id: 'unit-keyset', unit: 'unit', keys: { 1: 'key1' } }],
+        },
+        timestamp: Date.now() - 1000,
+      };
+      const freshKeysetData = {
+        keysets: [
+          { id: 'unit-keyset', unit: 'unit', keys: { 1: 'key1' } },
+          { id: 'sat-keyset', unit: 'sat', keys: { 1: 'key2' } },
+        ],
+      };
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(cachedData));
+      (getKeys as jest.Mock).mockResolvedValue(freshKeysetData);
+
+      const result = await getOrFetchKeys();
+
+      expect(getKeys).toHaveBeenCalled();
+      expect(result).toEqual(freshKeysetData);
     });
 
     it('should refetch when cache is expired (line 30-32)', async () => {

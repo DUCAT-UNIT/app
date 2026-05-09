@@ -36,6 +36,7 @@ interface UseTransactionNotificationsParams {
   broadcastedTxid: string | undefined;
   sendAssetType: string | undefined;
   turboEnabled?: boolean;
+  btcTurboEnabled?: boolean;
   showSnackbar: (params: unknown) => void;
 }
 
@@ -126,6 +127,22 @@ describe('useTransactionNotifications', () => {
     expect(showSnackbar).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'btc_send',
+      })
+    );
+  });
+
+  it('should use btc_swap action for Turbo BTC funding transactions', () => {
+    renderHookWithProps({
+      intentStep: 'pending',
+      broadcastedTxid: 'txid123',
+      sendAssetType: 'btc',
+      btcTurboEnabled: true,
+      showSnackbar,
+    });
+
+    expect(showSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'btc_swap',
       })
     );
   });

@@ -34,7 +34,6 @@ const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 import { fetchCurrentPrice, fetchPriceQuote } from '../oracleService';
-import { OracleAPI } from '@ducat-unit/client-sdk';
 import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
 describe('oracleService', () => {
@@ -57,7 +56,7 @@ describe('oracleService', () => {
         expect.objectContaining({
           method: 'GET',
           signal: expect.any(AbortSignal),
-        }),
+        })
       );
       expect(result).toBe(100000);
     });
@@ -105,72 +104,81 @@ describe('oracleService', () => {
         price: 100000,
         signature: 'mock_signature',
         timestamp: Date.now(),
+        latest_stamp: Math.floor(Date.now() / 1000),
       };
 
-      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
-        data: mockQuote,
+        json: jest.fn().mockResolvedValue(mockQuote),
       });
 
       const result = await fetchPriceQuote(50000);
 
-      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
-        'https://test.quote.server',
-        50000
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://test.quote.server/api/quote?th=50000',
+        expect.objectContaining({
+          method: 'GET',
+          signal: expect.any(AbortSignal),
+        })
       );
       expect(result).toEqual(mockQuote);
     });
 
     it('should use minimum threshold of 1 for zero price', async () => {
-      const mockQuote = { price: 100000 };
+      const mockQuote = { price: 100000, latest_stamp: Math.floor(Date.now() / 1000) };
 
-      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
-        data: mockQuote,
+        json: jest.fn().mockResolvedValue(mockQuote),
       });
 
       await fetchPriceQuote(0);
 
-      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
-        'https://test.quote.server',
-        1
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://test.quote.server/api/quote?th=1',
+        expect.objectContaining({
+          method: 'GET',
+          signal: expect.any(AbortSignal),
+        })
       );
     });
 
     it('should floor liquidation price', async () => {
-      const mockQuote = { price: 100000 };
+      const mockQuote = { price: 100000, latest_stamp: Math.floor(Date.now() / 1000) };
 
-      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: true,
-        data: mockQuote,
+        json: jest.fn().mockResolvedValue(mockQuote),
       });
 
       await fetchPriceQuote(50000.75);
 
-      expect(OracleAPI.quote.fetch_price_quote).toHaveBeenCalledWith(
-        'https://test.quote.server',
-        50000
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://test.quote.server/api/quote?th=50000',
+        expect.objectContaining({
+          method: 'GET',
+          signal: expect.any(AbortSignal),
+        })
       );
     });
 
     it('should throw error on API error response', async () => {
-      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockResolvedValue({
+      mockFetch.mockResolvedValue({
         ok: false,
-        error: 'API Error',
+        status: 500,
+        statusText: 'Server Error',
       });
 
       try {
         await fetchPriceQuote(50000);
         expect(true).toBe(false);
       } catch (e) {
-        expect((e as Error).message).toContain('Oracle');
+        expect((e as Error).message).toContain('HTTP 500');
       }
     });
 
     it('should throw error on network failure', async () => {
-      (OracleAPI.quote.fetch_price_quote as jest.Mock).mockRejectedValue(
-        new Error('Network error')
-      );
+      mockFetch.mockRejectedValue(new Error('Network error'));
 
       try {
         await fetchPriceQuote(50000);
@@ -178,6 +186,16 @@ describe('oracleService', () => {
       } catch (e) {
         expect((e as Error).message).toContain('Network error');
       }
+    });
+
+    it('should turn aborts into a user-friendly quote timeout', async () => {
+      const abortError = new Error('Aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
+
+      await expect(fetchPriceQuote(50000)).rejects.toThrow(
+        'Timed out fetching oracle price quote. Please try again.'
+      );
     });
   });
 });

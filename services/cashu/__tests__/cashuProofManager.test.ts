@@ -5,6 +5,7 @@
 
 // Create module-scoped storage simulation
 let mockStorage: Record<string, string> = {};
+const mockCheckProofsSpent = jest.fn();
 
 jest.mock('../../../utils/logger', () => ({
   logger: {
@@ -27,6 +28,10 @@ jest.mock('expo-secure-store', () => ({
   }),
 }));
 
+jest.mock('../cashuMintClient', () => ({
+  checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
+}));
+
 import * as SecureStore from 'expo-secure-store';
 import {
   setCurrentAccount,
@@ -36,6 +41,7 @@ import {
   saveProofs,
   addProofs,
   removeProofs,
+  removeSpentProofs,
 } from '../cashuProofManager';
 import { logger } from '../../../utils/logger';
 
@@ -55,6 +61,7 @@ describe('cashuProofManager', () => {
       delete mockStorage[key];
       return Promise.resolve();
     });
+    mockCheckProofsSpent.mockResolvedValue({ states: [] });
   });
 
   describe('getStorageKey', () => {
@@ -149,6 +156,19 @@ describe('cashuProofManager', () => {
       const result = await loadProofs();
 
       expect(result).toEqual(storedProofs);
+    });
+
+    it('should keep UNIT and sat proof stores separate for the same account', async () => {
+      const unitProofs = [{ amount: 64, secret: 'unit-secret', C: 'C', id: 'unit-id' }];
+      const satProofs = [{ amount: 1000, secret: 'sat-secret', C: 'C', id: 'sat-id' }];
+
+      await saveProofs(unitProofs, true, 'unit');
+      await saveProofs(satProofs, true, 'sat');
+
+      expect(getStorageKey('unit')).toBe('cashu_proofs_test_load_account');
+      expect(getStorageKey('sat')).toBe('cashu_proofs_test_load_account_sat');
+      expect(await loadProofs('unit')).toEqual(unitProofs);
+      expect(await loadProofs('sat')).toEqual(satProofs);
     });
 
     it('should fail closed on storage read errors', async () => {
@@ -283,6 +303,44 @@ describe('cashuProofManager', () => {
     });
   });
 
+  describe('removeSpentProofs', () => {
+    beforeEach(async () => {
+      await setCurrentAccount('test_spent_account');
+    });
+
+    it('should remove only proofs reported spent by the mint', async () => {
+      const existingProofs = [
+        { amount: 64, secret: 's1', C: 'C', id: 'id' },
+        { amount: 32, secret: 's2', C: 'C', id: 'id' },
+      ];
+      mockStorage['cashu_proofs_test_spent_account_sat'] = JSON.stringify(existingProofs);
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }, { state: 'UNSPENT' }],
+      });
+
+      const result = await removeSpentProofs('sat');
+
+      expect(result).toEqual({ removed: 1, kept: 1 });
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_test_spent_account_sat']).proofs;
+      expect(savedProofs).toEqual([existingProofs[1]]);
+    });
+
+    it('should fail closed when the mint returns fewer proof states than requested', async () => {
+      const existingProofs = [
+        { amount: 64, secret: 's1', C: 'C', id: 'id' },
+        { amount: 32, secret: 's2', C: 'C', id: 'id' },
+      ];
+      mockStorage['cashu_proofs_test_spent_account_sat'] = JSON.stringify(existingProofs);
+      mockCheckProofsSpent.mockResolvedValue({
+        states: [{ state: 'SPENT' }],
+      });
+
+      await expect(removeSpentProofs('sat')).rejects.toThrow('Unable to verify all proof states');
+
+      expect(JSON.parse(mockStorage['cashu_proofs_test_spent_account_sat'])).toEqual(existingProofs);
+    });
+  });
+
   describe('setCurrentAccount', () => {
     it('should migrate global proofs on first account set', async () => {
       const globalProofs = [{ amount: 64, secret: 's1', C: 'C', id: 'id' }];
@@ -291,27 +349,41 @@ describe('cashuProofManager', () => {
       await setCurrentAccount('migration_test_account');
 
       // Global proofs should be migrated to account-specific key
-      expect(mockStorage['cashu_proofs_migration_test_account']).toBe(JSON.stringify(globalProofs));
+      expect(JSON.parse(mockStorage['cashu_proofs_migration_test_account']).proofs).toEqual(globalProofs);
       // Old key should be deleted
       expect(mockStorage['cashu_proofs']).toBeUndefined();
       expect(logger.info).toHaveBeenCalledWith('Deleted old global proofs storage');
     });
 
-    it('should skip migration if account-specific proofs already exist (line 31-34)', async () => {
-      const globalProofs = [{ amount: 64, secret: 's1', C: 'C', id: 'id' }];
+    it('should migrate global sat proofs on first account set', async () => {
+      const globalSatProofs = [{ amount: 21, secret: 'sat-secret', C: 'C', id: 'sat_id' }];
+      mockStorage['cashu_proofs_sat'] = JSON.stringify(globalSatProofs);
+
+      await setCurrentAccount('sat_migration_account');
+
+      expect(JSON.parse(mockStorage['cashu_proofs_sat_migration_account_sat']).proofs).toEqual(
+        globalSatProofs
+      );
+      expect(mockStorage['cashu_proofs_sat']).toBeUndefined();
+    });
+
+    it('should merge and delete global proofs if account-specific proofs already exist', async () => {
+      const globalProofs = [
+        { amount: 64, secret: 's1', C: 'C', id: 'id' },
+        { amount: 32, secret: 's2', C: 'C', id: 'id' },
+      ];
       const accountProofs = [{ amount: 32, secret: 's2', C: 'C', id: 'id' }];
       mockStorage['cashu_proofs'] = JSON.stringify(globalProofs);
       mockStorage['cashu_proofs_existing_account'] = JSON.stringify(accountProofs);
 
       await setCurrentAccount('existing_account');
 
-      // Account proofs should be unchanged
-      expect(mockStorage['cashu_proofs_existing_account']).toBe(JSON.stringify(accountProofs));
-      // Global proofs should still exist
-      expect(mockStorage['cashu_proofs']).toBe(JSON.stringify(globalProofs));
-      expect(logger.info).toHaveBeenCalledWith(
-        'Account-specific proofs already exist, skipping migration'
-      );
+      const savedProofs = JSON.parse(mockStorage['cashu_proofs_existing_account']).proofs;
+      expect(savedProofs).toEqual([
+        { amount: 32, secret: 's2', C: 'C', id: 'id' },
+        { amount: 64, secret: 's1', C: 'C', id: 'id' },
+      ]);
+      expect(mockStorage['cashu_proofs']).toBeUndefined();
     });
 
     it('should not migrate if no global proofs exist', async () => {

@@ -8,6 +8,8 @@ import { Alert } from 'react-native';
 import { useCashuReceive } from '../useCashuReceive';
 
 // Mock dependencies
+const mockDecodeTokenMetadata = jest.fn();
+
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -27,6 +29,10 @@ jest.mock('@react-navigation/native', () => ({
   CommonActions: {
     navigate: jest.fn((params) => params),
   },
+}));
+
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  decodeTokenMetadata: (...args: unknown[]) => mockDecodeTokenMetadata(...args),
 }));
 
 // Helper to render hooks with props
@@ -69,11 +75,16 @@ describe('useCashuReceive', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockProps = {
-      startMint: jest.fn().mockResolvedValue({ quoteId: 'quote123', depositAddress: 'bc1qtest' }),
+      startMint: jest
+        .fn()
+        .mockResolvedValue({ quoteId: 'quote123', depositAddress: 'bc1qtest', amount: 100 }),
       checkAndCompleteMint: jest.fn().mockResolvedValue({ completed: false }),
       receive: jest.fn().mockResolvedValue({ amount: 100 }),
       navigation: mockNavigation,
     };
+    mockDecodeTokenMetadata.mockImplementation(() => {
+      throw new Error('Metadata unavailable');
+    });
   });
 
   afterEach(() => {
@@ -200,6 +211,43 @@ describe('useCashuReceive', () => {
       expect(mockProps.receive).toHaveBeenCalledWith('cashuAtoken123');
     });
 
+    it('should format success with the decoded BTC Cashu unit', async () => {
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'sat' });
+      mockProps.receive.mockResolvedValueOnce({ amount: 2500 });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.setPasteValue('cashuBbtctoken');
+      });
+
+      await act(async () => {
+        await result.current!.handleReceiveToken();
+      });
+
+      expect(mockProps.receive).toHaveBeenCalledWith('cashuBbtctoken');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Success!',
+        'Received 0.000025 BTC worth of Cashu tokens',
+        expect.any(Array)
+      );
+    });
+
+    it('should fail closed before receive when a token has an unsupported explicit unit', async () => {
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'msat' });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.setPasteValue('cashuBunsupportedunit');
+      });
+
+      await act(async () => {
+        await result.current!.handleReceiveToken();
+      });
+
+      expect(mockProps.receive).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Unsupported Cashu unit: msat');
+    });
+
     it('should handle receive error', async () => {
       mockProps.receive.mockRejectedValue(new Error('Receive failed'));
       const { result } = renderHookWithProps(mockProps);
@@ -254,7 +302,122 @@ describe('useCashuReceive', () => {
       });
 
       expect(mockProps.startMint).toHaveBeenCalledWith(100);
-      expect(mockNavigation.dispatch).toHaveBeenCalled();
+      expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'SendFlow',
+          params: expect.objectContaining({
+            screen: 'Processing',
+            params: expect.objectContaining({
+              cashuMint: true,
+              quoteId: 'quote123',
+              mintAmount: 100,
+              cashuUnit: 'unit',
+              assetType: 'unit',
+              amount: '1',
+              recipient: 'bc1qtest',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should carry BTC Cashu mint amount in sats to Processing', async () => {
+      mockProps.startMint.mockResolvedValueOnce({
+        quoteId: 'quote-sat',
+        depositAddress: 'tb1qsatmint',
+        amount: 2500,
+      });
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuUnit: 'sat',
+      });
+
+      act(() => {
+        result.current!.setAmount('2500');
+      });
+
+      await act(async () => {
+        await result.current!.handleAutoMint();
+      });
+
+      expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'SendFlow',
+          params: expect.objectContaining({
+            screen: 'Processing',
+            params: expect.objectContaining({
+              cashuMint: true,
+              quoteId: 'quote-sat',
+              mintAmount: 2500,
+              cashuUnit: 'sat',
+              assetType: 'btc',
+              amount: '0.000025',
+              recipient: 'tb1qsatmint',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should fund the mint quote amount instead of the typed amount', async () => {
+      mockProps.startMint.mockResolvedValueOnce({
+        quoteId: 'quote-adjusted',
+        depositAddress: 'bc1qadjusted',
+        amount: 125,
+      });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current!.handleAutoMint();
+      });
+
+      expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            params: expect.objectContaining({
+              mintAmount: 125,
+              amount: '1.25',
+              recipient: 'bc1qadjusted',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should format one sat without scientific notation', async () => {
+      mockProps.startMint.mockResolvedValueOnce({
+        quoteId: 'quote-one-sat',
+        depositAddress: 'tb1qonesat',
+        amount: 1,
+      });
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuUnit: 'sat',
+      });
+
+      act(() => {
+        result.current!.setAmount('1');
+      });
+
+      await act(async () => {
+        await result.current!.handleAutoMint();
+      });
+
+      expect(mockNavigation.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            params: expect.objectContaining({
+              mintAmount: 1,
+              amount: '0.00000001',
+              recipient: 'tb1qonesat',
+            }),
+          }),
+        })
+      );
     });
   });
 
@@ -395,7 +558,7 @@ describe('useCashuReceive', () => {
       // Should show success alert
       expect(Alert.alert).toHaveBeenCalledWith(
         'Success!',
-        'Minted 100 sats worth of Cashu tokens',
+        'Minted 1.00 UNIT worth of Cashu tokens',
         expect.any(Array)
       );
     });
@@ -530,9 +693,12 @@ describe('useCashuReceive', () => {
 
     it('should not overlap mint status checks while a previous check is still running', async () => {
       let resolveCheck: (value: { completed: boolean }) => void = () => undefined;
-      mockProps.checkAndCompleteMint.mockImplementation(() => new Promise((resolve) => {
-        resolveCheck = resolve;
-      }));
+      mockProps.checkAndCompleteMint.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveCheck = resolve;
+          })
+      );
 
       const { result } = renderHookWithProps(mockProps);
 
@@ -581,7 +747,9 @@ describe('useCashuReceive', () => {
       });
 
       // Extract the onPress callback from Alert.alert call
-      const alertCall = (Alert.alert as jest.Mock).mock.calls.find((call: unknown[]) => call[0] === 'Success!');
+      const alertCall = (Alert.alert as jest.Mock).mock.calls.find(
+        (call: unknown[]) => call[0] === 'Success!'
+      );
       expect(alertCall).toBeDefined();
 
       // Get the button config

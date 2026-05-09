@@ -24,18 +24,65 @@ import { logger } from '../../utils/logger';
  */
 const _vaultOpLocks: Map<string, Promise<void>> = new Map();
 
-export function withVaultOperationLock<T>(fn: () => Promise<T>, key = '__default__'): Promise<T> {
-  let release: () => void;
-  const _next = new Promise<void>((resolve) => {
+export const VAULT_OPERATION_LOCK_WAIT_TIMEOUT_MS = 30_000;
+
+async function waitForPreviousVaultOperation(
+  previous: Promise<void>,
+  key: string,
+  timeoutMs: number
+): Promise<void> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const previousOperation = previous.catch((error) => {
+    logger.warn('[VaultOps] Previous vault operation failed before lock handoff', {
+      key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      logger.warn('[VaultOps] Timed out waiting for previous vault operation lock', {
+        key,
+        timeoutMs,
+      });
+      reject(new Error('Timed out waiting for a previous vault operation. Please try again.'));
+    }, timeoutMs);
+    (timeoutId as { unref?: () => void }).unref?.();
+  });
+
+  try {
+    await Promise.race([previousOperation, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+export async function withVaultOperationLock<T>(
+  fn: () => Promise<T>,
+  key = '__default__',
+  timeoutMs = VAULT_OPERATION_LOCK_WAIT_TIMEOUT_MS
+): Promise<T> {
+  let release: () => void = () => undefined;
+  const previous = _vaultOpLocks.get(key) || Promise.resolve();
+  const current = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const existing = _vaultOpLocks.get(key) || Promise.resolve();
-  const result = existing.then(fn);
-  _vaultOpLocks.set(key, result.then(
-    () => { release(); },
-    () => { release(); }
-  ));
-  return result;
+  const lockChain = previous.catch(() => undefined).then(() => current);
+
+  _vaultOpLocks.set(key, lockChain);
+
+  try {
+    await waitForPreviousVaultOperation(previous, key, timeoutMs);
+    return await fn();
+  } finally {
+    release();
+    if (_vaultOpLocks.get(key) === lockChain) {
+      _vaultOpLocks.delete(key);
+    }
+  }
 }
 
 export interface Utxo {
@@ -92,10 +139,10 @@ export function extractOpReturnFromTxHex(txHex: string | undefined): string | nu
     offset += inputCount.bytesRead;
     for (let i = 0; i < inputCount.value; i++) {
       offset += 32; // txid
-      offset += 4;  // vout
+      offset += 4; // vout
       const scriptLen = readVarInt(txBuffer, offset);
       offset += scriptLen.bytesRead + scriptLen.value;
-      offset += 4;  // sequence
+      offset += 4; // sequence
     }
 
     // Read outputs
@@ -130,7 +177,9 @@ export function checkBatchAllowed(wallet: VaultWallet): boolean {
     const lowerAddress = satsAddress.toLowerCase();
     return lowerAddress.startsWith(SEGWIT_ADDRESS_PREFIX);
   } catch (error: unknown) {
-    logger.warn('[VaultOps] Failed to check batch allowed', { error: error instanceof Error ? error.message : String(error) });
+    logger.warn('[VaultOps] Failed to check batch allowed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 }
@@ -153,29 +202,29 @@ export type VaultActionCode = 'o' | 'b' | 'r' | 'd' | 'w' | 'l' | 'x';
 export function normalizeVaultAction(action: string): VaultActionCode {
   const actionMap: Record<string, VaultActionCode> = {
     // Full names (from API)
-    'Open': 'o',
-    'Borrow': 'b',
-    'Repay': 'r',
-    'Deposit': 'd',
-    'Withdraw': 'w',
-    'Liquidate': 'l',
-    'Close': 'x',
+    Open: 'o',
+    Borrow: 'b',
+    Repay: 'r',
+    Deposit: 'd',
+    Withdraw: 'w',
+    Liquidate: 'l',
+    Close: 'x',
     // Lowercase versions
-    'open': 'o',
-    'borrow': 'b',
-    'repay': 'r',
-    'deposit': 'd',
-    'withdraw': 'w',
-    'liquidate': 'l',
-    'close': 'x',
+    open: 'o',
+    borrow: 'b',
+    repay: 'r',
+    deposit: 'd',
+    withdraw: 'w',
+    liquidate: 'l',
+    close: 'x',
     // Already single char codes (passthrough)
-    'o': 'o',
-    'b': 'b',
-    'r': 'r',
-    'd': 'd',
-    'w': 'w',
-    'l': 'l',
-    'x': 'x',
+    o: 'o',
+    b: 'b',
+    r: 'r',
+    d: 'd',
+    w: 'w',
+    l: 'l',
+    x: 'x',
   };
 
   const normalized = actionMap[action];
@@ -219,12 +268,7 @@ export function computeVaultPrevoutFromTx(tx: {
 
   const [utxoTxid, voutRaw, ...extraParts] = tx.utxo.split(':');
   const vout = Number(voutRaw);
-  if (
-    !utxoTxid ||
-    extraParts.length > 0 ||
-    !Number.isInteger(vout) ||
-    vout < 0
-  ) {
+  if (!utxoTxid || extraParts.length > 0 || !Number.isInteger(vout) || vout < 0) {
     logger.warn('[VaultOps] Cannot compute VaultPrevout: malformed utxo reference', {
       utxo: tx.utxo,
     });

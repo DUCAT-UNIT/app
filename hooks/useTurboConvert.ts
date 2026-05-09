@@ -21,6 +21,7 @@ interface UseTurboConvertParams {
   getSpentUtxos: () => Set<string>;
   unmarkUtxosAsSpent: (utxos: UtxoRef[]) => Promise<void>;
   getPendingTransactions?: () => Record<string, UtilsPendingTransaction>;
+  senderTaprootAddress?: string;
 }
 
 interface UseTurboConvertReturn {
@@ -33,6 +34,7 @@ export function useTurboConvert({
   getSpentUtxos,
   unmarkUtxosAsSpent,
   getPendingTransactions,
+  senderTaprootAddress,
 }: UseTurboConvertParams): UseTurboConvertReturn {
   const handleTurboPress = useCallback(async () => {
     const unitRunesAmount = getRunesAmount(runesBalance);
@@ -50,6 +52,7 @@ export function useTurboConvert({
       const unitRunesCents = Math.round(unitRunesAmount * 100);
       analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount: unitRunesCents });
       const mintQuote = await requestMint(unitRunesCents);
+      const mintAmountCents = mintQuote.amount ?? unitRunesCents;
 
       // Navigate to TurboLoading screen
       navigation.navigate('SendFlow', {
@@ -57,16 +60,17 @@ export function useTurboConvert({
         params: {
           assetType: 'unit',
           prefillAddress: mintQuote.depositAddress,
-          prefillAmount: unitRunesAmount,
+          prefillAmount: mintAmountCents / 100,
           mintQuoteId: mintQuote.quoteId,
-          mintAmount: unitRunesCents,
+          mintAmount: mintAmountCents,
+          ...(senderTaprootAddress ? { senderTaprootAddress } : {}),
           isTurbo: true,
         }
       });
     } catch (error: unknown) {
       Alert.alert('Error', `Failed to convert: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }, [runesBalance, navigation, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions]);
+  }, [runesBalance, navigation, getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions, senderTaprootAddress]);
 
   return { handleTurboPress };
 }

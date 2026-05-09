@@ -5,7 +5,7 @@
 
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import React,{ useEffect,useState } from 'react';
+import React,{ useCallback,useEffect,useState } from 'react';
 import { ActivityIndicator,Animated,StyleSheet,Text,View } from 'react-native';
 import { COLORS } from '../theme';
 import { useAuthSession } from '../contexts/AuthContext';
@@ -43,6 +43,8 @@ import { useSettingsScreenCallbacks } from '../hooks/useSettingsScreenCallbacks'
 import { useSheetNavigation } from '../hooks/useSheetNavigation';
 import { useTransactionNotifications } from '../hooks/useTransactionNotifications';
 import { useHasPendingVaultTx } from '../stores/pendingVaultTransactionStore';
+import { decodeTokenMetadata } from '../services/cashu/cashuWalletService';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit } from '../services/cashu/cashuUnits';
 import { getRunesAmount } from '../utils/runesHelper';
 
 // Styles
@@ -76,9 +78,14 @@ export default function WalletPage({ route }: WalletPageProps) {
   const hasVault = !!(vaultData && (vaultData.totalCollateral ?? 0) > 0);
   const vaultCollateral = vaultData?.totalCollateral ?? 0;
   const { btcPrice } = usePrice();
-  const { balance: cashuBalance, receive: receiveCashuToken } = useCashu();
+  const {
+    balance: cashuBalance,
+    btcBalanceSats,
+    receive: receiveCashuToken,
+    receiveBtc: receiveBtcCashuToken,
+  } = useCashu();
   const { wallet, switchAccount, currentAccount } = useWallet();
-  const { intentStep, sendAssetType, sendAddressType, turboEnabled } = useSendFlow();
+  const { intentStep, sendAssetType, sendAddressType, turboEnabled, btcTurboEnabled } = useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
   const { showToast, dismissSnackbar, showSnackbar } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
@@ -94,7 +101,14 @@ export default function WalletPage({ route }: WalletPageProps) {
   } = useEcashBalanceCheck(cashuBalance, settingsHandlers.ecashThreshold, currentUnitBalance, isAuthenticated);
 
   // Transaction notifications
-  useTransactionNotifications({ intentStep, broadcastedTxid: broadcastedTxid ?? undefined, sendAssetType: sendAssetType ?? undefined, turboEnabled, showSnackbar });
+  useTransactionNotifications({
+    intentStep,
+    broadcastedTxid: broadcastedTxid ?? undefined,
+    sendAssetType: sendAssetType ?? undefined,
+    turboEnabled,
+    btcTurboEnabled,
+    showSnackbar,
+  });
   useClaimNotifications({ route, showSnackbar, dismissSnackbar, switchAccount: switchAccount as unknown as (accountIndex: number) => Promise<void> });
 
   // Navigation hooks
@@ -115,7 +129,19 @@ export default function WalletPage({ route }: WalletPageProps) {
 
   // QR Scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const handleQRScan = useQRCodeHandler({ receiveCashuToken, showSnackbar, setShowQRScanner });
+  const receiveCashuTokenByUnit = useCallback(
+    async (token: string) => {
+      const metadata = decodeTokenMetadata(token);
+      const unit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+      return unit === 'sat' ? receiveBtcCashuToken(token) : receiveCashuToken(token);
+    },
+    [receiveBtcCashuToken, receiveCashuToken]
+  );
+  const handleQRScan = useQRCodeHandler({
+    receiveCashuToken: receiveCashuTokenByUnit,
+    showSnackbar,
+    setShowQRScanner,
+  });
 
   // Ecash threshold manager
   const {
@@ -125,6 +151,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   } = useEcashThresholdManager({
     cashuBalance, runesBalance, settingsHandlers,
     showSettings, closeSettings, lowBalanceAmountNeeded, closeLowBalanceModal,
+    senderTaprootAddress: wallet?.taprootAddress,
   });
 
   // Settings callbacks
@@ -239,8 +266,8 @@ export default function WalletPage({ route }: WalletPageProps) {
             });
           }}
           onVaultWithdraw={handleVaultWithdraw}
-          btcBalance={(segwitBalance || 0) + (taprootBalance || 0)}
-          unitBalance={currentUnitBalance + (cashuBalance || 0)}
+          btcBalance={(segwitBalance || 0) + (taprootBalance || 0) + (btcBalanceSats || 0) / 100_000_000}
+          unitBalance={currentUnitBalance + (cashuBalance || 0) / 100}
           btcPrice={btcPrice}
           vaultCollateral={vaultCollateral}
           hasVault={hasVault}

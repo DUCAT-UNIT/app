@@ -4,24 +4,34 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationProp } from '@react-navigation/native';
-import React,{ useCallback,useEffect,useMemo,useRef,useState } from 'react';
-import { ActivityIndicator,Alert,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { NavigationProp, StackActions } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
+import PinFallbackModal from '../../components/auth/PinFallbackModal';
 import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../contexts/WalletDataContext';
 import { authenticateWithBiometrics } from '../../services/biometricService';
+import { verifyPin } from '../../services/pinService';
 import { useCreateVaultToUsdcSettlement } from '../../hooks/useCreateVaultToUsdcSettlement';
 import { usePrice } from '../../stores/priceStore';
 import {
   requiresVaultSettlementUnitSend,
   resolveVaultSettlementRequestedAsset,
 } from '../../stores/vaultSettlementStore';
-import { useVaultCreation } from '../../stores/vaultCreationStore';
-import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { useVaultCreation, useVaultCreationStore } from '../../stores/vaultCreationStore';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 import { isE2E } from '../../utils/e2e';
 import { formatFiat } from '../../utils/formatters';
 import { formatVaultUsd } from '../../utils/vaultFaceValue';
@@ -29,6 +39,15 @@ import { getOpCostOpen, getVaultSettlementReserveSats } from '../../utils/vaultU
 
 interface VaultConfirmScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
+}
+
+function getVaultCreationErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+
+  const latestError = useVaultCreationStore.getState().error;
+  return latestError || 'Failed to create vault. Please try again.';
 }
 
 export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenProps) {
@@ -48,9 +67,14 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   const { utxos } = useBalance();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
-  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(receiveAsset, usdcFeaturesEnabled);
+  const effectiveReceiveAsset = resolveVaultSettlementRequestedAsset(
+    receiveAsset,
+    usdcFeaturesEnabled
+  );
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPinFallback, setShowPinFallback] = useState(false);
+  const [pinFallbackError, setPinFallbackError] = useState<string | null>(null);
   const [estimatedUsdcOut, setEstimatedUsdcOut] = useState<string | null>(null);
   const confirmInFlightRef = useRef(false);
   const isBusy = isLoading || isAuthenticating || isSubmitting;
@@ -96,6 +120,67 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
   const feeUsdValue = btcPrice ? (estimatedFee / 100_000_000) * btcPrice : 0;
   const payoutMeta = getReceiveAssetMeta(effectiveReceiveAsset);
 
+  const runVaultCreation = useCallback(async () => {
+    setIsAuthenticating(false);
+    setCurrentStep('processing');
+    navigation.navigate('VaultProcessing');
+    const txid = await createVault();
+    if (!txid) {
+      throw new Error(getVaultCreationErrorMessage(null));
+    }
+  }, [createVault, navigation, setCurrentStep]);
+
+  const handleAuthFailure = useCallback((errorMessage?: string): void => {
+    if (errorMessage === 'user_cancel') {
+      return;
+    }
+
+    setPinFallbackError(null);
+    setShowPinFallback(true);
+  }, []);
+
+  const handlePinFallbackSubmit = useCallback(
+    async (pin: string): Promise<void> => {
+      if (confirmInFlightRef.current) {
+        return;
+      }
+
+      confirmInFlightRef.current = true;
+      setPinFallbackError(null);
+      setIsSubmitting(true);
+
+      try {
+        const pinResult = await verifyPin(pin);
+        if (!pinResult.success) {
+          setPinFallbackError(pinResult.error);
+          return;
+        }
+
+        setShowPinFallback(false);
+        await runVaultCreation();
+      } catch (err) {
+        setIsAuthenticating(false);
+        setCurrentStep('confirm');
+        navigation.dispatch(StackActions.replace('VaultConfirm'));
+        Alert.alert('Error', getVaultCreationErrorMessage(err));
+      } finally {
+        setIsAuthenticating(false);
+        setIsSubmitting(false);
+        confirmInFlightRef.current = false;
+      }
+    },
+    [navigation, runVaultCreation, setCurrentStep]
+  );
+
+  const handlePinFallbackCancel = useCallback((): void => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setPinFallbackError(null);
+    setShowPinFallback(false);
+  }, [isSubmitting]);
+
   // Handle confirm with biometric authentication
   const handleConfirm = useCallback(async () => {
     if (confirmInFlightRef.current) {
@@ -112,30 +197,23 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
         const result = await authenticateWithBiometrics('Authenticate to create vault', 'Use PIN');
 
         if (!result.success) {
-          if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', result.error || 'Please try again');
-          }
-          setIsAuthenticating(false);
+          handleAuthFailure(result.error);
           return;
         }
       }
 
-      // Proceed with vault creation
-      setIsAuthenticating(false);
-      setCurrentStep('processing');
-      navigation.navigate('VaultProcessing');
-      await createVault();
+      await runVaultCreation();
     } catch (err) {
       setIsAuthenticating(false);
       setCurrentStep('confirm');
-      if (navigation.canGoBack()) navigation.goBack();
-      Alert.alert('Error', 'Failed to create vault. Please try again.');
+      navigation.dispatch(StackActions.replace('VaultConfirm'));
+      Alert.alert('Error', getVaultCreationErrorMessage(err));
     } finally {
       setIsAuthenticating(false);
       setIsSubmitting(false);
       confirmInFlightRef.current = false;
     }
-  }, [createVault, setCurrentStep, navigation]);
+  }, [handleAuthFailure, runVaultCreation, setCurrentStep, navigation]);
 
   // Handle back navigation
   const handleBack = useCallback(() => {
@@ -144,7 +222,7 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
     }
 
     setCurrentStep('payout');
-    navigation.goBack();
+    navigation.navigate('VaultPayout');
   }, [isBusy, setCurrentStep, navigation]);
 
   return (
@@ -250,10 +328,11 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           <View style={styles.row}>
             <Text style={styles.label}>Liquidation Price</Text>
             <Text style={[styles.valueHighlight, { color: colors.semantic.error }]}>
-              {liquidationPrice === Infinity || liquidationPrice === 0 ? 'None' : `$${formatFiat(liquidationPrice)}`}
+              {liquidationPrice === Infinity || liquidationPrice === 0
+                ? 'None'
+                : `$${formatFiat(liquidationPrice)}`}
             </Text>
           </View>
-
         </View>
 
         {/* Fee Display - Separate section matching other confirm screens */}
@@ -284,22 +363,24 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
 
       {/* Footer */}
       <View style={styles.footer}>
-          <TouchableScale
-            style={styles.backButton}
-            onPress={handleBack}
-            disabled={isBusy}
-            pressLockMs={700}
-          >
-            <Text style={styles.backText}>Back</Text>
-          </TouchableScale>
+        <TouchableScale
+          style={styles.backButton}
+          onPress={handleBack}
+          disabled={isBusy}
+          pressLockMs={700}
+        >
+          <Text style={styles.backText}>Back</Text>
+        </TouchableScale>
 
-          <TouchableScale
+        <TouchableScale
           style={[styles.confirmButton, isBusy && styles.buttonDisabled]}
           onPress={handleConfirm}
           disabled={isBusy}
           testID="vault-create-confirm-btn"
           accessibilityRole="button"
-          accessibilityLabel={isBusy ? 'Preparing vault creation' : 'Confirm and sign vault creation'}
+          accessibilityLabel={
+            isBusy ? 'Preparing vault creation' : 'Confirm and sign vault creation'
+          }
           accessibilityState={{ disabled: isBusy, busy: isBusy }}
           lockWhilePending
           pressLockMs={900}
@@ -316,6 +397,15 @@ export default function VaultConfirmScreen({ navigation }: VaultConfirmScreenPro
           )}
         </TouchableScale>
       </View>
+      <PinFallbackModal
+        visible={showPinFallback}
+        title="Confirm with PIN"
+        message="Face ID is unavailable. Enter your wallet PIN to create this vault."
+        error={pinFallbackError}
+        busy={isSubmitting}
+        onSubmit={handlePinFallbackSubmit}
+        onCancel={handlePinFallbackCancel}
+      />
     </SafeAreaView>
   );
 }

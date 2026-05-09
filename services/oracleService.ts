@@ -3,7 +3,7 @@
  * Fetches price quotes from the Oracle API for vault operations
  */
 
-import { OracleAPI, type PriceQuote } from '@ducat-unit/client-sdk';
+import type { PriceQuote } from '@ducat-unit/client-sdk';
 import { API } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { getJSON } from '../utils/apiClient';
@@ -24,16 +24,17 @@ export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQu
   logger.debug(`[OracleService] Fetching price quote for threshold: ${safeThreshold}`);
 
   try {
-    const quoteRes = await OracleAPI.quote.fetch_price_quote(
-      API.QUOTE_SERVER,
-      safeThreshold
-    );
+    const query = new URLSearchParams({ th: String(safeThreshold) });
+    const quote = await getJSON<PriceQuote>(`${API.QUOTE_SERVER}/api/quote?${query.toString()}`, {
+      timeout: 8000,
+      retryOptions: { maxRetries: 1 },
+      dedupeKey: `oracle-price-quote-${safeThreshold}`,
+      circuitKey: 'oracle-price-quote',
+    });
 
-    if (!quoteRes.ok) {
-      throw new Error(`Oracle API error: ${quoteRes.error}`);
+    if (typeof quote.latest_stamp !== 'number') {
+      throw new Error('Oracle price quote is missing timestamp');
     }
-
-    const quote = quoteRes.data;
 
     // SECURITY: Validate oracle price is not stale
     // Stale prices can enable over-borrowing or manipulation of vault operations
@@ -57,7 +58,13 @@ export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQu
     return quote;
   } catch (error) {
     logger.error('[OracleService] Failed to fetch price quote:', { error });
-    throw error instanceof Error ? error : new Error('Failed to fetch price quote from Oracle');
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || /abort/i.test(error.message)) {
+        throw new Error('Timed out fetching oracle price quote. Please try again.');
+      }
+      throw error;
+    }
+    throw new Error('Failed to fetch price quote from Oracle');
   }
 }
 

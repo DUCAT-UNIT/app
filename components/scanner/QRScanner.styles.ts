@@ -81,6 +81,17 @@ export default StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
+  permissionCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   permissionTitle: {
     fontSize: 24,
     fontWeight: 'bold',

@@ -19,14 +19,18 @@ jest.mock('../../utils/logger', () => ({
 
 // Mock CashuContext
 const mockAddPendingMint = jest.fn();
+const mockAddPendingBtcMint = jest.fn();
 let mockPendingMints: { quoteId: string; amount: number }[] = [];
+let mockPendingBtcMints: { quoteId: string; amount: number }[] = [];
 
 jest.mock('../../contexts/CashuContext', () => ({
   useCashuBalanceState: () => ({
     pendingMints: mockPendingMints,
+    pendingBtcMints: mockPendingBtcMints,
   }),
   useCashuOperations: () => ({
     addPendingMint: mockAddPendingMint,
+    addPendingBtcMint: mockAddPendingBtcMint,
   }),
 }));
 
@@ -59,6 +63,7 @@ describe('useCashuMintCompletion', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPendingMints = [];
+    mockPendingBtcMints = [];
 
     mockProps = {
       cashuMint: false,
@@ -133,9 +138,23 @@ describe('useCashuMintCompletion', () => {
         cashuMint: true,
         quoteId: 'quote123',
         mintAmount: 100,
+        senderTaprootAddress: 'tb1psender',
       });
 
-      expect(mockAddPendingMint).toHaveBeenCalledWith('quote123', 100);
+      expect(mockAddPendingMint).toHaveBeenCalledWith('quote123', 100, 'tb1psender');
+    });
+
+    it('should register BTC pending mint with the sender account', () => {
+      renderHookWithProps({
+        ...mockProps,
+        cashuMint: true,
+        quoteId: 'quote-btc',
+        mintAmount: 1000,
+        cashuUnit: 'sat',
+        senderTaprootAddress: 'tb1psender',
+      });
+
+      expect(mockAddPendingBtcMint).toHaveBeenCalledWith('quote-btc', 1000, 'tb1psender');
     });
 
     it('should set isCompletingMint to true after registration', async () => {

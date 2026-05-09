@@ -8,6 +8,7 @@ describe('networkConfig', () => {
     delete process.env.EXPO_PUBLIC_UNIT_RUNE_BLOCK;
     delete process.env.EXPO_PUBLIC_UNIT_RUNE_TX;
     delete process.env.EXPO_PUBLIC_ESPLORA_API_URL;
+    delete process.env.EXPO_PUBLIC_VAULT_API_URL;
   });
 
   afterAll(() => {
@@ -57,6 +58,12 @@ describe('networkConfig', () => {
 
     expect(APP_NETWORK_CONFIG.id).toBe('mutinynet');
     expect(APP_NETWORK_CONFIG.api.esploraApiUrl).toBe('https://mutinynet.example/api');
+  });
+
+  it('uses the reachable Mutinynet validator by default', () => {
+    const { APP_NETWORK_CONFIG } = loadConfig();
+
+    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.staging.ducatprotocol.com/api');
   });
 
   it('fails fast on invalid bigint protocol overrides', () => {

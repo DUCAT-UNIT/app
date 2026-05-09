@@ -297,6 +297,8 @@ describe('SecureStorageService', () => {
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_user_handle_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('passkey_pepper_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_creation_method_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_sat');
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith(LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY);
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith(EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY);
       expect(AsyncStorage.removeItem).toHaveBeenCalledWith(OPERATION_JOURNAL_STORAGE_KEY);
@@ -347,6 +349,26 @@ describe('SecureStorageService', () => {
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_pending_turbo_sends_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_recovered_outgoing_swap_tokens_v1');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_failed_proofs_latest_v1');
+    });
+
+    it('should delete UNIT and BTC Cashu proof stores for cached accounts', async () => {
+      mockDeleteItemAsync.mockResolvedValue();
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'wallet_multi_account_cache_v1') {
+          return Promise.resolve(JSON.stringify({
+            0: { taprootAddress: 'tb1paccount0' },
+            2: { taprootAddress: 'tb1paccount2' },
+          }));
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(deleteWalletData()).resolves.toBeUndefined();
+
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_tb1paccount0');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_tb1paccount0_sat');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_tb1paccount2');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_tb1paccount2_sat');
     });
 
     it('should continue even if passkey clear fails (via dynamic import error)', async () => {

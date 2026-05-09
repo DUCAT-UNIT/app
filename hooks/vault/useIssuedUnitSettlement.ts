@@ -513,7 +513,6 @@ export function useIssuedUnitSettlement() {
         throw new Error('Wallet not connected');
       }
 
-      const amountInput = formatVaultSettlementAmountInput(faceValueUsd);
       const amountSmallestUnits = Math.round(faceValueUsd * 100);
       let cashuMintQuoteId: string | undefined;
       let broadcastedMintSendTxid: string | null = null;
@@ -523,6 +522,7 @@ export function useIssuedUnitSettlement() {
         const persistedSettlement = useVaultSettlementStore.getState();
         cashuMintQuoteId = persistedSettlement.cashuMintQuoteId || undefined;
         let cashuMintDepositAddress = persistedSettlement.cashuMintDepositAddress || undefined;
+        let cashuMintQuoteAmount = persistedSettlement.cashuMintQuoteAmount || amountSmallestUnits;
         broadcastedMintSendTxid = persistedSettlement.cashuMintSendTxid;
 
         if (!cashuMintQuoteId || !cashuMintDepositAddress) {
@@ -530,13 +530,15 @@ export function useIssuedUnitSettlement() {
           const quote = await requestMint(amountSmallestUnits);
           cashuMintQuoteId = quote.quoteId;
           cashuMintDepositAddress = quote.depositAddress;
-          setCashuMintQuote(quote.quoteId, quote.depositAddress);
+          cashuMintQuoteAmount = quote.amount ?? amountSmallestUnits;
+          setCashuMintQuote(quote.quoteId, quote.depositAddress, cashuMintQuoteAmount);
           await persistVaultSettlementNow();
         }
+        const mintFundingAmountInput = formatVaultSettlementAmountInput(cashuMintQuoteAmount / 100);
 
         if (!broadcastedMintSendTxid) {
           setPhase('building_turbo_send');
-          const mintSendIntent = await buildBridgeSendIntent(cashuMintDepositAddress, amountInput);
+          const mintSendIntent = await buildBridgeSendIntent(cashuMintDepositAddress, mintFundingAmountInput);
           const inputsToLock = getUnitIntentInputs(mintSendIntent);
           if (inputsToLock.length > 0) {
             await markUtxosAsSpent(inputsToLock);
@@ -574,7 +576,7 @@ export function useIssuedUnitSettlement() {
               outputs,
               'UNIT',
               parentTxid,
-              amountSmallestUnits,
+              cashuMintQuoteAmount,
               spentInputs,
               { displayKind: 'turbo_mint_claim' },
             );
@@ -620,7 +622,7 @@ export function useIssuedUnitSettlement() {
         }
 
         setPhase('waiting_turbo_mint');
-        const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, amountSmallestUnits);
+        const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, cashuMintQuoteAmount);
         const payoutAmount = formatVaultSettlementAmountInput(mintedAmount / 100);
 
         if (broadcastedMintSendTxid) {

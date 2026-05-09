@@ -160,7 +160,7 @@ jest.mock('expo-crypto', () => {
     digest: (algorithm, data) => {
       const algoMap = {
         'SHA-256': 'sha256',
-        'SHA256': 'sha256',
+        SHA256: 'sha256',
         'SHA-384': 'sha384',
         'SHA-512': 'sha512',
       };
@@ -441,7 +441,9 @@ jest.mock('react-native', () => {
       Value: jest.fn((initialValue) => {
         const animatedValue = {
           _value: initialValue || 0,
-          setValue: jest.fn(function(value) { this._value = value; }),
+          setValue: jest.fn(function (value) {
+            this._value = value;
+          }),
           interpolate: jest.fn(),
         };
         return animatedValue;
@@ -485,6 +487,7 @@ jest.mock('react-native', () => {
     TouchableOpacity: 'TouchableOpacity',
     ScrollView: 'ScrollView',
     Image: 'Image',
+    Modal: 'Modal',
     ActivityIndicator: 'ActivityIndicator',
     Share: {
       share: jest.fn(),
@@ -544,7 +547,11 @@ jest.mock('expo-linear-gradient', () => ({
 
 // Mock react-native-quick-crypto with full crypto implementation
 jest.mock('react-native-quick-crypto', () => {
-  const { pbkdf2Sync: nodePbkdf2Sync, createHmac: nodeCreateHmac, webcrypto: nodeWebcrypto } = require('node:crypto');
+  const {
+    pbkdf2Sync: nodePbkdf2Sync,
+    createHmac: nodeCreateHmac,
+    webcrypto: nodeWebcrypto,
+  } = require('node:crypto');
   return {
     pbkdf2Sync: nodePbkdf2Sync,
     createHmac: nodeCreateHmac,

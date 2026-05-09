@@ -26,6 +26,7 @@ import { getJSON, postJSON } from '../../../utils/apiClient';
 import {
   getMintInfo,
   mintSupportsOnchainUnit,
+  mintSupportsOnchainCashuUnit,
   getKeysets,
   getKeys,
   createMintQuote,
@@ -89,6 +90,19 @@ describe('cashuMintClient', () => {
           },
         },
       })).toBe(false);
+    });
+
+    it('should detect advertised onchain/sat mint support', () => {
+      expect(mintSupportsOnchainCashuUnit({
+        nuts: {
+          '4': {
+            methods: [
+              { method: 'onchain', unit: 'unit' },
+              { method: 'onchain', unit: 'sat' },
+            ],
+          },
+        },
+      }, 'sat')).toBe(true);
     });
   });
 
@@ -180,6 +194,39 @@ describe('cashuMintClient', () => {
           unit: 'unit',
           pubkey,
           rune_id: '1527352:1',
+        }),
+        expect.objectContaining({ timeout: 10000 })
+      );
+    });
+
+    it('should create an onchain/sat mint quote without rune_id', async () => {
+      const mockQuote = {
+        quote: 'quote-sat',
+        request: 'tb1pbtcdeposit',
+        state: 'UNPAID',
+      };
+      (getJSON as jest.Mock).mockResolvedValue({
+        nuts: {
+          '4': {
+            methods: [{ method: 'onchain', unit: 'sat' }],
+          },
+        },
+      });
+      (postJSON as jest.Mock).mockResolvedValue(mockQuote);
+
+      const result = await createMintQuote(pubkey, 'sat');
+
+      expect(result).toEqual(mockQuote);
+      expect(postJSON).toHaveBeenCalledWith(
+        `${MINT_URL}/v1/mint/quote/onchain`,
+        expect.not.objectContaining({ rune_id: expect.anything() }),
+        expect.objectContaining({ timeout: 10000 })
+      );
+      expect(postJSON).toHaveBeenCalledWith(
+        `${MINT_URL}/v1/mint/quote/onchain`,
+        expect.objectContaining({
+          unit: 'sat',
+          pubkey,
         }),
         expect.objectContaining({ timeout: 10000 })
       );
@@ -393,6 +440,34 @@ describe('cashuMintClient', () => {
         fee: 0,
         fee_reserve: 0,
       });
+    });
+
+    it('should preserve BTC sat melt fees when the mint omits unit in the response', async () => {
+      (postJSON as jest.Mock).mockResolvedValue([{
+        quote: 'btcmelt123',
+        amount: 5000,
+        fee: 250,
+      }]);
+
+      await expect(createMeltQuote('tb1pwithdraw', 5000, 'sat')).resolves.toMatchObject({
+        quote: 'btcmelt123',
+        amount: 5000,
+        fee: 250,
+      });
+      expect(postJSON).toHaveBeenCalledWith(
+        `${MINT_URL}/v1/melt/quote/onchain`,
+        expect.objectContaining({
+          request: 'tb1pwithdraw',
+          amount: 5000,
+          unit: 'sat',
+        }),
+        expect.any(Object)
+      );
+      expect(postJSON).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ rune_id: expect.any(String) }),
+        expect.any(Object)
+      );
     });
 
     it('should throw on error', async () => {

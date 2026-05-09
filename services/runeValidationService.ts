@@ -8,12 +8,47 @@ import { logger } from '../utils/logger';
 import { getJSON } from '../utils/apiClient';
 
 interface RuneInfo {
-  id: string;
-  spaced_rune: string;
-  number: number;
-  rune: string;
-  block: number;
-  txIndex: number;
+  id?: string;
+  spaced_rune?: string;
+  number?: number;
+  rune?: string;
+  block?: number;
+  txIndex?: number;
+  tx_index?: number;
+  entry?: {
+    spaced_rune?: string;
+    number?: number;
+    rune?: string;
+    block?: number;
+    txIndex?: number;
+    tx_index?: number;
+  };
+}
+
+function getTxIndexFromRuneId(id?: string): number | undefined {
+  if (!id) {
+    return undefined;
+  }
+
+  const txIndex = Number(id.split(':')[1]);
+  return Number.isFinite(txIndex) ? txIndex : undefined;
+}
+
+function normalizeRuneInfo(runeInfo: RuneInfo): {
+  spacedRune?: string;
+  block?: number;
+  txIndex?: number;
+} {
+  return {
+    spacedRune: runeInfo.spaced_rune ?? runeInfo.entry?.spaced_rune,
+    block: runeInfo.block ?? runeInfo.entry?.block,
+    txIndex:
+      runeInfo.txIndex ??
+      runeInfo.tx_index ??
+      runeInfo.entry?.txIndex ??
+      runeInfo.entry?.tx_index ??
+      getTxIndexFromRuneId(runeInfo.id),
+  };
 }
 
 /**
@@ -44,7 +79,7 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
 
     const runeInfo = await getJSON<RuneInfo>(url, {
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       timeout: 8000,
       retryOptions: { maxRetries: 1 },
@@ -54,19 +89,21 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
       circuitKey: 'ord-rune-validation',
     });
 
+    const normalizedRuneInfo = normalizeRuneInfo(runeInfo);
+
     // Validate the spaced_rune matches expected label
-    if (runeInfo.spaced_rune !== expectedLabel) {
+    if (normalizedRuneInfo.spacedRune !== expectedLabel) {
       const error = new Error(
         `CRITICAL: Rune configuration mismatch!\n` +
-        `Expected label: ${expectedLabel}\n` +
-        `Actual label: ${runeInfo.spaced_rune}\n` +
-        `Configured ID: ${runeIdStr}\n` +
-        `This prevents loss of funds. Do NOT proceed with rune transactions.`
+          `Expected label: ${expectedLabel}\n` +
+          `Actual label: ${normalizedRuneInfo.spacedRune}\n` +
+          `Configured ID: ${runeIdStr}\n` +
+          `This prevents loss of funds. Do NOT proceed with rune transactions.`
       );
 
       logger.error('RUNE CONFIGURATION MISMATCH', {
         expectedLabel,
-        actualLabel: runeInfo.spaced_rune,
+        actualLabel: normalizedRuneInfo.spacedRune,
         configuredId: runeIdStr,
         severity: 'CRITICAL',
       });
@@ -75,19 +112,19 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
     }
 
     // Validate block and tx index match
-    if (runeInfo.block !== Number(block) || runeInfo.txIndex !== Number(tx)) {
+    if (normalizedRuneInfo.block !== Number(block) || normalizedRuneInfo.txIndex !== Number(tx)) {
       const error = new Error(
         `CRITICAL: Rune ID mismatch!\n` +
-        `Expected: block ${block}, tx ${tx}\n` +
-        `Actual: block ${runeInfo.block}, tx ${runeInfo.txIndex}\n` +
-        `This prevents loss of funds. Do NOT proceed with rune transactions.`
+          `Expected: block ${block}, tx ${tx}\n` +
+          `Actual: block ${normalizedRuneInfo.block}, tx ${normalizedRuneInfo.txIndex}\n` +
+          `This prevents loss of funds. Do NOT proceed with rune transactions.`
       );
 
       logger.error('RUNE ID MISMATCH', {
         expectedBlock: block.toString(),
-        actualBlock: runeInfo.block,
+        actualBlock: normalizedRuneInfo.block,
         expectedTx: tx.toString(),
-        actualTx: runeInfo.txIndex,
+        actualTx: normalizedRuneInfo.txIndex,
         severity: 'CRITICAL',
       });
 
@@ -95,10 +132,10 @@ export const validateRuneConfiguration = async (): Promise<boolean> => {
     }
 
     logger.security('Rune configuration validated successfully', {
-      label: runeInfo.spaced_rune,
+      label: normalizedRuneInfo.spacedRune,
       runeId: runeIdStr,
-      block: runeInfo.block,
-      txIndex: runeInfo.txIndex,
+      block: normalizedRuneInfo.block,
+      txIndex: normalizedRuneInfo.txIndex,
     });
 
     return true;

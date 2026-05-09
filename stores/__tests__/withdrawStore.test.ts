@@ -27,6 +27,7 @@ jest.mock('../../utils/vaultUtils', () => ({
     if (healthFactor >= 160) return 'warning';
     return 'danger';
   }),
+  getOpCostWithdraw: jest.fn(() => 500),
 }));
 
 function renderHook<T>(hook: () => T): { result: { current: T | null }; unmount: () => void } {
@@ -56,7 +57,7 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(25_000_000);
+    expect(result.current!.maxWithdrawable).toBe(24_989_500);
   });
 
   it('should return zero max withdrawable when debt exists and price is missing', () => {
@@ -76,6 +77,6 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(23_400_000);
+    expect(result.current!.maxWithdrawable).toBe(23_399_500);
   });
 });

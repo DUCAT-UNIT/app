@@ -31,12 +31,25 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <View style={styles.permissionContainer}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Close scanner"
+            onPress={onClose}
+            style={styles.permissionCloseButton}
+            testID="qr-scanner-permission-close-btn"
+          >
+            <Icon name="close" size={28} color={COLORS.WHITE} />
+          </TouchableOpacity>
           <Icon name="qr_scan" size={64} color={COLORS.VERY_LIGHT_GRAY} />
           <Text style={styles.permissionTitle}>Camera Access</Text>
           <Text style={styles.permissionText}>
             DUCAT needs camera access to scan QR codes for sending Bitcoin.
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={requestPermission}
+            testID="qr-scanner-permission-continue-btn"
+          >
             <Text style={styles.permissionButtonText}>Continue</Text>
           </TouchableOpacity>
         </View>
@@ -84,4 +97,3 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
     </Modal>
   );
 }
-

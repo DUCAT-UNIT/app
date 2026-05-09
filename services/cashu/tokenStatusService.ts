@@ -6,7 +6,7 @@
 
 import type { ProofState } from '../../types/cashu';
 import { logger } from '../../utils/logger';
-import { EcashTokenRecord,updateTokenClaimedStatus } from './cashuLockedTokensService';
+import { EcashTokenRecord, updateTokenClaimedStatus } from './cashuLockedTokensService';
 import { checkProofsSpent } from './cashuMintClient';
 import { decodeTokenMetadata } from './crypto';
 
@@ -81,8 +81,18 @@ export const checkTokenStatus = async (
 
     // Check if proofs are spent
     const result: CheckProofsResult = await checkProofsSpent(proofs);
-    const spentCount = result.states?.filter((s: ProofState) => s.state === 'SPENT').length || 0;
-    const totalCount = result.states?.length || 0;
+    if (!Array.isArray(result.states) || result.states.length !== proofs.length) {
+      logger.warn('[tokenStatusService] Incomplete proof-state response', {
+        tokenId: token.id,
+        expected: proofs.length,
+        actual: result.states?.length ?? 0,
+      });
+      statusCache.set(token.id, { claimed: false, partiallySpent: false, checkedAt: Date.now() });
+      return { ...token, claimed: false, partiallySpent: false };
+    }
+
+    const spentCount = result.states.filter((s: ProofState) => s.state === 'SPENT').length;
+    const totalCount = result.states.length;
     const allSpent = spentCount === totalCount && totalCount > 0;
     const partiallySpent = spentCount > 0 && spentCount < totalCount;
 
@@ -91,7 +101,11 @@ export const checkTokenStatus = async (
 
     // If token is now claimed, persist to storage
     if (allSpent && !token.claimed) {
-      await updateTokenClaimedStatus(token.id, true);
+      if ('sender' in token) {
+        await updateTokenClaimedStatus(token.id, true, 'received');
+      } else {
+        await updateTokenClaimedStatus(token.id, true);
+      }
     }
 
     return { ...token, claimed: allSpent, partiallySpent };

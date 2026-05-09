@@ -10,7 +10,12 @@ import { checkProofsSpent, MINT_URL, swapTokens as swapTokensAPI } from '../cash
 import { addProofs, loadProofs } from '../cashuProofManager';
 import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
-import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
+import {
+  assertProofsMatchCashuUnit,
+  calculateInputFees,
+  resolveResponseSignatureKeysetForUnit,
+  selectActiveCashuKeyset,
+} from '../cashuKeysetUtils';
 import {
   createBlindedOutputs,
   decodeToken,
@@ -20,6 +25,7 @@ import {
   unblindSignatures,
 } from '../crypto';
 import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../cashuUnits';
 import {
   findAccountForP2PKToken,
   getP2PKRecipient,
@@ -27,6 +33,10 @@ import {
   signP2PKProofs,
   verifyP2PKWitness,
 } from '../p2pk';
+import {
+  assertCashuOperationAccountUnchanged,
+  requireCashuOperationAccount,
+} from './cashuAccountGuard';
 
 export interface ReceiveTokenResult {
   amount: number;
@@ -37,7 +47,10 @@ export interface ReceiveTokenResult {
  * Receive Cashu token (from QR code or paste)
  * Validates proofs haven't been spent and swaps them to prevent double-spending
  */
-export const receiveToken = async (tokenString: string): Promise<ReceiveTokenResult> => {
+export const receiveToken = async (
+  tokenString: string,
+  expectedUnit?: CashuUnit
+): Promise<ReceiveTokenResult> => {
   const txn = logger.startTransaction('receive_token');
 
   logger.cashu('receive_token_start', {
@@ -47,6 +60,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
   try {
     const perfStart = Date.now();
+    const operationAccount = requireCashuOperationAccount('Cashu receive token');
 
     // Decode token metadata first. cashuB tokens need mint keyset IDs for full proof hydration.
     const t1 = Date.now();
@@ -65,12 +79,18 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     }
 
     const { mint } = metadata;
+    const tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+    if (expectedUnit && tokenUnit !== expectedUnit) {
+      throw new Error(`Expected Cashu ${expectedUnit} token but received ${tokenUnit}`);
+    }
+    const unit = expectedUnit ?? tokenUnit;
 
     logger.cashu('token_details', {
       step: 'RECEIVE',
       mint: mint?.substring(0, 30) + '...',
       proofCount: metadata.proofs.length,
       totalAmount: metadata.amount,
+      unit,
     });
 
     // Verify mint matches
@@ -87,14 +107,16 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     const t4 = Date.now();
     logger.info('Getting mint keys');
     const keyData = await getOrFetchKeys();
+    const unitKeyset = selectActiveCashuKeyset(keyData, unit);
     logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4 });
 
     const decoded = decodeToken(tokenString, getKeysetIdsFromMintKeys(keyData));
     const { proofs, amount } = decoded;
+    assertProofsMatchCashuUnit(proofs, keyData, unit, 'Received Cashu token');
 
     // Check if we already have any of these proofs (prevent duplicate receives)
     const t2 = Date.now();
-    const existingProofs = await loadProofs();
+    const existingProofs = await loadProofs(unit);
     const existingSecrets = new Set(existingProofs.map((p) => p.secret));
     const hasDuplicate = proofs.some((p) => existingSecrets.has(p.secret));
     const duplicateCheckTime = Date.now() - t2;
@@ -119,10 +141,10 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     if (
       spendCheck.states.some((s) => {
         const state = (s as { state: string }).state;
-        return state === 'SPENT';
+        return state !== 'UNSPENT';
       })
     ) {
-      throw new Error('Token proofs already spent');
+      throw new Error('Token proofs are not spendable');
     }
 
     // Check if any proofs are P2PK locked (do this first, it's fast)
@@ -198,7 +220,6 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     // Use the private key we got from findAccountForP2PKToken
     const privateKey = p2pkPrivateKey;
 
-    const unitKeyset = selectActiveUnitKeyset(keyData);
     const keysetId = unitKeyset.id;
     const keys = unitKeyset.keys!;
 
@@ -240,6 +261,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 	    const amounts = splitAmount(outputAmount);
 	    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
 	    logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
+	    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive swap setup');
 	    const pendingSwapId = await savePendingSwap({
 	      inputProofs: proofsToSwap,
 	      blindingData,
@@ -248,6 +270,7 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 	      secretTypeMap: Object.fromEntries(
 	        blindingData.map((item) => [item.secret, 'change' as const])
 	      ),
+	      unit,
 	    });
 
 	    // Swap: give received proofs (signed if P2PK), get new proofs
@@ -257,11 +280,19 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 	      outputCount: outputs.length,
 	    });
 	    const response = await swapTokensAPI(proofsToSwap, outputs);
+	    const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
+	      response.signatures,
+	      keyData,
+	      unitKeyset,
+	      unit,
+	      `Cashu ${unit} receive swap`
+	    );
 	    await updateSwapWithResponse(
 	      {
 	        signatures: response.signatures,
 	      },
-	      pendingSwapId
+	      pendingSwapId,
+	      { keysetId: signedKeysetId, keys: unblindKeys }
 	    );
 	    logger.info('[PERF] Swap API call took', { durationMs: Date.now() - t7 });
 
@@ -270,8 +301,8 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     const newProofs = unblindSignatures(
       response.signatures,
       blindingData,
-      keys,
-      response.signatures[0]?.id || keysetId
+      unblindKeys,
+      signedKeysetId
     );
     logger.info('[PERF] Unblind signatures took', { durationMs: Date.now() - t8 });
 
@@ -296,12 +327,15 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
     let lastError: Error | null = null;
     let recoveryKey: string | null = null;
 
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive proof journaling');
     try {
       recoveryKey = await persistProofRecoveryRecord(
-        newProofs,
-        outputAmount,
-        hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token'
-      );
+          newProofs,
+          outputAmount,
+          hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token',
+          undefined,
+          unit
+        );
     } catch (recoveryError) {
       logger.error('Failed to pre-store received proofs in recovery queue', {
         error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
@@ -312,15 +346,12 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        await addProofs(newProofs);
+        assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive proof save');
+        await addProofs(newProofs, true, unit);
         saveSuccess = true;
-	        if (recoveryKey) {
-	          await clearProofRecoveryRecord(recoveryKey);
-	        }
-	        await clearPendingSwap(pendingSwapId);
-	        logger.info('Successfully saved received proofs', {
-	          attempt,
-	          proofCount: newProofs.length,
+        logger.info('Successfully saved received proofs', {
+          attempt,
+          proofCount: newProofs.length,
           amount: outputAmount,
         });
         break;
@@ -351,11 +382,13 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
 
       if (!recoveryKey) {
         try {
+          assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive fallback journaling');
           recoveryKey = await persistProofRecoveryRecord(
             newProofs,
             outputAmount,
             hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token',
-            lastError?.message
+            lastError?.message,
+            unit
           );
         } catch (recoveryError) {
           logger.error('Failed to store proofs in recovery queue', {
@@ -368,6 +401,29 @@ export const receiveToken = async (tokenString: string): Promise<ReceiveTokenRes
       throw new Error(
         `Critical error: Received proofs from mint but failed to save locally. Error: ${lastError?.message}. Proofs logged for recovery.`
       );
+    }
+
+    if (recoveryKey) {
+      try {
+        await clearProofRecoveryRecord(recoveryKey);
+      } catch (cleanupError) {
+        logger.warn('Received proof recovery record cleanup failed after proof save', {
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          recoveryKey,
+          unit,
+        });
+      }
+    }
+
+    try {
+      assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive swap cleanup');
+      await clearPendingSwap(pendingSwapId);
+    } catch (cleanupError) {
+      logger.warn('Pending receive swap cleanup failed after proof save', {
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        pendingSwapId,
+        unit,
+      });
     }
 
     const saveTime = Date.now() - t9;

@@ -308,6 +308,42 @@ describe('useEcashThresholdManager', () => {
           action: 'create_intent',
           cashuMint: true,
           quoteId: 'quote123',
+          mintAmount: 150,
+          amount: '1.5',
+        }),
+      });
+    });
+
+    it('should fund the mint quote amount when the quote adjusts the conversion', async () => {
+      mockRequestMint.mockResolvedValueOnce({
+        quoteId: 'quote-adjusted',
+        depositAddress: 'tb1padjusted',
+        amount: 175,
+      });
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        cashuBalance: 50,
+      });
+
+      await act(async () => {
+        await result.current!.handleThresholdSelect(200);
+      });
+
+      await act(async () => {
+        await result.current!.handleConfirmConversion();
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(500);
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'Processing',
+        params: expect.objectContaining({
+          quoteId: 'quote-adjusted',
+          mintAmount: 175,
+          amount: '1.75',
+          recipient: 'tb1padjusted',
         }),
       });
     });
@@ -479,10 +515,34 @@ describe('useEcashThresholdManager', () => {
           action: 'create_intent',
           cashuMint: true,
           quoteId: 'quote123',
-          amount: '50',
+          mintAmount: 50,
+          amount: '0.5',
         }),
       });
       expect(notify.transaction.pending).toHaveBeenCalled();
+    });
+
+    it('should fund the mint quote amount for low-balance top-up', async () => {
+      mockRequestMint.mockResolvedValueOnce({
+        quoteId: 'quote-topup-adjusted',
+        depositAddress: 'tb1ptopup',
+        amount: 75,
+      });
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!.handleLowBalanceTopUp();
+      });
+
+      expect(mockNavigate).toHaveBeenCalledWith('SendFlow', {
+        screen: 'Processing',
+        params: expect.objectContaining({
+          quoteId: 'quote-topup-adjusted',
+          mintAmount: 75,
+          amount: '0.75',
+          recipient: 'tb1ptopup',
+        }),
+      });
     });
 
     it('should handle mint error', async () => {

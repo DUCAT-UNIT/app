@@ -115,6 +115,35 @@ describe('cashuProofRecoveryQueue', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith('recovery-1');
   });
 
+  it('does not replay account-tagged recovery records before account initialization', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+      if (key === REGISTRY_KEY) {
+        return Promise.resolve(JSON.stringify(['recovery-1']));
+      }
+      if (key === 'recovery-1') {
+        return Promise.resolve(JSON.stringify({
+          proofs: [proof],
+          amount: 1,
+          timestamp: new Date().toISOString(),
+          source: 'receive_token',
+          taprootAddress: 'tb1paccount',
+        }));
+      }
+      return Promise.resolve(null);
+    });
+
+    const result = await recoverFailedProofSaves();
+
+    expect(result).toMatchObject({
+      checked: 1,
+      recovered: 0,
+      totalAmountRecovered: 0,
+      errors: [],
+    });
+    expect(addProofs).not.toHaveBeenCalled();
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith('recovery-1');
+  });
+
   it('reports corrupt recovery registry during startup recovery without overwriting it', async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('not json');
 

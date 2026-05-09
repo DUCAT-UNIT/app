@@ -11,6 +11,7 @@ import {
 } from '@ducat-unit/client-sdk';
 import { API } from '../../utils/constants';
 import { logger } from '../../utils/logger';
+import { withVaultBuildTimeout } from '../vault/operationTimeout';
 import { MASTER_CONTRACT_ID, WALLET_CFG, MobileWalletInfo } from './types';
 import { createMobileWalletAPI } from './walletApi';
 
@@ -50,7 +51,10 @@ export { createMobileWalletAPI } from './walletApi';
  */
 export async function fetchProtocolContract(): Promise<ProtocolProfile> {
   const now = Date.now();
-  if (cachedProtocolContract && now - cachedProtocolContract.fetchedAt < PROTOCOL_CONTRACT_CACHE_TTL_MS) {
+  if (
+    cachedProtocolContract &&
+    now - cachedProtocolContract.fetchedAt < PROTOCOL_CONTRACT_CACHE_TTL_MS
+  ) {
     return cachedProtocolContract.contract;
   }
 
@@ -61,7 +65,10 @@ export async function fetchProtocolContract(): Promise<ProtocolProfile> {
   logger.debug('[VaultWalletService] Fetching protocol contract...');
 
   protocolContractInFlight = (async () => {
-    const res = await OracleAPI.proto.fetch_master_ctx(API.ORD_URL, MASTER_CONTRACT_ID);
+    const res = await withVaultBuildTimeout(
+      OracleAPI.proto.fetch_master_ctx(API.ORD_URL, MASTER_CONTRACT_ID),
+      'Timed out fetching vault protocol contract. Please try again.'
+    );
 
     if (!res.ok) {
       throw new Error(`Failed to fetch protocol: ${res.error}`);

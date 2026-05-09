@@ -26,13 +26,18 @@ jest.mock('../../cashuLockedTokensService', () => ({
 jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   addProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(),
+}));
+
+jest.mock('../../cashuBalanceService', () => ({
+  getOrFetchKeys: jest.fn().mockResolvedValue({ keysets: [{ id: 'keyset1' }] }),
 }));
 
 import { recoverLockedChange } from '../cashuRecoverLockedChange';
 import { decodeToken, sumProofs } from '../../crypto';
 import { isP2PKSecret } from '../../p2pk';
 import { getSentLockedTokens } from '../../cashuLockedTokensService';
-import { loadProofs, addProofs } from '../../cashuProofManager';
+import { loadProofs, addProofs, getCurrentCashuAccount } from '../../cashuProofManager';
 
 /**
  * Typed mock cast helper
@@ -42,6 +47,7 @@ const mockFn = (fn: unknown): jest.Mock => fn as jest.Mock;
 describe('cashuRecoverLockedChange', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (getCurrentCashuAccount as jest.Mock).mockReturnValue(null);
   });
 
   describe('recoverLockedChange', () => {
@@ -184,6 +190,90 @@ describe('cashuRecoverLockedChange', () => {
         { amount: 32, secret: 'change1', C: 'C', id: 'id' },
         { amount: 16, secret: 'change2', C: 'C', id: 'id' },
       ]);
+    });
+
+    it('should recover sat change into the sat proof store only', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'unit-token', token: 'cashuBunit...' },
+        { id: 'sat-token', token: 'cashuBsat...', unit: 'sat' },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        unit: 'sat',
+        proofs: [
+          { amount: 1000, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+          { amount: 250, secret: 'sat_change', C: 'C', id: 'sat-id' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      (sumProofs as jest.Mock).mockReturnValue(250);
+
+      const result = await recoverLockedChange('sat');
+
+      expect(result.recovered).toBe(1);
+      expect(result.amount).toBe(250);
+      expect(loadProofs).toHaveBeenCalledWith('sat');
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 250, secret: 'sat_change', C: 'C', id: 'sat-id' },
+      ], true, 'sat');
+      expect(decodeToken).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not recover change when token history unit does not match decoded token unit', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        { id: 'bad-sat-token', token: 'cashuBsat...', unit: 'sat' },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        unit: 'unit',
+        proofs: [
+          { amount: 1000, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+          { amount: 250, secret: 'wrong_unit_change', C: 'C', id: 'unit-id' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+
+      const result = await recoverLockedChange('sat');
+
+      expect(result.recovered).toBe(0);
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should not recover account-tagged change from a different wallet account', async () => {
+      (getCurrentCashuAccount as jest.Mock).mockReturnValue('tb1pcurrent');
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (getSentLockedTokens as jest.Mock).mockResolvedValue([
+        {
+          id: 'other-account-token',
+          token: 'cashuBother...',
+          unit: 'sat',
+          taprootAddress: 'tb1pother',
+        },
+        {
+          id: 'current-account-token',
+          token: 'cashuBcurrent...',
+          unit: 'sat',
+          taprootAddress: 'tb1pcurrent',
+        },
+      ]);
+      (decodeToken as jest.Mock).mockReturnValue({
+        unit: 'sat',
+        proofs: [
+          { amount: 1000, secret: '[\"P2PK\",{\"data\":\"pubkey\"}]' },
+          { amount: 300, secret: 'current_sat_change', C: 'C', id: 'sat-id' },
+        ],
+      });
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
+      (sumProofs as jest.Mock).mockReturnValue(300);
+
+      const result = await recoverLockedChange('sat');
+
+      expect(result.recovered).toBe(1);
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 300, secret: 'current_sat_change', C: 'C', id: 'sat-id' },
+      ], true, 'sat');
+      expect(decodeToken).toHaveBeenCalledTimes(1);
+      expect(decodeToken).toHaveBeenCalledWith('cashuBcurrent...', ['keyset1']);
     });
   });
 });

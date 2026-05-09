@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PinFallbackModal from '../../components/auth/PinFallbackModal';
 import Icon from '../../components/icons';
 import FeeBreakdown from '../../components/review/FeeBreakdown';
 import { InputOutputList } from '../../components/review/InputOutputList';
@@ -22,6 +23,7 @@ import { useWallet } from '../../contexts/WalletContext';
 import { useReviewScreenData } from '../../hooks/useReviewScreenData';
 import { createBridgeIntent } from '../../services/bridgeApiService';
 import { authenticateWithBiometrics } from '../../services/biometricService';
+import { verifyPin } from '../../services/pinService';
 import { reconcileSubmittedEvmTransactionCheckpoints } from '../../services/evmTransactionCheckpointService';
 import {
   classifyEvmExecutionError,
@@ -74,6 +76,8 @@ type BridgePreparationState =
   | 'building_send'
   | 'ready'
   | 'failed';
+
+type PendingPinAuthAction = 'bridge' | 'swap';
 
 function formatTokenAmount(value: string): string {
   const numeric = Number(value);
@@ -198,7 +202,10 @@ export default function SwapSummaryScreen({
   const unmarkUtxosAsSpent = usePendingTransactionsStore((state) => state.unmarkUtxosAsSpent);
   const getPendingTransactionsForCleanup = useCallback(
     () =>
-      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
+      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<
+        string,
+        UtilsPendingTransaction
+      >,
     []
   );
   const {
@@ -243,9 +250,15 @@ export default function SwapSummaryScreen({
   const [reloadNonce, setReloadNonce] = useState(0);
   const [checkpointReconciling, setCheckpointReconciling] = useState(false);
   const [checkpointRecoveryMessage, setCheckpointRecoveryMessage] = useState<string | null>(null);
+  const [showPinFallback, setShowPinFallback] = useState(false);
+  const [pinFallbackError, setPinFallbackError] = useState<string | null>(null);
+  const [pendingPinAuthAction, setPendingPinAuthAction] = useState<PendingPinAuthAction | null>(
+    null
+  );
   const isMountedRef = useRef(true);
   const bridgeIntentPrepKeyRef = useRef<string | null>(null);
   const bridgeSendBuildKeyRef = useRef<string | null>(null);
+  const pendingSigningQuoteRef = useRef<CrossChainSwapQuote | null>(null);
 
   useEffect(() => {
     return () => {
@@ -706,6 +719,112 @@ export default function SwapSummaryScreen({
     });
   };
 
+  const openPinFallback = (
+    action: PendingPinAuthAction,
+    signingQuote: CrossChainSwapQuote | null
+  ): void => {
+    pendingSigningQuoteRef.current = signingQuote;
+    setPendingPinAuthAction(action);
+    setPinFallbackError(null);
+    setShowPinFallback(true);
+  };
+
+  const executeBridgeSend = async (): Promise<void> => {
+    try {
+      setExecuting(true);
+      const txid = await signIntent();
+
+      if (!txid) {
+        throw new Error(
+          'The bridge send was not broadcast. No UNIT transfer was submitted to the bridge deposit address.'
+        );
+      }
+
+      await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
+      await fetchTransactionHistory();
+      showToast('Bridge send submitted', 'success');
+      navigation.navigate('AssetDetail', { assetType: 'UNIT' });
+    } catch (error) {
+      Alert.alert(
+        'Bridge send failed',
+        error instanceof Error ? error.message : 'Unable to sign and submit the bridge send.'
+      );
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const executeSwap = async (signingQuote: CrossChainSwapQuote): Promise<void> => {
+    if (!wallet?.taprootAddress) {
+      Alert.alert('Swap unavailable', 'Missing Mutinynet destination address for redemption.');
+      return;
+    }
+
+    try {
+      setExecuting(true);
+      const result = await executeUsdcToUnitSwap(
+        currentAccount,
+        amountIn,
+        wallet.taprootAddress,
+        signingQuote.minimumAmountOut
+      );
+      await registerSwapTxid(result.burnTxHash, toUnitSmallestUnits(result.redeemedAmount), {
+        confirmed: true,
+      });
+      await fetchTransactionHistory();
+      showToast('Swap submitted', 'success');
+      navigation.navigate('AssetDetail', { assetType: 'UNIT' });
+    } catch (error) {
+      Alert.alert('Swap failed', classifyEvmExecutionError(error).userMessage);
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handlePinFallbackSubmit = async (pin: string): Promise<void> => {
+    setPinFallbackError(null);
+    setExecuting(true);
+
+    try {
+      const pinResult = await verifyPin(pin);
+      if (!pinResult.success) {
+        setPinFallbackError(pinResult.error);
+        return;
+      }
+
+      const action = pendingPinAuthAction;
+      const signingQuote = pendingSigningQuoteRef.current;
+      setShowPinFallback(false);
+      setPendingPinAuthAction(null);
+      pendingSigningQuoteRef.current = null;
+
+      if (action === 'bridge') {
+        await executeBridgeSend();
+        return;
+      }
+
+      if (action === 'swap' && signingQuote) {
+        await executeSwap(signingQuote);
+        return;
+      }
+
+      Alert.alert('Authentication failed', 'Unable to resume the signing flow. Please try again.');
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handlePinFallbackCancel = (): void => {
+    if (executing) {
+      return;
+    }
+
+    pendingSigningQuoteRef.current = null;
+    setPendingPinAuthAction(null);
+    setPinFallbackError(null);
+    setShowPinFallback(false);
+  };
+
   const handleConfirm = async (): Promise<void> => {
     if (!quote) {
       return;
@@ -746,34 +865,13 @@ export default function SwapSummaryScreen({
       );
 
       if (!biometricResult.success) {
-        if (biometricResult.error && biometricResult.error !== 'user_cancel') {
-          Alert.alert('Authentication failed', biometricResult.error);
+        if (biometricResult.error !== 'user_cancel') {
+          openPinFallback('bridge', signingQuote);
         }
         return;
       }
 
-      try {
-        setExecuting(true);
-        const txid = await signIntent();
-
-        if (!txid) {
-          throw new Error(
-            'The bridge send was not broadcast. No UNIT transfer was submitted to the bridge deposit address.'
-          );
-        }
-
-        await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
-        await fetchTransactionHistory();
-        showToast('Bridge send submitted', 'success');
-        navigation.navigate('AssetDetail', { assetType: 'UNIT' });
-      } catch (error) {
-        Alert.alert(
-          'Bridge send failed',
-          error instanceof Error ? error.message : 'Unable to sign and submit the bridge send.'
-        );
-      } finally {
-        setExecuting(false);
-      }
+      await executeBridgeSend();
       return;
     }
 
@@ -805,31 +903,13 @@ export default function SwapSummaryScreen({
       'Use PIN'
     );
     if (!biometricResult.success) {
-      if (biometricResult.error && biometricResult.error !== 'user_cancel') {
-        Alert.alert('Authentication failed', biometricResult.error);
+      if (biometricResult.error !== 'user_cancel') {
+        openPinFallback('swap', signingQuote);
       }
       return;
     }
 
-    try {
-      setExecuting(true);
-      const result = await executeUsdcToUnitSwap(
-        currentAccount,
-        amountIn,
-        wallet.taprootAddress,
-        signingQuote.minimumAmountOut
-      );
-      await registerSwapTxid(result.burnTxHash, toUnitSmallestUnits(result.redeemedAmount), {
-        confirmed: true,
-      });
-      await fetchTransactionHistory();
-      showToast('Swap submitted', 'success');
-      navigation.navigate('AssetDetail', { assetType: 'UNIT' });
-    } catch (error) {
-      Alert.alert('Swap failed', classifyEvmExecutionError(error).userMessage);
-    } finally {
-      setExecuting(false);
-    }
+    await executeSwap(signingQuote);
   };
 
   return (
@@ -1102,6 +1182,15 @@ export default function SwapSummaryScreen({
           )}
         </TouchableOpacity>
       </View>
+      <PinFallbackModal
+        visible={showPinFallback}
+        title="Confirm with PIN"
+        message="Face ID is unavailable. Enter your wallet PIN to sign this swap."
+        error={pinFallbackError}
+        busy={executing}
+        onSubmit={handlePinFallbackSubmit}
+        onCancel={handlePinFallbackCancel}
+      />
     </SafeAreaView>
   );
 }

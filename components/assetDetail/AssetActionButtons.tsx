@@ -26,9 +26,11 @@ export function AssetActionButtons({
   onSendPress,
   onReceivePress,
   onSwapPress,
+  onConsolidatePress,
   showSwap = false,
   showSend = true,
   showReceive = true,
+  showConsolidate = false,
 }: AssetActionButtonsProps) {
   const { s, sf } = useResponsive();
 
@@ -70,6 +72,19 @@ export function AssetActionButtons({
             <Icon name="swap" size={s(19)} color={COLORS.DARK_BG} />
           </View>
           <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Swap</Text>
+        </TouchableOpacity>
+      )}
+
+      {showConsolidate && onConsolidatePress && (
+        <TouchableOpacity
+          style={[styles.actionButton, { minWidth: s(62) }]}
+          onPress={onConsolidatePress}
+          testID="asset-detail-withdraw-turbo-btn"
+        >
+          <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
+            <Icon name="receive" size={s(19)} color={COLORS.DARK_BG} />
+          </View>
+          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Withdraw</Text>
         </TouchableOpacity>
       )}
     </View>

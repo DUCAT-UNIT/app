@@ -60,7 +60,6 @@ describe('cacheService', () => {
 
       // Should try to delete known clearable keys
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_keysets');
-      expect(mockDeleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('p2pk_taproot_address_v3');
     });
 
@@ -107,6 +106,29 @@ describe('cacheService', () => {
       }
     });
 
+    it('should preserve recovery and pending transaction AsyncStorage keys', async () => {
+      mockGetAllKeys.mockResolvedValue([
+        'cache_data',
+        'turbo_processing_state',
+        'operation-journal',
+        'evm-transaction-checkpoints',
+        'vault-settlement',
+        '@ducat/vault_settlement_history_v1',
+        'liquidation_pending_swap_broadcasts_v1',
+        '@ducat/swap_txids',
+        '@ducat/swap_txids_migrated_v2',
+        '@ducat/liquidation_txids',
+        'pending_txs_0',
+        'spent_utxos_0',
+        'pending_vault_tx_0',
+      ]);
+
+      const result = await clearAppCache();
+
+      expect(mockMultiRemove).toHaveBeenCalledWith(['cache_data']);
+      expect(result.asyncStorageCleared).toBe(1);
+    });
+
     it('should handle SecureStore delete errors gracefully', async () => {
       mockDeleteItemAsync.mockRejectedValue(new Error('Delete failed'));
 
@@ -125,11 +147,14 @@ describe('cacheService', () => {
       expect(result.errors).toContain('AsyncStorage: Storage error');
     });
 
-    it('should aggressively clear cashu proofs for all accounts', async () => {
+    it('should not clear Cashu proofs because they are wallet funds', async () => {
       await clearAppCache();
 
-      // Should try to delete cashu_proofs_account_X for accounts 0-49
-      expect(mockDeleteItemAsync).toHaveBeenCalledWith('cashu_proofs_account_0');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('cashu_proofs');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('cashu_proofs_sat');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('cashu_proofs_account_0');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('sent_turbo_tokens');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('received_turbo_tokens');
     });
 
     it('should aggressively clear derived keys for all accounts', async () => {
@@ -162,8 +187,8 @@ describe('cacheService', () => {
 
       expect(mockRemoveItem).toHaveBeenCalledWith('cashu_keysets');
       expect(mockRemoveItem).toHaveBeenCalledWith('processed_cashu_tokens');
-      expect(mockDeleteItemAsync).toHaveBeenCalledWith('sent_turbo_tokens');
-      expect(mockDeleteItemAsync).toHaveBeenCalledWith('received_turbo_tokens');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('sent_turbo_tokens');
+      expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('received_turbo_tokens');
     });
 
     it('should handle errors gracefully', async () => {

@@ -14,6 +14,13 @@ import {
   cleanupMeltProofs,
   removeSpentProofs,
 } from '../services/cashu/cashuWalletService';
+import {
+  cashuUnitDisplayName,
+  cashuUnitTokenSymbol,
+  DEFAULT_CASHU_UNIT,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
+import { formatBalance } from '../utils/formatters';
 
 interface TransactionOutput {
   scriptpubkey_address?: string;
@@ -34,6 +41,7 @@ interface UseFuseEcashParams {
   taprootAddress: string;
   transactionHistory: Transaction[] | unknown[];
   fetchTransactionHistory: () => Promise<void> | void;
+  cashuUnit?: CashuUnit;
 }
 
 interface UseFuseEcashReturn {
@@ -42,8 +50,10 @@ interface UseFuseEcashReturn {
 
 const CASHU_UNIT_DISPLAY_SCALE = 100;
 
-const formatTurboUnitAmount = (amount: number): string =>
-  (amount / CASHU_UNIT_DISPLAY_SCALE).toFixed(2);
+const formatTurboAmount = (amount: number, unit: CashuUnit): string =>
+  unit === 'sat'
+    ? formatBalance(amount / 100_000_000)
+    : (amount / CASHU_UNIT_DISPLAY_SCALE).toFixed(2);
 
 interface MeltErrorMetadata {
   meltSubmissionStatus?: 'not_submitted' | 'unknown' | 'accepted' | 'rejected';
@@ -66,16 +76,22 @@ export function useFuseEcash({
   taprootAddress,
   transactionHistory,
   fetchTransactionHistory,
+  cashuUnit = DEFAULT_CASHU_UNIT,
 }: UseFuseEcashParams): UseFuseEcashReturn {
   const handleFusePress = useCallback(async () => {
+    const tokenLabel = cashuUnit === DEFAULT_CASHU_UNIT ? 'TurboUNIT' : cashuUnitDisplayName(cashuUnit);
+    const assetSymbol = cashuUnitTokenSymbol(cashuUnit);
+    const availableAmountLabel = cashuUnit === DEFAULT_CASHU_UNIT
+      ? `${formatTurboAmount(cashuBalance, cashuUnit)} ${tokenLabel}`
+      : `${formatTurboAmount(cashuBalance, cashuUnit)} ${assetSymbol}`;
     if (cashuBalance <= 0) {
-      Alert.alert('No TurboUNIT', 'You don\'t have any TurboUNIT to withdraw.');
+      Alert.alert(`No ${tokenLabel}`, `You don't have any ${tokenLabel} to withdraw.`);
       return;
     }
 
     Alert.alert(
-      'Withdraw TurboUNIT?',
-      `Convert up to ${formatTurboUnitAmount(cashuBalance)} TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.`,
+      `Withdraw ${tokenLabel}?`,
+      `Convert up to ${availableAmountLabel} to on-chain ${assetSymbol}? Network fees are deducted from the withdrawal amount.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -85,7 +101,9 @@ export function useFuseEcash({
             let cleanupFailed = false;
             try {
               // Request the largest quote the current balance can cover after fees.
-              const quote = await requestMaxMelt(taprootAddress, cashuBalance);
+              const quote = cashuUnit === DEFAULT_CASHU_UNIT
+                ? await requestMaxMelt(taprootAddress, cashuBalance)
+                : await requestMaxMelt(taprootAddress, cashuBalance, cashuUnit);
               analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, {
                 amount: quote.amount,
                 availableAmount: cashuBalance,
@@ -93,20 +111,44 @@ export function useFuseEcash({
               });
 
               // Complete melt but keep proofs until we see the tx
-              const meltResult = await completeMeltWithoutCleanup(quote.quoteId, quote.total);
+              const meltResult = cashuUnit === DEFAULT_CASHU_UNIT
+                ? await completeMeltWithoutCleanup(quote.quoteId, quote.total)
+                : await completeMeltWithoutCleanup(quote.quoteId, quote.total, cashuUnit);
               meltSubmitted = true;
 
               // Clean up proofs immediately after successful melt
               logger.debug('[Fuse] Melt successful, cleaning up proofs');
               try {
-                await cleanupMeltProofs(meltResult.proofsToRemove, meltResult.changeProofs);
+                if (cashuUnit === DEFAULT_CASHU_UNIT) {
+                  await cleanupMeltProofs(
+                    meltResult.proofsToRemove,
+                    meltResult.changeProofs,
+                    DEFAULT_CASHU_UNIT,
+                    meltResult.taprootAddress ?? null
+                  );
+                } else {
+                  await cleanupMeltProofs(
+                    meltResult.proofsToRemove,
+                    meltResult.changeProofs,
+                    cashuUnit,
+                    meltResult.taprootAddress ?? null
+                  );
+                }
               } catch (cleanupError) {
                 cleanupFailed = true;
                 logger.error('[Fuse] Melt accepted but local cleanup failed', {
                   error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
                 });
+                if (
+                  cleanupError instanceof Error &&
+                  cleanupError.message.includes('Cashu account changed')
+                ) {
+                  throw cleanupError;
+                }
                 try {
-                  const cleanup = await removeSpentProofs();
+                  const cleanup = cashuUnit === DEFAULT_CASHU_UNIT
+                    ? await removeSpentProofs()
+                    : await removeSpentProofs(cashuUnit);
                   logger.info('[Fuse] Reconciled spent proofs after cleanup failure', {
                     removed: cleanup.removed,
                     kept: cleanup.kept,
@@ -121,8 +163,8 @@ export function useFuseEcash({
               Alert.alert(
                 'Withdrawal submitted',
                 cleanupFailed
-                  ? `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Local TurboUNIT cleanup did not finish; refresh before sending TurboUNIT again.`
-                  : `Withdrawing ${formatTurboUnitAmount(quote.amount)} UNIT. Waiting for transaction to appear on-chain...`
+                  ? `Withdrawing ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Local ${tokenLabel} cleanup did not finish; refresh before sending ${tokenLabel} again.`
+                  : `Withdrawing ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Waiting for transaction to appear on-chain...`
               );
 
               // Poll for transaction
@@ -160,7 +202,7 @@ export function useFuseEcash({
               await fetchTransactionHistory();
 
               if (txFound) {
-                Alert.alert('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
+                Alert.alert('Success', `${tokenLabel} successfully withdrawn to on-chain ${assetSymbol}.`);
               } else {
                 Alert.alert(
                   'Pending',
@@ -181,19 +223,19 @@ export function useFuseEcash({
                   ? 'Withdrawal submitted'
                   : submissionUnknown
                     ? 'Withdrawal status unknown'
-                    : 'Withdrawal failed',
+                  : 'Withdrawal failed',
                 submissionAccepted
-                  ? `The mint accepted the withdrawal, but local cleanup did not finish. Refresh before sending TurboUNIT again. ${message}`
+                  ? `The mint accepted the withdrawal, but local cleanup did not finish. Refresh before sending ${tokenLabel} again. ${message}`
                   : submissionUnknown
-                    ? `The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. ${message}`
-                  : `Your TurboUNIT tokens remain valid. ${message}`
+                    ? `The mint request may have been submitted, but the app could not confirm the result. Refresh before sending ${tokenLabel} again. ${message}`
+                  : `Your ${tokenLabel} tokens remain valid. ${message}`
               );
             }
           },
         },
       ]
     );
-  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory]);
+  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory, cashuUnit]);
 
   return { handleFusePress };
 }

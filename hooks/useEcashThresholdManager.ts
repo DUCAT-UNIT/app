@@ -26,6 +26,7 @@ interface UseEcashThresholdManagerParams {
   closeSettings: () => void;
   lowBalanceAmountNeeded: number;
   closeLowBalanceModal: () => void;
+  senderTaprootAddress?: string;
 }
 
 interface UseEcashThresholdManagerReturn {
@@ -50,6 +51,7 @@ export function useEcashThresholdManager({
   closeSettings,
   lowBalanceAmountNeeded,
   closeLowBalanceModal,
+  senderTaprootAddress,
 }: UseEcashThresholdManagerParams): UseEcashThresholdManagerReturn {
   const navigation = useNavigation() as ExtendedNavigation;
 
@@ -171,8 +173,8 @@ export function useEcashThresholdManager({
 
       // Use setTimeout to ensure settings close completes
       setTimeout(() => {
-        // conversionAmount is in cents; send flow expects display units
-        const amountStr = (conversionAmount / 100).toString();
+        const fundingAmountSmallestUnits = mintQuote.amount ?? conversionAmount;
+        const amountStr = (fundingAmountSmallestUnits / 100).toString();
 
         try {
           // Navigate from root navigator to ensure modal opens correctly
@@ -185,7 +187,8 @@ export function useEcashThresholdManager({
               action: 'create_intent',
               cashuMint: true,
               quoteId: mintQuote.quoteId,
-              mintAmount: mintQuote.amount,
+              mintAmount: fundingAmountSmallestUnits,
+              senderTaprootAddress,
               assetType: 'unit',
               amount: amountStr,
               recipient: mintQuote.depositAddress,
@@ -201,7 +204,7 @@ export function useEcashThresholdManager({
       logger.error('[useEcashThresholdManager] Failed to initiate mint:', { error: error instanceof Error ? error.message : String(error) });
       notify.cashu.conversionStartFailed(error instanceof Error ? error.message : String(error));
     }
-  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation, setShowThresholdSheet]);
+  }, [conversionAmount, pendingThreshold, settingsHandlers, showSettings, closeSettings, navigation, setShowThresholdSheet, senderTaprootAddress]);
 
   const handleLowBalanceTopUp = useCallback(async () => {
     logger.debug('[useEcashThresholdManager] handleLowBalanceTopUp called', {
@@ -216,7 +219,8 @@ export function useEcashThresholdManager({
       const mintQuote = await requestMint(lowBalanceAmountNeeded);
       logger.debug('[useEcashThresholdManager] Received mint quote for top-up:', mintQuote);
 
-      const amountStr = lowBalanceAmountNeeded?.toString() || '0';
+      const fundingAmountSmallestUnits = mintQuote.amount ?? lowBalanceAmountNeeded;
+      const amountStr = (fundingAmountSmallestUnits / 100).toString();
 
       // Navigate to processing screen
       navigation.navigate('SendFlow', {
@@ -226,7 +230,8 @@ export function useEcashThresholdManager({
           action: 'create_intent',
           cashuMint: true,
           quoteId: mintQuote.quoteId,
-          mintAmount: mintQuote.amount,
+          mintAmount: fundingAmountSmallestUnits,
+          senderTaprootAddress,
           assetType: 'unit',
           amount: amountStr,
           recipient: mintQuote.depositAddress,
@@ -239,7 +244,7 @@ export function useEcashThresholdManager({
       logger.error('[useEcashThresholdManager] Failed to initiate top-up:', { error: error instanceof Error ? error.message : String(error) });
       notify.cashu.topupStartFailed(error instanceof Error ? error.message : String(error));
     }
-  }, [lowBalanceAmountNeeded, closeLowBalanceModal, navigation]);
+  }, [lowBalanceAmountNeeded, closeLowBalanceModal, navigation, senderTaprootAddress]);
 
   return {
     // State

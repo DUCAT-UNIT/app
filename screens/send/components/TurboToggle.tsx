@@ -12,18 +12,22 @@ interface TurboToggleProps {
   enabled: boolean;
   /** Called when toggle changes */
   onToggle: (enabled: boolean) => void;
+  label?: string;
+  description?: string;
 }
 
 export function TurboToggle({
   enabled,
   onToggle,
+  label = 'Turbo UNIT',
+  description = 'Instant transaction',
 }: TurboToggleProps): React.JSX.Element {
   return (
     <View style={styles.turboSection}>
       <View style={styles.turboRow}>
         <View style={styles.turboLabelContainer}>
-          <Text style={styles.turboLabel}>⚡ Turbo UNIT</Text>
-          <Text style={styles.turboDescription}>Instant transaction</Text>
+          <Text style={styles.turboLabel}>{label}</Text>
+          <Text style={styles.turboDescription}>{description}</Text>
         </View>
         <Switch
           value={enabled}
@@ -31,7 +35,7 @@ export function TurboToggle({
           trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
           thumbColor={colors.text.white}
           testID="send-turbo-toggle"
-          accessibilityLabel="Enable Turbo UNIT"
+          accessibilityLabel={`Enable ${label}`}
           accessibilityRole="switch"
           accessibilityState={{ checked: enabled }}
         />

@@ -20,6 +20,9 @@ jest.mock('../../crypto', () => ({
   createBlindedOutputs: jest.fn(),
   unblindSignatures: jest.fn(),
   splitAmount: jest.fn(),
+  sumProofs: jest.fn((proofs: Array<{ amount: number }>) =>
+    proofs.reduce((sum, proof) => sum + proof.amount, 0)
+  ),
 }));
 
 jest.mock('../../cashuBalanceService', () => ({
@@ -28,6 +31,7 @@ jest.mock('../../cashuBalanceService', () => ({
 
 jest.mock('../../cashuProofManager', () => ({
   addProofs: jest.fn(),
+  getCurrentCashuAccount: jest.fn(() => 'tb1paccount'),
 }));
 
 jest.mock('../../cashuMintQuoteRecovery', () => ({
@@ -215,8 +219,20 @@ describe('cashuMintOperations', () => {
 
       expect(result).toHaveLength(3);
       expect((persistMintQuoteClaim as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        (mintTokens as jest.Mock).mock.invocationCallOrder[0]
+      );
+      expect((persistMintQuoteClaim as jest.Mock).mock.invocationCallOrder[1]).toBeLessThan(
         (unblindSignatures as jest.Mock).mock.invocationCallOrder[0]
       );
+      expect(persistMintQuoteClaim).toHaveBeenNthCalledWith(
+        1,
+        'quote123',
+        expect.objectContaining({
+          amount: 100,
+          keysetId: 'keyset1',
+        })
+      );
+      expect((persistMintQuoteClaim as jest.Mock).mock.calls[0][1]).not.toHaveProperty('signatures');
       expect(signMintQuoteOutputs).toHaveBeenCalledWith(
         'quote123',
         [{ amount: 64 }, { amount: 32 }, { amount: 4 }],
@@ -310,7 +326,9 @@ describe('cashuMintOperations', () => {
         signatures: [{ id: 'keyset1' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue(proofs);
-      (persistMintQuoteClaim as jest.Mock).mockRejectedValue(new Error('SecureStore full'));
+      (persistMintQuoteClaim as jest.Mock)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('SecureStore full'));
 
       const result = await completeMint('quote123', 64);
 
@@ -347,7 +365,9 @@ describe('cashuMintOperations', () => {
         signatures: [{ id: 'keyset1' }],
       });
       (unblindSignatures as jest.Mock).mockReturnValue(proofs);
-      (persistMintQuoteClaim as jest.Mock).mockRejectedValue(new Error('SecureStore full'));
+      (persistMintQuoteClaim as jest.Mock)
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('SecureStore full'));
       (addProofs as jest.Mock).mockRejectedValue(new Error('proof write failed'));
 
       await expect(completeMint('quote123', 64)).rejects.toThrow('proof write failed');
@@ -360,7 +380,7 @@ describe('cashuMintOperations', () => {
       );
       expect(clearProofRecoveryRecord).not.toHaveBeenCalled();
       expect(removeMintQuote).not.toHaveBeenCalled();
-      expect(updateMintQuoteState).toHaveBeenLastCalledWith('quote123', 'PAID');
+      expect(updateMintQuoteState).toHaveBeenLastCalledWith('quote123', 'PENDING');
     });
 
     it('should leave a persisted claim recoverable if unblinding fails after signatures return', async () => {
@@ -392,6 +412,60 @@ describe('cashuMintOperations', () => {
       expect(updateMintQuoteState).toHaveBeenLastCalledWith('quote123', 'PENDING');
       expect(addProofs).not.toHaveBeenCalled();
       expect(removeMintQuote).not.toHaveBeenCalled();
+    });
+
+    it('should reject mint signatures that unblind to less than the claim amount', async () => {
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'sat', active: true, keys: { 32: 'key32', 64: 'key64' } }],
+      });
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 96,
+        amount_issued: 0,
+        pubkey,
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }, { amount: 32 }],
+        blindingData: [{}, {}],
+      });
+      (mintTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }, { id: 'keyset1' }],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 's1', C: 'C', id: 'keyset1' },
+      ]);
+
+      await expect(completeMint('quote123', 96, 'sat')).rejects.toThrow(
+        'Mint verification failed: expected 96 but received 64'
+      );
+
+      expect(addProofs).not.toHaveBeenCalled();
+      expect(removeMintQuote).not.toHaveBeenCalled();
+      expect(updateMintQuoteState).toHaveBeenLastCalledWith('quote123', 'PENDING');
+    });
+
+    it('should reject a mint quote whose advertised unit does not match the claim unit', async () => {
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 64: 'key64' } }],
+      });
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 64,
+        amount_issued: 0,
+        unit: 'sat',
+        pubkey,
+      });
+
+      await expect(completeMint('quote123', 64, 'unit')).rejects.toThrow(
+        'Mint quote unit mismatch: expected unit but mint returned sat'
+      );
+
+      expect(mintTokens).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+      expect(updateMintQuoteState).toHaveBeenLastCalledWith('quote123', 'PAID');
     });
 
     it('should throw error if no active unit keyset is available', async () => {

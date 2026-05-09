@@ -6,8 +6,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Linking } from 'react-native';
 import { authenticateWithBiometrics } from '../services/biometricService';
+import { recoverLockedChange } from '../services/cashu/cashuWalletService';
 import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
-import { clearWallet } from '../services/cashu/cashuWalletService';
+import { clearCashuCache } from '../services/cacheService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import {
   E2E_RESET_SETTINGS_URL_PREFIX,
@@ -34,6 +35,23 @@ const canonicalizeUsdcFeaturePassword = (password: string): string =>
   normalizeUsdcFeaturePassword(password)
     .replace(/[^a-z0-9]/gi, '')
     .toLocaleLowerCase('en-US');
+
+const formatUnitSmallestAmount = (amount: number): string =>
+  (amount / 100).toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  });
+
+type LockedChangeRecoveryResult = {
+  recovered: number;
+  amount: number;
+  message: string;
+};
+
+const EMPTY_LOCKED_CHANGE_RECOVERY: LockedChangeRecoveryResult = {
+  recovered: 0,
+  amount: 0,
+  message: '',
+};
 
 export interface UseAppSettingsParams {
   biometricEnabled: boolean;
@@ -296,7 +314,7 @@ export function useAppSettings({
 
   const handleClearCashuCache = useCallback(async () => {
     try {
-      await clearWallet();
+      await clearCashuCache();
       notify.cashu.cacheCleared();
     } catch (error) {
       logger.warn('Failed to clear Cashu cache', {
@@ -311,19 +329,42 @@ export function useAppSettings({
     try {
       notify.cashu.recoveringChange();
 
-      const { recoverLockedChange } = await import('../services/cashu/cashuWalletService.js');
       logger.debug('[useAppSettings] Calling recoverLockedChange');
-      const result = await recoverLockedChange();
-      logger.debug('[useAppSettings] Recovery result:', result);
+      const [unitRecovery, satRecovery] = await Promise.allSettled([
+        recoverLockedChange('unit'),
+        recoverLockedChange('sat'),
+      ]);
+      const unitResult =
+        unitRecovery.status === 'fulfilled' ? unitRecovery.value : EMPTY_LOCKED_CHANGE_RECOVERY;
+      const satResult =
+        satRecovery.status === 'fulfilled' ? satRecovery.value : EMPTY_LOCKED_CHANGE_RECOVERY;
+      logger.debug('[useAppSettings] Recovery result:', { unitResult, satResult });
 
-      if (result.recovered > 0) {
+      const recovered = unitResult.recovered + satResult.recovered;
+      const recoveryErrors = [unitRecovery, satRecovery]
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) =>
+          result.reason instanceof Error ? result.reason.message : String(result.reason)
+        );
+      if (recovered > 0) {
+        const parts = [
+          unitResult.recovered > 0 ? `${formatUnitSmallestAmount(unitResult.amount)} UNIT` : null,
+          satResult.recovered > 0 ? `${satResult.amount} sats` : null,
+        ].filter(Boolean);
+        if (recoveryErrors.length > 0) {
+          logger.warn('[useAppSettings] Some locked change recovery checks failed', {
+            errors: recoveryErrors,
+          });
+        }
         notify.snackbar({
-          title: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
+          title: `Recovered ${parts.join(' and ')} from ${recovered} change proofs`,
           type: 'success',
           action: 'claim',
         });
+      } else if (recoveryErrors.length > 0) {
+        throw new Error(recoveryErrors.join('; '));
       } else {
-        notify.info(result.message);
+        notify.info('No change proofs found in Turbo UNIT or Turbo BTC sent tokens');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -338,8 +379,10 @@ export function useAppSettings({
 
   const handleClearLockedTokens = useCallback(async (): Promise<void> => {
     try {
-      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService');
-      await clearSentLockedTokens();
+      const { clearLockedTokensHistory } = await import(
+        '../services/cashu/cashuLockedTokensService'
+      );
+      await clearLockedTokensHistory();
       notify.cashu.lockedTokensCleared();
     } catch (error) {
       logger.warn('Failed to clear locked tokens', {

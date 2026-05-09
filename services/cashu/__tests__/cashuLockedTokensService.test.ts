@@ -30,6 +30,8 @@ import {
   deleteSentLockedToken,
   updateTokenClaimedStatus,
   clearSentLockedTokens,
+  clearReceivedTokensHistory,
+  clearLockedTokensHistory,
   generateTurboDeeplink,
   generateTurboQRData,
   saveReceivedToken,
@@ -129,6 +131,7 @@ describe('cashuLockedTokensService', () => {
         id: `token${i}`,
         token: `token${i}`,
         timestamp: i,
+        claimed: true,
       }));
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingTokens));
 
@@ -146,6 +149,7 @@ describe('cashuLockedTokensService', () => {
         recipient: 'recipient',
         amount: i,
         timestamp: i,
+        claimed: true,
         txid: null,
         shortUrl: null,
         taprootAddress: 'tb1psender',
@@ -162,6 +166,34 @@ describe('cashuLockedTokensService', () => {
       expect(savedData).toHaveLength(100);
       expect(savedData.some((token: any) => token.id === 'token0')).toBe(false);
       expect(savedData.some((token: any) => token.id === 'token99')).toBe(true);
+      expect(savedData.some((token: any) => token.token === 'newToken')).toBe(true);
+    });
+
+    it('should not evict active unclaimed sent tokens when trimming storage', async () => {
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
+      const existingTokens = Array.from({ length: 100 }, (_, i) => ({
+        id: `token${i}`,
+        token: `token${i}`,
+        recipient: 'recipient',
+        amount: i,
+        timestamp: i,
+        claimed: i !== 0,
+        txid: null,
+        shortUrl: null,
+        taprootAddress: 'tb1psender',
+      }));
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingTokens));
+
+      try {
+        await saveSentLockedToken('newToken', 'recipient', 500);
+      } finally {
+        nowSpy.mockRestore();
+      }
+
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData).toHaveLength(100);
+      expect(savedData.some((token: any) => token.id === 'token0')).toBe(true);
+      expect(savedData.some((token: any) => token.id === 'token1')).toBe(false);
       expect(savedData.some((token: any) => token.token === 'newToken')).toBe(true);
     });
 
@@ -338,6 +370,24 @@ describe('cashuLockedTokensService', () => {
       expect(savedData[0].claimedAt).toBeNull();
     });
 
+    it('should update received token claimed status when requested', async () => {
+      const storedTokens = [
+        { id: 'received1', token: 't1', sender: 'sender', timestamp: 100, taprootAddress: 'addr1', type: 'receive' },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedTokens));
+
+      await updateTokenClaimedStatus('received1', true, 'received');
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'received_turbo_tokens',
+        expect.any(String),
+        expect.any(Object)
+      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData[0].claimed).toBe(true);
+      expect(savedData[0].claimedAt).toBeDefined();
+    });
+
     it('should not modify other tokens', async () => {
       const storedTokens = [
         { id: 'token1', token: 't1', timestamp: 100 },
@@ -364,16 +414,97 @@ describe('cashuLockedTokensService', () => {
   });
 
   describe('clearSentLockedTokens', () => {
-    it('should clear all sent tokens by writing empty array', async () => {
+    it('should clear claimed sent tokens while preserving active unclaimed tokens', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify([
+        {
+          id: 'active-token',
+          token: 'cashuBactive',
+          recipient: 'tb1preceiver',
+          amount: 100,
+          timestamp: 1000,
+          txid: null,
+          shortUrl: 'ducat://turbo/cashuBactive',
+          taprootAddress: 'tb1psender',
+          claimed: false,
+        },
+        {
+          id: 'claimed-token',
+          token: 'cashuBclaimed',
+          recipient: 'tb1preceiver',
+          amount: 100,
+          timestamp: 900,
+          txid: null,
+          shortUrl: null,
+          taprootAddress: 'tb1psender',
+          claimed: true,
+        },
+      ]));
+
       await clearSentLockedTokens();
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('sent_turbo_tokens', '[]', expect.any(Object));
+      const saved = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(saved).toHaveLength(1);
+      expect(saved[0].id).toBe('active-token');
     });
 
     it('should throw on storage error', async () => {
       (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Write failed'));
 
       await expect(clearSentLockedTokens()).rejects.toThrow('Write failed');
+    });
+  });
+
+  describe('clearReceivedTokensHistory', () => {
+    it('should clear received token history', async () => {
+      await clearReceivedTokensHistory();
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'received_turbo_tokens',
+        '[]',
+        expect.any(Object)
+      );
+    });
+
+    it('should throw on storage error', async () => {
+      (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error('Write failed'));
+
+      await expect(clearReceivedTokensHistory()).rejects.toThrow('Write failed');
+    });
+  });
+
+  describe('clearLockedTokensHistory', () => {
+    it('should preserve active outgoing tokens and clear received token history', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify([
+        {
+          id: 'active-token',
+          token: 'cashuBactive',
+          recipient: 'tb1preceiver',
+          amount: 100,
+          timestamp: 1000,
+          claimed: false,
+        },
+        {
+          id: 'claimed-token',
+          token: 'cashuBclaimed',
+          recipient: 'tb1preceiver',
+          amount: 100,
+          timestamp: 900,
+          claimed: true,
+        },
+      ]));
+
+      await clearLockedTokensHistory();
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledTimes(2);
+      const savedSent = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedSent).toHaveLength(1);
+      expect(savedSent[0].id).toBe('active-token');
+      expect(SecureStore.setItemAsync).toHaveBeenNthCalledWith(
+        2,
+        'received_turbo_tokens',
+        '[]',
+        expect.any(Object)
+      );
     });
   });
 
@@ -442,6 +573,37 @@ describe('cashuLockedTokensService', () => {
 
       const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData).toHaveLength(2);
+    });
+
+    it('should update an existing received token instead of duplicating it', async () => {
+      const existingTokens = [
+        {
+          id: 'received1',
+          token: 'cashuBtoken',
+          sender: 'Cashu Receive',
+          amount: 500,
+          timestamp: 1000,
+          taprootAddress: 'tb1pold',
+          unit: 'unit',
+          type: 'receive',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(existingTokens));
+
+      await saveReceivedToken('cashuBtoken', 'Turbo Claim', 600, 'tb1pnew', 'sat');
+
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
+      expect(savedData).toHaveLength(1);
+      expect(savedData[0]).toMatchObject({
+        id: 'received1',
+        token: 'cashuBtoken',
+        sender: 'Turbo Claim',
+        amount: 600,
+        timestamp: 1000,
+        taprootAddress: 'tb1pnew',
+        unit: 'sat',
+        type: 'receive',
+      });
     });
 
     it('should limit to MAX_STORED_TOKENS (100)', async () => {

@@ -189,6 +189,7 @@ function configureIssuedUnitSettlement({
       bridgeClientRequestId,
       cashuMintQuoteId: null,
       cashuMintDepositAddress: null,
+      cashuMintQuoteAmount: null,
       cashuMintSendTxid: null,
       setQuote: mockSetQuote,
       setPhase: mockSetPhase,
@@ -206,6 +207,7 @@ function configureIssuedUnitSettlement({
     bridgeClientRequestId,
     cashuMintQuoteId: null,
     cashuMintDepositAddress: null,
+    cashuMintQuoteAmount: null,
     cashuMintSendTxid: null,
   });
   (formatVaultSettlementAmountInput as jest.Mock).mockImplementation((amount: number) => amount.toFixed(2));
@@ -482,7 +484,7 @@ describe('useIssuedUnitSettlement', () => {
       cashuMintSendTxid: 'broadcast-txid',
     });
     expect(requestMint).toHaveBeenCalledWith(5000);
-    expect(mockSetCashuMintQuote).toHaveBeenCalledWith('cashu-quote-1', 'tb1pcashumint');
+    expect(mockSetCashuMintQuote).toHaveBeenCalledWith('cashu-quote-1', 'tb1pcashumint', 5000);
     expect(createUnitIntentService).toHaveBeenCalledWith(
       'tb1pcashumint',
       '50.00',
@@ -521,6 +523,65 @@ describe('useIssuedUnitSettlement', () => {
     expect(mockConfirmTransaction).toHaveBeenCalledWith('broadcast-txid');
     expect(mockFetchTransactionHistory).toHaveBeenCalled();
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('funds TurboUNIT vault mint sends with the mint quote amount', async () => {
+    (requestMint as jest.Mock).mockResolvedValueOnce({
+      quoteId: 'cashu-quote-1',
+      amount: 5050,
+      depositAddress: 'tb1pcashumint',
+      state: 'UNPAID',
+    });
+    (checkMintStatus as jest.Mock).mockResolvedValueOnce({
+      quoteId: 'cashu-quote-1',
+      state: 'PAID',
+      paid: true,
+      amountPaid: 5050,
+      amountIssued: 0,
+      availableAmount: 5050,
+    });
+    (completeMint as jest.Mock).mockResolvedValueOnce([
+      { amount: 3000 },
+      { amount: 2050 },
+    ]);
+    (createUnitIntentService as jest.Mock).mockResolvedValueOnce({
+      assetType: 'UNIT',
+      amount: 5050,
+      recipientAddress: 'tb1pcashumint',
+      runeUtxos: [
+        { transaction: 'unit-input', vout: 0, runeAmount: 6000 },
+      ],
+      satUtxo: { txid: 'sat-input', vout: 1 },
+    });
+
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+
+    await act(async () => {
+      await result.current.settleIssuedUnitToTurboUnit('borrow', 50);
+    });
+
+    expect(mockSetCashuMintQuote).toHaveBeenCalledWith('cashu-quote-1', 'tb1pcashumint', 5050);
+    expect(createUnitIntentService).toHaveBeenCalledWith(
+      'tb1pcashumint',
+      '50.50',
+      wallet.taprootAddress,
+      wallet.segwitAddress,
+      7,
+      [{ txid: 'tap-unconfirmed', vout: 0, value: 546, runeAmount: 250 }],
+      [{ txid: 'seg-unconfirmed', vout: 1, value: 1200, runeAmount: undefined }],
+      [{ txid: 'already-spent', vout: 0 }],
+    );
+    expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+      'broadcast-txid',
+      [{ address: wallet.segwitAddress, value: 546, vout: 0, runeAmount: 950 }],
+      'UNIT',
+      pendingInputHash,
+      5050,
+      [{ txid: pendingInputHash, vout: 2 }],
+      { displayKind: 'turbo_mint_claim' },
+    );
+    expect(completeMint).toHaveBeenCalledWith('cashu-quote-1', 5050);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.50');
   });
 
   it('unlocks reserved Turbo mint inputs when pending tracking fails before broadcast', async () => {

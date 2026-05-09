@@ -5,6 +5,7 @@
 import { getJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import type { CashuAmountLike } from '../cashuTsCompat';
+import { CASHU_UNIT_UNIT, type CashuUnit } from '../cashuUnits';
 import { MINT_URL } from './mintConfig';
 
 export interface MintInfo {
@@ -45,14 +46,21 @@ export interface MintKeys {
 }
 
 export const mintSupportsOnchainUnit = (info: MintInfo): boolean =>
+  mintSupportsOnchainCashuUnit(info, CASHU_UNIT_UNIT);
+
+export const mintSupportsOnchainCashuUnit = (info: MintInfo, unit: CashuUnit): boolean =>
   !!info.nuts?.['4']?.methods?.some(
-    (method) => method.method === 'onchain' && method.unit === 'unit'
+    (method) => method.method === 'onchain' && method.unit === unit
   );
 
 export const assertOnchainUnitMintSupport = async (): Promise<void> => {
+  await assertOnchainCashuMintSupport(CASHU_UNIT_UNIT);
+};
+
+export const assertOnchainCashuMintSupport = async (unit: CashuUnit): Promise<void> => {
   const info = await getMintInfo();
-  if (!mintSupportsOnchainUnit(info)) {
-    throw new Error('Mint does not advertise onchain/unit support in nuts["4"].methods');
+  if (!mintSupportsOnchainCashuUnit(info, unit)) {
+    throw new Error(`Mint does not advertise onchain/${unit} support in nuts["4"].methods`);
   }
 };
 

@@ -886,6 +886,32 @@ describe('useAssetTransactions', () => {
     });
   });
 
+  describe('BTC asset type with sat ecash tokens', () => {
+    it('should display only sat Cashu tokens in BTC asset history', () => {
+      mockEcashTokens = [
+        { id: 'sat-token', token: 'cashuBsat', amount: 12_345, timestamp: 2000, claimed: false, recipient: 'someone', unit: 'sat' },
+        { id: 'unit-token', token: 'cashuBunit', amount: 5000, timestamp: 3000, claimed: false, recipient: 'someone', unit: 'unit' },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'BTC',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: false,
+      });
+
+      expect(result.current!.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('sat-token');
+      expect(result.current.transactions[0].txData).toEqual(expect.objectContaining({
+        amount: -12_345,
+        assetType: 'BTC',
+        numericAmount: -12_345,
+      }));
+    });
+  });
+
   describe('Transaction hash caching', () => {
     it('should recalculate when block_height changes (confirmation)', () => {
       (transactionHistoryService.calculateTransactionAmount as jest.Mock).mockReturnValue({
@@ -960,6 +986,30 @@ describe('useAssetTransactions', () => {
 
       // After token count change, should have recalculated
       expect(result.current!.transactions).toHaveLength(3); // 1 tx + 2 tokens
+    });
+
+    it('should recalculate when an existing ecash token receives a short URL', () => {
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone', shortUrl: null },
+      ];
+
+      const props = {
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      };
+      const { result, rerender } = renderHook(props);
+
+      expect((result.current.transactions[0].tokenData as { shortUrl: string | null }).shortUrl).toBeNull();
+
+      mockEcashTokens = [
+        { id: 'token1', token: 'cashuAbc', amount: 100, timestamp: 1000, claimed: false, recipient: 'someone', shortUrl: 'https://short.url/token1' },
+      ];
+      rerender(props);
+
+      expect((result.current.transactions[0].tokenData as { shortUrl: string | null }).shortUrl).toBe('https://short.url/token1');
     });
   });
 
@@ -1447,17 +1497,42 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[0].isAutoclaim).toBe(true);
     });
 
-    it('should filter out received tokens that are self-claims (by taprootAddress)', () => {
-      // Received token where taprootAddress matches (self-send)
+    it('should detect self-claimed sent tokens by taproot address match', () => {
       mockEcashTokens = [
         {
-          id: 'received_self_claim',
+          id: 'self_claim_taproot',
+          token: 'cashuAbc',
+          amount: 200,
+          timestamp: 1000,
+          claimed: true,
+          recipient: taprootAddress,
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
+      expect(result.current!.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].isAutoclaim).toBe(true);
+      expect(result.current.transactions[0].txData.numericAmount).toBe(200);
+    });
+
+    it('should keep received tokens associated with the current account', () => {
+      mockEcashTokens = [
+        {
+          id: 'received_current_account',
           token: 'cashuAbc',
           amount: 100,
           timestamp: 1000,
           claimed: false,
           sender: 'someone_else',
-          taprootAddress: taprootAddress, // Matches user's address - should be filtered
+          taprootAddress: taprootAddress,
         },
         {
           id: 'received_from_other',
@@ -1479,9 +1554,50 @@ describe('useAssetTransactions', () => {
         advancedMode: true, // Ecash tokens only used in advanced mode
       });
 
-      // Only the received token from different address should be included
+      expect(result.current!.transactions).toHaveLength(2);
+      expect(result.current.transactions.map((tx: { txid: string }) => tx.txid)).toEqual([
+        'received_from_other',
+        'received_current_account',
+      ]);
+    });
+
+    it('should filter only the received duplicate of a self-claimed sent token', () => {
+      const pubkeyHex = '0123456789abcdef';
+      mockFromBech32.mockReturnValue({ data: Buffer.from(pubkeyHex, 'hex') });
+
+      mockEcashTokens = [
+        {
+          id: 'sent_self_claim',
+          token: 'cashuBsame',
+          amount: 100,
+          timestamp: 1000,
+          claimed: true,
+          recipient: pubkeyHex,
+          taprootAddress: taprootAddress,
+        },
+        {
+          id: 'received_self_claim_duplicate',
+          token: 'cashuBsame',
+          amount: 100,
+          timestamp: 2000,
+          claimed: false,
+          sender: 'someone_else',
+          taprootAddress: taprootAddress,
+        },
+      ];
+      mockLoadingEcashTokens = false;
+
+      const { result } = renderHook({
+        txHistory: [],
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+        advancedMode: true,
+      });
+
       expect(result.current!.transactions).toHaveLength(1);
-      expect(result.current.transactions[0].txid).toBe('received_from_other');
+      expect(result.current.transactions[0].txid).toBe('sent_self_claim');
+      expect(result.current.transactions[0].isAutoclaim).toBe(true);
     });
   });
 

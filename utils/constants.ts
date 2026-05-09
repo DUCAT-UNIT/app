@@ -63,6 +63,7 @@ export const BITCOIN_TX = {
 export const VAULT_CONFIG = {
   MIN_COL_RATE: 1.6, // 160% minimum collateralization ratio
   LIQUIDATION_RATE: 1.35, // 135% liquidation threshold
+  MIN_VAULT_BALANCE: 10_000, // Minimum sats to leave in an active vault output
   VIN_ALLOWANCE: 350, // Virtual bytes allowance per input
   TX_TIMEOUT: 60_000, // 60s guardian timeout
   UNIT_POSTAGE: 10_000, // Satoshis for UNIT output

@@ -13,7 +13,7 @@ import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
 import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from './liquidation/recoveryKeys';
 import { EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY } from '../stores/evmTransactionCheckpointStore';
 import { OPERATION_JOURNAL_STORAGE_KEY } from '../stores/operationJournalStore';
-import { PENDING_TOKEN_KEY } from '../stores/tokenProcessingStore';
+import { PENDING_TOKEN_KEY, PENDING_TOKEN_QUEUE_KEY } from '../stores/tokenProcessingStore';
 import { TURBO_PROCESSING_STORAGE_KEY } from '../stores/turboProcessingStore';
 import { VAULT_SETTLEMENT_STORAGE_KEY } from '../stores/vaultSettlementStore';
 import {
@@ -415,7 +415,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
     ]);
 
-    const proofKeys = new Set<string>(['cashu_proofs']);
+    const proofKeys = new Set<string>(['cashu_proofs', 'cashu_proofs_sat']);
     const accountScopedStorageIndexes = new Set<number>([0]);
     const addAccountScopedStorageIndex = (value: string | number | null | undefined): void => {
       const parsed = typeof value === 'number' ? value : Number(value);
@@ -436,7 +436,9 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
             !Array.isArray(value) &&
             typeof (value as { taprootAddress?: unknown }).taprootAddress === 'string'
           ) {
-            proofKeys.add(`cashu_proofs_${(value as { taprootAddress: string }).taprootAddress}`);
+            const taprootAddress = (value as { taprootAddress: string }).taprootAddress;
+            proofKeys.add(`cashu_proofs_${taprootAddress}`);
+            proofKeys.add(`cashu_proofs_${taprootAddress}_sat`);
           }
         });
       }
@@ -453,6 +455,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
         records.forEach((record) => {
           if (record?.taprootAddress) {
             proofKeys.add(`cashu_proofs_${record.taprootAddress}`);
+            proofKeys.add(`cashu_proofs_${record.taprootAddress}_sat`);
           }
         });
       } catch (error: unknown) {
@@ -543,6 +546,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       SecureStore.deleteItemAsync('cashu_pending_turbo_sends_v1'),
       SecureStore.deleteItemAsync('cashu_recovered_outgoing_swap_tokens_v1'),
       SecureStore.deleteItemAsync(PENDING_TOKEN_KEY),
+      SecureStore.deleteItemAsync(PENDING_TOKEN_QUEUE_KEY),
       SecureStore.deleteItemAsync('sent_turbo_tokens'),
       SecureStore.deleteItemAsync('received_turbo_tokens'),
       SecureStore.deleteItemAsync('cashu_proof_keys_v1'),

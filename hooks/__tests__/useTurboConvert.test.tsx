@@ -167,7 +167,7 @@ describe('useTurboConvert', () => {
     requestMint.mockResolvedValue({
       quoteId: 'quote456',
       depositAddress: 'bc1qdeposit',
-      amount: 100.5,
+      amount: 10050,
     });
 
     mockProps.runesBalance = [{ rune: 'UNIT', amount: '100.50', divisibility: 0 }];

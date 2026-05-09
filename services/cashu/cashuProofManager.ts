@@ -6,6 +6,12 @@ import { checkProofsSpent, CheckStateResponse } from './cashuMintClient';
 import { CashuProof } from './crypto';
 import { normalizeCashuProofs } from './cashuTsCompat';
 import { DEVICE_ONLY } from '../storagePolicy';
+import {
+  CASHU_UNIT_UNIT,
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from './cashuUnits';
 
 /**
  * Cashu Proof Manager
@@ -19,25 +25,36 @@ const PROOF_REGISTRY_KEY = 'cashu_proof_keys_v1';
 
 export interface ProofStorageContext {
   account: string;
+  unit: CashuUnit;
   storageKey: string;
 }
 
-const getStorageKeyForAccount = (account: string | null): string => {
+const getStorageKeyForAccount = (
+  account: string | null,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): string => {
+  const normalizedUnit = normalizeCashuUnit(unit);
   if (!account) {
-    return 'cashu_proofs';
+    return normalizedUnit === CASHU_UNIT_UNIT ? 'cashu_proofs' : `cashu_proofs_${normalizedUnit}`;
   }
-  return `cashu_proofs_${account}`;
+  return normalizedUnit === CASHU_UNIT_UNIT
+    ? `cashu_proofs_${account}`
+    : `cashu_proofs_${account}_${normalizedUnit}`;
 };
 
-const getCurrentProofStorageContext = (): ProofStorageContext => {
+const getCurrentProofStorageContext = (
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): ProofStorageContext => {
   if (!currentAccount) {
     logger.warn('[CashuProofManager] withProofLock called before account initialization');
     throw new Error('[CashuProofManager] withProofLock called before account initialization');
   }
+  const normalizedUnit = normalizeCashuUnit(unit);
 
   return {
     account: currentAccount,
-    storageKey: getStorageKeyForAccount(currentAccount),
+    unit: normalizedUnit,
+    storageKey: getStorageKeyForAccount(currentAccount, normalizedUnit),
   };
 };
 
@@ -45,16 +62,20 @@ const getCurrentProofStorageContext = (): ProofStorageContext => {
 // Each account gets its own lock chain so operations on different accounts don't serialize
 const _proofLocks: Map<string, Promise<unknown>> = new Map();
 
-export function withProofLock<T>(fn: (context: ProofStorageContext) => Promise<T>): Promise<T> {
-  const context = getCurrentProofStorageContext();
-  const existing = _proofLocks.get(context.account) || Promise.resolve();
+export function withProofLock<T>(
+  fn: (context: ProofStorageContext) => Promise<T>,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<T> {
+  const context = getCurrentProofStorageContext(unit);
+  const lockKey = `${context.account}:${context.unit}`;
+  const existing = _proofLocks.get(lockKey) || Promise.resolve();
   const run = async () => fn(context);
   const next = existing.then(run, run);
   const settled = next.catch(() => undefined);
-  _proofLocks.set(context.account, settled);
+  _proofLocks.set(lockKey, settled);
   void settled.finally(() => {
-    if (_proofLocks.get(context.account) === settled) {
-      _proofLocks.delete(context.account);
+    if (_proofLocks.get(lockKey) === settled) {
+      _proofLocks.delete(lockKey);
     }
   });
   return next as Promise<T>;
@@ -105,10 +126,13 @@ const notifyProofChange = (): void => {
 /**
  * Migrate proofs from global storage to account-specific storage
  */
-const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
+const migrateGlobalProofsForUnit = async (
+  taprootAddress: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<void> => {
   try {
-    const oldKey = 'cashu_proofs';
-    const newKey = `cashu_proofs_${taprootAddress}`;
+    const oldKey = getStorageKeyForAccount(null, unit);
+    const newKey = getStorageKeyForAccount(taprootAddress, unit);
 
     // Check if old global proofs exist
     const oldProofs = await SecureStore.getItemAsync(oldKey);
@@ -116,27 +140,23 @@ const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
       return; // No migration needed
     }
 
-    // Check if account-specific proofs already exist
+    const globalProofs = await readProofsUnsafe(oldKey);
     const existingProofs = await SecureStore.getItemAsync(newKey);
-    if (existingProofs) {
-      logger.info('Account-specific proofs already exist, skipping migration');
-      return;
-    }
+    const accountProofs = existingProofs ? await readProofsUnsafe(newKey) : [];
+    const existingSecrets = new Set(accountProofs.map((proof) => proof.secret));
+    const mergedProofs = [
+      ...accountProofs,
+      ...globalProofs.filter((proof) => !existingSecrets.has(proof.secret)),
+    ];
 
-    // Migrate: copy old proofs to new account-specific key
-    await SecureStore.setItemAsync(newKey, oldProofs, DEVICE_ONLY);
-
-    // Parse proof count safely for logging
-    let proofCount = 0;
-    try {
-      proofCount = JSON.parse(oldProofs).length;
-    } catch (parseError) {
-      logger.warn('Failed to parse old proofs for count', { error: (parseError as Error).message });
-    }
+    await saveProofsForStorageKey(mergedProofs, newKey);
 
     logger.info('Migrated proofs from global storage to account-specific storage', {
       address: taprootAddress,
-      proofCount,
+      unit,
+      globalProofCount: globalProofs.length,
+      accountProofCount: accountProofs.length,
+      mergedProofCount: mergedProofs.length,
     });
 
     // Delete old global key
@@ -145,6 +165,11 @@ const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
   } catch (error: unknown) {
     logger.error('Failed to migrate global proofs', { error: (error as Error).message });
   }
+};
+
+const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
+  await migrateGlobalProofsForUnit(taprootAddress, CASHU_UNIT_UNIT);
+  await migrateGlobalProofsForUnit(taprootAddress, 'sat');
 };
 
 /**
@@ -156,7 +181,8 @@ export const setCurrentAccount = async (taprootAddress: string): Promise<void> =
 
   // Migrate old global proofs if this is the first time
   await migrateGlobalProofs(taprootAddress);
-  await registerProofStorageKey(getStorageKey());
+  await registerProofStorageKey(getStorageKey(CASHU_UNIT_UNIT));
+  await registerProofStorageKey(getStorageKey('sat'));
 };
 
 export const getCurrentCashuAccount = (): string | null => currentAccount;
@@ -164,11 +190,11 @@ export const getCurrentCashuAccount = (): string | null => currentAccount;
 /**
  * Get account-specific storage key
  */
-export const getStorageKey = (): string => {
+export const getStorageKey = (unit: CashuUnit = DEFAULT_CASHU_UNIT): string => {
   if (!currentAccount) {
     logger.warn('No current account set, using default storage key');
   }
-  return getStorageKeyForAccount(currentAccount);
+  return getStorageKeyForAccount(currentAccount, unit);
 };
 
 const registerProofStorageKey = async (storageKey: string): Promise<void> => {
@@ -296,8 +322,10 @@ export const loadProofsForStorageKey = async (storageKey: string): Promise<Cashu
 /**
  * Load proofs from secure storage (non-locking; callers that mutate should lock separately)
  */
-export const loadProofs = async (): Promise<CashuProof[]> => {
-  return readProofsUnsafe();
+export const loadProofs = async (
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<CashuProof[]> => {
+  return readProofsUnsafe(getStorageKey(unit));
 };
 
 /**
@@ -363,15 +391,23 @@ export const saveProofsForStorageKey = async (
   }
 };
 
-export const saveProofs = async (proofs: CashuProof[], verify = true): Promise<void> => {
-  await saveProofsForStorageKey(proofs, getStorageKey(), verify);
+export const saveProofs = async (
+  proofs: CashuProof[],
+  verify = true,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<void> => {
+  await saveProofsForStorageKey(proofs, getStorageKey(unit), verify);
 };
 
 /**
  * Add new proofs to wallet
  * Uses mutex lock to prevent concurrent read-modify-write race conditions
  */
-export const addProofs = async (newProofs: CashuProof[], verify = true): Promise<void> => {
+export const addProofs = async (
+  newProofs: CashuProof[],
+  verify = true,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<void> => {
   await withProofLock(async ({ storageKey }) => {
     const existing = await loadProofsForStorageKey(storageKey);
 
@@ -391,7 +427,7 @@ export const addProofs = async (newProofs: CashuProof[], verify = true): Promise
     const combined = [...existing, ...uniqueNewProofs];
     await saveProofsForStorageKey(combined, storageKey, verify);
     logger.info('Added proofs', { added: uniqueNewProofs.length, total: combined.length });
-  });
+  }, unit);
 
   // Notify listeners that proofs have changed (triggers balance refresh)
   notifyProofChange();
@@ -401,7 +437,10 @@ export const addProofs = async (newProofs: CashuProof[], verify = true): Promise
  * Remove proofs from wallet (after spending)
  * Uses mutex lock to prevent concurrent read-modify-write race conditions
  */
-export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> => {
+export const removeProofs = async (
+  proofsToRemove: CashuProof[],
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<void> => {
   await withProofLock(async ({ storageKey }) => {
     const existing = await loadProofsForStorageKey(storageKey);
     const secretsToRemove = new Set(proofsToRemove.map((p) => p.secret));
@@ -413,7 +452,7 @@ export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> 
       removed: proofsToRemove.length,
       remaining: remaining.length,
     });
-  });
+  }, unit);
 
   // Notify listeners that proofs have changed (triggers balance refresh)
   notifyProofChange();
@@ -422,8 +461,11 @@ export const removeProofs = async (proofsToRemove: CashuProof[]): Promise<void> 
 /**
  * Load proofs with optional limit for faster initial loading
  */
-export const loadProofsPartial = async (limit: number | null = null): Promise<CashuProof[]> => {
-  const proofs = await readProofsUnsafe();
+export const loadProofsPartial = async (
+  limit: number | null = null,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<CashuProof[]> => {
+  const proofs = await readProofsUnsafe(getStorageKey(unit));
   if (limit !== null && proofs.length > limit) {
     logger.info('Loaded partial proofs from storage', {
       requested: limit,
@@ -444,7 +486,9 @@ interface RemoveSpentProofsResult {
  * Remove spent proofs from wallet
  * Checks proof states with the mint and removes any that are already spent
  */
-export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
+export const removeSpentProofs = async (
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<RemoveSpentProofsResult> => {
   const result = await withProofLock(async ({ storageKey }) => {
     logger.info('Starting cleanup of spent proofs');
 
@@ -460,6 +504,13 @@ export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
 
     // Check which proofs are spent
     const stateResult: CheckStateResponse = await checkProofsSpent(allProofs);
+    if (!Array.isArray(stateResult.states) || stateResult.states.length !== allProofs.length) {
+      logger.warn('Proof state cleanup returned incomplete state response', {
+        expected: allProofs.length,
+        actual: Array.isArray(stateResult.states) ? stateResult.states.length : 'missing',
+      });
+      throw new Error('Unable to verify all proof states');
+    }
 
     // Filter out spent proofs
     const spentProofs: CashuProof[] = [];
@@ -490,7 +541,7 @@ export const removeSpentProofs = async (): Promise<RemoveSpentProofsResult> => {
       removed: spentProofs.length,
       kept: validProofs.length,
     };
-  });
+  }, unit);
 
   if (result.removed > 0) {
     notifyProofChange();

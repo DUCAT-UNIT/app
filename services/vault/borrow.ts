@@ -17,6 +17,7 @@ import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { checkBatchAllowed, Utxo, withVaultOperationLock } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -98,84 +99,90 @@ export async function createVaultReqBorrow(
 ): Promise<WalletVaultBorrowRequest> {
   // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
   return withVaultOperationLock(async () => {
-  logger.debug('[VaultOps] Creating borrow request...');
+    logger.debug('[VaultOps] Creating borrow request...');
 
-  try {
-    const { feeRate, oracleQuote, vaultProfile } = options;
-
-    // SECURITY: Re-validate oracle price freshness before building transaction.
-    // User may have been on the confirmation screen for several minutes.
-    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
-      throw new Error(
-        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
-      );
-    }
-
-    logger.debug('[VaultOps] Borrow context inputs:', {
-      mintAccount: !!acctRes.mint_account,
-      oracleQuote: !!oracleQuote,
-      vaultProfile: {
-        acct_id: vaultProfile.acct_id,
-        guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
-        master_id: vaultProfile.master_id,
-        vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
-        hasRdata: !!vaultProfile.rdata,
-        hasUtxo: !!vaultProfile.utxo,
-      },
-    });
-
-    // Create borrow context
-    const vaultCtx: VaultBorrowCtx = wallet.vault.borrow.ctx(
-      acctRes.mint_account,
-      oracleQuote,
-      vaultProfile,
-      borrowConfig
-    );
-
-    // Get transaction quote
-    const txQuote = wallet.vault.borrow.quote(vaultCtx);
-    logger.debug('[VaultOps] Borrow tx quote:', {
-      totalCost: txQuote.total_cost,
-    });
-
-    // Get UTXOs for the transaction
-    let utxos = options.utxos;
-    if (!utxos) {
-      const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
-      utxos = await wallet.fetch.sats_utxos(costWithVins);
-    }
-
-    if (!utxos || utxos.length === 0) {
-      throw new Error('No UTXOs available for borrow transaction fees');
-    }
-
-    // Check if batch signing is allowed
-    const isBatch = checkBatchAllowed(wallet);
-
-    let borrowReq: WalletVaultBorrowRequest;
-    setPendingVaultSigningOperation({
-      action: 'borrow',
-      ctx: vaultCtx,
-      satsUtxos: utxos,
-    });
     try {
-      borrowReq = await wallet.vault.borrow.req(vaultCtx, utxos, isBatch);
-    } finally {
-      clearPendingVaultSigningOperation();
+      const { feeRate, oracleQuote, vaultProfile } = options;
+
+      // SECURITY: Re-validate oracle price freshness before building transaction.
+      // User may have been on the confirmation screen for several minutes.
+      const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+      if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+        throw new Error(
+          `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+        );
+      }
+
+      logger.debug('[VaultOps] Borrow context inputs:', {
+        mintAccount: !!acctRes.mint_account,
+        oracleQuote: !!oracleQuote,
+        vaultProfile: {
+          acct_id: vaultProfile.acct_id,
+          guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
+          master_id: vaultProfile.master_id,
+          vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
+          hasRdata: !!vaultProfile.rdata,
+          hasUtxo: !!vaultProfile.utxo,
+        },
+      });
+
+      // Create borrow context
+      const vaultCtx: VaultBorrowCtx = wallet.vault.borrow.ctx(
+        acctRes.mint_account,
+        oracleQuote,
+        vaultProfile,
+        borrowConfig
+      );
+
+      // Get transaction quote
+      const txQuote = wallet.vault.borrow.quote(vaultCtx);
+      logger.debug('[VaultOps] Borrow tx quote:', {
+        totalCost: txQuote.total_cost,
+      });
+
+      // Get UTXOs for the transaction
+      let utxos = options.utxos;
+      if (!utxos) {
+        const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+        utxos = await withVaultBuildTimeout(
+          wallet.fetch.sats_utxos(costWithVins),
+          'Timed out fetching BTC UTXOs for borrow. Please try again.'
+        );
+      }
+
+      if (!utxos || utxos.length === 0) {
+        throw new Error('No UTXOs available for borrow transaction fees');
+      }
+
+      // Check if batch signing is allowed
+      const isBatch = checkBatchAllowed(wallet);
+
+      let borrowReq: WalletVaultBorrowRequest;
+      setPendingVaultSigningOperation({
+        action: 'borrow',
+        ctx: vaultCtx,
+        satsUtxos: utxos,
+      });
+      try {
+        borrowReq = await withVaultBuildTimeout(
+          wallet.vault.borrow.req(vaultCtx, utxos, isBatch),
+          'Timed out building the borrow transaction. Please try again.'
+        );
+      } finally {
+        clearPendingVaultSigningOperation();
+      }
+
+      logger.debug('[VaultOps] Borrow request created:', {
+        issue_txid: borrowReq.issue_txid,
+        vault_txid: borrowReq.vault_txid,
+        sats_inputs_count: borrowReq.sats_inputs?.length,
+      });
+
+      return borrowReq;
+    } catch (error) {
+      logger.error('[VaultOps] Failed to create borrow request:', { error });
+      throw error;
     }
-
-    logger.debug('[VaultOps] Borrow request created:', {
-      issue_txid: borrowReq.issue_txid,
-      vault_txid: borrowReq.vault_txid,
-      sats_inputs_count: borrowReq.sats_inputs?.length,
-    });
-
-    return borrowReq;
-  } catch (error) {
-    logger.error('[VaultOps] Failed to create borrow request:', { error });
-    throw error;
-  }
   }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
@@ -198,10 +205,10 @@ export async function guardianSendReqBorrow(
     // Small delay before resolving (as in frontend)
     await new Promise((resolve) => setTimeout(resolve, 350));
 
-    const guardRes = await withGuardianTimeout(
+    const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
-    ) as { issue_txid: string; vault_txid: string };
+    )) as { issue_txid: string; vault_txid: string };
 
     const txid = guardRes.issue_txid;
     const vault_txid = guardRes.vault_txid;

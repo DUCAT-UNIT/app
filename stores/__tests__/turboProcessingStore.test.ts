@@ -44,6 +44,7 @@ describe('turboProcessingStore', () => {
         mintQuoteId: 'quote-1',
         mintAmount: 2500,
         turboRecipient: 'tb1pturbo',
+        senderTaprootAddress: 'tb1psender',
       });
       await useTurboProcessingStore.getState().updateProgress(2, 'Mint confirmed');
     });
@@ -59,6 +60,7 @@ describe('turboProcessingStore', () => {
       mintQuoteId: 'quote-1',
       mintAmount: 2500,
       turboRecipient: 'tb1pturbo',
+      senderTaprootAddress: 'tb1psender',
     });
     expect(persisted.startProcessing).toBeUndefined();
     expect(persisted.updateProgress).toBeUndefined();
@@ -72,6 +74,7 @@ describe('turboProcessingStore', () => {
       currentStep: 1,
       currentMessage: 'Waiting',
       startedAt: now - 1000,
+      senderTaprootAddress: 'tb1psender',
     }));
 
     await expect(useTurboProcessingStore.getState().loadPersistedState()).resolves.toMatchObject({
@@ -79,6 +82,7 @@ describe('turboProcessingStore', () => {
       sendAmount: '10',
       sendRecipient: 'tb1pfresh',
       currentStep: 1,
+      senderTaprootAddress: 'tb1psender',
     });
 
     storage.set(TURBO_PROCESSING_STORAGE_KEY, JSON.stringify({
@@ -122,6 +126,7 @@ describe('turboProcessingStore', () => {
       startedAt: now,
       mintAmount: -1,
       turboRecipient: ' tb1pturbo ',
+      senderTaprootAddress: ' tb1psender ',
     }, now)).toEqual({
       isProcessing: true,
       sendAmount: '5',
@@ -132,6 +137,19 @@ describe('turboProcessingStore', () => {
       mintQuoteId: undefined,
       mintAmount: undefined,
       turboRecipient: 'tb1pturbo',
+      senderTaprootAddress: 'tb1psender',
     });
+  });
+
+  it('fails closed when persisted state has an unsupported Cashu unit', () => {
+    expect(normalizeTurboProcessingState({
+      isProcessing: true,
+      sendAmount: '5',
+      sendRecipient: 'tb1precipient',
+      currentStep: 1,
+      currentMessage: 'Restoring',
+      startedAt: now,
+      cashuUnit: 'msat',
+    }, now)).toBeNull();
   });
 });

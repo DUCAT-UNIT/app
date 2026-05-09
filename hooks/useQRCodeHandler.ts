@@ -16,6 +16,16 @@ import {
 } from '../services/cashu/cashuWalletService';
 import { getKeysetIdsFromMintKeys } from '../services/cashu/cashuTsCompat';
 import { isTurboTokenUrl, resolveCashuTokenFromUrl } from '../services/turbo/turboTokenUrl';
+import {
+  initializeTokenStorage,
+  isTokenProcessed as isPersistedTokenProcessed,
+} from '../services/turbo/turboTokenStorage';
+import {
+  DEFAULT_CASHU_UNIT,
+  cashuUnitTokenSymbol,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
 import type { SnackbarParams } from '../stores/notificationStore';
 import { useTokenProcessingStore } from '../stores/tokenProcessingStore';
 import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../utils/bitcoin';
@@ -56,7 +66,28 @@ interface CheckProofsResult {
 interface TokenEntry {
   mint: string;
   proofs: Proof[];
+  unit?: CashuUnit;
 }
+
+const formatCashuAmount = (amount: number, unit: CashuUnit): string =>
+  unit === 'sat'
+    ? (amount / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '')
+    : (amount / 100).toFixed(2);
+
+const claimSnackbarAction = (unit: CashuUnit): 'claim' | 'btc_claim' =>
+  unit === 'sat' ? 'btc_claim' : 'claim';
+
+const isProcessedTurboToken = async (
+  token: string,
+  tokenStore: { isTokenProcessed: (token: string) => Promise<boolean> }
+): Promise<boolean> => {
+  if (await tokenStore.isTokenProcessed(token)) {
+    return true;
+  }
+
+  await initializeTokenStorage();
+  return isPersistedTokenProcessed(token);
+};
 
 function classifyQrPayload(data: string): string {
   const lower = data.toLowerCase();
@@ -134,11 +165,12 @@ export function useQRCodeHandler({
         showSnackbar({
           type: 'error',
           action: 'claim',
-          description: 'Only cashuB UNIT tokens are supported',
+          description: 'Only cashuB tokens are supported',
         });
         return;
       }
 
+      let tokenUnit: CashuUnit = DEFAULT_CASHU_UNIT;
       try {
         // Check if this is a P2PK locked token (Turbo)
         const isP2PKToken = hasP2PKProofs(trimmedData);
@@ -146,15 +178,17 @@ export function useQRCodeHandler({
         if (isP2PKToken) {
           // This is a Turbo token - check if already processed
           logger.debug('[useQRCodeHandler] P2PK token detected, checking if already processed');
+          const p2pkMetadata = decodeTokenMetadata(trimmedData);
+          const p2pkUnit = normalizeCashuUnit(p2pkMetadata.unit ?? DEFAULT_CASHU_UNIT);
 
-          // Check if already processed using the token store
-          const alreadyProcessed = await tokenStore.isTokenProcessed(trimmedData);
+          // Check both active store state and durable deep-link dedupe state.
+          const alreadyProcessed = await isProcessedTurboToken(trimmedData, tokenStore);
           if (alreadyProcessed) {
             logger.debug('[useQRCodeHandler] Token already processed, showing error');
             setShowQRScanner(false);
             showSnackbar({
               type: 'error',
-              action: 'swap',
+              action: claimSnackbarAction(p2pkUnit),
               description: 'Token already claimed',
             });
             return;
@@ -176,13 +210,19 @@ export function useQRCodeHandler({
         setShowQRScanner(false);
         notify.token.checking();
 
-        const metadata = decodeTokenMetadata(trimmedData);
+	        const metadata = decodeTokenMetadata(trimmedData);
+	        tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+	        const unit = tokenUnit;
+	        const unitSymbol = cashuUnitTokenSymbol(unit);
         const keyData = await getOrFetchKeys();
         const decoded = decodeToken(trimmedData, getKeysetIdsFromMintKeys(keyData)) as DecodedToken;
         const { proofs, amount } = decoded;
 
         // Check which proofs are spent
         const stateResult = await checkProofsSpent(metadata.proofs) as CheckProofsResult;
+        if (!Array.isArray(stateResult.states) || stateResult.states.length !== proofs.length) {
+          throw new Error('Unable to verify token spend state with mint');
+        }
 
         const spentProofs = stateResult.states.filter(s => s.state !== 'UNSPENT');
         const unspentProofs = proofs.filter((_, idx) =>
@@ -195,17 +235,17 @@ export function useQRCodeHandler({
           // All proofs spent
           showSnackbar({
             type: 'error',
-            action: 'swap',
+            action: claimSnackbarAction(unit),
             description: 'All proofs in this token have been spent',
           });
         } else if (spentProofs.length > 0) {
           // Some proofs spent - ask user
           Alert.alert(
             'Partial Token',
-            `This token has ${proofs.length} proofs totaling ${amount} UNIT.\n\n` +
-            `${spentProofs.length} proofs (${amount - unspentAmount} UNIT) already spent.\n` +
-            `${unspentProofs.length} proofs (${unspentAmount} UNIT) can be claimed.\n\n` +
-            `Claim the ${unspentAmount} UNIT?`,
+            `This token has ${proofs.length} proofs totaling ${formatCashuAmount(amount, unit)} ${unitSymbol}.\n\n` +
+            `${spentProofs.length} proofs (${formatCashuAmount(amount - unspentAmount, unit)} ${unitSymbol}) already spent.\n` +
+            `${unspentProofs.length} proofs (${formatCashuAmount(unspentAmount, unit)} ${unitSymbol}) can be claimed.\n\n` +
+            `Claim the ${formatCashuAmount(unspentAmount, unit)} ${unitSymbol}?`,
             [
               { text: 'Cancel', style: 'cancel' },
               {
@@ -221,19 +261,23 @@ export function useQRCodeHandler({
                         proofs: unspentProofs
                       }]
                     };
-                    const filteredTokenString = encodeToken(filteredToken.token[0].proofs, filteredToken.token[0].mint);
+                    const filteredTokenString = encodeToken(
+                      filteredToken.token[0].proofs,
+                      filteredToken.token[0].mint,
+                      unit
+                    );
 
                     const result = await receiveCashuToken(filteredTokenString);
                     showSnackbar({
                       type: 'success',
-                      action: 'claim',
-                      description: `Successfully claimed ${result.amount} UNIT`,
+                      action: claimSnackbarAction(unit),
+                      description: `Successfully claimed ${formatCashuAmount(result.amount, unit)} ${unitSymbol}`,
                     });
                   } catch (error: unknown) {
                     logger.error('[useQRCodeHandler] Claim failed:', { error: error instanceof Error ? error.message : String(error) });
                     showSnackbar({
                       type: 'error',
-                      action: 'claim',
+                      action: claimSnackbarAction(unit),
                       description: `Failed to claim: ${error instanceof Error ? error.message : String(error)}`,
                     });
                   }
@@ -247,18 +291,18 @@ export function useQRCodeHandler({
           const result = await receiveCashuToken(trimmedData);
           showSnackbar({
             type: 'success',
-            action: 'claim',
-            description: `Successfully claimed ${result.amount} UNIT`,
+            action: claimSnackbarAction(unit),
+            description: `Successfully claimed ${formatCashuAmount(result.amount, unit)} ${unitSymbol}`,
           });
         }
       } catch (error: unknown) {
         logger.error('[useQRCodeHandler] Token check failed:', { error: error instanceof Error ? error.message : String(error) });
         setShowQRScanner(false);
-        showSnackbar({
-          type: 'error',
-          action: 'claim',
-          description: `Failed to process token: ${error instanceof Error ? error.message : String(error)}`,
-        });
+	        showSnackbar({
+	          type: 'error',
+	          action: claimSnackbarAction(tokenUnit),
+	          description: `Failed to process token: ${error instanceof Error ? error.message : String(error)}`,
+	        });
       }
       return;
     }
@@ -277,15 +321,17 @@ export function useQRCodeHandler({
         // If it's already a proper token object with proofs, encode it
         if (parsed.token && Array.isArray(parsed.token)) {
           const firstEntry = parsed.token[0];
-          const encoded = encodeToken(firstEntry.proofs, firstEntry.mint);
+          const unit = normalizeCashuUnit(firstEntry.unit ?? DEFAULT_CASHU_UNIT);
+          const unitSymbol = cashuUnitTokenSymbol(unit);
+          const encoded = encodeToken(firstEntry.proofs, firstEntry.mint, unit);
           logger.debug('[useQRCodeHandler] Encoded token', { tokenLength: encoded.length });
 
           notify.token.claiming();
           const result = await receiveCashuToken(encoded);
           showSnackbar({
             type: 'success',
-            action: 'claim',
-            description: `Successfully claimed ${result.amount} UNIT`,
+            action: claimSnackbarAction(unit),
+            description: `Successfully claimed ${formatCashuAmount(result.amount, unit)} ${unitSymbol}`,
           });
         } else if (Array.isArray(parsed.proofs) || Array.isArray(parsed)) {
           // Raw proofs array - need to wrap it
@@ -323,17 +369,19 @@ export function useQRCodeHandler({
             showSnackbar({
               type: 'error',
               action: 'claim',
-              description: 'Only cashuB UNIT tokens are supported',
+              description: 'Only cashuB tokens are supported',
             });
             return;
           }
 
-          const alreadyProcessed = await tokenStore.isTokenProcessed(token);
+          const alreadyProcessed = await isProcessedTurboToken(token, tokenStore);
           if (alreadyProcessed) {
+            const metadata = decodeTokenMetadata(token);
+            const unit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
             setShowQRScanner(false);
             showSnackbar({
               type: 'error',
-              action: 'swap',
+              action: claimSnackbarAction(unit),
               description: 'Token already claimed',
             });
             return;

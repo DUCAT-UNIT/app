@@ -7,7 +7,7 @@ import { useNotificationStore } from '../stores/notificationStore';
 import type { SnackbarParams } from '../types/notification';
 import { NOTIFICATIONS } from './messages';
 
-type TransactionAction = 'send' | 'claim' | 'convert' | 'deposit' | 'withdraw' | 'borrow' | 'repay' | 'create' | 'faucet' | 'swap' | 'liquidation' | 'repossess' | 'conversion_turbo' | 'btc_send' | 'unit_send';
+type TransactionAction = 'send' | 'claim' | 'btc_claim' | 'convert' | 'deposit' | 'withdraw' | 'borrow' | 'repay' | 'create' | 'faucet' | 'swap' | 'btc_swap' | 'liquidation' | 'repossess' | 'conversion_turbo' | 'btc_send' | 'unit_send';
 
 /**
  * Get the notification store's showMessage function

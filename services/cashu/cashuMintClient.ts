@@ -6,9 +6,12 @@
 export {
   MINT_URL,
   CASHU_UNIT,
+  CASHU_BTC_UNIT,
   RUNE_ID,
   getMintInfo,
+  assertOnchainCashuMintSupport,
   assertOnchainUnitMintSupport,
+  mintSupportsOnchainCashuUnit,
   mintSupportsOnchainUnit,
   getKeysets,
   getKeys,

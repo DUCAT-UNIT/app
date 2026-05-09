@@ -9,44 +9,77 @@ import { NavigationProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../theme';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatBalance } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
+import {
+  cashuUnitDisplayName,
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 
 /**
  * Props for RecoverMintScreen
  */
 interface RecoverMintScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
+  route?: {
+    params?: {
+      cashuUnit?: CashuUnit;
+    };
+  };
 }
 
-export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps): React.JSX.Element {
-  const [quoteId, setQuoteId] = useState('4e2ceef0dfbbba3a6534b0919f369c622694b6b88ce1b8283a8da6669d7920b2');
-  const [amount, setAmount] = useState('921.43');
+export default function RecoverMintScreen({ navigation, route }: RecoverMintScreenProps): React.JSX.Element {
+  const cashuUnit = normalizeCashuUnit(route?.params?.cashuUnit, DEFAULT_CASHU_UNIT);
+  const tokenLabel = cashuUnitDisplayName(cashuUnit);
+  const [quoteId, setQuoteId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleRecover = async (): Promise<void> => {
-    if (!quoteId || !amount) {
-      Alert.alert('Error', 'Please enter both quote ID and amount');
+    if (!quoteId) {
+      Alert.alert('Error', 'Please enter a quote ID');
       return;
     }
 
     setIsProcessing(true);
     try {
-      const { checkMintQuote, completeMint } = await import('../../services/cashu/cashuWalletService');
+      const { checkMintQuote, completeMint, getMintQuoteAvailableAmount } = await import('../../services/cashu/cashuWalletService');
+      const { saveMintQuote } = await import('../../services/cashu/cashuMintQuoteRecovery');
 
       // Check status and get the actual quote
       const quote = await checkMintQuote(quoteId);
       logger.debug('Quote:', quote);
 
-      if ((quote.state === 'PAID' || quote.state === 'ISSUED') && quote.amount !== undefined) {
+      const availableAmount = getMintQuoteAvailableAmount(quote);
+      const claimAmount = availableAmount > 0 ? availableAmount : quote.amount;
+
+      if ((quote.state === 'PAID' || quote.state === 'ISSUED') && claimAmount !== undefined && claimAmount > 0) {
         Alert.alert('Status', 'Quote is PAID! Completing mint...');
 
-        // Complete mint with the amount from the quote (already in smallest units)
-        const proofs = await completeMint(quoteId, quote.amount);
+        const persistedQuoteUnit = (quote as { unit?: string }).unit;
+        const quoteUnit = persistedQuoteUnit
+          ? normalizeCashuUnit(persistedQuoteUnit)
+          : cashuUnit;
+
+        await saveMintQuote({
+          quoteId,
+          amount: claimAmount,
+          depositAddress: quote.request ?? '',
+          unit: quoteUnit,
+        });
+
+        // Complete mint with the mint's currently claimable amount.
+        const proofs = await completeMint(quoteId, claimAmount, quoteUnit);
+        const recoveredAmount = proofs.reduce((sum, p) => sum + p.amount, 0);
+        const formattedRecovered = quoteUnit === 'sat'
+          ? `${formatBalance(recoveredAmount / 100_000_000)} BTC (${recoveredAmount.toLocaleString()} sats)`
+          : `${formatUnitAmount(recoveredAmount)} UNIT`;
 
         setIsProcessing(false);
         Alert.alert(
           'Success!',
-          `Mint completed successfully!\nReceived ${proofs.length} proofs\nTotal: ${formatUnitAmount(proofs.reduce((sum, p) => sum + p.amount, 0))} UNIT`,
+          `Mint completed successfully!\nReceived ${proofs.length} proofs\nTotal: ${formattedRecovered}`,
           [
             {
               text: 'OK',
@@ -56,7 +89,7 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
         );
       } else {
         setIsProcessing(false);
-        Alert.alert('Status', `Quote is not yet paid. State: ${quote.state}`);
+        Alert.alert('Status', `Quote has no claimable amount. State: ${quote.state}`);
       }
 
     } catch (error: unknown) {
@@ -69,9 +102,9 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Recover Mint</Text>
+      <Text style={styles.title}>Recover {tokenLabel} Mint</Text>
       <Text style={styles.subtitle}>
-        Enter the quote ID and amount to recover a failed mint
+        Enter the quote ID to recover a failed {tokenLabel} mint
       </Text>
 
       <Text style={styles.label}>Quote ID</Text>
@@ -85,16 +118,6 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
         multiline
       />
 
-      <Text style={styles.label}>Amount (UNIT)</Text>
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="Enter amount"
-        placeholderTextColor={COLORS.MEDIUM_GRAY}
-        keyboardType="decimal-pad"
-      />
-
       <TouchableOpacity
         style={[styles.button, isProcessing && styles.buttonDisabled]}
         onPress={handleRecover}
@@ -103,7 +126,7 @@ export default function RecoverMintScreen({ navigation }: RecoverMintScreenProps
         {isProcessing ? (
           <ActivityIndicator color={COLORS.WHITE} />
         ) : (
-          <Text style={styles.buttonText}>Recover Mint</Text>
+          <Text style={styles.buttonText}>Recover {tokenLabel} Mint</Text>
         )}
       </TouchableOpacity>
 

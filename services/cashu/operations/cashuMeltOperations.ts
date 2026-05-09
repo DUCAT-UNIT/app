@@ -5,9 +5,11 @@
 
 import { logger } from '../../../utils/logger';
 import {
+  assertProofsMatchCashuUnit,
   calculateInputFees,
   findKeysetById,
-  selectActiveUnitKeyset,
+  resolveResponseSignatureKeysetForUnit,
+  selectActiveCashuKeyset,
   selectProofsForAmountIncludingFees,
 } from '../cashuKeysetUtils';
 import {
@@ -25,6 +27,11 @@ import { loadProofs, removeProofs, addProofs, removeSpentProofs } from '../cashu
 import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
 import { normalizeCashuAmount, normalizeOptionalCashuAmount } from '../cashuTsCompat';
 import { isP2PKSecret } from '../p2pk';
+import { cashuUnitDisplayName, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
+import {
+  assertCashuOperationAccountUnchanged,
+  requireCashuOperationAccount,
+} from './cashuAccountGuard';
 
 export interface MeltQuoteResult {
   quoteId: string;
@@ -34,9 +41,22 @@ export interface MeltQuoteResult {
 }
 
 const MAX_MELT_QUOTE_ATTEMPTS = 6;
+const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
+const loadProofsForUnit = (unit: CashuUnit): Promise<CashuProof[]> =>
+  isDefaultCashuUnit(unit) ? loadProofs() : loadProofs(unit);
+const addProofsForUnit = (proofs: CashuProof[], unit: CashuUnit): Promise<void> =>
+  isDefaultCashuUnit(unit) ? addProofs(proofs) : addProofs(proofs, true, unit);
+const removeProofsForUnit = (proofs: CashuProof[], unit: CashuUnit): Promise<void> =>
+  isDefaultCashuUnit(unit) ? removeProofs(proofs) : removeProofs(proofs, unit);
+const removeSpentProofsForUnit = (unit: CashuUnit) =>
+  isDefaultCashuUnit(unit) ? removeSpentProofs() : removeSpentProofs(unit);
+const getBalanceForUnit = (unit: CashuUnit): Promise<number> =>
+  isDefaultCashuUnit(unit) ? getBalance(true) : getBalance(true, unit);
 
-const loadSpendableProofsForMelt = async (): Promise<CashuProof[]> => {
-  const allProofs = await loadProofs();
+const loadSpendableProofsForMelt = async (
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<CashuProof[]> => {
+  const allProofs = await loadProofsForUnit(unit);
   return allProofs.filter((p) => !isP2PKSecret(p.secret));
 };
 
@@ -57,11 +77,18 @@ const canCoverMeltTotal = (
  * Redeem tokens through the onchain/unit melt flow.
  * Step 1: Create melt quote
  */
-export const requestMelt = async (address: string, amount: number): Promise<MeltQuoteResult> => {
+export const requestMelt = async (
+  address: string,
+  amount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MeltQuoteResult> => {
   try {
-    logger.info('Requesting melt', { address, amount });
+    logger.info('Requesting melt', { address, amount, unit });
+    requireCashuOperationAccount('Cashu melt quote request');
 
-    const quote: MeltQuote = await createMeltQuote(address, amount);
+    const quote: MeltQuote = isDefaultCashuUnit(unit)
+      ? await createMeltQuote(address, amount)
+      : await createMeltQuote(address, amount, unit);
     if (quote.amount === undefined) {
       throw new Error('Melt quote missing amount');
     }
@@ -84,21 +111,23 @@ export const requestMelt = async (address: string, amount: number): Promise<Melt
  */
 export const requestMaxMelt = async (
   address: string,
-  availableAmount: number
+  availableAmount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<MeltQuoteResult> => {
   try {
     const requestedAvailableAmount = Math.floor(availableAmount);
+    const tokenLabel = unit === DEFAULT_CASHU_UNIT ? 'TurboUNIT' : cashuUnitDisplayName(unit);
     if (!Number.isFinite(requestedAvailableAmount) || requestedAvailableAmount <= 0) {
-      throw new Error('No TurboUNIT available to withdraw');
+      throw new Error(`No ${tokenLabel} available to withdraw`);
     }
 
     const keyData = await getOrFetchKeys();
-    const spendableProofs = await loadSpendableProofsForMelt();
+    const spendableProofs = await loadSpendableProofsForMelt(unit);
     const proofBalance = sumProofs(spendableProofs);
     const maxSpendableAmount = Math.min(requestedAvailableAmount, proofBalance);
 
     if (maxSpendableAmount <= 0) {
-      throw new Error('No unlocked TurboUNIT proofs available to withdraw');
+      throw new Error(`No unlocked ${tokenLabel} proofs available to withdraw`);
     }
 
     const maxInputFees = calculateInputFees(spendableProofs, keyData);
@@ -106,7 +135,7 @@ export const requestMaxMelt = async (
     let lastQuote: MeltQuoteResult | null = null;
 
     for (let attempt = 0; attempt < MAX_MELT_QUOTE_ATTEMPTS; attempt++) {
-      const quote = await requestMelt(address, quoteAmount);
+      const quote = await requestMelt(address, quoteAmount, unit);
       lastQuote = quote;
 
       if (
@@ -136,9 +165,9 @@ export const requestMaxMelt = async (
     }
 
     if ((lastQuote?.fee ?? 0) >= maxSpendableAmount) {
-      throw new Error('Not enough TurboUNIT to cover the on-chain withdrawal fee.');
+      throw new Error(`Not enough ${tokenLabel} to cover the on-chain withdrawal fee.`);
     }
-    throw new Error('Not enough TurboUNIT to cover the withdrawal amount plus fees.');
+    throw new Error(`Not enough ${tokenLabel} to cover the withdrawal amount plus fees.`);
   } catch (error: unknown) {
     logger.error('Failed to request max melt', { error: (error as Error).message });
     throw error;
@@ -275,9 +304,11 @@ const prepareExactMeltProofs = async (
   selectedAmount: number,
   inputFees: number,
   exactMeltPlan: ExactMeltPlan,
-  keyData: MintKeys
+  keyData: MintKeys,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  operationAccount: string | null = null
 ): Promise<CashuProof[]> => {
-  const unitKeyset = selectActiveUnitKeyset(keyData);
+  const unitKeyset = selectActiveCashuKeyset(keyData, unit);
   const keysetId = unitKeyset.id;
   const keys = unitKeyset.keys!;
   const outputAmount = selectedAmount - inputFees;
@@ -291,6 +322,7 @@ const prepareExactMeltProofs = async (
   const { outputs, blindingData, meltSecrets, recoverySecretTypeMap } =
     await createTypedBlindedOutputs(exactMeltPlan.amounts, changeAmounts, keysetId);
 
+  assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt pre-swap setup');
   const pendingSwapId = await savePendingSwap({
     inputProofs: selectedProofs,
     blindingData,
@@ -299,19 +331,25 @@ const prepareExactMeltProofs = async (
     // If the app exits after swap but before melt, all swapped proofs should
     // be restored as normal wallet proofs by the existing swap recovery path.
     secretTypeMap: recoverySecretTypeMap,
+    unit,
   });
 
   const response = await swapTokensAPI(selectedProofs, outputs);
+  const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
+    response.signatures,
+    keyData,
+    unitKeyset,
+    unit,
+    `Cashu ${unit} melt pre-swap`
+  );
   await updateSwapWithResponse(
     {
       signatures: response.signatures,
     },
-    pendingSwapId
+    pendingSwapId,
+    { keysetId: signedKeysetId, keys: unblindKeys }
   );
 
-  const signedKeysetId = response.signatures[0]?.id || keysetId;
-  const signedKeyset = findKeysetById(keyData, signedKeysetId);
-  const unblindKeys = signedKeyset?.keys ?? keys;
   const allNewProofs = unblindSignatures(
     response.signatures,
     blindingData,
@@ -334,9 +372,19 @@ const prepareExactMeltProofs = async (
     );
   }
 
-  await addProofs(allNewProofs);
-  await removeProofs(selectedProofs);
-  await clearPendingSwap(pendingSwapId);
+  assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt pre-swap proof update');
+  await addProofsForUnit(allNewProofs, unit);
+  await removeProofsForUnit(selectedProofs, unit);
+  try {
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt pre-swap cleanup');
+    await clearPendingSwap(pendingSwapId);
+  } catch (cleanupError) {
+    logger.warn('Pending melt pre-swap cleanup failed after proof update', {
+      error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+      pendingSwapId,
+      unit,
+    });
+  }
 
   logger.info('Prepared exact proofs for melt via swap', {
     selectedAmount,
@@ -352,9 +400,11 @@ const prepareExactMeltProofs = async (
 
 const prepareMeltSpend = async (
   baseAmount: number,
-  keyData: MintKeys
+  keyData: MintKeys,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  operationAccount: string | null = null
 ): Promise<PreparedMeltSpend> => {
-  const allProofs = await loadProofs();
+  const allProofs = await loadProofsForUnit(unit);
   const spendableProofs = allProofs.filter((p) => !isP2PKSecret(p.secret));
 
   logger.info('Proofs loaded for melt', {
@@ -364,13 +414,14 @@ const prepareMeltSpend = async (
     proofs: spendableProofs.map((p) => ({ amount: p.amount, id: p.id })),
   });
 
-  const unitKeyset = selectActiveUnitKeyset(keyData);
+  const unitKeyset = selectActiveCashuKeyset(keyData, unit);
   const exactMeltPlan = getExactMeltPlan(baseAmount, keyData, unitKeyset.id, unitKeyset.keys!);
   const { selectedProofs, selectedAmount, inputFees } = selectProofsForAmountIncludingFees(
     spendableProofs,
     exactMeltPlan.total,
     keyData
   );
+  assertProofsMatchCashuUnit(selectedProofs, keyData, unit, 'Selected Cashu melt proofs');
 
   const directChangeAmount = selectedAmount - baseAmount - inputFees;
   if (directChangeAmount < 0) {
@@ -390,7 +441,9 @@ const prepareMeltSpend = async (
     selectedAmount,
     inputFees,
     exactMeltPlan,
-    keyData
+    keyData,
+    unit,
+    operationAccount
   );
 
   return {
@@ -431,30 +484,38 @@ const getMeltFee = (result: Pick<MeltResponse, 'fee_paid' | 'fee'>): number => {
  * Complete melt through the onchain/unit flow.
  * Step 2: Send proofs and optional change outputs to the mint.
  */
-export const completeMelt = async (quoteId: string, totalAmount: number): Promise<MeltResult> => {
+export const completeMelt = async (
+  quoteId: string,
+  totalAmount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MeltResult> => {
   let preparedSpend: PreparedMeltSpend | null = null;
+  let operationAccount: string | null = null;
 
   try {
-    logger.info('Completing melt', { quoteId, totalAmount });
+    logger.info('Completing melt', { quoteId, totalAmount, unit });
+    operationAccount = requireCashuOperationAccount('Cashu melt');
 
     const keyData = await getOrFetchKeys();
-    const prepared = await prepareMeltSpend(totalAmount, keyData);
+    const prepared = await prepareMeltSpend(totalAmount, keyData, unit, operationAccount);
     preparedSpend = prepared;
 
     // Melt exact proofs only. The advertised onchain/unit response does not
     // return NUT-08 change, so any needed change is created via swap first.
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt submission');
     const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
     assertMeltPaid(result);
 
     // ONLY NOW that melt succeeded, remove the proofs that were submitted.
     // Pre-swap change was already saved before melt submission.
-    await removeProofs(prepared.proofsToMelt);
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt proof cleanup');
+    await removeProofsForUnit(prepared.proofsToMelt, unit);
     logger.info('Melt succeeded - removed spent proofs', {
       count: prepared.proofsToMelt.length,
       didPreSwap: prepared.didPreSwap,
     });
 
-    const newBalance = await getBalance();
+    const newBalance = await getBalanceForUnit(unit);
 
     logger.info('Melt completed', {
       paid: result.paid,
@@ -476,7 +537,8 @@ export const completeMelt = async (quoteId: string, totalAmount: number): Promis
       didPreSwap: preparedSpend?.didPreSwap ?? false,
     });
     try {
-      const cleanup = await removeSpentProofs();
+      assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt failure reconciliation');
+      const cleanup = await removeSpentProofsForUnit(unit);
       logger.info('Reconciled proofs after failed melt', {
         removed: cleanup.removed,
         kept: cleanup.kept,
@@ -497,6 +559,7 @@ export interface MeltWithoutCleanupResult {
   fee: number;
   proofsToRemove: CashuProof[];
   changeProofs: CashuProof[] | null;
+  taprootAddress?: string | null;
 }
 
 export type MeltSubmissionStatus = 'not_submitted' | 'unknown' | 'accepted' | 'rejected';
@@ -512,20 +575,24 @@ export interface MeltOperationError extends Error {
  */
 export const completeMeltWithoutCleanup = async (
   quoteId: string,
-  totalAmount: number
+  totalAmount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<MeltWithoutCleanupResult> => {
   let preparedSpend: PreparedMeltSpend | null = null;
   let submissionStatus: MeltSubmissionStatus = 'not_submitted';
+  let operationAccount: string | null = null;
 
   try {
-    logger.info('Completing melt without cleanup', { quoteId, totalAmount });
+    logger.info('Completing melt without cleanup', { quoteId, totalAmount, unit });
+    operationAccount = requireCashuOperationAccount('Cashu melt without cleanup');
 
     const keyData = await getOrFetchKeys();
-    const prepared = await prepareMeltSpend(totalAmount, keyData);
+    const prepared = await prepareMeltSpend(totalAmount, keyData, unit, operationAccount);
     preparedSpend = prepared;
 
     // Melt tokens
     submissionStatus = 'unknown';
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt submission');
     const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
     submissionStatus = isMeltPaid(result) ? 'accepted' : 'rejected';
     assertMeltPaid(result);
@@ -544,6 +611,7 @@ export const completeMeltWithoutCleanup = async (
       fee: getMeltFee(result),
       proofsToRemove: prepared.proofsToMelt,
       changeProofs: null,
+      taprootAddress: operationAccount,
     };
   } catch (error: unknown) {
     const originalError = error instanceof Error ? error : new Error(String(error));
@@ -557,7 +625,8 @@ export const completeMeltWithoutCleanup = async (
     });
     if (preparedSpend && submissionStatus !== 'not_submitted') {
       try {
-        const cleanup = await removeSpentProofs();
+        assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt failure reconciliation');
+        const cleanup = await removeSpentProofsForUnit(unit);
         spentProofsRemoved = cleanup.removed;
         logger.info('Reconciled proofs after failed melt without cleanup', {
           removed: cleanup.removed,
@@ -585,18 +654,21 @@ export const completeMeltWithoutCleanup = async (
  */
 export const cleanupMeltProofs = async (
   proofsToRemove: CashuProof[],
-  changeProofs: CashuProof[] | null
+  changeProofs: CashuProof[] | null,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  expectedAccount: string | null = null
 ): Promise<void> => {
   try {
+    assertCashuOperationAccountUnchanged(expectedAccount, 'Cashu melt cleanup');
     if (changeProofs) {
-      await removeProofs(proofsToRemove);
-      await addProofs(changeProofs);
+      await removeProofsForUnit(proofsToRemove, unit);
+      await addProofsForUnit(changeProofs, unit);
       logger.info('Cleaned up melt proofs with change', {
         removedCount: proofsToRemove.length,
         changeCount: changeProofs.length,
       });
     } else {
-      await removeProofs(proofsToRemove);
+      await removeProofsForUnit(proofsToRemove, unit);
       logger.info('Cleaned up melt proofs', { count: proofsToRemove.length });
     }
   } catch (error: unknown) {

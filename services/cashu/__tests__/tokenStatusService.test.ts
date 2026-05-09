@@ -124,6 +124,28 @@ describe('tokenStatusService', () => {
       expect(updateTokenClaimedStatus).toHaveBeenCalledWith('token123', true);
     });
 
+    it('should persist received-token claimed status to received history', async () => {
+      (checkProofsSpent as jest.Mock).mockResolvedValue({
+        states: [
+          { Y: 'Y1', state: 'SPENT' },
+          { Y: 'Y2', state: 'SPENT' },
+        ],
+      });
+      const receivedToken: EcashTokenRecord = {
+        id: 'received123',
+        token: mockToken.token,
+        amount: 100,
+        timestamp: Date.now(),
+        sender: 'sender',
+        type: 'receive',
+        taprootAddress: 'bc1ptaproot',
+      };
+
+      await checkTokenStatus(receivedToken);
+
+      expect(updateTokenClaimedStatus).toHaveBeenCalledWith('received123', true, 'received');
+    });
+
     it('should detect partially spent token', async () => {
       (checkProofsSpent as jest.Mock).mockResolvedValue({
         states: [
@@ -215,6 +237,18 @@ describe('tokenStatusService', () => {
 
       expect(result.claimed).toBe(false);
       expect(result.partiallySpent).toBe(false);
+    });
+
+    it('should fail closed when proof-state response is incomplete', async () => {
+      (checkProofsSpent as jest.Mock).mockResolvedValue({
+        states: [{ Y: 'Y1', state: 'SPENT' }],
+      });
+
+      const result = await checkTokenStatus(mockToken);
+
+      expect(result.claimed).toBe(false);
+      expect(result.partiallySpent).toBe(false);
+      expect(updateTokenClaimedStatus).not.toHaveBeenCalled();
     });
 
     it('should cache failure and rethrow error', async () => {

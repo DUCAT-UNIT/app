@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
 import { addProofs, getCurrentCashuAccount } from './cashuProofManager';
 import type { CashuProof } from './crypto';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 const FAILED_PROOF_RECOVERY_KEYS = 'cashu_failed_proof_recovery_keys_v1';
 const FAILED_PROOF_RECOVERY_FALLBACK_KEY = 'cashu_failed_proofs_latest_v1';
@@ -14,6 +15,7 @@ interface ProofRecoveryRecord {
   error?: string;
   source: string;
   taprootAddress?: string | null;
+  unit?: CashuUnit;
 }
 
 export interface FailedProofRecoveryResult {
@@ -71,7 +73,8 @@ const buildProofRecoveryRecord = (
   proofs: ProofRecoveryRecord['proofs'],
   amount: number,
   source: string,
-  error?: string
+  error?: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): ProofRecoveryRecord => ({
   proofs,
   amount,
@@ -79,6 +82,7 @@ const buildProofRecoveryRecord = (
   error,
   source,
   taprootAddress: getCurrentCashuAccount(),
+  unit,
 });
 
 const isSameProofRecoveryRecord = (
@@ -89,6 +93,7 @@ const isSameProofRecoveryRecord = (
   a.timestamp === b.timestamp &&
   a.source === b.source &&
   a.taprootAddress === b.taprootAddress &&
+  (a.unit ?? DEFAULT_CASHU_UNIT) === (b.unit ?? DEFAULT_CASHU_UNIT) &&
   JSON.stringify(a.proofs) === JSON.stringify(b.proofs);
 
 const parseProofRecoveryRecord = (stored: string): ProofRecoveryRecord => {
@@ -96,7 +101,10 @@ const parseProofRecoveryRecord = (stored: string): ProofRecoveryRecord => {
   if (!Array.isArray(record.proofs) || typeof record.amount !== 'number') {
     throw new Error('Invalid proof recovery record');
   }
-  return record;
+  const unit = record.unit === undefined || record.unit === null
+    ? DEFAULT_CASHU_UNIT
+    : normalizeCashuUnit(record.unit);
+  return { ...record, unit };
 };
 
 const clearMatchingFallbackRecord = async (record: ProofRecoveryRecord): Promise<void> => {
@@ -120,10 +128,11 @@ export const persistProofRecoveryRecord = async (
   proofs: ProofRecoveryRecord['proofs'],
   amount: number,
   source: string,
-  error?: string
+  error?: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<string> => {
   const recoveryKey = `cashu_failed_proofs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const record = buildProofRecoveryRecord(proofs, amount, source, error);
+  const record = buildProofRecoveryRecord(proofs, amount, source, error, unit);
   await SecureStore.setItemAsync(
     FAILED_PROOF_RECOVERY_FALLBACK_KEY,
     JSON.stringify(record),
@@ -231,8 +240,8 @@ export const recoverFailedProofSaves = async (): Promise<FailedProofRecoveryResu
     result.checked++;
 
     try {
-      if (record.taprootAddress && currentAccount && record.taprootAddress !== currentAccount) {
-        logger.info('Skipping proof recovery record for different Cashu account', {
+      if (record.taprootAddress && (!currentAccount || record.taprootAddress !== currentAccount)) {
+        logger.info('Skipping proof recovery record that is not for the active Cashu account', {
           recoveryKey,
           recordAccount: record.taprootAddress,
           currentAccount,
@@ -240,7 +249,11 @@ export const recoverFailedProofSaves = async (): Promise<FailedProofRecoveryResu
         continue;
       }
 
-      await addProofs(record.proofs);
+      if ((record.unit ?? DEFAULT_CASHU_UNIT) === DEFAULT_CASHU_UNIT) {
+        await addProofs(record.proofs);
+      } else {
+        await addProofs(record.proofs, true, record.unit);
+      }
       if (fallback) {
         await SecureStore.deleteItemAsync(FAILED_PROOF_RECOVERY_FALLBACK_KEY);
       } else {

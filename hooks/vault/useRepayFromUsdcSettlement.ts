@@ -4,11 +4,12 @@ import { useBalance, useTransactionHistory } from '../../contexts/WalletDataCont
 import { useWallet } from '../../contexts/WalletContext';
 import { getBalance as getCashuBalance } from '../../services/cashu/cashuBalanceService';
 import {
+  checkMeltQuote,
   requestMelt,
   completeMelt,
+  type MeltQuote,
   type MeltQuoteResult,
 } from '../../services/cashu/cashuWalletService';
-import { checkMeltQuote, type MeltQuote } from '../../services/cashu/cashuMintClient';
 import { requestRedemption } from '../../services/evmBridgeService';
 import { getRedemptionStatus } from '../../services/bridgeApiService';
 import { getBoolean, SettingKeys } from '../../services/settingsService';

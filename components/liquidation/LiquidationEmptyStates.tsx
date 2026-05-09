@@ -1,13 +1,19 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
-export type LiquidationEmptyVariant = 'noVaults' | 'noVault' | 'lowCollateral' | 'loading' | 'error';
+export type LiquidationEmptyVariant =
+  | 'noVaults'
+  | 'noVault'
+  | 'lowCollateral'
+  | 'loading'
+  | 'error';
 
 export interface LiquidationEmptyStatesProps {
   variant: LiquidationEmptyVariant;
+  onBackToWallet?: () => void;
 }
 
 const VARIANT_CONFIG: Record<
@@ -57,6 +63,7 @@ const VARIANT_CONFIG: Record<
 
 const LiquidationEmptyStates = React.memo(function LiquidationEmptyStates({
   variant,
+  onBackToWallet,
 }: LiquidationEmptyStatesProps): React.ReactElement {
   const { s } = useResponsive();
   const cfg = VARIANT_CONFIG[variant];
@@ -68,6 +75,17 @@ const LiquidationEmptyStates = React.memo(function LiquidationEmptyStates({
       </View>
       <Text style={styles.title}>{cfg.title}</Text>
       <Text style={styles.subtitle}>{cfg.subtitle}</Text>
+      {onBackToWallet && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Back to wallet"
+          onPress={onBackToWallet}
+          style={styles.backButton}
+          testID="liquidation-empty-back-btn"
+        >
+          <Text style={styles.backButtonText}>Back to Wallet</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 });
@@ -100,6 +118,20 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  backButton: {
+    marginTop: 24,
+    backgroundColor: colors.brand.primary,
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    minWidth: 180,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.white,
   },
 });
 

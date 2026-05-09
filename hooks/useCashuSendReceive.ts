@@ -11,6 +11,7 @@ import {
 } from '../services/cashu/cashuWalletService';
 import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
 import type { ReceiveTokenResult, SendTokenResult } from '../services/cashu/cashuWalletService';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
 
 interface UseCashuSendReceiveParams {
   setIsLoading: Dispatch<SetStateAction<boolean>>;
@@ -18,6 +19,7 @@ interface UseCashuSendReceiveParams {
   setBalance: Dispatch<SetStateAction<number>>;
   fetchBalance: () => Promise<number>;
   taprootAddress?: string;
+  unit?: CashuUnit;
 }
 
 interface UseCashuSendReceiveReturn {
@@ -25,7 +27,14 @@ interface UseCashuSendReceiveReturn {
   send: (amount: number) => Promise<SendTokenResult>;
 }
 
-export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchBalance, taprootAddress }: UseCashuSendReceiveParams): UseCashuSendReceiveReturn {
+export function useCashuSendReceive({
+  setIsLoading,
+  setError,
+  setBalance,
+  fetchBalance,
+  taprootAddress,
+  unit = DEFAULT_CASHU_UNIT,
+}: UseCashuSendReceiveParams): UseCashuSendReceiveReturn {
   /**
    * Receive Cashu token from QR or paste
    */
@@ -35,11 +44,15 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
 
     try {
       logger.info('Receiving Cashu token');
-      const result = await receiveToken(token);
+      const result = await receiveToken(token, unit);
 
       // Save to transaction history
       try {
-        await saveReceivedToken(token, 'Cashu Receive', result.amount, taprootAddress || '');
+        if (unit === DEFAULT_CASHU_UNIT) {
+          await saveReceivedToken(token, 'Cashu Receive', result.amount, taprootAddress || '');
+        } else {
+          await saveReceivedToken(token, 'Cashu Receive', result.amount, taprootAddress || '', unit);
+        }
         logger.info('Received token saved to history');
       } catch (saveErr) {
         logger.warn('Failed to save received token to history:', { error: saveErr instanceof Error ? saveErr.message : String(saveErr) });
@@ -56,7 +69,7 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
     } finally {
       setIsLoading(false);
     }
-  }, [setIsLoading, setError, fetchBalance, taprootAddress]);
+  }, [setIsLoading, setError, fetchBalance, taprootAddress, unit]);
 
   /**
    * Send Cashu token (for QR code or sharing)
@@ -67,7 +80,9 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
 
     try {
       logger.info('Sending Cashu token', { amount });
-      const result = await sendTokenService(amount, true);
+      const result = unit === DEFAULT_CASHU_UNIT
+        ? await sendTokenService(amount, true)
+        : await sendTokenService(amount, true, unit);
       setBalance(result.balance);
       logger.info('Token sent', { amount: result.amount });
       return result;
@@ -79,7 +94,7 @@ export function useCashuSendReceive({ setIsLoading, setError, setBalance, fetchB
     } finally {
       setIsLoading(false);
     }
-  }, [setIsLoading, setError, setBalance]);
+  }, [setIsLoading, setError, setBalance, unit]);
 
   return {
     receive,

@@ -23,6 +23,7 @@ AssetTurboList
 } from '../../components/assetDetail';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import TransactionDetailsSheet from '../../components/transaction/TransactionDetailsSheet';
+import BtcBalanceBreakdown from '../../components/wallet/BtcBalanceBreakdown';
 import UnitBalanceBreakdown from '../../components/wallet/UnitBalanceBreakdown';
 import { useCashuBalanceState } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
@@ -42,6 +43,7 @@ import { COLORS } from '../../theme';
 import type { DisplayAssetType } from '../../types/assets';
 import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/pendingTransactionsUtils';
 import { getRunesAmount } from '../../utils/runesHelper';
+import type { CashuUnit } from '../../services/cashu/cashuUnits';
 
 /**
  * Props for AssetDetailScreen component
@@ -76,13 +78,15 @@ interface TokenData {
   /** Recipient address */
   recipient: string;
   /** Short URL for the token */
-  shortUrl: string;
+  shortUrl?: string | null;
   /** The cashu token string */
   token: string;
   /** Whether the token has been claimed */
   claimed: boolean;
   /** Whether this is a self-claim */
   isSelfClaim?: boolean;
+  /** Cashu token unit */
+  cashuUnit?: CashuUnit;
 }
 
 function AssetDetailScreen(props: AssetDetailScreenProps): React.JSX.Element {
@@ -145,6 +149,7 @@ function EvmAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenProps
       assetType: DisplayAssetType;
       isSent: boolean;
       isReceived: boolean;
+      displayKind?: 'turbo_mint_claim';
     };
   } | null>(null);
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
@@ -329,10 +334,10 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
 
-  const { segwitBalance, runesBalance, loadingBalance } = useBalance();
+  const { segwitBalance, taprootBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
   const { wallet } = useWallet();
-  const { balance: cashuBalance, isLoading: loadingCashu } = useCashuBalanceState();
+  const { balance: cashuBalance, btcBalanceSats, isLoading: loadingCashu } = useCashuBalanceState();
   const { transactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
 
@@ -367,6 +372,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
       assetType: DisplayAssetType;
       isSent: boolean;
       isReceived: boolean;
+      displayKind?: 'turbo_mint_claim';
     };
   } | null>(null);
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
@@ -388,7 +394,9 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
   const totalUnitAmount = unitRunesAmount + cashuDisplayAmount;
   const effectiveEvmUsdcBalance = Number(evmBalances?.usdc || initialEvmUsdcBalance || 0);
   const effectiveEvmAddress = evmBalances?.address || initialEvmAddress;
-  const balance = assetType === 'BTC' ? segwitBalance : assetType === 'UNIT' ? totalUnitAmount : effectiveEvmUsdcBalance;
+  const btcOnchainAmount = (segwitBalance || 0) + (taprootBalance || 0);
+  const btcTurboAmount = (btcBalanceSats || 0) / 100_000_000;
+  const balance = assetType === 'BTC' ? btcOnchainAmount + btcTurboAmount : assetType === 'UNIT' ? totalUnitAmount : effectiveEvmUsdcBalance;
   const fiatValue = assetType === 'BTC' ? balance * effectiveBtcPrice : balance * 1;
 
   // Loading states - only show loading on initial load, not background updates
@@ -462,10 +470,11 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
 
   // Extracted operation hooks
   const { handleFusePress } = useFuseEcash({
-    cashuBalance,
-    taprootAddress: taprootAddress || '',
+    cashuBalance: assetType === 'BTC' ? (btcBalanceSats || 0) : cashuBalance,
+    taprootAddress: assetType === 'BTC' ? (segwitAddress || '') : (taprootAddress || ''),
     transactionHistory: transactionHistory || [],
     fetchTransactionHistory,
+    cashuUnit: assetType === 'BTC' ? 'sat' : 'unit',
   });
 
   const { handleTurboPress } = useTurboConvert({
@@ -475,9 +484,13 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
     unmarkUtxosAsSpent,
     getPendingTransactions: () =>
       (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
+    senderTaprootAddress: taprootAddress,
   });
 
-  useRedeemCashuToken({ fetchTransactionHistory });
+  useRedeemCashuToken({
+    fetchTransactionHistory,
+    taprootAddress: taprootAddress || '',
+  });
 
   // Action handlers
   const handleActionPress = useCallback((action: string) => {
@@ -530,9 +543,16 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
     setIsChartScrubbing(false);
   }, []);
 
-  const handleTransactionPress = useCallback((tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient: string; shortUrl: string; token: string; claimed: boolean }; txid: string; status?: { confirmed: boolean; block_time?: number }; txData?: { amount: number | bigint; assetType: string; isSent: boolean; isReceived: boolean } }) => {
+  const handleTransactionPress = useCallback((tx: { ecashToken?: boolean; isAutoclaim?: boolean; tokenData?: { recipient?: string; shortUrl?: string | null; token: string; claimed?: boolean; unit?: CashuUnit }; txid: string; status?: { confirmed: boolean; block_time?: number }; txData?: { amount: number | bigint; assetType: string; isSent: boolean; isReceived: boolean; displayKind?: 'turbo_mint_claim' } }) => {
     if (tx.ecashToken) {
-      setSelectedToken(tx.tokenData ? { ...tx.tokenData, isSelfClaim: tx.isAutoclaim } : null);
+      setSelectedToken(tx.tokenData ? {
+        recipient: tx.tokenData.recipient ?? '',
+        shortUrl: tx.tokenData.shortUrl ?? null,
+        token: tx.tokenData.token,
+        claimed: tx.tokenData.claimed ?? false,
+        isSelfClaim: tx.isAutoclaim,
+        cashuUnit: tx.tokenData.unit,
+      } : null);
       setShowTokenDetails(true);
       return;
     }
@@ -548,6 +568,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
           assetType: tx.txData.assetType as DisplayAssetType,
           isSent: tx.txData.isSent,
           isReceived: tx.txData.isReceived,
+          displayKind: tx.txData.displayKind,
         },
       });
       setShowRegularTxDetails(true);
@@ -591,6 +612,13 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
             isPendingVaultTx={isPendingVaultTx}
           />
 
+          {assetType === 'BTC' && (
+            <BtcBalanceBreakdown
+              onchainBalance={btcOnchainAmount}
+              cashuBalanceSats={btcBalanceSats || 0}
+            />
+          )}
+
           {assetType === 'UNIT' && (
             <UnitBalanceBreakdown
               ecashBalance={cashuBalance}
@@ -607,7 +635,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
             showSwap={assetType === 'UNIT' && showSwapAction && usdcFeaturesEnabled}
             showSend={assetType !== 'USDC' || showSwapAction}
             showReceive={true}
-            showConsolidate={assetType === 'UNIT'}
+            showConsolidate={(assetType === 'UNIT' && cashuBalance > 0) || (assetType === 'BTC' && (btcBalanceSats || 0) > 0)}
             advancedMode={advancedMode}
           />
 
@@ -640,7 +668,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
               advancedMode={advancedMode}
             />
           ) : selectedTab === 'TURBO' ? (
-            <AssetTurboList />
+            <AssetTurboList cashuUnit={assetType === 'BTC' ? 'sat' : 'unit'} />
           ) : (
             <AssetAbout assetType={assetType} evmAddress={assetType === 'USDC' ? effectiveEvmAddress : undefined} />
           )}
@@ -658,6 +686,7 @@ function BtcUnitAssetDetailScreen({ route = {}, navigation }: AssetDetailScreenP
           advancedMode={advancedMode}
           claimed={selectedToken.claimed}
           isSelfClaim={selectedToken.isSelfClaim}
+          cashuUnit={selectedToken.cashuUnit}
         />
       )}
 

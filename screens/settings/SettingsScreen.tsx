@@ -158,11 +158,11 @@ const SettingsScreen = React.memo(function SettingsScreen({
               onPress={onViewAdvanced}
               testID="settings-advanced-btn"
             />
-            {/* Turbo UNIT settings only visible in developer mode */}
+            {/* Turbo Cashu settings only visible in developer mode */}
             {advancedMode && (
               <SettingsOption
                 iconName="asset"
-                title="Turbo UNIT"
+                title="Turbo Cashu"
                 onPress={onViewCashuSettings}
                 testID="settings-cashu-btn"
               />

@@ -19,10 +19,13 @@ import { useNavigation, NavigationProp, RouteProp } from '@react-navigation/nati
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useCashuOperations } from '../../contexts/CashuContext';
+import { useWallet } from '../../contexts/WalletContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useCashuReceive } from '../../hooks/useCashuReceive';
+import { decodeTokenMetadata } from '../../services/cashu/cashuWalletService';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
 import styles, { QR_SIZE, LOGO_SIZE } from './CashuReceiveScreen.styles';
 
 /**
@@ -31,6 +34,8 @@ import styles, { QR_SIZE, LOGO_SIZE } from './CashuReceiveScreen.styles';
 interface CashuReceiveRouteParams {
   /** Optional initial mode for the receive flow */
   mode?: 'choose' | 'mint' | 'receive';
+  /** Cashu unit to receive/mint */
+  cashuUnit?: CashuUnit;
 }
 
 /**
@@ -43,7 +48,34 @@ interface CashuReceiveScreenProps {
 
 export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<Record<string, object | undefined>>>();
-  const { startMint, checkAndCompleteMint, receive } = useCashuOperations();
+  const { wallet } = useWallet();
+  const {
+    startMint,
+    startBtcMint,
+    checkAndCompleteMint,
+    checkAndCompleteBtcMint,
+    receive,
+    receiveBtc,
+  } = useCashuOperations();
+  const cashuUnit = normalizeCashuUnit(route?.params?.cashuUnit, DEFAULT_CASHU_UNIT);
+  const isBtcCashu = cashuUnit === 'sat';
+  const tokenName = isBtcCashu ? 'Turbo BTC' : 'Turbo UNIT';
+  const assetName = isBtcCashu ? 'BTC' : 'UNIT';
+  const qrLogo = isBtcCashu
+    ? require('../../assets/logos/btc-logo.png')
+    : require('../../assets/logos/unit-log.png');
+  const formatDepositAmount = React.useCallback(
+    (amountSmallestUnits: number): string =>
+      isBtcCashu
+        ? (amountSmallestUnits / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '')
+        : String(amountSmallestUnits / 100),
+    [isBtcCashu]
+  );
+  const receiveByDecodedUnit = React.useCallback(async (token: string) => {
+    const metadata = decodeTokenMetadata(token);
+    const tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+    return tokenUnit === 'sat' ? receiveBtc(token) : receive(token);
+  }, [receive, receiveBtc]);
 
   const {
     mode,
@@ -60,24 +92,26 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     handleCopyAddress,
     resetMintQuote,
   } = useCashuReceive({
-    startMint,
-    checkAndCompleteMint,
-    receive,
+    startMint: isBtcCashu ? startBtcMint : startMint,
+    checkAndCompleteMint: isBtcCashu ? checkAndCompleteBtcMint : checkAndCompleteMint,
+    receive: receiveByDecodedUnit,
     navigation,
     initialMode: route?.params?.mode,
+    cashuUnit,
+    senderTaprootAddress: wallet?.taprootAddress,
   });
 
   // Choose mode
   if (mode === 'choose') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-screen">
-        <Header title="Receive Turbo UNIT" onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
+        <Header title={`Receive ${tokenName}`} onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
         <View style={styles.choiceContainer}>
           <TouchableScale style={styles.choiceCard} onPress={() => setMode('mint')} testID="cashu-receive-mint-btn">
-            <Icon name="btc_logo" size={48} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.choiceTitle}>Mint from Runes</Text>
+            <Icon name={isBtcCashu ? 'btc_logo' : 'unit_logo'} size={48} color={COLORS.PRIMARY_BLUE} />
+            <Text style={styles.choiceTitle}>Mint from {assetName}</Text>
             <Text style={styles.choiceDesc}>
-              Deposit UNIT runes to mint Turbo UNIT
+              Deposit {assetName} to mint {tokenName}
             </Text>
           </TouchableScale>
 
@@ -85,7 +119,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             <Icon name="qr_code" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Receive Token</Text>
             <Text style={styles.choiceDesc}>
-              Scan or paste a Turbo UNIT token from someone else
+              Scan or paste a {tokenName} token from someone else
             </Text>
           </TouchableScale>
         </View>
@@ -97,7 +131,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'mint' && mintQuote) {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-qr-screen">
-        <Header title="Deposit Runes" onBack={resetMintQuote} testID="cashu-mint-qr-header" backTestID="cashu-mint-qr-back-btn" />
+        <Header title={`Deposit ${assetName}`} onBack={resetMintQuote} testID="cashu-mint-qr-header" backTestID="cashu-mint-qr-back-btn" />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.qrContainer} testID="cashu-mint-qr-code">
             <QRCode
@@ -105,7 +139,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
               size={QR_SIZE}
               backgroundColor="white"
               color="black"
-              logo={require('../../assets/logos/unit-log.png')}
+              logo={qrLogo}
               logoSize={LOGO_SIZE}
               logoBackgroundColor="white"
               logoBorderRadius={Math.floor(LOGO_SIZE / 2)}
@@ -113,7 +147,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
           </View>
 
           <Text style={styles.instructionText} testID="cashu-mint-amount">
-            Send {mintQuote.amount} UNIT to this address
+            Send {formatDepositAmount(mintQuote.amount ?? 0)} {assetName} to this address
           </Text>
 
           <TouchableOpacity
@@ -146,11 +180,11 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   if (mode === 'mint') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-screen">
-        <Header title="Mint Turbo UNIT" onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
+        <Header title={`Mint ${tokenName}`} onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Amount (sats)</Text>
+          <Text style={styles.label}>Amount ({isBtcCashu ? 'sats' : 'smallest units'})</Text>
           <View style={styles.inputWrapper}>
-            <Icon name="unit_symbol" size={20} color={COLORS.SECONDARY_TEXT} />
+            <Icon name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'} size={20} color={COLORS.SECONDARY_TEXT} />
             <TextInput
               style={styles.input}
               placeholder="Enter amount"
@@ -170,12 +204,12 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             {isLoading ? (
               <ActivityIndicator size="small" color="white" testID="cashu-mint-loading" />
             ) : (
-              <Text style={styles.buttonText}>Mint Turbo UNIT</Text>
+              <Text style={styles.buttonText}>Mint {tokenName}</Text>
             )}
           </TouchableScale>
 
           <Text style={styles.helpText}>
-            This will send UNIT to the mint and automatically issue Turbo UNIT once the transaction confirms.
+            This will send {assetName} to the mint and automatically issue {tokenName} once the transaction confirms.
           </Text>
         </View>
       </SafeAreaView>
@@ -187,11 +221,11 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-token-screen">
       <Header title="Receive Token" onBack={() => setMode('choose')} testID="cashu-receive-token-header" backTestID="cashu-receive-token-back-btn" />
       <View style={styles.inputContainer}>
-        <Text style={styles.label}>Turbo UNIT Token</Text>
+        <Text style={styles.label}>{tokenName} Token</Text>
         <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
           <TextInput
             style={[styles.input, styles.textArea]}
-            placeholder="Paste Turbo UNIT token here (cashuB...)"
+            placeholder={`Paste ${tokenName} token here (cashuB...)`}
             multiline
             numberOfLines={4}
             value={pasteValue}
@@ -207,7 +241,7 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             if (clipboardContent && clipboardContent.startsWith('cashu')) {
               setPasteValue(clipboardContent);
             } else {
-              Alert.alert('No Token Found', 'No Turbo UNIT token found in clipboard');
+              Alert.alert('No Token Found', `No ${tokenName} token found in clipboard`);
             }
           }}
           testID="cashu-receive-paste-btn"

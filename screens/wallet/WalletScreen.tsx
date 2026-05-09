@@ -90,7 +90,7 @@ const WalletScreen = React.memo(function WalletScreen({
   } = useEvmAssets();
   const { btcPrice, ethPrice } = usePrice();
   const { vaultData } = useVaultData();
-  const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
+  const { balance: cashuBalance, btcBalanceSats, refresh: refreshCashu } = useCashu();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
@@ -111,6 +111,7 @@ const WalletScreen = React.memo(function WalletScreen({
     taprootBalance,
     runesBalance,
     cashuBalance,
+    cashuBtcBalanceSats: btcBalanceSats,
     btcPrice,
     vaultData: vaultData as { totalDebt?: number; totalCollateral?: number; currentPrice?: number } | null,
   });
@@ -137,6 +138,16 @@ const WalletScreen = React.memo(function WalletScreen({
       usdValue: totalUnit,
     };
   }, [runesBalance, cashuBalance, btcPrice]);
+
+  const btcTotals = React.useMemo(() => {
+    const onchainBtc = (segwitBalance || 0) + (taprootBalance || 0);
+    const turboBtc = (btcBalanceSats || 0) / 100_000_000;
+    const totalBtc = onchainBtc + turboBtc;
+    return {
+      btcValue: formatBalance(totalBtc, 8),
+      usdValue: formatFiat(totalBtc * (btcPrice || 0)),
+    };
+  }, [segwitBalance, taprootBalance, btcBalanceSats, btcPrice]);
 
   const usdcTotals = React.useMemo(() => {
     const parsedAmount = Number(evmBalances?.usdc || '0');
@@ -364,10 +375,10 @@ const WalletScreen = React.memo(function WalletScreen({
             assetName="Bitcoin"
             assetLogo="btc_logo"
             amountLabel="btc_symbol"
-            amountValue={formatted.segwitBTC}
+            amountValue={btcTotals.btcValue}
             displayInBTC={showTotalInBTC}
-            btcValue={formatted.segwitBTC}
-            usdValue={formatted.segwitUSD}
+            btcValue={btcTotals.btcValue}
+            usdValue={btcTotals.usdValue}
             styles={assetCardStyles}
             onPress={handleBTCPress}
             testID="asset-card-btc"

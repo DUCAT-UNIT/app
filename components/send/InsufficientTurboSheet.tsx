@@ -8,6 +8,11 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import BottomSheet from '../common/BottomSheet';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
+import {
+  cashuUnitDisplayName,
+  cashuUnitTokenSymbol,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 
 interface InsufficientTurboSheetProps {
   visible: boolean;
@@ -16,7 +21,15 @@ interface InsufficientTurboSheetProps {
   onSendNormally: () => void;
   requiredAmount: number;
   currentBalance: number;
+  cashuUnit?: CashuUnit;
 }
+
+const formatDisplayAmount = (amount: number, cashuUnit: CashuUnit): string => {
+  if (cashuUnit === 'sat') {
+    return amount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+  }
+  return amount.toFixed(2);
+};
 
 export default function InsufficientTurboSheet({
   visible,
@@ -25,23 +38,32 @@ export default function InsufficientTurboSheet({
   onSendNormally,
   requiredAmount,
   currentBalance,
+  cashuUnit = 'unit',
 }: InsufficientTurboSheetProps) {
+  const turboLabel = cashuUnitDisplayName(cashuUnit);
+  const assetSymbol = cashuUnitTokenSymbol(cashuUnit);
+  const isBtcCashu = cashuUnit === 'sat';
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Insufficient Turbo UNIT Balance">
+    <BottomSheet visible={visible} onClose={onClose} title={`Insufficient ${turboLabel} Balance`}>
       <View style={styles.container} testID="insufficient-turbo-sheet">
         <View style={styles.balanceInfo}>
           <View style={styles.balanceRow}>
             <Text style={styles.balanceLabel}>Required:</Text>
-            <Text style={styles.balanceValue}>{requiredAmount.toFixed(2)} UNIT</Text>
+            <Text style={styles.balanceValue}>
+              {formatDisplayAmount(requiredAmount, cashuUnit)} {assetSymbol}
+            </Text>
           </View>
           <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Your Turbo UNIT Balance:</Text>
-            <Text style={styles.balanceValue}>{currentBalance.toFixed(2)} UNIT</Text>
+            <Text style={styles.balanceLabel}>Your {turboLabel} Balance:</Text>
+            <Text style={styles.balanceValue}>
+              {formatDisplayAmount(currentBalance, cashuUnit)} {assetSymbol}
+            </Text>
           </View>
         </View>
 
         <Text style={styles.description}>
-          You don't have enough Turbo UNIT balance for this transaction. Choose how you'd like to proceed:
+          You don't have enough {turboLabel} balance for this transaction. Choose how you'd like to proceed:
         </Text>
 
         {/* Use Turbo Option */}
@@ -52,11 +74,11 @@ export default function InsufficientTurboSheet({
           testID="turbo-use-turbo-btn"
         >
           <View style={styles.optionHeader}>
-            <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.optionTitle}>Use Turbo UNIT</Text>
+            <Icon name={isBtcCashu ? 'btc_logo' : 'unit_logo'} size={24} color={COLORS.PRIMARY_BLUE} />
+            <Text style={styles.optionTitle}>Use {turboLabel}</Text>
           </View>
           <Text style={styles.optionDescription}>
-            Instant after confirmation. Requires waiting for on-chain confirmation to mint. User will have to claim the tokens on their side.
+            Instant after confirmation. Requires waiting for on-chain confirmation to mint. The recipient will claim the token on their side.
           </Text>
           <View style={styles.badge}>
             <Text style={styles.badgeText}>Instant</Text>
@@ -72,10 +94,10 @@ export default function InsufficientTurboSheet({
         >
           <View style={styles.optionHeader}>
             <Icon name="bitcoin" size={24} color={COLORS.SECONDARY_TEXT} />
-            <Text style={styles.optionTitle}>Send Normally</Text>
+            <Text style={styles.optionTitle}>{isBtcCashu ? 'Send On-Chain' : 'Send Normally'}</Text>
           </View>
           <Text style={styles.optionDescription}>
-            Standard on-chain transaction. Also have to wait for an on-chain confirmation.
+            Standard on-chain transaction. Also has to wait for an on-chain confirmation.
           </Text>
           <View style={[styles.badge, styles.badgeSecondary]}>
             <Text style={styles.badgeText}>On-Chain</Text>

@@ -28,7 +28,10 @@ import {
   clearRecoveredOutgoingSwapToken,
   loadRecoveredOutgoingSwapTokens,
 } from '../services/cashu/cashuSwapRecovery';
-import { recoverPendingTurboSend } from '../services/cashu/cashuTurboRecovery';
+import {
+  clearPendingTurboSend,
+  recoverPendingTurboSend,
+} from '../services/cashu/cashuTurboRecovery';
 import {
   clearWallet,
   removeProofs,
@@ -57,14 +60,19 @@ export interface PendingMint {
   quoteId: string;
   amount: number;
   createdAt: number;
+  taprootAddress?: string;
   [key: string]: unknown;
 }
 
 export interface CashuBalanceValue {
   balance: number;
+  btcBalanceSats: number;
   isLoading: boolean;
+  isBtcLoading: boolean;
   error: string | null;
+  btcError: string | null;
   pendingMints: PendingMint[];
+  pendingBtcMints: PendingMint[];
 }
 
 export interface MintCheckResult {
@@ -82,17 +90,29 @@ interface AutoMintSuccessData {
 
 export interface CashuOperationsValue {
   startMint: (amount: number) => Promise<MintQuoteResult>;
+  startBtcMint: (amountSats: number) => Promise<MintQuoteResult>;
   checkAndCompleteMint: (quoteId: string) => Promise<MintCheckResult>;
+  checkAndCompleteBtcMint: (quoteId: string) => Promise<MintCheckResult>;
   removePendingMint: (quoteId: string) => void;
-  addPendingMint: (quoteId: string, amount: number) => void;
+  removePendingBtcMint: (quoteId: string) => void;
+  addPendingMint: (quoteId: string, amount: number, taprootAddress?: string) => void;
+  addPendingBtcMint: (quoteId: string, amount: number, taprootAddress?: string) => void;
   autoMint: (
     amountSats: number,
     onSuccess?: (data: AutoMintSuccessData) => void
   ) => Promise<MintQuoteResult>;
+  autoBtcMint: (
+    amountSats: number,
+    onSuccess?: (data: AutoMintSuccessData) => void
+  ) => Promise<MintQuoteResult>;
   receive: (token: string) => Promise<ReceiveTokenResult>;
+  receiveBtc: (token: string) => Promise<ReceiveTokenResult>;
   send: (amount: number) => Promise<SendTokenResult>;
+  sendBtc: (amountSats: number) => Promise<SendTokenResult>;
   startMelt: (address: string, amount: number) => Promise<MeltQuoteResult>;
+  startBtcMelt: (address: string, amountSats: number) => Promise<MeltQuoteResult>;
   finishMelt: (quoteId: string, totalAmount: number) => Promise<MeltResult>;
+  finishBtcMelt: (quoteId: string, totalAmount: number) => Promise<MeltResult>;
   refresh: () => Promise<void>;
   resetAndRefresh: (newTaprootAddress?: string) => Promise<void>;
   reset: () => Promise<void>;
@@ -150,6 +170,17 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   // Balance management
   const { balance, setBalance, error, setError, fetchBalance } = useCashuBalance({
     wallet: activeWallet,
+    unit: 'unit',
+  });
+  const {
+    balance: btcBalanceSats,
+    setBalance: setBtcBalanceSats,
+    error: btcError,
+    setError: setBtcError,
+    fetchBalance: fetchBtcBalance,
+  } = useCashuBalance({
+    wallet: activeWallet,
+    unit: 'sat',
   });
 
   // Mint operations
@@ -160,10 +191,29 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     removePendingMint,
     autoMint,
     setPendingMints,
-  } = useCashuMint({ fetchBalance, setIsLoading, setError });
+  } = useCashuMint({ fetchBalance, setIsLoading, setError, unit: 'unit' });
+  const {
+    pendingMints: pendingBtcMints,
+    startMint: startBtcMint,
+    checkAndCompleteMint: checkAndCompleteBtcMint,
+    removePendingMint: removePendingBtcMint,
+    autoMint: autoBtcMint,
+    setPendingMints: setPendingBtcMints,
+  } = useCashuMint({ fetchBalance: fetchBtcBalance, setIsLoading, setError: setBtcError, unit: 'sat' });
 
   // Melt operations
-  const { startMelt, finishMelt } = useCashuMelt({ setIsLoading, setError, setBalance });
+  const { startMelt, finishMelt } = useCashuMelt({
+    setIsLoading,
+    setError,
+    setBalance,
+    unit: 'unit',
+  });
+  const { startMelt: startBtcMelt, finishMelt: finishBtcMelt } = useCashuMelt({
+    setIsLoading,
+    setError: setBtcError,
+    setBalance: setBtcBalanceSats,
+    unit: 'sat',
+  });
 
   // Send/Receive operations
   const { receive, send } = useCashuSendReceive({
@@ -172,6 +222,15 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     setBalance,
     fetchBalance,
     taprootAddress: activeWallet?.taprootAddress,
+    unit: 'unit',
+  });
+  const { receive: receiveBtc, send: sendBtc } = useCashuSendReceive({
+    setIsLoading,
+    setError: setBtcError,
+    setBalance: setBtcBalanceSats,
+    fetchBalance: fetchBtcBalance,
+    taprootAddress: activeWallet?.taprootAddress,
+    unit: 'sat',
   });
 
   /**
@@ -180,7 +239,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
    * via useEcashThresholdManager but needs app-level polling to complete it.
    */
   const addPendingMint = useCallback(
-    (quoteId: string, amount: number) => {
+    (quoteId: string, amount: number, taprootAddress?: string) => {
       setPendingMints((prev) => {
         // Don't add duplicates
         if (prev.some((m) => m.quoteId === quoteId)) {
@@ -201,11 +260,35 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
             depositAddress: '', // Not needed for completion polling
             state: 'UNPAID',
             createdAt: Date.now(),
+            taprootAddress: taprootAddress ?? activeWallet?.taprootAddress,
           },
         ];
       });
     },
-    [setPendingMints]
+    [activeWallet?.taprootAddress, setPendingMints]
+  );
+
+  const addPendingBtcMint = useCallback(
+    (quoteId: string, amount: number, taprootAddress?: string) => {
+      setPendingBtcMints((prev) => {
+        if (prev.some((m) => m.quoteId === quoteId)) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            quoteId,
+            amount,
+            depositAddress: '',
+            state: 'UNPAID',
+            createdAt: Date.now(),
+            taprootAddress: taprootAddress ?? activeWallet?.taprootAddress,
+            unit: 'sat',
+          },
+        ];
+      });
+    },
+    [activeWallet?.taprootAddress, setPendingBtcMints]
   );
 
   // Track wallet for reference (account switch reset is handled by useAccountSwitcher)
@@ -217,6 +300,26 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   const recoveryChecked = useRef(false);
   const foregroundRecoveryInFlightRef = useRef(false);
   const hasSeenAuthenticatedWalletRef = useRef(false);
+
+  const runRecoveryStep = useCallback(
+    async <T,>(
+      source: string,
+      label: string,
+      recover: () => Promise<T>,
+      fallback: T
+    ): Promise<T> => {
+      try {
+        return await recover();
+      } catch (error) {
+        logger.error(`[CashuContext] ${label} failed`, {
+          source,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return fallback;
+      }
+    },
+    []
+  );
 
   const recoverOutgoingSwapTokens = useCallback(
     async (source: string): Promise<number> => {
@@ -232,18 +335,42 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
           (recoveredToken.kind === 'send' ? 'Recovered Cashu token' : 'Recovered P2PK token');
 
         try {
-          await saveSentLockedToken(
-            recoveredToken.token,
-            recipient,
-            recoveredToken.amount,
-            null,
-            null,
-            recoveredToken.taprootAddress ?? activeWallet?.taprootAddress ?? null
-          );
+          if ((recoveredToken.unit ?? 'unit') === 'unit') {
+            await saveSentLockedToken(
+              recoveredToken.token,
+              recipient,
+              recoveredToken.amount,
+              null,
+              null,
+              recoveredToken.taprootAddress ?? activeWallet?.taprootAddress ?? null
+            );
+          } else {
+            await saveSentLockedToken(
+              recoveredToken.token,
+              recipient,
+              recoveredToken.amount,
+              null,
+              null,
+              recoveredToken.taprootAddress ?? activeWallet?.taprootAddress ?? null,
+              recoveredToken.unit
+            );
+          }
           if (recoveredToken.proofsToRemove?.length) {
-            await removeProofs(recoveredToken.proofsToRemove);
+            if ((recoveredToken.unit ?? 'unit') === 'unit') {
+              await removeProofs(recoveredToken.proofsToRemove);
+            } else {
+              await removeProofs(recoveredToken.proofsToRemove, recoveredToken.unit);
+            }
           }
           await clearRecoveredOutgoingSwapToken(recoveredToken.token);
+          if (recoveredToken.kind === 'p2pk' && recoveredToken.recipient) {
+            await clearPendingTurboSend({
+              senderTaprootAddress: recoveredToken.taprootAddress ?? activeWallet?.taprootAddress ?? null,
+              unit: recoveredToken.unit ?? 'unit',
+              recipient: recoveredToken.recipient,
+              amount: recoveredToken.amount,
+            });
+          }
           recovered += 1;
           logger.info('[CashuContext] Recovered outgoing Cashu token from swap journal', {
             source,
@@ -266,6 +393,45 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     [activeWallet?.taprootAddress]
   );
 
+  const reconcileSpentProofs = useCallback(async (source: string) => {
+    const cleanupResults = await Promise.allSettled([
+      removeSpentProofs('unit'),
+      removeSpentProofs('sat'),
+    ]);
+
+    let removed = 0;
+    let kept = 0;
+    const units = ['unit', 'sat'] as const;
+
+    cleanupResults.forEach((result, index) => {
+      const unit = units[index];
+      if (result.status === 'fulfilled') {
+        removed += result.value.removed;
+        kept += result.value.kept;
+        return;
+      }
+
+      logger.error('[CashuContext] Spent proof reconciliation failed for Cashu unit', {
+        source,
+        unit,
+        error:
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
+      });
+    });
+
+    if (removed > 0) {
+      logger.info('[CashuContext] Removed spent Cashu proofs during recovery', {
+        source,
+        removed,
+        kept,
+      });
+    }
+
+    return { removed, kept };
+  }, []);
+
   const runTurboMintForegroundRecovery = useCallback(
     async (source: string) => {
       if (!activeWallet?.taprootAddress || foregroundRecoveryInFlightRef.current) {
@@ -274,19 +440,68 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
       foregroundRecoveryInFlightRef.current = true;
       try {
+        await setCurrentAccount(activeWallet.taprootAddress);
         logger.info('[CashuContext] Checking TurboUNIT mint recovery after foreground', { source });
-        const proofSaveRecovery = await recoverFailedProofSaves();
-        const mintRecovery = await recoverUnclaimedMintQuotes();
-        const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
-        const outgoingTokenRecovery = await recoverOutgoingSwapTokens(source);
+        const proofSaveRecovery = await runRecoveryStep(
+          source,
+          'Failed proof save recovery',
+          recoverFailedProofSaves,
+          { recovered: 0, checked: 0, totalAmountRecovered: 0, errors: [] }
+        );
+        const mintRecovery = await runRecoveryStep(
+          source,
+          'Mint quote recovery',
+          recoverUnclaimedMintQuotes,
+          { checked: 0, recovered: 0, totalAmountRecovered: 0, errors: [] }
+        );
+        const turboMintSettlement = await runRecoveryStep(
+          source,
+          'TurboUNIT vault settlement recovery',
+          refreshPersistedTurboMintSettlementStatus,
+          {
+            status: 'error' as const,
+            message: 'TurboUNIT vault settlement recovery failed.',
+          }
+        );
+        await runRecoveryStep(source, 'Swap recovery', checkAndRecoverSwaps, undefined);
+        const outgoingTokenRecovery = await runRecoveryStep(
+          source,
+          'Outgoing Cashu token recovery',
+          () => recoverOutgoingSwapTokens(source),
+          0
+        );
+        const spentProofCleanup = await runRecoveryStep(
+          source,
+          'Spent proof reconciliation',
+          () => reconcileSpentProofs(source),
+          { removed: 0, kept: 0 }
+        );
+        const turboSendRecovery = await runRecoveryStep(
+          source,
+          'Pending turbo send recovery',
+          () =>
+            recoverPendingTurboSend(
+              sendP2PKToken,
+              extractPubkeyFromTaprootAddress,
+              shortenCashuToken,
+              saveSentLockedToken
+            ),
+          { recovered: false }
+        );
 
         if (
           proofSaveRecovery.recovered > 0 ||
           mintRecovery.recovered > 0 ||
           turboMintSettlement.status === 'settled' ||
-          outgoingTokenRecovery > 0
+          outgoingTokenRecovery > 0 ||
+          spentProofCleanup.removed > 0 ||
+          turboSendRecovery.recovered
         ) {
-          await fetchBalance();
+          await Promise.all([fetchBalance(), fetchBtcBalance()]);
+        }
+
+        if (turboSendRecovery.recovered && turboSendRecovery.token) {
+          notify.transaction.success('send');
         }
       } catch (foregroundRecoveryError) {
         logger.error('[CashuContext] TurboUNIT foreground recovery failed', {
@@ -300,28 +515,15 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
         foregroundRecoveryInFlightRef.current = false;
       }
     },
-    [activeWallet?.taprootAddress, fetchBalance, recoverOutgoingSwapTokens]
+    [
+      activeWallet?.taprootAddress,
+      fetchBalance,
+      fetchBtcBalance,
+      reconcileSpentProofs,
+      recoverOutgoingSwapTokens,
+      runRecoveryStep,
+    ]
   );
-
-  const reconcileSpentProofs = useCallback(async (source: string) => {
-    try {
-      const cleanup = await removeSpentProofs();
-      if (cleanup.removed > 0) {
-        logger.info('[CashuContext] Removed spent Cashu proofs during recovery', {
-          source,
-          removed: cleanup.removed,
-          kept: cleanup.kept,
-        });
-      }
-      return cleanup;
-    } catch (spentProofError) {
-      logger.error('[CashuContext] Spent proof reconciliation failed', {
-        source,
-        error: spentProofError instanceof Error ? spentProofError.message : String(spentProofError),
-      });
-      return { removed: 0, kept: 0 };
-    }
-  }, []);
 
   useEffect(() => {
     if (recoveryChecked.current || !activeWallet?.taprootAddress) {
@@ -338,19 +540,32 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       recoveryStarted = true;
 
       try {
-        // Check for pending swap recovery (proofs lost mid-swap)
-        logger.info('[CashuContext] Checking for pending swap recovery...');
-        await checkAndRecoverSwaps();
+        await setCurrentAccount(activeWallet.taprootAddress);
         if (cancelled) return;
 
-        await recoverOutgoingSwapTokens('startup');
+        // Check for pending swap recovery (proofs lost mid-swap)
+        logger.info('[CashuContext] Checking for pending swap recovery...');
+        await runRecoveryStep('startup', 'Swap recovery', checkAndRecoverSwaps, undefined);
+        if (cancelled) return;
+
+        await runRecoveryStep(
+          'startup',
+          'Outgoing Cashu token recovery',
+          () => recoverOutgoingSwapTokens('startup'),
+          0
+        );
         if (cancelled) return;
 
         await reconcileSpentProofs('startup');
         if (cancelled) return;
 
         logger.info('[CashuContext] Checking for failed proof save recovery...');
-        const proofSaveRecovery = await recoverFailedProofSaves();
+        const proofSaveRecovery = await runRecoveryStep(
+          'startup',
+          'Failed proof save recovery',
+          recoverFailedProofSaves,
+          { recovered: 0, checked: 0, totalAmountRecovered: 0, errors: [] }
+        );
         if (cancelled) return;
         if (proofSaveRecovery.recovered > 0) {
           logger.info('[CashuContext] Recovered failed proof saves on startup', {
@@ -361,7 +576,12 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
         // Check for unclaimed mint quotes (paid but not claimed)
         logger.info('[CashuContext] Checking for unclaimed mint quotes...');
-        const mintRecovery = await recoverUnclaimedMintQuotes();
+        const mintRecovery = await runRecoveryStep(
+          'startup',
+          'Mint quote recovery',
+          recoverUnclaimedMintQuotes,
+          { checked: 0, recovered: 0, totalAmountRecovered: 0, errors: [] }
+        );
         if (cancelled) return;
         if (mintRecovery.recovered > 0) {
           logger.info('[CashuContext] Recovered unclaimed mint quotes on startup', {
@@ -372,7 +592,15 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
         // If a vault TurboUNIT mint finished while the app was locked, clear
         // the persisted UNIT send and mark the vault settlement complete.
-        const turboMintSettlement = await refreshPersistedTurboMintSettlementStatus();
+        const turboMintSettlement = await runRecoveryStep(
+          'startup',
+          'TurboUNIT vault settlement recovery',
+          refreshPersistedTurboMintSettlementStatus,
+          {
+            status: 'error' as const,
+            message: 'TurboUNIT vault settlement recovery failed.',
+          }
+        );
         if (cancelled) return;
         if (turboMintSettlement.status === 'settled') {
           logger.info('[CashuContext] Recovered persisted TurboUNIT vault settlement on startup', {
@@ -382,11 +610,17 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
 
         // Check for pending turbo sends (mint completed but P2PK not sent)
         logger.info('[CashuContext] Checking for pending turbo sends...');
-        const turboRecovery = await recoverPendingTurboSend(
-          sendP2PKToken,
-          extractPubkeyFromTaprootAddress,
-          shortenCashuToken,
-          saveSentLockedToken
+        const turboRecovery = await runRecoveryStep(
+          'startup',
+          'Pending turbo send recovery',
+          () =>
+            recoverPendingTurboSend(
+              sendP2PKToken,
+              extractPubkeyFromTaprootAddress,
+              shortenCashuToken,
+              saveSentLockedToken
+            ),
+          { recovered: false }
         );
         if (cancelled) return;
         if (turboRecovery.recovered) {
@@ -402,7 +636,7 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
         }
 
         // Refresh balance after potential recovery
-        await fetchBalance();
+        await Promise.all([fetchBalance(), fetchBtcBalance()]);
       } catch (recoveryError) {
         if (cancelled) return;
         logger.error('[CashuContext] Recovery check failed', {
@@ -427,8 +661,10 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
   }, [
     activeWallet?.taprootAddress,
     fetchBalance,
+    fetchBtcBalance,
     reconcileSpentProofs,
     recoverOutgoingSwapTokens,
+    runRecoveryStep,
   ]);
 
   useEffect(() => {
@@ -468,8 +704,11 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     try {
       await clearWallet();
       setBalance(0);
+      setBtcBalanceSats(0);
       setPendingMints([]);
+      setPendingBtcMints([]);
       setError(null);
+      setBtcError(null);
       logger.info('Cashu wallet reset');
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -477,12 +716,16 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       }
       throw err;
     }
-  }, [setBalance, setPendingMints, setError]);
+  }, [setBalance, setBtcBalanceSats, setPendingMints, setPendingBtcMints, setError, setBtcError]);
 
   /**
    * Refresh all data and recover any unclaimed mint quotes
    */
   const refresh = useCallback(async () => {
+    if (activeWallet?.taprootAddress) {
+      await setCurrentAccount(activeWallet.taprootAddress);
+    }
+
     // First, check for any paid but unclaimed mint quotes
     await reconcileSpentProofs('manual_refresh');
 
@@ -540,10 +783,11 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       });
     }
 
-    // Also check for swap recovery
+    // Recover swap-backed outgoing tokens before resuming pending Turbo sends.
+    // A crash after sendP2PKToken journals the token but before the Turbo-send
+    // stage update would otherwise create the same P2PK send again.
     try {
       await checkAndRecoverSwaps();
-      await recoverOutgoingSwapTokens('manual_refresh');
     } catch (swapRecoveryError) {
       logger.error('[CashuContext] Swap recovery failed during refresh', {
         error:
@@ -553,9 +797,50 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       });
     }
 
+    try {
+      await recoverOutgoingSwapTokens('manual_refresh');
+      await reconcileSpentProofs('manual_refresh_after_outgoing_recovery');
+    } catch (outgoingTokenRecoveryError) {
+      logger.error('[CashuContext] Outgoing Cashu token recovery failed during refresh', {
+        error:
+          outgoingTokenRecoveryError instanceof Error
+            ? outgoingTokenRecoveryError.message
+            : String(outgoingTokenRecoveryError),
+      });
+    }
+
+    try {
+      const turboRecovery = await recoverPendingTurboSend(
+        sendP2PKToken,
+        extractPubkeyFromTaprootAddress,
+        shortenCashuToken,
+        saveSentLockedToken
+      );
+      if (turboRecovery.recovered && turboRecovery.token) {
+        logger.info('[CashuContext] Recovered pending turbo send during refresh', {
+          recipient: turboRecovery.recipient?.substring(0, 12) + '...',
+          amount: turboRecovery.amount,
+        });
+        notify.transaction.success('send');
+      }
+    } catch (turboRecoveryError) {
+      logger.error('[CashuContext] Pending turbo send recovery failed during refresh', {
+        error:
+          turboRecoveryError instanceof Error
+            ? turboRecoveryError.message
+            : String(turboRecoveryError),
+      });
+    }
+
     // Finally, refresh balance
-    await fetchBalance();
-  }, [fetchBalance, reconcileSpentProofs, recoverOutgoingSwapTokens]);
+    await Promise.all([fetchBalance(), fetchBtcBalance()]);
+  }, [
+    activeWallet?.taprootAddress,
+    fetchBalance,
+    fetchBtcBalance,
+    reconcileSpentProofs,
+    recoverOutgoingSwapTokens,
+  ]);
 
   /**
    * Reset and refresh for account switching
@@ -565,8 +850,11 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     async (newTaprootAddress?: string) => {
       // Reset state immediately (synchronous) for snappy UI
       setBalance(0);
+      setBtcBalanceSats(0);
       setPendingMints([]);
+      setPendingBtcMints([]);
       setError(null);
+      setBtcError(null);
 
       // CRITICAL: Set the current account BEFORE fetching balance
       // This ensures we read from the correct storage key
@@ -578,20 +866,33 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       }
 
       // Then fetch fresh balance from the correct account
-      await fetchBalance();
+      await Promise.all([fetchBalance(), fetchBtcBalance()]);
     },
-    [setBalance, setPendingMints, setError, fetchBalance]
+    [
+      setBalance,
+      setBtcBalanceSats,
+      setPendingMints,
+      setPendingBtcMints,
+      setError,
+      setBtcError,
+      fetchBalance,
+      fetchBtcBalance,
+    ]
   );
 
   // Memoize balance context value (changes frequently)
   const balanceValue = useMemo(
     (): CashuBalanceValue => ({
       balance,
+      btcBalanceSats,
       isLoading,
+      isBtcLoading: isLoading,
       error,
+      btcError,
       pendingMints: pendingMints as PendingMint[],
+      pendingBtcMints: pendingBtcMints as PendingMint[],
     }),
-    [balance, isLoading, error, pendingMints]
+    [balance, btcBalanceSats, isLoading, error, btcError, pendingMints, pendingBtcMints]
   );
 
   // Tracked wrappers for analytics
@@ -613,6 +914,27 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     [checkAndCompleteMint]
   );
 
+  const trackedStartBtcMint = useCallback(
+    async (amount: number) => {
+      analytics.track(CASHU_EVENTS.CASHU_MINT_STARTED, { amount, unit: 'sat' });
+      return startBtcMint(amount);
+    },
+    [startBtcMint]
+  );
+
+  const trackedCheckAndCompleteBtcMint = useCallback(
+    async (quoteId: string) => {
+      const result = await checkAndCompleteBtcMint(quoteId);
+      if (result.completed)
+        analytics.track(CASHU_EVENTS.CASHU_MINT_COMPLETED, {
+          amount: result.amount,
+          unit: 'sat',
+        });
+      return result;
+    },
+    [checkAndCompleteBtcMint]
+  );
+
   const trackedReceive = useCallback(
     async (token: string) => {
       const result = await receive(token);
@@ -620,6 +942,15 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
       return result;
     },
     [receive]
+  );
+
+  const trackedReceiveBtc = useCallback(
+    async (token: string) => {
+      const result = await receiveBtc(token);
+      analytics.track(CASHU_EVENTS.CASHU_TOKEN_RECEIVED, { unit: 'sat' });
+      return result;
+    },
+    [receiveBtc]
   );
 
   const trackedSend = useCallback(
@@ -631,12 +962,29 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     [send]
   );
 
+  const trackedSendBtc = useCallback(
+    async (amount: number) => {
+      const result = await sendBtc(amount);
+      analytics.track(CASHU_EVENTS.CASHU_TOKEN_SENT, { amount, unit: 'sat' });
+      return result;
+    },
+    [sendBtc]
+  );
+
   const trackedStartMelt = useCallback(
     async (address: string, amount: number) => {
       analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount });
       return startMelt(address, amount);
     },
     [startMelt]
+  );
+
+  const trackedStartBtcMelt = useCallback(
+    async (address: string, amount: number) => {
+      analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, { amount, unit: 'sat' });
+      return startBtcMelt(address, amount);
+    },
+    [startBtcMelt]
   );
 
   const trackedFinishMelt = useCallback(
@@ -648,32 +996,62 @@ export const CashuProvider: React.FC<CashuProviderProps> = ({ children }) => {
     [finishMelt]
   );
 
+  const trackedFinishBtcMelt = useCallback(
+    async (quoteId: string, totalAmount: number) => {
+      const result = await finishBtcMelt(quoteId, totalAmount);
+      analytics.track(CASHU_EVENTS.CASHU_MELT_COMPLETED, {
+        amount: totalAmount,
+        unit: 'sat',
+      });
+      return result;
+    },
+    [finishBtcMelt]
+  );
+
   // Memoize operations context value (stable references)
   const operationsValue = useMemo(
     (): CashuOperationsValue => ({
       startMint: trackedStartMint,
+      startBtcMint: trackedStartBtcMint,
       checkAndCompleteMint: trackedCheckAndCompleteMint,
+      checkAndCompleteBtcMint: trackedCheckAndCompleteBtcMint,
       removePendingMint,
+      removePendingBtcMint,
       addPendingMint,
+      addPendingBtcMint,
       autoMint,
+      autoBtcMint,
       receive: trackedReceive,
+      receiveBtc: trackedReceiveBtc,
       send: trackedSend,
+      sendBtc: trackedSendBtc,
       startMelt: trackedStartMelt,
+      startBtcMelt: trackedStartBtcMelt,
       finishMelt: trackedFinishMelt,
+      finishBtcMelt: trackedFinishBtcMelt,
       refresh,
       resetAndRefresh,
       reset,
     }),
     [
       trackedStartMint,
+      trackedStartBtcMint,
       trackedCheckAndCompleteMint,
+      trackedCheckAndCompleteBtcMint,
       removePendingMint,
+      removePendingBtcMint,
       addPendingMint,
+      addPendingBtcMint,
       autoMint,
+      autoBtcMint,
       trackedReceive,
+      trackedReceiveBtc,
       trackedSend,
+      trackedSendBtc,
       trackedStartMelt,
+      trackedStartBtcMelt,
       trackedFinishMelt,
+      trackedFinishBtcMelt,
       refresh,
       resetAndRefresh,
       reset,

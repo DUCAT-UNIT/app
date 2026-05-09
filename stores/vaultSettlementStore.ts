@@ -49,6 +49,7 @@ interface VaultSettlementState {
   bridgeSendTxid: string | null;
   cashuMintQuoteId: string | null;
   cashuMintDepositAddress: string | null;
+  cashuMintQuoteAmount: number | null;
   cashuMintSendTxid: string | null;
   cashuMeltQuoteId: string | null;
   cashuMeltTxid: string | null;
@@ -78,7 +79,7 @@ interface VaultSettlementActions {
   setBridgeClientRequestId: (clientRequestId: string) => void;
   setBridgeIntent: (intentId: string, depositAddress: string) => void;
   setBridgeSendTxid: (txid: string | null) => void;
-  setCashuMintQuote: (quoteId: string, depositAddress: string) => void;
+  setCashuMintQuote: (quoteId: string, depositAddress: string, amount?: number | null) => void;
   setCashuMintSendTxid: (txid: string | null) => void;
   setCashuMeltQuote: (quoteId: string) => void;
   setCashuMeltTxid: (txid: string) => void;
@@ -144,6 +145,7 @@ export const initialVaultSettlementState: VaultSettlementState = {
   bridgeSendTxid: null,
   cashuMintQuoteId: null,
   cashuMintDepositAddress: null,
+  cashuMintQuoteAmount: null,
   cashuMintSendTxid: null,
   cashuMeltQuoteId: null,
   cashuMeltTxid: null,
@@ -190,11 +192,51 @@ function integerOrNull(value: unknown): number | null {
 }
 
 function isActiveSettlement(state: VaultSettlementState): boolean {
+  if (isPreIssueTransientSettlement(state)) {
+    return false;
+  }
+
   return state.phase !== 'idle' && state.phase !== 'settled' && state.kind !== null;
 }
 
 function isRecoveryCriticalPhase(phase: VaultSettlementPhase): boolean {
   return phase !== 'idle' && phase !== 'settled';
+}
+
+function hasSettlementRecoveryHandle(
+  state: Pick<
+    VaultSettlementState,
+    | 'issueTxid'
+    | 'vaultTxid'
+    | 'bridgeIntentId'
+    | 'bridgeClientRequestId'
+    | 'bridgeSendTxid'
+    | 'cashuMintQuoteId'
+    | 'cashuMintSendTxid'
+    | 'cashuMeltQuoteId'
+    | 'cashuMeltTxid'
+    | 'redemptionId'
+  >
+): boolean {
+  return Boolean(
+    state.issueTxid ||
+      state.vaultTxid ||
+      state.bridgeIntentId ||
+      state.bridgeClientRequestId ||
+      state.bridgeSendTxid ||
+      state.cashuMintQuoteId ||
+      state.cashuMintSendTxid ||
+      state.cashuMeltQuoteId ||
+      state.cashuMeltTxid ||
+      state.redemptionId
+  );
+}
+
+function isPreIssueTransientSettlement(state: VaultSettlementState): boolean {
+  return (
+    (state.phase === 'quoting' || state.phase === 'issuing_vault') &&
+    !hasSettlementRecoveryHandle(state)
+  );
 }
 
 export function shouldPreserveVaultSettlementRecovery(phase: VaultSettlementPhase): boolean {
@@ -224,6 +266,36 @@ export function normalizeVaultSettlementPersistedState(
     return { ...initialVaultSettlementState };
   }
 
+  const issueTxid = stringOrNull(value.issueTxid);
+  const vaultTxid = stringOrNull(value.vaultTxid);
+  const bridgeIntentId = stringOrNull(value.bridgeIntentId);
+  const bridgeClientRequestId = stringOrNull(value.bridgeClientRequestId);
+  const bridgeSendTxid = stringOrNull(value.bridgeSendTxid);
+  const cashuMintQuoteId = stringOrNull(value.cashuMintQuoteId);
+  const cashuMintSendTxid = stringOrNull(value.cashuMintSendTxid);
+  const cashuMeltQuoteId = stringOrNull(value.cashuMeltQuoteId);
+  const cashuMeltTxid = stringOrNull(value.cashuMeltTxid);
+  const redemptionId = stringOrNull(value.redemptionId);
+  const hasRecoveryHandle = hasSettlementRecoveryHandle({
+    issueTxid,
+    vaultTxid,
+    bridgeIntentId,
+    bridgeClientRequestId,
+    bridgeSendTxid,
+    cashuMintQuoteId,
+    cashuMintSendTxid,
+    cashuMeltQuoteId,
+    cashuMeltTxid,
+    redemptionId,
+  });
+
+  if (
+    ((phase === 'quoting' || phase === 'issuing_vault') && !hasRecoveryHandle) ||
+    (phase === 'needs_retry' && !hasRecoveryHandle)
+  ) {
+    return { ...initialVaultSettlementState };
+  }
+
   return {
     ...initialVaultSettlementState,
     accountIndex: integerOrNull(value.accountIndex),
@@ -238,19 +310,20 @@ export function normalizeVaultSettlementPersistedState(
     minimumUsdcOut: stringOrNull(value.minimumUsdcOut),
     requiredUsdcIn: stringOrNull(value.requiredUsdcIn),
     estimatedSepoliaFeeEth: stringOrNull(value.estimatedSepoliaFeeEth),
-    issueTxid: stringOrNull(value.issueTxid),
-    vaultTxid: stringOrNull(value.vaultTxid),
-    bridgeIntentId: stringOrNull(value.bridgeIntentId),
-    bridgeClientRequestId: stringOrNull(value.bridgeClientRequestId),
+    issueTxid,
+    vaultTxid,
+    bridgeIntentId,
+    bridgeClientRequestId,
     bridgeDepositAddress: stringOrNull(value.bridgeDepositAddress),
-    bridgeSendTxid: stringOrNull(value.bridgeSendTxid),
-    cashuMintQuoteId: stringOrNull(value.cashuMintQuoteId),
+    bridgeSendTxid,
+    cashuMintQuoteId,
     cashuMintDepositAddress: stringOrNull(value.cashuMintDepositAddress),
-    cashuMintSendTxid: stringOrNull(value.cashuMintSendTxid),
-    cashuMeltQuoteId: stringOrNull(value.cashuMeltQuoteId),
-    cashuMeltTxid: stringOrNull(value.cashuMeltTxid),
+    cashuMintQuoteAmount: integerOrNull(value.cashuMintQuoteAmount),
+    cashuMintSendTxid,
+    cashuMeltQuoteId,
+    cashuMeltTxid,
     sepoliaTxHash: stringOrNull(value.sepoliaTxHash),
-    redemptionId: stringOrNull(value.redemptionId),
+    redemptionId,
     redemptionBurnTxHash: stringOrNull(value.redemptionBurnTxHash),
     payoutAsset: isOneOf(value.payoutAsset, payoutAssets) ? value.payoutAsset : null,
     payoutAmount: stringOrNull(value.payoutAmount),
@@ -279,6 +352,7 @@ function persistableState(state: VaultSettlementStore): VaultSettlementState {
     bridgeSendTxid: state.bridgeSendTxid,
     cashuMintQuoteId: state.cashuMintQuoteId,
     cashuMintDepositAddress: state.cashuMintDepositAddress,
+    cashuMintQuoteAmount: state.cashuMintQuoteAmount,
     cashuMintSendTxid: state.cashuMintSendTxid,
     cashuMeltQuoteId: state.cashuMeltQuoteId,
     cashuMeltTxid: state.cashuMeltTxid,
@@ -331,7 +405,9 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
               return;
             }
 
-            throw new Error('A vault settlement is still pending. Resume or reset it before starting another.');
+            throw new Error(
+              'A vault settlement is still pending. Resume or reset it before starting another.'
+            );
           }
 
           update({
@@ -378,10 +454,15 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
 
         setBridgeSendTxid: (bridgeSendTxid) => update({ bridgeSendTxid }),
 
-        setCashuMintQuote: (cashuMintQuoteId, cashuMintDepositAddress) =>
+        setCashuMintQuote: (
+          cashuMintQuoteId,
+          cashuMintDepositAddress,
+          cashuMintQuoteAmount = null
+        ) =>
           update({
             cashuMintQuoteId,
             cashuMintDepositAddress,
+            cashuMintQuoteAmount,
           }),
 
         setCashuMintSendTxid: (cashuMintSendTxid) => update({ cashuMintSendTxid }),
@@ -444,6 +525,6 @@ export const persistVaultSettlementNow = async (): Promise<void> => {
     JSON.stringify({
       state: persistableState(useVaultSettlementStore.getState()),
       version: 1,
-    }),
+    })
   );
 };

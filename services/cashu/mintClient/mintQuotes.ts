@@ -8,8 +8,9 @@ import {
   normalizeOptionalCashuAmount,
   type CashuAmountLike,
 } from '../cashuTsCompat';
-import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
-import { assertOnchainUnitMintSupport } from './mintInfo';
+import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
+import { MINT_URL, RUNE_ID } from './mintConfig';
+import { assertOnchainCashuMintSupport } from './mintInfo';
 
 export interface MintQuote {
   quote: string;
@@ -83,17 +84,22 @@ const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => {
  * @param pubkey - Compressed secp256k1 wallet public key for quote signing
  * @returns Quote with ID and deposit request
  */
-export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
+export const createMintQuote = async (
+  pubkey: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MintQuote> => {
   try {
-    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10) });
+    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10), unit });
 
-    await assertOnchainUnitMintSupport();
+    await assertOnchainCashuMintSupport(unit);
 
-    const quote = normalizeMintQuote(await postJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain`, {
-      unit: CASHU_UNIT,
+    const body = {
+      unit,
       pubkey,
-      rune_id: RUNE_ID,
-    }, {
+      ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
+    };
+
+    const quote = normalizeMintQuote(await postJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain`, body, {
       timeout: 10000,
       description: 'Create mint quote',
     }));

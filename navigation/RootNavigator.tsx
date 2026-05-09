@@ -65,6 +65,8 @@ import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
+import { decodeTokenMetadata } from '../services/cashu/cashuWalletService';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit } from '../services/cashu/cashuUnits';
 
 import type { LogContext } from '../types';
 import type { RootNavigatorParamList } from './types';
@@ -241,7 +243,7 @@ export default function RootNavigator(): React.JSX.Element {
   const { seedConfirmedRef, setSeedConfirmed } = useOnboardingFlow();
   const { fetchBalance } = useBalance();
   const { showToast, showSnackbar, dismissSnackbar } = useNotifications();
-  const { receive, refresh: refreshCashu } = useCashuOperations();
+  const { receive, receiveBtc, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
   const { settingsHandlers } = useSettingsHandlers();
 
@@ -305,11 +307,20 @@ export default function RootNavigator(): React.JSX.Element {
     showSnackbar,
   });
 
+  const receiveCashuTokenByUnit = useCallback(
+    async (token: string) => {
+      const metadata = decodeTokenMetadata(token);
+      const unit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+      return unit === 'sat' ? receiveBtc(token) : receive(token);
+    },
+    [receive, receiveBtc]
+  );
+
   // Turbo token processing (single 500ms polling loop handles both tokens and snackbars)
   const { isVerifyingToken } = useTurboTokenProcessor({
     isAuthenticated,
     shouldShowPinOverlay,
-    receive,
+    receive: receiveCashuTokenByUnit,
     fetchBalance,
     refreshCashu,
     wallet,
@@ -331,6 +342,10 @@ export default function RootNavigator(): React.JSX.Element {
   const loadPersistedState = useTurboProcessingStore((state) => state.loadPersistedState);
 
   useEffect(() => {
+    pendingTurboChecked.current = false;
+  }, [wallet?.taprootAddress]);
+
+  useEffect(() => {
     if (pendingTurboChecked.current) return;
     if (!isAuthenticated || shouldShowAuth || shouldShowPinOverlay || shouldShowLockOverlay) return;
 
@@ -342,22 +357,46 @@ export default function RootNavigator(): React.JSX.Element {
       const persistedState = await loadPersistedState();
 
       if (persistedState && persistedState.isProcessing) {
+        if (
+          persistedState.senderTaprootAddress &&
+          persistedState.senderTaprootAddress !== wallet?.taprootAddress
+        ) {
+          pendingTurboChecked.current = true;
+          logger.info('[RootNavigator] Pending turbo transaction belongs to another account; leaving it paused', {
+            senderTaprootAddress: persistedState.senderTaprootAddress.substring(0, 12) + '...',
+            activeTaprootAddress: wallet?.taprootAddress
+              ? wallet.taprootAddress.substring(0, 12) + '...'
+              : null,
+            cashuUnit: persistedState.cashuUnit,
+          });
+          return;
+        }
+
         pendingTurboChecked.current = true;
 
         // Also restore the send flow state
         const { useSendFlowStore: sendStore } = await import('../stores/sendFlowStore');
         sendStore.getState().setSendAmount(persistedState.sendAmount);
         sendStore.getState().setSendRecipient(persistedState.sendRecipient);
-        sendStore.getState().setSendAssetType('unit');
-        sendStore.getState().setTurboEnabled(true);
+        if (persistedState.cashuUnit === 'sat') {
+          sendStore.getState().setSendAssetType('btc');
+          sendStore.getState().setBtcTurboEnabled(true);
+        } else {
+          sendStore.getState().setSendAssetType('unit');
+          sendStore.getState().setTurboEnabled(true);
+        }
 
         // Navigate to TurboProcessing after a short delay to ensure navigation is ready
         timeoutId = setTimeout(() => {
           logger.info('[RootNavigator] Resuming pending turbo transaction', {
             amount: persistedState.sendAmount,
             recipient: persistedState.sendRecipient,
+            cashuUnit: persistedState.cashuUnit,
           });
-          navigationRef.current?.navigate('SendFlow', { screen: 'TurboProcessing' });
+          navigationRef.current?.navigate('SendFlow', {
+            screen: 'TurboProcessing',
+            params: { cashuUnit: persistedState.cashuUnit },
+          });
         }, 500);
       } else {
         // No pending transaction, mark as checked
@@ -376,6 +415,7 @@ export default function RootNavigator(): React.JSX.Element {
     shouldShowPinOverlay,
     shouldShowLockOverlay,
     loadPersistedState,
+    wallet?.taprootAddress,
   ]);
 
   // Get handlers from context (needed for handleLock)

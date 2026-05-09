@@ -3,10 +3,10 @@
  * Matches the design of the QRModal component but as a navigation screen
  */
 
-import { NavigationProp,RouteProp } from '@react-navigation/native';
+import { NavigationProp, RouteProp } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
-import React,{ useEffect,useMemo,useRef,useState } from 'react';
-import { ScrollView,Share,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from '../../components/icons';
@@ -74,7 +74,10 @@ function getQrLogo(assetType: ReceiveQRRouteParams['assetType']): QrLogoProps {
   }
 }
 
-export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenProps): React.JSX.Element {
+export default function ReceiveQRScreen({
+  route,
+  navigation,
+}: ReceiveQRScreenProps): React.JSX.Element {
   const { address, addressType = 'Native SegWit', assetType, networkLabel } = route.params || {};
   const [justCopied, setJustCopied] = useState(false);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,21 +85,25 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
   const { showSnackbar } = useNotifications();
   const { settingsHandlers } = useSettingsHandlers();
   const resolvedAssetType = assetType || (addressType === 'Taproot' ? 'UNIT' : 'BTC');
-  const isHiddenSepoliaAsset = (resolvedAssetType === 'USDC' || resolvedAssetType === 'ETH') && !settingsHandlers.usdcFeaturesEnabled;
-  const title = resolvedAssetType === 'USDC'
-    ? 'Sepolia USDC address'
-    : resolvedAssetType === 'ETH'
-      ? 'Sepolia ETH address'
-      : resolvedAssetType === 'UNIT'
-        ? 'UNIT address'
-        : 'Bitcoin address';
-  const subtitle = resolvedAssetType === 'USDC'
-    ? 'Only use this address to receive Sepolia USDC on Ethereum Sepolia.'
-    : resolvedAssetType === 'ETH'
-      ? 'Only use this address to receive Sepolia ETH on Ethereum Sepolia.'
-      : resolvedAssetType === 'UNIT'
-        ? 'Only use this address to receive UNIT.'
-        : 'Only use this address to receive Bitcoin.';
+  const isHiddenSepoliaAsset =
+    (resolvedAssetType === 'USDC' || resolvedAssetType === 'ETH') &&
+    !settingsHandlers.usdcFeaturesEnabled;
+  const title =
+    resolvedAssetType === 'USDC'
+      ? 'Sepolia USDC address'
+      : resolvedAssetType === 'ETH'
+        ? 'Sepolia ETH address'
+        : resolvedAssetType === 'UNIT'
+          ? 'UNIT address'
+          : 'Bitcoin address';
+  const subtitle =
+    resolvedAssetType === 'USDC'
+      ? 'Only use this address to receive Sepolia USDC on Ethereum Sepolia.'
+      : resolvedAssetType === 'ETH'
+        ? 'Only use this address to receive Sepolia ETH on Ethereum Sepolia.'
+        : resolvedAssetType === 'UNIT'
+          ? 'Only use this address to receive UNIT.'
+          : 'Only use this address to receive Bitcoin.';
   const qrLogo = getQrLogo(resolvedAssetType);
 
   useEffect(() => {
@@ -105,14 +112,19 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
     }
   }, [isHiddenSepoliaAsset, navigation]);
 
-  useEffect(() => { analytics.track(RECEIVE_EVENTS.RECEIVE_SCREEN_VIEWED, { address_type: addressType }); }, [addressType]);
+  useEffect(() => {
+    analytics.track(RECEIVE_EVENTS.RECEIVE_SCREEN_VIEWED, { address_type: addressType });
+  }, [addressType]);
 
-  useEffect(() => () => {
-    if (copyResetTimerRef.current) {
-      clearTimeout(copyResetTimerRef.current);
-      copyResetTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+        copyResetTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   // Calculate responsive values
   const responsiveValues = useMemo(() => {
@@ -195,21 +207,50 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
       >
         {/* Header with back button and title */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton} testID="receive-back-btn">
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            testID="receive-back-btn"
+          >
             <Icon name="back" size={s(24)} color={COLORS.VERY_LIGHT_GRAY} />
           </TouchableOpacity>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { fontSize: responsiveValues.titleSize, marginBottom: responsiveValues.titleMarginBottom }]}>
+            <Text
+              style={[
+                styles.title,
+                {
+                  fontSize: responsiveValues.titleSize,
+                  marginBottom: responsiveValues.titleMarginBottom,
+                },
+              ]}
+            >
               {title}
             </Text>
           </View>
         </View>
-        <Text style={[styles.subtitle, { fontSize: responsiveValues.subtitleSize, marginBottom: responsiveValues.subtitleMarginBottom }]}>
+        <Text
+          style={[
+            styles.subtitle,
+            {
+              fontSize: responsiveValues.subtitleSize,
+              marginBottom: responsiveValues.subtitleMarginBottom,
+            },
+          ]}
+        >
           {subtitle}
         </Text>
 
         {/* QR Code */}
-        <View style={[styles.qrCodeContainer, { padding: responsiveValues.qrContainerPadding, marginBottom: responsiveValues.qrContainerMarginBottom }]} testID="receive-qr-code">
+        <View
+          style={[
+            styles.qrCodeContainer,
+            {
+              padding: responsiveValues.qrContainerPadding,
+              marginBottom: responsiveValues.qrContainerMarginBottom,
+            },
+          ]}
+          testID="receive-qr-code"
+        >
           <QRCode
             value={address}
             size={responsiveValues.qrSize}
@@ -227,7 +268,13 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
 
         {/* Address container - tap to copy */}
         <TouchableOpacity
-          style={[styles.addressContainer, { padding: responsiveValues.addressContainerPadding, marginBottom: responsiveValues.addressContainerMarginBottom }]}
+          style={[
+            styles.addressContainer,
+            {
+              padding: responsiveValues.addressContainerPadding,
+              marginBottom: responsiveValues.addressContainerMarginBottom,
+            },
+          ]}
           onPress={handleCopy}
           activeOpacity={0.7}
           testID="receive-copy-btn"
@@ -235,18 +282,32 @@ export default function ReceiveQRScreen({ route, navigation }: ReceiveQRScreenPr
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>
               <Text style={styles.addressLabelText}>
-                {networkLabel || (resolvedAssetType === 'USDC' ? 'Sepolia USDC' : resolvedAssetType === 'ETH' ? 'Ethereum Sepolia' : resolvedAssetType === 'UNIT' ? 'UNIT' : addressType)}
+                {networkLabel ||
+                  (resolvedAssetType === 'USDC'
+                    ? 'Sepolia USDC'
+                    : resolvedAssetType === 'ETH'
+                      ? 'Ethereum Sepolia'
+                      : resolvedAssetType === 'UNIT'
+                        ? 'UNIT'
+                        : addressType)}
               </Text>
-              <Text style={styles.tapToCopyText}>
-                {justCopied ? 'Copied!' : 'Tap to copy'}
-              </Text>
+              <Text style={styles.tapToCopyText}>{justCopied ? 'Copied!' : 'Tap to copy'}</Text>
             </View>
-            <Text style={styles.addressFullText} testID="receive-address">{address}</Text>
+            <Text style={styles.addressFullText} testID="receive-address">
+              {address}
+            </Text>
           </View>
         </TouchableOpacity>
 
         {/* Share button */}
-        <TouchableOpacity style={[styles.shareButton, { paddingVertical: responsiveValues.shareButtonPaddingVertical }]} onPress={handleShare} testID="receive-share-btn">
+        <TouchableOpacity
+          style={[
+            styles.shareButton,
+            { paddingVertical: responsiveValues.shareButtonPaddingVertical },
+          ]}
+          onPress={handleShare}
+          testID="receive-share-btn"
+        >
           <Text style={styles.shareIcon}>↗</Text>
           <Text style={styles.shareButtonText}>Share</Text>
         </TouchableOpacity>
@@ -359,6 +420,7 @@ const styles = StyleSheet.create({
   shareIcon: {
     fontSize: 20,
     color: COLORS.VERY_LIGHT_GRAY,
+    marginRight: 8,
   },
   shareButtonText: {
     fontSize: 16,

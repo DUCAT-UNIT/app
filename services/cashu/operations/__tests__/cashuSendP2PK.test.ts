@@ -12,6 +12,9 @@ jest.mock('../../../../utils/logger', () => ({
 
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
+  checkProofsSpent: jest.fn(async (proofs: any[]) => ({
+    states: proofs.map(() => ({ state: 'UNSPENT' })),
+  })),
   swapTokens: jest.fn(),
 }));
 
@@ -39,11 +42,11 @@ jest.mock('../../cashuProofManager', () => ({
   loadProofs: jest.fn(),
   removeProofs: jest.fn(),
   addProofs: jest.fn(),
-  getCurrentCashuAccount: jest.fn(() => null),
+  getCurrentCashuAccount: jest.fn(() => 'tb1paccount'),
 }));
 
 import { sendP2PKToken } from '../cashuSendP2PK';
-import { MINT_URL, swapTokens } from '../../cashuMintClient';
+import { MINT_URL, checkProofsSpent, swapTokens } from '../../cashuMintClient';
 import { createBlindedMessage, unblindSignatures, splitAmount, sumProofs, selectProofsForAmount, encodeToken, generateSecret } from '../../crypto';
 import { createP2PKSecret, isP2PKSecret } from '../../p2pk';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
@@ -56,8 +59,8 @@ describe('cashuSendP2PK', () => {
 
   describe('sendP2PKToken', () => {
     const mockProofs = [
-      { amount: 64, secret: 'normal_secret1', C: 'C1', id: 'id' },
-      { amount: 64, secret: 'normal_secret2', C: 'C2', id: 'id' },
+      { amount: 64, secret: 'normal_secret1', C: 'C1', id: 'keyset1' },
+      { amount: 64, secret: 'normal_secret2', C: 'C2', id: 'keyset1' },
     ];
 
     beforeEach(() => {
@@ -79,7 +82,7 @@ describe('cashuSendP2PK', () => {
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
         { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
-        { amount: 64, secret: 'change_secret', C: 'C', id: 'id' },
+        { amount: 64, secret: 'change_secret', C: 'C', id: 'keyset1' },
       ]);
       (encodeToken as jest.Mock).mockReturnValue('cashuBtoken...');
       (getBalance as jest.Mock).mockResolvedValue(64);
@@ -93,17 +96,63 @@ describe('cashuSendP2PK', () => {
       expect(removeProofs).toHaveBeenCalled();
     });
 
-    it('should use active unit keyset keys (line 124)', async () => {
-      (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
-      });
+	    it('should use active unit keyset keys (line 124)', async () => {
+	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+	        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
+	      });
 
       const result = await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
 
-      expect(result.token).toBe('cashuBtoken...');
-    });
+	      expect(result.token).toBe('cashuBtoken...');
+	    });
 
-    it('should create change when selected amount exceeds requested (lines 143-149)', async () => {
+	    it('should send sat P2PK tokens from the sat proof store and encode a sat token', async () => {
+	      const satProofs = [
+	        { amount: 64, secret: 'sat_secret1', C: 'C1', id: 'satset1' },
+	        { amount: 32, secret: 'sat_secret2', C: 'C2', id: 'satset1' },
+	      ];
+	      (loadProofs as jest.Mock).mockResolvedValue(satProofs);
+	      (selectProofsForAmount as jest.Mock).mockReturnValue(satProofs);
+	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+	        keysets: [
+	          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+	          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
+	        ],
+	      });
+	      (swapTokens as jest.Mock).mockResolvedValue({
+	        signatures: [{ id: 'satset1' }],
+	      });
+	      (unblindSignatures as jest.Mock).mockReturnValue([
+	        { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]', C: 'C', id: 'satset1' },
+	        { amount: 32, secret: 'change_secret', C: 'C', id: 'satset1' },
+	      ]);
+
+	      const result = await sendP2PKToken(
+	        64,
+	        'recipientpubkey123'.padEnd(64, '0'),
+	        {},
+	        undefined,
+	        'tb1precipient',
+	        'sat'
+	      );
+
+	      expect(result.token).toBe('cashuBtoken...');
+	      expect(loadProofs).toHaveBeenCalledWith('sat');
+	      expect(addProofs).toHaveBeenCalledWith(
+	        [{ amount: 32, secret: 'change_secret', C: 'C', id: 'satset1' }],
+	        true,
+	        'sat'
+	      );
+	      expect(removeProofs).toHaveBeenCalledWith(satProofs, 'sat');
+	      expect(encodeToken).toHaveBeenCalledWith(
+	        [{ amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]', C: 'C', id: 'satset1' }],
+	        MINT_URL,
+	        'sat'
+	      );
+	      expect(getBalance).toHaveBeenCalledWith(true, 'sat');
+	    });
+
+	    it('should create change when selected amount exceeds requested (lines 143-149)', async () => {
       // Select more than needed
       (selectProofsForAmount as jest.Mock).mockReturnValue(mockProofs); // 128 total
       (splitAmount as jest.Mock)
@@ -112,7 +161,7 @@ describe('cashuSendP2PK', () => {
 
       (unblindSignatures as jest.Mock).mockReturnValue([
         { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
-        { amount: 64, secret: 'change_secret', C: 'C', id: 'id' },
+        { amount: 64, secret: 'change_secret', C: 'C', id: 'keyset1' },
       ]);
 
       const result = await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
@@ -141,8 +190,8 @@ describe('cashuSendP2PK', () => {
 
     it('should filter out P2PK locked proofs from available proofs', async () => {
       const mixedProofs = [
-        { amount: 64, secret: '[\"P2PK\",{\"data\":\"locked\"}]', C: 'C1' },
-        { amount: 64, secret: 'normal_secret', C: 'C2', id: 'id' },
+        { amount: 64, secret: '[\"P2PK\",{\"data\":\"locked\"}]', C: 'C1', id: 'keyset1' },
+        { amount: 64, secret: 'normal_secret', C: 'C2', id: 'keyset1' },
       ];
       (loadProofs as jest.Mock).mockResolvedValue(mixedProofs);
       (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('[\"P2PK\"'));
@@ -172,7 +221,7 @@ describe('cashuSendP2PK', () => {
 
       (unblindSignatures as jest.Mock).mockReturnValue([
         { amount: 64, secret: '[\"P2PK\",{\"data\":\"recipientpubkey\"}]' },
-        { amount: 64, secret: 'change_secret', C: 'C', id: 'id' },
+        { amount: 64, secret: 'change_secret', C: 'C', id: 'keyset1' },
       ]);
 
       await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
@@ -195,6 +244,19 @@ describe('cashuSendP2PK', () => {
         .rejects.toThrow('Swap failed');
     });
 
+    it('should abort before swap when selected proofs are not spendable', async () => {
+      (checkProofsSpent as jest.Mock).mockResolvedValueOnce({
+        states: [{ state: 'PENDING' }, { state: 'UNSPENT' }],
+      });
+
+      await expect(sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0')))
+        .rejects.toThrow('Proofs are not spendable');
+
+      expect(swapTokens).not.toHaveBeenCalled();
+      expect(removeProofs).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
     it('should pass options to createP2PKSecret', async () => {
       const options = { locktime: 1234567890 };
 
@@ -207,6 +269,12 @@ describe('cashuSendP2PK', () => {
     });
 
     it('should handle keyset ID from first signature response', async () => {
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [
+          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+          { id: 'response_keyset', unit: 'unit', active: true, keys: { 1: 'response-key1' } },
+        ],
+      });
       (swapTokens as jest.Mock).mockResolvedValue({
         signatures: [{ id: 'response_keyset' }, {}],
       });

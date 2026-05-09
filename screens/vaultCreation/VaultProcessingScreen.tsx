@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
-import { NavigationProp } from '@react-navigation/native';
+import { NavigationProp, StackActions } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../../components/vaultCreation';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
@@ -43,7 +43,7 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
   // Navigate back to confirm if there's an error
   useEffect(() => {
     if (error && currentStep === 'confirm') {
-      navigation.navigate('VaultConfirm');
+      navigation.dispatch(StackActions.replace('VaultConfirm'));
     }
   }, [error, currentStep, navigation]);
 
@@ -54,22 +54,20 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
 
     setIsRetryingSettlement(true);
     try {
-      const settlement = requestedPayoutAsset === 'TURBOUNIT'
-        ? await settleIssuedUnitToTurboUnit('open', faceValueUsd)
-        : await settleIssuedUnitToUsdc('open', faceValueUsd);
+      const settlement =
+        requestedPayoutAsset === 'TURBOUNIT'
+          ? await settleIssuedUnitToTurboUnit('open', faceValueUsd)
+          : await settleIssuedUnitToUsdc('open', faceValueUsd);
       const canComplete =
         settlement.status === 'settled' ||
-        (
-          settlement.status === 'pending_settlement' &&
-          (!!settlement.bridgeSendTxid || !!settlement.cashuMintSendTxid)
-        );
+        (settlement.status === 'pending_settlement' &&
+          (!!settlement.bridgeSendTxid || !!settlement.cashuMintSendTxid));
       if (canComplete) {
         setCurrentStep('success');
       }
     } catch (retryError) {
-      const message = retryError instanceof Error
-        ? retryError.message
-        : 'Unable to retry settlement';
+      const message =
+        retryError instanceof Error ? retryError.message : 'Unable to retry settlement';
       useNotificationStore.getState().showSnackbar({
         title: 'Settlement retry failed',
         description: message,
@@ -94,9 +92,7 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Creating Vault</Text>
-          <Text style={styles.subtitle}>
-            Please wait while we process your vault creation
-          </Text>
+          <Text style={styles.subtitle}>Please wait while we process your vault creation</Text>
         </View>
 
         {/* Processing Steps */}
@@ -111,16 +107,18 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
         {/* Status Message */}
         <View style={styles.statusContainer}>
           <Text style={styles.statusText}>
-            {getVaultSettlementStatusMessage(kind, phase, processingStep, settingsHandlers.usdcFeaturesEnabled)}
+            {getVaultSettlementStatusMessage(
+              kind,
+              phase,
+              processingStep,
+              settingsHandlers.usdcFeaturesEnabled
+            )}
           </Text>
         </View>
 
         {isSettlementRetryNeeded && (
           <TouchableOpacity
-            style={[
-              styles.backButton,
-              isRetryingSettlement && styles.disabledButton,
-            ]}
+            style={[styles.backButton, isRetryingSettlement && styles.disabledButton]}
             onPress={handleRetrySettlement}
             disabled={isRetryingSettlement}
             accessibilityRole="button"

@@ -6,6 +6,7 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import * as SecureStore from 'expo-secure-store';
 import * as biometricService from '../../services/biometricService';
+import { recoverLockedChange } from '../../services/cashu/cashuWalletService';
 import { useAppSettings, type UseAppSettingsParams } from '../useAppSettings';
 import { notify } from '../../utils/notify';
 
@@ -42,8 +43,12 @@ jest.mock('../../services/biometricService', () => ({
 
 // Mock cashuWalletService
 jest.mock('../../services/cashu/cashuWalletService', () => ({
-  clearWallet: jest.fn(),
   recoverLockedChange: jest.fn(),
+}));
+
+// Mock cacheService
+jest.mock('../../services/cacheService', () => ({
+  clearCashuCache: jest.fn(),
 }));
 
 // Mock cashuLockedTokensService
@@ -235,7 +240,9 @@ describe('useAppSettings', () => {
     });
 
     it('should enable notifications when biometric auth succeeds', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({
+        success: true,
+      });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -258,7 +265,9 @@ describe('useAppSettings', () => {
     });
 
     it('should redirect to PIN when biometric auth fails', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: false });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({
+        success: false,
+      });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -277,7 +286,9 @@ describe('useAppSettings', () => {
     });
 
     it('should handle biometric authentication errors', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(
+        new Error('Auth error')
+      );
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -294,7 +305,9 @@ describe('useAppSettings', () => {
     });
 
     it('should not crash when notify is not available on auth error', async () => {
-      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(new Error('Auth error'));
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockRejectedValue(
+        new Error('Auth error')
+      );
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -439,8 +452,12 @@ describe('useAppSettings', () => {
       });
 
       // Functions should remain stable due to useCallback/useMemo
-      expect(result.current!.handleNotificationsToggle).toBe(firstResult!.handleNotificationsToggle);
-      expect(result.current!.cancelNotificationsToggle).toBe(firstResult!.cancelNotificationsToggle);
+      expect(result.current!.handleNotificationsToggle).toBe(
+        firstResult!.handleNotificationsToggle
+      );
+      expect(result.current!.cancelNotificationsToggle).toBe(
+        firstResult!.cancelNotificationsToggle
+      );
     });
   });
 
@@ -549,8 +566,8 @@ describe('useAppSettings', () => {
 
   describe('handleClearCashuCache', () => {
     it('should clear cache and show success toast', async () => {
-      const clearWallet = require('../../services/cashu/cashuWalletService').clearWallet;
-      clearWallet.mockResolvedValue();
+      const clearCashuCache = require('../../services/cacheService').clearCashuCache;
+      clearCashuCache.mockResolvedValue();
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -558,13 +575,13 @@ describe('useAppSettings', () => {
         await result.current!.handleClearCashuCache();
       });
 
-      expect(clearWallet).toHaveBeenCalled();
+      expect(clearCashuCache).toHaveBeenCalled();
       expect(notify.cashu.cacheCleared).toHaveBeenCalled();
     });
 
     it('should show error toast on failure', async () => {
-      const clearWallet = require('../../services/cashu/cashuWalletService').clearWallet;
-      clearWallet.mockRejectedValue(new Error('Clear failed'));
+      const clearCashuCache = require('../../services/cacheService').clearCashuCache;
+      clearCashuCache.mockRejectedValue(new Error('Clear failed'));
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -576,8 +593,8 @@ describe('useAppSettings', () => {
     });
 
     it('should not crash when notify is not available', async () => {
-      const clearWallet = require('../../services/cashu/cashuWalletService').clearWallet;
-      clearWallet.mockResolvedValue();
+      const clearCashuCache = require('../../services/cacheService').clearCashuCache;
+      clearCashuCache.mockResolvedValue();
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -586,7 +603,7 @@ describe('useAppSettings', () => {
       });
 
       // Should not throw
-      expect(clearWallet).toHaveBeenCalled();
+      expect(clearCashuCache).toHaveBeenCalled();
     });
   });
 
@@ -619,7 +636,6 @@ describe('useAppSettings', () => {
     });
 
     it('should not crash when notify is not available on error', async () => {
-
       const { result } = renderHook(() => useAppSettings(mockProps));
 
       // Should not throw even when dynamic import fails and showToast is undefined
@@ -649,7 +665,12 @@ describe('useAppSettings', () => {
       expect(notify.cashu.recoveringChange).toHaveBeenCalled();
     });
 
-    it('should show error notification when dynamic import fails', async () => {
+    it('should recover both Turbo UNIT and Turbo BTC locked change stores', async () => {
+      (recoverLockedChange as jest.Mock).mockResolvedValue({
+        recovered: 0,
+        amount: 0,
+        message: 'No change proofs found',
+      });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
 
@@ -657,12 +678,10 @@ describe('useAppSettings', () => {
         await result.current!.handleRecoverLockedChange();
       });
 
-      // Dynamic import fails, so error snackbar should be shown
-      expect(notify.snackbar).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'error',
-          action: 'claim',
-        })
+      expect(recoverLockedChange).toHaveBeenCalledWith('unit');
+      expect(recoverLockedChange).toHaveBeenCalledWith('sat');
+      expect(notify.info).toHaveBeenCalledWith(
+        'No change proofs found in Turbo UNIT or Turbo BTC sent tokens'
       );
     });
   });

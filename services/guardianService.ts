@@ -37,34 +37,55 @@ export async function createGuardianClient(
   logger.debug(`[GuardianService] Creating new guardian client for ${url}`);
 
   const client = new GuardianSocket(url, network, params.pubkey);
+  currentClient = client as GuardianSocketClient;
 
   const clientPromise = new Promise<GuardianSocketClient>((resolve, reject) => {
+    let settled = false;
     const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       (client as GuardianSocketClient).isError = true;
       (client as GuardianSocketClient).isConnected = false;
+      gclientPromise = null;
+      currentClient = null;
       reject(new Error('Guardian connection timeout'));
     }, 30_000); // 30 second connection timeout
     (timeout as { unref?: () => void }).unref?.();
 
     client.once('error', (error: unknown) => {
+      const shouldReject = !settled;
+      settled = true;
       clearTimeout(timeout);
       (client as GuardianSocketClient).isError = true;
       (client as GuardianSocketClient).isConnected = false;
       logger.error('[GuardianService] Socket error:', { error });
       gclientPromise = null;
       currentClient = null;
-      reject(typeof error === 'string' ? new Error(`guardian: ${error}`) : error);
+      if (shouldReject) {
+        reject(typeof error === 'string' ? new Error(`guardian: ${error}`) : error);
+      }
     });
 
     client.once('close', () => {
-      clearTimeout(timeout);
       (client as GuardianSocketClient).isConnected = false;
       logger.debug('[GuardianService] Socket closed');
       gclientPromise = null;
       currentClient = null;
+
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        reject(new Error('Guardian connection closed before ready'));
+      }
     });
 
     client.once('ready', () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       clearTimeout(timeout);
       (client as GuardianSocketClient).isConnected = true;
       logger.debug('[GuardianService] Socket ready');
@@ -80,9 +101,7 @@ export async function createGuardianClient(
 /**
  * Gets an existing connected client or creates a new one
  */
-export async function getGuardianClient(
-  pubkey: string
-): Promise<GuardianSocketClient> {
+export async function getGuardianClient(pubkey: string): Promise<GuardianSocketClient> {
   // If we have a connected client, reuse it
   if (currentClient?.isConnected) {
     logger.debug('[GuardianService] Reusing existing connected client');
@@ -96,7 +115,9 @@ export async function getGuardianClient(
       return await gclientPromise;
     } catch (error: unknown) {
       // Connection failed, will create new one below
-      logger.debug('[GuardianService] Pending connection failed, creating new one', { error: error instanceof Error ? error.message : String(error) });
+      logger.debug('[GuardianService] Pending connection failed, creating new one', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

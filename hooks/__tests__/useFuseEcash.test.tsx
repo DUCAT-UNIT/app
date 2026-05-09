@@ -130,6 +130,55 @@ describe('useFuseEcash', () => {
     );
   });
 
+  it('should request BTC Cashu melt with sat unit and BTC labels', async () => {
+    jest.useFakeTimers({ legacyFakeTimers: true });
+    try {
+      const props = {
+        ...mockProps,
+        cashuBalance: 12500,
+        taprootAddress: 'tb1qbtcwithdraw',
+        cashuUnit: 'sat' as const,
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current!.handleFusePress();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdraw Turbo BTC?',
+        'Convert up to 0.00012500 BTC to on-chain BTC? Network fees are deducted from the withdrawal amount.',
+        expect.any(Array)
+      );
+
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+
+      let fusePromise: Promise<void> | undefined;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockRequestMaxMelt).toHaveBeenCalledWith('tb1qbtcwithdraw', 12500, 'sat');
+      expect(mockCompleteMeltWithoutCleanup).toHaveBeenCalledWith('quote123', 10050, 'sat');
+      expect(mockCleanupMeltProofs).toHaveBeenCalledWith([], [], 'sat', null);
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('should format balance with two decimal places', async () => {
     const props = { ...mockProps, cashuBalance: 5012 };
     const { result } = renderHookWithProps(props);

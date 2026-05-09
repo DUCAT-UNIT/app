@@ -5,22 +5,28 @@
  */
 
 import * as Clipboard from 'expo-clipboard';
-import React,{ memo,useCallback,useEffect,useState } from 'react';
-import { ActivityIndicator,Modal,StyleSheet as RNStyleSheet,Share,Text,TouchableOpacity,View } from 'react-native';
+import React, { memo, useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, StyleSheet as RNStyleSheet, Share, Text, TouchableOpacity, View } from 'react-native';
 
 import { useWallet } from '../../contexts/WalletContext';
 import { useResponsive } from '../../hooks/useResponsive';
+import { getSentLockedTokens, type EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
+import { checkTokensStatus } from '../../services/cashu/tokenStatusService';
 import {
-getSentLockedTokens,
-} from '../../services/cashu/cashuLockedTokensService';
-import { checkProofsSpent, decodeToken } from '../../services/cashu/cashuWalletService';
+  cashuUnitDisplayName,
+  cashuUnitShortDisplayName,
+  DEFAULT_CASHU_UNIT,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 import { useNotifications } from '../../stores/notificationStore';
 import globalStyles from '../../styles';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
 import { COLORS } from '../../theme';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { formatBalance } from '../../utils/formatters';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { extractPubkeyFromTaprootAddress } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
 import Icon from '../icons';
 
@@ -32,6 +38,9 @@ interface TokenRecord {
   taprootAddress?: string | null;
   shortUrl?: string | null;
   recipient?: string | null;
+  claimed?: boolean;
+  partiallySpent?: boolean;
+  unit?: CashuUnit;
 }
 
 interface TurboTokenItemProps {
@@ -44,6 +53,11 @@ interface TurboTokenItemProps {
 // Memoized token item component to prevent unnecessary re-renders
 const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfClaim, onCopy }: TurboTokenItemProps) {
   const { s } = useResponsive();
+  const unit = item.unit ?? DEFAULT_CASHU_UNIT;
+  const isBtcCashu = unit === 'sat';
+  const formattedAmount = isBtcCashu
+    ? formatBalance(item.amount / 100_000_000)
+    : formatUnitAmount(item.amount);
 
   // Determine status and styling based on claim state
   const getStatusConfig = () => {
@@ -111,13 +125,13 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfCla
             <View style={globalStyles.historyTxColumn3}>
               <View style={globalStyles.balanceWithIcon}>
                 <Icon
-                  name="unit_symbol"
+                  name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'}
                   size={s(12)}
                   color={amountColor}
                   style={globalStyles.assetAmountIcon}
                 />
                 <Text style={[globalStyles.assetAmount, { color: amountColor }]}>
-                  {formatUnitAmount(item.amount)}
+                  {formattedAmount}
                 </Text>
               </View>
             </View>
@@ -131,9 +145,22 @@ const TurboTokenItem = memo(function TurboTokenItem({ item, isClaimed, isSelfCla
       </View>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.item.id === next.item.id && prev.isClaimed === next.isClaimed && prev.isSelfClaim === next.isSelfClaim);
+}, (prev, next) =>
+  prev.item.id === next.item.id &&
+  prev.item.amount === next.item.amount &&
+  prev.item.timestamp === next.item.timestamp &&
+  prev.item.recipient === next.item.recipient &&
+  prev.item.shortUrl === next.item.shortUrl &&
+  (prev.item.unit ?? DEFAULT_CASHU_UNIT) === (next.item.unit ?? DEFAULT_CASHU_UNIT) &&
+  prev.isClaimed === next.isClaimed &&
+  prev.isSelfClaim === next.isSelfClaim
+);
 
-export function AssetTurboList() {
+interface AssetTurboListProps {
+  cashuUnit?: CashuUnit;
+}
+
+export function AssetTurboList({ cashuUnit }: AssetTurboListProps = {}) {
   const { s, sf } = useResponsive();
   const [tokens, setTokens] = useState<TokenRecord[]>([]);
   const [claimedTokens, setClaimedTokens] = useState(new Set<string>());
@@ -145,35 +172,33 @@ export function AssetTurboList() {
   const checkTokensClaimed = useCallback(async (tokensList: TokenRecord[], currentTaprootAddress?: string) => {
     const claimed = new Set<string>();
     const selfClaim = new Set<string>();
-
-    // Check all tokens in parallel for much faster loading
-    const results = await Promise.all(
-      tokensList.map(async (tokenData) => {
-        try {
-          const decoded = decodeToken(tokenData.token);
-          const result = await checkProofsSpent(decoded.proofs);
-
-          if (result && result.states && Array.isArray(result.states)) {
-            const isSpent = (result.states as Array<{ state: string }>).some(
-              (state) => state.state === 'SPENT'
-            );
-            return { id: tokenData.id, isSpent, taprootAddress: tokenData.taprootAddress };
-          }
-          return { id: tokenData.id, isSpent: false, taprootAddress: tokenData.taprootAddress };
-        } catch (error: unknown) {
-          logger.error(error, { component: 'AssetTurboList', action: 'checkTokensClaimed' });
-          return { id: tokenData.id, isSpent: false, taprootAddress: tokenData.taprootAddress };
-        }
-      })
+    let currentPubkeyHex: string | null = null;
+    if (currentTaprootAddress) {
+      try {
+        currentPubkeyHex = extractPubkeyFromTaprootAddress(currentTaprootAddress);
+      } catch (error: unknown) {
+        logger.warn('[AssetTurboList] Failed to decode taproot address for self-claim detection', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    const selfRecipients = new Set(
+      [currentTaprootAddress, currentPubkeyHex]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.trim().toLowerCase())
     );
 
+    const results = await checkTokensStatus(tokensList as unknown as EcashTokenRecord[]);
+
     // Process results
-    for (const { id, isSpent, taprootAddress } of results) {
-      if (isSpent) {
-        claimed.add(id);
-        // Check if this is a self-claim (token sent from current account and claimed)
-        if (taprootAddress && currentTaprootAddress && taprootAddress === currentTaprootAddress) {
-          selfClaim.add(id);
+    for (const result of results) {
+      if (result.claimed) {
+        claimed.add(result.id);
+        const normalizedRecipient = ('recipient' in result ? result.recipient : undefined)
+          ?.trim()
+          .toLowerCase();
+        if (normalizedRecipient && selfRecipients.has(normalizedRecipient)) {
+          selfClaim.add(result.id);
         }
       }
     }
@@ -187,15 +212,17 @@ export function AssetTurboList() {
       setIsLoading(true);
       logger.debug('AssetTurboList', 'Loading tokens for address', { address: wallet?.taprootAddress });
       const savedTokens = await getSentLockedTokens(wallet?.taprootAddress);
-      logger.debug('AssetTurboList', 'Loaded tokens', { count: savedTokens.length });
-      setTokens(savedTokens as TokenRecord[]);
-      await checkTokensClaimed(savedTokens as TokenRecord[], wallet?.taprootAddress ?? undefined);
+      const unit = cashuUnit ?? DEFAULT_CASHU_UNIT;
+      const filteredTokens = savedTokens.filter((token) => (token.unit ?? DEFAULT_CASHU_UNIT) === unit);
+      logger.debug('AssetTurboList', 'Loaded tokens', { count: filteredTokens.length, unit });
+      setTokens(filteredTokens as TokenRecord[]);
+      await checkTokensClaimed(filteredTokens as TokenRecord[], wallet?.taprootAddress ?? undefined);
     } catch (error: unknown) {
       logger.error(error, { component: 'AssetTurboList', action: 'loadTokens' });
     } finally {
       setIsLoading(false);
     }
-  }, [wallet?.taprootAddress, checkTokensClaimed]);
+  }, [wallet?.taprootAddress, cashuUnit, checkTokensClaimed]);
 
   useEffect(() => {
     logger.debug('AssetTurboList', 'useEffect triggered', { address: wallet?.taprootAddress });
@@ -328,7 +355,7 @@ export function AssetTurboList() {
               <View style={detailStyles.header}>
                 <Icon name="turbo" size={s(40)} color="#DDDDDD" />
                 <Text style={[detailStyles.title, { fontSize: sf(fontSizes.lg), marginLeft: s(12) }]}>
-                  Turbo UNIT
+                  {cashuUnitDisplayName(selectedToken.unit ?? DEFAULT_CASHU_UNIT)}
                 </Text>
               </View>
 
@@ -336,9 +363,16 @@ export function AssetTurboList() {
               <View style={[detailStyles.row, { marginTop: s(spacing.lg) }]}>
                 <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Amount</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Icon name="unit_symbol" size={s(12)} color={COLORS.GREEN} style={{ marginRight: s(4) }} />
+                  <Icon
+                    name={(selectedToken.unit ?? DEFAULT_CASHU_UNIT) === 'sat' ? 'btc_symbol' : 'unit_symbol'}
+                    size={s(12)}
+                    color={COLORS.GREEN}
+                    style={{ marginRight: s(4) }}
+                  />
                   <Text style={[detailStyles.value, { fontSize: sf(fontSizes.md), color: COLORS.GREEN }]}>
-                    {formatUnitAmount(selectedToken.amount)}
+                    {(selectedToken.unit ?? DEFAULT_CASHU_UNIT) === 'sat'
+                      ? `${formatBalance(selectedToken.amount / 100_000_000)} BTC`
+                      : `${formatUnitAmount(selectedToken.amount)} UNIT`}
                   </Text>
                 </View>
               </View>
@@ -358,6 +392,8 @@ export function AssetTurboList() {
                 <Text style={[detailStyles.label, { fontSize: sf(fontSizes.sm) }]}>Date</Text>
                 <Text style={[detailStyles.value, { fontSize: sf(fontSizes.sm) }]}>
                   {formatTransactionDate(Math.floor(selectedToken.timestamp / 1000))}
+                  {' · '}
+                  {cashuUnitShortDisplayName(selectedToken.unit ?? DEFAULT_CASHU_UNIT)}
                 </Text>
               </View>
 
