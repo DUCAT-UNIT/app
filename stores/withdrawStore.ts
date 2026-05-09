@@ -9,15 +9,12 @@ import { logger } from '../utils/logger';
 import {
   computeHealthFactor,
   computeLiquidationPrice,
+  getOpCostWithdraw,
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
-import { VAULT_CONFIG } from '../utils/constants';
-import {
-  createVaultOperationStore,
-  computeVaultHealth,
-  computeNewVaultHealth,
-} from './vault';
+import { BITCOIN_TX, VAULT_CONFIG } from '../utils/constants';
+import { createVaultOperationStore, computeVaultHealth, computeNewVaultHealth } from './vault';
 import type {
   CommonVaultState,
   CommonVaultActions,
@@ -63,6 +60,7 @@ const withdrawSpecificInitialState: WithdrawSpecificState = {
 };
 
 const MAX_WITHDRAW_HEALTH_BUFFER_SATS = 1_000;
+const MAX_WITHDRAW_VAULT_OUTPUT_BUFFER_SATS = BITCOIN_TX.DUST_LIMIT + 1;
 
 export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
   'withdraw',
@@ -73,13 +71,17 @@ export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
     // Withdraw-specific form actions
     setWithdrawAmountSats: (withdrawAmountSats: number) => {
       logger.debug('[WithdrawStore] setWithdrawAmountSats:', withdrawAmountSats);
-      set({ withdrawAmountSats, error: null } as Partial<CommonVaultState & CommonVaultActions & WithdrawExtension>);
+      set({ withdrawAmountSats, error: null } as Partial<
+        CommonVaultState & CommonVaultActions & WithdrawExtension
+      >);
     },
 
     setWithdrawAmountBtc: (btcAmount: number) => {
       const sats = Math.round(btcAmount * 100_000_000);
       logger.debug('[WithdrawStore] setWithdrawAmountBtc:', { btcAmount, sats });
-      set({ withdrawAmountSats: sats, error: null } as Partial<CommonVaultState & CommonVaultActions & WithdrawExtension>);
+      set({ withdrawAmountSats: sats, error: null } as Partial<
+        CommonVaultState & CommonVaultActions & WithdrawExtension
+      >);
     },
 
     // Withdraw-specific computed getters
@@ -113,12 +115,23 @@ export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
     },
 
     getMaxWithdrawable: () => {
-      const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice } = get();
+      const { currentBtcLocked, currentUnitBorrowed, bitcoinPrice, selectedFeeRate } = get();
       if (currentBtcLocked <= 0) return 0;
+
+      const currentCollateralSats = Math.floor(currentBtcLocked * 100_000_000);
+      const withdrawTxFeeSats = getOpCostWithdraw(selectedFeeRate);
+      const maxAfterTxFeeSats = Math.max(
+        0,
+        currentCollateralSats - withdrawTxFeeSats - MAX_WITHDRAW_VAULT_OUTPUT_BUFFER_SATS
+      );
+
+      if (maxAfterTxFeeSats <= BITCOIN_TX.DUST_LIMIT) {
+        return 0;
+      }
 
       // No debt: can withdraw all collateral
       if (currentUnitBorrowed <= 0) {
-        return Math.floor(currentBtcLocked * 100_000_000);
+        return maxAfterTxFeeSats;
       }
 
       if (!bitcoinPrice) return 0;
@@ -129,12 +142,19 @@ export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
       // minCollateral = (MIN_COL_RATE * 100 * debt) / (btcPrice * 100)
       const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
       const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
+      const minCollateralSats = Math.ceil(minCollateral * 100_000_000);
 
-      // Max withdrawable is current - minimum (in sats)
-      const maxWithdrawableBtc = Math.max(0, currentBtcLocked - minCollateral);
-      const maxWithdrawableSats = Math.floor(maxWithdrawableBtc * 100_000_000);
+      // The vault output pays the withdraw transaction fee, so max must reserve
+      // both the minimum collateral and the protocol fee before the health buffer.
+      const maxWithdrawableSats = Math.max(
+        0,
+        currentCollateralSats -
+          minCollateralSats -
+          withdrawTxFeeSats -
+          MAX_WITHDRAW_HEALTH_BUFFER_SATS
+      );
 
-      return Math.max(0, maxWithdrawableSats - MAX_WITHDRAW_HEALTH_BUFFER_SATS);
+      return Math.min(maxAfterTxFeeSats, maxWithdrawableSats);
     },
 
     // Override reset to include withdraw-specific state
@@ -147,7 +167,6 @@ export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(
     },
   })
 );
-
 
 /**
  * useWithdraw - Hook that returns commonly used state and actions

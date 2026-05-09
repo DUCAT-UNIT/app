@@ -16,16 +16,16 @@
  */
 
 import type { VaultProfile } from '@ducat-unit/client-sdk';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '../../contexts/WalletContext';
 import { useVaultData } from '../../contexts/WalletDataContext';
-import { disconnectGuardian,getGuardianClient } from '../../services/guardianService';
+import { disconnectGuardian, getGuardianClient } from '../../services/guardianService';
 import { fetchPriceQuote } from '../../services/oracleService';
 import {
-buildVaultProfile,
-computeVaultPrevoutFromTx,
+  buildVaultProfile,
+  computeVaultPrevoutFromTx,
 } from '../../services/vaultOperationsService';
-import { fetchLatestVaultHistoryTransaction,fetchVaultData } from '../../services/vaultService';
+import { fetchLatestVaultHistoryTransaction, fetchVaultData } from '../../services/vaultService';
 import { createVaultWallet } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
@@ -44,10 +44,10 @@ import {
   extractVaultIssuePendingData,
 } from '../../services/vault/pendingIssueOutputs';
 import type {
-ProcessingStep,
-UseVaultOperationResult,
-VaultOperationConfig,
-VaultWalletData,
+  ProcessingStep,
+  UseVaultOperationResult,
+  VaultOperationConfig,
+  VaultWalletData,
 } from './vaultOperationTypes';
 
 /**
@@ -106,12 +106,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   } = actions;
 
   // Global store actions
-  const setPendingTransaction = usePendingVaultTransactionStore(
-    (s) => s.setPendingTransaction
-  );
-  const pendingVaultTransaction = usePendingVaultTransactionStore(
-    (s) => s.pendingTransaction
-  );
+  const setPendingTransaction = usePendingVaultTransactionStore((s) => s.setPendingTransaction);
+  const pendingVaultTransaction = usePendingVaultTransactionStore((s) => s.pendingTransaction);
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
   const showSnackbar = useNotificationStore((s) => s.showSnackbar);
@@ -164,13 +160,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     });
 
     return true;
-  }, [
-    wallet?.taprootPubkey,
-    contextVaultData,
-    setError,
-    setCurrentVaultData,
-    operationName,
-  ]);
+  }, [wallet?.taprootPubkey, contextVaultData, setError, setCurrentVaultData, operationName]);
 
   /**
    * Build VaultProfile from current vault data
@@ -202,11 +192,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         return null;
       }
 
-      const profile = buildVaultProfile(
-        wallet.taprootPubkey,
-        vaultData.vaultInfo,
-        vaultPrevout
-      );
+      const profile = buildVaultProfile(wallet.taprootPubkey, vaultData.vaultInfo, vaultPrevout);
 
       logger.debug(`[${operationName}] VaultProfile built:`, {
         acct_id: profile.acct_id,
@@ -373,7 +359,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
             vault_txhex?: string;
           },
           wallet,
-          livePendingTransactions,
+          livePendingTransactions
         );
 
         for (const spentInput of spentInputs) {
@@ -389,18 +375,19 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
             'UNIT',
             parentTxid,
             pendingTx.unitAmt,
-            spentInputs,
+            spentInputs
           );
         }
 
-        const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
+        const latestPendingTransactions =
+          usePendingTransactionsStore.getState().pendingTransactions;
         const finalizationPendingData = extractVaultFinalizationPendingData(
           request as {
             issue_txhex?: string;
             vault_txhex?: string;
           },
           wallet,
-          latestPendingTransactions,
+          latestPendingTransactions
         );
 
         for (const spentInput of finalizationPendingData.spentInputs) {
@@ -409,17 +396,14 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
           }
         }
 
-        if (
-          resultVaultTxid !== txid &&
-          finalizationPendingData.outputs.length > 0
-        ) {
+        if (resultVaultTxid !== txid && finalizationPendingData.outputs.length > 0) {
           await addPendingTransaction(
             resultVaultTxid,
             finalizationPendingData.outputs,
             'BTC',
             finalizationPendingData.parentTxid,
             undefined,
-            finalizationPendingData.spentInputs,
+            finalizationPendingData.spentInputs
           );
         }
       }
@@ -438,27 +422,27 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         txid,
         vault_txid: resultVaultTxid,
       });
-      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, { operation: operationName });
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, {
+        operation: operationName,
+      });
 
       // Register vault TX for push-notification monitoring (fire-and-forget)
-      watchTransaction(
-        resultVaultTxid,
-        wallet?.segwitAddress || '',
-        'vault transaction'
-      );
+      watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : `${operationName} operation failed`;
+      const errorMessage = err instanceof Error ? err.message : `${operationName} operation failed`;
       const errorStack = err instanceof Error ? err.stack : undefined;
       logger.error(`[${operationName}] Error:`, {
         message: errorMessage,
         stack: errorStack,
       });
-      analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, { operation: operationName, error: errorMessage });
-      setError(errorMessage);
+      analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, {
+        operation: operationName,
+        error: errorMessage,
+      });
       setCurrentStep('confirm');
+      setError(errorMessage);
       return null;
     } finally {
       operationInProgressRef.current = false;

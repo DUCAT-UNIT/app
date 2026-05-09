@@ -3,10 +3,7 @@ import { useCashuOperations } from '../../contexts/CashuContext';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { getBalance as getCashuBalance } from '../../services/cashu/cashuBalanceService';
-import {
-  checkMeltQuote,
-  type MeltQuote,
-} from '../../services/cashu/cashuMintClient';
+import { checkMeltQuote, type MeltQuote } from '../../services/cashu/cashuMintClient';
 import {
   requestMelt,
   completeMelt,
@@ -683,7 +680,6 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     persistedCashuMeltTxid,
     persistedRequestedPayoutAsset,
     persistedRedemptionId,
-    quoteRepaySettlement,
     quoteUsdcRepaySettlement,
     rawRepay,
     refreshCashuBalance,

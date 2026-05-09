@@ -73,6 +73,7 @@ jest.mock('../../../stores/repayStore', () => ({
 
 jest.mock('../../../stores/vaultSettlementStore', () => ({
   useVaultSettlementStore: jest.fn(),
+  persistVaultSettlementNow: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../useRepayVault', () => ({
@@ -177,7 +178,9 @@ function configure({
       rune_utxos: mockRuneUtxos,
     },
   });
-  (formatVaultSettlementAmountInput as jest.Mock).mockImplementation((amount: number) => amount.toFixed(2));
+  (formatVaultSettlementAmountInput as jest.Mock).mockImplementation((amount: number) =>
+    amount.toFixed(2)
+  );
   (quoteVaultRepaySettlement as jest.Mock).mockResolvedValue({
     requiredUsdcIn: '51.00',
     estimatedSepoliaFeeEth: '0.001',
@@ -296,7 +299,10 @@ describe('useRepayFromUsdcSettlement', () => {
     });
 
     expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
-    expect(mockStartOperation).toHaveBeenCalledWith('repay', 50, 'UNIT');
+    expect(mockStartOperation).toHaveBeenCalledWith('repay', 50, 'UNIT', {
+      accountIndex: 4,
+      taprootAddress: wallet.taprootAddress,
+    });
     expect(requestRedemption).not.toHaveBeenCalled();
     expect(mockSetPhase).toHaveBeenCalledWith('repaying_vault');
     expect(mockFetchBalance).toHaveBeenCalled();
@@ -326,8 +332,7 @@ describe('useRepayFromUsdcSettlement', () => {
 
   it('submits USDC redemption, waits for release, then repays the vault', async () => {
     configure({ repayFundingAsset: 'USDC' });
-    mockRuneUtxos
-      .mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
+    mockRuneUtxos.mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
 
@@ -341,7 +346,7 @@ describe('useRepayFromUsdcSettlement', () => {
       '50.00',
       wallet.taprootAddress,
       'USDC',
-      '51.00',
+      '51.00'
     );
     expect(mockSetRedemptionResult).toHaveBeenCalledWith('release-1', '0xburn');
     expect(waitForRedemptionRelease).toHaveBeenCalledWith('release-1');
@@ -355,8 +360,7 @@ describe('useRepayFromUsdcSettlement', () => {
 
   it('melts TurboUNIT, waits for released UNIT, then repays the vault', async () => {
     configure({ repayFundingAsset: 'TURBOUNIT' });
-    mockRuneUtxos
-      .mockResolvedValueOnce([{ txid: 'melted-unit-utxo' }]);
+    mockRuneUtxos.mockResolvedValueOnce([{ txid: 'melted-unit-utxo' }]);
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
@@ -366,7 +370,10 @@ describe('useRepayFromUsdcSettlement', () => {
     });
 
     expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
-    expect(mockStartOperation).toHaveBeenCalledWith('repay', 50, 'TURBOUNIT');
+    expect(mockStartOperation).toHaveBeenCalledWith('repay', 50, 'TURBOUNIT', {
+      accountIndex: 4,
+      taprootAddress: wallet.taprootAddress,
+    });
     expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
     expect(mockSetCashuMeltQuote).toHaveBeenCalledWith('melt-1');
     expect(completeMelt).toHaveBeenCalledWith('melt-1', 5000);
@@ -382,8 +389,7 @@ describe('useRepayFromUsdcSettlement', () => {
 
   it('melts only the TurboUNIT shortfall before repaying with combined UNIT', async () => {
     configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 40 });
-    mockRuneUtxos
-      .mockResolvedValueOnce([{ txid: 'combined-unit-utxo' }]);
+    mockRuneUtxos.mockResolvedValueOnce([{ txid: 'combined-unit-utxo' }]);
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(2000);
     (requestMelt as jest.Mock).mockResolvedValueOnce({
       quoteId: 'melt-shortfall',
@@ -432,8 +438,7 @@ describe('useRepayFromUsdcSettlement', () => {
       persistedRequestedPayoutAsset: 'USDC',
       persistedRedemptionId: 'release-existing',
     });
-    mockRuneUtxos
-      .mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
+    mockRuneUtxos.mockResolvedValueOnce([{ txid: 'released-unit-utxo' }]);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
 
     await act(async () => {
