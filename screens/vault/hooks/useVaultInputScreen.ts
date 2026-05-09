@@ -3,9 +3,9 @@
  * Shared logic for all vault input screens
  */
 
-import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
-import { useBalance,useVaultData } from '../../../contexts/WalletDataContext';
+import { useBalance, useVaultData } from '../../../contexts/WalletDataContext';
 import {
   requiresVaultSettlementUnitSend,
   resolveVaultSettlementRequestedAsset,
@@ -18,6 +18,7 @@ import {
   getOpCostBorrow,
   getOpCostDeposit,
   getOpCostRepay,
+  getOpCostWithdraw,
   getVaultSettlementReserveSats,
 } from '../../../utils/vaultUtils';
 import { dismissVaultActionFlow } from '../navigation';
@@ -112,7 +113,8 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Use context values if store hasn't synced yet
   const effectiveBtcLocked = store.currentBtcLocked > 0 ? store.currentBtcLocked : contextBtcLocked;
-  const effectiveUnitBorrowed = store.currentUnitBorrowed > 0 ? store.currentUnitBorrowed : contextUnitBorrowed;
+  const effectiveUnitBorrowed =
+    store.currentUnitBorrowed > 0 ? store.currentUnitBorrowed : contextUnitBorrowed;
 
   // Track initialization
   const [isInitializing, setIsInitializing] = useState(true);
@@ -131,6 +133,10 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // BTC balance for fee validation
   const btcBalanceSats = Math.round((segwitBalance || 0) * 100_000_000);
+  const btcUtxoBalanceSats = useMemo(
+    () => utxos.reduce((sum, utxo) => sum + utxo.value, 0),
+    [utxos]
+  );
   const storedReceiveAsset = getReceiveAssetIfPresent(store);
   const receiveAsset = storedReceiveAsset
     ? resolveVaultSettlementRequestedAsset(storedReceiveAsset, usdcFeaturesEnabled)
@@ -140,23 +146,28 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   const estimatedFeeSats = useMemo(() => {
     switch (config.operationType) {
       case 'borrow':
-        return getOpCostBorrow(store.selectedFeeRate, utxos) +
-          (requiresVaultSettlementUnitSend(receiveAsset) ? getVaultSettlementReserveSats(store.selectedFeeRate) : 0);
+        return (
+          getOpCostBorrow(store.selectedFeeRate, utxos) +
+          (requiresVaultSettlementUnitSend(receiveAsset)
+            ? getVaultSettlementReserveSats(store.selectedFeeRate)
+            : 0)
+        );
       case 'repay':
         return getOpCostRepay(store.selectedFeeRate, utxos);
       case 'deposit':
         return getOpCostDeposit(store.selectedFeeRate, utxos);
       case 'withdraw':
-        // Withdraw spends from the vault itself and does not require separate
-        // wallet sats funding.
-        return 0;
+        // Withdraw spends from the vault itself, so this is displayed and used
+        // for max math but not required from the wallet balance.
+        return getOpCostWithdraw(store.selectedFeeRate);
       default:
         return 0;
     }
   }, [config.operationType, receiveAsset, store.selectedFeeRate, utxos]);
 
   // Check fee balance
-  const hasSufficientBtc = btcBalanceSats >= estimatedFeeSats;
+  const hasSufficientBtc =
+    config.operationType === 'withdraw' || btcBalanceSats >= estimatedFeeSats;
   const feeErrorMessage = !hasSufficientBtc
     ? btcBalanceSats === 0
       ? 'You need BTC in your wallet for transaction fees'
@@ -166,11 +177,21 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Sync available balance into store for deposit/withdraw operations
   useEffect(() => {
-    if (setAvailableBalance && btcBalanceSats > 0) {
-      const availableSats = Math.max(0, btcBalanceSats - estimatedFeeSats);
+    if (setAvailableBalance) {
+      const sourceSats =
+        config.operationType === 'deposit' && btcUtxoBalanceSats > 0
+          ? btcUtxoBalanceSats
+          : btcBalanceSats;
+      const availableSats = Math.max(0, sourceSats - estimatedFeeSats);
       setAvailableBalance(availableSats);
     }
-  }, [btcBalanceSats, estimatedFeeSats, setAvailableBalance]);
+  }, [
+    btcBalanceSats,
+    btcUtxoBalanceSats,
+    config.operationType,
+    estimatedFeeSats,
+    setAvailableBalance,
+  ]);
 
   // Fetch price and load vault data
   useEffect(() => {
@@ -190,12 +211,15 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     }
   }, [vaultLoaded, isInitializing]);
 
-  useEffect(() => () => {
-    if (continueUnlockTimerRef.current) {
-      clearTimeout(continueUnlockTimerRef.current);
-      continueUnlockTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (continueUnlockTimerRef.current) {
+        clearTimeout(continueUnlockTimerRef.current);
+        continueUnlockTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   // Sync preview amount when store value changes
   useEffect(() => {
@@ -215,7 +239,12 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Preview calculations
   const preview = useMemo(() => {
-    return config.computePreview(previewAmount, effectiveBtcLocked, effectiveUnitBorrowed, btcPrice);
+    return config.computePreview(
+      previewAmount,
+      effectiveBtcLocked,
+      effectiveUnitBorrowed,
+      btcPrice
+    );
   }, [config, previewAmount, effectiveBtcLocked, effectiveUnitBorrowed, btcPrice]);
 
   const hasChanges = previewAmount > 0;
@@ -231,7 +260,16 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
       hasSufficientBtc,
       additionalData
     );
-  }, [config, amountConfig.value, amountConfig.maxValue, effectiveBtcLocked, effectiveUnitBorrowed, preview, hasSufficientBtc, additionalData]);
+  }, [
+    config,
+    amountConfig.value,
+    amountConfig.maxValue,
+    effectiveBtcLocked,
+    effectiveUnitBorrowed,
+    preview,
+    hasSufficientBtc,
+    additionalData,
+  ]);
 
   // Empty state
   const emptyState = useMemo(() => {
@@ -260,8 +298,15 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     }, 900);
     (continueUnlockTimerRef.current as { unref?: () => void }).unref?.();
 
-    if (storedReceiveAsset && receiveAsset && storedReceiveAsset !== receiveAsset && 'setReceiveAsset' in store) {
-      (store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }).setReceiveAsset(receiveAsset);
+    if (
+      storedReceiveAsset &&
+      receiveAsset &&
+      storedReceiveAsset !== receiveAsset &&
+      'setReceiveAsset' in store
+    ) {
+      (
+        store as { setReceiveAsset: (asset: VaultSettlementRequestedAsset) => void }
+      ).setReceiveAsset(receiveAsset);
     }
     if (config.routes.selection) {
       store.setCurrentStep('payout');
@@ -270,7 +315,16 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     }
     store.setCurrentStep('confirm');
     navigation.navigate(config.routes.confirm);
-  }, [validation.canContinue, isContinuing, storedReceiveAsset, receiveAsset, store, navigation, config.routes.selection, config.routes.confirm]);
+  }, [
+    validation.canContinue,
+    isContinuing,
+    storedReceiveAsset,
+    receiveAsset,
+    store,
+    navigation,
+    config.routes.selection,
+    config.routes.confirm,
+  ]);
 
   const handleLiveValueChange = useCallback((val: number) => {
     setPreviewAmount(val);

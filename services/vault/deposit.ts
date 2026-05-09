@@ -2,20 +2,22 @@
  * Vault Deposit Operations
  */
 
-import type {
-  GuardianSocket,
-  PriceQuote,
-  VaultDepositCtx,
-  VaultProfile,
-  VaultWallet,
-  WalletVaultDepositConfig,
-  WalletVaultDepositRequest,
+import {
+  VaultAPI,
+  type GuardianSocket,
+  type PriceQuote,
+  type VaultDepositCtx,
+  type VaultProfile,
+  type VaultWallet,
+  type WalletVaultDepositConfig,
+  type WalletVaultDepositRequest,
 } from '@ducat-unit/client-sdk';
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { Utxo, withVaultOperationLock } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -27,6 +29,32 @@ export interface CreateDepositReqOptions {
   vaultProfile: VaultProfile;
   isMaxAmount?: boolean;
   utxos?: Utxo[];
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isInsufficientSatsError(error: unknown): boolean {
+  return /insufficient sats/i.test(errorMessage(error));
+}
+
+function getDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): number {
+  return VaultAPI.deposit.get_change(vaultCtx as never, utxos as never);
+}
+
+function assertDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): void {
+  const changeSats = getDepositChange(vaultCtx, utxos);
+
+  if (changeSats < 0) {
+    throw new Error(
+      'Not enough BTC to cover the deposit and vault transaction fee. Try a slightly smaller amount.'
+    );
+  }
+
+  if (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT) {
+    throw new Error('Deposit would leave dust change. Try a slightly smaller amount.');
+  }
 }
 
 /**
@@ -65,73 +93,104 @@ export async function createVaultReqDeposit(
 ): Promise<WalletVaultDepositRequest> {
   // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
   return withVaultOperationLock(async () => {
-  logger.debug('[VaultOps] Creating deposit request...');
+    logger.debug('[VaultOps] Creating deposit request...');
 
-  try {
-    const { feeRate, oracleQuote, vaultProfile, isMaxAmount } = options;
-
-    // SECURITY: Re-validate oracle price freshness before building transaction.
-    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
-      throw new Error(
-        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
-      );
-    }
-
-    logger.debug('[VaultOps] Deposit context inputs:', {
-      oracleQuote: !!oracleQuote,
-      vaultProfile: {
-        acct_id: vaultProfile.acct_id,
-        guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
-        master_id: vaultProfile.master_id,
-        vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
-        hasRdata: !!vaultProfile.rdata,
-        hasUtxo: !!vaultProfile.utxo,
-      },
-      depositAmount: depositConfig.deposit_amount,
-    });
-
-    // Create deposit context
-    const vaultCtx: VaultDepositCtx = wallet.vault.deposit.ctx(
-      oracleQuote,
-      vaultProfile,
-      depositConfig
-    );
-
-    // Get UTXOs for the transaction
-    let utxos = options.utxos;
-    if (!isMaxAmount && !utxos) {
-      const txQuote = wallet.vault.deposit.quote(vaultCtx);
-      const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
-      utxos = await wallet.fetch.sats_utxos(costWithVins);
-    }
-
-    if (!utxos || utxos.length === 0) {
-      throw new Error('No UTXOs available for deposit transaction');
-    }
-
-    let depositReq: WalletVaultDepositRequest;
-    setPendingVaultSigningOperation({
-      action: 'deposit',
-      ctx: vaultCtx,
-      satsUtxos: utxos,
-    });
     try {
-      depositReq = await wallet.vault.deposit.req(vaultCtx, utxos);
-    } finally {
-      clearPendingVaultSigningOperation();
+      const { feeRate, oracleQuote, vaultProfile } = options;
+
+      // SECURITY: Re-validate oracle price freshness before building transaction.
+      const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+      if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+        throw new Error(
+          `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+        );
+      }
+
+      logger.debug('[VaultOps] Deposit context inputs:', {
+        oracleQuote: !!oracleQuote,
+        vaultProfile: {
+          acct_id: vaultProfile.acct_id,
+          guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
+          master_id: vaultProfile.master_id,
+          vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
+          hasRdata: !!vaultProfile.rdata,
+          hasUtxo: !!vaultProfile.utxo,
+        },
+        depositAmount: depositConfig.deposit_amount,
+      });
+
+      // Create deposit context
+      const vaultCtx: VaultDepositCtx = wallet.vault.deposit.ctx(
+        oracleQuote,
+        vaultProfile,
+        depositConfig
+      );
+
+      // Get UTXOs for the transaction
+      let utxos = options.utxos;
+      if (!utxos) {
+        const txQuote = wallet.vault.deposit.quote(vaultCtx);
+        const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
+        try {
+          utxos = await withVaultBuildTimeout(
+            wallet.fetch.sats_utxos(costWithVins),
+            'Timed out fetching BTC UTXOs for deposit. Please try again.'
+          );
+        } catch (error) {
+          if (!isInsufficientSatsError(error)) {
+            throw error;
+          }
+
+          const allUtxos = await withVaultBuildTimeout(
+            wallet.fetch.sats_utxos(),
+            'Timed out fetching BTC UTXOs for max deposit. Please try again.'
+          );
+
+          if (allUtxos.length === 0) {
+            throw new Error('No UTXOs available for deposit transaction');
+          }
+
+          assertDepositChange(vaultCtx, allUtxos);
+          logger.debug('[VaultOps] Falling back to all BTC UTXOs for near-max deposit', {
+            utxoCount: allUtxos.length,
+            depositAmount: depositConfig.deposit_amount,
+            changeSats: getDepositChange(vaultCtx, allUtxos),
+          });
+          utxos = allUtxos;
+        }
+      }
+
+      if (!utxos || utxos.length === 0) {
+        throw new Error('No UTXOs available for deposit transaction');
+      }
+
+      assertDepositChange(vaultCtx, utxos);
+
+      let depositReq: WalletVaultDepositRequest;
+      setPendingVaultSigningOperation({
+        action: 'deposit',
+        ctx: vaultCtx,
+        satsUtxos: utxos,
+      });
+      try {
+        depositReq = await withVaultBuildTimeout(
+          wallet.vault.deposit.req(vaultCtx, utxos),
+          'Timed out building the deposit transaction. Please try again.'
+        );
+      } finally {
+        clearPendingVaultSigningOperation();
+      }
+
+      logger.debug('[VaultOps] Deposit request created:', {
+        vault_txid: depositReq.vault_txid,
+        sats_inputs_count: depositReq.sats_inputs?.length,
+      });
+
+      return depositReq;
+    } catch (error) {
+      logger.error('[VaultOps] Failed to create deposit request:', { error });
+      throw error;
     }
-
-    logger.debug('[VaultOps] Deposit request created:', {
-      vault_txid: depositReq.vault_txid,
-      sats_inputs_count: depositReq.sats_inputs?.length,
-    });
-
-    return depositReq;
-  } catch (error) {
-    logger.error('[VaultOps] Failed to create deposit request:', { error });
-    throw error;
-  }
   }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
@@ -160,10 +219,10 @@ export async function guardianSendReqDeposit(
     // This mirrors the web frontend behavior and was empirically determined.
     await new Promise((resolve) => setTimeout(resolve, 350));
 
-    const guardRes = await withGuardianTimeout(
+    const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
-    ) as { vault_txid: string };
+    )) as { vault_txid: string };
 
     const vault_txid = guardRes.vault_txid;
 

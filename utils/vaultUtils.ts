@@ -85,11 +85,7 @@ export function getOpCostRepay(feeRate: number, utxos?: Utxo[]): number {
 export function getVaultSettlementReserveSats(feeRate: number): number {
   const estimatedSettlementVbytes = 250;
   const settlementBufferSats = 5_000;
-  return (
-    BITCOIN_TX.RUNE_OUTPUT_AMOUNT +
-    feeRate * estimatedSettlementVbytes +
-    settlementBufferSats
-  );
+  return BITCOIN_TX.RUNE_OUTPUT_AMOUNT + feeRate * estimatedSettlementVbytes + settlementBufferSats;
 }
 
 /**
@@ -108,6 +104,19 @@ export function getOpCostDeposit(feeRate: number, utxos?: Utxo[]): number {
   } as never);
 
   return txQuote.total_cost + vinAllowanceSats;
+}
+
+/**
+ * Calculates the estimated sats consumed by a vault withdraw action.
+ * Withdraw fees come out of the vault output itself, not the wallet balance.
+ */
+export function getOpCostWithdraw(feeRate: number): number {
+  const txQuote = VaultAPI.withdraw.get_quote({
+    change_amount: 0,
+    tx_feerate: feeRate,
+  } as never);
+
+  return txQuote.tx_cost ?? txQuote.total_cost;
 }
 
 export interface Utxo {
@@ -204,9 +213,9 @@ export function computeHealthFactor(
 ): number {
   if (unitInVault === 0) return 0;
   // Use bigint math to avoid overflow for large positions while keeping original units.
-  const scaledBtc = BigInt(Math.trunc(btcInVault * 1e8));       // sats
-  const scaledPrice = BigInt(Math.trunc(bitcoinPrice * 1e2));   // cents
-  const scaledUnit = BigInt(Math.trunc(unitInVault * 1e2));     // UNIT cents
+  const scaledBtc = BigInt(Math.trunc(btcInVault * 1e8)); // sats
+  const scaledPrice = BigInt(Math.trunc(bitcoinPrice * 1e2)); // cents
+  const scaledUnit = BigInt(Math.trunc(unitInVault * 1e2)); // UNIT cents
 
   if (scaledUnit === 0n) return 0;
 
