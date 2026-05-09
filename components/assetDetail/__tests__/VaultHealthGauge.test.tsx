@@ -51,15 +51,28 @@ describe('VaultHealthGauge repay action', () => {
   it('allows repay when TurboUNIT contributes to repayable balance', () => {
     const onRepayPress = jest.fn();
     const { getByTestId } = render(
-      <VaultHealthGauge
-        {...baseProps}
-        walletRepayBalance={50}
-        onRepayPress={onRepayPress}
-      />,
+      <VaultHealthGauge {...baseProps} walletRepayBalance={50} onRepayPress={onRepayPress} />
     );
 
     fireEvent.press(getByTestId('vault-detail-repay-btn'));
 
     expect(onRepayPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows borrow when a vault has collateral and no debt', () => {
+    const onBorrowPress = jest.fn();
+    const { getByTestId } = render(
+      <VaultHealthGauge
+        {...baseProps}
+        totalDebt={0}
+        totalCollateral={0.05}
+        healthPercentage={0}
+        onBorrowPress={onBorrowPress}
+      />
+    );
+
+    fireEvent.press(getByTestId('vault-detail-borrow-btn'));
+
+    expect(onBorrowPress).toHaveBeenCalledTimes(1);
   });
 });
