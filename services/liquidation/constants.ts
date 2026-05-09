@@ -35,4 +35,4 @@ export const SWAP_PSBT_MIN_FEE_BUFFER_SATS = 10_000;
 export const FAUCET_SWAP_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
 
 /** Liquidation validator base URL */
-export const LIQ_VALIDATOR_URL = 'https://validator.staging.ducatprotocol.com/liq';
+export const LIQ_VALIDATOR_URL = 'https://validator.ducatprotocol.com/liq';

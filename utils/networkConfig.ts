@@ -130,8 +130,7 @@ function resolveMutinynetConfig(): AppNetworkConfig {
         getEnv('EXPO_PUBLIC_GUARDIAN_WS_URL') ?? 'wss://guardian-mutinynet-1.ducatprotocol.com',
       quoteServer: getEnv('EXPO_PUBLIC_QUOTE_SERVER_URL') ?? 'https://quote.ducatprotocol.com',
       priceServer: getEnv('EXPO_PUBLIC_PRICE_SERVER_URL') ?? 'https://price.ducatprotocol.com',
-      vaultUrl:
-        getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.staging.ducatprotocol.com/api',
+      vaultUrl: getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.ducatprotocol.com/api',
       phoneUrl: getEnv('EXPO_PUBLIC_PHONE_URL') ?? 'https://phone.ducatprotocol.com',
       coingeckoUrl: 'https://api.coingecko.com/api/v3',
       feeRecommendationsUrl:
