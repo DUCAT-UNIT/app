@@ -15,6 +15,7 @@ import { analytics } from '../services/analyticsService';
 import { VAULT_EVENTS } from '../constants/analyticsEvents';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+import { isPendingVaultTransactionApplied } from '../utils/vaultPendingGuard';
 import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
@@ -69,20 +70,29 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
         pendingVaultTxid: pendingVaultTx.vaultTxid,
         pendingAction: pendingVaultTx.action,
         historyCount: vault.vaultTransactions.length,
-        historyTxIds: vault.vaultTransactions.slice(0, 5).map(tx => tx.transaction_id),
+        historyTxIds: vault.vaultTransactions.slice(0, 5).map((tx) => tx.transaction_id),
       });
 
-      const isConfirmed = vault.vaultTransactions.some(
-        tx => tx.transaction_id === pendingVaultTx.txid ||
-              tx.transaction_id === pendingVaultTx.vaultTxid
+      const isInHistory = vault.vaultTransactions.some(
+        (tx) =>
+          tx.transaction_id === pendingVaultTx.txid ||
+          tx.transaction_id === pendingVaultTx.vaultTxid
+      );
+      const isApplied = isPendingVaultTransactionApplied(
+        pendingVaultTx,
+        vault.vaultData,
+        vault.vaultTransactions
       );
 
-      logger.debug('[VaultContext] Confirmation check result', { isConfirmed });
+      logger.debug('[VaultContext] Confirmation check result', { isInHistory, isApplied });
 
-      if (isConfirmed) {
+      if (isApplied) {
         const confirmedAction = pendingVaultTx.action;
         const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
-        logger.info('[VaultContext] Vault transaction confirmed', { action: confirmedAction, txid: confirmedTxid });
+        logger.info('[VaultContext] Vault transaction confirmed', {
+          action: confirmedAction,
+          txid: confirmedTxid,
+        });
         usePendingVaultTransactionStore.getState().clearPendingTransaction();
         const currentSnackbar = useNotificationStore.getState().snackbar;
         const intentStep = useSendFlowStore.getState().intentStep;
@@ -93,11 +103,14 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
             txid: confirmedTxid,
           });
         } else {
-          logger.debug('[VaultContext] Skipping vault confirmation snackbar', { hasSnackbar: !!currentSnackbar, intentStep });
+          logger.debug('[VaultContext] Skipping vault confirmation snackbar', {
+            hasSnackbar: !!currentSnackbar,
+            intentStep,
+          });
         }
       }
     }
-  }, [pendingVaultTx, vault.vaultTransactions]);
+  }, [pendingVaultTx, vault.vaultData, vault.vaultTransactions]);
 
   // ============================================================
   // VAULT HEALTH ALERTS (local notifications)
@@ -200,7 +213,9 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
     const rawRatio = vaultInfo.collateral_ratio;
     const healthPercent = rawRatio > 50 ? rawRatio : rawRatio * 100;
     if (rawRatio > 50) {
-      logger.warn('[VaultContext] collateral_ratio appears to already be a percentage', { rawRatio });
+      logger.warn('[VaultContext] collateral_ratio appears to already be a percentage', {
+        rawRatio,
+      });
     }
     if (typeof healthPercent === 'number' && healthPercent > 0) {
       checkVaultHealthAlert(healthPercent).catch(() => undefined);

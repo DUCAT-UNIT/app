@@ -11,6 +11,7 @@ import {
   resolveVaultSettlementRequestedAsset,
   type VaultSettlementRequestedAsset,
 } from '../../../stores/vaultSettlementStore';
+import { usePendingVaultTx } from '../../../stores/pendingVaultTransactionStore';
 import { usePriceStore } from '../../../stores/priceStore';
 import {
   computeHealthFactor,
@@ -21,6 +22,10 @@ import {
   getOpCostWithdraw,
   getVaultSettlementReserveSats,
 } from '../../../utils/vaultUtils';
+import {
+  getPendingVaultOperationMessage,
+  shouldBlockVaultOperationForPendingTx,
+} from '../../../utils/vaultPendingGuard';
 import { dismissVaultActionFlow } from '../navigation';
 import type {
   AmountConfig,
@@ -106,6 +111,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { segwitBalance, utxos } = useBalance();
   const { vaultData } = useVaultData();
+  const pendingVaultTransaction = usePendingVaultTx();
 
   // Use vault data directly from context for immediate display
   const contextBtcLocked = vaultData?.totalCollateral ?? 0;
@@ -250,7 +256,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   const hasChanges = previewAmount > 0;
 
   // Validation
-  const validation = useMemo(() => {
+  const baseValidation = useMemo(() => {
     return config.validate(
       amountConfig.value,
       amountConfig.maxValue,
@@ -270,6 +276,20 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     hasSufficientBtc,
     additionalData,
   ]);
+  const validation = useMemo(() => {
+    if (!shouldBlockVaultOperationForPendingTx(config.operationType, pendingVaultTransaction)) {
+      return baseValidation;
+    }
+
+    const pendingMessage = getPendingVaultOperationMessage(pendingVaultTransaction);
+    return {
+      ...baseValidation,
+      canContinue: false,
+      errors: baseValidation.errors.includes(pendingMessage)
+        ? baseValidation.errors
+        : [...baseValidation.errors, pendingMessage],
+    };
+  }, [baseValidation, config.operationType, pendingVaultTransaction]);
 
   // Empty state
   const emptyState = useMemo(() => {

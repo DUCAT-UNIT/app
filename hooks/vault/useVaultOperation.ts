@@ -36,6 +36,10 @@ import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import {
+  getPendingVaultOperationMessage,
+  shouldBlockVaultOperationForPendingTx,
+} from '../../utils/vaultPendingGuard';
+import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
 } from '../../services/vault/pendingIssueOutputs';
@@ -104,6 +108,9 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   // Global store actions
   const setPendingTransaction = usePendingVaultTransactionStore(
     (s) => s.setPendingTransaction
+  );
+  const pendingVaultTransaction = usePendingVaultTransactionStore(
+    (s) => s.pendingTransaction
   );
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
@@ -225,6 +232,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     // Prevent double execution
     if (operationInProgressRef.current) {
       logger.warn(`[${operationName}] Operation already in progress`);
+      return null;
+    }
+
+    if (shouldBlockVaultOperationForPendingTx(operationType, pendingVaultTransaction)) {
+      const pendingMessage = getPendingVaultOperationMessage(pendingVaultTransaction);
+      logger.warn(`[${operationName}] Blocking vault operation while prior vault tx updates`, {
+        pendingAction: pendingVaultTransaction?.action,
+        pendingTxid: pendingVaultTransaction?.vaultTxid || pendingVaultTransaction?.txid,
+      });
+      setError(pendingMessage);
+      showSnackbar({
+        title: 'Vault transaction pending',
+        description: pendingMessage,
+        type: 'warning',
+        duration: 7000,
+      });
       return null;
     }
 
@@ -449,6 +472,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     selectedFeeRate,
     currentUnitBorrowed,
     currentBtcLocked,
+    pendingVaultTransaction,
     operationName,
     operationType,
     needsReservation,

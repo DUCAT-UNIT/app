@@ -12,6 +12,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { COLORS } from '../../theme';
 import { formatBalance,formatFiat } from '../../utils/formatters';
+import { PENDING_VAULT_OPERATION_MESSAGE } from '../../utils/vaultPendingGuard';
 import Icon from '../icons';
 import {
 calculateDynamicRadius,
@@ -66,7 +67,7 @@ export const VaultHealthGauge = memo(function VaultHealthGauge({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
       title: 'Transaction pending',
-      description: 'Please wait for the current vault transaction to confirm',
+      description: PENDING_VAULT_OPERATION_MESSAGE,
       type: 'warning',
     });
   }, []);
