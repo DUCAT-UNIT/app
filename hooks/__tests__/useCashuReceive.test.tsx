@@ -144,6 +144,24 @@ describe('useCashuReceive', () => {
       expect(mockProps.startMint).toHaveBeenCalledWith(100);
     });
 
+    it('should show alert when mint amount exceeds on-chain UNIT balance', async () => {
+      const { result } = renderHookWithProps({ ...mockProps, availableRunesCents: 50 });
+
+      act(() => {
+        result.current!.setAmount('100');
+      });
+
+      await act(async () => {
+        await result.current!.handleStartMint();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Insufficient On-chain UNIT',
+        'You only have 0.50 on-chain UNIT available to mint.'
+      );
+      expect(mockProps.startMint).not.toHaveBeenCalled();
+    });
+
     it('should handle startMint error', async () => {
       mockProps.startMint.mockRejectedValue(new Error('Mint failed'));
       const { result } = renderHookWithProps(mockProps);
@@ -255,6 +273,25 @@ describe('useCashuReceive', () => {
 
       expect(mockProps.startMint).toHaveBeenCalledWith(100);
       expect(mockNavigation.dispatch).toHaveBeenCalled();
+    });
+
+    it('should not create a mint intent when on-chain UNIT is unavailable', async () => {
+      const { result } = renderHookWithProps({ ...mockProps, availableRunesCents: 0 });
+
+      act(() => {
+        result.current!.setAmount('1');
+      });
+
+      await act(async () => {
+        await result.current!.handleAutoMint();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Insufficient On-chain UNIT',
+        'You only have 0.00 on-chain UNIT available to mint.'
+      );
+      expect(mockProps.startMint).not.toHaveBeenCalled();
+      expect(mockNavigation.dispatch).not.toHaveBeenCalled();
     });
   });
 

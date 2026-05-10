@@ -62,6 +62,7 @@ interface UseAppSettingsReturn {
   showNotificationsModal: boolean;
   confirmNotificationsToggle: () => Promise<void>;
   cancelNotificationsToggle: () => void;
+  completeNotificationsEnableAfterAuth: () => Promise<void>;
 }
 
 export function useAppSettings({
@@ -211,6 +212,49 @@ export function useAppSettings({
     setShowNotificationsModal(true);
   }, [notificationsEnabled]);
 
+  const enableNotificationsPreference = useCallback(async (): Promise<boolean> => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        setNotificationsEnabled(false);
+        await persistBooleanOrThrow(
+          SettingKeys.NOTIFICATIONS_ENABLED,
+          false,
+          'Failed to persist notifications setting'
+        );
+        notify.settings.notificationsFailed();
+        return false;
+      }
+
+      setNotificationsEnabled(true);
+      await persistBooleanOrThrow(
+        SettingKeys.NOTIFICATIONS_ENABLED,
+        true,
+        'Failed to persist notifications setting'
+      );
+      notify.settings.notificationsEnabled();
+      return true;
+    } catch (error: unknown) {
+      setNotificationsEnabled(false);
+      logger.error('Failed to enable notifications', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      notify.settings.notificationsFailed();
+      return false;
+    }
+  }, [persistBooleanOrThrow]);
+
+  const completeNotificationsEnableAfterAuth = useCallback(async (): Promise<void> => {
+    await enableNotificationsPreference();
+  }, [enableNotificationsPreference]);
+
   const confirmNotificationsToggle = useCallback(async () => {
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
@@ -244,6 +288,9 @@ export function useAppSettings({
             true,
             'Failed to persist return-to-settings flag'
           );
+
+          await enableNotificationsPreference();
+          return;
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           logger.warn('Biometric auth failed for notifications toggle', {
@@ -288,11 +335,7 @@ export function useAppSettings({
         newValue,
         'Failed to persist notifications setting'
       );
-      if (newValue) {
-        notify.settings.notificationsEnabled();
-      } else {
-        notify.settings.notificationsDisabled();
-      }
+      notify.settings.notificationsDisabled();
     } catch (error: unknown) {
       setNotificationsEnabled(!newValue);
       logger.error('Failed to save notification setting', {
@@ -301,7 +344,13 @@ export function useAppSettings({
       });
       notify.settings.notificationsFailed();
     }
-  }, [pendingNotificationsValue, biometricEnabled, persistBooleanOrThrow, setIsAuthenticated]);
+  }, [
+    pendingNotificationsValue,
+    biometricEnabled,
+    persistBooleanOrThrow,
+    setIsAuthenticated,
+    enableNotificationsPreference,
+  ]);
 
   const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
@@ -488,6 +537,7 @@ export function useAppSettings({
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     }),
     [
       notificationsEnabled,
@@ -509,6 +559,7 @@ export function useAppSettings({
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     ]
   );
 }

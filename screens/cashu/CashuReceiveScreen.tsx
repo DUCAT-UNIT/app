@@ -19,10 +19,12 @@ import { useNavigation, NavigationProp, RouteProp } from '@react-navigation/nati
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useCashuOperations } from '../../contexts/CashuContext';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useCashuReceive } from '../../hooks/useCashuReceive';
+import { getRunesAmount } from '../../utils/runesHelper';
 import styles, { QR_SIZE, LOGO_SIZE } from './CashuReceiveScreen.styles';
 
 /**
@@ -44,6 +46,12 @@ interface CashuReceiveScreenProps {
 export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): React.JSX.Element {
   const navigation = useNavigation<NavigationProp<Record<string, object | undefined>>>();
   const { startMint, checkAndCompleteMint, receive } = useCashuOperations();
+  const { runesBalance } = useBalance();
+  const onChainUnitBalance = React.useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  const availableRunesCents = React.useMemo(
+    () => Math.round(onChainUnitBalance * 100),
+    [onChainUnitBalance]
+  );
 
   const {
     mode,
@@ -65,7 +73,10 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     receive,
     navigation,
     initialMode: route?.params?.mode,
+    availableRunesCents,
   });
+
+  const mintDisabled = !amount || isLoading || availableRunesCents <= 0;
 
   // Choose mode
   if (mode === 'choose') {
@@ -182,10 +193,20 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             />
           </View>
 
+          {availableRunesCents <= 0 ? (
+            <Text style={styles.warningText}>
+              You need on-chain UNIT before minting Turbo UNIT.
+            </Text>
+          ) : (
+            <Text style={styles.balanceText}>
+              Available on-chain UNIT: {onChainUnitBalance.toFixed(2)}
+            </Text>
+          )}
+
           <TouchableScale
-            style={[styles.button, !amount && styles.buttonDisabled]}
+            style={[styles.button, mintDisabled && styles.buttonDisabled]}
             onPress={handleAutoMint}
-            disabled={!amount || isLoading}
+            disabled={mintDisabled}
             testID="cashu-mint-btn"
           >
             {isLoading ? (

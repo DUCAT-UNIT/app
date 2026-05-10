@@ -23,6 +23,7 @@ interface UseCashuReceiveParams {
   receive: (token: string) => Promise<ReceiveTokenResult>;
   navigation: NavigationProp<Record<string, object | undefined>>;
   initialMode?: ReceiveMode;
+  availableRunesCents?: number;
 }
 
 interface UseCashuReceiveReturn {
@@ -48,6 +49,7 @@ export function useCashuReceive({
   receive,
   navigation,
   initialMode,
+  availableRunesCents,
 }: UseCashuReceiveParams): UseCashuReceiveReturn {
   const [mode, setMode] = useState<ReceiveMode>(initialMode ?? 'choose');
   const [amount, setAmount] = useState('');
@@ -113,6 +115,14 @@ export function useCashuReceive({
       return;
     }
 
+    if (availableRunesCents !== undefined && amountNum > availableRunesCents) {
+      Alert.alert(
+        'Insufficient On-chain UNIT',
+        `You only have ${(availableRunesCents / 100).toFixed(2)} on-chain UNIT available to mint.`
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const quote = await startMint(amountNum);
@@ -127,7 +137,7 @@ export function useCashuReceive({
         setIsLoading(false);
       }
     }
-  }, [amount, startMint]);
+  }, [amount, availableRunesCents, startMint]);
 
   const handleReceiveToken = useCallback(async (): Promise<void> => {
     if (!pasteValue.trim()) {
@@ -161,6 +171,14 @@ export function useCashuReceive({
       return;
     }
 
+    if (availableRunesCents !== undefined && amountNum > availableRunesCents) {
+      Alert.alert(
+        'Insufficient On-chain UNIT',
+        `You only have ${(availableRunesCents / 100).toFixed(2)} on-chain UNIT available to mint.`
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const quote = await startMint(amountNum);
@@ -190,7 +208,7 @@ export function useCashuReceive({
         setIsLoading(false);
       }
     }
-  }, [amount, startMint, navigation]);
+  }, [amount, availableRunesCents, startMint, navigation]);
 
   const handleCopyAddress = useCallback(async (address: string | undefined, setStringAsync: (value: string) => Promise<boolean>): Promise<void> => {
     if (address) {
