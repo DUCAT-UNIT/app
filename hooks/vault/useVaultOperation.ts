@@ -34,7 +34,12 @@ import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
+import { getNotificationsEnabled } from '../../services/settingsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import {
+  getPendingVaultOperationMessage,
+  shouldBlockVaultOperationForPendingTx,
+} from '../../utils/vaultPendingGuard';
 import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
@@ -139,6 +144,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
     (s) => s.clearPendingTransactionForAccount
   );
+  const pendingVaultTransaction = usePendingVaultTransactionStore((s) => s.pendingTransaction);
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
   const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
@@ -251,6 +257,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     // Prevent double execution
     if (operationInProgressRef.current) {
       logger.warn(`[${operationName}] Operation already in progress`);
+      return null;
+    }
+
+    if (shouldBlockVaultOperationForPendingTx(operationType, pendingVaultTransaction)) {
+      const pendingMessage = getPendingVaultOperationMessage(pendingVaultTransaction);
+      logger.warn(`[${operationName}] Blocking vault operation while prior vault tx updates`, {
+        pendingAction: pendingVaultTransaction?.action,
+        pendingTxid: pendingVaultTransaction?.vaultTxid || pendingVaultTransaction?.txid,
+      });
+      setError(pendingMessage);
+      showSnackbar({
+        title: 'Vault transaction pending',
+        description: pendingMessage,
+        type: 'warning',
+        duration: 7000,
+      });
       return null;
     }
 
@@ -498,8 +520,10 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         operation: operationName,
       });
 
-      // Register vault TX for push-notification monitoring (fire-and-forget)
-      watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
+      // Register vault TX for push-notification monitoring only when explicitly enabled.
+      if (await getNotificationsEnabled()) {
+        void watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
+      }
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {
@@ -549,6 +573,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     selectedFeeRate,
     currentUnitBorrowed,
     currentBtcLocked,
+    pendingVaultTransaction,
     operationName,
     operationType,
     needsReservation,

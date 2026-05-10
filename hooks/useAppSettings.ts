@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Linking } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import { recoverLockedChange } from '../services/cashu/cashuWalletService';
 import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
 import { clearCashuCache } from '../services/cacheService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
@@ -18,6 +18,7 @@ import {
 import {
   getBoolean,
   getNumber,
+  exists,
   SettingKeys,
   setBoolean,
   setNumber,
@@ -78,6 +79,7 @@ interface UseAppSettingsReturn {
   showNotificationsModal: boolean;
   confirmNotificationsToggle: () => Promise<void>;
   cancelNotificationsToggle: () => void;
+  completeNotificationsEnableAfterAuth: () => Promise<void>;
 }
 
 export function useAppSettings({
@@ -98,7 +100,18 @@ export function useAppSettings({
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        setNotificationsEnabled(await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false));
+        const hasStoredNotificationPreference = await exists(SettingKeys.NOTIFICATIONS_ENABLED);
+        let storedNotificationsEnabled = await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false);
+
+        if (!hasStoredNotificationPreference) {
+          const permissions = await Notifications.getPermissionsAsync();
+          if (permissions.status === 'granted') {
+            storedNotificationsEnabled = true;
+            await setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, true);
+          }
+        }
+
+        setNotificationsEnabled(storedNotificationsEnabled);
         setShowZeroAssets(await getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false));
         setAdvancedMode(await getBoolean(SettingKeys.ADVANCED_MODE, false));
         setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 10000));
@@ -216,6 +229,49 @@ export function useAppSettings({
     setShowNotificationsModal(true);
   }, [notificationsEnabled]);
 
+  const enableNotificationsPreference = useCallback(async (): Promise<boolean> => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        setNotificationsEnabled(false);
+        await persistBooleanOrThrow(
+          SettingKeys.NOTIFICATIONS_ENABLED,
+          false,
+          'Failed to persist notifications setting'
+        );
+        notify.settings.notificationsFailed();
+        return false;
+      }
+
+      setNotificationsEnabled(true);
+      await persistBooleanOrThrow(
+        SettingKeys.NOTIFICATIONS_ENABLED,
+        true,
+        'Failed to persist notifications setting'
+      );
+      notify.settings.notificationsEnabled();
+      return true;
+    } catch (error: unknown) {
+      setNotificationsEnabled(false);
+      logger.error('Failed to enable notifications', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      notify.settings.notificationsFailed();
+      return false;
+    }
+  }, [persistBooleanOrThrow]);
+
+  const completeNotificationsEnableAfterAuth = useCallback(async (): Promise<void> => {
+    await enableNotificationsPreference();
+  }, [enableNotificationsPreference]);
+
   const confirmNotificationsToggle = useCallback(async () => {
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
@@ -249,6 +305,9 @@ export function useAppSettings({
             true,
             'Failed to persist return-to-settings flag'
           );
+
+          await enableNotificationsPreference();
+          return;
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           logger.warn('Biometric auth failed for notifications toggle', {
@@ -293,11 +352,7 @@ export function useAppSettings({
         newValue,
         'Failed to persist notifications setting'
       );
-      if (newValue) {
-        notify.settings.notificationsEnabled();
-      } else {
-        notify.settings.notificationsDisabled();
-      }
+      notify.settings.notificationsDisabled();
     } catch (error: unknown) {
       setNotificationsEnabled(!newValue);
       logger.error('Failed to save notification setting', {
@@ -306,7 +361,13 @@ export function useAppSettings({
       });
       notify.settings.notificationsFailed();
     }
-  }, [pendingNotificationsValue, biometricEnabled, persistBooleanOrThrow, setIsAuthenticated]);
+  }, [
+    pendingNotificationsValue,
+    biometricEnabled,
+    persistBooleanOrThrow,
+    setIsAuthenticated,
+    enableNotificationsPreference,
+  ]);
 
   const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
@@ -329,6 +390,10 @@ export function useAppSettings({
     try {
       notify.cashu.recoveringChange();
 
+      const { recoverLockedChange } = await Promise.resolve().then(
+        () =>
+          require('../services/cashu/cashuWalletService') as typeof import('../services/cashu/cashuWalletService')
+      );
       logger.debug('[useAppSettings] Calling recoverLockedChange');
       const [unitRecovery, satRecovery] = await Promise.allSettled([
         recoverLockedChange('unit'),
@@ -523,6 +588,7 @@ export function useAppSettings({
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     }),
     [
       notificationsEnabled,
@@ -544,6 +610,7 @@ export function useAppSettings({
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     ]
   );
 }

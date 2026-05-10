@@ -495,6 +495,7 @@ jest.mock('react-native', () => {
     Linking: {
       canOpenURL: jest.fn().mockResolvedValue(true),
       openURL: jest.fn().mockResolvedValue(undefined),
+      openSettings: jest.fn().mockResolvedValue(undefined),
     },
     Vibration: {
       vibrate: jest.fn(),

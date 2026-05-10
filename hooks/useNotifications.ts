@@ -9,7 +9,10 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import type { Subscription } from 'expo-notifications';
 import type { DisplayAssetType } from '../types/assets';
-import { sendLocalNotification, initializePushNotifications } from '../services/pushNotificationService';
+import {
+  sendLocalNotification,
+  initializePushNotifications,
+} from '../services/pushNotificationService';
 import { getNotificationsEnabled } from '../services/settingsService';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
@@ -38,7 +41,12 @@ export type NotificationDataType =
 export type NotificationResponseHandler = (dataType: NotificationDataType) => void;
 
 interface UseNotificationsReturn {
-  sendTransactionConfirmedNotification: (assetType: DisplayAssetType, amount: string, txid: string, type?: TransactionType) => Promise<void>;
+  sendTransactionConfirmedNotification: (
+    assetType: DisplayAssetType,
+    amount: string,
+    txid: string,
+    type?: TransactionType
+  ) => Promise<void>;
   registerForPushNotificationsAsync: () => Promise<boolean>;
 }
 
@@ -46,7 +54,7 @@ export function useNotifications(
   onNotificationResponse?: NotificationResponseHandler,
   walletAddress?: string,
   notificationsEnabled?: boolean,
-  vaultPubkey?: string,
+  vaultPubkey?: string
 ): UseNotificationsReturn {
   const notificationListener = useRef<Subscription | undefined>(undefined);
   const responseListener = useRef<Subscription | undefined>(undefined);
@@ -64,36 +72,29 @@ export function useNotifications(
         }
       }
     })();
-  }, [walletAddress, notificationsEnabled]);
+  }, [walletAddress, notificationsEnabled, vaultPubkey]);
 
   useEffect(() => {
-    // Request permissions on mount
-    registerForPushNotificationsAsync();
-
     // Listen for notifications received while app is foregrounded
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        logger.debug('[Notifications] Foreground notification received', {
-          title: notification.request.content.title,
-        });
-      }
-    );
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      logger.debug('[Notifications] Foreground notification received', {
+        title: notification.request.content.title,
+      });
+    });
 
     // Listen for user interactions with notifications (tap handling)
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data as
-          | { type?: NotificationDataType }
-          | undefined;
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as
+        | { type?: NotificationDataType }
+        | undefined;
 
-        const dataType = data?.type;
-        logger.info('[Notifications] Notification tapped', { dataType });
+      const dataType = data?.type;
+      logger.info('[Notifications] Notification tapped', { dataType });
 
-        if (dataType && onNotificationResponse) {
-          onNotificationResponse(dataType);
-        }
+      if (dataType && onNotificationResponse) {
+        onNotificationResponse(dataType);
       }
-    );
+    });
 
     return () => {
       if (notificationListener.current) {
@@ -141,30 +142,33 @@ export function useNotifications(
   /**
    * Send a local notification for transaction confirmation
    */
-  const sendTransactionConfirmedNotification = useCallback(async (
-    assetType: DisplayAssetType,
-    amount: string,
-    txid: string,
-    type: TransactionType = 'withdraw'
-  ): Promise<void> => {
-    if (isE2E()) return;
+  const sendTransactionConfirmedNotification = useCallback(
+    async (
+      assetType: DisplayAssetType,
+      amount: string,
+      txid: string,
+      type: TransactionType = 'withdraw'
+    ): Promise<void> => {
+      if (isE2E()) return;
 
-    try {
-      const action = type === 'deposit' ? 'Received' : 'Sent';
-      const title = `${action} ${assetType}`;
-      const body = `${action} ${amount} ${assetType} successfully.`;
+      try {
+        const action = type === 'deposit' ? 'Received' : 'Sent';
+        const title = `${action} ${assetType}`;
+        const body = `${action} ${amount} ${assetType} successfully.`;
 
-      await sendLocalNotification({
-        title,
-        body,
-        data: { type: 'tx_confirmed' as const, txid, assetType },
-      });
-    } catch (error: unknown) {
-      logger.error('[Notifications] Failed to send transaction notification', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, []);
+        await sendLocalNotification({
+          title,
+          body,
+          data: { type: 'tx_confirmed' as const, txid, assetType },
+        });
+      } catch (error: unknown) {
+        logger.error('[Notifications] Failed to send transaction notification', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    []
+  );
 
   return {
     sendTransactionConfirmedNotification,

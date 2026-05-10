@@ -29,6 +29,7 @@ jest.mock('expo-notifications', () => ({
 // Mock pushNotificationService
 jest.mock('../../services/pushNotificationService', () => ({
   sendLocalNotification: jest.fn().mockResolvedValue(undefined),
+  initializePushNotifications: jest.fn().mockResolvedValue('ExponentPushToken[mock-token]'),
 }));
 
 // Mock e2e utility — default to non-E2E mode
@@ -71,7 +72,8 @@ describe('useNotifications', () => {
     // The setNotificationHandler is called at module load time
     // Capture it before any tests run
     if ((Notifications.setNotificationHandler as jest.Mock).mock.calls.length > 0) {
-      capturedNotificationHandler = (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
+      capturedNotificationHandler = (Notifications.setNotificationHandler as jest.Mock).mock
+        .calls[0][0];
     }
   });
 
@@ -89,7 +91,9 @@ describe('useNotifications', () => {
   describe('Notification Handler Configuration', () => {
     it('should configure notification handler to show alerts and banners', async () => {
       // Use the captured handler or get from mock calls
-      const handler = capturedNotificationHandler || (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
+      const handler =
+        capturedNotificationHandler ||
+        (Notifications.setNotificationHandler as jest.Mock).mock.calls[0][0];
       expect(handler).toBeDefined();
       expect(handler.handleNotification).toBeDefined();
 
@@ -107,7 +111,7 @@ describe('useNotifications', () => {
   });
 
   describe('Initialization', () => {
-    it('should initialize and request permissions on mount', () => {
+    it('should initialize without requesting permissions on mount', () => {
       (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
@@ -115,6 +119,8 @@ describe('useNotifications', () => {
       expect(result.current).toBeDefined();
       expect(result.current!.sendTransactionConfirmedNotification).toBeDefined();
       expect(result.current!.registerForPushNotificationsAsync).toBeDefined();
+      expect(Notifications.getPermissionsAsync).not.toHaveBeenCalled();
+      expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
     });
 
     it('should set up notification listeners on mount', () => {
@@ -129,7 +135,9 @@ describe('useNotifications', () => {
 
   describe('Permission Handling', () => {
     it('should request permissions when not already granted', async () => {
-      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'undetermined' });
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
+        status: 'undetermined',
+      });
       (Notifications.requestPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
       const { result } = renderHook(() => useNotifications());
@@ -168,7 +176,9 @@ describe('useNotifications', () => {
     });
 
     it('should handle permission request errors gracefully', async () => {
-      (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValue(new Error('Permission error'));
+      (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValue(
+        new Error('Permission error')
+      );
 
       const { result } = renderHook(() => useNotifications());
 
@@ -258,11 +268,7 @@ describe('useNotifications', () => {
       const { result } = renderHook(() => useNotifications());
 
       await act(async () => {
-        await result.current!.sendTransactionConfirmedNotification(
-          'BTC',
-          '0.002',
-          'default-txid'
-        );
+        await result.current!.sendTransactionConfirmedNotification('BTC', '0.002', 'default-txid');
       });
 
       expect(sendLocalNotification).toHaveBeenCalledWith({

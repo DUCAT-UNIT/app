@@ -5,6 +5,7 @@
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 import * as biometricService from '../../services/biometricService';
 import { recoverLockedChange } from '../../services/cashu/cashuWalletService';
 import { useAppSettings, type UseAppSettingsParams } from '../useAppSettings';
@@ -43,6 +44,7 @@ jest.mock('../../services/biometricService', () => ({
 
 // Mock cashuWalletService
 jest.mock('../../services/cashu/cashuWalletService', () => ({
+  __esModule: true,
   recoverLockedChange: jest.fn(),
 }));
 
@@ -77,6 +79,7 @@ describe('useAppSettings', () => {
     jest.clearAllMocks();
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(null);
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
     (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
   });
 
@@ -105,6 +108,20 @@ describe('useAppSettings', () => {
 
       expect(result.current!.notificationsEnabled).toBe(true);
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith('notificationsEnabled');
+    });
+
+    it('should migrate notifications to enabled when OS permission is already granted and no preference exists', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(result.current!.notificationsEnabled).toBe(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
     });
 
     it('should load showZeroAssets from SecureStore', async () => {
@@ -245,6 +262,10 @@ describe('useAppSettings', () => {
       });
 
       const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
       act(() => {
         result.current!.handleNotificationsToggle();

@@ -5,18 +5,19 @@
 import type {
   GuardianSocket,
   UnitAccountResponse,
+  VaultOpenCtx,
   VaultWallet,
   WalletVaultOpenConfig,
   WalletVaultOpenRequest,
 } from '@ducat-unit/client-sdk';
+import { VaultAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
-import { VAULT_CONFIG } from '../../utils/constants';
+import { BITCOIN_TX, VAULT_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { withGuardianTimeout } from '../guardianService';
 import { generateVaultName } from '../../utils/vaultUtils';
-import { checkBatchAllowed, extractOpReturnFromTxHex, Utxo, withVaultOperationLock } from './utils';
-import { withVaultBuildTimeout } from './operationTimeout';
+import { checkBatchAllowed, extractOpReturnFromTxHex, Utxo } from './utils';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -27,6 +28,89 @@ export interface CreateVaultReqOptions {
   isMaxDeposit: boolean;
   liquidationPrice: number;
   utxos?: Utxo[];
+}
+
+const MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS = 50_000;
+
+function isInsufficientSatsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /insufficient sats/i.test(message);
+}
+
+function createOpenCtx(
+  wallet: VaultWallet,
+  acctRes: UnitAccountResponse,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  vaultConfig: WalletVaultOpenConfig
+): VaultOpenCtx {
+  return wallet.vault.open.ctx(acctRes.mint_account, oracleQuote, vaultConfig);
+}
+
+function getOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): number {
+  return VaultAPI.open.get_change(vaultCtx as never, utxos as never);
+}
+
+function assertOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): void {
+  const changeSats = getOpenChange(vaultCtx, utxos);
+
+  if (changeSats < 0) {
+    throw new Error(
+      'Not enough BTC to cover the vault deposit and transaction fee. Try a slightly smaller deposit.'
+    );
+  }
+
+  if (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT) {
+    throw new Error('Vault deposit would leave dust change. Try a slightly smaller amount.');
+  }
+}
+
+function isSameUtxoSet(first: Utxo[], second: Utxo[]): boolean {
+  if (first.length !== second.length) return false;
+
+  const key = (utxo: Utxo): string => `${utxo.txid}:${utxo.vout}:${utxo.value}`;
+  const firstKeys = new Set(first.map(key));
+  return second.every((utxo) => firstKeys.has(key(utxo)));
+}
+
+function resolveOpenContext(
+  wallet: VaultWallet,
+  acctRes: UnitAccountResponse,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  vaultConfig: WalletVaultOpenConfig,
+  utxos: Utxo[],
+  isMaxDeposit: boolean
+): VaultOpenCtx {
+  let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
+  const changeSats = getOpenChange(vaultCtx, utxos);
+
+  if (changeSats < 0 || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
+    const requestedAmount = vaultConfig.deposit_amount;
+    const zeroDepositCtx = createOpenCtx(wallet, acctRes, oracleQuote, {
+      ...vaultConfig,
+      deposit_amount: 0,
+    });
+    const maxSafeDeposit = Math.floor(getOpenChange(zeroDepositCtx, utxos));
+    const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
+    const canAutoAdjust =
+      isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;
+
+    if (maxSafeDeposit > 0 && canAutoAdjust) {
+      vaultConfig.deposit_amount = maxSafeDeposit;
+      vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
+      assertOpenChange(vaultCtx, utxos);
+      logger.info('[VaultOps] Adjusted near-max vault open deposit to exact safe amount', {
+        requestedAmount,
+        adjustedAmount: maxSafeDeposit,
+        adjustmentSats,
+        previousChangeSats: changeSats,
+        utxoCount: utxos.length,
+      });
+      return vaultCtx;
+    }
+  }
+
+  assertOpenChange(vaultCtx, utxos);
+  return vaultCtx;
 }
 
 /**
@@ -101,172 +185,182 @@ export async function createVaultReqOpen(
   acctRes: UnitAccountResponse,
   options: CreateVaultReqOptions
 ): Promise<WalletVaultOpenRequest> {
-  return withVaultOperationLock(
-    async () => {
-      logger.debug('[VaultOps] Creating vault request...');
+  logger.debug('[VaultOps] Creating vault request...');
 
+  try {
+    // Fetch oracle price quote (staleness enforced in service)
+    const oracleQuote = await fetchPriceQuote(options.liquidationPrice);
+
+    let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
+
+    // Get UTXOs for the transaction
+    let utxos = options.utxos;
+    if (!utxos) {
+      const txQuote = wallet.vault.open.quote(vaultCtx);
+      const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * options.feeRate;
       try {
-        // Fetch oracle price quote (staleness enforced in service)
-        const oracleQuote = await withVaultBuildTimeout(
-          fetchPriceQuote(options.liquidationPrice),
-          'Timed out fetching oracle price quote. Please try again.'
-        );
-
-        // Create vault context
-        const vaultCtx = wallet.vault.open.ctx(acctRes.mint_account, oracleQuote, vaultConfig);
-
-        // Get UTXOs for the transaction
-        let utxos = options.utxos;
-        if (!options.isMaxDeposit && !utxos) {
-          const txQuote = wallet.vault.open.quote(vaultCtx);
-          const costWithVins = txQuote.total_cost + VAULT_CONFIG.VIN_ALLOWANCE * options.feeRate;
-          utxos = await withVaultBuildTimeout(
-            wallet.fetch.sats_utxos(costWithVins),
-            'Timed out fetching BTC UTXOs for vault creation. Please try again.'
-          );
-        }
-
-        if (!utxos || utxos.length === 0) {
-          throw new Error('No UTXOs available for vault deposit');
-        }
-
-        // Check if batch signing is allowed (native segwit addresses)
-        const isBatch = checkBatchAllowed(wallet);
-
-        let vaultReq: WalletVaultOpenRequest;
-        setPendingVaultSigningOperation({
-          action: 'open',
-          ctx: vaultCtx,
-          satsUtxos: utxos,
-        });
-        try {
-          vaultReq = await withVaultBuildTimeout(
-            wallet.vault.open.req(vaultCtx, utxos, isBatch),
-            'Timed out building the vault creation transaction. Please try again.'
-          );
-        } finally {
-          clearPendingVaultSigningOperation();
-        }
-
-        logger.debug('[VaultOps] Vault request created');
-
-        // SAFETY: Check OP_RETURN for runestone corruption before submitting
-        const issueTxOpReturn = extractOpReturnFromTxHex(vaultReq.issue_txhex);
-        if (issueTxOpReturn) {
-          const isCorrupted =
-            issueTxOpReturn.includes('6a5d00') && !issueTxOpReturn.includes('6a5d09');
-          if (isCorrupted) {
-            throw new Error(
-              'Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.'
-            );
-          }
-        }
-
-        if (__DEV__) {
-          // Development-only structural diagnostics. Do not log raw tx/PSBT/witness material.
-          logger.debug('[VaultOps] issue_txid from SDK:', { txid: vaultReq.issue_txid });
-          logger.debug('[VaultOps] vault_txid from SDK:', { txid: vaultReq.vault_txid });
-
-          try {
-            if (vaultReq.issue_txhex && vaultReq.vault_txhex) {
-              const recomputedIssueTxid = TX.get_txid(vaultReq.issue_txhex);
-              const recomputedVaultTxid = TX.get_txid(vaultReq.vault_txhex);
-              logger.debug('[VaultOps] issue_txid match:', {
-                match: vaultReq.issue_txid === recomputedIssueTxid,
-              });
-              logger.debug('[VaultOps] vault_txid match:', {
-                match: vaultReq.vault_txid === recomputedVaultTxid,
-              });
-            }
-          } catch (txidError) {
-            logger.warn('[VaultOps] Could not recompute txids:', {
-              error: txidError instanceof Error ? txidError.message : String(txidError),
-            });
-          }
-
-          logger.debug('[VaultOps] issue/vault txhex present:', {
-            hasIssueTxhex: Boolean(vaultReq.issue_txhex),
-            hasVaultTxhex: Boolean(vaultReq.vault_txhex),
-          });
-
-          const vaultTxOpReturn = extractOpReturnFromTxHex(vaultReq.vault_txhex);
-          logger.debug('[VaultOps] OP_RETURN in issue_txhex from SDK:', {
-            opReturn: issueTxOpReturn,
-          });
-          logger.debug('[VaultOps] OP_RETURN in vault_txhex from SDK:', {
-            opReturn: vaultTxOpReturn,
-          });
-
-          if (vaultReq.issue_psbt) {
-            try {
-              const issuePdata = PSBT.decode(vaultReq.issue_psbt);
-              logger.debug('[VaultOps] Issue PSBT inputs:', { count: issuePdata.inputsLength });
-              for (let i = 0; i < issuePdata.inputsLength; i++) {
-                const inp = issuePdata.getInput(i);
-                logger.debug(`[VaultOps] Issue PSBT input ${i}:`, {
-                  hasFinalWitness: !!inp.finalScriptWitness,
-                  witnessLength: inp.finalScriptWitness?.length,
-                  hasPartialSig: !!inp.partialSig,
-                  partialSigLength: inp.partialSig?.length,
-                });
-              }
-            } catch (psbtError) {
-              logger.warn('[VaultOps] Could not decode issue_psbt:', {
-                error: psbtError instanceof Error ? psbtError.message : String(psbtError),
-              });
-            }
-          }
-
-          if (vaultReq.vault_psbt) {
-            try {
-              const vaultPdata = PSBT.decode(vaultReq.vault_psbt);
-              logger.debug('[VaultOps] Vault PSBT inputs:', { count: vaultPdata.inputsLength });
-              for (let i = 0; i < vaultPdata.inputsLength; i++) {
-                const inp = vaultPdata.getInput(i);
-                logger.debug(`[VaultOps] Vault PSBT input ${i}:`, {
-                  hasFinalWitness: !!inp.finalScriptWitness,
-                  witnessLength: inp.finalScriptWitness?.length,
-                  hasTapScriptSig: !!inp.tapScriptSig,
-                  tapScriptSigLength: inp.tapScriptSig?.length,
-                  hasTapLeafScript: !!inp.tapLeafScript,
-                });
-              }
-            } catch (psbtError) {
-              logger.warn('[VaultOps] Could not decode vault_psbt:', {
-                error: psbtError instanceof Error ? psbtError.message : String(psbtError),
-              });
-            }
-          }
-
-          if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
-            logger.debug('[VaultOps] sats_inputs:', {
-              count: vaultReq.sats_inputs.length,
-              totalValue: vaultReq.sats_inputs.reduce(
-                (sum, inp) => sum + Number(inp.value || 0),
-                0
-              ),
-              witnessLengths: vaultReq.sats_inputs.map((inp) => inp.witness?.length ?? 0),
-            });
-          }
-
-          if (vaultReq.connect_input) {
-            logger.debug('[VaultOps] connect_input:', {
-              txid: vaultReq.connect_input.txid,
-              vout: vaultReq.connect_input.vout,
-              value: vaultReq.connect_input.value,
-              witnessLength: vaultReq.connect_input.witness?.length,
-            });
-          }
-        }
-
-        return vaultReq;
+        utxos = options.isMaxDeposit
+          ? await wallet.fetch.sats_utxos()
+          : await wallet.fetch.sats_utxos(costWithVins);
       } catch (error) {
-        logger.error('[VaultOps] Failed to create vault request:', { error });
+        if (!isInsufficientSatsError(error)) {
+          throw error;
+        }
+        utxos = await wallet.fetch.sats_utxos();
+      }
+    }
+
+    if (!utxos || utxos.length === 0) {
+      throw new Error('No UTXOs available for vault deposit');
+    }
+
+    try {
+      vaultCtx = resolveOpenContext(
+        wallet,
+        acctRes,
+        oracleQuote,
+        vaultConfig,
+        utxos,
+        options.isMaxDeposit
+      );
+    } catch (error) {
+      if (options.utxos) {
         throw error;
       }
-    },
-    wallet.acct?.vault?.pubkey || wallet.acct?.vault?.address || '__default__'
-  );
+
+      const allUtxos = await wallet.fetch.sats_utxos();
+      if (allUtxos.length === 0 || isSameUtxoSet(utxos, allUtxos)) {
+        throw error;
+      }
+
+      vaultCtx = resolveOpenContext(
+        wallet,
+        acctRes,
+        oracleQuote,
+        vaultConfig,
+        allUtxos,
+        options.isMaxDeposit
+      );
+      logger.debug('[VaultOps] Retried vault open with all BTC UTXOs', {
+        previousUtxoCount: utxos.length,
+        allUtxoCount: allUtxos.length,
+        depositAmount: vaultConfig.deposit_amount,
+        changeSats: getOpenChange(vaultCtx, allUtxos),
+      });
+      utxos = allUtxos;
+    }
+
+    // Check if batch signing is allowed (native segwit addresses)
+    const isBatch = checkBatchAllowed(wallet);
+
+    let vaultReq: WalletVaultOpenRequest;
+    setPendingVaultSigningOperation({
+      action: 'open',
+      ctx: vaultCtx,
+      satsUtxos: utxos,
+    });
+    try {
+      vaultReq = await wallet.vault.open.req(vaultCtx, utxos, isBatch);
+    } finally {
+      clearPendingVaultSigningOperation();
+    }
+
+    logger.debug('[VaultOps] Vault request created');
+
+    // SAFETY: Check OP_RETURN for runestone corruption before submitting
+    const issueTxOpReturn = extractOpReturnFromTxHex(vaultReq.issue_txhex);
+    if (issueTxOpReturn) {
+      const isCorrupted = issueTxOpReturn.includes('6a5d00') && !issueTxOpReturn.includes('6a5d09');
+      if (isCorrupted) {
+        throw new Error('Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.');
+      }
+    }
+
+    if (__DEV__) {
+      // Development-only structural diagnostics. Do not log raw tx/PSBT/witness material.
+      logger.debug('[VaultOps] issue_txid from SDK:', { txid: vaultReq.issue_txid });
+      logger.debug('[VaultOps] vault_txid from SDK:', { txid: vaultReq.vault_txid });
+
+      try {
+        if (vaultReq.issue_txhex && vaultReq.vault_txhex) {
+          const recomputedIssueTxid = TX.get_txid(vaultReq.issue_txhex);
+          const recomputedVaultTxid = TX.get_txid(vaultReq.vault_txhex);
+          logger.debug('[VaultOps] issue_txid match:', { match: vaultReq.issue_txid === recomputedIssueTxid });
+          logger.debug('[VaultOps] vault_txid match:', { match: vaultReq.vault_txid === recomputedVaultTxid });
+        }
+      } catch (txidError) {
+        logger.warn('[VaultOps] Could not recompute txids:', { error: txidError instanceof Error ? txidError.message : String(txidError) });
+      }
+
+      logger.debug('[VaultOps] issue/vault txhex present:', {
+        hasIssueTxhex: Boolean(vaultReq.issue_txhex),
+        hasVaultTxhex: Boolean(vaultReq.vault_txhex),
+      });
+
+      const vaultTxOpReturn = extractOpReturnFromTxHex(vaultReq.vault_txhex);
+      logger.debug('[VaultOps] OP_RETURN in issue_txhex from SDK:', { opReturn: issueTxOpReturn });
+      logger.debug('[VaultOps] OP_RETURN in vault_txhex from SDK:', { opReturn: vaultTxOpReturn });
+
+      if (vaultReq.issue_psbt) {
+        try {
+          const issuePdata = PSBT.decode(vaultReq.issue_psbt);
+          logger.debug('[VaultOps] Issue PSBT inputs:', { count: issuePdata.inputsLength });
+          for (let i = 0; i < issuePdata.inputsLength; i++) {
+            const inp = issuePdata.getInput(i);
+            logger.debug(`[VaultOps] Issue PSBT input ${i}:`, {
+              hasFinalWitness: !!inp.finalScriptWitness,
+              witnessLength: inp.finalScriptWitness?.length,
+              hasPartialSig: !!inp.partialSig,
+              partialSigLength: inp.partialSig?.length,
+            });
+          }
+        } catch (psbtError) {
+          logger.warn('[VaultOps] Could not decode issue_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+        }
+      }
+
+      if (vaultReq.vault_psbt) {
+        try {
+          const vaultPdata = PSBT.decode(vaultReq.vault_psbt);
+          logger.debug('[VaultOps] Vault PSBT inputs:', { count: vaultPdata.inputsLength });
+          for (let i = 0; i < vaultPdata.inputsLength; i++) {
+            const inp = vaultPdata.getInput(i);
+            logger.debug(`[VaultOps] Vault PSBT input ${i}:`, {
+              hasFinalWitness: !!inp.finalScriptWitness,
+              witnessLength: inp.finalScriptWitness?.length,
+              hasTapScriptSig: !!inp.tapScriptSig,
+              tapScriptSigLength: inp.tapScriptSig?.length,
+              hasTapLeafScript: !!inp.tapLeafScript,
+            });
+          }
+        } catch (psbtError) {
+          logger.warn('[VaultOps] Could not decode vault_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+        }
+      }
+
+      if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
+        logger.debug('[VaultOps] sats_inputs:', {
+          count: vaultReq.sats_inputs.length,
+          totalValue: vaultReq.sats_inputs.reduce((sum, inp) => sum + Number(inp.value || 0), 0),
+          witnessLengths: vaultReq.sats_inputs.map(inp => inp.witness?.length ?? 0),
+        });
+      }
+
+      if (vaultReq.connect_input) {
+        logger.debug('[VaultOps] connect_input:', {
+          txid: vaultReq.connect_input.txid,
+          vout: vaultReq.connect_input.vout,
+          value: vaultReq.connect_input.value,
+          witnessLength: vaultReq.connect_input.witness?.length,
+        });
+      }
+    }
+
+    return vaultReq;
+  } catch (error) {
+    logger.error('[VaultOps] Failed to create vault request:', { error });
+    throw error;
+  }
 }
 
 /**
@@ -289,10 +383,10 @@ export async function guardianSendReqOpen(
     const guardSub = await gclient.req.vault.open(vaultReq);
     logger.debug('[VaultOps] Request submitted, waiting for response...');
 
-    const guardRes = (await withGuardianTimeout(
+    const guardRes = await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + 5000 // Add 5s buffer
-    )) as { issue_txid: string };
+    ) as { issue_txid: string };
 
     const txid = guardRes.issue_txid;
     logger.debug('[VaultOps] Vault created, txid:', { txid });

@@ -3,8 +3,9 @@
  */
 
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { renderHook, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 
 jest.mock('expo-secure-store');
 
@@ -13,6 +14,7 @@ import { useNotificationsPreference } from '../useNotificationsPreference';
 describe('useNotificationsPreference', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
   });
 
   it('should initialize with loading state', () => {
@@ -63,6 +65,20 @@ describe('useNotificationsPreference', () => {
     expect(result.current!.notificationsEnabled).toBe(false);
   });
 
+  it('should migrate to true when OS notification permission is already granted and no preference exists', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+
+    const { result } = renderHook(() => useNotificationsPreference());
+
+    await waitFor(() => {
+      expect(result.current!.isLoading).toBe(false);
+    });
+
+    expect(result.current!.notificationsEnabled).toBe(true);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
+  });
+
   it('should default to false when storage returns undefined', async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(undefined);
 
@@ -84,11 +100,13 @@ describe('useNotificationsPreference', () => {
       expect(result.current!.isLoading).toBe(false);
     });
 
+    const callsAfterInitialLoad = (SecureStore.getItemAsync as jest.Mock).mock.calls.length;
+
     // Rerender the hook
     rerender({});
 
-    // Should still only have been called once
-    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(1);
+    // Should not load again after rerender
+    expect(SecureStore.getItemAsync).toHaveBeenCalledTimes(callsAfterInitialLoad);
   });
 
   it('should handle non-string values gracefully', async () => {

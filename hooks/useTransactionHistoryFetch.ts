@@ -5,11 +5,34 @@
  * Note: Different from useTransactionHistoryData which is for UI consumption
  */
 
-import { useCallback,useMemo,useRef,useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import { fetchAllTransactionHistory,Transaction } from '../services/transactionHistoryService';
+import { fetchAllTransactionHistory, Transaction } from '../services/transactionHistoryService';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { logger } from '../utils/logger';
 
 const HISTORY_FETCH_STALE_MS = 30_000;
+
+function reconcileConfirmedPendingTransactions(history: Transaction[]): void {
+  const confirmedTxids = new Set(history.filter((tx) => tx.status?.confirmed).map((tx) => tx.txid));
+
+  if (confirmedTxids.size === 0) return;
+
+  const { pendingTransactions, confirmTransaction } = usePendingTransactionsStore.getState();
+  const pendingTxidsToConfirm = Object.keys(pendingTransactions).filter((txid) =>
+    confirmedTxids.has(txid)
+  );
+
+  if (pendingTxidsToConfirm.length === 0) return;
+
+  void Promise.all(pendingTxidsToConfirm.map((txid) => confirmTransaction(txid))).catch(
+    (error: unknown) => {
+      logger.warn('[useTransactionHistoryFetch] Failed to reconcile confirmed pending txs', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  );
+}
 
 export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
@@ -19,7 +42,9 @@ export interface UseTransactionHistoryFetchReturn {
   resetTransactionHistory: () => void;
 }
 
-export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseTransactionHistoryFetchReturn {
+export function useTransactionHistoryFetch(
+  wallet: WalletAddresses | null
+): UseTransactionHistoryFetchReturn {
   // Transaction history state
   const [transactionHistory, setTransactionHistory] = useState<Transaction[]>([]);
   const [loadingTransactionHistory, setLoadingTransactionHistory] = useState(false);
@@ -68,11 +93,13 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
       const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
       if (!isCurrentFetch()) return;
 
+      reconcileConfirmedPendingTransactions(history);
+
       // Update state if transactions have changed
       // Compute hash once (no sort - order matters for display)
       // Include txid, confirmation status, and block height to detect when pending txs confirm
       const newHash = history
-        .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
+        .map((t) => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
         .join('|');
 
       if (newHash !== prevHashRef.current) {
@@ -116,11 +143,20 @@ export function useTransactionHistoryFetch(wallet: WalletAddresses | null): UseT
 
   // Memoize return value to prevent context consumers from re-rendering
   // when nothing has actually changed
-  return useMemo(() => ({
-    transactionHistory,
-    loadingTransactionHistory,
-    historyError,
-    fetchTransactionHistory,
-    resetTransactionHistory,
-  }), [transactionHistory, loadingTransactionHistory, historyError, fetchTransactionHistory, resetTransactionHistory]);
+  return useMemo(
+    () => ({
+      transactionHistory,
+      loadingTransactionHistory,
+      historyError,
+      fetchTransactionHistory,
+      resetTransactionHistory,
+    }),
+    [
+      transactionHistory,
+      loadingTransactionHistory,
+      historyError,
+      fetchTransactionHistory,
+      resetTransactionHistory,
+    ]
+  );
 }

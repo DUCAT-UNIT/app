@@ -1,7 +1,7 @@
 /**
  * CashuReceiveScreen
  * Receive flow for Cashu e-cash
- * Options: 1) Mint tokens from Runes deposit, 2) Receive tokens from QR/paste
+ * Options: 1) Mint tokens from on-chain funds, 2) Receive tokens from QR/paste
  */
 
 import React from 'react';
@@ -20,29 +20,26 @@ import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { useCashuOperations } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
+import { useBalance } from '../../contexts/WalletDataContext';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import TouchableScale from '../../components/common/TouchableScale';
 import { useCashuReceive } from '../../hooks/useCashuReceive';
 import { decodeTokenMetadata } from '../../services/cashu/cashuWalletService';
-import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
+import {
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
+import { getRunesAmount } from '../../utils/runesHelper';
 import styles, { QR_SIZE, LOGO_SIZE } from './CashuReceiveScreen.styles';
 
-/**
- * Route parameters for CashuReceiveScreen
- */
 interface CashuReceiveRouteParams {
-  /** Optional initial mode for the receive flow */
   mode?: 'choose' | 'mint' | 'receive';
-  /** Cashu unit to receive/mint */
   cashuUnit?: CashuUnit;
 }
 
-/**
- * Props for CashuReceiveScreen component
- */
 interface CashuReceiveScreenProps {
-  /** Route object containing navigation params */
   route: RouteProp<{ params: CashuReceiveRouteParams }, 'params'>;
 }
 
@@ -57,13 +54,21 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     receive,
     receiveBtc,
   } = useCashuOperations();
+  const { runesBalance } = useBalance();
+
   const cashuUnit = normalizeCashuUnit(route?.params?.cashuUnit, DEFAULT_CASHU_UNIT);
   const isBtcCashu = cashuUnit === 'sat';
   const tokenName = isBtcCashu ? 'Turbo BTC' : 'Turbo UNIT';
   const assetName = isBtcCashu ? 'BTC' : 'UNIT';
+  const onChainUnitBalance = React.useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
+  const availableRunesCents = React.useMemo(
+    () => Math.round(onChainUnitBalance * 100),
+    [onChainUnitBalance]
+  );
   const qrLogo = isBtcCashu
     ? require('../../assets/logos/btc-logo.png')
     : require('../../assets/logos/unit-log.png');
+
   const formatDepositAmount = React.useCallback(
     (amountSmallestUnits: number): string =>
       isBtcCashu
@@ -71,11 +76,15 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
         : String(amountSmallestUnits / 100),
     [isBtcCashu]
   );
-  const receiveByDecodedUnit = React.useCallback(async (token: string) => {
-    const metadata = decodeTokenMetadata(token);
-    const tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
-    return tokenUnit === 'sat' ? receiveBtc(token) : receive(token);
-  }, [receive, receiveBtc]);
+
+  const receiveByDecodedUnit = React.useCallback(
+    async (token: string) => {
+      const metadata = decodeTokenMetadata(token);
+      const tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+      return tokenUnit === 'sat' ? receiveBtc(token) : receive(token);
+    },
+    [receive, receiveBtc]
+  );
 
   const {
     mode,
@@ -99,23 +108,42 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     initialMode: route?.params?.mode,
     cashuUnit,
     senderTaprootAddress: wallet?.taprootAddress,
+    availableRunesCents: isBtcCashu ? undefined : availableRunesCents,
   });
 
-  // Choose mode
+  const mintDisabled = !amount || isLoading || (!isBtcCashu && availableRunesCents <= 0);
+
   if (mode === 'choose') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-screen">
-        <Header title={`Receive ${tokenName}`} onBack={() => navigation.goBack()} testID="cashu-receive-header" backTestID="cashu-receive-back-btn" />
+        <Header
+          title={`Receive ${tokenName}`}
+          onBack={() => navigation.goBack()}
+          testID="cashu-receive-header"
+          backTestID="cashu-receive-back-btn"
+        />
         <View style={styles.choiceContainer}>
-          <TouchableScale style={styles.choiceCard} onPress={() => setMode('mint')} testID="cashu-receive-mint-btn">
-            <Icon name={isBtcCashu ? 'btc_logo' : 'unit_logo'} size={48} color={COLORS.PRIMARY_BLUE} />
+          <TouchableScale
+            style={styles.choiceCard}
+            onPress={() => setMode('mint')}
+            testID="cashu-receive-mint-btn"
+          >
+            <Icon
+              name={isBtcCashu ? 'btc_logo' : 'unit_logo'}
+              size={48}
+              color={COLORS.PRIMARY_BLUE}
+            />
             <Text style={styles.choiceTitle}>Mint from {assetName}</Text>
             <Text style={styles.choiceDesc}>
               Deposit {assetName} to mint {tokenName}
             </Text>
           </TouchableScale>
 
-          <TouchableScale style={styles.choiceCard} onPress={() => setMode('receive')} testID="cashu-receive-token-btn">
+          <TouchableScale
+            style={styles.choiceCard}
+            onPress={() => setMode('receive')}
+            testID="cashu-receive-token-btn"
+          >
             <Icon name="qr_code" size={48} color={COLORS.PRIMARY_BLUE} />
             <Text style={styles.choiceTitle}>Receive Token</Text>
             <Text style={styles.choiceDesc}>
@@ -127,11 +155,15 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
     );
   }
 
-  // Mint mode with QR
   if (mode === 'mint' && mintQuote) {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-qr-screen">
-        <Header title={`Deposit ${assetName}`} onBack={resetMintQuote} testID="cashu-mint-qr-header" backTestID="cashu-mint-qr-back-btn" />
+        <Header
+          title={`Deposit ${assetName}`}
+          onBack={resetMintQuote}
+          testID="cashu-mint-qr-header"
+          backTestID="cashu-mint-qr-back-btn"
+        />
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.qrContainer} testID="cashu-mint-qr-code">
             <QRCode
@@ -162,29 +194,37 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
                 {justCopied ? 'Copied!' : 'Tap to copy'}
               </Text>
             </View>
-            <Text style={styles.addressText} testID="cashu-mint-address">{mintQuote.depositAddress}</Text>
+            <Text style={styles.addressText} testID="cashu-mint-address">
+              {mintQuote.depositAddress}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.waitingContainer} testID="cashu-mint-waiting">
             <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
-            <Text style={styles.waitingText}>
-              Waiting for deposit confirmation...
-            </Text>
+            <Text style={styles.waitingText}>Waiting for deposit confirmation...</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // Mint mode - amount input
   if (mode === 'mint') {
     return (
       <SafeAreaView style={styles.container} edges={['top']} testID="cashu-mint-screen">
-        <Header title={`Mint ${tokenName}`} onBack={() => setMode('choose')} testID="cashu-mint-header" backTestID="cashu-mint-back-btn" />
+        <Header
+          title={`Mint ${tokenName}`}
+          onBack={() => setMode('choose')}
+          testID="cashu-mint-header"
+          backTestID="cashu-mint-back-btn"
+        />
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Amount ({isBtcCashu ? 'sats' : 'smallest units'})</Text>
           <View style={styles.inputWrapper}>
-            <Icon name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'} size={20} color={COLORS.SECONDARY_TEXT} />
+            <Icon
+              name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'}
+              size={20}
+              color={COLORS.SECONDARY_TEXT}
+            />
             <TextInput
               style={styles.input}
               placeholder="Enter amount"
@@ -195,10 +235,20 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
             />
           </View>
 
+          {!isBtcCashu && availableRunesCents <= 0 ? (
+            <Text style={styles.warningText}>
+              You need on-chain UNIT before minting Turbo UNIT.
+            </Text>
+          ) : !isBtcCashu ? (
+            <Text style={styles.balanceText}>
+              Available on-chain UNIT: {onChainUnitBalance.toFixed(2)}
+            </Text>
+          ) : null}
+
           <TouchableScale
-            style={[styles.button, !amount && styles.buttonDisabled]}
+            style={[styles.button, mintDisabled && styles.buttonDisabled]}
             onPress={handleAutoMint}
-            disabled={!amount || isLoading}
+            disabled={mintDisabled}
             testID="cashu-mint-btn"
           >
             {isLoading ? (
@@ -209,17 +259,22 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
           </TouchableScale>
 
           <Text style={styles.helpText}>
-            This will send {assetName} to the mint and automatically issue {tokenName} once the transaction confirms.
+            This will send {assetName} to the mint and automatically issue {tokenName} once the
+            transaction confirms.
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Receive mode
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="cashu-receive-token-screen">
-      <Header title="Receive Token" onBack={() => setMode('choose')} testID="cashu-receive-token-header" backTestID="cashu-receive-token-back-btn" />
+      <Header
+        title="Receive Token"
+        onBack={() => setMode('choose')}
+        testID="cashu-receive-token-header"
+        backTestID="cashu-receive-token-back-btn"
+      />
       <View style={styles.inputContainer}>
         <Text style={styles.label}>{tokenName} Token</Text>
         <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
@@ -251,7 +306,8 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
         </TouchableScale>
 
         <Text style={styles.helpText}>
-          You can also scan QR codes with your phone's camera app, then copy the token and paste it here.
+          You can also scan QR codes with your phone's camera app, then copy the token and paste it
+          here.
         </Text>
 
         <TouchableScale
@@ -271,29 +327,18 @@ export default function CashuReceiveScreen({ route }: CashuReceiveScreenProps): 
   );
 }
 
-/**
- * Props for Header component
- */
 interface HeaderProps {
-  /** Header title text */
   title: string;
-  /** Callback function when back button is pressed */
   onBack: () => void;
-  /** Test ID for the header container */
   testID?: string;
-  /** Test ID for the back button */
   backTestID?: string;
 }
 
-/**
- * Header component
- * Displays a navigation header with back button and title
- */
 function Header({ title, onBack, testID, backTestID }: HeaderProps): React.JSX.Element {
   return (
     <View style={styles.header} testID={testID}>
       <TouchableOpacity onPress={onBack} testID={backTestID}>
-        <Icon name="arrow_left" size={24} color={COLORS.TEXT_PRIMARY} />
+        <Icon name="back" size={24} color={COLORS.TEXT_PRIMARY} />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>{title}</Text>
       <View style={{ width: 24 }} />

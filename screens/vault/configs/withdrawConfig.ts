@@ -100,6 +100,10 @@ export const withdrawInputConfig: VaultInputScreenConfig<WithdrawVaultStore> = {
       errors.push(`This would put your vault below the minimum health of ${minHealth}%.`);
     }
 
+    if (amount > maxAmount) {
+      errors.push('Withdrawal amount exceeds available collateral after fees.');
+    }
+
     // Check fee balance
     if (!hasSufficientBtcForFees) {
       errors.push('Insufficient BTC for transaction fees.');

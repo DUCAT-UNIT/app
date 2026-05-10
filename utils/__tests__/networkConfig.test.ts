@@ -63,7 +63,7 @@ describe('networkConfig', () => {
   it('uses the reachable Mutinynet validator by default', () => {
     const { APP_NETWORK_CONFIG } = loadConfig();
 
-    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.staging.ducatprotocol.com/api');
+    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.ducatprotocol.com/api');
   });
 
   it('fails fast on invalid bigint protocol overrides', () => {

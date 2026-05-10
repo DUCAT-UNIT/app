@@ -86,55 +86,93 @@ export function useOnboardingStateMachine({
   keyboardHeight,
 }: UseOnboardingStateMachineParams) {
   const {
-    isAuthenticated, isBiometricSupported, biometricEnabled,
-    settingUpPin, changingPin, showPinEntry, setIsAuthenticated, setSettingUpPin,
+    isAuthenticated,
+    isBiometricSupported,
+    biometricEnabled,
+    settingUpPin,
+    changingPin,
+    showPinEntry,
+    setIsAuthenticated,
+    setSettingUpPin,
     setBiometricEnabled,
   } = useAuth();
 
   const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
-  const {
-    showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal,
-    showBiometricSetupPrompt,
-  } = useAuthFlowHandlers();
+  const { showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal, showBiometricSetupPrompt } =
+    useAuthFlowHandlers();
 
   const {
-    importingWallet, importSeedPhrase, isImportedWallet, isImporting, seedInputRefs,
-    importedMnemonic, setImportingWallet, setImportSeedPhrase, setIsImportedWallet,
-    setImportedMnemonic, importWallet, persistImportedWallet,
+    importingWallet,
+    importSeedPhrase,
+    isImportedWallet,
+    isImporting,
+    seedInputRefs,
+    importedMnemonic,
+    setImportingWallet,
+    setImportSeedPhrase,
+    setIsImportedWallet,
+    setImportedMnemonic,
+    importWallet,
+    persistImportedWallet,
   } = useWalletImport({ currentAccount, setSettingUpPin });
 
   const {
-    startPasskeyCreation, handlePinEntry, showPinInput, passkeyPin, confirmingPin,
-    passkeyPinConfirm, setPasskeyPin, setPasskeyPinConfirm, setShowPinInput, resetPasskeyCreation,
+    startPasskeyCreation,
+    handlePinEntry,
+    showPinInput,
+    passkeyPin,
+    confirmingPin,
+    passkeyPinConfirm,
+    setPasskeyPin,
+    setPasskeyPinConfirm,
+    setShowPinInput,
+    resetPasskeyCreation,
+    isCreating,
   } = usePasskeyCreation({
-    setIsAuthenticated, setSeedConfirmed, setWalletAddresses,
-    showBiometricSetupPrompt, showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal,
+    setIsAuthenticated,
+    setSeedConfirmed,
+    setWalletAddresses,
+    showBiometricSetupPrompt,
+    showPasskeyMigrationPrompt: showPasskeyMigrationPromptGlobal,
   });
 
   const {
-    restoringWithPasskey, showRestorePinInput, restorePin,
-    setRestoringWithPasskey, setRestorePin, startPasskeyRestore,
-    restoreWalletWithPasskey, resetPasskeyRestore,
+    restoringWithPasskey,
+    showRestorePinInput,
+    restorePin,
+    setRestoringWithPasskey,
+    setRestorePin,
+    startPasskeyRestore,
+    restoreWalletWithPasskey,
+    resetPasskeyRestore,
   } = usePasskeyRestore({ setIsAuthenticated, setSeedConfirmed, setWalletAddresses });
 
   const { handlePinSetupComplete, handlePinChangeComplete } = useOnboardingHandlers({
-    setIsImportedWallet, setImportedMnemonic, setImportingWallet,
-    setImportSeedPhrase, persistImportedWallet, loadWallet,
-    handlePinSetupCompleteWrapper: handlePinSetupCompleteWrapper as (...args: unknown[]) => Promise<void>,
-    handlePinChangeCompleteWrapper: handlePinChangeCompleteWrapper as (...args: unknown[]) => Promise<void>,
+    setIsImportedWallet,
+    setImportedMnemonic,
+    setImportingWallet,
+    setImportSeedPhrase,
+    persistImportedWallet,
+    loadWallet,
+    handlePinSetupCompleteWrapper: handlePinSetupCompleteWrapper as (
+      ...args: unknown[]
+    ) => Promise<void>,
+    handlePinChangeCompleteWrapper: handlePinChangeCompleteWrapper as (
+      ...args: unknown[]
+    ) => Promise<void>,
     resetWalletAndState,
-    fetchBalance, fetchTransactionHistory, showPasskeyMigrationPromptGlobal,
-    isImportedWallet, importedMnemonic,
+    fetchBalance,
+    fetchTransactionHistory,
+    showPasskeyMigrationPromptGlobal,
+    isImportedWallet,
+    importedMnemonic,
   });
 
   // --- Biometric helpers ---
 
   const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
     try {
-      const result = await authenticateWithBiometrics(
-        'Authenticate to enable Face ID',
-        'Cancel',
-      );
+      const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
       if (!result.success) return;
       if (!(await persistBiometricEnabled(true))) {
         throw new Error('Failed to persist biometric preference');
@@ -156,16 +194,13 @@ export function useOnboardingStateMachine({
     });
     try {
       if (biometricEnabled) {
-        const result = await authenticateWithBiometrics(
-          'Authenticate to unlock wallet',
-          'Use PIN',
-        );
+        const result = await authenticateWithBiometrics('Authenticate to unlock wallet', 'Use PIN');
         if (result.success) {
           const passkeyEnabled = await PasskeyService.isPasskeyEnabled();
           if (passkeyEnabled && !hasSessionMnemonic()) {
             Alert.alert(
               'Use PIN To Unlock',
-              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.',
+              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'
             );
             return;
           }
@@ -174,7 +209,12 @@ export function useOnboardingStateMachine({
         }
       } else {
         Alert.alert('Face ID', 'Use Face ID for quick and secure access to your wallet.', [
-          { text: 'Continue', onPress: () => { enableBiometricFromPrompt(); } },
+          {
+            text: 'Continue',
+            onPress: () => {
+              enableBiometricFromPrompt();
+            },
+          },
         ]);
       }
     } catch (error) {
@@ -183,8 +223,11 @@ export function useOnboardingStateMachine({
       });
     }
   }, [
-    biometricEnabled, isBiometricSupported, setIsAuthenticated,
-    enableBiometricFromPrompt, handleLockScreenAuthenticatedWrapper,
+    biometricEnabled,
+    isBiometricSupported,
+    setIsAuthenticated,
+    enableBiometricFromPrompt,
+    handleLockScreenAuthenticatedWrapper,
   ]);
 
   // --- Derive screen ---
@@ -214,6 +257,7 @@ export function useOnboardingStateMachine({
     setShowPinInput,
     handlePinEntry,
     resetPasskeyCreation,
+    isCreating,
 
     // Passkey restore PIN state
     restorePin,

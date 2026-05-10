@@ -47,6 +47,35 @@ interface UtxoWithTx extends UTXO {
   txHex: string;
 }
 
+function canFundWithUtxos(
+  utxos: UTXO[],
+  amountInSats: number,
+  calculateFee: ReturnType<typeof createFeeCalculator>
+): boolean {
+  if (utxos.length === 0) {
+    return false;
+  }
+
+  const totalAvailable = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+  if (amountInSats > totalAvailable) {
+    return false;
+  }
+
+  if (amountInSats === totalAvailable) {
+    const maxFee = calculateFee(utxos.length, 1);
+    return totalAvailable - maxFee >= BITCOIN_TX.DUST_LIMIT;
+  }
+
+  const selection = selectUtxosForTransaction(
+    utxos,
+    amountInSats,
+    calculateFee,
+    BITCOIN_TX.DUST_LIMIT
+  );
+
+  return selection.totalInput >= amountInSats + selection.fee;
+}
+
 /**
  * Create a BTC transaction intent (unsigned PSBT)
  * @param recipient - Recipient Bitcoin address
@@ -80,41 +109,9 @@ export async function createBtcIntent(
     const sourceAddress = segwitAddress;
     const addressType = 'segwit' as const;
 
-    // Fetch and merge UTXOs
-    const confirmedUtxos = await fetchUtxosService(sourceAddress);
-
-    // Log UTXO sources for debugging
-    logger.info('[BTC Intent] UTXO sources:', {
-      confirmed: confirmedUtxos.length,
-      confirmedTotal: confirmedUtxos.reduce((sum, u) => sum + u.value, 0),
-      unconfirmed: unconfirmedUtxos.length,
-      unconfirmedTotal: unconfirmedUtxos.reduce((sum, u) => sum + u.value, 0),
-      unconfirmedUtxos: unconfirmedUtxos.map(u => ({ txid: u.txid.slice(0, 12) + '...', vout: u.vout, value: u.value })),
-      spent: spentUtxos.size,
-      spentKeys: Array.from(spentUtxos).slice(0, 5),
-      requestedAmountSats: amountInSats,
-    });
-
-    const availableUtxos = mergeAndFilterUtxos(confirmedUtxos, unconfirmedUtxos, spentUtxos);
-
-    logger.info('[BTC Intent] Available UTXOs after merge:', {
-      count: availableUtxos.length,
-      totalValue: availableUtxos.reduce((sum, u) => sum + u.value, 0),
-      utxos: availableUtxos.map(u => ({ txid: u.txid.slice(0, 12) + '...', vout: u.vout, value: u.value })),
-    });
-
-    if (availableUtxos.length === 0) {
-      // Provide more context in the error
-      const hasUnconfirmed = unconfirmedUtxos.length > 0;
-      const allSpent = spentUtxos.size > 0 && confirmedUtxos.length === 0 && unconfirmedUtxos.length === 0;
-      logger.error(new Error('[BTC Intent] No available UTXOs'), {
-        confirmedCount: confirmedUtxos.length,
-        unconfirmedCount: unconfirmedUtxos.length,
-        spentCount: spentUtxos.size,
-        spentKeys: Array.from(spentUtxos).slice(0, 5),
-      });
-      throw new Error(hasUnconfirmed ? ERRORS.NO_CONFIRMED_FUNDS : (allSpent ? 'All UTXOs are currently locked' : ERRORS.NO_CONFIRMED_FUNDS));
-    }
+    // Fetch current explorer UTXOs first. This endpoint is the authoritative
+    // current spendable set for the wallet address.
+    const currentUtxos = await fetchUtxosService(sourceAddress);
 
     // Determine fee rate (dynamic recommendation with optional override)
     let feeRate = feeRateOverride;
@@ -129,6 +126,67 @@ export async function createBtcIntent(
 
     // Create fee calculator
     const calculateFee = createFeeCalculator(feeRate);
+
+    // Prefer current explorer UTXOs for BTC sends. Local pending UTXOs are useful
+    // for short-lived chaining, but they can become stale after vault/Turbo flows.
+    // Only merge them when the current explorer UTXOs cannot fund the request.
+    const shouldUsePendingUtxos = !canFundWithUtxos(currentUtxos, amountInSats, calculateFee);
+    const pendingUtxosForMerge = shouldUsePendingUtxos ? unconfirmedUtxos : [];
+
+    if (!shouldUsePendingUtxos && unconfirmedUtxos.length > 0) {
+      logger.info('[BTC Intent] Skipping pending UTXOs; current explorer UTXOs can fund send:', {
+        skippedPendingCount: unconfirmedUtxos.length,
+      });
+    }
+
+    // Log UTXO sources for debugging
+    logger.info('[BTC Intent] UTXO sources:', {
+      current: currentUtxos.length,
+      currentTotal: currentUtxos.reduce((sum, u) => sum + u.value, 0),
+      pendingProvided: unconfirmedUtxos.length,
+      pendingUsed: pendingUtxosForMerge.length,
+      pendingTotal: pendingUtxosForMerge.reduce((sum, u) => sum + u.value, 0),
+      pendingUtxos: pendingUtxosForMerge.map((u) => ({
+        txid: u.txid.slice(0, 12) + '...',
+        vout: u.vout,
+        value: u.value,
+      })),
+      spent: spentUtxos.size,
+      spentKeys: Array.from(spentUtxos).slice(0, 5),
+      requestedAmountSats: amountInSats,
+    });
+
+    const availableUtxos = mergeAndFilterUtxos(currentUtxos, pendingUtxosForMerge, spentUtxos);
+
+    logger.info('[BTC Intent] Available UTXOs after merge:', {
+      count: availableUtxos.length,
+      totalValue: availableUtxos.reduce((sum, u) => sum + u.value, 0),
+      utxos: availableUtxos.map((u) => ({
+        txid: u.txid.slice(0, 12) + '...',
+        vout: u.vout,
+        value: u.value,
+      })),
+    });
+
+    if (availableUtxos.length === 0) {
+      // Provide more context in the error
+      const hasUnconfirmed = unconfirmedUtxos.length > 0;
+      const allSpent =
+        spentUtxos.size > 0 && currentUtxos.length === 0 && pendingUtxosForMerge.length === 0;
+      logger.error(new Error('[BTC Intent] No available UTXOs'), {
+        currentCount: currentUtxos.length,
+        pendingUsedCount: pendingUtxosForMerge.length,
+        spentCount: spentUtxos.size,
+        spentKeys: Array.from(spentUtxos).slice(0, 5),
+      });
+      throw new Error(
+        hasUnconfirmed
+          ? ERRORS.NO_CONFIRMED_FUNDS
+          : allSpent
+            ? 'All UTXOs are currently locked'
+            : ERRORS.NO_CONFIRMED_FUNDS
+      );
+    }
 
     // Detect "send max" — user is trying to send their entire balance
     const totalAvailable = availableUtxos.reduce((sum, u) => sum + u.value, 0);
@@ -168,7 +226,7 @@ export async function createBtcIntent(
       change,
       amountInSats: effectiveAmountInSats,
       requiredAmount: effectiveAmountInSats + fee,
-      shortfall: (effectiveAmountInSats + fee) - totalInput,
+      shortfall: effectiveAmountInSats + fee - totalInput,
     });
 
     // Final check for sufficient funds
@@ -322,9 +380,7 @@ function buildBtcPsbt(
     // This prevents fund loss if sourceAddress is corrupted or manipulated
     const changeAddressValid = validateAndNormalizeAddress(sourceAddress);
     if (changeAddressValid !== sourceAddress) {
-      throw new Error(
-        'SECURITY: Change address validation failed - address mismatch'
-      );
+      throw new Error('SECURITY: Change address validation failed - address mismatch');
     }
     psbt.addOutput({
       address: sourceAddress,

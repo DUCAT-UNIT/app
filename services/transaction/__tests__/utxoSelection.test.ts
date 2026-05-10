@@ -15,21 +15,17 @@ describe('utxoSelection', () => {
         { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
         { txid: 'tx2', vout: 0, value: 20000, status: { confirmed: true } },
       ];
-      const unconfirmed = [
-        { txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } },
-      ];
+      const unconfirmed = [{ txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } }];
       const spent = new Set<string>();
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
 
       expect(result).toHaveLength(3);
-      expect(result.map(u => u.txid)).toEqual(['tx1', 'tx2', 'tx3']);
+      expect(result.map((u) => u.txid)).toEqual(['tx1', 'tx2', 'tx3']);
     });
 
     it('should not duplicate UTXOs that exist in both arrays', () => {
-      const confirmed = [
-        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
-      ];
+      const confirmed = [{ txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } }];
       const unconfirmed = [
         { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } }, // Duplicate
         { txid: 'tx2', vout: 0, value: 5000, status: { confirmed: true } },
@@ -39,7 +35,7 @@ describe('utxoSelection', () => {
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
 
       expect(result).toHaveLength(2);
-      expect(result.map(u => u.txid)).toEqual(['tx1', 'tx2']);
+      expect(result.map((u) => u.txid)).toEqual(['tx1', 'tx2']);
     });
 
     it('should filter out spent UTXOs', () => {
@@ -47,9 +43,7 @@ describe('utxoSelection', () => {
         { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
         { txid: 'tx2', vout: 0, value: 20000, status: { confirmed: true } },
       ];
-      const unconfirmed = [
-        { txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } },
-      ];
+      const unconfirmed = [{ txid: 'tx3', vout: 0, value: 5000, status: { confirmed: true } }];
       const spent = new Set(['tx1:0', 'tx3:0']);
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
@@ -64,12 +58,8 @@ describe('utxoSelection', () => {
     });
 
     it('should prioritize confirmed UTXOs in case of duplicate keys', () => {
-      const confirmed = [
-        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } },
-      ];
-      const unconfirmed = [
-        { txid: 'tx1', vout: 0, value: 10000, status: { confirmed: false } },
-      ];
+      const confirmed = [{ txid: 'tx1', vout: 0, value: 10000, status: { confirmed: true } }];
+      const unconfirmed = [{ txid: 'tx1', vout: 0, value: 10000, status: { confirmed: false } }];
       const spent = new Set<string>();
 
       const result = mergeAndFilterUtxos(confirmed, unconfirmed, spent);
@@ -80,9 +70,10 @@ describe('utxoSelection', () => {
   });
 
   describe('selectUtxosForTransaction', () => {
-    const createMockCalculateFee = () => jest.fn((inputs, outputs) => {
-      return 10 + inputs * 68 + outputs * 31; // Simplified fee calculation
-    });
+    const createMockCalculateFee = () =>
+      jest.fn((inputs, outputs) => {
+        return 10 + inputs * 68 + outputs * 31; // Simplified fee calculation
+      });
 
     it('should select UTXOs to cover amount plus fee', () => {
       const utxos = [
@@ -114,10 +105,23 @@ describe('utxoSelection', () => {
       expect(result.selectedUtxos[0].txid).toBe('tx2'); // Confirmed first
     });
 
-    it('should use unconfirmed UTXOs if no confirmed ones available', () => {
+    it('should not add a pending UTXO when a confirmed UTXO already covers the amount plus fee', () => {
       const utxos = [
-        { txid: 'tx1', vout: 0, value: 50000, status: { confirmed: false } },
+        { txid: 'pending_tx', vout: 0, value: 100000, status: { confirmed: false } },
+        { txid: 'confirmed_tx', vout: 0, value: 100000, status: { confirmed: true } },
       ];
+      const amountInSats = 40000;
+      const calculateFee = createMockCalculateFee();
+
+      const result = selectUtxosForTransaction(utxos, amountInSats, calculateFee, 546);
+
+      expect(result.selectedUtxos).toHaveLength(1);
+      expect(result.selectedUtxos[0].txid).toBe('confirmed_tx');
+      expect(result.totalInput).toBe(100000);
+    });
+
+    it('should use unconfirmed UTXOs if no confirmed ones available', () => {
+      const utxos = [{ txid: 'tx1', vout: 0, value: 50000, status: { confirmed: false } }];
       const amountInSats = 40000;
       const calculateFee = createMockCalculateFee();
 
@@ -128,9 +132,7 @@ describe('utxoSelection', () => {
     });
 
     it('should recalculate fee for 1 output if change is below dust', () => {
-      const utxos = [
-        { txid: 'tx1', vout: 0, value: 50000, status: { confirmed: true } },
-      ];
+      const utxos = [{ txid: 'tx1', vout: 0, value: 50000, status: { confirmed: true } }];
       const amountInSats = 49500; // Will leave change < dust
       const calculateFee = createMockCalculateFee();
       const dustLimit = 546;
@@ -142,9 +144,7 @@ describe('utxoSelection', () => {
     });
 
     it('should set change to 0 if remaining amount is below dust', () => {
-      const utxos = [
-        { txid: 'tx1', vout: 0, value: 50000, status: { confirmed: true } },
-      ];
+      const utxos = [{ txid: 'tx1', vout: 0, value: 50000, status: { confirmed: true } }];
       const amountInSats = 49500;
       const calculateFee = jest.fn(() => 100);
       const dustLimit = 546;

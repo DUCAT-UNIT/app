@@ -83,7 +83,7 @@ export default StyleSheet.create({
   },
   permissionCloseButton: {
     position: 'absolute',
-    top: 50,
+    top: 54,
     right: 20,
     width: 44,
     height: 44,
@@ -108,14 +108,31 @@ export default StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
+  permissionActions: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
   permissionButton: {
     backgroundColor: COLORS.PRIMARY_BLUE,
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,
+    minWidth: 180,
+    alignItems: 'center',
   },
   permissionButtonText: {
     color: COLORS.WHITE,
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: 'CabinetGrotesk-Bold',
+  },
+  permissionSecondaryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  permissionSecondaryButtonText: {
+    color: COLORS.LIGHT_GRAY,
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'CabinetGrotesk-Bold',

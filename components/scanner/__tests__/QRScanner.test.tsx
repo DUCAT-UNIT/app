@@ -1,27 +1,23 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { Linking } from 'react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import QRScanner from '../QRScanner';
 
 const mockRequestPermission = jest.fn();
-let mockPermission = { granted: false };
+const mockOpenSettings = jest.fn();
+let mockPermission: { granted: boolean; canAskAgain?: boolean } | null = {
+  granted: false,
+  canAskAgain: true,
+};
 
 jest.mock('expo-camera', () => {
   const React = require('react');
   const { View } = require('react-native');
-  return {
-    CameraView: ({ children }: { children?: React.ReactNode }) =>
-      React.createElement(View, null, children),
-    useCameraPermissions: () => [mockPermission, mockRequestPermission],
-  };
-});
 
-jest.mock('../../icons', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
-  const MockIcon = ({ name }: { name: string }) => React.createElement(Text, null, name);
   return {
-    __esModule: true,
-    default: MockIcon,
+    CameraView: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(View, { testID: 'camera-view' }, children),
+    useCameraPermissions: () => [mockPermission, mockRequestPermission],
   };
 });
 
@@ -31,36 +27,76 @@ jest.mock('../../../hooks/useQRScanner', () => ({
     progress: 0,
     isScanning: false,
     totalChunks: 0,
-    scannedChunks: new Set(),
+    scannedChunks: new Map(),
     bcurProgress: 0,
   }),
 }));
 
-describe('QRScanner', () => {
+jest.mock('../../icons', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return function MockIcon({ name }: { name: string }) {
+    return React.createElement(Text, null, name);
+  };
+});
+
+describe('QRScanner permission fallback', () => {
+  const onClose = jest.fn();
+  const onScan = jest.fn();
+
   beforeEach(() => {
     jest.clearAllMocks();
-    mockPermission = { granted: false };
+    mockPermission = { granted: false, canAskAgain: true };
+    mockOpenSettings.mockResolvedValue(undefined);
+    (Linking as unknown as { openSettings: jest.Mock }).openSettings = mockOpenSettings;
   });
 
-  it('lets users close the camera permission gate without granting access', () => {
-    const onClose = jest.fn();
-    const { getByTestId } = render(
-      <QRScanner visible={true} onClose={onClose} onScan={jest.fn()} />
+  it('renders close and cancel controls when camera permission is missing', () => {
+    const { getByTestId, getByText } = render(
+      <QRScanner visible onClose={onClose} onScan={onScan} />
     );
 
-    fireEvent.press(getByTestId('qr-scanner-permission-close-btn'));
+    expect(getByText('Camera Access')).toBeTruthy();
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.press(getByTestId('qr-scanner-permission-close'));
+    fireEvent.press(getByTestId('qr-scanner-permission-cancel'));
+
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('requests camera permission from the continue button', async () => {
+    const { getByTestId } = render(<QRScanner visible onClose={onClose} onScan={onScan} />);
+
+    await act(async () => {
+      fireEvent.press(getByTestId('qr-scanner-permission-continue'));
+    });
+
+    expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Settings instead of trapping the user when permission is blocked', async () => {
+    mockPermission = { granted: false, canAskAgain: false };
+
+    const { getByTestId, getByText } = render(
+      <QRScanner visible onClose={onClose} onScan={onScan} />
+    );
+
+    expect(getByText('Open Settings')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(getByTestId('qr-scanner-permission-continue'));
+    });
+
+    expect(mockOpenSettings).toHaveBeenCalledTimes(1);
     expect(mockRequestPermission).not.toHaveBeenCalled();
   });
 
-  it('still requests camera permission from the continue button', () => {
-    const { getByTestId } = render(
-      <QRScanner visible={true} onClose={jest.fn()} onScan={jest.fn()} />
-    );
+  it('mounts the camera view when permission is granted', () => {
+    mockPermission = { granted: true, canAskAgain: true };
 
-    fireEvent.press(getByTestId('qr-scanner-permission-continue-btn'));
+    const { getByTestId } = render(<QRScanner visible onClose={onClose} onScan={onScan} />);
 
-    expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+    expect(getByTestId('camera-view')).toBeTruthy();
   });
 });

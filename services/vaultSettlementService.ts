@@ -2,10 +2,9 @@ import {
   getBridgeIntentByClientRequestId,
   getBridgeStatus,
   getRedemptionStatus,
-  trackRedemption,
 } from './bridgeApiService';
-import { checkMintQuote, deriveMintQuoteState } from './cashu/cashuMintClient';
-import { deriveSepoliaAccount } from './evmWalletService';
+import { checkMeltQuote, checkMintQuote, deriveMintQuoteState } from './cashu/cashuMintClient';
+import type { MeltQuote } from './cashu/cashuMintClient';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -30,6 +29,14 @@ const BRIDGE_POLL_INTERVAL_MS = 4_000;
 const BRIDGE_SETTLEMENT_TIMEOUT_MS = 720_000;
 const REDEMPTION_POLL_INTERVAL_MS = 8_000;
 const REDEMPTION_RELEASE_TIMEOUT_MS = 360_000;
+const ACCEPTED_TURBO_MELT_STATES = new Set(['PAID', 'PENDING']);
+const FAILED_TURBO_MELT_STATES = new Set(['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED']);
+
+type RecoverableMeltQuote = MeltQuote & {
+  txid?: string | null;
+  outpoint?: string | null;
+  payment_preimage?: string | null;
+};
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -40,11 +47,6 @@ function delay(ms: number): Promise<void> {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isMissingBackendRecord(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return normalized.includes('404') || normalized.includes('not found');
 }
 
 export function formatVaultSettlementAmountInput(amountUsd: number): string {
@@ -271,6 +273,23 @@ function bridgePayoutAsset(intent: BridgeIntent): VaultSettlementPayoutAsset {
   return intent.payoutAsset || (intent.status === 'fulfilled' ? 'USDC' : 'wUNIT');
 }
 
+function getMeltQuoteState(quote: Pick<MeltQuote, 'paid' | 'state'>): string {
+  if (typeof quote.state === 'string' && quote.state.trim()) {
+    return quote.state.toUpperCase();
+  }
+  return quote.paid === true ? 'PAID' : 'UNKNOWN';
+}
+
+function isAcceptedTurboMeltQuote(quote: Pick<MeltQuote, 'paid' | 'state'>): boolean {
+  return quote.paid === true || ACCEPTED_TURBO_MELT_STATES.has(getMeltQuoteState(quote));
+}
+
+function getRecoverableMeltTxid(quote: RecoverableMeltQuote, fallbackQuoteId: string): string {
+  if (quote.txid) return quote.txid;
+  if (quote.outpoint) return quote.outpoint.split(':')[0] || quote.outpoint;
+  return quote.payment_preimage || quote.quote || fallbackQuoteId;
+}
+
 async function refreshPersistedBridgeIntent(
   intentId: string
 ): Promise<VaultSettlementRefreshResult> {
@@ -409,56 +428,17 @@ async function refreshPersistedRedemption(
     redemption = await getRedemptionStatus(redemptionId);
   } catch (error) {
     const message = getErrorMessage(error);
-    const settlement = useVaultSettlementStore.getState();
-
-    if (
-      isMissingBackendRecord(message) &&
-      settlement.accountIndex !== null &&
-      settlement.taprootAddress &&
-      settlement.redemptionBurnTxHash
-    ) {
-      try {
-        const requester = await deriveSepoliaAccount(settlement.accountIndex);
-        redemption = await trackRedemption({
-          id: redemptionId,
-          requester: requester.address,
-          destinationTaprootAddress: settlement.taprootAddress,
-          amount: formatVaultSettlementAmountInput(settlement.faceValueUsd),
-          sourceAsset: settlement.requestedPayoutAsset === 'USDC' ? 'USDC' : 'wUNIT',
-          burnTxHash: settlement.redemptionBurnTxHash,
-        });
-        logger.info('[VaultSettlement] Re-tracked persisted redemption burn', {
-          redemptionId,
-          accountIndex: settlement.accountIndex,
-          burnTxHash: settlement.redemptionBurnTxHash,
-        });
-      } catch (trackError) {
-        const trackMessage = getErrorMessage(trackError);
-        recordOneShotSettlementPoll({
-          kind: 'redemption_release',
-          label: 'Redemption release refresh',
-          subject: redemptionId,
-          lastError: trackMessage,
-          terminalStatus: 'error',
-        });
-        return {
-          status: 'error',
-          message: trackMessage,
-        };
-      }
-    } else {
-      recordOneShotSettlementPoll({
-        kind: 'redemption_release',
-        label: 'Redemption release refresh',
-        subject: redemptionId,
-        lastError: message,
-        terminalStatus: 'error',
-      });
-      return {
-        status: 'error',
-        message,
-      };
-    }
+    recordOneShotSettlementPoll({
+      kind: 'redemption_release',
+      label: 'Redemption release refresh',
+      subject: redemptionId,
+      lastError: message,
+      terminalStatus: 'error',
+    });
+    return {
+      status: 'error',
+      message,
+    };
   }
 
   const metadata = {
@@ -580,10 +560,84 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
   };
 }
 
+export async function refreshPersistedTurboMeltSettlementStatus(): Promise<VaultSettlementRefreshResult> {
+  const settlement = useVaultSettlementStore.getState();
+  const { cashuMeltQuoteId, cashuMeltTxid, kind, requestedPayoutAsset } = settlement;
+
+  if (
+    kind !== 'repay' ||
+    requestedPayoutAsset !== 'TURBOUNIT' ||
+    (!cashuMeltQuoteId && !cashuMeltTxid)
+  ) {
+    return {
+      status: 'idle',
+      message: 'No persisted TurboUNIT repay settlement is available to refresh.',
+    };
+  }
+
+  if (cashuMeltTxid) {
+    useVaultSettlementStore.getState().setPhase('waiting_turbo_release');
+    return {
+      status: 'ready_to_repay',
+      message: 'TurboUNIT melt was submitted. Return to the repay flow to finish vault repayment.',
+      lastStatus: 'SUBMITTED',
+    };
+  }
+
+  if (!cashuMeltQuoteId) {
+    return {
+      status: 'idle',
+      message: 'No persisted TurboUNIT repay settlement is available to refresh.',
+    };
+  }
+
+  let meltQuote: RecoverableMeltQuote;
+  try {
+    meltQuote = (await checkMeltQuote(cashuMeltQuoteId)) as RecoverableMeltQuote;
+  } catch (error) {
+    return {
+      status: 'error',
+      message: getErrorMessage(error),
+    };
+  }
+
+  const meltState = getMeltQuoteState(meltQuote);
+
+  if (isAcceptedTurboMeltQuote(meltQuote)) {
+    const meltTxid = getRecoverableMeltTxid(meltQuote, cashuMeltQuoteId);
+    useVaultSettlementStore.getState().setCashuMeltTxid(meltTxid);
+    useVaultSettlementStore.getState().setPhase('waiting_turbo_release');
+    return {
+      status: 'ready_to_repay',
+      message: 'TurboUNIT melt was accepted. Return to the repay flow to finish vault repayment.',
+      lastStatus: meltState,
+    };
+  }
+
+  if (FAILED_TURBO_MELT_STATES.has(meltState)) {
+    const message = 'TurboUNIT melt failed. Try the repay again when the mint is reachable.';
+    useVaultSettlementStore.getState().markNeedsRetry(message);
+    return {
+      status: 'needs_retry',
+      message,
+      lastStatus: meltState,
+    };
+  }
+
+  useVaultSettlementStore.getState().setPhase('melting_turbo_repay');
+  return {
+    status: 'pending',
+    message: 'TurboUNIT melt is still processing.',
+    lastStatus: meltState,
+  };
+}
+
 export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSettlementRefreshResult> {
   const {
     bridgeClientRequestId,
     bridgeIntentId,
+    cashuMeltQuoteId,
+    cashuMeltTxid,
     cashuMintQuoteId,
     redemptionId,
     requestedPayoutAsset,
@@ -591,6 +645,10 @@ export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSett
 
   if (redemptionId) {
     return refreshPersistedRedemption(redemptionId);
+  }
+
+  if (requestedPayoutAsset === 'TURBOUNIT' && (cashuMeltQuoteId || cashuMeltTxid)) {
+    return refreshPersistedTurboMeltSettlementStatus();
   }
 
   if (requestedPayoutAsset === 'TURBOUNIT' && cashuMintQuoteId) {
@@ -607,7 +665,7 @@ export async function refreshPersistedVaultSettlementStatus(): Promise<VaultSett
 
   return {
     status: 'idle',
-    message: 'No persisted bridge or redemption settlement is available to refresh.',
+    message: 'No persisted bridge, redemption, or TurboUNIT settlement is available to refresh.',
   };
 }
 

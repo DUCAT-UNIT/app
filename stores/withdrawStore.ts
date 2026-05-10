@@ -13,7 +13,7 @@ import {
   getHealthStatus,
   type HealthStatus,
 } from '../utils/vaultUtils';
-import { VAULT_CONFIG } from '../utils/constants';
+import { BITCOIN_TX, VAULT_CONFIG } from '../utils/constants';
 import { createVaultOperationStore, computeVaultHealth, computeNewVaultHealth } from './vault';
 import type {
   CommonVaultState,
@@ -59,7 +59,10 @@ const withdrawSpecificInitialState: WithdrawSpecificState = {
   withdrawAmountSats: 0,
 };
 
-interface MaxWithdrawableParams {
+const MAX_WITHDRAW_HEALTH_BUFFER_SATS = 1_000;
+const MAX_WITHDRAW_VAULT_OUTPUT_BUFFER_SATS = BITCOIN_TX.DUST_LIMIT + 1;
+
+interface CalculateMaxWithdrawableSatsParams {
   currentBtcLocked: number;
   currentUnitBorrowed: number;
   bitcoinPrice: number | null;
@@ -71,23 +74,35 @@ export function calculateMaxWithdrawableSats({
   currentUnitBorrowed,
   bitcoinPrice,
   selectedFeeRate,
-}: MaxWithdrawableParams): number {
+}: CalculateMaxWithdrawableSatsParams): number {
   if (currentBtcLocked <= 0) return 0;
 
-  const currentVaultSats = Math.floor(currentBtcLocked * 100_000_000);
-  const withdrawFeeSats = getOpCostWithdraw(selectedFeeRate);
+  const currentCollateralSats = Math.floor(currentBtcLocked * 100_000_000);
+  const withdrawTxFeeSats = getOpCostWithdraw(selectedFeeRate);
+  const maxAfterTxFeeSats = Math.max(
+    0,
+    currentCollateralSats - withdrawTxFeeSats - MAX_WITHDRAW_VAULT_OUTPUT_BUFFER_SATS
+  );
+
+  if (maxAfterTxFeeSats <= BITCOIN_TX.DUST_LIMIT) {
+    return 0;
+  }
 
   if (currentUnitBorrowed <= 0) {
-    return Math.max(0, currentVaultSats - withdrawFeeSats - VAULT_CONFIG.MIN_VAULT_BALANCE);
+    return maxAfterTxFeeSats;
   }
 
   if (!bitcoinPrice) return 0;
 
-  const minCollateralBtc = (VAULT_CONFIG.MIN_COL_RATE * currentUnitBorrowed) / bitcoinPrice;
-  const minCollateralSats = Math.ceil(minCollateralBtc * 100_000_000);
-  const minimumRemainingVaultSats = Math.max(minCollateralSats, VAULT_CONFIG.MIN_VAULT_BALANCE);
+  const minHealthRatio = VAULT_CONFIG.MIN_COL_RATE * 100;
+  const minCollateral = (minHealthRatio * currentUnitBorrowed) / (bitcoinPrice * 100);
+  const minCollateralSats = Math.ceil(minCollateral * 100_000_000);
+  const maxWithdrawableSats = Math.max(
+    0,
+    currentCollateralSats - minCollateralSats - withdrawTxFeeSats - MAX_WITHDRAW_HEALTH_BUFFER_SATS
+  );
 
-  return Math.max(0, currentVaultSats - minimumRemainingVaultSats - withdrawFeeSats);
+  return Math.min(maxAfterTxFeeSats, maxWithdrawableSats);
 }
 
 export const useWithdrawStore = createVaultOperationStore<WithdrawExtension>(

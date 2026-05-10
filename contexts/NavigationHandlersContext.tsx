@@ -153,12 +153,6 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     setIsAuthenticated(false);
   }, [dismissAllModals, setIsAuthenticated]);
 
-  // --- Post-auth handler ---
-  const { handlePostAuth } = usePostAuthHandler({
-    changingPin, setSettingUpPin, setIsAuthenticated, setBiometricEnabled,
-    resetWallet, resetAuth, walletExists, requestingSeedPhrase, loadSeedPhrase,
-  });
-
   // --- Settings ---
   const {
     notificationsEnabled, showZeroAssets, advancedMode, ecashThreshold,
@@ -171,9 +165,17 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     showLogoutModal, showDeleteModal, showFaceIdModal, showNotificationsModal,
     confirmLogout, cancelLogout, confirmDeleteWallet, cancelDeleteWallet,
     confirmFaceIdToggle, cancelFaceIdToggle, confirmNotificationsToggle, cancelNotificationsToggle,
+    completeNotificationsEnableAfterAuth,
   } = useSettings({
     biometricEnabled, setBiometricEnabled, resetAuth, resetWallet,
     startPinChange, walletExistsRef: walletExists, setIsAuthenticated, onLock: handleLockApp,
+  });
+
+  // --- Post-auth handler ---
+  const { handlePostAuth } = usePostAuthHandler({
+    changingPin, setSettingUpPin, setIsAuthenticated, setBiometricEnabled,
+    resetWallet, resetAuth, walletExists, requestingSeedPhrase, loadSeedPhrase,
+    onNotificationsEnableAfterAuth: completeNotificationsEnableAfterAuth,
   });
 
   // --- Account switcher ---

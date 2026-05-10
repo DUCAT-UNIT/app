@@ -3,11 +3,8 @@ import { useBalance, useTransactionHistory } from '../../../contexts/WalletDataC
 import { useWallet } from '../../../contexts/WalletContext';
 import { getRedemptionStatus } from '../../../services/bridgeApiService';
 import { getBalance as getCashuBalance } from '../../../services/cashu/cashuBalanceService';
-import {
-  requestMelt,
-  completeMelt,
-  checkMeltQuote,
-} from '../../../services/cashu/cashuWalletService';
+import { checkMeltQuote } from '../../../services/cashu/cashuMintClient';
+import { requestMelt, completeMelt } from '../../../services/cashu/cashuWalletService';
 import { requestRedemption } from '../../../services/evmBridgeService';
 import { createVaultWallet } from '../../../services/vaultWalletService';
 import {
@@ -42,6 +39,9 @@ jest.mock('../../../services/cashu/cashuBalanceService', () => ({
 jest.mock('../../../services/cashu/cashuWalletService', () => ({
   requestMelt: jest.fn(),
   completeMelt: jest.fn(),
+}));
+
+jest.mock('../../../services/cashu/cashuMintClient', () => ({
   checkMeltQuote: jest.fn(),
 }));
 

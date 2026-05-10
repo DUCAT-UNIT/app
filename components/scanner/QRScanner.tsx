@@ -3,8 +3,8 @@
  * Full-screen QR code scanner supporting static and animated QR codes (NUT-16)
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Linking, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
@@ -19,8 +19,25 @@ interface QRScannerProps {
 
 export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const { handleBarCodeScanned, progress, isScanning, totalChunks, scannedChunks, bcurProgress } =
     useQRScanner({ visible, onScan });
+
+  const handlePermissionPress = useCallback(async () => {
+    if (isRequestingPermission) return;
+
+    if (permission?.canAskAgain === false) {
+      await Linking.openSettings();
+      return;
+    }
+
+    setIsRequestingPermission(true);
+    try {
+      await requestPermission();
+    } finally {
+      setIsRequestingPermission(false);
+    }
+  }, [isRequestingPermission, permission?.canAskAgain, requestPermission]);
 
   // Don't render anything if not visible - this ensures camera is fully unmounted
   if (!visible) return null;
@@ -28,30 +45,52 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
   if (!permission) return null;
 
   if (!permission.granted) {
+    const permissionBlocked = permission.canAskAgain === false;
+
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <View style={styles.permissionContainer}>
           <TouchableOpacity
+            style={styles.permissionCloseButton}
+            onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel="Close scanner"
-            onPress={onClose}
-            style={styles.permissionCloseButton}
-            testID="qr-scanner-permission-close-btn"
+            testID="qr-scanner-permission-close"
           >
-            <Icon name="close" size={28} color={COLORS.WHITE} />
+            <Icon name="close" size={24} color={COLORS.WHITE} />
           </TouchableOpacity>
           <Icon name="qr_scan" size={64} color={COLORS.VERY_LIGHT_GRAY} />
           <Text style={styles.permissionTitle}>Camera Access</Text>
           <Text style={styles.permissionText}>
-            DUCAT needs camera access to scan QR codes for sending Bitcoin.
+            {permissionBlocked
+              ? 'Camera access is blocked. Enable it in Settings to scan QR codes.'
+              : 'DUCAT needs camera access to scan QR codes for sending Bitcoin.'}
           </Text>
-          <TouchableOpacity
-            style={styles.permissionButton}
-            onPress={requestPermission}
-            testID="qr-scanner-permission-continue-btn"
-          >
-            <Text style={styles.permissionButtonText}>Continue</Text>
-          </TouchableOpacity>
+          <View style={styles.permissionActions}>
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={handlePermissionPress}
+              disabled={isRequestingPermission}
+              accessibilityRole="button"
+              testID="qr-scanner-permission-continue"
+            >
+              {isRequestingPermission ? (
+                <ActivityIndicator color={COLORS.WHITE} />
+              ) : (
+                <Text style={styles.permissionButtonText}>
+                  {permissionBlocked ? 'Open Settings' : 'Continue'}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.permissionSecondaryButton}
+              onPress={onClose}
+              accessibilityRole="button"
+              testID="qr-scanner-permission-cancel"
+            >
+              <Text style={styles.permissionSecondaryButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     );
