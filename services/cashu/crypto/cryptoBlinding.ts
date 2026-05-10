@@ -6,6 +6,7 @@ import * as crypto from 'expo-crypto';
 import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { Point } from '@noble/secp256k1';
+import { pointFromHex, verifyDLEQProof, type DLEQ, type SerializedDLEQ } from '@cashu/cashu-ts';
 import { logger } from '../../../utils/logger';
 import { generateSecret, generateBlindingFactor } from './cryptoSecrets';
 import { CashuProof, createProof } from './cryptoProofs';
@@ -38,6 +39,11 @@ export interface BlindedOutputsResult {
 export interface BlindSignature {
   C_: string;
   id?: string;
+  dleq?: SerializedDLEQ;
+}
+
+export interface UnblindSignaturesOptions {
+  requireDleq?: boolean;
 }
 
 /**
@@ -49,8 +55,8 @@ export interface BlindSignature {
 export const hashToCurve = async (secret: string): Promise<string> => {
   // Cashu domain separator: "Secp256k1_HashToCurve_Cashu_"
   const DOMAIN_SEPARATOR = new Uint8Array([
-    83, 101, 99, 112, 50, 53, 54, 107, 49, 95, 72, 97, 115, 104, 84, 111, 67, 117, 114, 118, 101, 95,
-    67, 97, 115, 104, 117, 95,
+    83, 101, 99, 112, 50, 53, 54, 107, 49, 95, 72, 97, 115, 104, 84, 111, 67, 117, 114, 118, 101,
+    95, 67, 97, 115, 104, 117, 95,
   ]);
 
   // First hash: SHA256(DOMAIN_SEPARATOR || secret)
@@ -106,7 +112,7 @@ export const createBlindedMessage = async (
 ): Promise<BlindedMessage> => {
   try {
     // Generate blinding factor if not provided
-    const r = blindingFactor || await generateBlindingFactor();
+    const r = blindingFactor || (await generateBlindingFactor());
 
     // Hash secret to curve point Y
     const Y = await hashToCurve(secret);
@@ -193,7 +199,9 @@ export const unblindSignature = (C_: string, r: string, A: string): string => {
     } else if (negRA[0] === 0x03) {
       negRA[0] = 0x02; // Odd → Even
     } else {
-      throw new Error(`Invalid point prefix: expected 0x02 or 0x03 (compressed), got 0x${negRA[0].toString(16)}`);
+      throw new Error(
+        `Invalid point prefix: expected 0x02 or 0x03 (compressed), got 0x${negRA[0].toString(16)}`
+      );
     }
 
     // C = C_ + (-(r*A)) = C_ - r*A
@@ -206,6 +214,45 @@ export const unblindSignature = (C_: string, r: string, A: string): string => {
   } catch (error: unknown) {
     logger.error('Failed to unblind signature', { error: (error as Error).message });
     throw new Error(`Unblinding failed: ${(error as Error).message}`);
+  }
+};
+
+const serializedDleqToDleq = (dleq: SerializedDLEQ): DLEQ => ({
+  e: Buffer.from(dleq.e, 'hex'),
+  s: Buffer.from(dleq.s, 'hex'),
+  ...(dleq.r ? { r: BigInt(`0x${dleq.r}`) } : {}),
+});
+
+const verifyBlindSignatureDleq = (
+  sig: BlindSignature,
+  data: BlindingData,
+  A: string,
+  requireDleq: boolean
+): void => {
+  if (!sig.dleq) {
+    if (requireDleq) {
+      throw new Error(
+        `Mint returned signature without required DLEQ proof for amount ${data.amount}`
+      );
+    }
+    return;
+  }
+
+  try {
+    const valid = verifyDLEQProof(
+      serializedDleqToDleq(sig.dleq),
+      pointFromHex(data.B_),
+      pointFromHex(sig.C_),
+      pointFromHex(A)
+    );
+
+    if (!valid) {
+      throw new Error('verification returned false');
+    }
+  } catch (error: unknown) {
+    throw new Error(
+      `Mint returned invalid DLEQ proof for amount ${data.amount}: ${(error as Error).message}`
+    );
   }
 };
 
@@ -243,7 +290,7 @@ export const createBlindedOutputs = async (
           secret: blindedMsg.secret,
           r: blindedMsg.r,
           B_: blindedMsg.B_,
-        }
+        },
       };
     })
   );
@@ -252,8 +299,8 @@ export const createBlindedOutputs = async (
   blindedMessages.sort((a, b) => a.output.amount - b.output.amount);
 
   return {
-    outputs: blindedMessages.map(m => m.output),
-    blindingData: blindedMessages.map(m => m.blindingData)
+    outputs: blindedMessages.map((m) => m.output),
+    blindingData: blindedMessages.map((m) => m.blindingData),
   };
 };
 
@@ -269,11 +316,14 @@ export const unblindSignatures = (
   signatures: BlindSignature[],
   blindingData: BlindingData[],
   keys: Record<number | string, string>,
-  keysetId: string
+  keysetId: string,
+  options: UnblindSignaturesOptions = {}
 ): CashuProof[] => {
   // Validate signature count matches blinding data count
   if (signatures.length !== blindingData.length) {
-    throw new Error(`Signature count mismatch: got ${signatures.length} signatures but ${blindingData.length} blinding data entries`);
+    throw new Error(
+      `Signature count mismatch: got ${signatures.length} signatures but ${blindingData.length} blinding data entries`
+    );
   }
 
   const proofs: CashuProof[] = [];
@@ -285,8 +335,12 @@ export const unblindSignatures = (
     // Get mint's public key for this amount
     const A = keys[data.amount];
     if (!A) {
-      throw new Error(`No public key available for amount ${data.amount}. Cannot unblind signature.`);
+      throw new Error(
+        `No public key available for amount ${data.amount}. Cannot unblind signature.`
+      );
     }
+
+    verifyBlindSignatureDleq(sig, data, A, options.requireDleq === true);
 
     // Unblind signature
     const C = unblindSignature(sig.C_, data.r, A);

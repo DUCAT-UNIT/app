@@ -196,6 +196,14 @@ function isActiveSettlement(state: VaultSettlementState): boolean {
     return false;
   }
 
+  if (state.payoutAsset && state.payoutAmount) {
+    return false;
+  }
+
+  if (state.phase === 'needs_retry' && !hasSettlementRecoveryHandle(state)) {
+    return false;
+  }
+
   return state.phase !== 'idle' && state.phase !== 'settled' && state.kind !== null;
 }
 
@@ -399,8 +407,8 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
 
             if (
               current.kind === kind &&
-              current.faceValueUsd === faceValueUsd &&
-              current.requestedPayoutAsset === requestedPayoutAsset
+              current.requestedPayoutAsset === requestedPayoutAsset &&
+              (current.faceValueUsd === faceValueUsd || hasSettlementRecoveryHandle(current))
             ) {
               return;
             }

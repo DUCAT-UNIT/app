@@ -6,7 +6,12 @@
 import { logger } from '../../../utils/logger';
 import { getCurrentAccount } from '../../secureStorageService';
 import { getOrFetchKeys } from '../cashuBalanceService';
-import { checkProofsSpent, MINT_URL, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import {
+  checkProofsSpent,
+  MINT_URL,
+  mintRequiresDleqProofs,
+  swapTokens as swapTokensAPI,
+} from '../cashuMintClient';
 import { addProofs, loadProofs } from '../cashuProofManager';
 import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
@@ -111,7 +116,7 @@ export const receiveToken = async (
     logger.info('[PERF] getOrFetchKeys took', { durationMs: Date.now() - t4 });
 
     const decoded = decodeToken(tokenString, getKeysetIdsFromMintKeys(keyData));
-    const { proofs, amount } = decoded;
+    const { proofs } = decoded;
     assertProofsMatchCashuUnit(proofs, keyData, unit, 'Received Cashu token');
 
     // Check if we already have any of these proofs (prevent duplicate receives)
@@ -258,43 +263,44 @@ export const receiveToken = async (
     if (outputAmount <= 0) {
       throw new Error('Token amount does not cover mint input fees');
     }
-	    const amounts = splitAmount(outputAmount);
-	    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
-	    logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
-	    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive swap setup');
-	    const pendingSwapId = await savePendingSwap({
-	      inputProofs: proofsToSwap,
-	      blindingData,
-	      keys,
-	      keysetId,
-	      secretTypeMap: Object.fromEntries(
-	        blindingData.map((item) => [item.secret, 'change' as const])
-	      ),
-	      unit,
-	    });
+    const amounts = splitAmount(outputAmount);
+    const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+    logger.info('[PERF] Create blinded outputs took', { durationMs: Date.now() - t6 });
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive swap setup');
+    const pendingSwapId = await savePendingSwap({
+      inputProofs: proofsToSwap,
+      blindingData,
+      keys,
+      keysetId,
+      secretTypeMap: Object.fromEntries(
+        blindingData.map((item) => [item.secret, 'change' as const])
+      ),
+      unit,
+    });
 
-	    // Swap: give received proofs (signed if P2PK), get new proofs
-	    const t7 = Date.now();
-	    logger.info('Swapping tokens', {
-	      inputCount: proofsToSwap.length,
-	      outputCount: outputs.length,
-	    });
-	    const response = await swapTokensAPI(proofsToSwap, outputs);
-	    const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
-	      response.signatures,
-	      keyData,
-	      unitKeyset,
-	      unit,
-	      `Cashu ${unit} receive swap`
-	    );
-	    await updateSwapWithResponse(
-	      {
-	        signatures: response.signatures,
-	      },
-	      pendingSwapId,
-	      { keysetId: signedKeysetId, keys: unblindKeys }
-	    );
-	    logger.info('[PERF] Swap API call took', { durationMs: Date.now() - t7 });
+    // Swap: give received proofs (signed if P2PK), get new proofs
+    const t7 = Date.now();
+    logger.info('Swapping tokens', {
+      inputCount: proofsToSwap.length,
+      outputCount: outputs.length,
+    });
+    const requireDleq = await mintRequiresDleqProofs();
+    const response = await swapTokensAPI(proofsToSwap, outputs);
+    const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
+      response.signatures,
+      keyData,
+      unitKeyset,
+      unit,
+      `Cashu ${unit} receive swap`
+    );
+    await updateSwapWithResponse(
+      {
+        signatures: response.signatures,
+      },
+      pendingSwapId,
+      { keysetId: signedKeysetId, keys: unblindKeys }
+    );
+    logger.info('[PERF] Swap API call took', { durationMs: Date.now() - t7 });
 
     // Unblind to create our new proofs
     const t8 = Date.now();
@@ -302,7 +308,8 @@ export const receiveToken = async (
       response.signatures,
       blindingData,
       unblindKeys,
-      signedKeysetId
+      signedKeysetId,
+      { requireDleq }
     );
     logger.info('[PERF] Unblind signatures took', { durationMs: Date.now() - t8 });
 
@@ -330,12 +337,12 @@ export const receiveToken = async (
     assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive proof journaling');
     try {
       recoveryKey = await persistProofRecoveryRecord(
-          newProofs,
-          outputAmount,
-          hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token',
-          undefined,
-          unit
-        );
+        newProofs,
+        outputAmount,
+        hasP2PKProofs ? 'receive_token_p2pk' : 'receive_token',
+        undefined,
+        unit
+      );
     } catch (recoveryError) {
       logger.error('Failed to pre-store received proofs in recovery queue', {
         error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
@@ -382,7 +389,10 @@ export const receiveToken = async (
 
       if (!recoveryKey) {
         try {
-          assertCashuOperationAccountUnchanged(operationAccount, 'Cashu receive fallback journaling');
+          assertCashuOperationAccountUnchanged(
+            operationAccount,
+            'Cashu receive fallback journaling'
+          );
           recoveryKey = await persistProofRecoveryRecord(
             newProofs,
             outputAmount,

@@ -198,6 +198,59 @@ describe('vaultSettlementStore', () => {
     });
   });
 
+  it('allows a new operation after a payout completed even if the phase is stale', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('open', 75, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setPhase('waiting_turbo_mint');
+      state.completeSettlement('TURBOUNIT', '75.00');
+      state.setPhase('waiting_turbo_mint');
+    });
+
+    act(() => {
+      useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'repay',
+      phase: 'quoting',
+      faceValueUsd: 25,
+      requestedPayoutAsset: 'TURBOUNIT',
+    });
+  });
+
+  it('allows a new operation over a needs-retry record with no recovery handle', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.markNeedsRetry('Quote failed before a recoverable transaction was created.');
+    });
+
+    act(() => {
+      useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'repay',
+      phase: 'quoting',
+      faceValueUsd: 25,
+      requestedPayoutAsset: 'TURBOUNIT',
+      error: null,
+    });
+  });
+
   it('allows a new operation to replace transient pre-issue state', () => {
     act(() => {
       const state = useVaultSettlementStore.getState();
@@ -246,6 +299,32 @@ describe('vaultSettlementStore', () => {
       kind: 'repay',
       phase: 'melting_turbo_repay',
       cashuMeltQuoteId: 'melt-quote-to-preserve',
+    });
+  });
+
+  it('preserves recoverable same-kind settlement even when the display amount changed', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setCashuMeltQuote('melt-quote-to-resume');
+      state.setPhase('needs_retry');
+    });
+
+    act(() => {
+      useVaultSettlementStore.getState().startOperation('repay', 24.99, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'repay',
+      phase: 'needs_retry',
+      faceValueUsd: 25,
+      cashuMeltQuoteId: 'melt-quote-to-resume',
     });
   });
 

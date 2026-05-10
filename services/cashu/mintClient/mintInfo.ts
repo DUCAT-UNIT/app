@@ -11,16 +11,21 @@ import { MINT_URL } from './mintConfig';
 export interface MintInfo {
   name?: string;
   version?: string;
-  nuts?: Record<string, {
-    methods?: Array<{
-      method: string;
-      unit: string;
-      min_amount?: CashuAmountLike;
-      max_amount?: CashuAmountLike;
-    }>;
-    supported?: boolean;
-  }>;
+  nuts?: Record<
+    string,
+    {
+      methods?: Array<{
+        method: string;
+        unit: string;
+        min_amount?: CashuAmountLike;
+        max_amount?: CashuAmountLike;
+      }>;
+      supported?: boolean;
+    }
+  >;
 }
+
+let cachedDleqSupport: boolean | null = null;
 
 export interface Keysets {
   keysets: Array<{
@@ -52,6 +57,21 @@ export const mintSupportsOnchainCashuUnit = (info: MintInfo, unit: CashuUnit): b
   !!info.nuts?.['4']?.methods?.some(
     (method) => method.method === 'onchain' && method.unit === unit
   );
+
+export const mintSupportsNut12Dleq = (info: MintInfo): boolean => {
+  const nut12 = info.nuts?.['12'];
+  return !!nut12 && nut12.supported !== false;
+};
+
+export const mintRequiresDleqProofs = async (): Promise<boolean> => {
+  if (cachedDleqSupport !== null) {
+    return cachedDleqSupport;
+  }
+
+  const info = await getMintInfo();
+  cachedDleqSupport = mintSupportsNut12Dleq(info);
+  return cachedDleqSupport;
+};
 
 export const assertOnchainUnitMintSupport = async (): Promise<void> => {
   await assertOnchainCashuMintSupport(CASHU_UNIT_UNIT);
@@ -107,9 +127,7 @@ export const getKeysets = async (): Promise<Keysets> => {
  */
 export const getKeys = async (keysetId: string | null = null): Promise<MintKeys> => {
   try {
-    const url = keysetId
-      ? `${MINT_URL}/v1/keys/${keysetId}`
-      : `${MINT_URL}/v1/keys`;
+    const url = keysetId ? `${MINT_URL}/v1/keys/${keysetId}` : `${MINT_URL}/v1/keys`;
 
     const keys = await getJSON<MintKeys>(url, {
       timeout: 5000,

@@ -76,6 +76,7 @@ jest.mock('../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test',
   restoreSignatures: (...args: unknown[]) => mockRestoreSignatures(...args),
   checkProofsSpent: (...args: unknown[]) => mockCheckProofsSpent(...args),
+  mintRequiresDleqProofs: jest.fn(async () => false),
 }));
 
 describe('cashuSwapRecovery', () => {
@@ -187,18 +188,20 @@ describe('cashuSwapRecovery', () => {
       });
 
       expect(id).toMatch(/^swap_\d+_/);
-      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
-        ([key]) => key === 'cashu_pending_swaps_v1',
-      )).toBe(false);
+      expect(
+        (SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+          ([key]) => key === 'cashu_pending_swaps_v1'
+        )
+      ).toBe(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         expect.stringMatching(/^cashu_pending_swaps_v1_corrupt_/),
         '{bad json',
-        expect.any(Object),
+        expect.any(Object)
       );
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         'cashu_pending_swap',
         expect.stringContaining(id),
-        expect.any(Object),
+        expect.any(Object)
       );
     });
   });
@@ -571,7 +574,8 @@ describe('cashuSwapRecovery', () => {
         restoredSignatures,
         mockBlindingData,
         mockKeys,
-        'keyset1'
+        'keyset1',
+        { requireDleq: false }
       );
       expect(result?.sendProofs).toHaveLength(2);
       expect(result?.changeProofs).toHaveLength(1);
@@ -625,7 +629,8 @@ describe('cashuSwapRecovery', () => {
         legacySwappedTxn.swapResponse!.signatures,
         mockBlindingData,
         mockKeys,
-        'keyset1'
+        'keyset1',
+        { requireDleq: false }
       );
       expect(result?.sendProofs).toHaveLength(2);
       expect(result?.changeProofs).toHaveLength(1);
@@ -789,7 +794,9 @@ describe('cashuSwapRecovery', () => {
         id: 'swap_123',
         timestamp: Date.now(),
         inputProofs: mockInputProofs,
-        blindingData: [{ amount: 32, secret: 'new2', r: Buffer.from('r2').toString('hex'), B_: 'B2' }],
+        blindingData: [
+          { amount: 32, secret: 'new2', r: Buffer.from('r2').toString('hex'), B_: 'B2' },
+        ],
         keys: mockKeys,
         keysetId: 'fallback-keyset',
         secretTypeMap: { new2: 'change' },
@@ -820,7 +827,9 @@ describe('cashuSwapRecovery', () => {
         id: 'swap_123',
         timestamp: Date.now(),
         inputProofs: mockInputProofs,
-        blindingData: [{ amount: 32, secret: 'new2', r: Buffer.from('r2').toString('hex'), B_: 'B2' }],
+        blindingData: [
+          { amount: 32, secret: 'new2', r: Buffer.from('r2').toString('hex'), B_: 'B2' },
+        ],
         keys: mockKeys,
         keysetId: 'keyset1',
         secretTypeMap: {},
@@ -978,7 +987,7 @@ describe('cashuSwapRecovery', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         expect.stringMatching(/^cashu_recovered_outgoing_swap_tokens_v1_corrupt_/),
         '{bad json',
-        expect.any(Object),
+        expect.any(Object)
       );
     });
   });

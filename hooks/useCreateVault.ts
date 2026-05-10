@@ -16,7 +16,13 @@ import {
   createVaultReqOpen,
 } from '../services/vaultOperationsService';
 import { createVaultWallet } from '../services/vaultWalletService';
-import { computeLiquidationPrice, validateVaultParams } from '../utils/vaultUtils';
+import {
+  computeLiquidationPrice,
+  getOpCostRepay,
+  getVaultSettlementReserveSats,
+  validateVaultParams,
+} from '../utils/vaultUtils';
+import { requiresVaultSettlementUnitSend } from '../stores/vaultSettlementStore';
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
@@ -73,6 +79,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
     btcAmount,
     borrowAmountUsd,
     protocolUnitAmount,
+    receiveAsset,
     selectedFeeRate,
     loading,
     error,
@@ -214,11 +221,17 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         logger.debug('[useCreateVault] Step 3: Creating vault request...');
 
         const liquidationPrice = computeLiquidationPrice(protocolUnitAmount, btcAmount);
+        const postOpenReserveSats =
+          getOpCostRepay(selectedFeeRate) +
+          (requiresVaultSettlementUnitSend(receiveAsset)
+            ? getVaultSettlementReserveSats(selectedFeeRate)
+            : 0);
 
         const vaultReq = await createVaultReqOpen(vaultWallet, vaultConfig, acctRes, {
           feeRate: selectedFeeRate,
           isMaxDeposit: params.isMaxDeposit || false,
           liquidationPrice,
+          postOpenReserveSats,
         });
 
         const pendingVaultTx = {
@@ -364,6 +377,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
       btcAmount,
       borrowAmountUsd,
       protocolUnitAmount,
+      receiveAsset,
       segwitBalance,
       selectedFeeRate,
       setLoading,

@@ -24,6 +24,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
+  mintRequiresDleqProofs: jest.fn(async () => false),
   checkProofsSpent: jest.fn(async (proofs: unknown[]) => ({
     states: proofs.map(() => ({ state: 'UNSPENT' })),
   })),
@@ -73,7 +74,12 @@ import {
   encodeToken,
 } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
-import { loadProofs, removeProofs, addProofs, getCurrentCashuAccount } from '../../cashuProofManager';
+import {
+  loadProofs,
+  removeProofs,
+  addProofs,
+  getCurrentCashuAccount,
+} from '../../cashuProofManager';
 
 describe('cashuSendToken', () => {
   let blindedSecretCounter = 0;
@@ -195,7 +201,9 @@ describe('cashuSendToken', () => {
 
       expect(result.token).toBe('cashuBtoken...');
       // Change proof (secret: new2) should be added back
-      expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'keyset1' }]);
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
+      ]);
     });
 
     it('should preserve send/change labels when denominations interleave after sorting', async () => {
@@ -206,7 +214,14 @@ describe('cashuSendToken', () => {
         proofs.reduce((total, proof) => total + proof.amount, 0)
       );
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
-        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2', 4: 'key4', 8: 'key8' } }],
+        keysets: [
+          {
+            id: 'keyset1',
+            unit: 'unit',
+            active: true,
+            keys: { 1: 'key1', 2: 'key2', 4: 'key4', 8: 'key8' },
+          },
+        ],
       });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([1, 4]) // send amount
@@ -247,11 +262,11 @@ describe('cashuSendToken', () => {
       ]);
     });
 
-	    it('should use active unit keyset keys (line 57)', async () => {
-	      (sumProofs as jest.Mock).mockReturnValue(96);
-	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
-	        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
-	      });
+    it('should use active unit keyset keys (line 57)', async () => {
+      (sumProofs as jest.Mock).mockReturnValue(96);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1', 2: 'key2' } }],
+      });
       (splitAmount as jest.Mock)
         .mockReturnValueOnce([64]) // send amount
         .mockReturnValueOnce([32]); // change amount
@@ -265,60 +280,58 @@ describe('cashuSendToken', () => {
 
       const result = await sendToken(64, true);
 
-	      expect(result.token).toBe('cashuBtoken...');
-	      expect(unblindSignatures).toHaveBeenCalled();
-	    });
+      expect(result.token).toBe('cashuBtoken...');
+      expect(unblindSignatures).toHaveBeenCalled();
+    });
 
-	    it('should send sat tokens from the sat proof store and journal sat recovery records', async () => {
-	      const satProofs: MockProof[] = [
-	        { amount: 64, secret: 'sat1', C: 'C1', id: 'satset1' },
-	        { amount: 32, secret: 'sat2', C: 'C2', id: 'satset1' },
-	      ];
-	      (loadProofs as jest.Mock).mockResolvedValue(satProofs);
-	      (selectProofsForAmount as jest.Mock).mockReturnValue(satProofs);
-	      (sumProofs as jest.Mock).mockImplementation((proofs: MockProof[]) =>
-	        proofs.reduce((total, proof) => total + proof.amount, 0)
-	      );
-	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
-	        keysets: [
-	          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
-	          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
-	        ],
-	      });
-	      (splitAmount as jest.Mock)
-	        .mockReturnValueOnce([64])
-	        .mockReturnValueOnce([32]);
-	      (swapTokens as jest.Mock).mockResolvedValue({
-	        signatures: [{ id: 'satset1' }, {}],
-	      });
-	      (unblindSignatures as jest.Mock).mockReturnValue([
-	        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
-	        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
-	      ]);
+    it('should send sat tokens from the sat proof store and journal sat recovery records', async () => {
+      const satProofs: MockProof[] = [
+        { amount: 64, secret: 'sat1', C: 'C1', id: 'satset1' },
+        { amount: 32, secret: 'sat2', C: 'C2', id: 'satset1' },
+      ];
+      (loadProofs as jest.Mock).mockResolvedValue(satProofs);
+      (selectProofsForAmount as jest.Mock).mockReturnValue(satProofs);
+      (sumProofs as jest.Mock).mockImplementation((proofs: MockProof[]) =>
+        proofs.reduce((total, proof) => total + proof.amount, 0)
+      );
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [
+          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
+        ],
+      });
+      (splitAmount as jest.Mock).mockReturnValueOnce([64]).mockReturnValueOnce([32]);
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'satset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
+      ]);
 
-	      const result = await sendToken(64, true, 'sat');
+      const result = await sendToken(64, true, 'sat');
 
-	      expect(result.token).toBe('cashuBtoken...');
-	      expect(loadProofs).toHaveBeenCalledWith('sat');
-	      expect(mockSavePendingSwap).toHaveBeenCalledWith(expect.objectContaining({ unit: 'sat' }));
-	      expect(mockPersistOutgoingSwapToken).toHaveBeenCalledWith(
-	        expect.objectContaining({ unit: 'sat', token: 'cashuBtoken...', kind: 'send' })
-	      );
-	      expect(addProofs).toHaveBeenCalledWith(
-	        [{ amount: 32, secret: 'new2', C: 'C', id: 'satset1' }],
-	        true,
-	        'sat'
-	      );
-	      expect(removeProofs).toHaveBeenCalledWith(satProofs, 'sat');
-	      expect(encodeToken).toHaveBeenCalledWith(
-	        [{ amount: 64, secret: 'new1', C: 'C', id: 'satset1' }],
-	        MINT_URL,
-	        'sat'
-	      );
-	      expect(getBalance).toHaveBeenCalledWith(true, 'sat');
-	    });
+      expect(result.token).toBe('cashuBtoken...');
+      expect(loadProofs).toHaveBeenCalledWith('sat');
+      expect(mockSavePendingSwap).toHaveBeenCalledWith(expect.objectContaining({ unit: 'sat' }));
+      expect(mockPersistOutgoingSwapToken).toHaveBeenCalledWith(
+        expect.objectContaining({ unit: 'sat', token: 'cashuBtoken...', kind: 'send' })
+      );
+      expect(addProofs).toHaveBeenCalledWith(
+        [{ amount: 32, secret: 'new2', C: 'C', id: 'satset1' }],
+        true,
+        'sat'
+      );
+      expect(removeProofs).toHaveBeenCalledWith(satProofs, 'sat');
+      expect(encodeToken).toHaveBeenCalledWith(
+        [{ amount: 64, secret: 'new1', C: 'C', id: 'satset1' }],
+        MINT_URL,
+        'sat'
+      );
+      expect(getBalance).toHaveBeenCalledWith(true, 'sat');
+    });
 
-	    it('should throw error when no keys available', async () => {
+    it('should throw error when no keys available', async () => {
       (sumProofs as jest.Mock).mockReturnValue(96);
       // Empty object - no keys, no keysets
       (getOrFetchKeys as jest.Mock).mockResolvedValue({});
@@ -440,7 +453,8 @@ describe('cashuSendToken', () => {
         expect.any(Array),
         expect.any(Array),
         expect.any(Object),
-        'response_keyset'
+        'response_keyset',
+        { requireDleq: false }
       );
     });
 
@@ -469,7 +483,9 @@ describe('cashuSendToken', () => {
 
       // addProofs is called 3 times: try block, inner catch block, outer catch block
       expect(addProofs).toHaveBeenCalledTimes(3);
-      expect(addProofs).toHaveBeenCalledWith([{ amount: 32, secret: 'new2', C: 'C', id: 'keyset1' }]);
+      expect(addProofs).toHaveBeenCalledWith([
+        { amount: 32, secret: 'new2', C: 'C', id: 'keyset1' },
+      ]);
     });
 
     it('should throw critical error when both removeProofs and addProofs fail after swap', async () => {

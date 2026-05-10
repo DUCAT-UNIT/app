@@ -21,6 +21,7 @@ jest.mock('../../cashuMintClient', () => ({
   createMeltQuote: jest.fn(),
   meltTokens: jest.fn(),
   swapTokens: jest.fn(),
+  mintRequiresDleqProofs: jest.fn(async () => false),
 }));
 
 jest.mock('../../crypto', () => {
@@ -64,12 +65,13 @@ import {
   completeMeltWithoutCleanup,
   cleanupMeltProofs,
 } from '../cashuMeltOperations';
-import { createMeltQuote, meltTokens, swapTokens } from '../../cashuMintClient';
 import {
-  createBlindedOutputs,
-  unblindSignatures,
-  selectProofsForAmount,
-} from '../../crypto';
+  createMeltQuote,
+  meltTokens,
+  mintRequiresDleqProofs,
+  swapTokens,
+} from '../../cashuMintClient';
+import { createBlindedOutputs, unblindSignatures, selectProofsForAmount } from '../../crypto';
 import { getOrFetchKeys, getBalance } from '../../cashuBalanceService';
 import {
   loadProofs,
@@ -83,25 +85,28 @@ import { isP2PKSecret } from '../../p2pk';
 
 describe('cashuMeltOperations', () => {
   const unitKeyData = {
-    keysets: [{
-      id: 'keyset1',
-      unit: 'unit',
-      active: true,
-      input_fee_ppk: 0,
-      keys: {
-        1: 'key1',
-        2: 'key2',
-        4: 'key4',
-        8: 'key8',
-        16: 'key16',
-        32: 'key32',
-        64: 'key64',
+    keysets: [
+      {
+        id: 'keyset1',
+        unit: 'unit',
+        active: true,
+        input_fee_ppk: 0,
+        keys: {
+          1: 'key1',
+          2: 'key2',
+          4: 'key4',
+          8: 'key8',
+          16: 'key16',
+          32: 'key32',
+          64: 'key64',
+        },
       },
-    }],
+    ],
   };
 
   beforeEach(() => {
     jest.resetAllMocks();
+    (mintRequiresDleqProofs as jest.Mock).mockResolvedValue(false);
     (getOrFetchKeys as jest.Mock).mockResolvedValue(unitKeyData);
     (getBalance as jest.Mock).mockResolvedValue(0);
     (removeProofs as jest.Mock).mockResolvedValue(undefined);
@@ -293,26 +298,25 @@ describe('cashuMeltOperations', () => {
       expect(result.paid).toBe(true);
       expect(createBlindedOutputs).toHaveBeenNthCalledWith(1, [64, 32, 4], 'keyset1');
       expect(createBlindedOutputs).toHaveBeenNthCalledWith(2, [8, 4], 'keyset1');
-      expect(savePendingSwap).toHaveBeenCalledWith(expect.objectContaining({
-        inputProofs: changeProofs,
-        secretTypeMap: {
-          melt4: 'change',
-          change4: 'change',
-          change8: 'change',
-          melt32: 'change',
-          melt64: 'change',
-        },
-      }));
-      expect(swapTokens).toHaveBeenCalledWith(
-        changeProofs,
-        [
-          { amount: 4, B_: 'Bm4', id: 'keyset1' },
-          { amount: 4, B_: 'Bc4', id: 'keyset1' },
-          { amount: 8, B_: 'Bc8', id: 'keyset1' },
-          { amount: 32, B_: 'Bm32', id: 'keyset1' },
-          { amount: 64, B_: 'Bm64', id: 'keyset1' },
-        ],
+      expect(savePendingSwap).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inputProofs: changeProofs,
+          secretTypeMap: {
+            melt4: 'change',
+            change4: 'change',
+            change8: 'change',
+            melt32: 'change',
+            melt64: 'change',
+          },
+        })
       );
+      expect(swapTokens).toHaveBeenCalledWith(changeProofs, [
+        { amount: 4, B_: 'Bm4', id: 'keyset1' },
+        { amount: 4, B_: 'Bc4', id: 'keyset1' },
+        { amount: 8, B_: 'Bc8', id: 'keyset1' },
+        { amount: 32, B_: 'Bm32', id: 'keyset1' },
+        { amount: 64, B_: 'Bm64', id: 'keyset1' },
+      ]);
       expect(updateSwapWithResponse).toHaveBeenCalled();
       expect(unblindSignatures).toHaveBeenCalledWith(
         [
@@ -330,7 +334,8 @@ describe('cashuMeltOperations', () => {
           { amount: 64, secret: 'melt64' },
         ],
         unitKeyData.keysets[0].keys,
-        'keyset1'
+        'keyset1',
+        { requireDleq: false }
       );
       expect(addProofs).toHaveBeenCalledWith([
         { amount: 4, secret: 'melt4', C: 'Cm4', id: 'keyset1' },
@@ -422,7 +427,7 @@ describe('cashuMeltOperations', () => {
           { amount: 4, B_: 'Bm4', id: 'keyset1' },
           { amount: 32, B_: 'Bm32', id: 'keyset1' },
           { amount: 64, B_: 'Bm64', id: 'keyset1' },
-        ],
+        ]
       );
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
@@ -439,13 +444,15 @@ describe('cashuMeltOperations', () => {
     it('should use mint-compatible denominations for large melt change', async () => {
       const proof65536 = { amount: 65536, secret: 's1', C: 'C1', id: 'keyset1' };
       const keyDataWithLargeDenominations = {
-        keysets: [{
-          ...unitKeyData.keysets[0],
-          keys: {
-            ...unitKeyData.keysets[0].keys,
-            32768: 'key32768',
+        keysets: [
+          {
+            ...unitKeyData.keysets[0],
+            keys: {
+              ...unitKeyData.keysets[0].keys,
+              32768: 'key32768',
+            },
           },
-        }],
+        ],
       };
       (getOrFetchKeys as jest.Mock).mockResolvedValue(keyDataWithLargeDenominations);
       (loadProofs as jest.Mock).mockResolvedValue([proof65536]);
@@ -483,7 +490,7 @@ describe('cashuMeltOperations', () => {
         [
           { amount: 32768, B_: 'Bm32768', id: 'keyset1' },
           { amount: 32768, B_: 'Bc32768', id: 'keyset1' },
-        ],
+        ]
       );
       expect(meltTokens).toHaveBeenCalledWith(
         'quote123',
@@ -503,13 +510,22 @@ describe('cashuMeltOperations', () => {
       (loadProofs as jest.Mock).mockResolvedValue(changeProofs);
       (selectProofsForAmount as jest.Mock).mockReturnValue(changeProofs);
 
-      await expect(completeMelt('quote123', 100)).rejects.toThrow('No active unit keyset available from mint');
+      await expect(completeMelt('quote123', 100)).rejects.toThrow(
+        'No active unit keyset available from mint'
+      );
     });
 
     it('should ignore P2PK locked proofs when selecting melt inputs', async () => {
-      const lockedProof: MockProof = { amount: 100, secret: '["P2PK",{"data":"pubkey"}]', C: 'C1', id: 'keyset1' };
+      const lockedProof: MockProof = {
+        amount: 100,
+        secret: '["P2PK",{"data":"pubkey"}]',
+        C: 'C1',
+        id: 'keyset1',
+      };
       const spendableProof: MockProof = { amount: 100, secret: 's2', C: 'C2', id: 'keyset1' };
-      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) => secret.startsWith('["P2PK"'));
+      (isP2PKSecret as jest.Mock).mockImplementation((secret: string) =>
+        secret.startsWith('["P2PK"')
+      );
       (loadProofs as jest.Mock).mockResolvedValue([lockedProof, spendableProof]);
       (selectProofsForAmount as jest.Mock).mockReturnValue([spendableProof]);
 
@@ -528,7 +544,9 @@ describe('cashuMeltOperations', () => {
         fee_paid: 0,
       });
 
-      await expect(completeMelt('quote123', 100)).rejects.toThrow('Mint did not confirm the withdrawal');
+      await expect(completeMelt('quote123', 100)).rejects.toThrow(
+        'Mint did not confirm the withdrawal'
+      );
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
       expect(removeSpentProofs).toHaveBeenCalledTimes(1);
@@ -576,7 +594,9 @@ describe('cashuMeltOperations', () => {
         { amount: 32, secret: 'melt32', C: 'Cm32', id: 'keyset1' },
         { amount: 64, secret: 'melt64', C: 'Cm64', id: 'keyset1' },
       ]);
-      (meltTokens as jest.Mock).mockRejectedValueOnce(new Error('Withdrawal failed - your ecash tokens remain valid, please try again'));
+      (meltTokens as jest.Mock).mockRejectedValueOnce(
+        new Error('Withdrawal failed - your ecash tokens remain valid, please try again')
+      );
       (removeSpentProofs as jest.Mock).mockResolvedValueOnce({ removed: 0, kept: 5 });
 
       await expect(completeMelt('quote123', 100)).rejects.toThrow(

@@ -34,6 +34,7 @@ jest.mock('../../../utils/logger', () => ({
 jest.mock('../cashuMintClient', () => ({
   checkMintQuote: jest.fn(),
   restoreSignatures: jest.fn(),
+  mintRequiresDleqProofs: jest.fn(async () => false),
 }));
 
 jest.mock('../operations/cashuMintOperations', () => ({
@@ -166,9 +167,7 @@ describe('cashuMintQuoteRecovery', () => {
         depositAddress: 'tb1ptest',
       });
 
-      const savedData = JSON.parse(
-        (SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]
-      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData[0].state).toBe('UNPAID');
       expect(savedData[0].createdAt).toBeGreaterThanOrEqual(beforeTime);
     });
@@ -196,13 +195,15 @@ describe('cashuMintQuoteRecovery', () => {
         })
       ).rejects.toThrow('Mint quote recovery storage corrupted');
 
-      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
-        ([key]) => key === 'cashu_pending_mint_quotes',
-      )).toBe(false);
+      expect(
+        (SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+          ([key]) => key === 'cashu_pending_mint_quotes'
+        )
+      ).toBe(false);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         expect.stringMatching(/^cashu_pending_mint_quotes_corrupt_/),
         '{bad json',
-        expect.any(Object),
+        expect.any(Object)
       );
     });
   });
@@ -229,9 +230,7 @@ describe('cashuMintQuoteRecovery', () => {
 
       await removeMintQuote('quote123');
 
-      const savedData = JSON.parse(
-        (SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]
-      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData.length).toBe(1);
       expect(savedData[0].quoteId).toBe('quote456');
     });
@@ -422,7 +421,7 @@ describe('cashuMintQuoteRecovery', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         expect.stringMatching(/^cashu_pending_mint_quotes_corrupt_/),
         'invalid json',
-        expect.any(Object),
+        expect.any(Object)
       );
     });
   });
@@ -442,9 +441,7 @@ describe('cashuMintQuoteRecovery', () => {
 
       await updateMintQuoteState('quote123', 'PAID');
 
-      const savedData = JSON.parse(
-        (SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]
-      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData[0].state).toBe('PAID');
     });
 
@@ -651,9 +648,7 @@ describe('cashuMintQuoteRecovery', () => {
       const result = await recoverUnclaimedMintQuotes();
 
       expect(result.recovered).toBe(1);
-      expect(restoreSignatures).toHaveBeenCalledWith([
-        { amount: 1000, B_: 'B_', id: 'keyset1' },
-      ]);
+      expect(restoreSignatures).toHaveBeenCalledWith([{ amount: 1000, B_: 'B_', id: 'keyset1' }]);
       expect(addProofs).toHaveBeenCalledWith(claimProofs, true, 'unit');
       expect(completeMint).not.toHaveBeenCalled();
     });
@@ -732,9 +727,7 @@ describe('cashuMintQuoteRecovery', () => {
 
       await recoverUnclaimedMintQuotes();
 
-      const savedData = JSON.parse(
-        (SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]
-      );
+      const savedData = JSON.parse((SecureStore.setItemAsync as jest.Mock).mock.calls[0][1]);
       expect(savedData[0].state).toBe('UNPAID');
     });
 

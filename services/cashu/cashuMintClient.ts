@@ -11,6 +11,8 @@ export {
   getMintInfo,
   assertOnchainCashuMintSupport,
   assertOnchainUnitMintSupport,
+  mintRequiresDleqProofs,
+  mintSupportsNut12Dleq,
   mintSupportsOnchainCashuUnit,
   mintSupportsOnchainUnit,
   getKeysets,
@@ -25,7 +27,7 @@ export {
   meltTokens,
   swapTokens,
   restoreSignatures,
-  checkProofsSpent
+  checkProofsSpent,
 } from './mintClient';
 
 export type {
@@ -39,5 +41,5 @@ export type {
   MeltQuote,
   MeltResponse,
   ProofState,
-  CheckStateResponse
+  CheckStateResponse,
 } from './mintClient';

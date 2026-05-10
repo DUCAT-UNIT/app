@@ -35,7 +35,7 @@ import {
 const BRIDGE_SEND_BUILD_RETRY_MS = 2_500;
 const BRIDGE_SEND_BUILD_TIMEOUT_MS = 90_000;
 const CASHU_MINT_POLL_INTERVAL_MS = 4_000;
-const CASHU_MINT_COMPLETION_TIMEOUT_MS = 720_000;
+const CASHU_MINT_COMPLETION_TIMEOUT_MS = 90_000;
 
 interface BridgeIntentUnconfirmedUtxo {
   txid: string;
@@ -239,24 +239,26 @@ export function useIssuedUnitSettlement() {
   const waitForCashuMintCompletion = useCallback(
     async (quoteId: string, fallbackAmount: number): Promise<number> => {
       const deadline = Date.now() + CASHU_MINT_COMPLETION_TIMEOUT_MS;
+      const targetAmount = Math.floor(fallbackAmount);
 
       while (Date.now() < deadline) {
         const status = await checkMintStatus(quoteId);
-        const alreadyIssued = status.state === 'ISSUED' ||
-          (
-            (status.amountPaid ?? 0) > 0 &&
-            (status.amountIssued ?? 0) >= (status.amountPaid ?? 0)
-          );
+        const amountPaid = status.amountPaid ?? 0;
+        const amountIssued = status.amountIssued ?? 0;
+        const fullAmountAvailable = status.availableAmount >= targetAmount;
+        const fullAmountIssued = amountIssued >= targetAmount;
+        const fullAmountPaid =
+          amountPaid > 0 ? amountPaid >= targetAmount : status.paid || status.state === 'PAID';
 
-        if (status.availableAmount > 0 || (!alreadyIssued && status.paid && status.state === 'PAID')) {
-          const proofs = await completeMint(quoteId, status.availableAmount || fallbackAmount);
+        if (fullAmountAvailable || (fullAmountPaid && status.state === 'PAID')) {
+          const proofs = await completeMint(quoteId, targetAmount);
           await refreshCashuBalance().catch(() => undefined);
-          return sumCashuProofs(proofs) || status.availableAmount || fallbackAmount;
+          return sumCashuProofs(proofs) || targetAmount;
         }
 
-        if (alreadyIssued) {
+        if (fullAmountIssued) {
           await refreshCashuBalance().catch(() => undefined);
-          return status.amountIssued || fallbackAmount;
+          return amountIssued || targetAmount;
         }
 
         await delay(CASHU_MINT_POLL_INTERVAL_MS);

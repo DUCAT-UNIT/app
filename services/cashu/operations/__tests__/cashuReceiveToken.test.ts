@@ -29,6 +29,7 @@ jest.mock('../../../../utils/logger', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
+  mintRequiresDleqProofs: jest.fn(async () => false),
   checkProofsSpent: jest.fn(async () => ({ states: [] })),
 }));
 
@@ -72,8 +73,21 @@ jest.mock('../../cashuSwapRecovery', () => ({
 
 import { receiveToken } from '../cashuReceiveToken';
 import { MINT_URL, swapTokens, checkProofsSpent } from '../../cashuMintClient';
-import { createBlindedOutputs, unblindSignatures, splitAmount, sumProofs, decodeToken, decodeTokenMetadata } from '../../crypto';
-import { isP2PKLocked, getP2PKRecipient, findAccountForP2PKToken, getP2PKPrivateKey, signP2PKProofs } from '../../p2pk';
+import {
+  createBlindedOutputs,
+  unblindSignatures,
+  splitAmount,
+  sumProofs,
+  decodeToken,
+  decodeTokenMetadata,
+} from '../../crypto';
+import {
+  isP2PKLocked,
+  getP2PKRecipient,
+  findAccountForP2PKToken,
+  getP2PKPrivateKey,
+  signP2PKProofs,
+} from '../../p2pk';
 import { getCurrentAccount } from '../../../secureStorageService';
 import { getOrFetchKeys } from '../../cashuBalanceService';
 import { loadProofs, addProofs } from '../../cashuProofManager';
@@ -85,7 +99,9 @@ describe('cashuReceiveToken', () => {
     (checkProofsSpent as jest.Mock).mockImplementation(async (proofs: Array<unknown>) => ({
       states: proofs.map(() => ({ state: 'UNSPENT' })),
     }));
-    (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) => (decodeToken as jest.Mock)(token));
+    (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) =>
+      (decodeToken as jest.Mock)(token)
+    );
   });
 
   describe('receiveToken', () => {
@@ -100,9 +116,9 @@ describe('cashuReceiveToken', () => {
       amount: 96,
     };
 
-	    it('should receive token successfully', async () => {
-	      (decodeToken as jest.Mock).mockReturnValue(mockToken);
-	      (loadProofs as jest.Mock).mockResolvedValue([]);
+    it('should receive token successfully', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (loadProofs as jest.Mock).mockResolvedValue([]);
       (isP2PKLocked as jest.Mock).mockReturnValue(false);
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
@@ -122,55 +138,65 @@ describe('cashuReceiveToken', () => {
 
       const result = await receiveToken('cashuBtoken...');
 
-	      expect(result.amount).toBe(96);
-	      expect(result.proofCount).toBe(2);
-	      expect(addProofs).toHaveBeenCalled();
-	    });
+      expect(result.amount).toBe(96);
+      expect(result.proofCount).toBe(2);
+      expect(addProofs).toHaveBeenCalled();
+    });
 
-	    it('should receive sat tokens into the sat proof store using the sat keyset', async () => {
-	      const satProofs = [
-	        { amount: 64, secret: 'sat1', C: 'C1', id: 'satset1' },
-	        { amount: 32, secret: 'sat2', C: 'C2', id: 'satset1' },
-	      ];
-	      (decodeToken as jest.Mock).mockReturnValue({
-	        mint: 'https://mint.test.com',
-	        proofs: satProofs,
-	        amount: 96,
-	        unit: 'sat',
-	      });
-	      (loadProofs as jest.Mock).mockResolvedValue([]);
-	      (isP2PKLocked as jest.Mock).mockReturnValue(false);
-	      (getOrFetchKeys as jest.Mock).mockResolvedValue({
-	        keysets: [
-	          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
-	          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
-	        ],
-	      });
-	      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
-	      (createBlindedOutputs as jest.Mock).mockResolvedValue({
-	        outputs: [{ amount: 64, id: 'satset1' }, { amount: 32, id: 'satset1' }],
-	        blindingData: [{ secret: 'new1', amount: 64 }, { secret: 'new2', amount: 32 }],
-	      });
-	      (swapTokens as jest.Mock).mockResolvedValue({
-	        signatures: [{ id: 'satset1' }, {}],
-	      });
-	      (unblindSignatures as jest.Mock).mockReturnValue([
-	        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
-	        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
-	      ]);
+    it('should receive sat tokens into the sat proof store using the sat keyset', async () => {
+      const satProofs = [
+        { amount: 64, secret: 'sat1', C: 'C1', id: 'satset1' },
+        { amount: 32, secret: 'sat2', C: 'C2', id: 'satset1' },
+      ];
+      (decodeToken as jest.Mock).mockReturnValue({
+        mint: 'https://mint.test.com',
+        proofs: satProofs,
+        amount: 96,
+        unit: 'sat',
+      });
+      (loadProofs as jest.Mock).mockResolvedValue([]);
+      (isP2PKLocked as jest.Mock).mockReturnValue(false);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [
+          { id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+          { id: 'satset1', unit: 'sat', active: true, keys: { 1: 'satkey1' } },
+        ],
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64, 32]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [
+          { amount: 64, id: 'satset1' },
+          { amount: 32, id: 'satset1' },
+        ],
+        blindingData: [
+          { secret: 'new1', amount: 64 },
+          { secret: 'new2', amount: 32 },
+        ],
+      });
+      (swapTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'satset1' }, {}],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([
+        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
+        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
+      ]);
 
-	      const result = await receiveToken('cashuBsat...', 'sat');
+      const result = await receiveToken('cashuBsat...', 'sat');
 
-	      expect(result.amount).toBe(96);
-	      expect(loadProofs).toHaveBeenCalledWith('sat');
-	      expect(savePendingSwap).toHaveBeenCalledWith(expect.objectContaining({ unit: 'sat' }));
-	      expect(addProofs).toHaveBeenCalledWith([
-	        { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
-	        { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
-	      ], true, 'sat');
-	    });
+      expect(result.amount).toBe(96);
+      expect(loadProofs).toHaveBeenCalledWith('sat');
+      expect(savePendingSwap).toHaveBeenCalledWith(expect.objectContaining({ unit: 'sat' }));
+      expect(addProofs).toHaveBeenCalledWith(
+        [
+          { amount: 64, secret: 'new1', C: 'C', id: 'satset1' },
+          { amount: 32, secret: 'new2', C: 'C', id: 'satset1' },
+        ],
+        true,
+        'sat'
+      );
+    });
 
-	    it('should throw error for invalid token format', async () => {
+    it('should throw error for invalid token format', async () => {
       (decodeToken as jest.Mock).mockReturnValue(null);
 
       await expect(receiveToken('invalid')).rejects.toThrow('Invalid token format');
@@ -340,7 +366,10 @@ describe('cashuReceiveToken', () => {
       (isP2PKLocked as jest.Mock).mockReturnValue(true);
       (getP2PKRecipient as jest.Mock).mockReturnValue('pubkey123');
       (getCurrentAccount as jest.Mock).mockResolvedValue(0);
-      (findAccountForP2PKToken as jest.Mock).mockResolvedValue({ accountIndex: 0, privateKey: 'privatekey123' }); // Same account
+      (findAccountForP2PKToken as jest.Mock).mockResolvedValue({
+        accountIndex: 0,
+        privateKey: 'privatekey123',
+      }); // Same account
       (getOrFetchKeys as jest.Mock).mockResolvedValue({
         keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
       });
@@ -371,7 +400,9 @@ describe('cashuReceiveToken', () => {
       // No keysets and no keys
       (getOrFetchKeys as jest.Mock).mockResolvedValue({});
 
-      await expect(receiveToken('cashuBtoken...')).rejects.toThrow('No active unit keyset available from mint');
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
+        'No active unit keyset available from mint'
+      );
     });
 
     it('should retry saving proofs and succeed on second attempt (lines 250-259)', async () => {

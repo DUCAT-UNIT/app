@@ -83,7 +83,9 @@ describe('cashuCrypto', () => {
 
       const blindingFactor = await generateBlindingFactor();
 
-      expect(blindingFactor).toBe('cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd');
+      expect(blindingFactor).toBe(
+        'cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
+      );
       expect(blindingFactor.length).toBe(64);
     });
   });
@@ -240,9 +242,7 @@ describe('cashuCrypto', () => {
 
   describe('encodeToken', () => {
     it('should encode proofs and mint URL', () => {
-      const proofs = [
-        { amount: 100, secret: 'abc', C: VALID_C, id: UNIT_KEYSET_ID },
-      ];
+      const proofs = [{ amount: 100, secret: 'abc', C: VALID_C, id: UNIT_KEYSET_ID }];
       const mint = 'https://mint.example.com';
 
       const encoded = encodeToken(proofs, mint);
@@ -277,9 +277,7 @@ describe('cashuCrypto', () => {
 
   describe('decodeToken', () => {
     it('should decode a valid cashuB token', () => {
-      const proofs = [
-        { amount: 100, secret: 'secret', C: VALID_C, id: UNIT_KEYSET_ID },
-      ];
+      const proofs = [{ amount: 100, secret: 'secret', C: VALID_C, id: UNIT_KEYSET_ID }];
       const mint = 'https://mint.example.com';
       const encoded = encodeToken(proofs, mint);
 
@@ -338,7 +336,9 @@ describe('cashuCrypto', () => {
     it('should try multiple counters if point is invalid', async () => {
       // First call fails (invalid point), second succeeds
       (Point.fromHex as jest.Mock)
-        .mockImplementationOnce(() => { throw new Error('Invalid point'); })
+        .mockImplementationOnce(() => {
+          throw new Error('Invalid point');
+        })
         .mockImplementationOnce(() => ({ x: '02' + '00'.repeat(32) }));
 
       // Return different hashes for each digest call
@@ -409,7 +409,9 @@ describe('cashuCrypto', () => {
 
   describe('unblindSignature', () => {
     beforeEach(() => {
-      (ecc.pointMultiply as jest.Mock).mockReturnValue(new Uint8Array([0x02, ...new Array(32).fill(0)]));
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(
+        new Uint8Array([0x02, ...new Array(32).fill(0)])
+      );
       (ecc.pointAdd as jest.Mock).mockReturnValue(new Uint8Array(33).fill(0xab));
     });
 
@@ -428,7 +430,9 @@ describe('cashuCrypto', () => {
 
     it('should negate y-coordinate by flipping prefix 02 to 03', () => {
       // Set up pointMultiply to return point with 02 prefix
-      (ecc.pointMultiply as jest.Mock).mockReturnValue(new Uint8Array([0x02, ...new Array(32).fill(0)]));
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(
+        new Uint8Array([0x02, ...new Array(32).fill(0)])
+      );
 
       const C_ = '02' + 'aa'.repeat(32);
       const r = 'bb'.repeat(32);
@@ -442,7 +446,9 @@ describe('cashuCrypto', () => {
 
     it('should negate y-coordinate by flipping prefix 03 to 02', () => {
       // Set up pointMultiply to return point with 03 prefix
-      (ecc.pointMultiply as jest.Mock).mockReturnValue(new Uint8Array([0x03, ...new Array(32).fill(0)]));
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(
+        new Uint8Array([0x03, ...new Array(32).fill(0)])
+      );
 
       const C_ = '02' + 'aa'.repeat(32);
       const r = 'bb'.repeat(32);
@@ -475,7 +481,9 @@ describe('cashuCrypto', () => {
       const r = 'bb'.repeat(32);
       const A = '02' + 'cc'.repeat(32);
 
-      expect(() => unblindSignature(C_, r, A)).toThrow('Invalid point length: expected 33 bytes (compressed), got 65');
+      expect(() => unblindSignature(C_, r, A)).toThrow(
+        'Invalid point length: expected 33 bytes (compressed), got 65'
+      );
     });
 
     it('should throw error for invalid point prefix (not 0x02 or 0x03)', () => {
@@ -496,7 +504,9 @@ describe('cashuCrypto', () => {
       // If the library changes to return uncompressed points, this should fail
       const compressedPoint = new Uint8Array([0x02, ...new Array(32).fill(0xaa)]);
       (ecc.pointMultiply as jest.Mock).mockReturnValue(compressedPoint);
-      (ecc.pointAdd as jest.Mock).mockReturnValue(new Uint8Array([0x03, ...new Array(32).fill(0xbb)]));
+      (ecc.pointAdd as jest.Mock).mockReturnValue(
+        new Uint8Array([0x03, ...new Array(32).fill(0xbb)])
+      );
 
       const C_ = '02' + 'aa'.repeat(32);
       const r = 'bb'.repeat(32);
@@ -566,14 +576,14 @@ describe('cashuCrypto', () => {
 
   describe('unblindSignatures', () => {
     beforeEach(() => {
-      (ecc.pointMultiply as jest.Mock).mockReturnValue(new Uint8Array([0x02, ...new Array(32).fill(0)]));
+      (ecc.pointMultiply as jest.Mock).mockReturnValue(
+        new Uint8Array([0x02, ...new Array(32).fill(0)])
+      );
       (ecc.pointAdd as jest.Mock).mockReturnValue(new Uint8Array(33).fill(0xab));
     });
 
     it('should unblind signatures and create proofs', () => {
-      const signatures = [
-        { C_: '02' + 'aa'.repeat(32), id: 'keyset1' },
-      ];
+      const signatures = [{ C_: '02' + 'aa'.repeat(32), id: 'keyset1' }];
       const blindingData = [
         { amount: 100, secret: 'secret1', r: 'bb'.repeat(32), B_: '02' + 'cc'.repeat(32) },
       ];
@@ -588,10 +598,20 @@ describe('cashuCrypto', () => {
       expect(proofs[0]).toHaveProperty('id');
     });
 
-    it('should throw error when public key is missing for amount', () => {
-      const signatures = [
-        { C_: '02' + 'aa'.repeat(32), id: 'keyset1' },
+    it('should reject missing DLEQ when required', () => {
+      const signatures = [{ C_: '02' + 'aa'.repeat(32), id: 'keyset1' }];
+      const blindingData = [
+        { amount: 100, secret: 'secret1', r: 'bb'.repeat(32), B_: '02' + 'cc'.repeat(32) },
       ];
+      const keys = { 100: '02' + 'dd'.repeat(32) };
+
+      expect(() =>
+        unblindSignatures(signatures, blindingData, keys, 'keyset1', { requireDleq: true })
+      ).toThrow('Mint returned signature without required DLEQ proof for amount 100');
+    });
+
+    it('should throw error when public key is missing for amount', () => {
+      const signatures = [{ C_: '02' + 'aa'.repeat(32), id: 'keyset1' }];
       const blindingData = [
         { amount: 100, secret: 'secret1', r: 'bb'.repeat(32), B_: '02' + 'cc'.repeat(32) },
       ];
@@ -604,9 +624,7 @@ describe('cashuCrypto', () => {
     });
 
     it('should use signature id if present', () => {
-      const signatures = [
-        { C_: '02' + 'aa'.repeat(32), id: 'sig-keyset' },
-      ];
+      const signatures = [{ C_: '02' + 'aa'.repeat(32), id: 'sig-keyset' }];
       const blindingData = [
         { amount: 100, secret: 'secret1', r: 'bb'.repeat(32), B_: '02' + 'cc'.repeat(32) },
       ];
@@ -653,7 +671,12 @@ describe('cashuCrypto', () => {
   describe('selectProofsForAmount - greedy algorithm', () => {
     it('should use greedy algorithm for large number of proofs (>15)', () => {
       // Create 20 proofs of various small amounts
-      const proofs = Array.from({ length: 20 }, (_, i) => ({ amount: i + 1, secret: `s${i}`, C: `C${i}`, id: `id${i}` }));
+      const proofs = Array.from({ length: 20 }, (_, i) => ({
+        amount: i + 1,
+        secret: `s${i}`,
+        C: `C${i}`,
+        id: `id${i}`,
+      }));
 
       // Should not hang - greedy algorithm kicks in for > 15 proofs
       const selected = selectProofsForAmount(proofs, 50);

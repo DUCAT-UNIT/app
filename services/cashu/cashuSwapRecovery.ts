@@ -14,7 +14,12 @@ import * as crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
-import { checkProofsSpent, MINT_URL, restoreSignatures } from './cashuMintClient';
+import {
+  checkProofsSpent,
+  mintRequiresDleqProofs,
+  MINT_URL,
+  restoreSignatures,
+} from './cashuMintClient';
 import { assertResponseSignaturesUseExpectedKeyset } from './cashuKeysetUtils';
 import {
   getCurrentCashuAccount,
@@ -22,7 +27,14 @@ import {
   saveProofsForStorageKey,
   withProofLock,
 } from './cashuProofManager';
-import { encodeToken, sumProofs, unblindSignatures, type BlindingData, type CashuProof } from './crypto';
+import {
+  encodeToken,
+  sumProofs,
+  unblindSignatures,
+  type BlindingData,
+  type CashuProof,
+  type UnblindSignaturesOptions,
+} from './crypto';
 import type { CashuAmountLike } from './cashuTsCompat';
 import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
@@ -99,7 +111,8 @@ type UnblindSignatures = (
   signatures: SwapResponse['signatures'],
   blindingData: BlindingData[],
   keys: Record<string, string>,
-  keysetId: string
+  keysetId: string,
+  options?: UnblindSignaturesOptions
 ) => CashuProof[];
 
 const getPendingSwapStorageKey = (swapId: string): string => `${PENDING_SWAP_KEY}_${swapId}`;
@@ -156,10 +169,7 @@ const quarantineCorruptRecoveryBlob = async (
   }
 };
 
-const quarantineCorruptSwapRegistry = async (
-  stored: string,
-  reason: string
-): Promise<void> => {
+const quarantineCorruptSwapRegistry = async (stored: string, reason: string): Promise<void> => {
   const quarantineKey = `${PENDING_SWAP_REGISTRY_KEY}_corrupt_${Date.now()}`;
   try {
     await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
@@ -721,7 +731,8 @@ export const loadPendingSwap = async (): Promise<PendingSwapTransaction | null> 
 
 export function recoverSwapProofsFromTransaction(
   pendingTxn: PendingSwapTransaction,
-  unblindSignatures: UnblindSignatures
+  unblindFn: UnblindSignatures,
+  options?: UnblindSignaturesOptions
 ): RecoveredSwapProofs {
   if (pendingTxn.status !== 'swapped' || !pendingTxn.swapResponse) {
     throw new Error('Pending swap is not recoverable');
@@ -732,12 +743,20 @@ export function recoverSwapProofsFromTransaction(
     pendingTxn.keysetId,
     `Recovered Cashu ${pendingTxn.unit ?? DEFAULT_CASHU_UNIT} swap`
   );
-  const allNewProofs = unblindSignatures(
-    pendingTxn.swapResponse.signatures,
-    pendingTxn.blindingData,
-    pendingTxn.keys,
-    signedKeysetId
-  );
+  const allNewProofs = options
+    ? unblindFn(
+        pendingTxn.swapResponse.signatures,
+        pendingTxn.blindingData,
+        pendingTxn.keys,
+        signedKeysetId,
+        options
+      )
+    : unblindFn(
+        pendingTxn.swapResponse.signatures,
+        pendingTxn.blindingData,
+        pendingTxn.keys,
+        signedKeysetId
+      );
   const unknownProofs = allNewProofs.filter((proof) => !pendingTxn.secretTypeMap[proof.secret]);
   if (unknownProofs.length > 0) {
     throw new Error(`Recovered swap has ${unknownProofs.length} unclassified outputs`);
@@ -906,6 +925,7 @@ const pendingSwapInputsMayBeSpent = async (
 export const recoverPendingSwaps = async (): Promise<RecoveredSwapProofs[]> => {
   const recovered: RecoveredSwapProofs[] = [];
   const pendingTxns = await loadPendingSwaps();
+  const unblindOptions = { requireDleq: await mintRequiresDleqProofs() };
 
   for (const pendingTxn of pendingTxns) {
     // If status is 'pending', the app may have exited before storing the mint
@@ -915,7 +935,9 @@ export const recoverPendingSwaps = async (): Promise<RecoveredSwapProofs[]> => {
       const restoredTxn = await restorePendingSwapResponse(pendingTxn);
       if (restoredTxn?.swapResponse) {
         try {
-          recovered.push(recoverSwapProofsFromTransaction(restoredTxn, unblindSignatures));
+          recovered.push(
+            recoverSwapProofsFromTransaction(restoredTxn, unblindSignatures, unblindOptions)
+          );
         } catch (error) {
           logger.error('[SwapRecovery] Failed to recover restored pending swap', {
             id: pendingTxn.id,
@@ -943,7 +965,9 @@ export const recoverPendingSwaps = async (): Promise<RecoveredSwapProofs[]> => {
     if (pendingTxn.status === 'swapped' && pendingTxn.swapResponse) {
       try {
         logger.info('[SwapRecovery] Recovering from swapped state', { id: pendingTxn.id });
-        recovered.push(recoverSwapProofsFromTransaction(pendingTxn, unblindSignatures));
+        recovered.push(
+          recoverSwapProofsFromTransaction(pendingTxn, unblindSignatures, unblindOptions)
+        );
       } catch (error) {
         logger.error('[SwapRecovery] Failed to recover swapped transaction', {
           id: pendingTxn.id,

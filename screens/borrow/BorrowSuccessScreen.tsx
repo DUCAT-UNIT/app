@@ -68,7 +68,8 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
   }, []);
 
   const handleDone = useCallback(() => {
-    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+    const latestPhase = useVaultSettlementStore.getState().phase;
+    if (!shouldPreserveVaultSettlementRecovery(latestPhase)) {
       resetSettlement();
     }
     reset();
@@ -92,7 +93,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
         },
       ],
     });
-  }, [phase, resetSettlement, reset, navigation]);
+  }, [resetSettlement, reset, navigation]);
 
   const successUnit =
     showUsdcPayout

@@ -10,7 +10,12 @@ import {
   selectActiveCashuKeyset,
   selectProofsForAmountIncludingFees,
 } from '../cashuKeysetUtils';
-import { MINT_URL, swapTokens as swapTokensAPI, checkProofsSpent } from '../cashuMintClient';
+import {
+  MINT_URL,
+  swapTokens as swapTokensAPI,
+  checkProofsSpent,
+  mintRequiresDleqProofs,
+} from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -44,11 +49,7 @@ export interface SendTokenResult {
 const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
 const loadProofsForUnit = (unit: CashuUnit): Promise<CashuProof[]> =>
   isDefaultCashuUnit(unit) ? loadProofs() : loadProofs(unit);
-const addProofsForUnit = (
-  proofs: CashuProof[],
-  unit: CashuUnit,
-  verify = true
-): Promise<void> =>
+const addProofsForUnit = (proofs: CashuProof[], unit: CashuUnit, verify = true): Promise<void> =>
   isDefaultCashuUnit(unit) ? addProofs(proofs) : addProofs(proofs, verify, unit);
 const removeProofsForUnit = (proofs: CashuProof[], unit: CashuUnit): Promise<void> =>
   isDefaultCashuUnit(unit) ? removeProofs(proofs) : removeProofs(proofs, unit);
@@ -183,13 +184,13 @@ export const sendToken = async (
       let spentStates: { state: string }[];
       try {
         const spentResult = await checkProofsSpent(selectedProofs);
-      if (
-        !Array.isArray(spentResult?.states) ||
-        spentResult.states.length !== selectedProofs.length
-      ) {
-        throw new Error('Invalid spent check response');
-      }
-      spentStates = spentResult.states;
+        if (
+          !Array.isArray(spentResult?.states) ||
+          spentResult.states.length !== selectedProofs.length
+        ) {
+          throw new Error('Invalid spent check response');
+        }
+        spentStates = spentResult.states;
       } catch (spentCheckError) {
         logger.error('[CashuSendToken] Spent check failed - aborting send for safety', {
           error: (spentCheckError as Error).message,
@@ -214,6 +215,7 @@ export const sendToken = async (
 
       // CRITICAL: After this swap, selectedProofs are spent with the mint
       // If any error occurs after this, we MUST save changeProofs to avoid fund loss
+      const requireDleq = await mintRequiresDleqProofs();
       const response = await swapTokensAPI(selectedProofs, outputs);
       didSwap = true;
 
@@ -239,7 +241,8 @@ export const sendToken = async (
         response.signatures,
         blindingData,
         unblindKeys,
-        signedKeysetId
+        signedKeysetId,
+        { requireDleq }
       );
 
       // SECURITY: Verify the swap returned proofs matching the expected total amount.

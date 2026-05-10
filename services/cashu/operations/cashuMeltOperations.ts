@@ -14,6 +14,7 @@ import {
 } from '../cashuKeysetUtils';
 import {
   createMeltQuote,
+  mintRequiresDleqProofs,
   meltTokens as meltTokensAPI,
   swapTokens as swapTokensAPI,
   MeltQuote,
@@ -334,6 +335,7 @@ const prepareExactMeltProofs = async (
     unit,
   });
 
+  const requireDleq = await mintRequiresDleqProofs();
   const response = await swapTokensAPI(selectedProofs, outputs);
   const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
     response.signatures,
@@ -354,7 +356,8 @@ const prepareExactMeltProofs = async (
     response.signatures,
     blindingData,
     unblindKeys,
-    signedKeysetId
+    signedKeysetId,
+    { requireDleq }
   );
 
   const expectedOutputAmount = selectedAmount - inputFees;

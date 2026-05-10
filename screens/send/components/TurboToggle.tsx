@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text, Switch, StyleSheet } from 'react-native';
+import { Pressable, View, Text, Switch, StyleSheet } from 'react-native';
 import { colors, fonts, fontSizes, spacing, radii } from '../../../styles/theme';
 
 interface TurboToggleProps {
@@ -22,9 +22,19 @@ export function TurboToggle({
   label = 'Turbo UNIT',
   description = 'Instant transaction',
 }: TurboToggleProps): React.JSX.Element {
+  const handlePress = (): void => {
+    onToggle(!enabled);
+  };
+
   return (
     <View style={styles.turboSection}>
-      <View style={styles.turboRow}>
+      <Pressable
+        style={styles.turboRow}
+        onPress={handlePress}
+        accessibilityLabel={`Enable ${label}`}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: enabled }}
+      >
         <View style={styles.turboLabelContainer}>
           <Text style={styles.turboLabel}>{label}</Text>
           <Text style={styles.turboDescription}>{description}</Text>
@@ -32,6 +42,7 @@ export function TurboToggle({
         <Switch
           value={enabled}
           onValueChange={onToggle}
+          pointerEvents="none"
           trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
           thumbColor={colors.text.white}
           testID="send-turbo-toggle"
@@ -39,7 +50,7 @@ export function TurboToggle({
           accessibilityRole="switch"
           accessibilityState={{ checked: enabled }}
         />
-      </View>
+      </Pressable>
     </View>
   );
 }

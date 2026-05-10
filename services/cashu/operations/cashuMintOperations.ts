@@ -13,6 +13,7 @@ import { getOrFetchKeys } from '../cashuBalanceService';
 import {
   checkMintQuote,
   createMintQuote,
+  mintRequiresDleqProofs,
   MintQuote,
   mintTokens as mintTokensAPI,
 } from '../cashuMintClient';
@@ -23,12 +24,15 @@ import {
   saveMintQuote,
   updateMintQuoteState,
 } from '../cashuMintQuoteRecovery';
-import {
-  clearProofRecoveryRecord,
-  persistProofRecoveryRecord,
-} from '../cashuProofRecoveryQueue';
+import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { addProofs } from '../cashuProofManager';
-import { CashuProof, createBlindedOutputs, splitAmount, sumProofs, unblindSignatures } from '../crypto';
+import {
+  CashuProof,
+  createBlindedOutputs,
+  splitAmount,
+  sumProofs,
+  unblindSignatures,
+} from '../crypto';
 import { deriveMintQuoteState } from '../mintClient/mintQuotes';
 import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../cashuUnits';
 import { requireCashuOperationAccount } from './cashuAccountGuard';
@@ -166,7 +170,9 @@ export const completeMint = async (
     if (paidQuote.unit !== undefined && paidQuote.unit !== null) {
       const quoteUnit = normalizeCashuUnit(paidQuote.unit);
       if (quoteUnit !== unit) {
-        throw new Error(`Mint quote unit mismatch: expected ${unit} but mint returned ${quoteUnit}`);
+        throw new Error(
+          `Mint quote unit mismatch: expected ${unit} but mint returned ${quoteUnit}`
+        );
       }
     }
     const amountPaid = paidQuote.amount_paid ?? paidQuote.amount ?? amount;
@@ -217,6 +223,7 @@ export const completeMint = async (
     });
     claimPersisted = true;
 
+    const requireDleq = await mintRequiresDleqProofs();
     const response = await mintTokensAPI(quoteId, outputs, signature);
 
     logger.info('Received signatures from mint', {
@@ -249,11 +256,14 @@ export const completeMint = async (
         response.signatures,
         blindingData,
         unblindKeys,
-        signedKeysetId
+        signedKeysetId,
+        { requireDleq }
       );
       const proofTotal = sumProofs(proofs);
       if (proofTotal !== availableAmount) {
-        throw new Error(`Mint verification failed: expected ${availableAmount} but received ${proofTotal}`);
+        throw new Error(
+          `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+        );
       }
       let recoveryKey: string | null = null;
       try {
@@ -296,11 +306,14 @@ export const completeMint = async (
       response.signatures,
       blindingData,
       unblindKeys,
-      signedKeysetId
+      signedKeysetId,
+      { requireDleq }
     );
     const proofTotal = sumProofs(proofs);
     if (proofTotal !== availableAmount) {
-      throw new Error(`Mint verification failed: expected ${availableAmount} but received ${proofTotal}`);
+      throw new Error(
+        `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+      );
     }
 
     // Add proofs to wallet

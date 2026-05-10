@@ -27,6 +27,7 @@ export interface CreateVaultReqOptions {
   feeRate: number;
   isMaxDeposit: boolean;
   liquidationPrice: number;
+  postOpenReserveSats?: number;
   utxos?: Utxo[];
 }
 
@@ -78,18 +79,22 @@ function resolveOpenContext(
   oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
   vaultConfig: WalletVaultOpenConfig,
   utxos: Utxo[],
-  isMaxDeposit: boolean
+  isMaxDeposit: boolean,
+  postOpenReserveSats: number
 ): VaultOpenCtx {
   let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
   const changeSats = getOpenChange(vaultCtx, utxos);
 
-  if (changeSats < 0 || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
+  if (
+    changeSats < postOpenReserveSats ||
+    (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)
+  ) {
     const requestedAmount = vaultConfig.deposit_amount;
     const zeroDepositCtx = createOpenCtx(wallet, acctRes, oracleQuote, {
       ...vaultConfig,
       deposit_amount: 0,
     });
-    const maxSafeDeposit = Math.floor(getOpenChange(zeroDepositCtx, utxos));
+    const maxSafeDeposit = Math.floor(getOpenChange(zeroDepositCtx, utxos) - postOpenReserveSats);
     const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
     const canAutoAdjust =
       isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;
@@ -103,6 +108,7 @@ function resolveOpenContext(
         adjustedAmount: maxSafeDeposit,
         adjustmentSats,
         previousChangeSats: changeSats,
+        postOpenReserveSats,
         utxoCount: utxos.length,
       });
       return vaultCtx;
@@ -221,7 +227,8 @@ export async function createVaultReqOpen(
         oracleQuote,
         vaultConfig,
         utxos,
-        options.isMaxDeposit
+        options.isMaxDeposit,
+        options.postOpenReserveSats ?? 0
       );
     } catch (error) {
       if (options.utxos) {
@@ -239,7 +246,8 @@ export async function createVaultReqOpen(
         oracleQuote,
         vaultConfig,
         allUtxos,
-        options.isMaxDeposit
+        options.isMaxDeposit,
+        options.postOpenReserveSats ?? 0
       );
       logger.debug('[VaultOps] Retried vault open with all BTC UTXOs', {
         previousUtxoCount: utxos.length,

@@ -67,7 +67,8 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
 
   // Handle done - reset state and go back to wallet
   const handleDone = useCallback(() => {
-    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+    const latestPhase = useVaultSettlementStore.getState().phase;
+    if (!shouldPreserveVaultSettlementRecovery(latestPhase)) {
       resetSettlement();
     }
     reset();
@@ -76,7 +77,7 @@ export default function VaultSuccessScreen({ navigation, route }: VaultSuccessSc
       index: 0,
       routes: [{ name: 'Main' }],
     });
-  }, [phase, resetSettlement, reset, navigation]);
+  }, [resetSettlement, reset, navigation]);
 
   const successUnit =
     showUsdcPayout

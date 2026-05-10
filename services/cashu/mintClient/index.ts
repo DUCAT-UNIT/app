@@ -10,11 +10,19 @@ export {
   getKeys,
   assertOnchainCashuMintSupport,
   assertOnchainUnitMintSupport,
+  mintRequiresDleqProofs,
+  mintSupportsNut12Dleq,
   mintSupportsOnchainCashuUnit,
   mintSupportsOnchainUnit,
 } from './mintInfo';
 export type { MintInfo, Keysets, MintKeys, MintKeyset } from './mintInfo';
-export { createMintQuote, checkMintQuote, mintTokens, deriveMintQuoteState, getMintQuoteAvailableAmount } from './mintQuotes';
+export {
+  createMintQuote,
+  checkMintQuote,
+  mintTokens,
+  deriveMintQuoteState,
+  getMintQuoteAvailableAmount,
+} from './mintQuotes';
 export type { MintQuote, BlindedOutput, MintResponse } from './mintQuotes';
 export { createMeltQuote, checkMeltQuote, meltTokens } from './meltQuotes';
 export type { MeltQuote, MeltResponse } from './meltQuotes';

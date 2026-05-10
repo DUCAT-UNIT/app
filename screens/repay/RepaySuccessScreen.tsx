@@ -33,7 +33,6 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   const { settingsHandlers } = useSettingsHandlers();
   const {
     kind,
-    phase,
     payoutAsset,
     payoutAmount,
     error: settlementError,
@@ -63,7 +62,8 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   }, []);
 
   const handleDone = useCallback(() => {
-    if (!shouldPreserveVaultSettlementRecovery(phase)) {
+    const latestPhase = useVaultSettlementStore.getState().phase;
+    if (!shouldPreserveVaultSettlementRecovery(latestPhase)) {
       resetSettlement();
     }
     reset();
@@ -87,7 +87,7 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
         },
       ],
     });
-  }, [phase, resetSettlement, reset, navigation]);
+  }, [resetSettlement, reset, navigation]);
 
   const repaidFromUsdc = settingsHandlers.usdcFeaturesEnabled && kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
   const repaidFromTurboUnit = kind === 'repay' && payoutAsset === 'TURBOUNIT' && payoutAmount;

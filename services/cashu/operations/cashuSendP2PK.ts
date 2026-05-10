@@ -11,7 +11,12 @@ import {
   selectActiveCashuKeyset,
   selectProofsForAmountIncludingFees,
 } from '../cashuKeysetUtils';
-import { MINT_URL, checkProofsSpent, swapTokens as swapTokensAPI } from '../cashuMintClient';
+import {
+  MINT_URL,
+  checkProofsSpent,
+  mintRequiresDleqProofs,
+  swapTokens as swapTokensAPI,
+} from '../cashuMintClient';
 import { addProofs, getCurrentCashuAccount, loadProofs, removeProofs } from '../cashuProofManager';
 import {
   clearPendingSwap,
@@ -288,6 +293,7 @@ export const sendP2PKToken = async (
     });
 
     // Swap with mint
+    const requireDleq = await mintRequiresDleqProofs();
     const response = await swapTokensAPI(selectedProofs, outputs);
 
     const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
@@ -312,7 +318,8 @@ export const sendP2PKToken = async (
       response.signatures,
       blindingData,
       unblindKeys,
-      signedKeysetId
+      signedKeysetId,
+      { requireDleq }
     );
 
     // SECURITY: Verify the swap returned proofs matching the expected total amount.

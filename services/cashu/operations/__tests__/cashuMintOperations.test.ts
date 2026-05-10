@@ -14,6 +14,7 @@ jest.mock('../../cashuMintClient', () => ({
   createMintQuote: jest.fn(),
   checkMintQuote: jest.fn(),
   mintTokens: jest.fn(),
+  mintRequiresDleqProofs: jest.fn(async () => false),
 }));
 
 jest.mock('../../crypto', () => ({
@@ -232,7 +233,9 @@ describe('cashuMintOperations', () => {
           keysetId: 'keyset1',
         })
       );
-      expect((persistMintQuoteClaim as jest.Mock).mock.calls[0][1]).not.toHaveProperty('signatures');
+      expect((persistMintQuoteClaim as jest.Mock).mock.calls[0][1]).not.toHaveProperty(
+        'signatures'
+      );
       expect(signMintQuoteOutputs).toHaveBeenCalledWith(
         'quote123',
         [{ amount: 64 }, { amount: 32 }, { amount: 4 }],
