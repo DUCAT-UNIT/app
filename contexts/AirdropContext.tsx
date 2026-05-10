@@ -33,6 +33,7 @@ interface AirdropContextValue {
   showAirdropModal: boolean;
   setShowAirdropModal: React.Dispatch<React.SetStateAction<boolean>>;
   airdropTxId: string;
+  airdropPending: boolean;
   triggerCelebration: () => void;
   audioReady: boolean;
 }
@@ -61,6 +62,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
   const [airdropTxId, setAirdropTxId] = useState('');
+  const [airdropPending, setAirdropPending] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
 
   // Track pending airdrop txId to show modal after biometric modal is dismissed
@@ -177,18 +179,20 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       const pendingTxId = await getPendingAirdrop(pendingKey);
       if (cancelled) return;
 
-      // If there's a pending airdrop and balance is now > 0, show the modal
+      if (pendingTxId && segwitBalance === 0 && taprootBalance === 0) {
+        setAirdropTxId(pendingTxId);
+        setAirdropPending(true);
+        return;
+      }
+
+      // If the faucet tx was already announced and balance is now > 0, stop showing
+      // the waiting state. Do not show the success modal again here.
       if (pendingTxId && (segwitBalance > 0 || taprootBalance > 0)) {
-        // Defer showing modal if biometric setup modal is visible
-        if (showBiometricSetupModal) {
-          pendingAirdropTxIdRef.current = pendingTxId;
-        } else {
-          setAirdropTxId(pendingTxId);
-          setShowAirdropModal(true);
-        }
-        // Don't trigger effects here - wait for user to click "Get Started"
-        // Clear the pending airdrop
+        setAirdropPending(false);
+        pendingAirdropTxIdRef.current = null;
         await clearPendingAirdrop(pendingKey);
+      } else if (segwitBalance > 0 || taprootBalance > 0) {
+        setAirdropPending(false);
       }
     };
 
@@ -284,6 +288,8 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             // Store pending airdrop in SecureStore (survives state resets during onboarding)
             await storePendingAirdrop(pendingKey, result.txId);
             if (cancelled) return;
+            setAirdropTxId(result.txId);
+            setAirdropPending(true);
 
             // Show modal - defer if biometric setup modal is visible
             pendingAirdropTxIdRef.current = result.txId;
@@ -294,9 +300,6 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
               pendingAirdropTxIdRef.current = null;
             }
             // Don't trigger effects here - wait for user to click "Get Started"
-
-            // Clear pending airdrop outside setTimeout to avoid race condition
-            await clearPendingAirdrop(pendingKey);
           } catch (error: unknown) {
             logger.warn('[Airdrop] Failed to request airdrop', {
               error: error instanceof Error ? error.message : String(error)
@@ -340,11 +343,12 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     showAirdropModal,
     setShowAirdropModal,
     airdropTxId,
+    airdropPending,
     // Celebration trigger
     triggerCelebration,
     // Audio state
     audioReady,
-  }), [showAirdropModal, airdropTxId, triggerCelebration, audioReady]);
+  }), [showAirdropModal, airdropTxId, airdropPending, triggerCelebration, audioReady]);
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
 };

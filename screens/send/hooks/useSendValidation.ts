@@ -51,7 +51,9 @@ export function useSendValidation({
   isRequestingMint,
 }: UseSendValidationOptions): UseSendValidationResult {
   const hasValidAddress = isValidAddress && !addressError && sendRecipient.length > 0;
-  const hasValidAmount = currentAmount > 0;
+  const hasValidAmount = isBtc
+    ? currentAmount > 0
+    : Math.round(currentAmount * 100) >= 1;
 
   const exceedsBalance = useMemo(() => {
     return isBtc

@@ -2,9 +2,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Animated,
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Text,
   TextStyle,
   TouchableOpacity,
   View,
@@ -23,6 +25,7 @@ import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
 import WalletActions from '../../components/wallet/WalletActions';
 import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useAirdrop } from '../../contexts/AirdropContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance, useEvmAssets, useVaultData } from '../../contexts/WalletDataContext';
@@ -111,12 +114,22 @@ const WalletScreen = React.memo(function WalletScreen({
     isSepoliaConfigured,
     refreshEvmBalances,
   } = useEvmAssets();
-  const { btcPrice, ethPrice } = usePrice();
+  const { btcPrice, ethPrice, loadingBtcPrice, fetchBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
   const { balance: cashuBalance, btcBalanceSats, refresh: refreshCashu } = useCashu();
+  const { airdropPending, showAirdropModal } = useAirdrop();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
+  const hasBtcBalance = segwitBalance > 0 || taprootBalance > 0 || btcBalanceSats > 0;
+
+  React.useEffect(() => {
+    if (!hasBtcBalance || btcPrice || loadingBtcPrice) {
+      return;
+    }
+
+    fetchBtcPrice().catch(() => undefined);
+  }, [hasBtcBalance, btcPrice, loadingBtcPrice, fetchBtcPrice]);
 
   const handleToggleBTCDisplay = useCallback(
     () => setShowTotalInBTC((prev) => !prev),
@@ -334,6 +347,8 @@ const WalletScreen = React.memo(function WalletScreen({
   // No debt disables repay only. Borrow remains available when there is vault collateral.
   const hasNoDebt = vaultDebt === 0;
   const hasVaultCollateral = vaultCollateral > 0;
+  const showAirdropWaitingPanel =
+    airdropPending && !showAirdropModal && segwitBalance === 0 && taprootBalance === 0;
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Total Balance label and Settings Icon */}
@@ -371,6 +386,23 @@ const WalletScreen = React.memo(function WalletScreen({
         onSendPress={onSendPress}
         onReceivePress={onReceivePress}
       />
+
+      {showAirdropWaitingPanel && (
+        <View style={localStyles.airdropPanel} testID="airdrop-waiting-panel">
+          <View style={localStyles.airdropPanelHeader}>
+            <View style={localStyles.airdropIconWrap}>
+              <ActivityIndicator size="small" color={COLORS.BITCOIN_ORANGE} />
+            </View>
+            <View style={localStyles.airdropPanelTextWrap}>
+              <Text style={localStyles.airdropPanelTitle}>Waiting for BTC to appear</Text>
+              <Text style={localStyles.airdropPanelMessage}>
+                The faucet accepted the request. Your balance will update automatically once
+                the network sees it.
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Divider */}
       <View style={styles.balanceDivider} />
@@ -555,6 +587,43 @@ const WalletScreen = React.memo(function WalletScreen({
 const localStyles = StyleSheet.create({
   largeBalanceAmount: {
     fontSize: 32,
+  },
+  airdropPanel: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 184, 0, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 184, 0, 0.22)',
+  },
+  airdropPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  airdropIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.12)',
+  },
+  airdropPanelTextWrap: {
+    flex: 1,
+  },
+  airdropPanelTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  airdropPanelMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    lineHeight: 18,
   },
   ducatAmount: {
     textAlign: 'left',

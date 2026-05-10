@@ -64,6 +64,19 @@ describe('useSendValidation', () => {
     expect(result.current!.canContinue).toBe(false);
   });
 
+  it('should return canContinue false when UNIT amount rounds below one cent', () => {
+    const { result } = renderHook(() =>
+      useSendValidation({
+        ...defaultOptions,
+        isBtc: false,
+        currentAmount: 0.001,
+      })
+    );
+
+    expect(result.current!.hasValidAmount).toBe(false);
+    expect(result.current!.canContinue).toBe(false);
+  });
+
   it('should return exceedsBalance true when BTC amount exceeds max', () => {
     const { result } = renderHook(() =>
       useSendValidation({
