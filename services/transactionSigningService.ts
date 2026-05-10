@@ -123,6 +123,7 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
   let recipientValue = 0n;
   let totalOutputValue = 0n;
   const recipientOutputIndexes: number[] = [];
+  const recipientOutputValues: bigint[] = [];
 
   psbt.txOutputs.forEach((output, index) => {
     totalOutputValue += output.value;
@@ -143,6 +144,7 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
     if (addr === normalizedRecipient) {
       recipientValue += output.value;
       recipientOutputIndexes.push(index);
+      recipientOutputValues.push(output.value);
       return;
     }
     if (addr === normalizedChange || (normalizedFee && addr === normalizedFee)) {
@@ -162,11 +164,20 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
   }
 
   const expectedRecipientValue = BigInt(expectedAmount);
-  if (recipientValue < expectedRecipientValue) {
-    throw new Error('SECURITY: Recipient amount in PSBT is less than approved amount');
-  }
-  if (recipientValue > expectedRecipientValue) {
-    throw new Error('SECURITY: Recipient amount in PSBT is greater than approved amount');
+  const recipientMayAlsoBeChange =
+    normalizedRecipient === normalizedChange || normalizedRecipient === normalizedFee;
+
+  if (recipientMayAlsoBeChange) {
+    if (!recipientOutputValues.some((value) => value === expectedRecipientValue)) {
+      throw new Error('SECURITY: BTC PSBT is missing the reviewed recipient amount');
+    }
+  } else {
+    if (recipientValue < expectedRecipientValue) {
+      throw new Error('SECURITY: Recipient amount in PSBT is less than approved amount');
+    }
+    if (recipientValue > expectedRecipientValue) {
+      throw new Error('SECURITY: Recipient amount in PSBT is greater than approved amount');
+    }
   }
 
   if (intent.fee === undefined) {
