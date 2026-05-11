@@ -27,7 +27,15 @@ export default function VaultProcessingScreen({
   config,
   store,
 }: VaultProcessingScreenProps) {
-  const { currentStep, processingStep, error, vaultTxid: txid, reset } = store;
+  const {
+    currentStep,
+    processingStep,
+    error,
+    vaultTxid,
+    txid: legacyTxid,
+    reset,
+  } = store;
+  const txid = vaultTxid || legacyTxid || null;
   const { isAuthenticated } = useAuthSession();
   const { settingsHandlers } = useSettingsHandlers();
   const {
@@ -35,6 +43,8 @@ export default function VaultProcessingScreen({
     phase: settlementPhase,
     faceValueUsd: settlementFaceValueUsd,
     requestedPayoutAsset,
+    bridgeSendTxid,
+    cashuMintSendTxid,
   } = useVaultSettlementStore();
   const { settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } = useIssuedUnitSettlement();
   const appState = useRef(AppState.currentState);
@@ -48,9 +58,12 @@ export default function VaultProcessingScreen({
     if (hasNavigatedToSuccess.current) return;
     if (isAuthenticated && currentStep === 'success' && txid) {
       hasNavigatedToSuccess.current = true;
-      navigation.navigate(config.routes.success, { vaultTxid: txid });
+      navigation.navigate(
+        config.routes.success,
+        config.operationType === 'borrow' ? { txid } : { vaultTxid: txid }
+      );
     }
-  }, [isAuthenticated, currentStep, txid, navigation, config.routes.success]);
+  }, [isAuthenticated, currentStep, txid, navigation, config.routes.success, config.operationType]);
 
   // Keep the operation running when app goes to background
   useEffect(() => {
@@ -159,11 +172,33 @@ export default function VaultProcessingScreen({
       : config.getStatusMessage(realStep);
   const isSettlementRetryNeeded =
     !error &&
-    settlementPhase === 'needs_retry' &&
     settlementKind === 'borrow' &&
     config.operationType === 'borrow' &&
     requestedPayoutAsset !== 'UNIT' &&
-    settlementFaceValueUsd > 0;
+    settlementFaceValueUsd > 0 &&
+    (
+      settlementPhase === 'needs_retry' ||
+      (
+        requestedPayoutAsset === 'USDC' &&
+        !bridgeSendTxid &&
+        (
+          settlementPhase === 'building_bridge_send' ||
+          settlementPhase === 'signing_bridge_send' ||
+          settlementPhase === 'broadcasting_bridge_send' ||
+          settlementPhase === 'waiting_bridge_fulfillment'
+        )
+      ) ||
+      (
+        requestedPayoutAsset === 'TURBOUNIT' &&
+        !cashuMintSendTxid &&
+        (
+          settlementPhase === 'building_turbo_send' ||
+          settlementPhase === 'signing_turbo_send' ||
+          settlementPhase === 'broadcasting_turbo_send' ||
+          settlementPhase === 'waiting_turbo_mint'
+        )
+      )
+    );
   const showActionButton = !!error || isSettlementRetryNeeded;
   const actionLabel = error
     ? 'Cancel'

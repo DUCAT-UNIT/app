@@ -198,6 +198,14 @@ export default function WalletPage({ route }: WalletPageProps) {
     navigation.getParent()?.getParent()?.navigate('BorrowFlow' as never);
   };
 
+  const handleResumeVaultSettlementPress = () => {
+    (
+      navigation.getParent()?.getParent() as
+        | { navigate: (screen: string, params?: object) => void }
+        | undefined
+    )?.navigate('BorrowFlow', { screen: 'BorrowProcessing' });
+  };
+
   // Navigate to vault withdraw flow - go up to root navigator (WalletStack -> MainTabs -> Root)
   const handleVaultWithdraw = () => {
     navigation.getParent()?.getParent()?.navigate('WithdrawFlow' as never);
@@ -234,6 +242,7 @@ export default function WalletPage({ route }: WalletPageProps) {
               onVaultPress={handleVaultPress}
               onRepayPress={handleRepayPress}
               onBorrowPress={handleBorrowPress}
+              onResumeVaultSettlementPress={handleResumeVaultSettlementPress}
               onBridgePress={() => (navigation as { navigate: (screen: string) => void }).navigate('UnitBridge')}
               onSwapPress={(sourceAsset?: 'UNIT' | 'USDC') => (
                 navigation as { navigate: (screen: string, params?: object) => void }

@@ -26,7 +26,7 @@ import {
   computeVaultPrevoutFromTx,
 } from '../../services/vaultOperationsService';
 import { fetchLatestVaultHistoryTransaction, fetchVaultData } from '../../services/vaultService';
-import { createVaultWallet } from '../../services/vaultWalletService';
+import { createVaultWallet, prefetchProtocolContract } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
@@ -44,6 +44,7 @@ import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
 } from '../../services/vault/pendingIssueOutputs';
+import { withVaultBuildTimeout } from '../../services/vault/operationTimeout';
 import type {
   ProcessingStep,
   UseVaultOperationResult,
@@ -198,6 +199,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       vaultId: contextVaultData.vaultId,
     });
 
+    prefetchProtocolContract();
+
     return true;
   }, [wallet?.taprootPubkey, contextVaultData, setError, setCurrentVaultData, operationName]);
 
@@ -210,14 +213,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     }
 
     try {
-      const vaultData = await fetchVaultData(wallet.taprootPubkey);
+      const vaultData = await withVaultBuildTimeout(
+        fetchVaultData(wallet.taprootPubkey),
+        'Vault data request timed out. Please check your connection and try again.',
+        25000
+      );
 
       if (!vaultData?.vaultInfo || !vaultData.vaultId) {
         logger.error(`[${operationName}] No vault info available`);
         return null;
       }
 
-      const latestTx = await fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540);
+      const latestTx = await withVaultBuildTimeout(
+        fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540),
+        'Vault history request timed out. Please check your connection and try again.',
+        25000
+      );
 
       if (!latestTx) {
         logger.error(`[${operationName}] No vault history available`);
@@ -243,7 +254,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       return profile;
     } catch (err) {
       logger.error(`[${operationName}] Error building VaultProfile:`, { error: err });
-      return null;
+      throw err;
     }
   }, [wallet?.taprootPubkey, operationName]);
 
@@ -333,12 +344,16 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         throw new Error('Failed to build vault profile. Please try again.');
       }
 
-      const vaultWallet = await createVaultWallet({
-        segwitAddress: wallet!.segwitAddress!,
-        segwitPubkey: wallet!.segwitPubkey || '',
-        taprootAddress: wallet!.taprootAddress!,
-        taprootPubkey: wallet!.taprootPubkey || '',
-      });
+      const vaultWallet = await withVaultBuildTimeout(
+        createVaultWallet({
+          segwitAddress: wallet!.segwitAddress!,
+          segwitPubkey: wallet!.segwitPubkey || '',
+          taprootAddress: wallet!.taprootAddress!,
+          taprootPubkey: wallet!.taprootPubkey || '',
+        }),
+        'Timed out preparing the vault wallet. Please try again.',
+        25000
+      );
 
       const operationConfig = createConfig(amount, selectedFeeRate);
 

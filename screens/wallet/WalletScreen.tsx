@@ -37,6 +37,7 @@ import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useDisplayPreferences } from '../../stores/displayPreferencesStore';
 import { usePrice } from '../../stores/priceStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { COLORS } from '../../theme';
 import { formatBalance, formatFiat } from '../../utils/formatters';
 import { getRunesAmount } from '../../utils/runesHelper';
@@ -74,6 +75,7 @@ interface WalletScreenProps {
   onVaultPress: () => void;
   onRepayPress: () => void;
   onBorrowPress: () => void;
+  onResumeVaultSettlementPress?: () => void;
   onBridgePress?: () => void;
   onSwapPress?: (sourceAsset?: 'UNIT' | 'USDC') => void;
   onRedeemPress?: () => void;
@@ -94,6 +96,7 @@ const WalletScreen = React.memo(function WalletScreen({
   onVaultPress,
   onRepayPress,
   onBorrowPress,
+  onResumeVaultSettlementPress,
   onAssetPress,
   _sendAddressType,
   showZeroAssets,
@@ -120,6 +123,15 @@ const WalletScreen = React.memo(function WalletScreen({
   const { airdropPending, showAirdropModal } = useAirdrop();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const {
+    kind: settlementKind,
+    phase: settlementPhase,
+    faceValueUsd: settlementFaceValueUsd,
+    requestedPayoutAsset: settlementRequestedPayoutAsset,
+    bridgeSendTxid: settlementBridgeSendTxid,
+    cashuMintSendTxid: settlementCashuMintSendTxid,
+    error: settlementError,
+  } = useVaultSettlementStore();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
   const hasBtcBalance = segwitBalance > 0 || taprootBalance > 0 || btcBalanceSats > 0;
 
@@ -349,6 +361,35 @@ const WalletScreen = React.memo(function WalletScreen({
   const hasVaultCollateral = vaultCollateral > 0;
   const showAirdropWaitingPanel =
     airdropPending && !showAirdropModal && segwitBalance === 0 && taprootBalance === 0;
+  const showVaultSettlementRecovery =
+    settlementKind === 'borrow' &&
+    settlementFaceValueUsd > 0 &&
+    settlementRequestedPayoutAsset !== 'UNIT' &&
+    !!onResumeVaultSettlementPress &&
+    (
+      settlementPhase === 'needs_retry' ||
+      (
+        settlementRequestedPayoutAsset === 'USDC' &&
+        !settlementBridgeSendTxid &&
+        (
+          settlementPhase === 'building_bridge_send' ||
+          settlementPhase === 'signing_bridge_send' ||
+          settlementPhase === 'broadcasting_bridge_send' ||
+          settlementPhase === 'waiting_bridge_fulfillment'
+        )
+      ) ||
+      (
+        settlementRequestedPayoutAsset === 'TURBOUNIT' &&
+        !settlementCashuMintSendTxid &&
+        (
+          settlementPhase === 'building_turbo_send' ||
+          settlementPhase === 'signing_turbo_send' ||
+          settlementPhase === 'broadcasting_turbo_send' ||
+          settlementPhase === 'waiting_turbo_mint'
+        )
+      )
+    );
+
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Total Balance label and Settings Icon */}
@@ -402,6 +443,26 @@ const WalletScreen = React.memo(function WalletScreen({
             </View>
           </View>
         </View>
+      )}
+
+      {showVaultSettlementRecovery && (
+        <TouchableOpacity
+          style={localStyles.settlementRecoveryPanel}
+          onPress={onResumeVaultSettlementPress}
+          testID="vault-settlement-recovery-panel"
+          accessibilityRole="button"
+          accessibilityLabel="Resume vault settlement"
+        >
+          <View style={localStyles.settlementRecoveryIconWrap}>
+            <Icon name="warning" size={18} color={COLORS.WARNING} />
+          </View>
+          <View style={localStyles.settlementRecoveryTextWrap}>
+            <Text style={localStyles.settlementRecoveryTitle}>USDC settlement needs retry</Text>
+            <Text style={localStyles.settlementRecoveryMessage} numberOfLines={2}>
+              {settlementError || 'Borrow recorded. Retry the settlement without borrowing again.'}
+            </Text>
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* Divider */}
@@ -624,6 +685,41 @@ const localStyles = StyleSheet.create({
     color: COLORS.SECONDARY_TEXT,
     fontSize: 13,
     lineHeight: 18,
+  },
+  settlementRecoveryPanel: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 184, 0, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 184, 0, 0.26)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settlementRecoveryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.14)',
+  },
+  settlementRecoveryTextWrap: {
+    flex: 1,
+  },
+  settlementRecoveryTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  settlementRecoveryMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 12,
+    lineHeight: 16,
   },
   ducatAmount: {
     textAlign: 'left',
