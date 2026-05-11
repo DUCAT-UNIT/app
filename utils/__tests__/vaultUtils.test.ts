@@ -14,6 +14,9 @@ jest.mock('@ducat-unit/client-sdk', () => ({
     open: {
       get_quote: jest.fn(() => ({ total_cost: 5000 })),
     },
+    borrow: {
+      get_quote: jest.fn(() => ({ total_cost: 5000 })),
+    },
   },
 }));
 
@@ -29,6 +32,7 @@ jest.mock('../constants', () => ({
 
 import {
   generateVaultName,
+  getOpCostBorrow,
   getOpCostOpen,
   getMaxUnit,
   getMaxUnitRounded,
@@ -103,6 +107,17 @@ describe('vaultUtils', () => {
       const cost = getOpCostOpen(10, utxos);
       // 5000 (from quote) + (57 + 57) * 10
       expect(cost).toBe(6140);
+    });
+  });
+
+  describe('getOpCostBorrow', () => {
+    it('should clamp negative SDK quotes to zero', () => {
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+      VaultAPI.borrow.get_quote.mockReturnValueOnce({ total_cost: -5000 });
+
+      const cost = getOpCostBorrow(1, []);
+
+      expect(cost).toBe(0);
     });
   });
 

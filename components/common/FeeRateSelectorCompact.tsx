@@ -32,6 +32,27 @@ interface FeeRateSelectorProps {
   transparent?: boolean;
 }
 
+const sanitizeEstimatedFeeSats = (estimatedFeeSats?: number): number | undefined => {
+  if (estimatedFeeSats === undefined) {
+    return undefined;
+  }
+
+  const numericFee = Number(estimatedFeeSats);
+
+  if (!Number.isFinite(numericFee)) {
+    return 0;
+  }
+
+  const positiveFee = Math.max(0, numericFee);
+  const wholeSats = Math.trunc(positiveFee);
+
+  return positiveFee === wholeSats ? wholeSats : wholeSats + 1;
+};
+
+const formatEstimatedFeeSats = (estimatedFeeSats: number): string => {
+  return String(estimatedFeeSats);
+};
+
 /**
  * Option 1: Segmented Control - Pill style single row
  */
@@ -42,12 +63,14 @@ export function FeeRateSegmented({
   feeOptions = DEFAULT_FEE_OPTIONS,
   disabled = false,
 }: FeeRateSelectorProps) {
+  const safeEstimatedFeeSats = sanitizeEstimatedFeeSats(estimatedFeeSats);
+
   return (
     <View style={segmentedStyles.container}>
       <View style={segmentedStyles.header}>
         <Text style={segmentedStyles.label}>Network Fee</Text>
-        {estimatedFeeSats !== undefined && (
-          <Text style={segmentedStyles.estimate}>~{estimatedFeeSats.toLocaleString()} sats</Text>
+        {safeEstimatedFeeSats !== undefined && (
+          <Text style={segmentedStyles.estimate}>{formatEstimatedFeeSats(safeEstimatedFeeSats)} sats</Text>
         )}
       </View>
       <View style={segmentedStyles.pillContainer}>
@@ -154,6 +177,7 @@ export function FeeRateDropdown({
 }: FeeRateSelectorProps) {
   const [expanded, setExpanded] = useState(false);
   const selectedOption = feeOptions.find(o => o.rate === selectedRate) || feeOptions[1];
+  const safeEstimatedFeeSats = sanitizeEstimatedFeeSats(estimatedFeeSats);
 
   return (
     <View style={[dropdownStyles.container, transparent && dropdownStyles.containerTransparent]}>
@@ -167,7 +191,7 @@ export function FeeRateDropdown({
         activeOpacity={0.7}
         disabled={disabled}
         accessibilityRole="button"
-        accessibilityLabel={`Network fee: ${selectedOption.label}, ${selectedOption.rate} satoshi per virtual byte${estimatedFeeSats !== undefined ? `, estimated ${estimatedFeeSats.toLocaleString()} satoshis` : ''}`}
+        accessibilityLabel={`Network fee: ${selectedOption.label}, ${selectedOption.rate} satoshi per virtual byte${safeEstimatedFeeSats !== undefined ? `, estimated ${formatEstimatedFeeSats(safeEstimatedFeeSats)} satoshis` : ''}`}
         accessibilityHint={expanded ? "Collapse fee options" : "Expand to select fee rate"}
         accessibilityState={{ expanded, disabled }}
       >
@@ -178,8 +202,8 @@ export function FeeRateDropdown({
           </Text>
         </View>
         <View style={dropdownStyles.headerRight} accessibilityElementsHidden>
-          {estimatedFeeSats !== undefined && (
-            <Text style={dropdownStyles.estimate}>~{estimatedFeeSats.toLocaleString()} sats</Text>
+          {safeEstimatedFeeSats !== undefined && (
+            <Text style={dropdownStyles.estimate}>{formatEstimatedFeeSats(safeEstimatedFeeSats)} sats</Text>
           )}
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
@@ -330,12 +354,14 @@ export function FeeRateCompactButtons({
   feeOptions = DEFAULT_FEE_OPTIONS,
   disabled = false,
 }: FeeRateSelectorProps) {
+  const safeEstimatedFeeSats = sanitizeEstimatedFeeSats(estimatedFeeSats);
+
   return (
     <View style={compactStyles.container}>
       <View style={compactStyles.header}>
         <Text style={compactStyles.label}>Network Fee</Text>
-        {estimatedFeeSats !== undefined && (
-          <Text style={compactStyles.estimate}>~{estimatedFeeSats.toLocaleString()} sats</Text>
+        {safeEstimatedFeeSats !== undefined && (
+          <Text style={compactStyles.estimate}>{formatEstimatedFeeSats(safeEstimatedFeeSats)} sats</Text>
         )}
       </View>
       <View style={compactStyles.buttonsRow}>

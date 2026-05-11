@@ -56,7 +56,7 @@ export function getOpCostBorrow(feeRate: number, utxos?: Utxo[]): number {
     unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
   } as never);
 
-  return txQuote.total_cost + vinAllowanceSats;
+  return Math.max(0, Math.ceil(txQuote.total_cost + vinAllowanceSats));
 }
 
 /**

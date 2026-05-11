@@ -129,7 +129,7 @@ export function useVaultConfirmScreen<
       config.operationType === 'borrow' && requiresVaultSettlementUnitSend(receiveAsset)
         ? getVaultSettlementReserveSats(selectedFeeRate)
         : 0;
-    return baseFee + settlementReserve;
+    return Math.max(0, Math.ceil(baseFee + settlementReserve));
   }, [config.operationType, receiveAsset, selectedFeeRate, utxos]);
 
   const feeUsdValue = btcPrice ? (estimatedFeeSats / 100_000_000) * btcPrice : 0;

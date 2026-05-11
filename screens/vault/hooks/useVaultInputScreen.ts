@@ -150,25 +150,31 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   // Calculate estimated fee
   const estimatedFeeSats = useMemo(() => {
+    let estimated = 0;
     switch (config.operationType) {
       case 'borrow':
-        return (
+        estimated =
           getOpCostBorrow(store.selectedFeeRate, utxos) +
           (requiresVaultSettlementUnitSend(receiveAsset)
             ? getVaultSettlementReserveSats(store.selectedFeeRate)
-            : 0)
-        );
+            : 0);
+        break;
       case 'repay':
-        return getOpCostRepay(store.selectedFeeRate, utxos);
+        estimated = getOpCostRepay(store.selectedFeeRate, utxos);
+        break;
       case 'deposit':
-        return getOpCostDeposit(store.selectedFeeRate, utxos);
+        estimated = getOpCostDeposit(store.selectedFeeRate, utxos);
+        break;
       case 'withdraw':
         // Withdraw spends from the vault itself, so this is displayed and used
         // for max math but not required from the wallet balance.
-        return getOpCostWithdraw(store.selectedFeeRate);
+        estimated = getOpCostWithdraw(store.selectedFeeRate);
+        break;
       default:
-        return 0;
+        estimated = 0;
     }
+
+    return Math.max(0, Math.ceil(estimated));
   }, [config.operationType, receiveAsset, store.selectedFeeRate, utxos]);
 
   // Check fee balance
