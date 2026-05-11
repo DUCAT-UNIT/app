@@ -141,6 +141,21 @@ describe('guardianService', () => {
       await expect(clientPromise).rejects.toThrow('Guardian connection timeout');
     });
 
+    it('should reject if socket closes before ready', async () => {
+      let closeCallback: (() => void) | undefined;
+      mockOnce.mockImplementation((event: string, callback: () => void) => {
+        if (event === 'close') {
+          closeCallback = callback;
+        }
+      });
+
+      const clientPromise = createGuardianClient({ pubkey: 'test-pubkey' });
+
+      closeCallback?.();
+
+      await expect(clientPromise).rejects.toThrow('Guardian connection closed before ready');
+    });
+
     it('should reject non-Mutinynet guardian networks', async () => {
       await expect(
         createGuardianClient({ pubkey: 'test-pubkey', network: 'main' as never })
@@ -164,7 +179,6 @@ describe('guardianService', () => {
       expect(result).toBeInstanceOf(Promise);
       result.catch(() => {}); // Catch the inevitable timeout
     });
-
   });
 
   describe('error handling', () => {

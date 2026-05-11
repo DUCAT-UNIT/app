@@ -7,6 +7,7 @@ import { useState, useCallback, Dispatch, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { logger } from '../utils/logger';
 import { requestMint, getBalance } from '../services/cashu/cashuWalletService';
+import { savePendingTurboSend } from '../services/cashu/cashuTurboRecovery';
 import type { SendFlowAssetType } from '../types/assets';
 import type { MinimalNavigation } from '../navigation/types';
 
@@ -22,12 +23,15 @@ interface UseTurboReviewParams {
   navigation: MinimalNavigation;
   isCashuMint: boolean;
   cashuQuoteId?: string | null;
+  senderTaprootAddress?: string | null;
 }
 
 interface UseTurboReviewReturn {
   isRequestingMint: boolean;
   showInsufficientTurboSheet: boolean;
   setShowInsufficientTurboSheet: Dispatch<SetStateAction<boolean>>;
+  setInsufficientTurboAmount: Dispatch<SetStateAction<number>>;
+  setInsufficientTurboBalance: Dispatch<SetStateAction<number>>;
   insufficientTurboAmount: number;
   insufficientTurboBalance: number;
   handleReview: () => Promise<void>;
@@ -47,6 +51,7 @@ export function useTurboReview({
   navigation,
   isCashuMint,
   cashuQuoteId,
+  senderTaprootAddress,
 }: UseTurboReviewParams): UseTurboReviewReturn {
   const [isRequestingMint, setIsRequestingMint] = useState(false);
   const [showInsufficientTurboSheet, setShowInsufficientTurboSheet] = useState(false);
@@ -92,9 +97,12 @@ export function useTurboReview({
         });
 
         if (ecashBalanceSmallestUnits >= amountInSmallestUnits) {
+          if (!senderTaprootAddress) {
+            throw new Error('Wallet Taproot address unavailable for Turbo recovery');
+          }
           logger.debug('[useTurboReview] Sufficient ecash - creating P2PK token directly');
           setIsRequestingMint(false);
-          navigation.navigate('TurboProcessing');
+          navigation.navigate('TurboProcessing', { senderTaprootAddress });
           return;
         }
 
@@ -121,7 +129,18 @@ export function useTurboReview({
         quoteId: cashuQuoteId,
       });
     }
-  }, [sendAmount, sendAssetType, turboEnabled, ecashThreshold, setTurboEnabled, navigation, isCashuMint, cashuQuoteId, isRequestingMint]);
+  }, [
+    sendAmount,
+    sendAssetType,
+    turboEnabled,
+    ecashThreshold,
+    setTurboEnabled,
+    navigation,
+    isCashuMint,
+    cashuQuoteId,
+    isRequestingMint,
+    senderTaprootAddress,
+  ]);
 
   const handleUseTurbo = useCallback(async () => {
     setShowInsufficientTurboSheet(false);
@@ -135,6 +154,7 @@ export function useTurboReview({
       // Convert to smallest units (integer) for the mint request
       const differenceDisplayUnits = insufficientTurboAmount - insufficientTurboBalance;
       const differenceSmallestUnits = Math.round(differenceDisplayUnits * 100);
+      const fullTurboAmountSmallestUnits = Math.round(insufficientTurboAmount * 100);
       logger.debug('[useTurboReview] Calculating mint amount:', {
         totalRequired: insufficientTurboAmount,
         currentBalance: insufficientTurboBalance,
@@ -142,8 +162,20 @@ export function useTurboReview({
         differenceSmallestUnits,
       });
 
+      if (!senderTaprootAddress) {
+        throw new Error('Wallet Taproot address unavailable for Turbo recovery');
+      }
+
       const mintQuote = await requestMint(differenceSmallestUnits);
       const originalRecipient = sendRecipient;
+      await savePendingTurboSend(
+        mintQuote.quoteId,
+        originalRecipient,
+        fullTurboAmountSmallestUnits,
+        senderTaprootAddress,
+        undefined,
+        mintQuote.amount
+      );
 
       logger.debug('[useTurboReview] Mint quote received:', {
         quoteId: mintQuote.quoteId,
@@ -171,23 +203,31 @@ export function useTurboReview({
       setSendRecipient(mintQuote.depositAddress);
       setIsRequestingMint(false);
 
-      // Pass the FULL turbo amount (in smallest units) that will be sent after minting
-      const fullTurboAmountSmallestUnits = Math.round(insufficientTurboAmount * 100);
-
       navigation.navigate('Processing', {
         fromScreen: 'SendInput',
         action: 'create_intent',
         isTurbo: true,
         mintQuoteId: mintQuote.quoteId,
         mintAmount: fullTurboAmountSmallestUnits, // Full amount to send after minting
+        mintClaimAmount: mintQuote.amount,
         turboRecipient: originalRecipient,
+        senderTaprootAddress,
       });
     } catch (error: unknown) {
       setIsRequestingMint(false);
       logger.error('[useTurboReview] Failed to request mint quote:', { error: error instanceof Error ? error.message : String(error) });
       Alert.alert('Error', 'Failed to initiate Turbo transaction. Please try again.');
     }
-  }, [insufficientTurboAmount, insufficientTurboBalance, sendAmount, sendRecipient, setSendAmount, setSendRecipient, navigation]);
+  }, [
+    insufficientTurboAmount,
+    insufficientTurboBalance,
+    senderTaprootAddress,
+    sendAmount,
+    sendRecipient,
+    setSendAmount,
+    setSendRecipient,
+    navigation,
+  ]);
 
   const handleSendNormally = useCallback(() => {
     setShowInsufficientTurboSheet(false);
@@ -205,6 +245,8 @@ export function useTurboReview({
     isRequestingMint,
     showInsufficientTurboSheet,
     setShowInsufficientTurboSheet,
+    setInsufficientTurboAmount,
+    setInsufficientTurboBalance,
     insufficientTurboAmount,
     insufficientTurboBalance,
     handleReview,

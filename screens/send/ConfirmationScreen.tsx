@@ -26,6 +26,11 @@ import { useResponsive } from '../../hooks/useResponsive';
 import { useNotifications } from '../../stores/notificationStore';
 import { colors } from '../../styles/theme';
 import { createConfirmationStyles } from './confirmationStyles';
+import {
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 
 /**
  * Route parameters for ConfirmationScreen
@@ -34,7 +39,10 @@ interface ConfirmationRouteParams {
   isTurbo?: boolean;
   mintQuoteId?: string;
   mintAmount?: number;
+  mintClaimAmount?: number;
   turboRecipient?: string;
+  senderTaprootAddress?: string;
+  cashuUnit?: CashuUnit;
   skipMint?: boolean;
   cashuMint?: boolean;
   quoteId?: string;
@@ -68,7 +76,10 @@ export default function ConfirmationScreen({
     isTurbo,
     mintQuoteId,
     mintAmount,
+    mintClaimAmount,
     turboRecipient,
+    senderTaprootAddress,
+    cashuUnit,
     skipMint,
     cashuMint,
     quoteId,
@@ -76,6 +87,10 @@ export default function ConfirmationScreen({
   } = useConfirmationParams(route);
 
   const turboAmount = route?.params?.turboAmount; // Amount in smallest units
+  const localCashuUnit = normalizeCashuUnit(
+    route?.params?.cashuUnit ?? cashuUnit,
+    DEFAULT_CASHU_UNIT
+  );
 
   // Local state for token and deeplink (can be passed via route params or generated)
   const [localTurboToken, setLocalTurboToken] = useState(route?.params?.turboToken || null);
@@ -88,13 +103,16 @@ export default function ConfirmationScreen({
     turboToken: generatedTurboToken,
     turboDeeplink: generatedTurboDeeplink,
     processingStage,
+    processingMessage,
   } = useTurboMintCompletion({
     isTurbo,
     mintQuoteId: mintQuoteId ?? null,
     mintAmount: mintAmount ?? 0,
+    mintClaimAmount,
     turboRecipient: turboRecipient ?? null,
+    cashuUnit,
     skipMint,
-    senderTaprootAddress: wallet?.taprootAddress,
+    senderTaprootAddress: senderTaprootAddress ?? wallet?.taprootAddress,
     fetchTransactionHistory,
     fetchBalance: fetchBalance as unknown as () => Promise<void>,
     refreshCashuBalance,
@@ -105,6 +123,8 @@ export default function ConfirmationScreen({
     cashuMint,
     quoteId,
     mintAmount,
+    cashuUnit,
+    senderTaprootAddress: senderTaprootAddress ?? wallet?.taprootAddress,
     fetchTransactionHistory,
     refreshCashuBalance,
     navigation: cashuMint ? navigation : undefined,
@@ -170,6 +190,7 @@ export default function ConfirmationScreen({
   } = useConfirmationHandlers({
     broadcastedTxid,
     turboDeeplink: turboDeeplink ?? undefined,
+    cashuUnit: localCashuUnit,
     fetchTransactionHistory,
     navigation,
   });
@@ -189,8 +210,7 @@ export default function ConfirmationScreen({
     : '';
 
   // If we're in 'ready' state but expecting turbo data that hasn't arrived yet, show loading
-  const isWaitingForTurboData =
-    processingStage === 'ready' && isTurbo && skipMint && (!turboToken || !turboDeeplink);
+  const isWaitingForTurboData = processingStage === 'ready' && isTurbo && skipMint && !turboToken;
 
   // Create responsive styles
   const styles = useMemo(() => createConfirmationStyles(s, sf), [s, sf]);
@@ -264,7 +284,9 @@ export default function ConfirmationScreen({
               color={COLORS.PRIMARY_BLUE}
               style={{ marginTop: s(40), marginBottom: s(40) }}
             />
-            <Text style={styles.title}>Converting to TurboUNIT</Text>
+            <Text style={styles.title}>
+              Converting to {localCashuUnit === 'sat' ? 'Turbo BTC' : 'TurboUNIT'}
+            </Text>
             <Text style={styles.subtitle}>Finalizing P2PK locked token...</Text>
           </>
         )}
@@ -277,9 +299,46 @@ export default function ConfirmationScreen({
               color={COLORS.PRIMARY_BLUE}
               style={{ marginBottom: s(24) }}
             />
-            <Text style={styles.processingTitle}>Converting to TurboUNIT</Text>
+            <Text style={styles.processingTitle}>
+              Converting to {localCashuUnit === 'sat' ? 'Turbo BTC' : 'TurboUNIT'}
+            </Text>
             <Text style={styles.processingMessage}>
               Minting e-cash tokens and creating P2PK locked token...
+            </Text>
+          </>
+        )}
+
+        {/* Stage 2: Ready - Show turbo icon */}
+        {processingStage === 'awaiting_confirmation' && (
+          <>
+            <View style={styles.checkmarkContainer}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="time-outline" size={48} color={colors.semantic.warning} />
+              </View>
+            </View>
+            <Text style={styles.title}>
+              {localCashuUnit === 'sat' ? 'Turbo BTC Pending' : 'TurboUNIT Pending'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {processingMessage ??
+                'The mint has not confirmed the payment yet. Recovery will continue automatically.'}
+            </Text>
+          </>
+        )}
+
+        {processingStage === 'error' && (
+          <>
+            <View style={styles.checkmarkContainer}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="alert-circle-outline" size={48} color={colors.semantic.error} />
+              </View>
+            </View>
+            <Text style={styles.title}>
+              {localCashuUnit === 'sat' ? 'Turbo BTC Paused' : 'TurboUNIT Paused'}
+            </Text>
+            <Text style={styles.subtitle}>
+              {processingMessage ??
+                'Recovery will continue automatically when the wallet refreshes.'}
             </Text>
           </>
         )}
@@ -289,7 +348,7 @@ export default function ConfirmationScreen({
           <>
             <View style={styles.checkmarkContainer}>
               <View style={styles.heroLogoContainer}>
-                <Icon name="unit_logo" size={s(80)} />
+                <Icon name={localCashuUnit === 'sat' ? 'btc_logo' : 'unit_logo'} size={s(80)} />
                 <Text style={styles.heroLightningBadge}>⚡</Text>
               </View>
             </View>
@@ -346,7 +405,7 @@ export default function ConfirmationScreen({
       </View>
 
       {/* Done Button - Fixed at bottom, only show when ready */}
-      {processingStage === 'ready' && (
+      {!isWaitingForTurboData && processingStage !== 'converting' && (
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.doneButton}

@@ -5,21 +5,27 @@
 import { getJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import type { CashuAmountLike } from '../cashuTsCompat';
+import { CASHU_UNIT_UNIT, type CashuUnit } from '../cashuUnits';
 import { MINT_URL } from './mintConfig';
 
 export interface MintInfo {
   name?: string;
   version?: string;
-  nuts?: Record<string, {
-    methods?: Array<{
-      method: string;
-      unit: string;
-      min_amount?: CashuAmountLike;
-      max_amount?: CashuAmountLike;
-    }>;
-    supported?: boolean;
-  }>;
+  nuts?: Record<
+    string,
+    {
+      methods?: Array<{
+        method: string;
+        unit: string;
+        min_amount?: CashuAmountLike;
+        max_amount?: CashuAmountLike;
+      }>;
+      supported?: boolean;
+    }
+  >;
 }
+
+let cachedDleqSupport: boolean | null = null;
 
 export interface Keysets {
   keysets: Array<{
@@ -45,14 +51,36 @@ export interface MintKeys {
 }
 
 export const mintSupportsOnchainUnit = (info: MintInfo): boolean =>
+  mintSupportsOnchainCashuUnit(info, CASHU_UNIT_UNIT);
+
+export const mintSupportsOnchainCashuUnit = (info: MintInfo, unit: CashuUnit): boolean =>
   !!info.nuts?.['4']?.methods?.some(
-    (method) => method.method === 'onchain' && method.unit === 'unit'
+    (method) => method.method === 'onchain' && method.unit === unit
   );
 
-export const assertOnchainUnitMintSupport = async (): Promise<void> => {
+export const mintSupportsNut12Dleq = (info: MintInfo): boolean => {
+  const nut12 = info.nuts?.['12'];
+  return !!nut12 && nut12.supported !== false;
+};
+
+export const mintRequiresDleqProofs = async (): Promise<boolean> => {
+  if (cachedDleqSupport !== null) {
+    return cachedDleqSupport;
+  }
+
   const info = await getMintInfo();
-  if (!mintSupportsOnchainUnit(info)) {
-    throw new Error('Mint does not advertise onchain/unit support in nuts["4"].methods');
+  cachedDleqSupport = mintSupportsNut12Dleq(info);
+  return cachedDleqSupport;
+};
+
+export const assertOnchainUnitMintSupport = async (): Promise<void> => {
+  await assertOnchainCashuMintSupport(CASHU_UNIT_UNIT);
+};
+
+export const assertOnchainCashuMintSupport = async (unit: CashuUnit): Promise<void> => {
+  const info = await getMintInfo();
+  if (!mintSupportsOnchainCashuUnit(info, unit)) {
+    throw new Error(`Mint does not advertise onchain/${unit} support in nuts["4"].methods`);
   }
 };
 
@@ -99,9 +127,7 @@ export const getKeysets = async (): Promise<Keysets> => {
  */
 export const getKeys = async (keysetId: string | null = null): Promise<MintKeys> => {
   try {
-    const url = keysetId
-      ? `${MINT_URL}/v1/keys/${keysetId}`
-      : `${MINT_URL}/v1/keys`;
+    const url = keysetId ? `${MINT_URL}/v1/keys/${keysetId}` : `${MINT_URL}/v1/keys`;
 
     const keys = await getJSON<MintKeys>(url, {
       timeout: 5000,

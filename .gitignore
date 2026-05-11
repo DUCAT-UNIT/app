@@ -56,3 +56,4 @@ bridge-service/data/
 
 # Local verification artifacts
 artifacts/
+.codex/

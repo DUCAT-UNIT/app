@@ -1,5 +1,9 @@
-import { getBridgeIntentByClientRequestId, getBridgeStatus, getRedemptionStatus } from '../bridgeApiService';
-import { checkMintQuote } from '../cashu/cashuMintClient';
+import {
+  getBridgeIntentByClientRequestId,
+  getBridgeStatus,
+  getRedemptionStatus,
+} from '../bridgeApiService';
+import { checkMeltQuote, checkMintQuote } from '../cashu/cashuMintClient';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -14,9 +18,15 @@ import {
   waitForBridgeSettlement,
   waitForRedemptionRelease,
 } from '../vaultSettlementService';
-import { resetSwapDiagnosticsStore, useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
+import {
+  resetSwapDiagnosticsStore,
+  useSwapDiagnosticsStore,
+} from '../../stores/swapDiagnosticsStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
-import { resetVaultSettlementStore, useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  resetVaultSettlementStore,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 
 const mockConfirmPendingTransaction = jest.fn();
 
@@ -27,15 +37,18 @@ jest.mock('../bridgeApiService', () => ({
 }));
 
 jest.mock('../cashu/cashuMintClient', () => ({
+  checkMeltQuote: jest.fn(),
   checkMintQuote: jest.fn(),
-  deriveMintQuoteState: jest.fn((quote: { state?: string; amount_paid?: number; amount_issued?: number; paid?: boolean }) => {
-    if (quote.state) return quote.state;
-    if ((quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0)) {
-      return 'ISSUED';
+  deriveMintQuoteState: jest.fn(
+    (quote: { state?: string; amount_paid?: number; amount_issued?: number; paid?: boolean }) => {
+      if (quote.state) return quote.state;
+      if ((quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0)) {
+        return 'ISSUED';
+      }
+      if (quote.paid || (quote.amount_paid ?? 0) > 0) return 'PAID';
+      return 'UNPAID';
     }
-    if (quote.paid || (quote.amount_paid ?? 0) > 0) return 'PAID';
-    return 'UNPAID';
-  }),
+  ),
 }));
 
 jest.mock('../evmBridgeService', () => ({
@@ -129,10 +142,12 @@ describe('vaultSettlementService', () => {
     await Promise.resolve();
     await jest.advanceTimersByTimeAsync(4000);
 
-    await expect(promise).resolves.toEqual(expect.objectContaining({
-      status: 'fulfilled',
-      payoutAsset: 'USDC',
-    }));
+    await expect(promise).resolves.toEqual(
+      expect.objectContaining({
+        status: 'fulfilled',
+        payoutAsset: 'USDC',
+      })
+    );
     expect(useSwapDiagnosticsStore.getState().polls[0]).toMatchObject({
       id: 'bridge:intent-1',
       status: 'success',
@@ -211,7 +226,7 @@ describe('vaultSettlementService', () => {
     (getRedemptionStatus as jest.Mock).mockRejectedValue(new Error('redemption api offline'));
 
     await expect(waitForRedemptionRelease('redemption-error', 1000)).rejects.toThrow(
-      'redemption api offline',
+      'redemption api offline'
     );
     expect(useSwapDiagnosticsStore.getState().polls[0]).toMatchObject({
       id: 'redemption:redemption-error',
@@ -222,7 +237,7 @@ describe('vaultSettlementService', () => {
 
   it('times out redemption release polling without making an unnecessary status request', async () => {
     await expect(waitForRedemptionRelease('redemption-timeout', 0)).rejects.toThrow(
-      'Released UNIT is still processing.',
+      'Released UNIT is still processing.'
     );
     expect(getRedemptionStatus).not.toHaveBeenCalled();
     expect(useSwapDiagnosticsStore.getState().polls[0]).toMatchObject({
@@ -310,6 +325,72 @@ describe('vaultSettlementService', () => {
     expect(useVaultSettlementStore.getState()).toMatchObject({
       phase: 'waiting_turbo_mint',
       payoutAsset: null,
+    });
+  });
+
+  it('refreshes an accepted TurboUNIT repay melt quote and resumes waiting for release', async () => {
+    useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMeltQuote('melt-quote-complete');
+    useVaultSettlementStore.getState().setPhase('melting_turbo_repay');
+    (checkMeltQuote as jest.Mock).mockResolvedValue({
+      quote: 'melt-quote-complete',
+      state: 'PAID',
+      amount: 2500,
+      txid: 'unit-release-txid',
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'ready_to_repay',
+      message: 'TurboUNIT melt was accepted. Return to the repay flow to finish vault repayment.',
+      lastStatus: 'PAID',
+    });
+
+    expect(checkMeltQuote).toHaveBeenCalledWith('melt-quote-complete');
+    expect(checkMintQuote).not.toHaveBeenCalled();
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'waiting_turbo_release',
+      cashuMeltQuoteId: 'melt-quote-complete',
+      cashuMeltTxid: 'unit-release-txid',
+    });
+  });
+
+  it('keeps a submitted TurboUNIT repay melt recoverable after restart', async () => {
+    useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMeltTxid('unit-release-txid');
+    useVaultSettlementStore.getState().setPhase('waiting_turbo_release');
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'ready_to_repay',
+      message: 'TurboUNIT melt was submitted. Return to the repay flow to finish vault repayment.',
+      lastStatus: 'SUBMITTED',
+    });
+
+    expect(checkMeltQuote).not.toHaveBeenCalled();
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'waiting_turbo_release',
+      cashuMeltTxid: 'unit-release-txid',
+    });
+  });
+
+  it('marks a failed TurboUNIT repay melt as needing retry', async () => {
+    useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMeltQuote('melt-quote-failed');
+    useVaultSettlementStore.getState().setPhase('melting_turbo_repay');
+    (checkMeltQuote as jest.Mock).mockResolvedValue({
+      quote: 'melt-quote-failed',
+      state: 'FAILED',
+      amount: 2500,
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'needs_retry',
+      message: 'TurboUNIT melt failed. Try the repay again when the mint is reachable.',
+      lastStatus: 'FAILED',
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'needs_retry',
+      error: 'TurboUNIT melt failed. Try the repay again when the mint is reachable.',
     });
   });
 
@@ -453,22 +534,46 @@ describe('vaultSettlementService', () => {
 
   it('returns phase-specific user status messages', () => {
     expect(getVaultSettlementStatusMessage('borrow', 'idle', 1)).toBe('Preparing transaction...');
-    expect(getVaultSettlementStatusMessage('borrow', 'quoting', 2)).toBe('Connecting to network...');
-    expect(getVaultSettlementStatusMessage('borrow', 'issuing_vault', 3)).toBe('Validating details...');
+    expect(getVaultSettlementStatusMessage('borrow', 'quoting', 2)).toBe(
+      'Connecting to network...'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'issuing_vault', 3)).toBe(
+      'Validating details...'
+    );
     expect(getVaultSettlementStatusMessage('open', 'idle', 4)).toBe('Finalizing vault creation...');
     expect(getVaultSettlementStatusMessage('repay', 'idle', 4)).toBe('Finalizing vault repay...');
     expect(getVaultSettlementStatusMessage('borrow', 'idle', 4)).toBe('Finalizing borrow...');
     expect(getVaultSettlementStatusMessage(null, 'idle', 99)).toBe('Processing...');
-    expect(getVaultSettlementStatusMessage('borrow', 'creating_bridge', 1)).toBe('Preparing Sepolia settlement...');
-    expect(getVaultSettlementStatusMessage('borrow', 'building_bridge_send', 1)).toBe('Preparing UNIT bridge send...');
-    expect(getVaultSettlementStatusMessage('borrow', 'signing_bridge_send', 1)).toBe('Signing the bridge settlement...');
-    expect(getVaultSettlementStatusMessage('borrow', 'broadcasting_bridge_send', 1)).toBe('Broadcasting the bridge send...');
-    expect(getVaultSettlementStatusMessage('borrow', 'waiting_bridge_fulfillment', 1)).toBe('Waiting for Sepolia USDC settlement...');
-    expect(getVaultSettlementStatusMessage('repay', 'swapping_repay', 1)).toBe('Swapping Sepolia USDC into UNIT on Sepolia...');
-    expect(getVaultSettlementStatusMessage('repay', 'waiting_redemption_release', 1)).toBe('Waiting for released UNIT on Mutinynet...');
-    expect(getVaultSettlementStatusMessage('repay', 'repaying_vault', 1)).toBe('Repaying the vault with released UNIT...');
+    expect(getVaultSettlementStatusMessage('borrow', 'creating_bridge', 1)).toBe(
+      'Preparing Sepolia settlement...'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'building_bridge_send', 1)).toBe(
+      'Preparing UNIT bridge send...'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'signing_bridge_send', 1)).toBe(
+      'Signing the bridge settlement...'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'broadcasting_bridge_send', 1)).toBe(
+      'Broadcasting the bridge send...'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'waiting_bridge_fulfillment', 1)).toBe(
+      'Waiting for Sepolia USDC settlement...'
+    );
+    expect(getVaultSettlementStatusMessage('repay', 'swapping_repay', 1)).toBe(
+      'Swapping Sepolia USDC into UNIT on Sepolia...'
+    );
+    expect(getVaultSettlementStatusMessage('repay', 'waiting_redemption_release', 1)).toBe(
+      'Waiting for released UNIT on Mutinynet...'
+    );
+    expect(getVaultSettlementStatusMessage('repay', 'repaying_vault', 1)).toBe(
+      'Repaying the vault with released UNIT...'
+    );
     expect(getVaultSettlementStatusMessage('borrow', 'settled', 1)).toBe('Settlement complete.');
-    expect(getVaultSettlementStatusMessage('borrow', 'pending_settlement', 1)).toBe('Settlement is still processing in the background.');
-    expect(getVaultSettlementStatusMessage('borrow', 'needs_retry', 1)).toBe('Settlement needs retry.');
+    expect(getVaultSettlementStatusMessage('borrow', 'pending_settlement', 1)).toBe(
+      'Settlement is still processing in the background.'
+    );
+    expect(getVaultSettlementStatusMessage('borrow', 'needs_retry', 1)).toBe(
+      'Settlement needs retry.'
+    );
   });
 });

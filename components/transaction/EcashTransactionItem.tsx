@@ -8,9 +8,11 @@ import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatTransactionDate } from '../../utils/formatters/dates';
+import { formatBalance } from '../../utils/formatters';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
 import { useResponsive } from '../../hooks/useResponsive';
 import localStyles from './TransactionItem.styles';
+import type { DisplayAssetType } from '../../types/assets';
 
 interface EcashTransactionStyles {
   historyTxRow: ViewStyle;
@@ -44,6 +46,7 @@ export interface EcashTransaction {
   };
   txData: {
     amount: number;
+    assetType?: DisplayAssetType;
     isSent?: boolean;
     isReceived?: boolean;
     isAutoclaim?: boolean;
@@ -58,9 +61,10 @@ export interface EcashTransactionItemProps {
 
 export default function EcashTransactionItem({ tx, styles, onPress }: EcashTransactionItemProps) {
   const { s, sf } = useResponsive();
-  const { amount, isSent, isReceived, isAutoclaim } = tx.txData;
+  const { amount, assetType = 'UNIT', isSent, isReceived, isAutoclaim } = tx.txData;
   const isClaimed = tx.claimed === true;
   const isPartial = tx.partiallySpent === true;
+  const isBtcCashu = assetType === 'BTC';
 
   // Determine action text based on send/receive/autoclaim status
   const getActionText = () => {
@@ -70,7 +74,10 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
     return 'Send';
   };
   const actionText = getActionText();
-  const assetLabel = 'tUNIT';
+  const assetLabel = isBtcCashu ? 'tBTC' : 'tUNIT';
+  const formattedAmount = isBtcCashu
+    ? formatBalance(Math.abs(amount) / 100_000_000)
+    : formatUnitAmount(Math.abs(amount));
 
   // Determine amount color - red for sent, green for received/self claim
   const amountColor = (isSent && !isAutoclaim && !tx.isAutoclaim) ? COLORS.RED : COLORS.GREEN;
@@ -107,7 +114,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
       activeOpacity={0.7}
     >
       <View style={[localStyles.assetLogoContainer, { width: s(36), height: s(36), marginRight: s(12), marginLeft: 0, justifyContent: 'center', alignItems: 'center' }]}>
-        <Icon name="unit_logo" size={s(36)} />
+        <Icon name={isBtcCashu ? 'btc_logo' : 'unit_logo'} size={s(36)} />
         <Text style={[localStyles.lightningBadge, { bottom: s(-4), right: s(-3), fontSize: sf(16), lineHeight: sf(16) }]}>⚡</Text>
       </View>
       <View style={localStyles.txContentContainer}>
@@ -123,9 +130,9 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
             </View>
             <View style={styles.historyTxColumn3}>
               <View style={styles.balanceWithIcon}>
-                <Icon name="unit_symbol" size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
+                <Icon name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'} size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
                 <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
-                  {formatUnitAmount(Math.abs(amount))}
+                  {formattedAmount}
                 </Text>
               </View>
             </View>

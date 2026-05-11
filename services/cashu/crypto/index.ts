@@ -10,21 +10,17 @@ export {
   createBlindedMessage,
   unblindSignature,
   createBlindedOutputs,
-  unblindSignatures
+  unblindSignatures,
 } from './cryptoBlinding';
 export type {
   BlindedMessage,
   BlindingData,
   BlindedOutput,
   BlindedOutputsResult,
-  BlindSignature
+  BlindSignature,
+  UnblindSignaturesOptions,
 } from './cryptoBlinding';
-export {
-  createProof,
-  splitAmount,
-  sumProofs,
-  selectProofsForAmount
-} from './cryptoProofs';
+export { createProof, splitAmount, sumProofs, selectProofsForAmount } from './cryptoProofs';
 export type { CashuProof } from './cryptoProofs';
 export { encodeToken, decodeToken, decodeTokenMetadata } from './cryptoTokens';
 export type { DecodedToken } from './cryptoTokens';

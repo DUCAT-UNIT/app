@@ -4,12 +4,11 @@
 
 import { getJSON, postJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
-import {
-  normalizeOptionalCashuAmount,
-  type CashuAmountLike,
-} from '../cashuTsCompat';
-import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
-import { assertOnchainUnitMintSupport } from './mintInfo';
+import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
+import type { SerializedDLEQ } from '@cashu/cashu-ts';
+import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
+import { MINT_URL, RUNE_ID } from './mintConfig';
+import { assertOnchainCashuMintSupport } from './mintInfo';
 
 export interface MintQuote {
   quote: string;
@@ -41,17 +40,22 @@ export interface MintResponse {
     C_: string;
     id?: string;
     amount?: number | CashuAmountLike;
+    dleq?: SerializedDLEQ;
   }>;
   error?: string;
 }
 
-export const getMintQuoteAvailableAmount = (quote: Pick<MintQuote, 'amount_paid' | 'amount_issued'>): number => {
+export const getMintQuoteAvailableAmount = (
+  quote: Pick<MintQuote, 'amount_paid' | 'amount_issued'>
+): number => {
   const amountPaid = quote.amount_paid ?? 0;
   const amountIssued = quote.amount_issued ?? 0;
   return Math.max(0, amountPaid - amountIssued);
 };
 
-export const deriveMintQuoteState = (quote: Pick<MintQuote, 'state' | 'amount_paid' | 'amount_issued' | 'paid'>): string => {
+export const deriveMintQuoteState = (
+  quote: Pick<MintQuote, 'state' | 'amount_paid' | 'amount_issued' | 'paid'>
+): string => {
   if (quote.state) {
     return quote.state;
   }
@@ -83,24 +87,31 @@ const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => {
  * @param pubkey - Compressed secp256k1 wallet public key for quote signing
  * @returns Quote with ID and deposit request
  */
-export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
+export const createMintQuote = async (
+  pubkey: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MintQuote> => {
   try {
-    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10) });
+    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10), unit });
 
-    await assertOnchainUnitMintSupport();
+    await assertOnchainCashuMintSupport(unit);
 
-    const quote = normalizeMintQuote(await postJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain`, {
-      unit: CASHU_UNIT,
+    const body = {
+      unit,
       pubkey,
-      rune_id: RUNE_ID,
-    }, {
-      timeout: 10000,
-      description: 'Create mint quote',
-    }));
+      ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
+    };
+
+    const quote = normalizeMintQuote(
+      await postJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain`, body, {
+        timeout: 10000,
+        description: 'Create mint quote',
+      })
+    );
 
     logger.info('Mint quote created', {
       quoteId: quote.quote,
-      depositAddress: quote.request
+      depositAddress: quote.request,
     });
 
     return quote;
@@ -117,10 +128,12 @@ export const createMintQuote = async (pubkey: string): Promise<MintQuote> => {
  */
 export const checkMintQuote = async (quoteId: string): Promise<MintQuote> => {
   try {
-    const quote = normalizeMintQuote(await getJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain/${quoteId}`, {
-      timeout: 5000,
-      description: 'Check mint quote',
-    }));
+    const quote = normalizeMintQuote(
+      await getJSON<MintQuoteWire>(`${MINT_URL}/v1/mint/quote/onchain/${quoteId}`, {
+        timeout: 5000,
+        description: 'Check mint quote',
+      })
+    );
     return quote;
   } catch (error: unknown) {
     logger.error('Failed to check mint quote', { error: (error as Error).message, quoteId });
@@ -142,14 +155,18 @@ export const mintTokens = async (
   try {
     logger.info('Minting tokens', { quoteId, outputCount: outputs.length });
 
-    const response = await postJSON<MintResponse>(`${MINT_URL}/v1/mint/onchain`, {
-      quote: quoteId,
-      outputs,
-      signature,
-    }, {
-      timeout: 10000,
-      description: 'Mint tokens',
-    });
+    const response = await postJSON<MintResponse>(
+      `${MINT_URL}/v1/mint/onchain`,
+      {
+        quote: quoteId,
+        outputs,
+        signature,
+      },
+      {
+        timeout: 10000,
+        description: 'Mint tokens',
+      }
+    );
 
     // Check if response contains an error
     if (response.error) {

@@ -94,7 +94,11 @@ export function useAccountSwitcher({
         );
       }
 
-      // Wait for both balance and vault to load
+      if (resetAndRefreshCashu && newTaprootAddress) {
+        fetchPromises.push(Promise.resolve(resetAndRefreshCashu(newTaprootAddress)));
+      }
+
+      // Wait for critical account-scoped state to load before the new account is interactive.
       await Promise.all(fetchPromises);
 
       // STEP 5: Now hide the loading overlay - critical data is loaded
@@ -106,12 +110,6 @@ export function useAccountSwitcher({
       }
 
       // STEP 7: Fetch remaining data in background (non-blocking)
-      if (resetAndRefreshCashu) {
-        Promise.resolve(resetAndRefreshCashu(newTaprootAddress)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] resetAndRefreshCashu failed', { error: err instanceof Error ? err.message : String(err) });
-        });
-      }
-
       if (fetchTransactionHistory) {
         Promise.resolve(fetchTransactionHistory()).catch((err: unknown) => {
           logger.warn('[useAccountSwitcher] fetchTransactionHistory failed', { error: err instanceof Error ? err.message : String(err) });

@@ -2,7 +2,11 @@
  * Withdraw Operation Configuration
  */
 
-import { computeHealthFactor, computeLiquidationPrice, getHealthColorFromValue as getHealthColor } from '../../../utils/vaultUtils';
+import {
+  computeHealthFactor,
+  computeLiquidationPrice,
+  getHealthColorFromValue as getHealthColor,
+} from '../../../utils/vaultUtils';
 import { VAULT_CONFIG } from '../../../utils/constants';
 import { colors } from '../../../styles/theme';
 import type {
@@ -77,7 +81,7 @@ export const withdrawInputConfig: VaultInputScreenConfig<WithdrawVaultStore> = {
 
   validate: (
     amount: number,
-    _maxAmount: number,
+    maxAmount: number,
     _effectiveBtcLocked: number,
     effectiveUnitBorrowed: number,
     preview: VaultPreview,
@@ -87,9 +91,17 @@ export const withdrawInputConfig: VaultInputScreenConfig<WithdrawVaultStore> = {
     const errors: string[] = [];
     const minHealth = VAULT_CONFIG.MIN_COL_RATE * 100;
 
+    if (amount > maxAmount && maxAmount > 0) {
+      errors.push('Amount exceeds maximum withdrawable after vault transaction fees.');
+    }
+
     // Check min health violation (only if there's debt)
     if (amount > 0 && effectiveUnitBorrowed > 0 && preview.newHealth < minHealth) {
       errors.push(`This would put your vault below the minimum health of ${minHealth}%.`);
+    }
+
+    if (amount > maxAmount) {
+      errors.push('Withdrawal amount exceeds available collateral after fees.');
     }
 
     // Check fee balance

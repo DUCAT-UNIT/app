@@ -18,6 +18,26 @@ import type {
   SummaryRow,
 } from '../types';
 
+function formatBorrowHealthValue(
+  healthFactor: number,
+  debt: number,
+  collateral: number
+): string {
+  if (collateral > 0 && debt <= 0) {
+    return '∞';
+  }
+
+  return `${healthFactor.toFixed(0)}%`;
+}
+
+function getBorrowHealthColor(healthFactor: number, debt: number, collateral: number): string {
+  if (collateral > 0 && debt <= 0) {
+    return colors.semantic.success;
+  }
+
+  return getHealthColor(healthFactor);
+}
+
 export const borrowRoutes = {
   input: 'BorrowInput',
   selection: 'BorrowPayout',
@@ -80,6 +100,10 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
     const warnings: string[] = [];
     const errors: string[] = [];
 
+    if (amount > 0 && amount < 0.01) {
+      errors.push('Enter at least $0.01 to borrow.');
+    }
+
     // Check min health violation
     if (amount > 0 && preview.newHealth < 160) {
       errors.push('This would put your vault below the minimum health of 160%.');
@@ -91,7 +115,7 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
     }
 
     return {
-      canContinue: amount > 0 && errors.length === 0,
+      canContinue: amount >= 0.01 && errors.length === 0,
       warnings,
       errors,
     };
@@ -172,11 +196,27 @@ export function createBorrowConfirmConfig(
         },
         {
           label: 'Health Factor',
-          currentValue: store.healthFactor >= 999 ? '∞' : `${store.healthFactor.toFixed(0)}%`,
-          newValue: store.newHealthFactor >= 999 ? '∞' : `${store.newHealthFactor.toFixed(0)}%`,
+          currentValue: formatBorrowHealthValue(
+            store.healthFactor,
+            store.currentUnitBorrowed,
+            store.currentBtcLocked
+          ),
+          newValue: formatBorrowHealthValue(
+            store.newHealthFactor,
+            totalDebt,
+            store.currentBtcLocked
+          ),
           showArrow: true,
-          valueColor: getHealthColor(store.healthFactor),
-          newValueColor: getHealthColor(store.newHealthFactor),
+          valueColor: getBorrowHealthColor(
+            store.healthFactor,
+            store.currentUnitBorrowed,
+            store.currentBtcLocked
+          ),
+          newValueColor: getBorrowHealthColor(
+            store.newHealthFactor,
+            totalDebt,
+            store.currentBtcLocked
+          ),
         },
         {
           label: 'Liquidation Price',

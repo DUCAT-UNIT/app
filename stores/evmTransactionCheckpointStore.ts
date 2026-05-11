@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { DEVICE_ONLY } from '../services/storagePolicy';
 import {
   mapEvmCheckpointKindToJournalKind,
   operationJournalId,
@@ -53,12 +55,20 @@ interface EvmTransactionCheckpointActions {
 type EvmTransactionCheckpointStore = EvmTransactionCheckpointState & EvmTransactionCheckpointActions;
 
 export const EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY = 'evm-transaction-checkpoints';
+export const EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY = 'evm-transaction-checkpoints-fallback-v1';
 export const MAX_EVM_TRANSACTION_CHECKPOINTS = 50;
 export const EVM_TRANSACTION_CHECKPOINT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const initialState: EvmTransactionCheckpointState = {
   checkpoints: [],
 };
+
+function isCheckpointExpired(
+  checkpoint: Pick<EvmTransactionCheckpoint, 'status' | 'updatedAt'>,
+  now = Date.now(),
+): boolean {
+  return checkpoint.status !== 'submitted' && now - checkpoint.updatedAt > EVM_TRANSACTION_CHECKPOINT_TTL_MS;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -85,9 +95,27 @@ function trimCheckpoints(
   now = Date.now(),
 ): EvmTransactionCheckpoint[] {
   return [...checkpoints]
-    .filter((checkpoint) => now - checkpoint.updatedAt <= EVM_TRANSACTION_CHECKPOINT_TTL_MS)
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .filter((checkpoint) => !isCheckpointExpired(checkpoint, now))
+    .sort((a, b) => {
+      const submittedPriority = Number(b.status === 'submitted') - Number(a.status === 'submitted');
+      return submittedPriority || b.updatedAt - a.updatedAt;
+    })
     .slice(0, MAX_EVM_TRANSACTION_CHECKPOINTS);
+}
+
+function mergeCheckpoints(
+  current: EvmTransactionCheckpoint[],
+  incoming: EvmTransactionCheckpoint[],
+  now = Date.now(),
+): EvmTransactionCheckpoint[] {
+  const byTxHash = new Map<string, EvmTransactionCheckpoint>();
+  for (const checkpoint of [...current, ...incoming]) {
+    const existing = byTxHash.get(checkpoint.txHash);
+    if (!existing || checkpoint.updatedAt >= existing.updatedAt) {
+      byTxHash.set(checkpoint.txHash, checkpoint);
+    }
+  }
+  return trimCheckpoints([...byTxHash.values()], now);
 }
 
 function evmJournalId(accountIndex: number, txHash: string): string {
@@ -146,7 +174,11 @@ export function normalizeEvmTransactionCheckpointState(
     const updatedAt = numberOrZero(item.updatedAt);
     const submittedAt = numberOrZero(item.submittedAt);
 
-    if (!txHash || !kind || !status || !updatedAt || now - updatedAt > EVM_TRANSACTION_CHECKPOINT_TTL_MS) {
+    if (!txHash || !kind || !status || !updatedAt) {
+      return acc;
+    }
+
+    if (isCheckpointExpired({ status, updatedAt }, now)) {
       return acc;
     }
 
@@ -293,5 +325,78 @@ export const useEvmTransactionCheckpointStore = create<EvmTransactionCheckpointS
 );
 
 export const resetEvmTransactionCheckpointStore = (): void => {
+  void SecureStore.deleteItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY).catch(() => undefined);
   useEvmTransactionCheckpointStore.setState(initialState);
+};
+
+export const persistEvmTransactionCheckpointsNow = async (): Promise<void> => {
+  await AsyncStorage.setItem(
+    EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY,
+    JSON.stringify({
+      state: {
+        checkpoints: useEvmTransactionCheckpointStore.getState().checkpoints,
+      },
+      version: 1,
+    }),
+  );
+};
+
+export const persistEvmTransactionCheckpointFallback = async (
+  checkpoint: EvmTransactionCheckpoint,
+): Promise<void> => {
+  let existing: EvmTransactionCheckpoint[] = [];
+  try {
+    const stored = await SecureStore.getItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+    if (stored) {
+      existing = normalizeEvmTransactionCheckpointState(JSON.parse(stored)).checkpoints;
+    }
+  } catch {
+    existing = [];
+  }
+
+  const checkpoints = mergeCheckpoints(existing, [checkpoint]);
+  await SecureStore.setItemAsync(
+    EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY,
+    JSON.stringify({ checkpoints }),
+    DEVICE_ONLY,
+  );
+};
+
+export const hydrateEvmTransactionCheckpointFallbacks = async (): Promise<number> => {
+  let stored: string | null = null;
+  try {
+    stored = await SecureStore.getItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+  } catch {
+    return 0;
+  }
+
+  if (!stored) {
+    return 0;
+  }
+
+  let fallbackState: EvmTransactionCheckpointState;
+  try {
+    fallbackState = normalizeEvmTransactionCheckpointState(JSON.parse(stored));
+  } catch {
+    await SecureStore.deleteItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+    return 0;
+  }
+
+  if (fallbackState.checkpoints.length === 0) {
+    await SecureStore.deleteItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+    return 0;
+  }
+
+  useEvmTransactionCheckpointStore.setState((state) => ({
+    checkpoints: mergeCheckpoints(state.checkpoints, fallbackState.checkpoints),
+  }));
+
+  try {
+    await persistEvmTransactionCheckpointsNow();
+    await SecureStore.deleteItemAsync(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+  } catch {
+    // Keep the SecureStore fallback until the primary checkpoint store can persist again.
+  }
+
+  return fallbackState.checkpoints.length;
 };

@@ -22,6 +22,7 @@ jest.mock('../../utils/vaultUtils', () => ({
     if (btcAmount <= 0 || unitAmount <= 0) return 0;
     return unitAmount / btcAmount / 0.6;
   }),
+  getOpCostWithdraw: jest.fn((feeRate: number) => 256 * feeRate),
   getHealthStatus: jest.fn((healthFactor: number) => {
     if (healthFactor >= 200) return 'healthy';
     if (healthFactor >= 160) return 'warning';
@@ -49,14 +50,14 @@ describe('withdrawStore', () => {
     resetWithdrawStore();
   });
 
-  it('should allow full withdraw when there is no debt even without price', () => {
+  it('should reserve the vault transaction fee and dust when there is no debt', () => {
     act(() => {
       useWithdrawStore.getState().setCurrentVaultData(0, 0.25);
       useWithdrawStore.getState().setBitcoinPrice(null);
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(25_000_000);
+    expect(result.current!.maxWithdrawable).toBe(24_999_197);
   });
 
   it('should return zero max withdrawable when debt exists and price is missing', () => {
@@ -76,6 +77,26 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(23_400_000);
+    expect(result.current!.maxWithdrawable).toBe(23_398_744);
+  });
+
+  it('should not offer a dust max withdraw that sits on the health boundary', () => {
+    act(() => {
+      useWithdrawStore.getState().setCurrentVaultData(5001, 0.09963611);
+      useWithdrawStore.getState().setBitcoinPrice(80326);
+    });
+
+    const { result } = renderHook(() => useWithdraw());
+    expect(result.current!.maxWithdrawable).toBe(947);
+  });
+
+  it('returns zero when collateral only covers withdraw fee and dust reserve', () => {
+    act(() => {
+      useWithdrawStore.getState().setCurrentVaultData(0, 0.000008);
+      useWithdrawStore.getState().setBitcoinPrice(null);
+    });
+
+    const { result } = renderHook(() => useWithdraw());
+    expect(result.current!.maxWithdrawable).toBe(0);
   });
 });

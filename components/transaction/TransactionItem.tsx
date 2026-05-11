@@ -58,9 +58,15 @@ export interface EcashTokenTransaction extends BaseTransaction {
   ecashToken: true;
   claimed?: boolean;
   partiallySpent?: boolean;
+  tokenData?: {
+    amount?: number;
+    unit?: string;
+    shortUrl?: string | null;
+  };
   timestamp: number;
   txData: {
     amount: number;
+    assetType?: DisplayAssetType;
     isSent?: boolean;
     isReceived?: boolean;
     displayKind?: 'turbo_mint_claim';
@@ -94,6 +100,10 @@ function isEcashTransaction(tx: Transaction): tx is EcashTokenTransaction {
   return tx.ecashToken === true;
 }
 
+function getStatusFailed(tx: Transaction): boolean | undefined {
+  return (tx.status as TransactionStatus & { failed?: boolean })?.failed;
+}
+
 function TransactionItem({ tx, styles, onPress, advancedMode = false }: TransactionItemProps) {
   if (isVaultTransaction(tx)) {
     return <VaultTransactionItem tx={tx} styles={styles} onPress={onPress} />;
@@ -110,12 +120,24 @@ export default memo(TransactionItem, (prev: TransactionItemProps, next: Transact
   // Note: onPress is intentionally excluded from comparison.
   // The callback identity may change due to parent re-renders,
   // but we only need to re-render when the actual transaction data changes.
+  const prevEcash = isEcashTransaction(prev.tx) ? prev.tx : null;
+  const nextEcash = isEcashTransaction(next.tx) ? next.tx : null;
+
   return (
     prev.tx.txid === next.tx.txid &&
+    prev.tx.timestamp === next.tx.timestamp &&
     prev.tx.status?.confirmed === next.tx.status?.confirmed &&
+    getStatusFailed(prev.tx) === getStatusFailed(next.tx) &&
     prev.tx.txData?.displayKind === next.tx.txData?.displayKind &&
+    prev.tx.txData?.amount === next.tx.txData?.amount &&
+    prev.tx.txData?.assetType === next.tx.txData?.assetType &&
     prev.tx.txData?.isSent === next.tx.txData?.isSent &&
     prev.tx.txData?.isReceived === next.tx.txData?.isReceived &&
+    prevEcash?.claimed === nextEcash?.claimed &&
+    prevEcash?.partiallySpent === nextEcash?.partiallySpent &&
+    prevEcash?.tokenData?.unit === nextEcash?.tokenData?.unit &&
+    prevEcash?.tokenData?.amount === nextEcash?.tokenData?.amount &&
+    prevEcash?.tokenData?.shortUrl === nextEcash?.tokenData?.shortUrl &&
     prev.advancedMode === next.advancedMode
   );
 });

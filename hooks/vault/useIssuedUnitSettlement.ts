@@ -15,7 +15,12 @@ import { deriveSepoliaAccount } from '../../services/evmWalletService';
 import { broadcastTransaction, createUnitIntent as createUnitIntentService, signIntent as signIntentService } from '../../services/transaction';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
-import { useVaultSettlementStore, type VaultSettlementKind, type VaultSettlementPayoutAsset } from '../../stores/vaultSettlementStore';
+import {
+  persistVaultSettlementNow,
+  useVaultSettlementStore,
+  type VaultSettlementKind,
+  type VaultSettlementPayoutAsset,
+} from '../../stores/vaultSettlementStore';
 import type { PendingTransactionOutput } from '../../stores/pendingTransactionsStore';
 import { ERRORS } from '../../utils/messages';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
@@ -30,7 +35,7 @@ import {
 const BRIDGE_SEND_BUILD_RETRY_MS = 2_500;
 const BRIDGE_SEND_BUILD_TIMEOUT_MS = 90_000;
 const CASHU_MINT_POLL_INTERVAL_MS = 4_000;
-const CASHU_MINT_COMPLETION_TIMEOUT_MS = 720_000;
+const CASHU_MINT_COMPLETION_TIMEOUT_MS = 90_000;
 
 interface BridgeIntentUnconfirmedUtxo {
   txid: string;
@@ -175,6 +180,15 @@ function extractPendingOutputs(
   return { outputs, spentInputs, parentTxid };
 }
 
+function getSignedTransactionId(signedTxHex: string, fallbackTxid: string): string {
+  try {
+    const tx = bitcoin.Transaction.fromHex(signedTxHex);
+    return typeof tx.getId === 'function' ? tx.getId() : fallbackTxid;
+  } catch {
+    return fallbackTxid;
+  }
+}
+
 interface IssuedUnitSettlementResult {
   status: 'settled' | 'pending_settlement' | 'needs_retry';
   payoutAsset?: VaultSettlementPayoutAsset;
@@ -194,7 +208,6 @@ export function useIssuedUnitSettlement() {
   const showSnackbar = useNotificationStore((state) => state.showSnackbar);
   const startPolling = useTransactionPolling().startPolling;
 
-  const pendingTransactions = usePendingTransactionsStore((state) => state.pendingTransactions);
   const getUnconfirmedUTXOs = usePendingTransactionsStore((state) => state.getUnconfirmedUTXOs);
   const getSpentUtxos = usePendingTransactionsStore((state) => state.getSpentUtxos);
   const markUtxoAsSpent = usePendingTransactionsStore((state) => state.markUtxoAsSpent);
@@ -226,24 +239,26 @@ export function useIssuedUnitSettlement() {
   const waitForCashuMintCompletion = useCallback(
     async (quoteId: string, fallbackAmount: number): Promise<number> => {
       const deadline = Date.now() + CASHU_MINT_COMPLETION_TIMEOUT_MS;
+      const targetAmount = Math.floor(fallbackAmount);
 
       while (Date.now() < deadline) {
         const status = await checkMintStatus(quoteId);
-        const alreadyIssued = status.state === 'ISSUED' ||
-          (
-            (status.amountPaid ?? 0) > 0 &&
-            (status.amountIssued ?? 0) >= (status.amountPaid ?? 0)
-          );
+        const amountPaid = status.amountPaid ?? 0;
+        const amountIssued = status.amountIssued ?? 0;
+        const fullAmountAvailable = status.availableAmount >= targetAmount;
+        const fullAmountIssued = amountIssued >= targetAmount;
+        const fullAmountPaid =
+          amountPaid > 0 ? amountPaid >= targetAmount : status.paid || status.state === 'PAID';
 
-        if (status.availableAmount > 0 || (!alreadyIssued && status.paid && status.state === 'PAID')) {
-          const proofs = await completeMint(quoteId, status.availableAmount || fallbackAmount);
+        if (fullAmountAvailable || (fullAmountPaid && status.state === 'PAID')) {
+          const proofs = await completeMint(quoteId, targetAmount);
           await refreshCashuBalance().catch(() => undefined);
-          return sumCashuProofs(proofs) || status.availableAmount || fallbackAmount;
+          return sumCashuProofs(proofs) || targetAmount;
         }
 
-        if (alreadyIssued) {
+        if (fullAmountIssued) {
           await refreshCashuBalance().catch(() => undefined);
-          return status.amountIssued || fallbackAmount;
+          return amountIssued || targetAmount;
         }
 
         await delay(CASHU_MINT_POLL_INTERVAL_MS);
@@ -306,6 +321,7 @@ export function useIssuedUnitSettlement() {
       const sepoliaAccount = await deriveSepoliaAccount(currentAccount);
       let bridgeIntentId: string | undefined;
       let broadcastedBridgeSendTxid: string | null = null;
+      let bridgeSendBroadcastAttempted = false;
 
       try {
         setPhase('creating_bridge');
@@ -313,6 +329,7 @@ export function useIssuedUnitSettlement() {
           useVaultSettlementStore.getState().bridgeClientRequestId ||
           buildVaultBridgeClientRequestId(kind, currentAccount, amountInput);
         setBridgeClientRequestId(bridgeClientRequestId);
+        await persistVaultSettlementNow();
         const intent = await createBridgeIntent({
           amount: amountInput,
           autoSwap: true,
@@ -321,6 +338,7 @@ export function useIssuedUnitSettlement() {
         });
         bridgeIntentId = intent.id;
         setBridgeIntent(intent.id, intent.depositAddress);
+        await persistVaultSettlementNow();
 
         setPhase('building_bridge_send');
         const bridgeSendIntent = await buildBridgeSendIntent(intent.depositAddress, amountInput);
@@ -337,33 +355,42 @@ export function useIssuedUnitSettlement() {
             signedTxHex: signed.signedTxHex,
             txid: signed.txid,
           };
+          const preparedBridgeSendTxid = getSignedTransactionId(signed.signedTxHex, signed.txid);
+          broadcastedBridgeSendTxid = preparedBridgeSendTxid;
+          setBridgeSendTxid(preparedBridgeSendTxid);
+          await persistVaultSettlementNow();
 
-          setPhase('broadcasting_bridge_send');
-          broadcastedBridgeSendTxid = await broadcastTransaction(signed.signedTxHex);
-          const finalBridgeSendTxid = broadcastedBridgeSendTxid;
-          setBridgeSendTxid(finalBridgeSendTxid);
-
+          const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
           const { outputs, spentInputs, parentTxid } = extractPendingOutputs(
             signedIntent,
             signed.signedTxHex,
             wallet,
-            pendingTransactions,
+            livePendingTransactions,
           );
 
           for (const spentInput of spentInputs) {
-            if (pendingTransactions[spentInput.txid]?.status === 'pending') {
+            if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
               await markUtxoAsSpent(spentInput.txid, spentInput.vout);
             }
           }
 
           await addPendingTransaction(
-            finalBridgeSendTxid,
+            preparedBridgeSendTxid,
             outputs,
             'UNIT',
             parentTxid,
             Math.round(faceValueUsd * 100),
             spentInputs,
           );
+
+          setPhase('broadcasting_bridge_send');
+          bridgeSendBroadcastAttempted = true;
+          const finalBridgeSendTxid = await broadcastTransaction(signed.signedTxHex);
+          broadcastedBridgeSendTxid = finalBridgeSendTxid;
+          if (finalBridgeSendTxid !== preparedBridgeSendTxid) {
+            setBridgeSendTxid(finalBridgeSendTxid);
+            await persistVaultSettlementNow();
+          }
 
           startPolling(
             finalBridgeSendTxid,
@@ -392,6 +419,7 @@ export function useIssuedUnitSettlement() {
             (payoutAsset === 'USDC' ? quote.estimatedUsdcOut : amountInput);
 
           completeSettlement(payoutAsset, payoutAmount, settledIntent.sepoliaTxHash || null);
+          await persistVaultSettlementNow();
 
           return {
             status: 'settled',
@@ -401,8 +429,19 @@ export function useIssuedUnitSettlement() {
             bridgeSendTxid: finalBridgeSendTxid,
           };
         } catch (error) {
-          if (!broadcastedBridgeSendTxid && inputsToLock.length > 0) {
-            await unmarkUtxosAsSpent(inputsToLock);
+          if (!bridgeSendBroadcastAttempted) {
+            if (broadcastedBridgeSendTxid) {
+              broadcastedBridgeSendTxid = null;
+              setBridgeSendTxid(null);
+              await persistVaultSettlementNow().catch((persistError) => {
+                logger.error('[VaultSettlement] Failed to clear unbroadcast bridge send txid', {
+                  error: persistError instanceof Error ? persistError.message : String(persistError),
+                });
+              });
+            }
+            if (inputsToLock.length > 0) {
+              await unmarkUtxosAsSpent(inputsToLock);
+            }
           }
           throw error;
         }
@@ -415,6 +454,7 @@ export function useIssuedUnitSettlement() {
 
         if (isBridgeSettlementPendingError(error)) {
           markPendingSettlement(message);
+          await persistVaultSettlementNow();
           showSnackbar({
             title: 'USDC settlement still processing',
             description: 'The vault action succeeded. USDC settlement is still catching up.',
@@ -430,6 +470,7 @@ export function useIssuedUnitSettlement() {
         }
 
         markNeedsRetry(message);
+        await persistVaultSettlementNow();
         showSnackbar({
           title: 'Settlement needs retry',
           description: 'The vault action succeeded, but automatic USDC settlement needs retry.',
@@ -454,7 +495,6 @@ export function useIssuedUnitSettlement() {
       buildBridgeSendIntent,
       markUtxosAsSpent,
       setBridgeSendTxid,
-      pendingTransactions,
       addPendingTransaction,
       startPolling,
       confirmTransaction,
@@ -475,15 +515,16 @@ export function useIssuedUnitSettlement() {
         throw new Error('Wallet not connected');
       }
 
-      const amountInput = formatVaultSettlementAmountInput(faceValueUsd);
       const amountSmallestUnits = Math.round(faceValueUsd * 100);
       let cashuMintQuoteId: string | undefined;
       let broadcastedMintSendTxid: string | null = null;
+      let mintSendBroadcastAttempted = false;
 
       try {
         const persistedSettlement = useVaultSettlementStore.getState();
         cashuMintQuoteId = persistedSettlement.cashuMintQuoteId || undefined;
         let cashuMintDepositAddress = persistedSettlement.cashuMintDepositAddress || undefined;
+        let cashuMintQuoteAmount = persistedSettlement.cashuMintQuoteAmount || amountSmallestUnits;
         broadcastedMintSendTxid = persistedSettlement.cashuMintSendTxid;
 
         if (!cashuMintQuoteId || !cashuMintDepositAddress) {
@@ -491,12 +532,15 @@ export function useIssuedUnitSettlement() {
           const quote = await requestMint(amountSmallestUnits);
           cashuMintQuoteId = quote.quoteId;
           cashuMintDepositAddress = quote.depositAddress;
-          setCashuMintQuote(quote.quoteId, quote.depositAddress);
+          cashuMintQuoteAmount = quote.amount ?? amountSmallestUnits;
+          setCashuMintQuote(quote.quoteId, quote.depositAddress, cashuMintQuoteAmount);
+          await persistVaultSettlementNow();
         }
+        const mintFundingAmountInput = formatVaultSettlementAmountInput(cashuMintQuoteAmount / 100);
 
         if (!broadcastedMintSendTxid) {
           setPhase('building_turbo_send');
-          const mintSendIntent = await buildBridgeSendIntent(cashuMintDepositAddress, amountInput);
+          const mintSendIntent = await buildBridgeSendIntent(cashuMintDepositAddress, mintFundingAmountInput);
           const inputsToLock = getUnitIntentInputs(mintSendIntent);
           if (inputsToLock.length > 0) {
             await markUtxosAsSpent(inputsToLock);
@@ -506,38 +550,47 @@ export function useIssuedUnitSettlement() {
             setPhase('signing_turbo_send');
             const signed = await signIntentService(mintSendIntent, currentAccount);
             const signedIntent: SendIntent = {
-              ...mintSendIntent,
-              signedTxHex: signed.signedTxHex,
-              txid: signed.txid,
-            };
+            ...mintSendIntent,
+            signedTxHex: signed.signedTxHex,
+            txid: signed.txid,
+          };
+            const preparedMintSendTxid = getSignedTransactionId(signed.signedTxHex, signed.txid);
+            broadcastedMintSendTxid = preparedMintSendTxid;
+            setCashuMintSendTxid(preparedMintSendTxid);
+            await persistVaultSettlementNow();
 
-            setPhase('broadcasting_turbo_send');
-            broadcastedMintSendTxid = await broadcastTransaction(signed.signedTxHex);
-            const finalMintSendTxid = broadcastedMintSendTxid;
-            setCashuMintSendTxid(finalMintSendTxid);
-
+            const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
             const { outputs, spentInputs, parentTxid } = extractPendingOutputs(
               signedIntent,
               signed.signedTxHex,
               wallet,
-              pendingTransactions,
+              livePendingTransactions,
             );
 
             for (const spentInput of spentInputs) {
-              if (pendingTransactions[spentInput.txid]?.status === 'pending') {
+              if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
                 await markUtxoAsSpent(spentInput.txid, spentInput.vout);
               }
             }
 
             await addPendingTransaction(
-              finalMintSendTxid,
+              preparedMintSendTxid,
               outputs,
               'UNIT',
               parentTxid,
-              amountSmallestUnits,
+              cashuMintQuoteAmount,
               spentInputs,
               { displayKind: 'turbo_mint_claim' },
             );
+
+            setPhase('broadcasting_turbo_send');
+            mintSendBroadcastAttempted = true;
+            const finalMintSendTxid = await broadcastTransaction(signed.signedTxHex);
+            broadcastedMintSendTxid = finalMintSendTxid;
+            if (finalMintSendTxid !== preparedMintSendTxid) {
+              setCashuMintSendTxid(finalMintSendTxid);
+              await persistVaultSettlementNow();
+            }
 
             startPolling(
               finalMintSendTxid,
@@ -552,15 +605,26 @@ export function useIssuedUnitSettlement() {
               },
             );
           } catch (error) {
-            if (!broadcastedMintSendTxid && inputsToLock.length > 0) {
-              await unmarkUtxosAsSpent(inputsToLock);
+            if (!mintSendBroadcastAttempted) {
+              if (broadcastedMintSendTxid) {
+                broadcastedMintSendTxid = null;
+                setCashuMintSendTxid(null);
+                await persistVaultSettlementNow().catch((persistError) => {
+                  logger.error('[VaultSettlement] Failed to clear unbroadcast Turbo mint send txid', {
+                    error: persistError instanceof Error ? persistError.message : String(persistError),
+                  });
+                });
+              }
+              if (inputsToLock.length > 0) {
+                await unmarkUtxosAsSpent(inputsToLock);
+              }
             }
             throw error;
           }
         }
 
         setPhase('waiting_turbo_mint');
-        const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, amountSmallestUnits);
+        const mintedAmount = await waitForCashuMintCompletion(cashuMintQuoteId, cashuMintQuoteAmount);
         const payoutAmount = formatVaultSettlementAmountInput(mintedAmount / 100);
 
         if (broadcastedMintSendTxid) {
@@ -570,6 +634,7 @@ export function useIssuedUnitSettlement() {
         }
 
         completeSettlement('TURBOUNIT', payoutAmount);
+        await persistVaultSettlementNow();
 
         return {
           status: 'settled',
@@ -587,6 +652,7 @@ export function useIssuedUnitSettlement() {
 
         if (isTurboMintPendingError(error)) {
           markPendingSettlement(message);
+          await persistVaultSettlementNow();
           showSnackbar({
             title: 'TurboUNIT mint still processing',
             description: 'The vault action succeeded. TurboUNIT minting is still catching up.',
@@ -602,6 +668,7 @@ export function useIssuedUnitSettlement() {
         }
 
         markNeedsRetry(message);
+        await persistVaultSettlementNow();
         showSnackbar({
           title: 'Settlement needs retry',
           description: 'The vault action succeeded, but automatic TurboUNIT settlement needs retry.',
@@ -624,7 +691,6 @@ export function useIssuedUnitSettlement() {
       setCashuMintSendTxid,
       buildBridgeSendIntent,
       markUtxosAsSpent,
-      pendingTransactions,
       addPendingTransaction,
       startPolling,
       confirmTransaction,

@@ -210,7 +210,8 @@ describe('useTransactionBuilder', () => {
         'bc1qtest...',
         0,
         [],
-        expect.any(Set)
+        expect.any(Set),
+        undefined
       );
       expect(mockProps.setSendIntent).toHaveBeenCalled();
       expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
@@ -306,7 +307,8 @@ describe('useTransactionBuilder', () => {
         'bc1qtest...',
         0,
         [{ txid: 'unconfirmed1', vout: 0, value: 5000, status: { confirmed: false } }],
-        expect.any(Set)
+        expect.any(Set),
+        undefined
       );
     });
 

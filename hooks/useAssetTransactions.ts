@@ -54,6 +54,23 @@ export interface ProcessedTransaction {
 /** Type alias for EcashToken - uses TokenWithStatus from the service */
 type EcashToken = TokenWithStatus;
 
+const ecashTokenStateKey = (token: EcashToken): string => {
+  const recipient = 'recipient' in token ? token.recipient ?? '' : '';
+  const sender = 'sender' in token ? token.sender ?? '' : '';
+  const shortUrl = 'shortUrl' in token ? token.shortUrl ?? '' : '';
+  return [
+    token.id,
+    token.unit ?? 'unit',
+    token.amount,
+    token.timestamp,
+    token.claimed ? 1 : 0,
+    token.partiallySpent ? 1 : 0,
+    recipient,
+    sender,
+    shortUrl,
+  ].join(':');
+};
+
 interface UseAssetTransactionsReturn {
   transactions: ProcessedTransaction[];
   isLoading: boolean;
@@ -91,15 +108,13 @@ export function useAssetTransactions(
   // Use pre-loaded ecash tokens from context (no more on-demand fetching)
   const { ecashTokens: preloadedEcashTokens, fetchEcashTokens } = useEcashTokens();
 
-  // Include ecash tokens for UNIT asset view (Turbo UNIT transactions)
+  // Include ecash tokens for UNIT and BTC asset views (Turbo UNIT / Turbo BTC transactions)
   // Stabilize reference — only update when token count, IDs, or status change
   const ecashTokensRef = useRef<typeof preloadedEcashTokens>([]);
   const ecashTokens = useMemo(() => {
-    if (assetType !== 'UNIT') return [];
-    const toKey = (t: (typeof preloadedEcashTokens)[0]) =>
-      `${t.id}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`;
-    const prevKey = ecashTokensRef.current.map(toKey).join(',');
-    const newKey = preloadedEcashTokens.map(toKey).join(',');
+    if (assetType !== 'UNIT' && assetType !== 'BTC') return [];
+    const prevKey = ecashTokensRef.current.map(ecashTokenStateKey).join(',');
+    const newKey = preloadedEcashTokens.map(ecashTokenStateKey).join(',');
     if (prevKey === newKey) {
       return ecashTokensRef.current;
     }
@@ -107,13 +122,18 @@ export function useAssetTransactions(
     return preloadedEcashTokens;
   }, [assetType, preloadedEcashTokens]);
 
-  // Trigger background refresh when viewing UNIT
+  // Trigger background refresh when viewing Cashu-backed asset history
   useEffect(() => {
-    if (assetType === 'UNIT') {
+    if (assetType === 'UNIT' || assetType === 'BTC') {
       fetchEcashTokens();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetType]);
+
+  const ecashTokenHash = useMemo(
+    () => ecashTokens.map(ecashTokenStateKey).join(','),
+    [ecashTokens],
+  );
 
   // Cache taproot pubkey decoding - only changes when address changes
   const currentPubkeyHex = useMemo(() => {
@@ -143,7 +163,7 @@ export function useAssetTransactions(
     const pendingTxIds = Object.keys(pendingTransactions).join(',');
     const txHash = transactionHistory
       .map(t => `${t.txid}:${t.status?.confirmed || false}:${t.status?.block_height || 0}`)
-      .join('|') + `-${assetType}-ecash:${ecashTokens.length}-pending:${pendingTxIds}-turboMint:${turboMintSendTxid || ''}`;
+      .join('|') + `-${assetType}-ecash:${ecashTokenHash}-pending:${pendingTxIds}-turboMint:${turboMintSendTxid || ''}`;
 
     const hashChanged = txHash !== lastTxHashRef.current;
 
@@ -211,8 +231,9 @@ export function useAssetTransactions(
     }
 
     // Use shared utilities for ecash and pending transaction processing
-    const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex);
-    const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress) as ProcessedTransaction[];
+    const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex, taprootAddress);
+    const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress)
+      .filter((tx) => tx.txData?.assetType === assetType) as ProcessedTransaction[];
 
     const confirmedTxids = new Set(transactionHistory.map(tx => tx.txid));
     const pendingTxs = processPendingTransactions(
@@ -229,7 +250,7 @@ export function useAssetTransactions(
     transactionsProcessedRef.current = true;
 
     return merged;
-  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, currentPubkeyHex, pendingTransactions, turboMintClaimTxids, turboMintSendTxid]);
+  }, [transactionHistory, segwitAddress, taprootAddress, assetType, ecashTokens, ecashTokenHash, currentPubkeyHex, pendingTransactions, turboMintClaimTxids, turboMintSendTxid]);
 
   // Loading is true only on FIRST load — never flicker after data has been shown
   const isLoading = !transactionsProcessedRef.current && filteredTransactions.length === 0;

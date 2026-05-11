@@ -4,12 +4,20 @@
  * Depends on SendFlowContext for form data
  */
 
-import React,{ createContext,ReactNode,useContext,useEffect,useMemo,useRef,useState } from 'react';
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { SendIntent } from '../hooks/useTransactionBuilder';
 import { useTransactionBuilder } from '../hooks/useTransactionBuilder';
 import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 import { useSendFlow } from '../stores/sendFlowStore';
-import type { TransactionIntent } from '../utils/pendingTransactionsUtils';
+import type { PendingTransaction as UtilsPendingTransaction, TransactionIntent } from '../utils/pendingTransactionsUtils';
 import type { WalletAddresses } from './WalletContext';
 import { useBalance } from './WalletDataContext';
 
@@ -48,17 +56,14 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     sendRecipient,
     sendAmount,
     sendAssetType,
+    selectedFeeRate,
     requireConfirmedUtxos,
     setIntentStep,
     setSendRecipient,
   } = useSendFlow();
 
-  const {
-    getUnconfirmedUTXOs,
-    getSpentUtxos,
-    unmarkUtxosAsSpent,
-    markUtxosAsSpent,
-  } = usePendingTransactionsStore();
+  const { getUnconfirmedUTXOs, getSpentUtxos, unmarkUtxosAsSpent, markUtxosAsSpent } =
+    usePendingTransactionsStore();
 
   const { runesBalance } = useBalance();
 
@@ -72,6 +77,7 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     sendRecipient,
     sendAmount,
     sendAssetType,
+    selectedFeeRate,
     requireConfirmedUtxos,
     runesBalance: runesBalance,
     sendIntent,
@@ -79,6 +85,8 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
     setIntentStep,
     getUnconfirmedUTXOs: (addressType, excludeFromIntent) =>
       getUnconfirmedUTXOs(addressType, excludeFromIntent as TransactionIntent | null),
+    getPendingTransactions: () =>
+      (usePendingTransactionsStore.getState?.()?.pendingTransactions ?? {}) as unknown as Record<string, UtilsPendingTransaction>,
     getSpentUtxos,
     markUtxosAsSpent,
     unmarkUtxosAsSpent,

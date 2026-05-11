@@ -30,11 +30,13 @@ jest.mock('react-native', () => ({
 const mockRequestMaxMelt = jest.fn();
 const mockCompleteMeltWithoutCleanup = jest.fn();
 const mockCleanupMeltProofs = jest.fn();
+const mockRemoveSpentProofs = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   requestMaxMelt: (...args: unknown[]) => mockRequestMaxMelt(...args),
   completeMeltWithoutCleanup: (...args: unknown[]) => mockCompleteMeltWithoutCleanup(...args),
   cleanupMeltProofs: (...args: unknown[]) => mockCleanupMeltProofs(...args),
+  removeSpentProofs: (...args: unknown[]) => mockRemoveSpentProofs(...args),
 }));
 
 // Helper to render hooks with props
@@ -92,6 +94,7 @@ describe('useFuseEcash', () => {
       changeProofs: [],
     });
     mockCleanupMeltProofs.mockResolvedValue(undefined);
+    mockRemoveSpentProofs.mockResolvedValue({ removed: 0, kept: 0 });
   });
 
   it('should return handleFusePress function', () => {
@@ -125,6 +128,55 @@ describe('useFuseEcash', () => {
         expect.objectContaining({ text: 'Withdraw' }),
       ])
     );
+  });
+
+  it('should request BTC Cashu melt with sat unit and BTC labels', async () => {
+    jest.useFakeTimers({ legacyFakeTimers: true });
+    try {
+      const props = {
+        ...mockProps,
+        cashuBalance: 12500,
+        taprootAddress: 'tb1qbtcwithdraw',
+        cashuUnit: 'sat' as const,
+      };
+      const { result } = renderHookWithProps(props);
+
+      await act(async () => {
+        await result.current!.handleFusePress();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdraw Turbo BTC?',
+        'Convert up to 0.00012500 BTC to on-chain BTC? Network fees are deducted from the withdrawal amount.',
+        expect.any(Array)
+      );
+
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+
+      let fusePromise: Promise<void> | undefined;
+      await act(async () => {
+        fusePromise = fuseButton.onPress();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockRequestMaxMelt).toHaveBeenCalledWith('tb1qbtcwithdraw', 12500, 'sat');
+      expect(mockCompleteMeltWithoutCleanup).toHaveBeenCalledWith('quote123', 10050, 'sat');
+      expect(mockCleanupMeltProofs).toHaveBeenCalledWith([], [], 'sat', null);
+
+      for (let i = 0; i < 35; i++) {
+        await act(async () => {
+          jest.advanceTimersByTime(2000);
+          await Promise.resolve();
+        });
+      }
+
+      await act(async () => {
+        await fusePromise;
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('should format balance with two decimal places', async () => {
@@ -207,6 +259,80 @@ describe('useFuseEcash', () => {
         'Withdrawal failed',
         'Your TurboUNIT tokens remain valid. String error'
       );
+    });
+
+    it('should not claim tokens remain valid when melt submission status is unknown', async () => {
+      const uncertainError = Object.assign(new Error('Network dropped after submit'), {
+        meltSubmissionStatus: 'unknown',
+        spentProofsRemoved: 0,
+      });
+      mockCompleteMeltWithoutCleanup.mockRejectedValue(uncertainError);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!.handleFusePress();
+      });
+
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await fuseButton.onPress();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Withdrawal status unknown',
+        'The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. Network dropped after submit'
+      );
+      expect(Alert.alert).not.toHaveBeenCalledWith(
+        'Withdrawal failed',
+        expect.stringContaining('remain valid')
+      );
+    });
+
+    it('should not claim tokens remain valid after melt cleanup fails', async () => {
+      jest.useFakeTimers({ legacyFakeTimers: true });
+      mockCleanupMeltProofs.mockRejectedValue(new Error('Cleanup failed'));
+
+      try {
+        const { result } = renderHookWithProps(mockProps);
+
+        await act(async () => {
+          await result.current!.handleFusePress();
+        });
+
+        const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+
+        let fusePromise: Promise<void> | undefined;
+        await act(async () => {
+          fusePromise = fuseButton.onPress();
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+
+        expect(mockRemoveSpentProofs).toHaveBeenCalled();
+        expect(Alert.alert).toHaveBeenCalledWith(
+          'Withdrawal submitted',
+          'Withdrawing 90.50 UNIT. Local TurboUNIT cleanup did not finish; refresh before sending TurboUNIT again.'
+        );
+        expect(Alert.alert).not.toHaveBeenCalledWith(
+          'Withdrawal failed',
+          expect.stringContaining('remain valid')
+        );
+
+        for (let i = 0; i < 35; i++) {
+          await act(async () => {
+            jest.advanceTimersByTime(2000);
+            await Promise.resolve();
+          });
+        }
+
+        await act(async () => {
+          await fusePromise;
+        });
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

@@ -7,7 +7,16 @@ import * as Crypto from 'expo-crypto';
 import * as bip39 from 'bip39';
 import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
 import { DEFAULT_WALLET_DERIVATION_MODE } from '../constants/bitcoin';
-import { getCurrentAccount, withMnemonic, saveMnemonic, saveCurrentAccount, getCachedAddresses, saveCachedAddresses, getMultiAccountCache, saveToMultiAccountCache } from './secureStorageService';
+import {
+  getCurrentAccount,
+  withMnemonic,
+  saveMnemonic,
+  saveCurrentAccount,
+  getCachedAddresses,
+  saveCachedAddresses,
+  getMultiAccountCache,
+  saveToMultiAccountCache,
+} from './secureStorageService';
 import { logger } from '../utils/logger';
 import { withTimeout } from '../utils/withTimeout';
 import { getWalletDerivationMode, setWalletDerivationMode } from './walletDerivationService';
@@ -16,6 +25,28 @@ import { startupDiagnostics } from './startupDiagnostics';
 // Per-operation timeout for SecureStore reads during wallet load.
 // iPad in iPhone compatibility mode can stall individual SecureStore calls.
 const SECURESTORE_READ_TIMEOUT_MS = 5000;
+
+const withRequiredSecureStoreRead = async <T>(promise: Promise<T>, label: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      startupDiagnostics.recordWarning('wallet_required_storage_timeout', {
+        label,
+        timeout_ms: SECURESTORE_READ_TIMEOUT_MS,
+      });
+      reject(new Error(`${label} timed out while loading wallet identity`));
+    }, SECURESTORE_READ_TIMEOUT_MS);
+    (timer as { unref?: () => void }).unref?.();
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
 
 export interface GenerateWalletResult {
   mnemonic: string;
@@ -35,6 +66,19 @@ export interface SwitchAccountResult {
   addresses: DerivedAddresses;
 }
 
+const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> => {
+  const saved = await saveCurrentAccount(accountIndex);
+  if (!saved) {
+    throw new Error('Failed to save current account securely');
+  }
+};
+
+const assertValidAccountIndex = (accountIndex: number): void => {
+  if (!Number.isSafeInteger(accountIndex) || accountIndex < 0) {
+    throw new Error(`Invalid account index: ${accountIndex}`);
+  }
+};
+
 /**
  * Generate a new wallet with a 12-word mnemonic
  * @param accountIndex - Account index for derivation (default: 0)
@@ -42,6 +86,8 @@ export interface SwitchAccountResult {
  */
 export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletResult> => {
   try {
+    assertValidAccountIndex(accountIndex);
+
     // Generate random bytes using expo-crypto
     const randomBytes = await Crypto.getRandomBytesAsync(16);
 
@@ -70,7 +116,12 @@ export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletRe
  * @param accountIndex - Account index for derivation (default: 0)
  * @returns Promise with addresses
  */
-export const importWallet = async (mnemonic: string, accountIndex = 0): Promise<ImportWalletResult> => {
+export const importWallet = async (
+  mnemonic: string,
+  accountIndex = 0
+): Promise<ImportWalletResult> => {
+  assertValidAccountIndex(accountIndex);
+
   // Trim and normalize the mnemonic
   const normalizedMnemonic = mnemonic.trim().toLowerCase();
 
@@ -100,15 +151,17 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
   try {
     startupDiagnostics.recordCheckpoint('wallet_storage_load_started');
 
-    const accountIndex = await withTimeout(
-      getCurrentAccount(), SECURESTORE_READ_TIMEOUT_MS, 0, 'getCurrentAccount',
+    const accountIndex = await withRequiredSecureStoreRead(
+      getCurrentAccount(),
+      'getCurrentAccount'
     );
     startupDiagnostics.recordCheckpoint('wallet_current_account_loaded', {
       account_index: accountIndex,
     });
 
-    const derivationMode = await withTimeout(
-      getWalletDerivationMode(), SECURESTORE_READ_TIMEOUT_MS, DEFAULT_WALLET_DERIVATION_MODE, 'getWalletDerivationMode',
+    const derivationMode = await withRequiredSecureStoreRead(
+      getWalletDerivationMode(),
+      'getWalletDerivationMode'
     );
     startupDiagnostics.recordCheckpoint('wallet_derivation_mode_loaded', {
       account_index: accountIndex,
@@ -117,7 +170,10 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
     // Try multi-account cache first (instant if in memory)
     const multiCached = await withTimeout(
-      getMultiAccountCache(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getMultiAccountCache',
+      getMultiAccountCache(accountIndex),
+      SECURESTORE_READ_TIMEOUT_MS,
+      null,
+      'getMultiAccountCache'
     );
     if (multiCached) {
       startupDiagnostics.recordCheckpoint('wallet_multi_account_cache_hit', {
@@ -131,7 +187,10 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
     // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await withTimeout(
-      getCachedAddresses(accountIndex), SECURESTORE_READ_TIMEOUT_MS, null, 'getCachedAddresses',
+      getCachedAddresses(accountIndex),
+      SECURESTORE_READ_TIMEOUT_MS,
+      null,
+      'getCachedAddresses'
     );
     if (cachedAddresses) {
       startupDiagnostics.recordCheckpoint('wallet_cached_addresses_hit', {
@@ -216,13 +275,15 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
  */
 export const switchToAccount = async (accountIndex: number): Promise<SwitchAccountResult> => {
   try {
+    assertValidAccountIndex(accountIndex);
+
     const derivationMode = await getWalletDerivationMode();
 
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
     const cachedAddresses = await getMultiAccountCache(accountIndex);
     if (cachedAddresses) {
       // Persist current account before returning so storage-backed consumers stay in sync.
-      await saveCurrentAccount(accountIndex);
+      await saveCurrentAccountOrThrow(accountIndex);
       return { addresses: cachedAddresses };
     }
 
@@ -236,7 +297,7 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
 
     // Save the new account index and cache the addresses for future fast switching
     await Promise.all([
-      saveCurrentAccount(accountIndex),
+      saveCurrentAccountOrThrow(accountIndex),
       saveCachedAddresses(accountIndex, addresses),
       saveToMultiAccountCache(accountIndex, addresses),
     ]);
@@ -254,9 +315,11 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
  * @throws Error if save fails (critical operation)
  */
 export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): Promise<void> => {
+  assertValidAccountIndex(accountIndex);
+
   await saveMnemonic(mnemonic);
   await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
-  await saveCurrentAccount(accountIndex);
+  await saveCurrentAccountOrThrow(accountIndex);
   const addresses = deriveAddressesFromMnemonic(
     mnemonic,
     accountIndex,

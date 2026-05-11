@@ -8,7 +8,6 @@ import './crypto-polyfill';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
-
 import { LogBox } from 'react-native';
 
 if (!__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
@@ -21,7 +20,15 @@ if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
 }
 
 import React, { useEffect, useRef, useState } from 'react';
-import { InteractionManager, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  InteractionManager,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import Constants from 'expo-constants';
@@ -49,14 +56,15 @@ import { AuthProvider } from './contexts/AuthContext';
 import { useAuthSession, useOnboardingFlow } from './contexts/AuthContext';
 import { WalletProvider, useWallet } from './contexts/WalletContext';
 import { usePendingTransactionsStore } from './stores/pendingTransactionsStore';
+import { usePendingVaultTransactionStore } from './stores/pendingVaultTransactionStore';
 import { WalletDataProvider } from './contexts/WalletDataContext';
 import { usePriceStore } from './stores/priceStore';
 import { useVaultCreationStore } from './stores/vaultCreationStore';
 import { CashuProvider } from './contexts/CashuContext';
+import { recoverPendingLiquidationSwapBroadcasts } from './services/liquidation/liquidationSwapBroadcastRecovery';
 // UIProvider removed — fully migrated to Zustand (displayPreferencesStore, notificationStore)
 // AirdropProvider removed — airdrop logic lives in AirdropContext, used via hooks only
 import { ResponsiveProvider } from './contexts/ResponsiveContext';
-
 
 // Navigation
 import AppNavigator from './navigation/AppNavigator';
@@ -100,7 +108,9 @@ try {
   validateNetworkConfig();
   logger.info(`Network validation passed: App is correctly configured for ${NETWORK_DISPLAY_NAME}`);
 } catch (error: unknown) {
-  logger.error('CRITICAL NETWORK ERROR', { error: error instanceof Error ? error.message : String(error) });
+  logger.error('CRITICAL NETWORK ERROR', {
+    error: error instanceof Error ? error.message : String(error),
+  });
   startupDiagnostics.recordFailure('network_config_validation_failed', {
     error: error instanceof Error ? error.message : String(error),
   });
@@ -125,6 +135,9 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   const { wallet, currentAccount } = useWallet();
   const startAutoRefresh = usePriceStore((state) => state.startAutoRefresh);
   const loadFromStorage = usePendingTransactionsStore((state) => state.loadFromStorage);
+  const loadPendingVaultFromStorage = usePendingVaultTransactionStore(
+    (state) => state.loadFromStorage
+  );
 
   // Start BTC price auto-refresh on mount
   useEffect(() => {
@@ -143,20 +156,37 @@ function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (wallet && currentAccount !== undefined && currentAccount !== null) {
       const task = InteractionManager.runAfterInteractions(() => {
-        loadFromStorage(currentAccount);
+        void Promise.all([
+          loadFromStorage(currentAccount),
+          loadPendingVaultFromStorage(currentAccount),
+        ]);
       });
 
       return () => task.cancel();
     }
 
     return undefined;
-  }, [wallet, currentAccount, loadFromStorage]);
+  }, [wallet, currentAccount, loadFromStorage, loadPendingVaultFromStorage]);
+
+  useEffect(() => {
+    if (!wallet) {
+      return undefined;
+    }
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      void recoverPendingLiquidationSwapBroadcasts().catch((error: unknown) => {
+        logger.warn('[App] Liquidation swap broadcast recovery failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    });
+
+    return () => task.cancel();
+  }, [wallet]);
 
   return (
     <CashuProvider>
-      <WalletDataProvider>
-        {children}
-      </WalletDataProvider>
+      <WalletDataProvider>{children}</WalletDataProvider>
     </CashuProvider>
   );
 }
@@ -172,10 +202,16 @@ function InitializationErrorScreen({
     <View style={localStyles.errorContainer}>
       <Text style={localStyles.errorTitle}>Unable To Access Wallet</Text>
       <Text style={localStyles.errorMessage}>
-        The app could not read wallet data securely. Retry before creating or importing a new wallet.
+        The app could not read wallet data securely. Retry before creating or importing a new
+        wallet.
       </Text>
       <Text style={localStyles.errorDetails}>{initializationError}</Text>
-      <TouchableOpacity style={localStyles.retryButton} onPress={() => { retryInitialization(); }}>
+      <TouchableOpacity
+        style={localStyles.retryButton}
+        onPress={() => {
+          retryInitialization();
+        }}
+      >
         <Text style={localStyles.retryButtonText}>Retry</Text>
       </TouchableOpacity>
     </View>
@@ -220,7 +256,6 @@ function AppInitializationGate({ children }: { children: React.ReactNode }) {
 const FONT_LOAD_TIMEOUT_MS = 5000;
 // Main App - Provider setup only
 export default function App() {
-
   // Load fonts
   const [fontsLoaded] = useFonts({
     'CabinetGrotesk-Regular': require('./assets/fonts/CabinetGrotesk-Regular.otf'),
@@ -297,9 +332,13 @@ export default function App() {
   // Hide native splash once app is ready — useEffect ensures it fires after render
   useEffect(() => {
     if (appReady) {
-      startupDiagnostics.recordCheckpoint('app_ready', {
-        elapsed_ms: Date.now() - startupT0,
-      }, { flush: true });
+      startupDiagnostics.recordCheckpoint(
+        'app_ready',
+        {
+          elapsed_ms: Date.now() - startupT0,
+        },
+        { flush: true }
+      );
       ExpoSplashScreen.hideAsync();
     }
   }, [appReady]);
@@ -317,7 +356,7 @@ export default function App() {
       }
     }, 8000);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

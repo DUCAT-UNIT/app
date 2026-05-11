@@ -16,6 +16,7 @@ import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { withVaultOperationLock } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -63,59 +64,62 @@ export async function createVaultReqWithdraw(
 ): Promise<WalletVaultWithdrawRequest> {
   // SECURITY: Serialize vault operations to prevent concurrent UTXO usage
   return withVaultOperationLock(async () => {
-  logger.debug('[VaultOps] Creating withdraw request...');
+    logger.debug('[VaultOps] Creating withdraw request...');
 
-  try {
-    const { oracleQuote, vaultProfile } = options;
-
-    // SECURITY: Re-validate oracle price freshness before building transaction.
-    const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
-    if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
-      throw new Error(
-        `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
-      );
-    }
-
-    logger.debug('[VaultOps] Withdraw context inputs:', {
-      oracleQuote: !!oracleQuote,
-      vaultProfile: {
-        acct_id: vaultProfile.acct_id,
-        guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
-        master_id: vaultProfile.master_id,
-        vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
-        hasRdata: !!vaultProfile.rdata,
-        hasUtxo: !!vaultProfile.utxo,
-      },
-      withdrawAmount: withdrawConfig.change_amount,
-    });
-
-    // Create withdraw context
-    const vaultCtx: VaultWithdrawCtx = wallet.vault.withdraw.ctx(
-      oracleQuote,
-      vaultProfile,
-      withdrawConfig
-    );
-
-    let withdrawReq: WalletVaultWithdrawRequest;
-    setPendingVaultSigningOperation({
-      action: 'withdraw',
-      ctx: vaultCtx,
-    });
     try {
-      withdrawReq = await wallet.vault.withdraw.req(vaultCtx);
-    } finally {
-      clearPendingVaultSigningOperation();
+      const { oracleQuote, vaultProfile } = options;
+
+      // SECURITY: Re-validate oracle price freshness before building transaction.
+      const quoteAgeSec = Math.floor(Date.now() / 1000) - oracleQuote.latest_stamp;
+      if (quoteAgeSec > MAX_QUOTE_AGE_SECONDS) {
+        throw new Error(
+          `Oracle price is stale (${Math.floor(quoteAgeSec / 60)} min old). Please go back and refresh.`
+        );
+      }
+
+      logger.debug('[VaultOps] Withdraw context inputs:', {
+        oracleQuote: !!oracleQuote,
+        vaultProfile: {
+          acct_id: vaultProfile.acct_id,
+          guard_pk: vaultProfile.guard_pk?.substring(0, 20) + '...',
+          master_id: vaultProfile.master_id,
+          vault_pk: vaultProfile.vault_pk?.substring(0, 20) + '...',
+          hasRdata: !!vaultProfile.rdata,
+          hasUtxo: !!vaultProfile.utxo,
+        },
+        withdrawAmount: withdrawConfig.change_amount,
+      });
+
+      // Create withdraw context
+      const vaultCtx: VaultWithdrawCtx = wallet.vault.withdraw.ctx(
+        oracleQuote,
+        vaultProfile,
+        withdrawConfig
+      );
+
+      let withdrawReq: WalletVaultWithdrawRequest;
+      setPendingVaultSigningOperation({
+        action: 'withdraw',
+        ctx: vaultCtx,
+      });
+      try {
+        withdrawReq = await withVaultBuildTimeout(
+          wallet.vault.withdraw.req(vaultCtx),
+          'Timed out building the withdraw transaction. Please try again.'
+        );
+      } finally {
+        clearPendingVaultSigningOperation();
+      }
+
+      logger.debug('[VaultOps] Withdraw request created:', {
+        vault_txid: withdrawReq.vault_txid,
+      });
+
+      return withdrawReq;
+    } catch (error) {
+      logger.error('[VaultOps] Failed to create withdraw request:', { error });
+      throw error;
     }
-
-    logger.debug('[VaultOps] Withdraw request created:', {
-      vault_txid: withdrawReq.vault_txid,
-    });
-
-    return withdrawReq;
-  } catch (error) {
-    logger.error('[VaultOps] Failed to create withdraw request:', { error });
-    throw error;
-  }
   }, options.vaultProfile.vault_pk || '__default__'); // end withVaultOperationLock
 }
 
@@ -141,10 +145,10 @@ export async function guardianSendReqWithdraw(
     // This mirrors the web frontend behavior and was empirically determined.
     await new Promise((resolve) => setTimeout(resolve, 350));
 
-    const guardRes = await withGuardianTimeout(
+    const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + BITCOIN_TX.TX_TIMEOUT_BUFFER
-    ) as { vault_txid: string };
+    )) as { vault_txid: string };
 
     const vault_txid = guardRes.vault_txid;
 

@@ -49,9 +49,12 @@ export async function resetNonSecretE2ESettings(): Promise<void> {
 }
 
 export async function enableUsdcFeaturesForE2E(url = ''): Promise<void> {
+  if (!__DEV__ && !hasConfiguredE2EBypass()) return;
+
   const urlPassword = getUrlPassword(url);
-  const hasUrlPassword = canonicalizePassword(urlPassword) === canonicalizePassword(USDC_FEATURE_PASSWORD);
-  if (!hasUrlPassword && !__DEV__ && !hasConfiguredE2EBypass()) return;
+  const hasUrlPassword =
+    canonicalizePassword(urlPassword) === canonicalizePassword(USDC_FEATURE_PASSWORD);
+  if (!hasUrlPassword && !hasConfiguredE2EBypass()) return;
 
   if (hasConfiguredE2EBypass()) {
     enableRuntimeE2EBypass();

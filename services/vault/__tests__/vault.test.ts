@@ -17,7 +17,16 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
 }));
 
 // Mock SDK
-jest.mock('@ducat-unit/client-sdk', () => ({}));
+jest.mock('@ducat-unit/client-sdk', () => ({
+  VaultAPI: {
+    deposit: {
+      get_change: jest.fn(() => 1_000),
+    },
+    open: {
+      get_change: jest.fn(() => 1_000),
+    },
+  },
+}));
 
 // Mock logger to prevent console output during tests
 jest.mock('../../../utils/logger', () => ({
@@ -120,7 +129,9 @@ describe('Vault Utils', () => {
 
     it('should reject truncated multi-byte varints', () => {
       expect(() => readVarInt(Buffer.from([0xfd, 0x01]), 0)).toThrow('Truncated 16-bit varint');
-      expect(() => readVarInt(Buffer.from([0xfe, 0x01, 0x02, 0x03]), 0)).toThrow('Truncated 32-bit varint');
+      expect(() => readVarInt(Buffer.from([0xfe, 0x01, 0x02, 0x03]), 0)).toThrow(
+        'Truncated 32-bit varint'
+      );
     });
 
     it('should read varint at offset', () => {
@@ -220,7 +231,9 @@ describe('Vault Utils', () => {
     });
 
     it('should return false for taproot address (tb1p)', () => {
-      const wallet = createMockWalletForBatchCheck('tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv');
+      const wallet = createMockWalletForBatchCheck(
+        'tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv'
+      );
       expect(checkBatchAllowed(wallet as Parameters<typeof checkBatchAllowed>[0])).toBe(false);
     });
 
@@ -865,14 +878,23 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      const vaultConfig = { borrow_amount: 10000, deposit_amount: 100000, vault_label: 'test', tx_feerate: 5 };
+      const vaultConfig = {
+        borrow_amount: 10000,
+        deposit_amount: 100000,
+        vault_label: 'test',
+        tx_feerate: 5,
+      };
       const acctRes = { mint_account: 'mint_open' };
       const options = { feeRate: 5, isMaxDeposit: false, liquidationPrice: 45000 };
 
       const result = await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
       expect(fetchPriceQuote).toHaveBeenCalledWith(45000);
-      expect(mockWallet.vault.open.ctx).toHaveBeenCalledWith('mint_open', mockOracleQuote, vaultConfig);
+      expect(mockWallet.vault.open.ctx).toHaveBeenCalledWith(
+        'mint_open',
+        mockOracleQuote,
+        vaultConfig
+      );
       expect(result.issue_txid).toBe('open_issue');
       expect(result.vault_txid).toBe('open_vault');
     });
@@ -897,12 +919,18 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      const vaultConfig = { borrow_amount: 10000, deposit_amount: 100000, vault_label: 'test', tx_feerate: 5 };
+      const vaultConfig = {
+        borrow_amount: 10000,
+        deposit_amount: 100000,
+        vault_label: 'test',
+        tx_feerate: 5,
+      };
       const acctRes = { mint_account: 'mint_open' };
       const options = { feeRate: 5, isMaxDeposit: false, liquidationPrice: 45000 };
 
-      await expect(createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options))
-        .rejects.toThrow('No UTXOs available for vault deposit');
+      await expect(
+        createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options)
+      ).rejects.toThrow('No UTXOs available for vault deposit');
     });
 
     it('should use provided UTXOs for max deposit', async () => {
@@ -929,9 +957,19 @@ describe('Vault Request Creation', () => {
       };
 
       const providedUtxos = [{ txid: 'provided', vout: 0, value: 50000 }];
-      const vaultConfig = { borrow_amount: 10000, deposit_amount: 100000, vault_label: 'test', tx_feerate: 5 };
+      const vaultConfig = {
+        borrow_amount: 10000,
+        deposit_amount: 100000,
+        vault_label: 'test',
+        tx_feerate: 5,
+      };
       const acctRes = { mint_account: 'mint_open' };
-      const options = { feeRate: 5, isMaxDeposit: true, liquidationPrice: 45000, utxos: providedUtxos };
+      const options = {
+        feeRate: 5,
+        isMaxDeposit: true,
+        liquidationPrice: 45000,
+        utxos: providedUtxos,
+      };
 
       await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
@@ -941,6 +979,127 @@ describe('Vault Request Creation', () => {
         providedUtxos,
         true
       );
+    });
+
+    it('should adjust a near-max vault open deposit to the exact safe amount', async () => {
+      const { createVaultReqOpen } = require('../open');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+      const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
+      fetchPriceQuote.mockResolvedValue(mockOracleQuote);
+
+      const getChange = VaultAPI.open.get_change as jest.Mock;
+      getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
+        if (ctx.deposit_amount === 10_000) return -250;
+        if (ctx.deposit_amount === 0) return 9_750;
+        if (ctx.deposit_amount === 9_750) return 0;
+        return 1_000;
+      });
+
+      try {
+        const mockWallet = {
+          vault: {
+            open: {
+              ctx: jest.fn((_acct, _quote, config) => ({ ...config })),
+              quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
+              req: jest.fn().mockResolvedValue({
+                issue_txid: 'open_issue',
+                vault_txid: 'open_vault',
+                issue_txhex: '0200000001',
+                vault_txhex: '0200000002',
+              }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10_000 }]),
+          },
+          acct: {
+            sats: { address: 'tb1qtest' },
+          },
+        };
+
+        const vaultConfig = {
+          borrow_amount: 1_000,
+          deposit_amount: 10_000,
+          vault_label: 'test',
+          tx_feerate: 5,
+        };
+        const acctRes = { mint_account: 'mint_open' };
+        const options = { feeRate: 5, isMaxDeposit: false, liquidationPrice: 45_000 };
+
+        await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
+
+        expect(vaultConfig.deposit_amount).toBe(9_750);
+        expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
+          expect.objectContaining({ deposit_amount: 9_750 }),
+          [{ txid: 'utxo1', vout: 0, value: 10_000 }],
+          true
+        );
+      } finally {
+        getChange.mockReturnValue(1_000);
+      }
+    });
+
+    it('should preserve requested post-open BTC reserve when adjusting max deposit', async () => {
+      const { createVaultReqOpen } = require('../open');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+      const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
+      fetchPriceQuote.mockResolvedValue(mockOracleQuote);
+
+      const getChange = VaultAPI.open.get_change as jest.Mock;
+      getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
+        if (ctx.deposit_amount === 10_500) return 500;
+        if (ctx.deposit_amount === 0) return 11_000;
+        if (ctx.deposit_amount === 10_000) return 1_000;
+        return 1_000;
+      });
+
+      try {
+        const mockWallet = {
+          vault: {
+            open: {
+              ctx: jest.fn((_acct, _quote, config) => ({ ...config })),
+              quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
+              req: jest.fn().mockResolvedValue({
+                issue_txid: 'open_issue',
+                vault_txid: 'open_vault',
+                issue_txhex: '0200000001',
+                vault_txhex: '0200000002',
+              }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 12_000 }]),
+          },
+          acct: {
+            sats: { address: 'tb1qtest' },
+          },
+        };
+
+        const vaultConfig = {
+          borrow_amount: 1_000,
+          deposit_amount: 10_500,
+          vault_label: 'test',
+          tx_feerate: 5,
+        };
+        const acctRes = { mint_account: 'mint_open' };
+        const options = {
+          feeRate: 5,
+          isMaxDeposit: true,
+          liquidationPrice: 45_000,
+          postOpenReserveSats: 1_000,
+        };
+
+        await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
+
+        expect(vaultConfig.deposit_amount).toBe(10_000);
+        expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
+          expect.objectContaining({ deposit_amount: 10_000 }),
+          [{ txid: 'utxo1', vout: 0, value: 12_000 }],
+          true
+        );
+      } finally {
+        getChange.mockReturnValue(1_000);
+      }
     });
 
     it('should handle errors during vault creation', async () => {
@@ -959,12 +1118,18 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      const vaultConfig = { borrow_amount: 10000, deposit_amount: 100000, vault_label: 'test', tx_feerate: 5 };
+      const vaultConfig = {
+        borrow_amount: 10000,
+        deposit_amount: 100000,
+        vault_label: 'test',
+        tx_feerate: 5,
+      };
       const acctRes = { mint_account: 'mint_open' };
       const options = { feeRate: 5, isMaxDeposit: false, liquidationPrice: 45000 };
 
-      await expect(createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options))
-        .rejects.toThrow('Oracle unavailable');
+      await expect(
+        createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options)
+      ).rejects.toThrow('Oracle unavailable');
     });
   });
 
@@ -1031,8 +1196,9 @@ describe('Vault Request Creation', () => {
       const acctRes = { mint_account: 'mint_123' };
       const options = { feeRate: 3, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqBorrow(mockWallet as any, borrowConfig, acctRes, options))
-        .rejects.toThrow('No UTXOs available for borrow transaction fees');
+      await expect(
+        createVaultReqBorrow(mockWallet as any, borrowConfig, acctRes, options)
+      ).rejects.toThrow('No UTXOs available for borrow transaction fees');
     });
 
     it('should use provided UTXOs if given', async () => {
@@ -1129,8 +1295,9 @@ describe('Vault Request Creation', () => {
       const depositConfig = { deposit_amount: 10000, tx_feerate: 5 };
       const options = { feeRate: 5, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqDeposit(mockWallet as any, depositConfig, options))
-        .rejects.toThrow('No UTXOs available for deposit transaction');
+      await expect(
+        createVaultReqDeposit(mockWallet as any, depositConfig, options)
+      ).rejects.toThrow('No UTXOs available for deposit transaction');
     });
 
     it('should skip UTXO fetch for max amount', async () => {
@@ -1195,6 +1362,51 @@ describe('Vault Request Creation', () => {
       expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
     });
 
+    it('should adjust a near-max vault deposit to the exact safe amount', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+
+      const getChange = VaultAPI.deposit.get_change as jest.Mock;
+      getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
+        if (ctx.deposit_amount === 10_000) return -250;
+        if (ctx.deposit_amount === 0) return 9_750;
+        if (ctx.deposit_amount === 9_750) return 0;
+        return 1_000;
+      });
+
+      try {
+        const mockWallet = {
+          vault: {
+            deposit: {
+              ctx: jest.fn((_quote, _profile, config) => ({ ...config })),
+              quote: jest.fn().mockReturnValue({ total_cost: 500 }),
+              req: jest.fn().mockResolvedValue({ vault_txid: 'deposit_vault' }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10_000 }]),
+          },
+        };
+
+        const depositConfig = { deposit_amount: 10_000, tx_feerate: 5 };
+        const options = {
+          feeRate: 5,
+          oracleQuote: mockOracleQuote,
+          vaultProfile: mockVaultProfile,
+        };
+
+        await createVaultReqDeposit(mockWallet as any, depositConfig, options);
+
+        expect(depositConfig.deposit_amount).toBe(9_750);
+        expect(mockWallet.vault.deposit.req).toHaveBeenCalledWith(
+          expect.objectContaining({ deposit_amount: 9_750 }),
+          [{ txid: 'utxo1', vout: 0, value: 10_000 }]
+        );
+      } finally {
+        getChange.mockReturnValue(1_000);
+      }
+    });
+
     it('should handle errors during deposit request creation', async () => {
       const { createVaultReqDeposit } = require('../deposit');
 
@@ -1214,8 +1426,9 @@ describe('Vault Request Creation', () => {
       const depositConfig = { deposit_amount: 10000, tx_feerate: 5 };
       const options = { feeRate: 5, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqDeposit(mockWallet as any, depositConfig, options))
-        .rejects.toThrow('Deposit validation failed');
+      await expect(
+        createVaultReqDeposit(mockWallet as any, depositConfig, options)
+      ).rejects.toThrow('Deposit validation failed');
     });
   });
 
@@ -1232,8 +1445,9 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
-        .rejects.toThrow('Failed to submit deposit request: Deposit failed');
+      await expect(guardianSendReqDeposit(mockGuardianClient, {})).rejects.toThrow(
+        'Failed to submit deposit request: Deposit failed'
+      );
     });
 
     it('should handle object exceptions with JSON stringification', async () => {
@@ -1242,14 +1456,17 @@ describe('Vault Request Creation', () => {
         req: {
           vault: {
             deposit: jest.fn().mockReturnValue({
-              resolve: jest.fn().mockRejectedValue({ code: 'DEPOSIT_ERROR', reason: 'Insufficient funds' }),
+              resolve: jest
+                .fn()
+                .mockRejectedValue({ code: 'DEPOSIT_ERROR', reason: 'Insufficient funds' }),
             }),
           },
         },
       };
 
-      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
-        .rejects.toThrow('Failed to submit deposit request: {"code":"DEPOSIT_ERROR","reason":"Insufficient funds"}');
+      await expect(guardianSendReqDeposit(mockGuardianClient, {})).rejects.toThrow(
+        'Failed to submit deposit request: {"code":"DEPOSIT_ERROR","reason":"Insufficient funds"}'
+      );
     });
 
     it('should handle non-Error non-object exceptions with String conversion', async () => {
@@ -1264,8 +1481,9 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
-        .rejects.toThrow('Failed to submit deposit request: Plain string error');
+      await expect(guardianSendReqDeposit(mockGuardianClient, {})).rejects.toThrow(
+        'Failed to submit deposit request: Plain string error'
+      );
     });
 
     it('should handle null exceptions', async () => {
@@ -1280,8 +1498,9 @@ describe('Vault Request Creation', () => {
         },
       };
 
-      await expect(guardianSendReqDeposit(mockGuardianClient, {}))
-        .rejects.toThrow('Failed to submit deposit request: null');
+      await expect(guardianSendReqDeposit(mockGuardianClient, {})).rejects.toThrow(
+        'Failed to submit deposit request: null'
+      );
     });
   });
 
@@ -1346,8 +1565,9 @@ describe('Vault Request Creation', () => {
       const acctRes = { mint_account: 'burn_123' };
       const options = { feeRate: 4, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options))
-        .rejects.toThrow('No sats UTXOs available for repay transaction fees');
+      await expect(
+        createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options)
+      ).rejects.toThrow('No sats UTXOs available for repay transaction fees');
     });
 
     it('should throw when no UNIT UTXOs available', async () => {
@@ -1373,8 +1593,9 @@ describe('Vault Request Creation', () => {
       const acctRes = { mint_account: 'burn_123' };
       const options = { feeRate: 4, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options))
-        .rejects.toThrow('No UNIT UTXOs available to repay');
+      await expect(
+        createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options)
+      ).rejects.toThrow('No UNIT UTXOs available to repay');
     });
   });
 
@@ -1421,8 +1642,9 @@ describe('Vault Request Creation', () => {
       const withdrawConfig = { change_amount: 50000, tx_feerate: 3 };
       const options = { feeRate: 3, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqWithdraw(mockWallet as any, withdrawConfig, options))
-        .rejects.toThrow('Withdrawal validation failed');
+      await expect(
+        createVaultReqWithdraw(mockWallet as any, withdrawConfig, options)
+      ).rejects.toThrow('Withdrawal validation failed');
     });
 
     it('should handle non-Error exceptions in withdraw request creation', async () => {
@@ -1440,8 +1662,9 @@ describe('Vault Request Creation', () => {
       const withdrawConfig = { change_amount: 50000, tx_feerate: 3 };
       const options = { feeRate: 3, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
 
-      await expect(createVaultReqWithdraw(mockWallet as any, withdrawConfig, options))
-        .rejects.toBe('String error');
+      await expect(createVaultReqWithdraw(mockWallet as any, withdrawConfig, options)).rejects.toBe(
+        'String error'
+      );
     });
   });
 });
@@ -1460,8 +1683,9 @@ describe('Vault Guardian Error Handling', () => {
         },
       };
 
-      await expect(guardianSendReqWithdraw(mockGuardianClient, {}))
-        .rejects.toThrow('Withdraw failed');
+      await expect(guardianSendReqWithdraw(mockGuardianClient, {})).rejects.toThrow(
+        'Withdraw failed'
+      );
     });
 
     it('should handle non-Error exceptions', async () => {
@@ -1476,8 +1700,9 @@ describe('Vault Guardian Error Handling', () => {
         },
       };
 
-      await expect(guardianSendReqWithdraw(mockGuardianClient, {}))
-        .rejects.toBe('Non-error exception');
+      await expect(guardianSendReqWithdraw(mockGuardianClient, {})).rejects.toBe(
+        'Non-error exception'
+      );
     });
   });
 });

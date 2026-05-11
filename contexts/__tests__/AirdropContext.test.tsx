@@ -117,6 +117,7 @@ describe('AirdropContext', () => {
 
     expect(result.current!.showAirdropModal).toBe(false);
     expect(result.current!.airdropTxId).toBe('');
+    expect(result.current!.airdropPending).toBe(false);
   });
 
   it('should clean up expired locks on mount', async () => {
@@ -171,7 +172,7 @@ describe('AirdropContext', () => {
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith(lockKey);
   });
 
-  it('should show modal for pending airdrop when balance updates', async () => {
+  it('should clear pending airdrop without showing duplicate modal when balance updates', async () => {
     const mockWallet = createMockWallet('pendingairdrop');
     const pendingKey = `pendingAirdrop_${mockWallet.segwitAddress}_0`;
     const mockTxId = 'pending_txid';
@@ -196,8 +197,8 @@ describe('AirdropContext', () => {
       await Promise.resolve();
     });
 
-    expect(result!.current!.showAirdropModal).toBe(true);
-    expect(result!.current!.airdropTxId).toBe(mockTxId);
+    expect(result!.current!.showAirdropModal).toBe(false);
+    expect(result!.current!.airdropPending).toBe(false);
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(pendingKey);
   });
 
@@ -375,6 +376,38 @@ describe('AirdropContext', () => {
     expect(result!.current!.airdropTxId).toBe(mockTxId);
   });
 
+  it('should keep BTC airdrop pending until balance arrives', async () => {
+    const mockWallet = createMockWallet('airdroppending');
+    const mockTxId = 'airdrop_pending_txid';
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    let result: { current: ReturnType<typeof useAirdrop> | null } | undefined;
+    await act(async () => {
+      const hook = renderHook(() => useAirdrop(), { wrapper });
+      result = hook.result;
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result!.current!.airdropPending).toBe(true);
+    expect(result!.current!.showAirdropModal).toBe(true);
+    expect(result!.current!.airdropTxId).toBe(mockTxId);
+  });
+
   it('should request airdrop after 24 hours on interval', async () => {
     const mockWallet = createMockWallet('intervalrequest');
     const mockTxId = 'interval_airdrop_txid';
@@ -438,6 +471,7 @@ describe('AirdropContext', () => {
     expect(AirdropService.requestAirdrop).toHaveBeenCalled();
     // Should not crash or show modal on error
     expect(result!.current!.showAirdropModal).toBe(false);
+    expect(result!.current!.airdropPending).toBe(false);
   });
 
   it('should prevent duplicate airdrop requests when already in progress', async () => {
@@ -820,9 +854,7 @@ describe('AirdropContext', () => {
     expect(result!.current!.audioReady).toBe(false);
   });
 
-  it('should store pending airdrop txid when biometric modal is visible', async () => {
-    // This test covers the branch at line 171 where pendingAirdropTxIdRef.current is set
-    // when showBiometricSetupModal is true
+  it('should not replay the success modal for an already pending airdrop when balance exists', async () => {
     const mockWallet = createMockWallet('deferbiometric');
     const pendingKey = `pendingAirdrop_${mockWallet.segwitAddress}_0`;
     const mockTxId = 'deferred_txid';
@@ -847,10 +879,8 @@ describe('AirdropContext', () => {
       await Promise.resolve();
     });
 
-    // Modal should show since showBiometricSetupModal is false by default in our mock
-    // This tests the else branch at lines 173-175
-    expect(result!.current!.showAirdropModal).toBe(true);
-    expect(result!.current!.airdropTxId).toBe(mockTxId);
+    expect(result!.current!.showAirdropModal).toBe(false);
+    expect(result!.current!.airdropPending).toBe(false);
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(pendingKey);
   });
 

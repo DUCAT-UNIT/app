@@ -9,6 +9,7 @@ interface UseWalletCalculationsParams {
   taprootBalance?: number;
   runesBalance?: RuneBalance[];
   cashuBalance?: number | null;
+  cashuBtcBalanceSats?: number | null;
   btcPrice?: number | null;
   vaultData?: VaultData | null;
 }
@@ -35,6 +36,7 @@ export const useWalletCalculations = ({
   taprootBalance = 0,
   runesBalance = [],
   cashuBalance = 0,
+  cashuBtcBalanceSats = 0,
   btcPrice: btcPriceParam = 0,
   vaultData = null,
 }: UseWalletCalculationsParams): UseWalletCalculationsReturn => {
@@ -46,14 +48,15 @@ export const useWalletCalculations = ({
    * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceBTC = useMemo(() => {
-    const btcValue = (segwitBalance || 0) + (taprootBalance || 0);
+    const btcValue =
+      (segwitBalance || 0) + (taprootBalance || 0) + (cashuBtcBalanceSats || 0) / 100_000_000;
     const runesDisplayValue = getRunesAmount(runesBalance);
     const cashuDisplayValue = (cashuBalance || 0) / 100;
     const unitValue = (runesDisplayValue + cashuDisplayValue) / (btcPrice || 1);
     const ducatValue = 0; // DUCAT value in BTC (currently 0)
 
     return btcValue + unitValue + ducatValue;
-  }, [segwitBalance, taprootBalance, runesBalance, cashuBalance, btcPrice]);
+  }, [segwitBalance, taprootBalance, cashuBtcBalanceSats, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate total balance in USD
@@ -61,14 +64,18 @@ export const useWalletCalculations = ({
    * Note: Runes from ord comes in display units, ecash is in smallest units (needs /100)
    */
   const totalBalanceUSD = useMemo(() => {
-    const btcUsdValue = ((segwitBalance || 0) + (taprootBalance || 0)) * (btcPrice || 0);
+    const btcUsdValue =
+      ((segwitBalance || 0) +
+        (taprootBalance || 0) +
+        (cashuBtcBalanceSats || 0) / 100_000_000) *
+      (btcPrice || 0);
     const runesDisplayValue = getRunesAmount(runesBalance);
     const cashuDisplayValue = (cashuBalance || 0) / 100;
     const unitUsdValue = runesDisplayValue + cashuDisplayValue;
     const ducatUsdValue = 0; // DUCAT value in USD (currently 0)
 
     return btcUsdValue + unitUsdValue + ducatUsdValue;
-  }, [segwitBalance, taprootBalance, runesBalance, cashuBalance, btcPrice]);
+  }, [segwitBalance, taprootBalance, cashuBtcBalanceSats, runesBalance, cashuBalance, btcPrice]);
 
   /**
    * Calculate vault collateral ratio

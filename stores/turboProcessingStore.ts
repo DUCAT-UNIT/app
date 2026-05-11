@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../services/cashu/cashuUnits';
 
 export const TURBO_PROCESSING_STORAGE_KEY = 'turbo_processing_state';
 export const TURBO_PROCESSING_EXPIRY_MS = 5 * 60 * 1000;
@@ -22,6 +23,8 @@ export interface TurboProcessingState {
   mintQuoteId?: string;
   mintAmount?: number;
   turboRecipient?: string;
+  cashuUnit?: CashuUnit;
+  senderTaprootAddress?: string;
 }
 
 interface TurboProcessingActions {
@@ -31,6 +34,8 @@ interface TurboProcessingActions {
     mintQuoteId?: string;
     mintAmount?: number;
     turboRecipient?: string;
+    cashuUnit?: CashuUnit;
+    senderTaprootAddress?: string;
   }) => Promise<void>;
   updateProgress: (step: number, message: string) => Promise<void>;
   completeProcessing: () => Promise<void>;
@@ -77,6 +82,8 @@ function toPersistedState(state: TurboProcessingStore | TurboProcessingState): T
     mintQuoteId: state.mintQuoteId,
     mintAmount: state.mintAmount,
     turboRecipient: state.turboRecipient,
+    cashuUnit: state.cashuUnit === 'sat' ? state.cashuUnit : undefined,
+    senderTaprootAddress: state.senderTaprootAddress,
   };
 }
 
@@ -105,6 +112,17 @@ export function normalizeTurboProcessingState(
     ? Math.floor(value.currentStep)
     : 0;
   const currentMessage = stringField(value.currentMessage).trim() || 'Restoring Turbo send...';
+  let cashuUnit: CashuUnit | undefined;
+  if (typeof value.cashuUnit === 'string') {
+    try {
+      cashuUnit = normalizeCashuUnit(value.cashuUnit);
+    } catch (error: unknown) {
+      logger.warn('[TurboProcessingStore] Ignoring persisted state with unsupported Cashu unit', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
 
   return {
     isProcessing: true,
@@ -116,6 +134,8 @@ export function normalizeTurboProcessingState(
     mintQuoteId: optionalStringField(value.mintQuoteId),
     mintAmount: optionalPositiveNumber(value.mintAmount),
     turboRecipient: optionalStringField(value.turboRecipient),
+    cashuUnit,
+    senderTaprootAddress: optionalStringField(value.senderTaprootAddress),
   };
 }
 
@@ -133,6 +153,8 @@ export const useTurboProcessingStore = create<TurboProcessingStore>((set, get) =
       mintQuoteId: params.mintQuoteId,
       mintAmount: params.mintAmount,
       turboRecipient: params.turboRecipient,
+      cashuUnit: params.cashuUnit === 'sat' ? params.cashuUnit : undefined,
+      senderTaprootAddress: params.senderTaprootAddress,
     };
 
     logger.debug('[TurboProcessingStore] Starting processing:', state);

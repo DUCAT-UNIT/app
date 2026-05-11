@@ -24,6 +24,7 @@ import { useNotifications } from '../../stores/notificationStore';
 import type { TokenRecord, EcashTokenRecord } from '../../services/cashu/cashuLockedTokensService';
 import type { VaultHistoryTransaction } from '../../services/vaultService';
 import type { DisplayAssetType } from '../../types/assets';
+import type { CashuUnit } from '../../services/cashu/cashuUnits';
 
 /** Type guard to check if token is a sent token (TokenRecord) */
 function isSentToken(token: EcashTokenRecord): token is TokenRecord {
@@ -35,10 +36,11 @@ function isSentToken(token: EcashTokenRecord): token is TokenRecord {
  */
 interface TokenData {
   recipient: string;
-  shortUrl: string;
+  shortUrl?: string | null;
   token: string;
   claimed: boolean;
   isSelfClaim: boolean;
+  cashuUnit?: CashuUnit;
 }
 
 /**
@@ -96,6 +98,7 @@ export default function TransactionHistoryScreen({
       assetType: DisplayAssetType;
       isSent: boolean;
       isReceived: boolean;
+      displayKind?: 'turbo_mint_claim';
     };
   } | null>(null);
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
@@ -166,19 +169,21 @@ export default function TransactionHistoryScreen({
             if (isSentToken(tx.tokenData)) {
               setSelectedToken({
                 recipient: tx.tokenData.recipient,
-                shortUrl: tx.tokenData.shortUrl ?? '',
+                shortUrl: tx.tokenData.shortUrl ?? null,
                 token: tx.tokenData.token,
                 claimed: tx.tokenData.claimed ?? false,
                 isSelfClaim: tx.isAutoclaim ?? false,
+                cashuUnit: tx.tokenData.unit,
               });
             } else {
               // Received token - no recipient/shortUrl
               setSelectedToken({
                 recipient: '',
-                shortUrl: '',
+                shortUrl: null,
                 token: tx.tokenData.token,
                 claimed: tx.tokenData.claimed ?? false,
                 isSelfClaim: false,
+                cashuUnit: tx.tokenData.unit,
               });
             }
             setShowTokenDetails(true);
@@ -196,6 +201,7 @@ export default function TransactionHistoryScreen({
                 assetType: tx.txData.assetType as DisplayAssetType,
                 isSent: tx.txData.isSent,
                 isReceived: tx.txData.isReceived,
+                displayKind: tx.txData.displayKind,
               },
             });
             setShowRegularTxDetails(true);
@@ -281,6 +287,7 @@ export default function TransactionHistoryScreen({
           advancedMode={advancedMode}
           claimed={selectedToken.claimed}
           isSelfClaim={selectedToken.isSelfClaim}
+          cashuUnit={selectedToken.cashuUnit}
         />
       )}
 

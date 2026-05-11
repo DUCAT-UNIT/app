@@ -38,10 +38,7 @@ import {
   clearPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
 import { signPsbtRaw } from '../signing';
-import {
-  buildVaultProfile,
-  computeVaultPrevoutFromTx,
-} from '../vault/utils';
+import { buildVaultProfile, computeVaultPrevoutFromTx } from '../vault/utils';
 import { fetchVaultHistory } from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { getAvailableCollateralBtc } from './calculations';
@@ -51,6 +48,7 @@ import {
   createSwapPayload,
   calculateSwapBtcAmount,
   finalizeSwapPsbt,
+  validateSwapPsbtUnitPayout,
 } from './swapService';
 
 // ============================================================
@@ -87,6 +85,13 @@ export interface LiquidationExecutionParams {
   onProgress?: (message: string) => void;
   /** Enable BTC→UNIT auto-swap after repo (default true) */
   enableSwap?: boolean;
+  /** Called after the signed repo request is built but before submitting it to the guardian. */
+  onRequestCreated?: (requestInfo: {
+    txid: string;
+    vaultTxid: string;
+    request: WalletVaultRepoRequest;
+    swapPsbtHex?: string;
+  }) => Promise<void>;
 }
 
 export interface LiquidationExecutionResult {
@@ -100,6 +105,16 @@ export interface LiquidationExecutionResult {
   swapTxid?: string;
 }
 
+function extractRepoRequestTxid(request: WalletVaultRepoRequest): string {
+  const txRequest = request as WalletVaultRepoRequest & {
+    vault_txid?: string;
+    repo_txid?: string;
+    liquid_txid?: string;
+  };
+
+  return txRequest.vault_txid || txRequest.repo_txid || txRequest.liquid_txid || '';
+}
+
 // ============================================================
 // Main Execution (mirrors web frontend repossess.op.ts)
 // ============================================================
@@ -108,10 +123,17 @@ export async function executeLiquidation(
   params: LiquidationExecutionParams
 ): Promise<LiquidationExecutionResult> {
   const {
-    liquidVaults, walletInfo, vaultPubkey,
-    btcInVault, unitDebt, feeRate, vaultInfo,
-    deficitAmountBtc, onProgress,
+    liquidVaults,
+    walletInfo,
+    vaultPubkey,
+    btcInVault,
+    unitDebt,
+    feeRate,
+    vaultInfo,
+    deficitAmountBtc,
+    onProgress,
     enableSwap = true,
+    onRequestCreated,
   } = params;
 
   const progress = (msg: string) => {
@@ -154,18 +176,13 @@ export async function executeLiquidation(
       throw new Error('Failed to compute vault prevout');
     }
 
-    const userVaultProfile: VaultProfile = buildVaultProfile(
-      vaultPubkey,
-      vaultInfo,
-      prevout
-    );
+    const userVaultProfile: VaultProfile = buildVaultProfile(vaultPubkey, vaultInfo, prevout);
 
     // ── Step 4: Compute deposit_amount ──
     // (matches web: liquidation.helpers.tsx:183-184)
     const availableCollateral = getAvailableCollateralBtc(bitcoinPrice, btcInVault, unitDebt);
-    const depositAmountBtc = availableCollateral > deficitAmountBtc
-      ? 0
-      : deficitAmountBtc - availableCollateral;
+    const depositAmountBtc =
+      availableCollateral > deficitAmountBtc ? 0 : deficitAmountBtc - availableCollateral;
     const depositAmountSats = Math.floor(depositAmountBtc * 100_000_000);
 
     logger.debug('[Liquidation] Deposit calc', {
@@ -179,10 +196,7 @@ export async function executeLiquidation(
     // (matches web: repossess.op.ts:84 — NO is_locked modification)
     progress('Building liquidation context...');
 
-    const liquidCtx = VaultAPI.repo.liquidation.get_ctx(
-      liquidVaults,
-      contract
-    );
+    const liquidCtx = VaultAPI.repo.liquidation.get_ctx(liquidVaults, contract);
 
     logger.debug('[Liquidation] Context', {
       vaultCount: liquidCtx.vault_count,
@@ -199,11 +213,7 @@ export async function executeLiquidation(
       tx_feerate: feeRate,
     };
 
-    const vaultCtx = wallet.vault.repo.ctx(
-      oracleQuote,
-      userVaultProfile,
-      vaultConfig
-    );
+    const vaultCtx = wallet.vault.repo.ctx(oracleQuote, userVaultProfile, vaultConfig);
 
     // ── Step 7: Fetch & Select UTXOs ──
     // (matches web: repossess.op.ts:91-99 — fetch all, then select)
@@ -257,14 +267,14 @@ export async function executeLiquidation(
 
         // Get remaining wallet UTXOs (all minus repo-selected) for swap funding
         const remainingUtxos = allUtxos.filter(
-          (u) => !utxos.some((r) => r.txid === u.txid && r.vout === u.vout),
+          (u) => !utxos.some((r) => r.txid === u.txid && r.vout === u.vout)
         );
 
         // Check if change UTXO covers swap, otherwise add extra UTXOs
         const swapAmountSats = Math.floor(swapBtcAmount * 100_000_000);
         const swapFeeBufferSats = Math.max(
           SWAP_PSBT_MIN_FEE_BUFFER_SATS,
-          Math.ceil((swapAmountSats * SWAP_PSBT_FEE_BUFFER_BPS) / 10_000),
+          Math.ceil((swapAmountSats * SWAP_PSBT_FEE_BUFFER_BPS) / 10_000)
         );
         maxSwapSpendSats = swapAmountSats + swapFeeBufferSats;
         const needExtra = maxSwapSpendSats > changeUtxo.value;
@@ -287,6 +297,10 @@ export async function executeLiquidation(
         swapData = await fetchSwapPsbt(swapPayload);
 
         if (swapData) {
+          validateSwapPsbtUnitPayout(swapData.psbt, {
+            expectedUnitAmount: swapPayload.unit_amt,
+            expectedUnitAddress: wallet.acct.vault.address,
+          });
           logger.info('[Liquidation] Swap PSBT received', {
             userInputs: swapData.user_input_indices,
             maxSpendSats: maxSwapSpendSats,
@@ -380,6 +394,16 @@ export async function executeLiquidation(
       network: wallet.network,
     };
 
+    const requestTxid = extractRepoRequestTxid(request);
+    if (requestTxid && onRequestCreated) {
+      await onRequestCreated({
+        txid: requestTxid,
+        vaultTxid: requestTxid,
+        request,
+        ...(swapPsbtHex ? { swapPsbtHex } : {}),
+      });
+    }
+
     // ── Step 10: Submit to Guardian ──
     // (matches web: repossess.op.ts:214-224)
     progress('Submitting to network...');
@@ -387,10 +411,11 @@ export async function executeLiquidation(
     guardian = await getGuardianClient(vaultPubkey);
     const guardSub = guardian.req.vault.repo(request);
     guardSub.on('info', (info: string) => logger.debug(`[Liquidation] Guardian: ${info}`));
-    const guardRes = await withGuardianTimeout(
-      guardSub.resolve(60_000),
-      70_000
-    ) as { vault_txid?: string; repo_txid?: string; liquid_txid?: string };
+    const guardRes = (await withGuardianTimeout(guardSub.resolve(60_000), 70_000)) as {
+      vault_txid?: string;
+      repo_txid?: string;
+      liquid_txid?: string;
+    };
 
     const txid = guardRes.vault_txid || guardRes.repo_txid || guardRes.liquid_txid || '';
     if (txid) {
@@ -419,7 +444,11 @@ export async function executeLiquidation(
     logger.warn('[Liquidation] Failed', { error: msg, type: typeof error, raw: String(error) });
 
     if (guardian) {
-      try { await disconnectGuardian(); } catch { /* */ }
+      try {
+        await disconnectGuardian();
+      } catch {
+        /* */
+      }
     }
 
     return { success: false, error: msg };

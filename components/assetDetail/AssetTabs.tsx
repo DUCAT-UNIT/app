@@ -4,7 +4,7 @@
  * Uses responsive scaling with s() and sf() functions
  */
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../theme';
 import { useResponsive } from '../../hooks/useResponsive';
@@ -16,21 +16,28 @@ interface AssetTabsProps {
   advancedMode?: boolean;
 }
 
-const TAB_OPTIONS = ['ACTIVITY', 'ABOUT'];
-
 export const AssetTabs = memo(function AssetTabs({
   selectedTab,
   onTabChange,
+  assetType,
 }: AssetTabsProps) {
   const { s, sf } = useResponsive();
+  const tabOptions = useMemo(
+    () => (assetType === 'BTC' || assetType === 'UNIT'
+      ? ['ACTIVITY', 'TURBO', 'ABOUT']
+      : ['ACTIVITY', 'ABOUT']),
+    [assetType]
+  );
 
   // Memoize individual tab handlers to avoid inline function recreation
   const handleActivityPress = useCallback(() => onTabChange('ACTIVITY'), [onTabChange]);
+  const handleTurboPress = useCallback(() => onTabChange('TURBO'), [onTabChange]);
   const handleAboutPress = useCallback(() => onTabChange('ABOUT'), [onTabChange]);
 
   // Map tab names to their handlers
   const tabHandlers: Record<string, () => void> = {
     'ACTIVITY': handleActivityPress,
+    'TURBO': handleTurboPress,
     'ABOUT': handleAboutPress,
   };
 
@@ -42,7 +49,7 @@ export const AssetTabs = memo(function AssetTabs({
       marginBottom: s(16),
       gap: s(24),
     }}>
-      {TAB_OPTIONS.map((tab) => {
+      {tabOptions.map((tab) => {
         const isSelected = selectedTab === tab;
         return (
           <TouchableOpacity

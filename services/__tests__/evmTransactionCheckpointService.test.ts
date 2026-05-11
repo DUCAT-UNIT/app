@@ -1,4 +1,6 @@
+import * as SecureStore from 'expo-secure-store';
 import {
+  EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY,
   resetEvmTransactionCheckpointStore,
   useEvmTransactionCheckpointStore,
 } from '../../stores/evmTransactionCheckpointStore';
@@ -106,6 +108,50 @@ describe('evmTransactionCheckpointService', () => {
       expect.objectContaining({ txHash: '0xconfirmed', status: 'confirmed', receiptTxHash: '0xconfirmed-receipt' }),
       expect.objectContaining({ txHash: '0xpending', status: 'submitted' }),
     ]));
+  });
+
+  it('reconciles submitted checkpoints that only survived in fallback storage', async () => {
+    const now = Date.now();
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(JSON.stringify({
+      checkpoints: [{
+        id: '0xfallback-burn',
+        chain: 'sepolia',
+        accountIndex: 0,
+        kind: 'redemption',
+        status: 'submitted',
+        txHash: '0xfallback-burn',
+        receiptTxHash: null,
+        asset: 'wUNIT',
+        amount: '2',
+        spender: '0xrouter',
+        recipient: null,
+        tokenIn: 'wUNIT',
+        tokenOut: 'UNIT',
+        releaseId: 'release-fallback',
+        destinationTaprootAddress: 'tb1pfallback',
+        submittedAt: now,
+        confirmedAt: null,
+        updatedAt: now,
+        error: null,
+      }],
+    }));
+    mockProvider.getTransactionReceipt.mockResolvedValue({ hash: '0xfallback-receipt', status: 1 });
+
+    await expect(reconcileSubmittedEvmTransactionCheckpoints()).resolves.toEqual({
+      checked: 1,
+      pending: 0,
+      confirmed: 1,
+      failed: 0,
+      errors: 0,
+    });
+
+    expect(SecureStore.getItemAsync).toHaveBeenCalledWith(EVM_TRANSACTION_CHECKPOINT_FALLBACK_KEY);
+    expect(useEvmTransactionCheckpointStore.getState().checkpoints[0]).toMatchObject({
+      txHash: '0xfallback-burn',
+      status: 'confirmed',
+      receiptTxHash: '0xfallback-receipt',
+      releaseId: 'release-fallback',
+    });
   });
 
   it('does not mutate checkpoints when receipt lookup fails', async () => {
@@ -244,6 +290,40 @@ describe('evmTransactionCheckpointService', () => {
       sourceAsset: 'wUNIT',
       burnTxHash: '0xconfirmed-burn',
     });
+  });
+
+  it('replays USDC as the source asset for USDC-funded redemption checkpoints', async () => {
+    useEvmTransactionCheckpointStore.getState().recordSubmitted({
+      accountIndex: 0,
+      kind: 'redemption',
+      txHash: '0xsubmitted-burn',
+      asset: 'USDC',
+      amount: '3',
+      spender: '0xrouter',
+      recipient: null,
+      tokenIn: 'wUNIT',
+      tokenOut: 'UNIT',
+      releaseId: 'release-usdc',
+      destinationTaprootAddress: 'tb1pdestination',
+    });
+    useEvmTransactionCheckpointStore.getState().markConfirmed('0xsubmitted-burn', '0xconfirmed-burn');
+    (getRedemptionStatus as jest.Mock).mockRejectedValue(new Error('HTTP 404: Not Found'));
+    (trackRedemption as jest.Mock).mockResolvedValue({
+      id: 'release-usdc',
+      status: 'pending_release',
+      amount: '3',
+      sourceAsset: 'USDC',
+      destinationTaprootAddress: 'tb1pdestination',
+      burnTxHash: '0xconfirmed-burn',
+    });
+
+    await recoverConfirmedRedemptionTracking('release-usdc');
+
+    expect(trackRedemption).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'release-usdc',
+      sourceAsset: 'USDC',
+      burnTxHash: '0xconfirmed-burn',
+    }));
   });
 
   it('does not repost redemption tracking when the backend already has the release', async () => {

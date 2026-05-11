@@ -39,6 +39,7 @@ interface SendFlowState {
   sendAddressType: SendAddressType;
   requireConfirmedUtxos: boolean;
   turboEnabled: boolean;
+  btcTurboEnabled: boolean;
   selectedFeeRate: number;
 }
 
@@ -50,6 +51,7 @@ interface SendFlowActions {
   setSendAddressType: (type: SendAddressType) => void;
   setRequireConfirmedUtxos: (required: boolean) => void;
   setTurboEnabled: (enabled: boolean) => void;
+  setBtcTurboEnabled: (enabled: boolean) => void;
   setSelectedFeeRate: (rate: number) => void;
   resetSendFlow: () => void;
 }
@@ -64,13 +66,14 @@ const initialState: SendFlowState = {
   sendAddressType: 'taproot',
   requireConfirmedUtxos: false,
   turboEnabled: true, // Turbo ON by default for UNIT transactions
+  btcTurboEnabled: false,
   selectedFeeRate: 2, // Default to standard (2 sat/vB)
 };
 
 // Timer for auto-reset from 'confirmed' to 'idle'
 let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const useSendFlowStore = create<SendFlowStore>((set) => ({
+export const useSendFlowStore = create<SendFlowStore>((set, get) => ({
   // Initial state
   ...initialState,
 
@@ -104,13 +107,30 @@ export const useSendFlowStore = create<SendFlowStore>((set) => ({
     }
   },
 
-  setSendAssetType: (type) => set({ sendAssetType: type }),
-  setSendAmount: (amount) => set({ sendAmount: amount }),
-  setSendRecipient: (recipient) => set({ sendRecipient: recipient }),
-  setSendAddressType: (type) => set({ sendAddressType: type }),
-  setRequireConfirmedUtxos: (required) => set({ requireConfirmedUtxos: required }),
-  setTurboEnabled: (enabled) => set({ turboEnabled: enabled }),
-  setSelectedFeeRate: (rate) => set({ selectedFeeRate: rate }),
+  setSendAssetType: (type) => {
+    if (get().sendAssetType !== type) set({ sendAssetType: type });
+  },
+  setSendAmount: (amount) => {
+    if (get().sendAmount !== amount) set({ sendAmount: amount });
+  },
+  setSendRecipient: (recipient) => {
+    if (get().sendRecipient !== recipient) set({ sendRecipient: recipient });
+  },
+  setSendAddressType: (type) => {
+    if (get().sendAddressType !== type) set({ sendAddressType: type });
+  },
+  setRequireConfirmedUtxos: (required) => {
+    if (get().requireConfirmedUtxos !== required) set({ requireConfirmedUtxos: required });
+  },
+  setTurboEnabled: (enabled) => {
+    if (get().turboEnabled !== enabled) set({ turboEnabled: enabled });
+  },
+  setBtcTurboEnabled: (enabled) => {
+    if (get().btcTurboEnabled !== enabled) set({ btcTurboEnabled: enabled });
+  },
+  setSelectedFeeRate: (rate) => {
+    if (get().selectedFeeRate !== rate) set({ selectedFeeRate: rate });
+  },
 
   resetSendFlow: () => {
     logger.debug('[SendFlowStore] resetSendFlow');
@@ -149,6 +169,7 @@ export const useSendFlow = () => {
     sendAddressType: store.sendAddressType,
     requireConfirmedUtxos: store.requireConfirmedUtxos,
     turboEnabled: store.turboEnabled,
+    btcTurboEnabled: store.btcTurboEnabled,
     selectedFeeRate: store.selectedFeeRate,
     // Actions (wrapped to match React.Dispatch<SetStateAction<T>> signature for backwards compat)
     setIntentStep: store.setIntentStep,
@@ -192,6 +213,13 @@ export const useSendFlow = () => {
         store.setTurboEnabled(value(useSendFlowStore.getState().turboEnabled));
       } else {
         store.setTurboEnabled(value);
+      }
+    },
+    setBtcTurboEnabled: (value: boolean | ((prev: boolean) => boolean)) => {
+      if (typeof value === 'function') {
+        store.setBtcTurboEnabled(value(useSendFlowStore.getState().btcTurboEnabled));
+      } else {
+        store.setBtcTurboEnabled(value);
       }
     },
     setSelectedFeeRate: store.setSelectedFeeRate,

@@ -116,6 +116,9 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
   // Determine if we should show the "no debt" indicator on gauge (for repay operation)
   const hasNoDebt = config.operationType === 'repay' && hasChanges && preview.newDebt === 0;
   const continueDisabled = !validation.canContinue || isContinuing;
+  const displayEstimatedFeeSats = Number.isFinite(estimatedFeeSats)
+    ? Math.max(0, Math.ceil(estimatedFeeSats))
+    : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-input-screen`}>
@@ -161,7 +164,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
                   <FeeRateDropdown
                     selectedRate={selectedFeeRate}
                     onRateChange={setSelectedFeeRate}
-                    estimatedFeeSats={estimatedFeeSats}
+                    estimatedFeeSats={displayEstimatedFeeSats}
                     transparent
                   />
                 )}
@@ -180,7 +183,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
                   <FeeRateDropdown
                     selectedRate={selectedFeeRate}
                     onRateChange={setSelectedFeeRate}
-                    estimatedFeeSats={estimatedFeeSats}
+                    estimatedFeeSats={displayEstimatedFeeSats}
                     transparent
                   />
                 )}

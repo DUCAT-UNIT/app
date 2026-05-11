@@ -79,6 +79,36 @@ describe('runeValidationService', () => {
       );
     });
 
+    it('should validate live ord rune response shape', async () => {
+      const mockRuneInfo = {
+        id: '123456:789',
+        entry: {
+          spaced_rune: 'DUCAT•UNIT•RUNE',
+          number: 1,
+          rune: 'DUCATUNITRUNE',
+          block: 123456,
+        },
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue(mockRuneInfo),
+      });
+
+      const result = await validateRuneConfiguration();
+
+      expect(result).toBe(true);
+      expect(logger.security).toHaveBeenCalledWith(
+        'Rune configuration validated successfully',
+        expect.objectContaining({
+          label: 'DUCAT•UNIT•RUNE',
+          runeId: '123456:789',
+          block: 123456,
+          txIndex: 789,
+        })
+      );
+    });
+
     it('should return true with warning when API is unavailable', async () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
@@ -112,7 +142,9 @@ describe('runeValidationService', () => {
         json: jest.fn().mockResolvedValue(mockRuneInfo),
       });
 
-      await expect(validateRuneConfiguration()).rejects.toThrow('CRITICAL: Rune configuration mismatch!');
+      await expect(validateRuneConfiguration()).rejects.toThrow(
+        'CRITICAL: Rune configuration mismatch!'
+      );
       await expect(validateRuneConfiguration()).rejects.toThrow('Expected label: DUCAT•UNIT•RUNE');
       await expect(validateRuneConfiguration()).rejects.toThrow('Actual label: WRONG•RUNE•LABEL');
 
@@ -288,7 +320,7 @@ describe('runeValidationService', () => {
         expect.objectContaining({
           method: 'GET',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
           },
           signal: expect.any(AbortSignal),
         })

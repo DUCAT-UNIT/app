@@ -9,11 +9,11 @@ import {
 } from '@cashu/cashu-ts';
 
 import type { CashuProof } from './crypto/cryptoProofs';
+import { DEFAULT_CASHU_UNIT, isCashuUnit, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 export type CashuAmountLike = AmountLike;
 
 const CASHU_TOKEN_PREFIX_V4 = /^cashuB/i;
-const DEFAULT_DUCAT_UNIT = 'unit';
 
 interface AmountObject {
   toBigInt?: () => bigint;
@@ -158,7 +158,7 @@ export interface CashuTokenMetadata {
 }
 
 export const assertDucatUnitToken = (unit: string | undefined): void => {
-  if (unit === DEFAULT_DUCAT_UNIT) {
+  if (unit === DEFAULT_CASHU_UNIT) {
     return;
   }
   if (unit === undefined) {
@@ -170,10 +170,20 @@ export const assertDucatUnitToken = (unit: string | undefined): void => {
   throw new Error(`Unsupported Cashu token unit: ${unit}`);
 };
 
+export const assertSupportedCashuTokenUnit = (unit: string | undefined): CashuUnit => {
+  if (unit === undefined) {
+    throw new Error('Cashu token unit is required');
+  }
+  if (!isCashuUnit(unit)) {
+    throw new Error(`Unsupported Cashu token unit: ${unit}`);
+  }
+  return normalizeCashuUnit(unit);
+};
+
 export const encodeCashuTokenV4 = (
   proofs: CashuProof[],
   mint: string,
-  unit = DEFAULT_DUCAT_UNIT
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): string => {
   const normalizedProofs = normalizeProofAmounts(normalizeCashuProofs(proofs));
   return getEncodedToken({
@@ -192,11 +202,11 @@ export const decodeCashuToken = (
   }
 
   const decoded = getDecodedToken(tokenString, keysetIds);
-  assertDucatUnitToken(decoded.unit);
+  const unit = assertSupportedCashuTokenUnit(decoded.unit);
   const proofs = normalizeCashuProofs(decoded.proofs);
   return {
     mint: decoded.mint,
-    unit: decoded.unit,
+    unit,
     proofs,
     amount: proofs.reduce((sum, proof) => sum + proof.amount, 0),
   };
@@ -208,7 +218,7 @@ export const decodeCashuTokenMetadata = (tokenString: string): CashuTokenMetadat
   }
 
   const metadata = getTokenMetadata(tokenString);
-  assertDucatUnitToken(metadata.unit);
+  const unit = assertSupportedCashuTokenUnit(metadata.unit);
   const proofs = metadata.incompleteProofs.map((proof, index) => {
     const raw = proof as Record<string, unknown>;
     if (typeof raw.secret !== 'string' || typeof raw.C !== 'string') {
@@ -224,7 +234,7 @@ export const decodeCashuTokenMetadata = (tokenString: string): CashuTokenMetadat
 
   return {
     mint: metadata.mint,
-    unit: metadata.unit,
+    unit,
     amount: normalizeCashuAmount(metadata.amount, 'token metadata amount'),
     proofs,
   };

@@ -8,6 +8,7 @@ import {
   useVaultCreationStore,
   resetVaultCreationStore,
   ProcessingStep,
+  getPersistedVaultCreationState,
 } from '../vaultCreationStore';
 
 jest.mock('../../utils/logger', () => ({
@@ -56,20 +57,33 @@ describe('vaultCreationStore', () => {
 
   describe('error handling', () => {
     it('should clear error when setting amounts or changing step', () => {
-      const { setBtcAmount, setUnitAmount, setCurrentStep, setError } = useVaultCreationStore.getState();
+      const { setBtcAmount, setUnitAmount, setCurrentStep, setError } =
+        useVaultCreationStore.getState();
 
-      act(() => { setError('Some error'); });
+      act(() => {
+        setError('Some error');
+      });
       expect(useVaultCreationStore.getState().error).toBe('Some error');
 
-      act(() => { setBtcAmount(0.5); });
+      act(() => {
+        setBtcAmount(0.5);
+      });
       expect(useVaultCreationStore.getState().error).toBeNull();
 
-      act(() => { setError('Another error'); });
-      act(() => { setUnitAmount(10000); });
+      act(() => {
+        setError('Another error');
+      });
+      act(() => {
+        setUnitAmount(10000);
+      });
       expect(useVaultCreationStore.getState().error).toBeNull();
 
-      act(() => { setError('Step error'); });
-      act(() => { setCurrentStep('confirm'); });
+      act(() => {
+        setError('Step error');
+      });
+      act(() => {
+        setCurrentStep('confirm');
+      });
       expect(useVaultCreationStore.getState().error).toBeNull();
     });
 
@@ -141,10 +155,14 @@ describe('vaultCreationStore', () => {
       });
       expect(useVaultCreationStore.getState().getHealthStatus()).toBe('healthy');
 
-      act(() => { setUnitAmount(28000); }); // ~178% = warning
+      act(() => {
+        setUnitAmount(28000);
+      }); // ~178% = warning
       expect(useVaultCreationStore.getState().getHealthStatus()).toBe('warning');
 
-      act(() => { setUnitAmount(35000); }); // ~143% = danger
+      act(() => {
+        setUnitAmount(35000);
+      }); // ~143% = danger
       expect(useVaultCreationStore.getState().getHealthStatus()).toBe('danger');
     });
   });
@@ -164,7 +182,9 @@ describe('vaultCreationStore', () => {
       expect(useVaultCreationStore.getState().getHealthFactor()).toBe(200);
 
       // Navigate through steps
-      act(() => { state.setCurrentStep('confirm'); });
+      act(() => {
+        state.setCurrentStep('confirm');
+      });
       act(() => {
         state.setCurrentStep('processing');
         state.setLoading(true);
@@ -172,7 +192,9 @@ describe('vaultCreationStore', () => {
 
       // Processing steps
       ([2, 3, 4] as const).forEach((step) => {
-        act(() => { state.setProcessingStep(step as ProcessingStep); });
+        act(() => {
+          state.setProcessingStep(step as ProcessingStep);
+        });
         expect(useVaultCreationStore.getState().processingStep).toBe(step);
       });
 
@@ -229,5 +251,30 @@ describe('vaultCreationStore', () => {
       currentStep: 'amounts',
       txid: null,
     });
+  });
+
+  it('should not persist transient processing or success steps', () => {
+    const baseState = useVaultCreationStore.getState();
+
+    expect(
+      getPersistedVaultCreationState({
+        ...baseState,
+        currentStep: 'processing',
+      }).currentStep
+    ).toBe('confirm');
+
+    expect(
+      getPersistedVaultCreationState({
+        ...baseState,
+        currentStep: 'success',
+      }).currentStep
+    ).toBe('confirm');
+
+    expect(
+      getPersistedVaultCreationState({
+        ...baseState,
+        currentStep: 'payout',
+      }).currentStep
+    ).toBe('payout');
   });
 });

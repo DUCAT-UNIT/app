@@ -26,6 +26,23 @@ export const useEcashTokens = (): EcashTokensValue => {
   return context;
 };
 
+const ecashTokenStateKey = (token: TokenWithStatus): string => {
+  const recipient = 'recipient' in token ? token.recipient ?? '' : '';
+  const sender = 'sender' in token ? token.sender ?? '' : '';
+  const shortUrl = 'shortUrl' in token ? token.shortUrl ?? '' : '';
+  return [
+    token.id,
+    token.unit ?? 'unit',
+    token.amount,
+    token.timestamp,
+    token.claimed ? 1 : 0,
+    token.partiallySpent ? 1 : 0,
+    recipient,
+    sender,
+    shortUrl,
+  ].join(':');
+};
+
 interface EcashTokensProviderProps {
   children: ReactNode;
 }
@@ -57,7 +74,7 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
 
       // Only update state if tokens have actually changed
       const newHash = tokensWithStatus
-        .map(t => `${t.id}:${t.claimed ? 1 : 0}:${t.partiallySpent ? 1 : 0}`)
+        .map(ecashTokenStateKey)
         .join('|');
       if (newHash !== prevTokenHashRef.current) {
         prevTokenHashRef.current = newHash;

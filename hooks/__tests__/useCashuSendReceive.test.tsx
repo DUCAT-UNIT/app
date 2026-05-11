@@ -81,7 +81,7 @@ describe('useCashuSendReceive', () => {
 
       expect(setIsLoading).toHaveBeenCalledWith(true);
       expect(setError).toHaveBeenCalledWith(null);
-      expect(receiveToken).toHaveBeenCalledWith('cashuA...');
+      expect(receiveToken).toHaveBeenCalledWith('cashuA...', 'unit');
       expect(fetchBalance).toHaveBeenCalled();
       expect(receiveResult).toEqual({ amount: 100 });
       expect(setIsLoading).toHaveBeenLastCalledWith(false);
@@ -193,6 +193,26 @@ describe('useCashuSendReceive', () => {
       });
 
       expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, '');
+    });
+
+    it('should scope BTC Cashu receives and history to sat', async () => {
+      const { result } = renderHook(() =>
+        useCashuSendReceive({
+          setIsLoading,
+          setError,
+          setBalance,
+          fetchBalance,
+          taprootAddress: 'tb1pbtc',
+          unit: 'sat',
+        })
+      );
+
+      await act(async () => {
+        await result.current!.receive('cashuBbtc...');
+      });
+
+      expect(receiveToken).toHaveBeenCalledWith('cashuBbtc...', 'sat');
+      expect(saveReceivedToken).toHaveBeenCalledWith('cashuBbtc...', 'Cashu Receive', 100, 'tb1pbtc', 'sat');
     });
   });
 

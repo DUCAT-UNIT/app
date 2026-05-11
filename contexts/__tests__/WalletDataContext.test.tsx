@@ -620,6 +620,45 @@ describe('WalletDataContext', () => {
       expect(result.current.ecashTokens.length).toBe(0);
     });
 
+    it('should update ecash token state when an existing token gets a short URL', async () => {
+      mockLoadTokensWithStatus
+        .mockResolvedValueOnce([
+          {
+            id: 'token1',
+            token: 'cashuBtoken',
+            amount: 100,
+            timestamp: 1000,
+            claimed: false,
+            recipient: 'recipient',
+            shortUrl: null,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'token1',
+            token: 'cashuBtoken',
+            amount: 100,
+            timestamp: 1000,
+            claimed: false,
+            recipient: 'recipient',
+            shortUrl: 'https://short.url/token1',
+          },
+        ]);
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
+      const { result } = renderHook(() => useEcashTokens(), { wrapper });
+
+      await act(async () => {
+        await result.current!.fetchEcashTokens();
+      });
+      expect((result.current.ecashTokens[0] as { shortUrl: string | null }).shortUrl).toBeNull();
+
+      await act(async () => {
+        await result.current!.fetchEcashTokens();
+      });
+      expect((result.current.ecashTokens[0] as { shortUrl: string | null }).shortUrl).toBe('https://short.url/token1');
+    });
+
     it('should subscribe to token changes', () => {
       const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
       renderHook(() => useEcashTokens(), { wrapper });

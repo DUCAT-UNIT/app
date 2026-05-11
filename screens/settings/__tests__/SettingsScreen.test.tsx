@@ -150,7 +150,7 @@ describe('SettingsScreen', () => {
       expect(mockOnViewAbout).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onViewCashuSettings when Turbo UNIT is pressed (advanced mode)', () => {
+    it('should call onViewCashuSettings when Turbo Cashu is pressed (advanced mode)', () => {
       const { getByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
 
       fireEvent.press(getByTestId('settings-cashu-btn'));
@@ -201,9 +201,9 @@ describe('SettingsScreen', () => {
       expect(getByTestId('settings-about-btn').props.accessibilityLabel).toBe('About');
     });
 
-    it('should display Turbo UNIT option in advanced mode', () => {
+    it('should display Turbo Cashu option in advanced mode', () => {
       const { getByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
-      expect(getByTestId('settings-cashu-btn').props.accessibilityLabel).toBe('Turbo UNIT');
+      expect(getByTestId('settings-cashu-btn').props.accessibilityLabel).toBe('Turbo Cashu');
     });
 
     it('should display danger zone section in advanced mode', () => {

@@ -42,6 +42,11 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
   completeMint: jest.fn(),
 }));
 
+const mockGetCurrentCashuAccount = jest.fn();
+jest.mock('../../services/cashu/cashuProofManager', () => ({
+  getCurrentCashuAccount: () => mockGetCurrentCashuAccount(),
+}));
+
 jest.mock('../usePolling', () => ({
   usePolling: jest.fn(),
 }));
@@ -82,6 +87,7 @@ describe('useCashuMint', () => {
     });
     (checkMintStatus as jest.Mock).mockResolvedValue({ paid: false, state: 'UNPAID' });
     (completeMint as jest.Mock).mockResolvedValue([{ id: 'proof1' }, { id: 'proof2' }]);
+    mockGetCurrentCashuAccount.mockReturnValue('tb1paccount');
   });
 
   it('should return expected functions and state', () => {
@@ -180,13 +186,36 @@ describe('useCashuMint', () => {
       expect(result.current!.pendingMints.length).toBe(0);
     });
 
+    it('should not complete a mint under a different Cashu account', async () => {
+      (checkMintStatus as jest.Mock).mockResolvedValue({ paid: true, state: 'PAID' });
+
+      const { result } = renderHook(() =>
+        useCashuMint({ fetchBalance, setIsLoading, setError })
+      );
+
+      await act(async () => {
+        await result.current!.startMint(100);
+      });
+
+      mockGetCurrentCashuAccount.mockReturnValue('tb1potheraccount');
+
+      await expect(
+        act(async () => {
+          await result.current!.checkAndCompleteMint('quote123');
+        })
+      ).rejects.toThrow('Cashu account changed during mint completion');
+
+      expect(completeMint).not.toHaveBeenCalled();
+      expect(result.current!.pendingMints.length).toBe(1);
+    });
+
     it('should complete mint when quote has available amount without a paid state', async () => {
       (checkMintStatus as jest.Mock).mockResolvedValue({
         paid: true,
         state: 'UNPAID',
         amountPaid: 125,
-        amountIssued: 25,
-        availableAmount: 100,
+        amountIssued: 50,
+        availableAmount: 75,
       });
 
       const { result } = renderHook(() =>
@@ -203,7 +232,8 @@ describe('useCashuMint', () => {
       });
 
       expect(status!.completed).toBe(true);
-      expect(completeMint).toHaveBeenCalledWith('quote123', 100);
+      expect(status!.amount).toBe(75);
+      expect(completeMint).toHaveBeenCalledWith('quote123', 75);
       expect(result.current!.pendingMints.length).toBe(0);
     });
 

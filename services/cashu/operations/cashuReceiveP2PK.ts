@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { MINT_URL } from '../cashuMintClient';
+import { MINT_URL, mintRequiresDleqProofs } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -14,14 +14,23 @@ import {
   decodeTokenMetadata,
   CashuProof,
 } from '../crypto';
-import {
-  isP2PKSecret,
-  signP2PKSecret,
-} from '../p2pk';
+import { isP2PKSecret, signP2PKSecret } from '../p2pk';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import { addProofs } from '../cashuProofManager';
-import { calculateInputFees, selectActiveUnitKeyset } from '../cashuKeysetUtils';
+import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
+import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
+import {
+  assertProofsMatchCashuUnit,
+  calculateInputFees,
+  resolveResponseSignatureKeysetForUnit,
+  selectActiveCashuKeyset,
+} from '../cashuKeysetUtils';
 import { getKeysetIdsFromMintKeys } from '../cashuTsCompat';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../cashuUnits';
+import {
+  assertCashuOperationAccountUnchanged,
+  requireCashuOperationAccount,
+} from './cashuAccountGuard';
 
 type ProgressCallback = (current: number, total: number, message: string) => void;
 
@@ -37,7 +46,8 @@ export interface ReceiveP2PKTokenResult {
 export const receiveP2PKToken = async (
   tokenString: string,
   privateKey: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  expectedUnit?: CashuUnit
 ): Promise<ReceiveP2PKTokenResult> => {
   const txn = logger.startTransaction('p2pk_receive_token');
 
@@ -49,6 +59,7 @@ export const receiveP2PKToken = async (
   try {
     const totalSteps = 6; // Decoding, Signing, Getting keys, Creating outputs, Swapping, Saving
     let currentStep = 0;
+    const operationAccount = requireCashuOperationAccount('Cashu P2PK receive');
 
     // Step 1: Decode token
     logger.cashu('p2pk_decode_start', { step: 'RECEIVE', substep: 1, message: 'Decoding token' });
@@ -61,6 +72,11 @@ export const receiveP2PKToken = async (
     }
 
     const { mint, proofs, amount } = metadata;
+    const tokenUnit = normalizeCashuUnit(metadata.unit ?? DEFAULT_CASHU_UNIT);
+    if (expectedUnit && tokenUnit !== expectedUnit) {
+      throw new Error(`Expected Cashu ${expectedUnit} token but received ${tokenUnit}`);
+    }
+    const unit = expectedUnit ?? tokenUnit;
 
     logger.cashu('p2pk_token_decoded', {
       step: 'RECEIVE',
@@ -68,6 +84,7 @@ export const receiveP2PKToken = async (
       mint: mint?.substring(0, 30) + '...',
       proofCount: proofs.length,
       totalAmount: amount,
+      unit,
     });
 
     // Verify mint matches
@@ -81,9 +98,12 @@ export const receiveP2PKToken = async (
     }
 
     // Check if proofs are P2PK locked
-    const p2pkProofs = proofs.filter(p => isP2PKSecret(p.secret));
+    const p2pkProofs = proofs.filter((p) => isP2PKSecret(p.secret));
     if (p2pkProofs.length === 0) {
-      logger.cashu('p2pk_no_locked_proofs', { step: 'RECEIVE', error: 'Token does not contain P2PK locked proofs' });
+      logger.cashu('p2pk_no_locked_proofs', {
+        step: 'RECEIVE',
+        error: 'Token does not contain P2PK locked proofs',
+      });
       throw new Error('Token does not contain P2PK locked proofs');
     }
 
@@ -96,11 +116,16 @@ export const receiveP2PKToken = async (
     });
 
     // Step 2: Get keys. cashuB tokens use short keyset IDs, so keys are needed before full decode.
-    logger.cashu('p2pk_get_keys_start', { step: 'RECEIVE', substep: 2, message: 'Fetching mint keys' });
+    logger.cashu('p2pk_get_keys_start', {
+      step: 'RECEIVE',
+      substep: 2,
+      message: 'Fetching mint keys',
+    });
     const keyData = await getOrFetchKeys();
     const decoded = decodeToken(tokenString, getKeysetIdsFromMintKeys(keyData));
     const fullProofs = decoded.proofs;
-    const unitKeyset = selectActiveUnitKeyset(keyData);
+    assertProofsMatchCashuUnit(fullProofs, keyData, unit, 'Received P2PK Cashu token');
+    const unitKeyset = selectActiveCashuKeyset(keyData, unit);
     const keysetId = unitKeyset.id;
     const keys = unitKeyset.keys!;
 
@@ -112,7 +137,11 @@ export const receiveP2PKToken = async (
     });
 
     // Step 3: Sign proofs
-    logger.cashu('p2pk_sign_proofs_start', { step: 'RECEIVE', substep: 3, message: 'Signing proofs' });
+    logger.cashu('p2pk_sign_proofs_start', {
+      step: 'RECEIVE',
+      substep: 3,
+      message: 'Signing proofs',
+    });
     if (onProgress) onProgress(++currentStep, totalSteps, 'Signing proofs');
 
     // Sign each P2PK proof with our private key
@@ -128,7 +157,7 @@ export const receiveP2PKToken = async (
           const witness = await signP2PKSecret(proof.secret, privateKey);
           return {
             ...proof,
-            witness
+            witness,
           } as CashuProof;
         } else {
           // Non-P2PK proof, no witness needed
@@ -140,12 +169,16 @@ export const receiveP2PKToken = async (
     logger.cashu('p2pk_proofs_signed', {
       step: 'RECEIVE',
       substep: 3,
-      signedCount: signedProofs.filter(p => p.witness).length,
+      signedCount: signedProofs.filter((p) => p.witness).length,
       message: 'All P2PK proofs signed with witness',
     });
 
     // Step 4: Create blinded outputs
-    logger.cashu('p2pk_create_outputs_start', { step: 'RECEIVE', substep: 4, message: 'Creating blinded outputs' });
+    logger.cashu('p2pk_create_outputs_start', {
+      step: 'RECEIVE',
+      substep: 4,
+      message: 'Creating blinded outputs',
+    });
     const totalSmallestUnits = signedProofs.reduce((sum, proof) => sum + proof.amount, 0);
     const inputFees = calculateInputFees(signedProofs, keyData);
     const outputAmount = totalSmallestUnits - inputFees;
@@ -154,6 +187,17 @@ export const receiveP2PKToken = async (
     }
     const amounts = splitAmount(outputAmount);
     const { outputs, blindingData } = await createBlindedOutputs(amounts, keysetId);
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK receive swap setup');
+    const pendingSwapId = await savePendingSwap({
+      inputProofs: signedProofs,
+      blindingData,
+      keys,
+      keysetId,
+      secretTypeMap: Object.fromEntries(
+        blindingData.map((item) => [item.secret, 'change' as const])
+      ),
+      unit,
+    });
 
     logger.cashu('p2pk_outputs_created', {
       step: 'RECEIVE',
@@ -182,7 +226,9 @@ export const receiveP2PKToken = async (
         if (Array.isArray(secretParsed) && secretParsed[0] === 'P2PK') {
           lockedToPubkeyLength = (secretParsed[1] as { data?: string })?.data?.length ?? 0;
         }
-      } catch (e: unknown) { /* ignore */ }
+      } catch (e: unknown) {
+        /* ignore */
+      }
 
       logger.cashu('p2pk_swap_proof_detail', {
         step: 'RECEIVE',
@@ -194,10 +240,25 @@ export const receiveP2PKToken = async (
     });
 
     const { swapTokens: swapTokensAPI } = require('../cashuMintClient');
+    const requireDleq = await mintRequiresDleqProofs();
     const response = await swapTokensAPI(signedProofs, outputs);
     if (!response || !Array.isArray(response.signatures) || response.signatures.length === 0) {
       throw new Error('P2PK verification failed');
     }
+    const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
+      response.signatures,
+      keyData,
+      unitKeyset,
+      unit,
+      `P2PK ${unit} receive swap`
+    );
+    await updateSwapWithResponse(
+      {
+        signatures: response.signatures,
+      },
+      pendingSwapId,
+      { keysetId: signedKeysetId, keys: unblindKeys }
+    );
 
     logger.cashu('p2pk_swap_response', {
       step: 'RECEIVE',
@@ -207,12 +268,17 @@ export const receiveP2PKToken = async (
     });
 
     // Step 6: Unblind and save
-    logger.cashu('p2pk_unblind_start', { step: 'RECEIVE', substep: 6, message: 'Unblinding signatures' });
+    logger.cashu('p2pk_unblind_start', {
+      step: 'RECEIVE',
+      substep: 6,
+      message: 'Unblinding signatures',
+    });
     const newProofs = unblindSignatures(
       response.signatures,
       blindingData,
-      keys,
-      response.signatures[0]?.id || keysetId
+      unblindKeys,
+      signedKeysetId,
+      { requireDleq }
     );
 
     logger.cashu('p2pk_proofs_unblinded', {
@@ -236,8 +302,50 @@ export const receiveP2PKToken = async (
       );
     }
 
-    // Add to wallet
-    await addProofs(newProofs, false); // skip strict verification; proofs already validated via mint
+    let recoveryKey: string | null = null;
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK receive proof journaling');
+    try {
+      recoveryKey = await persistProofRecoveryRecord(
+        newProofs,
+        outputAmount,
+        'receive_p2pk_token',
+        undefined,
+        unit
+      );
+    } catch (recoveryError) {
+      logger.error('Failed to pre-store P2PK receive proofs in recovery queue', {
+        error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        proofCount: newProofs.length,
+        amount: outputAmount,
+      });
+    }
+
+    // Add to wallet. Keep write verification enabled; these proofs are already
+    // validated by the mint, but the local storage write still must be verified
+    // before clearing recovery records.
+    assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK receive proof save');
+    await addProofs(newProofs, true, unit);
+    if (recoveryKey) {
+      try {
+        await clearProofRecoveryRecord(recoveryKey);
+      } catch (cleanupError) {
+        logger.warn('P2PK receive proof recovery cleanup failed after proof save', {
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          recoveryKey,
+          unit,
+        });
+      }
+    }
+    try {
+      assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK receive swap cleanup');
+      await clearPendingSwap(pendingSwapId);
+    } catch (cleanupError) {
+      logger.warn('Pending P2PK receive swap cleanup failed after proof save', {
+        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        pendingSwapId,
+        unit,
+      });
+    }
 
     logger.cashu('p2pk_receive_complete', {
       step: 'RECEIVE',
@@ -266,7 +374,10 @@ export const receiveP2PKToken = async (
     let errorMessage = (error as Error).message;
 
     // Add diagnostic details to error message for debugging
-    if ((error as Error).message.includes('P2PK verification failed') || (error as Error).message.includes('Swap failed')) {
+    if (
+      (error as Error).message.includes('P2PK verification failed') ||
+      (error as Error).message.includes('Swap failed')
+    ) {
       const diagnostics: string[] = [];
 
       // Check private key validity
@@ -283,7 +394,7 @@ export const receiveP2PKToken = async (
       diagnostics.push(`Platform: ${Platform.OS} ${Platform.Version}`);
 
       if (diagnostics.length > 0) {
-        errorMessage = `${errorMessage}\n\nDiagnostics:\n${diagnostics.map(d => `• ${d}`).join('\n')}`;
+        errorMessage = `${errorMessage}\n\nDiagnostics:\n${diagnostics.map((d) => `• ${d}`).join('\n')}`;
       }
     }
 

@@ -20,6 +20,7 @@ interface UsePostAuthHandlerParams {
   walletExists: MutableRefObject<boolean> | undefined;
   requestingSeedPhrase: boolean;
   loadSeedPhrase: () => Promise<void>;
+  onNotificationsEnableAfterAuth?: () => Promise<void>;
 }
 
 interface UsePostAuthHandlerReturn {
@@ -40,6 +41,7 @@ export function usePostAuthHandler({
   walletExists,
   requestingSeedPhrase,
   loadSeedPhrase,
+  onNotificationsEnableAfterAuth,
 }: UsePostAuthHandlerParams): UsePostAuthHandlerReturn {
   const handlePostAuth = useCallback(async (): Promise<void> => {
     // Check if user was trying to change PIN
@@ -78,6 +80,11 @@ export function usePostAuthHandler({
     const pendingNotifications = await getBoolean(SettingKeys.PENDING_NOTIFICATIONS_ENABLE, false);
     if (pendingNotifications) {
       await deleteSetting(SettingKeys.PENDING_NOTIFICATIONS_ENABLE);
+      if (onNotificationsEnableAfterAuth) {
+        await onNotificationsEnableAfterAuth();
+        return;
+      }
+
       if (await setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, true)) {
         notify.settings.notificationsEnabled();
       } else {
@@ -121,6 +128,7 @@ export function usePostAuthHandler({
     walletExists,
     requestingSeedPhrase,
     loadSeedPhrase,
+    onNotificationsEnableAfterAuth,
   ]);
 
   return { handlePostAuth };

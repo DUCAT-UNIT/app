@@ -146,6 +146,27 @@ describe('useConfirmationHandlers', () => {
       });
     });
 
+    it('should share BTC Cashu deeplinks with BTC title', async () => {
+      const { result } = renderHook(() =>
+        useConfirmationHandlers({
+          broadcastedTxid: undefined,
+          turboDeeplink: 'ducat://turbo/cashuBbtc',
+          cashuUnit: 'sat',
+          fetchTransactionHistory,
+          navigation,
+        })
+      );
+
+      await act(async () => {
+        await result.current!.handleShareDeeplink();
+      });
+
+      expect(Share.share).toHaveBeenCalledWith({
+        message: 'ducat://turbo/cashuBbtc',
+        title: 'Receive BTC',
+      });
+    });
+
     it('should not share when deeplink is null', async () => {
       const { result } = renderHook(() =>
         useConfirmationHandlers({

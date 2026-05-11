@@ -114,6 +114,10 @@ export const repayInputConfig: VaultInputScreenConfig<
       allowUsdc ? repayBalanceUsd : 0,
     );
 
+    if (amount > 0 && amount < 0.01) {
+      errors.push('Enter at least $0.01 to repay.');
+    }
+
     // Check repay exceeds debt
     if (amount > effectiveUnitBorrowed) {
       errors.push(`Cannot repay more than your debt (${formatVaultUsd(effectiveUnitBorrowed)}).`);
@@ -138,7 +142,7 @@ export const repayInputConfig: VaultInputScreenConfig<
     }
 
     return {
-      canContinue: amount > 0 && amount <= effectiveUnitBorrowed && amount <= maxFundingUsd && hasSufficientBtcForFees,
+      canContinue: amount >= 0.01 && amount <= effectiveUnitBorrowed && amount <= maxFundingUsd && hasSufficientBtcForFees,
       warnings,
       errors,
     };

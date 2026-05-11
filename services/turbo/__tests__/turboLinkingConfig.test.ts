@@ -37,6 +37,7 @@ const flushPromises = () => new Promise(resolve => setImmediate(resolve));
 // Type-safe global accessor for tests
 const testGlobal = global as typeof global & TurboLinkingGlobal;
 const mockFetchWithTimeout = jest.fn();
+const mockSetPendingToken = jest.fn().mockResolvedValue(undefined);
 
 // Mock dependencies BEFORE imports
 jest.mock('react-native', () => ({
@@ -99,6 +100,14 @@ jest.mock('../../e2eSettingsResetService', () => ({
   E2E_RESET_SETTINGS_URL_PREFIX: 'ducat://e2e/reset-settings',
   enableUsdcFeaturesForE2E: jest.fn().mockResolvedValue(undefined),
   resetNonSecretE2ESettings: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../../stores/tokenProcessingStore', () => ({
+  useTokenProcessingStore: {
+    getState: () => ({
+      setPendingToken: mockSetPendingToken,
+    }),
+  },
 }));
 
 // Mock atob for base64 decoding
@@ -237,6 +246,20 @@ describe('turboLinkingConfig', () => {
       await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtoken123');
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuBtoken123');
+    });
+
+    it('should not queue a token globally when durable queue persistence fails', async () => {
+      const config = getTypedConfig();
+      testGlobal.processedCashuTokens = new Set<string>();
+      mockSetPendingToken.mockRejectedValueOnce(new Error('SecureStore full'));
+
+      const result = config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
+      await flushPromises();
+
+      expect(result).toBe(undefined);
+      expect(mockSetPendingToken).toHaveBeenCalledWith('cashuBtoken123');
+      expect(testGlobal.pendingCashuToken).toBeUndefined();
     });
 
     it('should not store duplicate tokens', async () => {

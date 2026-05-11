@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { VaultHistoryTransaction } from './vaultService';
 import { logger } from '../utils/logger';
 
-const STORAGE_KEY = '@ducat/vault_settlement_history_v1';
+export const VAULT_SETTLEMENT_HISTORY_STORAGE_KEY = '@ducat/vault_settlement_history_v1';
 
 export type VaultSettlementHistoryAction =
   | 'open_settled_to_usdc'
@@ -20,7 +20,7 @@ interface VaultSettlementHistoryRecord {
 
 async function loadAllRecords(): Promise<VaultSettlementHistoryRecord[]> {
   try {
-    const stored = await AsyncStorage.getItem(STORAGE_KEY);
+    const stored = await AsyncStorage.getItem(VAULT_SETTLEMENT_HISTORY_STORAGE_KEY);
     if (!stored) {
       return [];
     }
@@ -36,7 +36,7 @@ async function loadAllRecords(): Promise<VaultSettlementHistoryRecord[]> {
 
 async function saveAllRecords(records: VaultSettlementHistoryRecord[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    await AsyncStorage.setItem(VAULT_SETTLEMENT_HISTORY_STORAGE_KEY, JSON.stringify(records));
   } catch (error) {
     logger.warn('[VaultSettlementHistory] Failed to persist settlement history', {
       error: error instanceof Error ? error.message : String(error),

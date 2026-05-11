@@ -72,7 +72,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   fetchBalance,
   fetchTransactionHistory,
 }) => {
-  const { setIntentStep, sendAssetType, sendAmount, turboEnabled } = useSendFlow();
+  const { setIntentStep, sendAssetType, sendAmount, turboEnabled, btcTurboEnabled } = useSendFlow();
   const { sendIntent, setSendIntent } = useTransactionBuild();
   const { wallet } = useWallet();
   const pendingTransactions = usePendingTxs();
@@ -82,6 +82,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     invalidateTransaction,
     markUtxoAsSpent,
     markUtxosAsSpent,
+    unmarkUtxosAsSpent,
   } = usePendingTransactionsStore();
 
   // Execution state
@@ -93,8 +94,8 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     if (sendAssetType === 'unit') {
       return turboEnabled ? 'swap' : 'unit_send';
     }
-    return 'btc_send';
-  }, [sendAssetType, turboEnabled]);
+    return btcTurboEnabled ? 'btc_swap' : 'btc_send';
+  }, [sendAssetType, turboEnabled, btcTurboEnabled]);
 
   // Reset toast dismissed state when confirmed
   useEffect(() => {
@@ -117,6 +118,8 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   const { broadcast } = useTransactionBroadcast({
     wallet,
     pendingTransactions,
+    getPendingTransactions: () =>
+      usePendingTransactionsStore.getState?.()?.pendingTransactions ?? pendingTransactions,
     sendAssetType,
     sendAmount,
     setSendIntent,
@@ -127,6 +130,7 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
     getSnackbarAction,
     markUtxoAsSpent,
     markUtxosAsSpent,
+    unmarkUtxosAsSpent,
     addPendingTransaction,
     confirmTransaction,
     invalidateTransaction,

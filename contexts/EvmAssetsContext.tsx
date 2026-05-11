@@ -18,7 +18,10 @@ import {
   type EvmBalances,
   type SepoliaAssetHistoryItem,
 } from '../services/evmBridgeService';
-import { reconcileSubmittedEvmTransactionCheckpoints } from '../services/evmTransactionCheckpointService';
+import {
+  recoverConfirmedRedemptionTracking,
+  reconcileSubmittedEvmTransactionCheckpoints,
+} from '../services/evmTransactionCheckpointService';
 import { refreshPersistedVaultSettlementStatus } from '../services/vaultSettlementService';
 import { useEvmTransactionCheckpointStore } from '../stores/evmTransactionCheckpointStore';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
@@ -230,9 +233,11 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
 
     settlementRecoveryKeyRef.current = recoveryKey;
     let cancelled = false;
+    let recoveryStarted = false;
 
     settlementRecoveryTaskRef.current?.cancel();
     settlementRecoveryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      recoveryStarted = true;
       refreshPersistedVaultSettlementStatus()
         .then((result) => {
           if (cancelled) {
@@ -252,6 +257,9 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       cancelled = true;
       settlementRecoveryTaskRef.current?.cancel();
       settlementRecoveryTaskRef.current = null;
+      if (!recoveryStarted && settlementRecoveryKeyRef.current === recoveryKey) {
+        settlementRecoveryKeyRef.current = null;
+      }
     };
   }, [
     activeWallet,
@@ -280,13 +288,19 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
 
     evmCheckpointRecoveryKeyRef.current = recoveryKey;
     let cancelled = false;
+    let recoveryStarted = false;
 
     evmCheckpointRecoveryTaskRef.current?.cancel();
     evmCheckpointRecoveryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      recoveryStarted = true;
       reconcileSubmittedEvmTransactionCheckpoints()
-        .then((result) => {
+        .then(async (result) => {
           if (cancelled) {
             return;
+          }
+
+          if (isEvmConfigured) {
+            await recoverConfirmedRedemptionTracking().catch(() => undefined);
           }
 
           if (result.confirmed > 0 || result.failed > 0) {
@@ -302,11 +316,15 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       cancelled = true;
       evmCheckpointRecoveryTaskRef.current?.cancel();
       evmCheckpointRecoveryTaskRef.current = null;
+      if (!recoveryStarted && evmCheckpointRecoveryKeyRef.current === recoveryKey) {
+        evmCheckpointRecoveryKeyRef.current = null;
+      }
     };
   }, [
     activeWallet,
     activeWallet?.taprootAddress,
     currentAccount,
+    isEvmConfigured,
     isSepoliaConfigured,
     refreshEvmBalances,
     refreshEthHistory,

@@ -1,29 +1,45 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
-import { Animated, RefreshControl, ScrollView, StyleSheet, TextStyle, TouchableOpacity, View, ViewStyle, Dimensions } from 'react-native';
+import {
+  Animated,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+  Dimensions,
+} from 'react-native';
 import Icon from '../../components/icons';
 import LiquidationScreen from '../../components/liquidation/LiquidationScreen';
 import { colors } from '../../styles/theme';
-import AssetCard,{ AssetCardStyles } from '../../components/wallet/AssetCard';
+import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
-import TotalBalanceSection,{ TotalBalanceSectionStyles } from '../../components/wallet/TotalBalanceSection';
-import VaultCard,{ VaultCardStyles } from '../../components/wallet/VaultCard';
+import TotalBalanceSection, {
+  TotalBalanceSectionStyles,
+} from '../../components/wallet/TotalBalanceSection';
+import VaultCard, { VaultCardStyles } from '../../components/wallet/VaultCard';
 import WalletActions from '../../components/wallet/WalletActions';
-import WalletHeader,{ WalletHeaderStyles } from '../../components/wallet/WalletHeader';
+import WalletHeader, { WalletHeaderStyles } from '../../components/wallet/WalletHeader';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
+import { useAirdrop } from '../../contexts/AirdropContext';
 import { useCashu } from '../../contexts/CashuContext';
 import { useWallet } from '../../contexts/WalletContext';
-import { useBalance,useEvmAssets,useVaultData } from '../../contexts/WalletDataContext';
+import { useBalance, useEvmAssets, useVaultData } from '../../contexts/WalletDataContext';
 import { useAssetCardStyles } from '../../hooks/useAssetCardStyles';
 import { useFormattedBalances } from '../../hooks/useFormattedBalances';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useTotalBalanceStyles } from '../../hooks/useTotalBalanceStyles';
 import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
-import { useDisplayPreferences } from "../../stores/displayPreferencesStore";
+import { useDisplayPreferences } from '../../stores/displayPreferencesStore';
 import { usePrice } from '../../stores/priceStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { COLORS } from '../../theme';
-import { formatBalance,formatFiat } from '../../utils/formatters';
+import { formatBalance, formatFiat } from '../../utils/formatters';
 import { getRunesAmount } from '../../utils/runesHelper';
 
 // Constants
@@ -32,7 +48,11 @@ const VAULT_CREATION_RETRY_TIMEOUT = 2000;
 /**
  * Style object for WalletScreen - combines all child component styles
  */
-interface WalletScreenStyles extends WalletHeaderStyles, TotalBalanceSectionStyles, VaultCardStyles, AssetCardStyles {
+interface WalletScreenStyles
+  extends WalletHeaderStyles,
+    TotalBalanceSectionStyles,
+    VaultCardStyles,
+    AssetCardStyles {
   walletContainer: ViewStyle;
   switchingOverlay: ViewStyle;
   switchingText: TextStyle;
@@ -55,6 +75,7 @@ interface WalletScreenProps {
   onVaultPress: () => void;
   onRepayPress: () => void;
   onBorrowPress: () => void;
+  onResumeVaultSettlementPress?: () => void;
   onBridgePress?: () => void;
   onSwapPress?: (sourceAsset?: 'UNIT' | 'USDC') => void;
   onRedeemPress?: () => void;
@@ -75,27 +96,57 @@ const WalletScreen = React.memo(function WalletScreen({
   onVaultPress,
   onRepayPress,
   onBorrowPress,
+  onResumeVaultSettlementPress,
   onAssetPress,
   _sendAddressType,
   showZeroAssets,
   isPendingVaultTx = false,
 }: WalletScreenProps): React.ReactElement {
   const { wallet: _wallet, currentAccount } = useWallet();
-  const { segwitBalance, taprootBalance, runesBalance, balanceError, setBalanceError, fetchBalance } = useBalance();
+  const {
+    segwitBalance,
+    taprootBalance,
+    runesBalance,
+    balanceError,
+    setBalanceError,
+    fetchBalance,
+  } = useBalance();
   const {
     evmBalances,
     loadingEvmBalances: isEvmBalanceLoading,
     isSepoliaConfigured,
     refreshEvmBalances,
   } = useEvmAssets();
-  const { btcPrice, ethPrice } = usePrice();
+  const { btcPrice, ethPrice, loadingBtcPrice, fetchBtcPrice } = usePrice();
   const { vaultData } = useVaultData();
-  const { balance: cashuBalance, refresh: refreshCashu } = useCashu();
+  const { balance: cashuBalance, btcBalanceSats, refresh: refreshCashu } = useCashu();
+  const { airdropPending, showAirdropModal } = useAirdrop();
   const { settingsHandlers } = useSettingsHandlers();
   const usdcFeaturesEnabled = settingsHandlers.usdcFeaturesEnabled;
+  const {
+    kind: settlementKind,
+    phase: settlementPhase,
+    faceValueUsd: settlementFaceValueUsd,
+    requestedPayoutAsset: settlementRequestedPayoutAsset,
+    bridgeSendTxid: settlementBridgeSendTxid,
+    cashuMintSendTxid: settlementCashuMintSendTxid,
+    error: settlementError,
+  } = useVaultSettlementStore();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
+  const hasBtcBalance = segwitBalance > 0 || taprootBalance > 0 || btcBalanceSats > 0;
 
-  const handleToggleBTCDisplay = useCallback(() => setShowTotalInBTC(prev => !prev), [setShowTotalInBTC]);
+  React.useEffect(() => {
+    if (!hasBtcBalance || btcPrice || loadingBtcPrice) {
+      return;
+    }
+
+    fetchBtcPrice().catch(() => undefined);
+  }, [hasBtcBalance, btcPrice, loadingBtcPrice, fetchBtcPrice]);
+
+  const handleToggleBTCDisplay = useCallback(
+    () => setShowTotalInBTC((prev) => !prev),
+    [setShowTotalInBTC]
+  );
 
   // Calculate all wallet-related values (business logic extracted to hook)
   const {
@@ -111,15 +162,21 @@ const WalletScreen = React.memo(function WalletScreen({
     taprootBalance,
     runesBalance,
     cashuBalance,
+    cashuBtcBalanceSats: btcBalanceSats,
     btcPrice,
-    vaultData: vaultData as { totalDebt?: number; totalCollateral?: number; currentPrice?: number } | null,
+    vaultData: vaultData as {
+      totalDebt?: number;
+      totalCollateral?: number;
+      currentPrice?: number;
+    } | null,
   });
 
   // Responsive scaling (needs totalBalanceUSD)
   const { s } = useResponsive();
   const vaultCardStyles = useVaultCardStyles();
   const assetCardStyles = useAssetCardStyles();
-  const { styles: totalBalanceStyles, largeBalanceStyle: responsiveLargeBalanceStyle } = useTotalBalanceStyles({ totalBalanceUSD });
+  const { styles: totalBalanceStyles, largeBalanceStyle: responsiveLargeBalanceStyle } =
+    useTotalBalanceStyles({ totalBalanceUSD });
 
   // Calculate UNIT totals (Runes + Ecash)
   // Runes from ord comes in display units (already divided)
@@ -137,6 +194,16 @@ const WalletScreen = React.memo(function WalletScreen({
       usdValue: totalUnit,
     };
   }, [runesBalance, cashuBalance, btcPrice]);
+
+  const btcTotals = React.useMemo(() => {
+    const onchainBtc = (segwitBalance || 0) + (taprootBalance || 0);
+    const turboBtc = (btcBalanceSats || 0) / 100_000_000;
+    const totalBtc = onchainBtc + turboBtc;
+    return {
+      btcValue: formatBalance(totalBtc, 8),
+      usdValue: formatFiat(totalBtc * (btcPrice || 0)),
+    };
+  }, [segwitBalance, taprootBalance, btcBalanceSats, btcPrice]);
 
   const usdcTotals = React.useMemo(() => {
     const parsedAmount = Number(evmBalances?.usdc || '0');
@@ -232,7 +299,10 @@ const WalletScreen = React.memo(function WalletScreen({
     setCreatingVault(true);
     onCreateVaultPress();
     // Reset after timeout to allow retry if needed
-    vaultCreationTimeoutRef.current = setTimeout(() => setCreatingVault(false), VAULT_CREATION_RETRY_TIMEOUT);
+    vaultCreationTimeoutRef.current = setTimeout(
+      () => setCreatingVault(false),
+      VAULT_CREATION_RETRY_TIMEOUT
+    );
   }, [creatingVault, onCreateVaultPress]);
 
   // Cleanup timeout on unmount
@@ -281,13 +351,45 @@ const WalletScreen = React.memo(function WalletScreen({
 
       refreshEvmBalances().catch(() => undefined);
       return undefined;
-    }, [refreshEvmBalances, isSepoliaConfigured, usdcFeaturesEnabled]),
+    }, [refreshEvmBalances, isSepoliaConfigured, usdcFeaturesEnabled])
   );
 
   // Check if vault health is below minimum (160%)
   const isLowHealth = vaultHealthPercentage > 0 && vaultHealthPercentage < 160;
-  // Check if there's no debt (can't repay/borrow)
+  // No debt disables repay only. Borrow remains available when there is vault collateral.
   const hasNoDebt = vaultDebt === 0;
+  const hasVaultCollateral = vaultCollateral > 0;
+  const showAirdropWaitingPanel =
+    airdropPending && !showAirdropModal && segwitBalance === 0 && taprootBalance === 0;
+  const showVaultSettlementRecovery =
+    settlementKind === 'borrow' &&
+    settlementFaceValueUsd > 0 &&
+    settlementRequestedPayoutAsset !== 'UNIT' &&
+    !!onResumeVaultSettlementPress &&
+    (
+      settlementPhase === 'needs_retry' ||
+      (
+        settlementRequestedPayoutAsset === 'USDC' &&
+        !settlementBridgeSendTxid &&
+        (
+          settlementPhase === 'building_bridge_send' ||
+          settlementPhase === 'signing_bridge_send' ||
+          settlementPhase === 'broadcasting_bridge_send' ||
+          settlementPhase === 'waiting_bridge_fulfillment'
+        )
+      ) ||
+      (
+        settlementRequestedPayoutAsset === 'TURBOUNIT' &&
+        !settlementCashuMintSendTxid &&
+        (
+          settlementPhase === 'building_turbo_send' ||
+          settlementPhase === 'signing_turbo_send' ||
+          settlementPhase === 'broadcasting_turbo_send' ||
+          settlementPhase === 'waiting_turbo_mint'
+        )
+      )
+    );
+
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
       {/* Header with Total Balance label and Settings Icon */}
@@ -319,11 +421,49 @@ const WalletScreen = React.memo(function WalletScreen({
         isPendingVaultTx={isPendingVaultTx}
         isLowHealth={isLowHealth}
         hasNoDebt={hasNoDebt}
+        hasVaultCollateral={hasVaultCollateral}
         onRepayPress={onRepayPress}
         onBorrowPress={onBorrowPress}
         onSendPress={onSendPress}
         onReceivePress={onReceivePress}
       />
+
+      {showAirdropWaitingPanel && (
+        <View style={localStyles.airdropPanel} testID="airdrop-waiting-panel">
+          <View style={localStyles.airdropPanelHeader}>
+            <View style={localStyles.airdropIconWrap}>
+              <ActivityIndicator size="small" color={COLORS.BITCOIN_ORANGE} />
+            </View>
+            <View style={localStyles.airdropPanelTextWrap}>
+              <Text style={localStyles.airdropPanelTitle}>Waiting for BTC to appear</Text>
+              <Text style={localStyles.airdropPanelMessage}>
+                The faucet accepted the request. Your balance will update automatically once
+                the network sees it.
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showVaultSettlementRecovery && (
+        <TouchableOpacity
+          style={localStyles.settlementRecoveryPanel}
+          onPress={onResumeVaultSettlementPress}
+          testID="vault-settlement-recovery-panel"
+          accessibilityRole="button"
+          accessibilityLabel="Resume vault settlement"
+        >
+          <View style={localStyles.settlementRecoveryIconWrap}>
+            <Icon name="warning" size={18} color={COLORS.WARNING} />
+          </View>
+          <View style={localStyles.settlementRecoveryTextWrap}>
+            <Text style={localStyles.settlementRecoveryTitle}>USDC settlement needs retry</Text>
+            <Text style={localStyles.settlementRecoveryMessage} numberOfLines={2}>
+              {settlementError || 'Borrow recorded. Retry the settlement without borrowing again.'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Divider */}
       <View style={styles.balanceDivider} />
@@ -364,10 +504,10 @@ const WalletScreen = React.memo(function WalletScreen({
             assetName="Bitcoin"
             assetLogo="btc_logo"
             amountLabel="btc_symbol"
-            amountValue={formatted.segwitBTC}
+            amountValue={btcTotals.btcValue}
             displayInBTC={showTotalInBTC}
-            btcValue={formatted.segwitBTC}
-            usdValue={formatted.segwitUSD}
+            btcValue={btcTotals.btcValue}
+            usdValue={btcTotals.usdValue}
             styles={assetCardStyles}
             onPress={handleBTCPress}
             testID="asset-card-btc"
@@ -409,7 +549,9 @@ const WalletScreen = React.memo(function WalletScreen({
               <AssetCard
                 assetName="Sepolia USDC"
                 assetLogo="usdc_logo"
-                amountValue={isEvmBalanceLoading && !evmBalances ? '...' : `$${usdcTotals.formatted}`}
+                amountValue={
+                  isEvmBalanceLoading && !evmBalances ? '...' : `$${usdcTotals.formatted}`
+                }
                 displayInBTC={showTotalInBTC}
                 btcValue={usdcTotals.btcValue}
                 usdValue={usdcTotals.usdValue}
@@ -448,18 +590,24 @@ const WalletScreen = React.memo(function WalletScreen({
                 outputRange: [0, 1, 1],
               }),
               transform: [
-                { translateX: expandAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-screenWidth * 0.5, 0],
-                })},
-                { translateY: expandAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [screenHeight * 0.5, 0],
-                })},
-                { scale: expandAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, 1],
-                })},
+                {
+                  translateX: expandAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-screenWidth * 0.5, 0],
+                  }),
+                },
+                {
+                  translateY: expandAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [screenHeight * 0.5, 0],
+                  }),
+                },
+                {
+                  scale: expandAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
+                },
               ],
             },
           ]}
@@ -473,6 +621,7 @@ const WalletScreen = React.memo(function WalletScreen({
             hasVault={hasVault}
             wallet={_wallet}
             vaultData={vaultData}
+            currentAccount={currentAccount}
             visible={showLiquidations}
             onClose={handleLiquidationClose}
             onToggle={toggleLiquidations}
@@ -481,17 +630,16 @@ const WalletScreen = React.memo(function WalletScreen({
       )}
 
       <TouchableOpacity
-        style={[localStyles.liquidationsFab, { bottom: s(38), left: s(16), width: s(52), height: s(52), borderRadius: s(26) }]}
+        style={[
+          localStyles.liquidationsFab,
+          { bottom: s(38), left: s(16), width: s(52), height: s(52), borderRadius: s(26) },
+        ]}
         onPress={toggleLiquidations}
         testID="liquidations-fab"
         accessibilityRole="button"
         accessibilityLabel={showLiquidations ? 'Back to wallet' : 'Liquidations'}
       >
-        <Icon
-          name={showLiquidations ? 'vault' : 'liquidations'}
-          size={s(24)}
-          color="#FFFFFF"
-        />
+        <Icon name={showLiquidations ? 'vault' : 'liquidations'} size={s(24)} color="#FFFFFF" />
       </TouchableOpacity>
     </View>
   );
@@ -500,6 +648,78 @@ const WalletScreen = React.memo(function WalletScreen({
 const localStyles = StyleSheet.create({
   largeBalanceAmount: {
     fontSize: 32,
+  },
+  airdropPanel: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 184, 0, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 184, 0, 0.22)',
+  },
+  airdropPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  airdropIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.12)',
+  },
+  airdropPanelTextWrap: {
+    flex: 1,
+  },
+  airdropPanelTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  airdropPanelMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  settlementRecoveryPanel: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 14,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 184, 0, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 184, 0, 0.26)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settlementRecoveryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 184, 0, 0.14)',
+  },
+  settlementRecoveryTextWrap: {
+    flex: 1,
+  },
+  settlementRecoveryTitle: {
+    color: COLORS.VERY_LIGHT_GRAY,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  settlementRecoveryMessage: {
+    color: COLORS.SECONDARY_TEXT,
+    fontSize: 12,
+    lineHeight: 16,
   },
   ducatAmount: {
     textAlign: 'left',

@@ -8,6 +8,7 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../utils/logger';
 import type { VaultHistoryTransaction } from '../services/vaultService';
+import { DEVICE_ONLY } from '../services/storagePolicy';
 import {
   mapVaultActionToJournalKind,
   operationJournalId,
@@ -29,11 +30,18 @@ export interface PendingVaultTransaction {
 interface PendingVaultTransactionState {
   pendingTransaction: PendingVaultTransaction | null;
   currentAccount: number;
+  hydratedAccount: number | null;
+  storageLoadError: string | null;
 }
 
 interface PendingVaultTransactionActions {
   setPendingTransaction: (tx: PendingVaultTransaction) => Promise<void>;
+  setPendingTransactionForAccount: (
+    tx: PendingVaultTransaction,
+    accountIndex: number
+  ) => Promise<void>;
   clearPendingTransaction: () => Promise<void>;
+  clearPendingTransactionForAccount: (accountIndex: number) => Promise<void>;
   hasPendingTransaction: () => boolean;
   getPendingAsHistoryTransaction: () => VaultHistoryTransaction | null;
   loadFromStorage: (accountIndex: number) => Promise<void>;
@@ -50,6 +58,8 @@ const getStorageKey = (accountIndex: number): string => {
 const initialState: PendingVaultTransactionState = {
   pendingTransaction: null,
   currentAccount: 0,
+  hydratedAccount: null,
+  storageLoadError: null,
 };
 
 function vaultJournalTxid(tx: PendingVaultTransaction): string {
@@ -101,49 +111,130 @@ function markPendingVaultConfirmed(accountIndex: number, tx: PendingVaultTransac
   );
 }
 
+const quarantineCorruptPendingVaultStorage = async (
+  storageKey: string,
+  stored: string,
+  reason: string
+): Promise<void> => {
+  const quarantineKey = `${storageKey}_corrupt_${Date.now()}`;
+  try {
+    await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
+    logger.warn('[PendingVaultTx] Quarantined corrupt pending vault transaction storage', {
+      storageKey,
+      quarantineKey,
+      reason,
+    });
+  } catch (error) {
+    logger.error('[PendingVaultTx] Failed to quarantine corrupt pending vault transaction storage', {
+      storageKey,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const parsePendingVaultTransaction = async (
+  storageKey: string,
+  stored: string
+): Promise<PendingVaultTransaction> => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stored);
+  } catch {
+    await quarantineCorruptPendingVaultStorage(storageKey, stored, 'invalid JSON');
+    throw new Error(`Pending vault transaction storage corrupted: ${storageKey}`);
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    await quarantineCorruptPendingVaultStorage(storageKey, stored, 'invalid transaction');
+    throw new Error(`Pending vault transaction storage corrupted: ${storageKey}`);
+  }
+
+  const tx = parsed as Partial<PendingVaultTransaction>;
+  if (
+    typeof tx.txid !== 'string' ||
+    typeof tx.action !== 'string' ||
+    typeof tx.timestamp !== 'number' ||
+    typeof tx.vaultPubkey !== 'string'
+  ) {
+    await quarantineCorruptPendingVaultStorage(storageKey, stored, 'missing required fields');
+    throw new Error(`Pending vault transaction storage corrupted: ${storageKey}`);
+  }
+
+  return tx as PendingVaultTransaction;
+};
+
+const ensureAccountHydratedForVaultMutation = async (
+  getState: () => PendingVaultTransactionStore,
+  accountIndex: number
+): Promise<void> => {
+  if (getState().hydratedAccount === accountIndex) {
+    return;
+  }
+
+  await getState().loadFromStorage(accountIndex);
+
+  if (getState().hydratedAccount !== accountIndex) {
+    throw new Error(
+      `Pending vault transaction storage for account ${accountIndex} is not hydrated; refusing to mutate pending vault state.`
+    );
+  }
+};
+
 export const usePendingVaultTransactionStore = create<PendingVaultTransactionStore>((set, get) => ({
   ...initialState,
 
   loadFromStorage: async (accountIndex: number) => {
-    const { currentAccount: prevAccount } = get();
+    const { currentAccount: prevAccount, hydratedAccount } = get();
 
-    if (accountIndex === prevAccount && get().pendingTransaction !== null) {
+    if (accountIndex === prevAccount && hydratedAccount === accountIndex) {
       return;
     }
 
     set({
       pendingTransaction: null,
       currentAccount: accountIndex,
+      hydratedAccount: null,
+      storageLoadError: null,
     });
 
     try {
-      const stored = await SecureStore.getItemAsync(getStorageKey(accountIndex));
+      const storageKey = getStorageKey(accountIndex);
+      const stored = await SecureStore.getItemAsync(storageKey);
       if (stored) {
-        const tx = JSON.parse(stored) as PendingVaultTransaction;
-        // Check if transaction is older than 1 hour - if so, clear it
-        const oneHourAgo = Date.now() - 60 * 60 * 1000;
-        if (tx.timestamp > oneHourAgo) {
-          set({ pendingTransaction: tx });
-          recordPendingVaultJournal(accountIndex, tx);
-          logger.info('[PendingVaultTx] Loaded pending vault transaction', {
-            txid: tx.txid.slice(0, 16) + '...',
-            action: tx.action,
-          });
-        } else {
-          // Clear stale transaction
-          await SecureStore.deleteItemAsync(getStorageKey(accountIndex));
-          logger.info('[PendingVaultTx] Cleared stale pending vault transaction');
-        }
+        const tx = await parsePendingVaultTransaction(storageKey, stored);
+        set({ pendingTransaction: tx });
+        recordPendingVaultJournal(accountIndex, tx);
+        logger.info('[PendingVaultTx] Loaded pending vault transaction', {
+          txid: tx.txid.slice(0, 16) + '...',
+          action: tx.action,
+          ageMs: Date.now() - tx.timestamp,
+        });
       }
+      set({ hydratedAccount: accountIndex });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      set({ storageLoadError: errorMessage });
       logger.error('[PendingVaultTx] Error loading from storage:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
     }
   },
 
   setPendingTransaction: async (tx: PendingVaultTransaction) => {
     const { currentAccount } = get();
+    await get().setPendingTransactionForAccount(tx, currentAccount);
+  },
+
+  setPendingTransactionForAccount: async (tx: PendingVaultTransaction, accountIndex: number) => {
+    await ensureAccountHydratedForVaultMutation(get, accountIndex);
+    const { currentAccount } = get();
+
+    if (currentAccount !== accountIndex) {
+      throw new Error(
+        `Pending vault transaction store switched to account ${currentAccount} while preparing account ${accountIndex}; refusing to persist pending vault state.`
+      );
+    }
 
     logger.info('[PendingVaultTx] Setting pending vault transaction', {
       txid: tx.txid.slice(0, 16) + '...',
@@ -152,20 +243,35 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
       unitAmt: tx.unitAmt,
     });
 
-    set({ pendingTransaction: tx });
-    recordPendingVaultJournal(currentAccount, tx);
+    set({ pendingTransaction: tx, storageLoadError: null });
+    recordPendingVaultJournal(accountIndex, tx);
 
     try {
-      await SecureStore.setItemAsync(getStorageKey(currentAccount), JSON.stringify(tx));
+      await SecureStore.setItemAsync(getStorageKey(accountIndex), JSON.stringify(tx), DEVICE_ONLY);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      set({ storageLoadError: errorMessage });
       logger.error('[PendingVaultTx] Error saving to storage:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       });
+      throw error;
     }
   },
 
   clearPendingTransaction: async () => {
+    const { currentAccount } = get();
+    await get().clearPendingTransactionForAccount(currentAccount);
+  },
+
+  clearPendingTransactionForAccount: async (accountIndex: number) => {
+    await ensureAccountHydratedForVaultMutation(get, accountIndex);
     const { currentAccount, pendingTransaction } = get();
+
+    if (currentAccount !== accountIndex) {
+      throw new Error(
+        `Pending vault transaction store switched to account ${currentAccount} while clearing account ${accountIndex}; refusing to clear pending vault state.`
+      );
+    }
 
     if (pendingTransaction) {
       logger.info('[PendingVaultTx] Clearing pending vault transaction', {
@@ -180,7 +286,7 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
     }
 
     try {
-      await SecureStore.deleteItemAsync(getStorageKey(currentAccount));
+      await SecureStore.deleteItemAsync(getStorageKey(accountIndex));
     } catch (error) {
       logger.error('[PendingVaultTx] Error clearing from storage:', {
         error: error instanceof Error ? error.message : String(error),
@@ -189,7 +295,8 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
   },
 
   hasPendingTransaction: () => {
-    return get().pendingTransaction !== null;
+    const state = get();
+    return state.pendingTransaction !== null || state.storageLoadError !== null;
   },
 
   getPendingAsHistoryTransaction: () => {
@@ -216,7 +323,9 @@ export const usePendingVaultTx = () =>
   usePendingVaultTransactionStore((state) => state.pendingTransaction);
 
 export const useHasPendingVaultTx = () =>
-  usePendingVaultTransactionStore((state) => state.pendingTransaction !== null);
+  usePendingVaultTransactionStore(
+    (state) => state.pendingTransaction !== null || state.storageLoadError !== null
+  );
 
 // Reset store (for testing)
 export const resetPendingVaultTransactionStore = () => {

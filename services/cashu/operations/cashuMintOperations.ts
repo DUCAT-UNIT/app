@@ -4,19 +4,38 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { selectActiveUnitKeyset, findKeysetById } from '../cashuKeysetUtils';
+import {
+  resolveResponseSignatureKeysetForUnit,
+  selectActiveCashuKeyset,
+} from '../cashuKeysetUtils';
 import { getMintQuoteSigningKey, signMintQuoteOutputs } from '../cashuQuoteSigner';
 import { getOrFetchKeys } from '../cashuBalanceService';
 import {
-checkMintQuote,
-createMintQuote,
-MintQuote,
-mintTokens as mintTokensAPI,
+  checkMintQuote,
+  createMintQuote,
+  mintRequiresDleqProofs,
+  MintQuote,
+  mintTokens as mintTokensAPI,
 } from '../cashuMintClient';
-import { removeMintQuote,saveMintQuote,updateMintQuoteState } from '../cashuMintQuoteRecovery';
+import {
+  ensureMintQuoteClaimCanBePersisted,
+  persistMintQuoteClaim,
+  removeMintQuote,
+  saveMintQuote,
+  updateMintQuoteState,
+} from '../cashuMintQuoteRecovery';
+import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { addProofs } from '../cashuProofManager';
-import { CashuProof,createBlindedOutputs,splitAmount,unblindSignatures } from '../crypto';
+import {
+  CashuProof,
+  createBlindedOutputs,
+  splitAmount,
+  sumProofs,
+  unblindSignatures,
+} from '../crypto';
 import { deriveMintQuoteState } from '../mintClient/mintQuotes';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../cashuUnits';
+import { requireCashuOperationAccount } from './cashuAccountGuard';
 
 export interface MintQuoteResult {
   quoteId: string;
@@ -24,17 +43,26 @@ export interface MintQuoteResult {
   depositAddress: string;
   expiry?: number;
   state: string;
+  unit?: CashuUnit;
 }
+
+const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
 
 /**
  * Request a mint quote (deposit address)
  * Step 1: Get deposit address from mint
  */
-export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
+export const requestMint = async (
+  amount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<MintQuoteResult> => {
   try {
-    logger.info('Requesting mint', { amount, type: typeof amount });
+    logger.info('Requesting mint', { amount, type: typeof amount, unit });
+    requireCashuOperationAccount('Cashu mint quote request');
     const signingKey = await getMintQuoteSigningKey();
-    const quote: MintQuote = await createMintQuote(signingKey.pubkey);
+    const quote: MintQuote = isDefaultCashuUnit(unit)
+      ? await createMintQuote(signingKey.pubkey)
+      : await createMintQuote(signingKey.pubkey, unit);
 
     logger.info('Mint quote received from mint', {
       quoteId: quote.quote,
@@ -49,12 +77,14 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
         quoteId: quote.quote,
         amount: quote.amount,
         depositAddress: quote.request,
+        unit,
       });
     } else {
       await saveMintQuote({
         quoteId: quote.quote,
         amount,
         depositAddress: quote.request,
+        unit,
       });
     }
 
@@ -64,6 +94,7 @@ export const requestMint = async (amount: number): Promise<MintQuoteResult> => {
       depositAddress: quote.request, // Taproot address
       expiry: quote.expiry,
       state: quote.state ?? 'UNPAID',
+      ...(isDefaultCashuUnit(unit) ? {} : { unit }),
     };
   } catch (error: unknown) {
     logger.error('Failed to request mint', { error: (error as Error).message });
@@ -93,7 +124,7 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
       state: quote.state,
       amountPaid: quote.amount_paid,
       amountIssued: quote.amount_issued,
-      fullQuote: quote
+      fullQuote: quote,
     });
 
     const amountPaid = quote.amount_paid;
@@ -119,9 +150,16 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
  * Complete mint (claim tokens)
  * Step 3: Once paid, claim tokens from mint
  */
-export const completeMint = async (quoteId: string, amount: number): Promise<CashuProof[]> => {
+export const completeMint = async (
+  quoteId: string,
+  amount: number,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): Promise<CashuProof[]> => {
+  let claimPersisted = false;
+
   try {
-    logger.info('Completing mint', { quoteId, amount });
+    logger.info('Completing mint', { quoteId, amount, unit });
+    requireCashuOperationAccount('Cashu mint claim');
 
     // Mark quote as pending to prevent double-claim attempts
     await updateMintQuoteState(quoteId, 'PENDING');
@@ -129,6 +167,14 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     // Force fresh keys — stale cached keys from a previous mint instance cause unblinding failures
     const keyData = await getOrFetchKeys(true);
     const paidQuote = await checkMintQuote(quoteId);
+    if (paidQuote.unit !== undefined && paidQuote.unit !== null) {
+      const quoteUnit = normalizeCashuUnit(paidQuote.unit);
+      if (quoteUnit !== unit) {
+        throw new Error(
+          `Mint quote unit mismatch: expected ${unit} but mint returned ${quoteUnit}`
+        );
+      }
+    }
     const amountPaid = paidQuote.amount_paid ?? paidQuote.amount ?? amount;
     const amountIssued = paidQuote.amount_issued ?? 0;
     const availableAmount = amountPaid - amountIssued;
@@ -137,7 +183,7 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
       throw new Error(`No available mint amount for quote ${quoteId}`);
     }
 
-    const unitKeyset = selectActiveUnitKeyset(keyData);
+    const unitKeyset = selectActiveCashuKeyset(keyData, unit);
     const keysetId = unitKeyset.id;
     const keys = unitKeyset.keys!;
 
@@ -162,39 +208,120 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     if (paidQuote.pubkey && paidQuote.pubkey !== signingKey.pubkey) {
       throw new Error('Mint quote pubkey does not match wallet signing key');
     }
+    await ensureMintQuoteClaimCanBePersisted(quoteId);
     const signature = signMintQuoteOutputs(quoteId, outputs, signingKey.privateKey);
+
+    // Persist the blinded outputs before asking the mint to sign them. If the
+    // app dies after mintTokensAPI succeeds but before its response is stored,
+    // recovery can restore the signatures from these exact outputs.
+    await persistMintQuoteClaim(quoteId, {
+      amount: availableAmount,
+      blindingData,
+      keys,
+      keysetId,
+      signedKeysetId: keysetId,
+    });
+    claimPersisted = true;
+
+    const requireDleq = await mintRequiresDleqProofs();
     const response = await mintTokensAPI(quoteId, outputs, signature);
 
     logger.info('Received signatures from mint', {
       signatureCount: response.signatures.length,
     });
 
-    // Determine which keyset the mint actually signed with
-    const signedKeysetId = response.signatures[0]?.id || keysetId;
-    let unblindKeys = keys;
+    const { keysetId: signedKeysetId, keys: unblindKeys } = resolveResponseSignatureKeysetForUnit(
+      response.signatures,
+      keyData,
+      unitKeyset,
+      unit,
+      `Mint ${unit} claim`
+    );
 
-    // If the mint signed with a different keyset than we selected, look up the correct keys
-    if (signedKeysetId && signedKeysetId !== keysetId && keyData.keysets) {
-      const signedKeyset = findKeysetById(keyData, signedKeysetId);
-      if (signedKeyset) {
-        logger.info('Mint signed with different keyset, switching keys', {
-          requested: keysetId,
-          signed: signedKeysetId,
-        });
-        unblindKeys = signedKeyset.keys!;
+    try {
+      await persistMintQuoteClaim(quoteId, {
+        amount: availableAmount,
+        signatures: response.signatures,
+        blindingData,
+        keys: unblindKeys,
+        keysetId,
+        signedKeysetId,
+      });
+      claimPersisted = true;
+    } catch (persistError) {
+      logger.error('Failed to persist mint claim after signatures; saving proofs immediately', {
+        error: persistError instanceof Error ? persistError.message : String(persistError),
+      });
+      const proofs = unblindSignatures(
+        response.signatures,
+        blindingData,
+        unblindKeys,
+        signedKeysetId,
+        { requireDleq }
+      );
+      const proofTotal = sumProofs(proofs);
+      if (proofTotal !== availableAmount) {
+        throw new Error(
+          `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+        );
       }
+      let recoveryKey: string | null = null;
+      try {
+        recoveryKey = isDefaultCashuUnit(unit)
+          ? await persistProofRecoveryRecord(
+              proofs,
+              availableAmount,
+              'mint_claim',
+              persistError instanceof Error ? persistError.message : String(persistError)
+            )
+          : await persistProofRecoveryRecord(
+              proofs,
+              availableAmount,
+              'mint_claim',
+              persistError instanceof Error ? persistError.message : String(persistError),
+              unit
+            );
+      } catch (recoveryError) {
+        logger.error('Failed to persist mint claim proofs in recovery queue', {
+          quoteId,
+          error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+          proofCount: proofs.length,
+          amount: availableAmount,
+        });
+      }
+      if (isDefaultCashuUnit(unit)) {
+        await addProofs(proofs);
+      } else {
+        await addProofs(proofs, true, unit);
+      }
+      if (recoveryKey) {
+        await clearProofRecoveryRecord(recoveryKey);
+      }
+      await removeMintQuote(quoteId);
+      return proofs;
     }
 
-    // Unblind signatures to create proofs
+    // Unblind signatures to create proofs only after the claim response is durable.
     const proofs = unblindSignatures(
       response.signatures,
       blindingData,
       unblindKeys,
-      signedKeysetId
+      signedKeysetId,
+      { requireDleq }
     );
+    const proofTotal = sumProofs(proofs);
+    if (proofTotal !== availableAmount) {
+      throw new Error(
+        `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+      );
+    }
 
     // Add proofs to wallet
-    await addProofs(proofs);
+    if (isDefaultCashuUnit(unit)) {
+      await addProofs(proofs);
+    } else {
+      await addProofs(proofs, true, unit);
+    }
 
     // Remove the quote from recovery storage after successful claim
     await removeMintQuote(quoteId);
@@ -204,8 +331,9 @@ export const completeMint = async (quoteId: string, amount: number): Promise<Cas
     return proofs;
   } catch (error: unknown) {
     logger.error('Failed to complete mint', { error: (error as Error).message });
-    // Reset state so recovery can try again
-    await updateMintQuoteState(quoteId, 'PAID');
+    // If the mint already returned signatures, retrying mintTokens can fail as
+    // already issued. Leave the persisted claim for recovery instead.
+    await updateMintQuoteState(quoteId, claimPersisted ? 'PENDING' : 'PAID');
     throw error;
   }
 };

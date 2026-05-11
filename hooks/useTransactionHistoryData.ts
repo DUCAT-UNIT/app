@@ -226,7 +226,7 @@ export function useTransactionHistoryData(
     }
 
     // Use shared utilities for ecash and pending transaction processing
-    const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex);
+    const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex, taprootAddress);
     const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress) as ProcessedTransaction[];
 
     const confirmedTxids = new Set(transactionHistory.map(tx => tx.txid));

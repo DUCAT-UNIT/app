@@ -19,6 +19,7 @@ import { analytics } from '../../services/analyticsService';
 import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
 import { useSendFlowStore } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
 
 /**
  * Route parameters for ReviewScreen
@@ -27,7 +28,10 @@ interface ReviewRouteParams {
   isTurbo?: boolean;
   mintQuoteId?: string;
   mintAmount?: number;
+  mintClaimAmount?: number;
   turboRecipient?: string;
+  senderTaprootAddress?: string;
+  cashuUnit?: CashuUnit;
   cashuMint?: boolean;
   quoteId?: string;
 }
@@ -45,7 +49,10 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
   const isTurbo = route?.params?.isTurbo === true;
   const mintQuoteId = route?.params?.mintQuoteId;
   const mintAmount = route?.params?.mintAmount;
+  const mintClaimAmount = route?.params?.mintClaimAmount;
   const turboRecipient = route?.params?.turboRecipient;
+  const senderTaprootAddress = route?.params?.senderTaprootAddress;
+  const cashuUnit = normalizeCashuUnit(route?.params?.cashuUnit, DEFAULT_CASHU_UNIT);
   const cashuMint = route?.params?.cashuMint === true;
   const quoteId = route?.params?.quoteId;
   const {
@@ -114,7 +121,10 @@ export default function ReviewScreen({ navigation, route }: ReviewScreenProps): 
       isTurbo,
       mintQuoteId,
       mintAmount,
+      mintClaimAmount,
       turboRecipient,
+      senderTaprootAddress,
+      cashuUnit,
       cashuMint,
       quoteId,
     });

@@ -7,18 +7,34 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import type { BaseUtxo } from '@ducat-unit/client-sdk';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
+import { BITCOIN_TX, RUNES_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { getWithRetry, postJSON } from '../../utils/apiClient';
 import { broadcastTransaction } from '../transactionBroadcastService';
 import { API } from '../../utils/constants';
+import { decodeRunestone } from '../../utils/runestoneEncoder';
 import { FAUCET_SWAP_URL, UNIT_TO_BTC_RATE } from './constants';
 import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
-import type {
-  SwapUtxo,
-  SwapPsbtPayload,
-  SwapPsbtResponse,
-  SwapPsbtData,
-} from './types';
+import type { SwapUtxo, SwapPsbtPayload, SwapPsbtResponse, SwapPsbtData } from './types';
+
+interface DecodedRunestoneEdict {
+  id: {
+    block: bigint;
+    tx: bigint;
+  };
+  amount: bigint;
+  output: bigint;
+}
+
+interface DecodedRunestone {
+  edicts?: DecodedRunestoneEdict[];
+}
+
+export interface SwapPsbtUnitPayoutExpectation {
+  expectedUnitAmount: number;
+  expectedUnitAddress: string;
+  minCarrierValueSats?: number;
+}
 
 // ============================================================
 // UTXO Conversion
@@ -80,6 +96,62 @@ export async function fetchSwapPsbt(payload: SwapPsbtPayload): Promise<SwapPsbtD
   }
 }
 
+export function validateSwapPsbtUnitPayout(
+  psbtBase64: string,
+  {
+    expectedUnitAmount,
+    expectedUnitAddress,
+    minCarrierValueSats = BITCOIN_TX.RUNE_OUTPUT_AMOUNT,
+  }: SwapPsbtUnitPayoutExpectation
+): void {
+  const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
+  const opReturnIndexes = psbt.txOutputs
+    .map((output, index) => ({ output, index }))
+    .filter(({ output }) => output.script[0] === 0x6a)
+    .map(({ index }) => index);
+
+  if (opReturnIndexes.length !== 1) {
+    throw new Error('Swap PSBT must contain exactly one UNIT runestone output');
+  }
+
+  const decoded = decodeRunestone(
+    Buffer.from(psbt.txOutputs[opReturnIndexes[0]].script)
+  ) as DecodedRunestone | null;
+  if (!decoded?.edicts?.length) {
+    throw new Error('Swap PSBT is missing UNIT runestone edicts');
+  }
+
+  const unitEdicts = decoded.edicts.filter(
+    (edict) =>
+      edict.id.block === RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.block &&
+      edict.id.tx === RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.tx
+  );
+
+  if (unitEdicts.length !== 1) {
+    throw new Error('Swap PSBT must transfer exactly one DUCAT UNIT rune edict');
+  }
+
+  const [edict] = unitEdicts;
+  if (edict.amount !== BigInt(expectedUnitAmount)) {
+    throw new Error('Swap PSBT UNIT amount does not match the requested liquidation swap');
+  }
+
+  const outputIndex = Number(edict.output);
+  const carrierOutput = psbt.txOutputs[outputIndex];
+  if (!carrierOutput || carrierOutput.script[0] === 0x6a) {
+    throw new Error('Swap PSBT UNIT edict points to an invalid carrier output');
+  }
+
+  const carrierAddress = bitcoin.address.fromOutputScript(carrierOutput.script, MUTINYNET_NETWORK);
+  if (carrierAddress !== expectedUnitAddress) {
+    throw new Error('Swap PSBT UNIT carrier output does not pay the wallet vault address');
+  }
+
+  if (BigInt(carrierOutput.value) < BigInt(minCarrierValueSats)) {
+    throw new Error('Swap PSBT UNIT carrier output value is below the expected postage');
+  }
+}
+
 // ============================================================
 // PSBT Finalization + Broadcast
 // ============================================================
@@ -101,7 +173,7 @@ export function finalizeSwapPsbt(
 
   // If expected payment address provided, verify at least one output pays to it
   if (expectedPaymentAddress) {
-    const hasExpectedOutput = tx.outs.some(out => {
+    const hasExpectedOutput = tx.outs.some((out) => {
       try {
         const addr = bitcoin.address.fromOutputScript(out.script, MUTINYNET_NETWORK);
         return addr === expectedPaymentAddress;
@@ -194,7 +266,7 @@ export function calculateSwapBtcAmount(claimedUnit: number, btcPrice: number): n
 export async function waitForMempool(
   txid: string,
   maxAttempts = 30,
-  intervalMs = 5000,
+  intervalMs = 5000
 ): Promise<boolean> {
   const pollId = useSwapDiagnosticsStore.getState().startPoll({
     id: `liquidation-mempool:${txid}`,
@@ -251,6 +323,8 @@ export async function waitForMempool(
     status: 'timeout',
     lastMessage: 'Repo transaction was not found in mempool',
   });
-  logger.warn('[SwapService] TX not found in mempool after timeout', { txid: txid.substring(0, 8) });
+  logger.warn('[SwapService] TX not found in mempool after timeout', {
+    txid: txid.substring(0, 8),
+  });
   return false;
 }

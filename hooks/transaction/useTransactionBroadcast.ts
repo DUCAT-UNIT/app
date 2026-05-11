@@ -26,6 +26,7 @@ export interface UseTransactionBroadcastOptions {
     taprootAddress?: string;
   } | null;
   pendingTransactions: Record<string, { status: string }>;
+  getPendingTransactions?: () => Record<string, { status: string }>;
   sendAssetType: AssetType;
   sendAmount: string;
   setSendIntent: (intent: SendIntent | null) => void;
@@ -36,6 +37,7 @@ export interface UseTransactionBroadcastOptions {
   getSnackbarAction: () => string;
   markUtxoAsSpent: (txid: string, vout: number) => Promise<void>;
   markUtxosAsSpent: (inputs: Array<{ txid: string; vout: number }>) => Promise<void>;
+  unmarkUtxosAsSpent: (inputs: Array<{ txid: string; vout: number }>) => Promise<void>;
   addPendingTransaction: (
     txid: string,
     outputs: PendingTransactionOutput[],
@@ -70,6 +72,7 @@ export interface UseTransactionBroadcastResult {
 export function useTransactionBroadcast({
   wallet,
   pendingTransactions,
+  getPendingTransactions,
   sendAssetType,
   sendAmount,
   setSendIntent,
@@ -80,6 +83,7 @@ export function useTransactionBroadcast({
   getSnackbarAction,
   markUtxoAsSpent,
   markUtxosAsSpent,
+  unmarkUtxosAsSpent,
   addPendingTransaction,
   confirmTransaction,
   invalidateTransaction,
@@ -92,12 +96,17 @@ export function useTransactionBroadcast({
   const { extractOutputs, btcToSats } = useOutputExtraction({
     wallet,
     pendingTransactions,
+    getPendingTransactions,
     markUtxoAsSpent,
   });
 
   const broadcast = useCallback(
     async (intent: SendIntent, options: BroadcastOptions = {}): Promise<string | null> => {
       const { skipAutoConfirm = false } = options;
+      let preparedTxid: string | null = null;
+      let broadcastAttempted = false;
+      let pendingTrackedBeforeBroadcast = false;
+      let spentInputsForRollback: Array<{ txid: string; vout: number }> = [];
 
       try {
         if (!intent || !intent.signedTxHex) {
@@ -113,51 +122,75 @@ export function useTransactionBroadcast({
 
         // Log inputs based on asset type
         if (intent.assetType === 'BTC') {
-          logger.debug('Intent inputs:', intent.inputs.map((i) => `${i.txid}:${i.vout}`));
+          logger.debug(
+            'Intent inputs:',
+            intent.inputs.map((i) => `${i.txid}:${i.vout}`)
+          );
         } else if (intent.assetType === 'UNIT') {
-          if (intent.runeUtxo) logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
-          if (intent.satUtxo) logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
+          if (intent.runeUtxo)
+            logger.debug('Rune UTXO:', `${intent.runeUtxo.transaction}:${intent.runeUtxo.vout}`);
+          if (intent.satUtxo)
+            logger.debug('Sat UTXO:', `${intent.satUtxo.txid}:${intent.satUtxo.vout}`);
         }
 
+        preparedTxid = intent.txid ?? null;
+        if (!preparedTxid) {
+          throw new Error('Signed transaction is missing its txid.');
+        }
+
+        const { outputs, spentInputs, parentTxid } = await extractOutputs(
+          intent,
+          sendAssetType || 'btc',
+          sendAmount
+        );
+        spentInputsForRollback = spentInputs;
+        const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
+        const sentAmountSmallest =
+          sendAssetType === 'unit'
+            ? Math.round((parseFloat(sendAmount) || 0) * 100)
+            : btcToSats(sendAmount);
+
+        if (spentInputs.length > 0) {
+          logger.debug('📝 Re-confirming', spentInputs.length, 'UTXOs are spent before broadcast');
+          await markUtxosAsSpent(spentInputs);
+        }
+
+        if (outputs.length > 0 || spentInputs.length > 0) {
+          logger.debug('💾 Pre-tracking pending transaction:', preparedTxid, 'with', outputs.length, 'outputs');
+          await addPendingTransaction(
+            preparedTxid,
+            outputs,
+            assetType,
+            parentTxid,
+            sentAmountSmallest,
+            spentInputs
+          );
+          pendingTrackedBeforeBroadcast = true;
+        } else {
+          logger.debug('⚠️ No change outputs found to save before broadcast');
+        }
+
+        broadcastAttempted = true;
         const txid = await broadcastTransaction(intent.signedTxHex);
         logger.debug('✅ Broadcast successful, txid:', txid);
 
+        if (txid !== preparedTxid && (outputs.length > 0 || spentInputs.length > 0)) {
+          logger.warn('Broadcast txid differed from signed intent txid; tracking returned txid too', {
+            preparedTxid,
+            txid,
+          });
+          await addPendingTransaction(
+            txid,
+            outputs,
+            assetType,
+            parentTxid,
+            sentAmountSmallest,
+            spentInputs
+          );
+        }
+
         // Register TX for push-notification monitoring (fire-and-forget)
         void watchTransaction(txid, wallet?.segwitAddress || '');
-
-        // Extract outputs and track pending transaction
-        try {
-          const { outputs, spentInputs, parentTxid } = await extractOutputs(
-            intent,
-            sendAssetType || 'btc',
-            sendAmount
-          );
-
-          // Re-confirm UTXOs are spent (safety check)
-          if (spentInputs.length > 0) {
-            logger.debug('📝 Re-confirming', spentInputs.length, 'UTXOs are spent (safety check)');
-            await markUtxosAsSpent(spentInputs);
-          }
-
-          // Store pending transaction with change outputs
-          if (outputs.length > 0) {
-            const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
-            const sentAmountSmallest =
-              sendAssetType === 'unit'
-                ? Math.round((parseFloat(sendAmount) || 0) * 100)
-                : btcToSats(sendAmount);
-
-            logger.debug('💾 Adding pending transaction:', txid, 'with', outputs.length, 'outputs');
-            await addPendingTransaction(txid, outputs, assetType, parentTxid, sentAmountSmallest, spentInputs);
-          } else {
-            logger.debug('⚠️ No change outputs found to save');
-          }
-        } catch (error) {
-          logger.error('❌ Error extracting change outputs:', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          // Non-critical error, continue with broadcast
-        }
 
         // Update state after outputs are extracted
         setBroadcastedTxid(txid);
@@ -168,7 +201,6 @@ export function useTransactionBroadcast({
         setSendIntent(null);
 
         // Add to background monitoring
-        const assetType = sendAssetType === 'unit' ? 'UNIT' : 'BTC';
         await BackgroundTaskService.addPendingTransaction(txid, assetType, sendAmount, 'send');
 
         // Immediately fetch transaction history
@@ -182,7 +214,12 @@ export function useTransactionBroadcast({
           (isConfirmed) => {
             if (isConfirmed) {
               if (notificationsEnabled) {
-                sendTransactionConfirmedNotification(assetType, Number(sendAmount) || 0, txid, 'send');
+                sendTransactionConfirmedNotification(
+                  assetType,
+                  Number(sendAmount) || 0,
+                  txid,
+                  'send'
+                );
               }
               BackgroundTaskService.removePendingTransaction(txid);
               confirmTransaction(txid);
@@ -222,12 +259,42 @@ export function useTransactionBroadcast({
         logger.error('❌ Broadcast failed:', {
           error: error instanceof Error ? error.message : String(error),
         });
+
+        if (broadcastAttempted && preparedTxid) {
+          logger.warn('Broadcast result is unknown; keeping signed tx pending', {
+            txid: preparedTxid,
+            pendingTrackedBeforeBroadcast,
+          });
+          setBroadcastedTxid(preparedTxid);
+          setIntentStep('pending');
+          setToastDismissed(false);
+          showSnackbar({
+            type: 'error',
+            action: getSnackbarAction(),
+            message: `Broadcast status unknown. ${parseErrorMessage(error)}`,
+          });
+          return preparedTxid;
+        }
+
         showSnackbar({
           type: 'error',
           action: getSnackbarAction(),
           message: parseErrorMessage(error),
         });
         setIntentStep('reviewing');
+
+        if (spentInputsForRollback.length > 0) {
+          try {
+            await unmarkUtxosAsSpent(spentInputsForRollback);
+          } catch (rollbackError) {
+            logger.error('Failed to roll back pre-broadcast UTXO locks:', {
+              error:
+                rollbackError instanceof Error
+                  ? rollbackError.message
+                  : String(rollbackError),
+            });
+          }
+        }
 
         if (intent?.txid) {
           await invalidateTransaction(intent.txid, 'Transaction broadcast failed');
@@ -248,6 +315,7 @@ export function useTransactionBroadcast({
       showSnackbar,
       getSnackbarAction,
       markUtxosAsSpent,
+      unmarkUtxosAsSpent,
       addPendingTransaction,
       confirmTransaction,
       invalidateTransaction,

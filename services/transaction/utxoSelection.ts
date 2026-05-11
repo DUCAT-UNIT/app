@@ -40,14 +40,14 @@ export function mergeAndFilterUtxos(
   const utxoMap = new Map<string, UTXO>();
 
   // Add confirmed UTXOs first
-  confirmedUtxos.forEach(utxo => {
+  confirmedUtxos.forEach((utxo) => {
     const key = `${utxo.txid}:${utxo.vout}`;
     utxoMap.set(key, utxo);
   });
 
   // Add unconfirmed UTXOs, but don't overwrite if already present (already confirmed)
   let skippedDuplicates = 0;
-  unconfirmedUtxos.forEach(utxo => {
+  unconfirmedUtxos.forEach((utxo) => {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (!utxoMap.has(key)) {
       utxoMap.set(key, utxo);
@@ -67,7 +67,7 @@ export function mergeAndFilterUtxos(
   }
 
   // Filter out spent UTXOs
-  return Array.from(utxoMap.values()).filter(utxo => {
+  return Array.from(utxoMap.values()).filter((utxo) => {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
       logger.debug('⚠️ Filtering out spent UTXO:', { key });
@@ -97,13 +97,18 @@ export function selectUtxosForTransaction(
   let estimatedFee = 0;
   let previousFee = 0;
 
-  // Iteratively select UTXOs and recalculate fee
+  // Iteratively select UTXOs and recalculate fee. Stop as soon as the
+  // current selection covers the recalculated fee so we do not pull in stale
+  // pending UTXOs unnecessarily.
   do {
     previousFee = estimatedFee;
     const numOutputs = 2; // recipient + change (adjust if no change needed)
 
     // Add more UTXOs if needed
-    while (selectedUtxos.length < availableUtxos.length) {
+    while (
+      selectedUtxos.length < availableUtxos.length &&
+      totalInput < amountInSats + estimatedFee
+    ) {
       // Find next available UTXO (prefer confirmed)
       let nextUtxo = availableUtxos.find((utxo) => {
         const key = `${utxo.txid}:${utxo.vout}`;
@@ -138,7 +143,11 @@ export function selectUtxosForTransaction(
 
     // Final fee calculation with actual selected UTXOs
     estimatedFee = calculateFee(selectedUtxos.length, numOutputs);
-  } while (estimatedFee !== previousFee && selectedUtxos.length < availableUtxos.length);
+  } while (
+    estimatedFee !== previousFee &&
+    totalInput < amountInSats + estimatedFee &&
+    selectedUtxos.length < availableUtxos.length
+  );
 
   // Calculate preliminary change
   let preliminaryChange = totalInput - amountInSats - estimatedFee;

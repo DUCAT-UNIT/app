@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { NavigationProp,useNavigation } from '@react-navigation/native';
 import {
   Text,
   View,
@@ -75,6 +76,15 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
     onRedeemToken,
     onRemoveSpentProofs,
   } = route.params;
+  const navigation = useNavigation<NavigationProp<Record<string, object | undefined>>>();
+  const handleRedeemBtcToken = React.useCallback(() => {
+    onClose();
+    navigation.navigate('CashuReceive', { cashuUnit: 'sat' });
+  }, [navigation, onClose]);
+  const handleRecoverBtcMint = React.useCallback(() => {
+    onClose();
+    navigation.navigate('RecoverMint', { cashuUnit: 'sat' });
+  }, [navigation, onClose]);
   return (
     <ScreenLayout testID="cashu-settings-screen">
       {/* Header with back button and title on same line */}
@@ -82,7 +92,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
         <TouchableOpacity onPress={onClose} style={localStyles.backButton} testID="cashu-settings-back-btn">
           <Icon name="back" size={24} color={COLORS.VERY_LIGHT_GRAY} />
         </TouchableOpacity>
-        <Text style={localStyles.title}>Turbo UNIT</Text>
+        <Text style={localStyles.title}>Turbo Cashu</Text>
       </View>
 
       <ScrollView style={localStyles.scrollView} showsVerticalScrollIndicator={false}>
@@ -97,15 +107,27 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
             />
             <SettingsOption
               iconName="recovery_phrase"
-              title="Recover Failed Mint"
+              title="Recover Failed UNIT Mint"
               onPress={onRecoverMint}
               testID="cashu-recover-mint-btn"
+            />
+            <SettingsOption
+              iconName="btc_logo"
+              title="Recover Failed BTC Mint"
+              onPress={handleRecoverBtcMint}
+              testID="cashu-recover-btc-mint-btn"
             />
             <SettingsOption
               iconName="asset"
               title="Redeem Turbo UNIT Token"
               onPress={onRedeemToken}
               testID="cashu-redeem-token-btn"
+            />
+            <SettingsOption
+              iconName="btc_logo"
+              title="Redeem Turbo BTC Token"
+              onPress={handleRedeemBtcToken}
+              testID="cashu-redeem-btc-token-btn"
             />
             <SettingsOption
               iconName="recovery_phrase"
@@ -122,7 +144,7 @@ const CashuSettingsScreen = React.memo(function CashuSettingsScreen({ route }: C
             />
             <SettingsOption
               iconName="delete_wallet"
-              title="Clear Turbo UNIT Cache"
+              title="Clear Turbo Cashu Cache"
               onPress={onClearCashuCache}
               isDanger
               testID="cashu-clear-cache-btn"

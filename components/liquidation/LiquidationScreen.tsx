@@ -4,7 +4,11 @@ import { analytics } from '../../services/analyticsService';
 import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 import Icon from '../icons';
 import ErrorBoundary from '../ErrorBoundary';
-import { selectItemsForAmount, getTotalClaimBtc, getTotalEstimatedProfit } from '../../services/liquidation/calculations';
+import {
+  selectItemsForAmount,
+  getTotalClaimBtc,
+  getTotalEstimatedProfit,
+} from '../../services/liquidation/calculations';
 import { UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
 import CurrencyToggle from './CurrencyToggle';
 import LiquidationStatusScreen from './LiquidationStatusScreen';
@@ -48,6 +52,7 @@ export interface LiquidationScreenProps {
   hasVault: boolean;
   wallet: WalletAddresses | null;
   vaultData: VaultData | null;
+  currentAccount: number;
   visible: boolean;
   onClose: () => void;
   onToggle: () => void;
@@ -62,6 +67,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   hasVault,
   wallet,
   vaultData,
+  currentAccount,
   visible,
   onClose,
 }: LiquidationScreenProps): React.ReactElement | null {
@@ -82,13 +88,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const depositRate = useLiqDepositRate();
   const swapRate = useLiqSwapRate();
 
-  const {
-    setCurrentStep,
-    setInvestAmount,
-    setShowBTC,
-    setReviewTab,
-    setVaultExpanded,
-  } = useLiquidationFlowStore.getState();
+  const { setCurrentStep, setInvestAmount, setShowBTC, setReviewTab, setVaultExpanded } =
+    useLiquidationFlowStore.getState();
 
   // Track screen opened when visible
   useEffect(() => {
@@ -114,6 +115,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     vaultDebt,
     btcPrice,
     vaultData,
+    currentAccount,
   });
 
   // ── Callbacks ────────────────────────────────────────────────────
@@ -129,7 +131,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     (tab: 'overview' | 'howItWorks') => {
       setReviewTab(tab);
     },
-    [setReviewTab],
+    [setReviewTab]
   );
 
   const handleBack = useCallback(() => {
@@ -161,10 +163,13 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const isReview = currentStep === 'review';
   const isInput = currentStep === 'input';
   const hasStaleVaultData = fetchStatus === 'error' && vaults.length > 0;
+  const hasClaimableLiquidations = hasVault && isLoaded && vaults.length > 0 && maxInvestable > 0;
+  const shouldShowBottomButton =
+    currentStep !== 'processing' && (!isInput || hasClaimableLiquidations);
 
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
-    (isInput && investAmount <= 0) || currentStep === 'processing';
+    (isInput && (investAmount <= 0 || !hasClaimableLiquidations)) || currentStep === 'processing';
   const buttonLabel =
     currentStep === 'processing'
       ? 'Processing...'
@@ -196,8 +201,10 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       const exactClaimBtc = getTotalClaimBtc(selected);
       const exactProfitBtc = getTotalEstimatedProfit(selected);
       const exactSwapUnit = selected.reduce(
-        (acc, v) => acc + (v.claimAmountPartial ? (v.claimAmountPartial / v.claimAmountBtc) * v.unit : v.unit),
-        0,
+        (acc, v) =>
+          acc +
+          (v.claimAmountPartial ? (v.claimAmountPartial / v.claimAmountBtc) * v.unit : v.unit),
+        0
       );
       // Swap BTC includes protocol swap rate (matching calculateSwapBtcAmount in execution)
       const exactSwapBtc = btcPrice
@@ -226,19 +233,19 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
 
     // Input step — check empty states
     if (!hasVault) {
-      return <LiquidationEmptyStates variant="noVault" />;
+      return <LiquidationEmptyStates variant="noVault" onBackToWallet={onClose} />;
     }
 
     if (fetchStatus === 'error' && vaults.length === 0) {
-      return <LiquidationEmptyStates variant="error" />;
+      return <LiquidationEmptyStates variant="error" onBackToWallet={onClose} />;
     }
 
     if (isLoaded && vaults.length === 0) {
-      return <LiquidationEmptyStates variant="noVaults" />;
+      return <LiquidationEmptyStates variant="noVaults" onBackToWallet={onClose} />;
     }
 
     if (isLoaded && maxInvestable <= 0) {
-      return <LiquidationEmptyStates variant="lowCollateral" />;
+      return <LiquidationEmptyStates variant="lowCollateral" onBackToWallet={onClose} />;
     }
 
     if (!isLoaded) {
@@ -287,8 +294,23 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             {isReview && (
-              <TouchableOpacity onPress={handleBack} style={styles.backButton} testID="liquidation-back-btn">
+              <TouchableOpacity
+                onPress={handleBack}
+                style={styles.backButton}
+                testID="liquidation-back-btn"
+              >
                 <Icon name="back" size={24} color={colors.text.primary} />
+              </TouchableOpacity>
+            )}
+            {!isReview && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Back to wallet"
+                onPress={onClose}
+                style={styles.backButton}
+                testID="liquidation-close-btn"
+              >
+                <Icon name="close" size={24} color={colors.text.primary} />
               </TouchableOpacity>
             )}
             <Text style={styles.title}>Liquidations</Text>
@@ -301,7 +323,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       {renderBody()}
 
       {/* Bottom Button — hidden during processing */}
-      {currentStep !== 'processing' && (
+      {shouldShowBottomButton && (
         <View style={styles.continueWrap}>
           <TouchableOpacity
             style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}

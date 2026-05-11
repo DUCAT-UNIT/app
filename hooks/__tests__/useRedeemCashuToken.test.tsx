@@ -48,6 +48,7 @@ const mockFindAccountForP2PKToken = jest.fn();
 const mockGetCurrentAccount = jest.fn();
 const mockReceiveP2PKToken = jest.fn();
 const mockReceiveToken = jest.fn();
+const mockSaveReceivedToken = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
@@ -60,6 +61,10 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 
 jest.mock('../../services/secureStorageService', () => ({
   getCurrentAccount: (...args: unknown[]) => mockGetCurrentAccount(...args),
+}));
+
+jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
+  saveReceivedToken: (...args: unknown[]) => mockSaveReceivedToken(...args),
 }));
 
 // Type for the hook's return value
@@ -109,8 +114,9 @@ describe('useRedeemCashuToken', () => {
     mockGetP2PKRecipient.mockReturnValue(null);
     mockFindAccountForP2PKToken.mockResolvedValue(null);
     mockGetCurrentAccount.mockResolvedValue(0);
-    mockReceiveP2PKToken.mockResolvedValue(undefined);
-    mockReceiveToken.mockResolvedValue(undefined);
+    mockReceiveP2PKToken.mockResolvedValue({ amount: 100, proofCount: 1 });
+    mockReceiveToken.mockResolvedValue({ amount: 100, proofCount: 1 });
+    mockSaveReceivedToken.mockResolvedValue(undefined);
   });
 
   it('should return handleRedeemToken function', () => {
@@ -284,9 +290,78 @@ describe('useRedeemCashuToken', () => {
       });
 
       expect(mockDecodeToken).toHaveBeenCalledWith('cashuBvalidtoken');
-      expect(mockReceiveToken).toHaveBeenCalledWith('cashuBvalidtoken');
+      expect(mockReceiveToken).toHaveBeenCalledWith('cashuBvalidtoken', 'unit');
+      expect(mockSaveReceivedToken).toHaveBeenCalledWith(
+        'cashuBvalidtoken',
+        'Manual Redeem',
+        100,
+        '',
+        'unit'
+      );
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Token redeemed successfully!');
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Turbo UNIT token redeemed successfully!');
+    });
+
+    it('should redeem BTC Cashu token into sat history', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'secret1', amount: 2500, C: 'C1', id: 'id1' },
+        ],
+        amount: 2500,
+        unit: 'sat',
+      });
+      mockReceiveToken.mockResolvedValueOnce({ amount: 2500, proofCount: 1 });
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        taprootAddress: 'tb1preceiver',
+      });
+
+      act(() => {
+        result.current!.handleRedeemToken();
+      });
+
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuBbtctoken');
+      });
+
+      expect(mockReceiveToken).toHaveBeenCalledWith('cashuBbtctoken', 'sat');
+      expect(mockSaveReceivedToken).toHaveBeenCalledWith(
+        'cashuBbtctoken',
+        'Manual Redeem',
+        2500,
+        'tb1preceiver',
+        'sat'
+      );
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Turbo BTC token redeemed successfully!');
+    });
+
+    it('should fail closed when a regular token has an unsupported explicit unit', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'secret1', amount: 2500, C: 'C1', id: 'id1' },
+        ],
+        amount: 2500,
+        unit: 'msat',
+      });
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.handleRedeemToken();
+      });
+
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuBunsupportedunit');
+      });
+
+      expect(mockReceiveToken).not.toHaveBeenCalled();
+      expect(mockSaveReceivedToken).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Unsupported Cashu unit: msat');
     });
 
     it('should trim whitespace from token before processing', async () => {
@@ -444,9 +519,92 @@ describe('useRedeemCashuToken', () => {
         await redeemButton.onPress('cashuBp2pktoken');
       });
 
-      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuBp2pktoken', 'privatekey123');
+      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuBp2pktoken', 'privatekey123', undefined, 'unit');
+      expect(mockSaveReceivedToken).toHaveBeenCalledWith(
+        'cashuBp2pktoken',
+        'Manual P2PK Redeem',
+        100,
+        '',
+        'unit'
+      );
       expect(mockProps.fetchTransactionHistory).toHaveBeenCalled();
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'P2PK token redeemed successfully!');
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Turbo UNIT P2PK token redeemed successfully!');
+    });
+
+    it('should redeem BTC P2PK token with sat unit and history', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'P2PK:pubkey123', amount: 2500, C: 'C1', id: 'id1' },
+        ],
+        amount: 2500,
+        unit: 'sat',
+      });
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest123456789',
+        privateKey: 'privatekey123',
+      });
+      mockReceiveP2PKToken.mockResolvedValueOnce({ amount: 2500, proofCount: 1 });
+      mockGetCurrentAccount.mockResolvedValue(0);
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        taprootAddress: 'tb1preceiver',
+      });
+
+      act(() => {
+        result.current!.handleRedeemToken();
+      });
+
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuBbtcp2pktoken');
+      });
+
+      expect(mockReceiveP2PKToken).toHaveBeenCalledWith('cashuBbtcp2pktoken', 'privatekey123', undefined, 'sat');
+      expect(mockSaveReceivedToken).toHaveBeenCalledWith(
+        'cashuBbtcp2pktoken',
+        'Manual P2PK Redeem',
+        2500,
+        'tb1preceiver',
+        'sat'
+      );
+      expect(Alert.alert).toHaveBeenCalledWith('Success', 'Turbo BTC P2PK token redeemed successfully!');
+    });
+
+    it('should fail closed when a P2PK token has an unsupported explicit unit', async () => {
+      mockDecodeToken.mockReturnValue({
+        mint: 'https://mint.example.com',
+        proofs: [
+          { secret: 'P2PK:pubkey123', amount: 2500, C: 'C1', id: 'id1' },
+        ],
+        amount: 2500,
+        unit: 'msat',
+      });
+      mockFindAccountForP2PKToken.mockResolvedValue({
+        accountIndex: 0,
+        address: 'bc1ptest123456789',
+        privateKey: 'privatekey123',
+      });
+      mockGetCurrentAccount.mockResolvedValue(0);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      act(() => {
+        result.current!.handleRedeemToken();
+      });
+
+      const redeemButton = (Alert.prompt as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await redeemButton.onPress('cashuBunsupportedp2pk');
+      });
+
+      expect(mockReceiveP2PKToken).not.toHaveBeenCalled();
+      expect(mockSaveReceivedToken).not.toHaveBeenCalled();
+      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to redeem token: Unsupported Cashu unit: msat');
     });
 
     it('should show error when P2PK pubkey cannot be extracted', async () => {

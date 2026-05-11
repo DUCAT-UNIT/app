@@ -5,12 +5,20 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator,ScrollView,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import PinFallbackModal from '../../components/auth/PinFallbackModal';
 import TouchableScale from '../../components/common/TouchableScale';
 import Icon from '../../components/icons';
 import { ReceiveAssetBadge, getReceiveAssetMeta } from '../../components/vaultAction';
-import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 import { formatFiat } from '../../utils/formatters';
 import { useVaultConfirmScreen } from './hooks/useVaultConfirmScreen';
 import type {
@@ -34,12 +42,7 @@ interface VaultConfirmScreenProps<
 export default function VaultConfirmScreen<
   TStore extends VaultStoreState,
   THook extends VaultOperationHookState,
->({
-  navigation,
-  config,
-  store,
-  vaultHook,
-}: VaultConfirmScreenProps<TStore, THook>) {
+>({ navigation, config, store, vaultHook }: VaultConfirmScreenProps<TStore, THook>) {
   const {
     primaryAmount,
     summaryRows,
@@ -48,9 +51,13 @@ export default function VaultConfirmScreen<
     selectedFeeRate,
     isAuthenticating,
     isSubmitting,
+    showPinFallback,
+    pinFallbackError,
     isLoading,
     error,
     handleConfirm,
+    handlePinFallbackSubmit,
+    handlePinFallbackCancel,
     handleClose,
     handleBack,
   } = useVaultConfirmScreen({ config, store, vaultHook }, navigation);
@@ -58,10 +65,16 @@ export default function VaultConfirmScreen<
   const isUnitPrimaryAmount = primaryAmount.unit === 'UNIT';
   const isBusy = isLoading || isAuthenticating || isSubmitting;
   const selectedPayoutRow = summaryRows.find((row) => row.badgeAsset);
-  const payoutMeta = selectedPayoutRow?.badgeAsset ? getReceiveAssetMeta(selectedPayoutRow.badgeAsset) : null;
+  const payoutMeta = selectedPayoutRow?.badgeAsset
+    ? getReceiveAssetMeta(selectedPayoutRow.badgeAsset)
+    : null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-confirm-screen`}>
+    <SafeAreaView
+      style={styles.container}
+      edges={['top']}
+      testID={`vault-${config.operationType}-confirm-screen`}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -71,7 +84,9 @@ export default function VaultConfirmScreen<
         <View style={styles.header} accessibilityRole="header">
           <View style={styles.headerCopy}>
             <Text style={styles.eyebrow}>Review</Text>
-            <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              {config.title}
+            </Text>
           </View>
           <TouchableOpacity
             onPress={handleClose}
@@ -100,10 +115,7 @@ export default function VaultConfirmScreen<
                       ? primaryAmount.amount.toFixed(2)
                       : primaryAmount.amount.toFixed(8)}
                   </Text>
-                  <Icon
-                    name={isUnitPrimaryAmount ? 'unit_symbol' : 'btc_symbol'}
-                    size={24}
-                  />
+                  <Icon name={isUnitPrimaryAmount ? 'unit_symbol' : 'btc_symbol'} size={24} />
                 </>
               )}
             </View>
@@ -161,7 +173,9 @@ export default function VaultConfirmScreen<
             accessibilityRole="alert"
             accessibilityLabel={`Error: ${error}`}
           >
-            <Text style={styles.errorText} accessibilityElementsHidden>{error}</Text>
+            <Text style={styles.errorText} accessibilityElementsHidden>
+              {error}
+            </Text>
           </View>
         )}
       </ScrollView>
@@ -178,7 +192,9 @@ export default function VaultConfirmScreen<
           accessibilityState={{ disabled: isBusy }}
           pressLockMs={700}
         >
-          <Text style={styles.backText} accessibilityElementsHidden>Back</Text>
+          <Text style={styles.backText} accessibilityElementsHidden>
+            Back
+          </Text>
         </TouchableScale>
 
         <TouchableScale
@@ -187,7 +203,7 @@ export default function VaultConfirmScreen<
           disabled={isBusy}
           testID={`vault-${config.operationType}-confirm-btn`}
           accessibilityRole="button"
-          accessibilityLabel={isBusy ? "Preparing transaction" : "Confirm and sign transaction"}
+          accessibilityLabel={isBusy ? 'Preparing transaction' : 'Confirm and sign transaction'}
           accessibilityHint="Authenticate to sign and broadcast the transaction"
           accessibilityState={{ disabled: isBusy, busy: isBusy }}
           lockWhilePending
@@ -195,18 +211,36 @@ export default function VaultConfirmScreen<
         >
           {isBusy ? (
             isAuthenticating ? (
-              <Ionicons name="finger-print" size={20} color={colors.text.white} accessibilityElementsHidden />
+              <Ionicons
+                name="finger-print"
+                size={20}
+                color={colors.text.white}
+                accessibilityElementsHidden
+              />
             ) : (
               <View style={styles.busyButtonContent}>
                 <ActivityIndicator size="small" color={colors.text.white} />
-                <Text style={styles.confirmText} accessibilityElementsHidden>Preparing...</Text>
+                <Text style={styles.confirmText} accessibilityElementsHidden>
+                  Preparing...
+                </Text>
               </View>
             )
           ) : (
-            <Text style={styles.confirmText} accessibilityElementsHidden>Confirm & Sign</Text>
+            <Text style={styles.confirmText} accessibilityElementsHidden>
+              Confirm & Sign
+            </Text>
           )}
         </TouchableScale>
       </View>
+      <PinFallbackModal
+        visible={showPinFallback}
+        title="Confirm with PIN"
+        message="Face ID is unavailable. Enter your wallet PIN to sign this vault transaction."
+        error={pinFallbackError}
+        busy={isSubmitting}
+        onSubmit={handlePinFallbackSubmit}
+        onCancel={handlePinFallbackCancel}
+      />
     </SafeAreaView>
   );
 }
@@ -238,7 +272,12 @@ function SummaryRowView({ row }: { row: SummaryRow }) {
           {hasChange && (
             <>
               <Ionicons name="arrow-forward" size={14} color={colors.text.tertiary} />
-              <Text style={[styles.valueHighlight, row.newValueColor ? { color: row.newValueColor } : undefined]}>
+              <Text
+                style={[
+                  styles.valueHighlight,
+                  row.newValueColor ? { color: row.newValueColor } : undefined,
+                ]}
+              >
                 {row.newValue}
               </Text>
               {showNewIcon && (

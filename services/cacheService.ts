@@ -39,14 +39,9 @@ const CLEARABLE_SECURE_STORE_KEYS = [
   'p2pk_taproot_address',
   'p2pk_private_key',
 
-  // Cashu keysets
+  // Cashu keysets and non-fund token processing cache
   'cashu_keysets',
-  'cashu_proofs', // Old global key
   'processed_cashu_tokens',
-
-  // Turbo tokens
-  'sent_turbo_tokens',
-  'received_turbo_tokens',
 
   // Transaction cache
   'pending_transactions',
@@ -58,6 +53,38 @@ const CLEARABLE_SECURE_STORE_KEYS = [
   // Current account (will be re-derived on next load)
   'current_account',
 ];
+
+const SAFETY_ASYNC_STORAGE_KEYS = new Set([
+  // Crash/retry journals and checkpoints
+  'operation-journal',
+  'evm-transaction-checkpoints',
+  'vault-settlement',
+  '@ducat/vault_settlement_history_v1',
+
+  // In-flight Turbo Cashu and liquidation recovery
+  'turbo_processing_state',
+  'liquidation_pending_swap_broadcasts_v1',
+
+  // In-progress vault creation
+  'vault-creation',
+
+  // Transaction history/dedupe registries
+  '@ducat/swap_txids',
+  '@ducat/swap_txids_migrated_v2',
+  '@ducat/liquidation_txids',
+]);
+
+const SAFETY_ASYNC_STORAGE_PREFIXES = [
+  'pending_txs_',
+  'spent_utxos_',
+  'pending_vault_tx_',
+];
+
+const isProtectedAsyncStorageKey = (key: string): boolean => {
+  if (PROTECTED_KEYS.includes(key)) return true;
+  if (SAFETY_ASYNC_STORAGE_KEYS.has(key)) return true;
+  return SAFETY_ASYNC_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+};
 
 /**
  * Clear all app cache except for protected keys (mnemonic, PIN, etc.)
@@ -86,18 +113,11 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
     summary.secureStoreCleared = secureStoreResults.filter((r) => r.status === 'fulfilled').length;
     logger.info(`[CacheService] Cleared ${summary.secureStoreCleared} SecureStore keys`);
 
-    // 2. AGGRESSIVE: Clear all possible cashu_proofs_* keys for accounts 0-50 (in parallel)
-    logger.info('[CacheService] Aggressively clearing cashu proofs for all accounts...');
-    const cashuProofKeys: string[] = [];
-    for (let i = 0; i < 50; i++) {
-      cashuProofKeys.push(`cashu_proofs_account_${i}`, `cashu_proofs_${i}`);
-    }
-    const cashuResults = await Promise.allSettled(
-      cashuProofKeys.map((key) => SecureStore.deleteItemAsync(key))
-    );
-    summary.cashuProofsCleared = cashuResults.filter((r) => r.status === 'fulfilled').length;
+    // Cashu proofs are wallet funds, not cache. Never delete cashu_proofs*
+    // from this path; full wallet deletion has a separate explicit reset flow.
+    summary.cashuProofsCleared = 0;
 
-    // 3. AGGRESSIVE: Clear all possible derived_key_* cache for multiple versions (in parallel)
+    // 2. AGGRESSIVE: Clear all possible derived_key_* cache for multiple versions (in parallel)
     logger.info('[CacheService] Aggressively clearing derived key cache...');
     const derivedKeys: string[] = [];
     const keyVersions = ['v1_', 'v2_', 'v3_', 'v4_', ''];
@@ -111,10 +131,10 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
     );
     summary.derivedKeysCleared = derivedResults.filter((r) => r.status === 'fulfilled').length;
 
-    // 4. Clear AsyncStorage (except protected keys)
+    // 3. Clear AsyncStorage (except protected keys)
     try {
       const allAsyncKeys = await AsyncStorage.getAllKeys();
-      const keysToRemove = allAsyncKeys.filter(key => !PROTECTED_KEYS.includes(key));
+      const keysToRemove = allAsyncKeys.filter((key) => !isProtectedAsyncStorageKey(key));
 
       if (keysToRemove.length > 0) {
         await AsyncStorage.multiRemove(keysToRemove);
@@ -160,8 +180,6 @@ export const clearCashuCache = async (): Promise<void> => {
 
     await deletePreferenceItem('cashu_keysets');
     await deletePreferenceItem('processed_cashu_tokens');
-    await SecureStore.deleteItemAsync('sent_turbo_tokens');
-    await SecureStore.deleteItemAsync('received_turbo_tokens');
 
     logger.info('[CacheService] Cashu cache cleared');
   } catch (error: unknown) {

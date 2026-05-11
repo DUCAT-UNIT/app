@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from 'react';
+import { useWallet } from '../../contexts/WalletContext';
 import { useBorrow } from '../../stores/borrowStore';
 import {
+  persistVaultSettlementNow,
   resolveVaultSettlementRequestedAsset,
   useVaultSettlementStore,
 } from '../../stores/vaultSettlementStore';
@@ -10,11 +12,14 @@ import { formatVaultSettlementAmountInput } from '../../services/vaultSettlement
 import { getBoolean, SettingKeys } from '../../services/settingsService';
 
 export interface UseBorrowToUsdcSettlementResult extends UseBorrowVaultResult {
-  quoteBorrowToUsdc: (amountUsd: number) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
+  quoteBorrowToUsdc: (
+    amountUsd: number
+  ) => Promise<{ estimatedUsdcOut: string; minimumUsdcOut: string }>;
 }
 
 export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
   const store = useBorrow();
+  const { wallet, currentAccount } = useWallet();
   const rawBorrow = useBorrowVault({ deferSuccessTransition: true });
   const {
     startOperation,
@@ -23,18 +28,22 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     completeSettlement,
     reset: resetSettlement,
   } = useVaultSettlementStore();
-  const {
-    quoteBorrowToUsdc,
-    settleIssuedUnitToUsdc,
-    settleIssuedUnitToTurboUnit,
-  } = useIssuedUnitSettlement();
+  const { quoteBorrowToUsdc, settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } =
+    useIssuedUnitSettlement();
 
   const borrow = useCallback(async () => {
     const usdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
-    const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(store.receiveAsset, usdcFeaturesEnabled);
+    const requestedReceiveAsset = resolveVaultSettlementRequestedAsset(
+      store.receiveAsset,
+      usdcFeaturesEnabled
+    );
 
-    startOperation('borrow', store.borrowAmountUsd, requestedReceiveAsset);
+    startOperation('borrow', store.borrowAmountUsd, requestedReceiveAsset, {
+      accountIndex: currentAccount,
+      taprootAddress: wallet?.taprootAddress ?? null,
+    });
     setPhase('issuing_vault');
+    await persistVaultSettlementNow();
 
     const result = await rawBorrow.borrow();
     if (!result) {
@@ -42,8 +51,10 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     }
 
     setIssueResult(result.txid, result.vaultTxid);
+    await persistVaultSettlementNow();
     if (requestedReceiveAsset === 'UNIT') {
       completeSettlement('UNIT', formatVaultSettlementAmountInput(store.borrowAmountUsd));
+      await persistVaultSettlementNow();
     } else if (requestedReceiveAsset === 'USDC') {
       const settlement = await settleIssuedUnitToUsdc('borrow', store.borrowAmountUsd);
       const canComplete =
@@ -73,6 +84,8 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
     completeSettlement,
     settleIssuedUnitToUsdc,
     settleIssuedUnitToTurboUnit,
+    currentAccount,
+    wallet?.taprootAddress,
   ]);
 
   const cancel = useCallback(() => {
@@ -87,6 +100,6 @@ export function useBorrowToUsdcSettlement(): UseBorrowToUsdcSettlementResult {
       cancel,
       quoteBorrowToUsdc,
     }),
-    [rawBorrow, borrow, cancel, quoteBorrowToUsdc],
+    [rawBorrow, borrow, cancel, quoteBorrowToUsdc]
   );
 }

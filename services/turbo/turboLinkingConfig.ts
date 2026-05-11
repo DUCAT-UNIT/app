@@ -19,6 +19,7 @@ import {
   isTurboTokenUrl,
   resolveCashuTokenFromUrl,
 } from './turboTokenUrl';
+import { useTokenProcessingStore } from '../../stores/tokenProcessingStore';
 import type { RootNavigatorParamList } from '../../navigation/types';
 
 interface URLEvent {
@@ -115,6 +116,7 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
       tokenLength: token?.length,
       message: 'Token stored in global.pendingCashuToken for processing',
     });
+    await useTokenProcessingStore.getState().setPendingToken(token);
     turboGlobal.pendingCashuToken = token;
   }
 };
@@ -239,7 +241,11 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
     // Listen for URL events (app already open)
     logger.debug('[TURBO] Registering URL listener');
     const urlSubscription = Linking.addEventListener('url', (event) => {
-      void onReceiveURL(event, listener);
+      void onReceiveURL(event, listener).catch((error) => {
+        logger.error('[TURBO] Failed to handle URL event:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
 
     // Handle app state changes

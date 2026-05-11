@@ -4,6 +4,7 @@
  */
 
 import { act } from '@testing-library/react-native';
+import * as SecureStore from 'expo-secure-store';
 import {
   usePendingTransactionsStore,
   resetPendingTransactionsStore,
@@ -35,6 +36,14 @@ jest.mock('../../utils/pendingTransactionsUtils', () => ({
     utxos.forEach((u: { txid: string; vout: number }) => newSet.add(`${u.txid}:${u.vout}`));
     return newSet;
   }),
+  getPendingInputUtxoKeys: jest.fn((txs) => {
+    const keys = new Set<string>();
+    Object.values(txs as Record<string, { status: string; inputUtxos?: Array<{ txid: string; vout: number }> }>).forEach((tx) => {
+      if (tx.status !== 'pending') return;
+      tx.inputUtxos?.forEach((u) => keys.add(`${u.txid}:${u.vout}`));
+    });
+    return keys;
+  }),
   unmarkUtxosAsSpent: jest.fn((set, utxos) => {
     const newSet = new Set(set);
     utxos.forEach((u: { txid: string; vout: number }) => newSet.delete(`${u.txid}:${u.vout}`));
@@ -49,6 +58,8 @@ describe('pendingTransactionsStore', () => {
   ];
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     resetPendingTransactionsStore();
   });
 
@@ -79,19 +90,145 @@ describe('pendingTransactionsStore', () => {
 
     it('should track input UTXOs', async () => {
       const { addPendingTransaction } = usePendingTransactionsStore.getState();
-      const inputUtxos = [{ txid: 'input_txid1', vout: 0 }, { txid: 'input_txid2', vout: 1 }];
+      const inputUtxos = [
+        { txid: 'input_txid1', vout: 0 },
+        { txid: 'input_txid2', vout: 1 },
+      ];
 
       await act(async () => {
         await addPendingTransaction('txid789', mockOutputs, 'BTC', null, 100000, inputUtxos);
       });
 
-      expect(usePendingTransactionsStore.getState().pendingTransactions['txid789'].inputUtxos).toEqual(inputUtxos);
+      expect(
+        usePendingTransactionsStore.getState().pendingTransactions['txid789'].inputUtxos
+      ).toEqual(inputUtxos);
+      expect(usePendingTransactionsStore.getState().spentUtxos.has('input_txid1:0')).toBe(true);
+      expect(usePendingTransactionsStore.getState().spentUtxos.has('input_txid2:1')).toBe(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'spent_utxos_0',
+        expect.stringContaining('input_txid1:0'),
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('loadFromStorage', () => {
+    it('hydrates persisted data for account 0 on cold startup', async () => {
+      const persistedTx = {
+        cold_txid: {
+          txid: 'cold_txid',
+          outputs: mockOutputs,
+          parentTxid: null,
+          assetType: 'BTC',
+          status: 'pending',
+          timestamp: Date.now(),
+          inputUtxos: [{ txid: 'input_txid', vout: 0 }],
+        },
+      };
+
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === 'pending_txs_0') return JSON.stringify(persistedTx);
+        if (key === 'spent_utxos_0') return JSON.stringify(['input_txid:0']);
+        return null;
+      });
+
+      await act(async () => {
+        await usePendingTransactionsStore.getState().loadFromStorage(0);
+      });
+
+      const state = usePendingTransactionsStore.getState();
+      expect(state.pendingTransactions.cold_txid).toEqual(persistedTx.cold_txid);
+      expect(state.spentUtxos.has('input_txid:0')).toBe(true);
+      expect(state.hydratedAccount).toBe(0);
+    });
+
+    it('derives missing spent locks from persisted pending transaction inputs', async () => {
+      const persistedTx = {
+        cold_txid: {
+          txid: 'cold_txid',
+          outputs: mockOutputs,
+          parentTxid: null,
+          assetType: 'BTC',
+          status: 'pending',
+          timestamp: Date.now(),
+          inputUtxos: [{ txid: 'input_txid', vout: 0 }],
+        },
+      };
+
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === 'pending_txs_0') return JSON.stringify(persistedTx);
+        if (key === 'spent_utxos_0') return null;
+        return null;
+      });
+
+      await act(async () => {
+        await usePendingTransactionsStore.getState().loadFromStorage(0);
+      });
+
+      expect(usePendingTransactionsStore.getState().spentUtxos.has('input_txid:0')).toBe(true);
+    });
+
+    it('does not hydrate or overwrite corrupt pending transaction storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === 'pending_txs_0') return '{bad json';
+        return null;
+      });
+
+      await act(async () => {
+        await usePendingTransactionsStore.getState().loadFromStorage(0);
+      });
+
+      expect(usePendingTransactionsStore.getState().hydratedAccount).toBeNull();
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^pending_txs_0_corrupt_/),
+        '{bad json',
+        expect.any(Object),
+      );
+
+      await expect(
+        usePendingTransactionsStore
+          .getState()
+          .addPendingTransaction('new_txid', mockOutputs, 'BTC')
+      ).rejects.toThrow('refusing to mutate pending locks');
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+        ([key]) => key === 'pending_txs_0',
+      )).toBe(false);
+    });
+
+    it('does not hydrate or overwrite corrupt spent UTXO storage', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === 'spent_utxos_0') return '{"bad":"shape"}';
+        return null;
+      });
+
+      await act(async () => {
+        await usePendingTransactionsStore.getState().loadFromStorage(0);
+      });
+
+      expect(usePendingTransactionsStore.getState().hydratedAccount).toBeNull();
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        expect.stringMatching(/^spent_utxos_0_corrupt_/),
+        '{"bad":"shape"}',
+        expect.any(Object),
+      );
+
+      await expect(
+        usePendingTransactionsStore
+          .getState()
+          .markUtxosAsSpent([{ txid: 'utxo1', vout: 0 }])
+      ).rejects.toThrow('refusing to mutate pending locks');
+
+      expect((SecureStore.setItemAsync as jest.Mock).mock.calls.some(
+        ([key]) => key === 'spent_utxos_0',
+      )).toBe(false);
     });
   });
 
   describe('confirmTransaction', () => {
     it('should remove confirmed transaction and clear spent UTXOs', async () => {
-      const { addPendingTransaction, confirmTransaction, markUtxosAsSpent } = usePendingTransactionsStore.getState();
+      const { addPendingTransaction, confirmTransaction, markUtxosAsSpent } =
+        usePendingTransactionsStore.getState();
       const inputUtxos = [{ txid: 'spent_utxo1', vout: 0 }];
 
       await act(async () => {
@@ -99,12 +236,18 @@ describe('pendingTransactionsStore', () => {
         await addPendingTransaction('txid_to_confirm', [], 'BTC', null, 100000, inputUtxos);
       });
 
-      expect(usePendingTransactionsStore.getState().pendingTransactions['txid_to_confirm']).toBeDefined();
+      expect(
+        usePendingTransactionsStore.getState().pendingTransactions['txid_to_confirm']
+      ).toBeDefined();
       expect(usePendingTransactionsStore.getState().spentUtxos.size).toBe(1);
 
-      await act(async () => { await confirmTransaction('txid_to_confirm'); });
+      await act(async () => {
+        await confirmTransaction('txid_to_confirm');
+      });
 
-      expect(usePendingTransactionsStore.getState().pendingTransactions['txid_to_confirm']).toBeUndefined();
+      expect(
+        usePendingTransactionsStore.getState().pendingTransactions['txid_to_confirm']
+      ).toBeUndefined();
       expect(usePendingTransactionsStore.getState().spentUtxos.size).toBe(0);
     });
   });
@@ -116,9 +259,12 @@ describe('pendingTransactionsStore', () => {
         useNotificationStore: { getState: () => ({ showSnackbar: mockShowSnackbar }) },
       }));
 
-      const { addPendingTransaction, invalidateTransaction } = usePendingTransactionsStore.getState();
+      const { addPendingTransaction, invalidateTransaction } =
+        usePendingTransactionsStore.getState();
 
-      await act(async () => { await addPendingTransaction('txid_to_invalidate', [], 'BTC'); });
+      await act(async () => {
+        await addPendingTransaction('txid_to_invalidate', [], 'BTC');
+      });
 
       let invalidated: string[] = [];
       await act(async () => {
@@ -128,16 +274,62 @@ describe('pendingTransactionsStore', () => {
       expect(invalidated).toContain('txid_to_invalidate');
       expect(mockShowSnackbar).toHaveBeenCalled();
     });
+
+    it('should release spent input locks for invalidated transactions', async () => {
+      const { addPendingTransaction, invalidateTransaction, markUtxosAsSpent, isUtxoSpent } =
+        usePendingTransactionsStore.getState();
+      const inputUtxos = [{ txid: 'invalidated_input', vout: 0 }];
+
+      await act(async () => {
+        await markUtxosAsSpent(inputUtxos);
+        await addPendingTransaction('txid_to_invalidate', [], 'BTC', null, 100000, inputUtxos);
+      });
+
+      expect(isUtxoSpent('invalidated_input', 0)).toBe(true);
+
+      await act(async () => {
+        await invalidateTransaction('txid_to_invalidate', 'Test reason');
+      });
+
+      expect(usePendingTransactionsStore.getState().isUtxoSpent('invalidated_input', 0)).toBe(false);
+    });
+
+    it('should persist spent lock removal before pending invalidation', async () => {
+      const { addPendingTransaction, invalidateTransaction, markUtxosAsSpent } =
+        usePendingTransactionsStore.getState();
+      const inputUtxos = [{ txid: 'ordering_input', vout: 0 }];
+
+      await act(async () => {
+        await markUtxosAsSpent(inputUtxos);
+        await addPendingTransaction('txid_to_invalidate', [], 'BTC', null, 100000, inputUtxos);
+      });
+
+      (SecureStore.setItemAsync as jest.Mock).mockClear();
+
+      await act(async () => {
+        await invalidateTransaction('txid_to_invalidate', 'Test reason');
+      });
+
+      const keys = (SecureStore.setItemAsync as jest.Mock).mock.calls.map(([key]) => key);
+      expect(keys.indexOf('spent_utxos_0')).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf('pending_txs_0')).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf('spent_utxos_0')).toBeLessThan(keys.indexOf('pending_txs_0'));
+    });
   });
 
   describe('UTXO tracking', () => {
     it('should mark and unmark UTXOs as spent', async () => {
-      const { markUtxosAsSpent, unmarkUtxosAsSpent, isUtxoSpent } = usePendingTransactionsStore.getState();
+      const { markUtxosAsSpent, unmarkUtxosAsSpent, isUtxoSpent } =
+        usePendingTransactionsStore.getState();
 
-      await act(async () => { await markUtxosAsSpent([{ txid: 'utxo1', vout: 0 }]); });
+      await act(async () => {
+        await markUtxosAsSpent([{ txid: 'utxo1', vout: 0 }]);
+      });
       expect(usePendingTransactionsStore.getState().isUtxoSpent('utxo1', 0)).toBe(true);
 
-      await act(async () => { await unmarkUtxosAsSpent([{ txid: 'utxo1', vout: 0 }]); });
+      await act(async () => {
+        await unmarkUtxosAsSpent([{ txid: 'utxo1', vout: 0 }]);
+      });
       expect(usePendingTransactionsStore.getState().isUtxoSpent('utxo1', 0)).toBe(false);
     });
 
@@ -149,7 +341,10 @@ describe('pendingTransactionsStore', () => {
       const { markUtxosAsSpent } = usePendingTransactionsStore.getState();
 
       await act(async () => {
-        await markUtxosAsSpent([{ txid: 'txid1', vout: 0 }, { txid: 'txid2', vout: 1 }]);
+        await markUtxosAsSpent([
+          { txid: 'txid1', vout: 0 },
+          { txid: 'txid2', vout: 1 },
+        ]);
       });
 
       const spentUtxos = usePendingTransactionsStore.getState().getSpentUtxos();
@@ -182,7 +377,9 @@ describe('pendingTransactionsStore', () => {
         await addPendingTransaction('tx_c', [], 'BTC');
       });
 
-      await act(async () => { await confirmTransaction('tx_b'); });
+      await act(async () => {
+        await confirmTransaction('tx_b');
+      });
 
       const state = usePendingTransactionsStore.getState();
       expect(Object.keys(state.pendingTransactions).length).toBe(2);
@@ -200,7 +397,9 @@ describe('pendingTransactionsStore', () => {
       await markUtxosAsSpent([{ txid: 'utxo_reset', vout: 0 }]);
     });
 
-    act(() => { resetPendingTransactionsStore(); });
+    act(() => {
+      resetPendingTransactionsStore();
+    });
 
     const state = usePendingTransactionsStore.getState();
     expect(state.pendingTransactions).toEqual({});

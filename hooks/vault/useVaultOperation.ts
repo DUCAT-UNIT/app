@@ -16,17 +16,17 @@
  */
 
 import type { VaultProfile } from '@ducat-unit/client-sdk';
-import { useCallback,useEffect,useRef,useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '../../contexts/WalletContext';
 import { useVaultData } from '../../contexts/WalletDataContext';
-import { disconnectGuardian,getGuardianClient } from '../../services/guardianService';
+import { disconnectGuardian, getGuardianClient } from '../../services/guardianService';
 import { fetchPriceQuote } from '../../services/oracleService';
 import {
-buildVaultProfile,
-computeVaultPrevoutFromTx,
+  buildVaultProfile,
+  computeVaultPrevoutFromTx,
 } from '../../services/vaultOperationsService';
-import { fetchLatestVaultHistoryTransaction,fetchVaultData } from '../../services/vaultService';
-import { createVaultWallet } from '../../services/vaultWalletService';
+import { fetchLatestVaultHistoryTransaction, fetchVaultData } from '../../services/vaultService';
+import { createVaultWallet, prefetchProtocolContract } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
@@ -34,17 +34,54 @@ import { usePrice } from '../../stores/priceStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
+import { getNotificationsEnabled } from '../../services/settingsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import {
+  getPendingVaultOperationMessage,
+  shouldBlockVaultOperationForPendingTx,
+} from '../../utils/vaultPendingGuard';
 import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
 } from '../../services/vault/pendingIssueOutputs';
+import { withVaultBuildTimeout } from '../../services/vault/operationTimeout';
 import type {
-ProcessingStep,
-UseVaultOperationResult,
-VaultOperationConfig,
-VaultWalletData,
+  ProcessingStep,
+  UseVaultOperationResult,
+  VaultOperationConfig,
+  VaultWalletData,
 } from './vaultOperationTypes';
+
+interface VaultRequestTxidLike {
+  issue_txid?: string;
+  repay_txid?: string;
+  vault_txid?: string;
+}
+
+function extractTxidsFromVaultRequest(
+  request: unknown
+): { txid?: string; vaultTxid: string } | null {
+  if (!request || typeof request !== 'object') {
+    return null;
+  }
+
+  const txRequest = request as VaultRequestTxidLike;
+  if (typeof txRequest.vault_txid !== 'string' || txRequest.vault_txid.length === 0) {
+    return null;
+  }
+
+  return {
+    txid: txRequest.issue_txid || txRequest.repay_txid,
+    vaultTxid: txRequest.vault_txid,
+  };
+}
+
+function txidResultsMatch(
+  left: { txid?: string; vaultTxid: string },
+  right: { txid?: string; vaultTxid: string }
+): boolean {
+  return left.txid === right.txid && left.vaultTxid === right.vaultTxid;
+}
 
 /**
  * Base hook for all vault operations
@@ -73,7 +110,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   } = config;
 
   // Wallet and price context
-  const { wallet } = useWallet();
+  const { wallet, currentAccount } = useWallet();
   const { btcPrice } = usePrice();
   const { vaultData: contextVaultData } = useVaultData();
 
@@ -102,11 +139,17 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   } = actions;
 
   // Global store actions
-  const setPendingTransaction = usePendingVaultTransactionStore(
-    (s) => s.setPendingTransaction
+  const setPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.setPendingTransactionForAccount
   );
+  const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.clearPendingTransactionForAccount
+  );
+  const pendingVaultTransaction = usePendingVaultTransactionStore((s) => s.pendingTransaction);
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
+  const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
+  const unmarkUtxosAsSpent = usePendingTransactionsStore((s) => s.unmarkUtxosAsSpent);
   const showSnackbar = useNotificationStore((s) => s.showSnackbar);
 
   // Operation state
@@ -156,14 +199,10 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       vaultId: contextVaultData.vaultId,
     });
 
+    prefetchProtocolContract();
+
     return true;
-  }, [
-    wallet?.taprootPubkey,
-    contextVaultData,
-    setError,
-    setCurrentVaultData,
-    operationName,
-  ]);
+  }, [wallet?.taprootPubkey, contextVaultData, setError, setCurrentVaultData, operationName]);
 
   /**
    * Build VaultProfile from current vault data
@@ -174,14 +213,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     }
 
     try {
-      const vaultData = await fetchVaultData(wallet.taprootPubkey);
+      const vaultData = await withVaultBuildTimeout(
+        fetchVaultData(wallet.taprootPubkey),
+        'Vault data request timed out. Please check your connection and try again.',
+        25000
+      );
 
       if (!vaultData?.vaultInfo || !vaultData.vaultId) {
         logger.error(`[${operationName}] No vault info available`);
         return null;
       }
 
-      const latestTx = await fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540);
+      const latestTx = await withVaultBuildTimeout(
+        fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540),
+        'Vault history request timed out. Please check your connection and try again.',
+        25000
+      );
 
       if (!latestTx) {
         logger.error(`[${operationName}] No vault history available`);
@@ -195,11 +242,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         return null;
       }
 
-      const profile = buildVaultProfile(
-        wallet.taprootPubkey,
-        vaultData.vaultInfo,
-        vaultPrevout
-      );
+      const profile = buildVaultProfile(wallet.taprootPubkey, vaultData.vaultInfo, vaultPrevout);
 
       logger.debug(`[${operationName}] VaultProfile built:`, {
         acct_id: profile.acct_id,
@@ -211,7 +254,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       return profile;
     } catch (err) {
       logger.error(`[${operationName}] Error building VaultProfile:`, { error: err });
-      return null;
+      throw err;
     }
   }, [wallet?.taprootPubkey, operationName]);
 
@@ -225,6 +268,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     // Prevent double execution
     if (operationInProgressRef.current) {
       logger.warn(`[${operationName}] Operation already in progress`);
+      return null;
+    }
+
+    if (shouldBlockVaultOperationForPendingTx(operationType, pendingVaultTransaction)) {
+      const pendingMessage = getPendingVaultOperationMessage(pendingVaultTransaction);
+      logger.warn(`[${operationName}] Blocking vault operation while prior vault tx updates`, {
+        pendingAction: pendingVaultTransaction?.action,
+        pendingTxid: pendingVaultTransaction?.vaultTxid || pendingVaultTransaction?.txid,
+      });
+      setError(pendingMessage);
+      showSnackbar({
+        title: 'Vault transaction pending',
+        description: pendingMessage,
+        type: 'warning',
+        duration: 7000,
+      });
       return null;
     }
 
@@ -245,6 +304,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       amount,
       currentUnitBorrowed,
       currentBtcLocked,
+      selectedFeeRate,
     });
 
     if (validationError) {
@@ -258,6 +318,21 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setCurrentStep('processing');
     analytics.track(VAULT_EVENTS.VAULT_OPERATION_STARTED, { operation: operationName });
 
+    let guardianSubmitAttempted = false;
+    let localVaultRecoveryWrittenBeforeSubmit = false;
+    const spentInputsForPreSubmitRollback: Array<{ txid: string; vout: number }> = [];
+    const recordPreSubmitRollbackInputs = (inputs: Array<{ txid: string; vout: number }>): void => {
+      for (const input of inputs) {
+        if (
+          !spentInputsForPreSubmitRollback.some(
+            (existing) => existing.txid === input.txid && existing.vout === input.vout
+          )
+        ) {
+          spentInputsForPreSubmitRollback.push(input);
+        }
+      }
+    };
+
     try {
       // Step 1: Build VaultProfile and create config
       updateProcessingStep(1);
@@ -269,12 +344,16 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         throw new Error('Failed to build vault profile. Please try again.');
       }
 
-      const vaultWallet = await createVaultWallet({
-        segwitAddress: wallet!.segwitAddress!,
-        segwitPubkey: wallet!.segwitPubkey || '',
-        taprootAddress: wallet!.taprootAddress!,
-        taprootPubkey: wallet!.taprootPubkey || '',
-      });
+      const vaultWallet = await withVaultBuildTimeout(
+        createVaultWallet({
+          segwitAddress: wallet!.segwitAddress!,
+          segwitPubkey: wallet!.segwitPubkey || '',
+          taprootAddress: wallet!.taprootAddress!,
+          taprootPubkey: wallet!.taprootPubkey || '',
+        }),
+        'Timed out preparing the vault wallet. Please try again.',
+        25000
+      );
 
       const operationConfig = createConfig(amount, selectedFeeRate);
 
@@ -319,12 +398,117 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         vaultProfile,
       });
 
+      const persistVaultRecovery = async (recoveryResult: {
+        txid?: string;
+        vaultTxid: string;
+      }): Promise<void> => {
+        const pendingTx = createPendingTransaction({
+          config: operationConfig,
+          result: recoveryResult,
+          taprootPubkey: wallet!.taprootPubkey || '',
+        });
+
+        await setPendingTransactionForAccount(pendingTx, currentAccount);
+        localVaultRecoveryWrittenBeforeSubmit = !guardianSubmitAttempted;
+
+        if (recoveryResult.txid) {
+          const livePendingTransactions =
+            usePendingTransactionsStore.getState().pendingTransactions;
+          const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
+            request as {
+              issue_txhex?: string;
+              repay_txhex?: string;
+              vault_txhex?: string;
+            },
+            wallet,
+            livePendingTransactions
+          );
+          recordPreSubmitRollbackInputs(spentInputs);
+
+          for (const spentInput of spentInputs) {
+            if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
+              await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+            }
+          }
+
+          if (spentInputs.length > 0) {
+            await markUtxosAsSpent(spentInputs);
+          }
+
+          if (outputs.length > 0 || spentInputs.length > 0) {
+            await addPendingTransaction(
+              recoveryResult.txid,
+              outputs,
+              'UNIT',
+              parentTxid,
+              pendingTx.unitAmt,
+              spentInputs
+            );
+          }
+        }
+
+        const shouldTrackVaultTx =
+          Boolean(recoveryResult.vaultTxid) && recoveryResult.vaultTxid !== recoveryResult.txid;
+        if (shouldTrackVaultTx) {
+          const latestPendingTransactions =
+            usePendingTransactionsStore.getState().pendingTransactions;
+          const finalizationPendingData = extractVaultFinalizationPendingData(
+            request as {
+              issue_txhex?: string;
+              repay_txhex?: string;
+              vault_txhex?: string;
+            },
+            wallet,
+            latestPendingTransactions
+          );
+          recordPreSubmitRollbackInputs(finalizationPendingData.spentInputs);
+
+          for (const spentInput of finalizationPendingData.spentInputs) {
+            if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
+              await markUtxoAsSpent(spentInput.txid, spentInput.vout);
+            }
+          }
+
+          if (finalizationPendingData.spentInputs.length > 0) {
+            await markUtxosAsSpent(finalizationPendingData.spentInputs);
+          }
+
+          if (
+            finalizationPendingData.outputs.length > 0 ||
+            finalizationPendingData.spentInputs.length > 0
+          ) {
+            await addPendingTransaction(
+              recoveryResult.vaultTxid,
+              finalizationPendingData.outputs,
+              'BTC',
+              finalizationPendingData.parentTxid,
+              undefined,
+              finalizationPendingData.spentInputs
+            );
+          }
+        }
+      };
+
       // Step 4: Submit to guardian
       updateProcessingStep(4);
       logger.debug(`[${operationName}] Step 4: Submitting to guardian...`);
 
+      const requestTxids = extractTxidsFromVaultRequest(request);
+      if (!requestTxids) {
+        throw new Error(
+          `${operationName} request did not include transaction IDs; refusing to submit without a recovery checkpoint.`
+        );
+      }
+      await persistVaultRecovery(requestTxids);
+
+      guardianSubmitAttempted = true;
       const result = await sendRequest(gclient, request);
       const { txid, vaultTxid: resultVaultTxid } = extractResult(result);
+      const resultTxids = { txid, vaultTxid: resultVaultTxid };
+
+      if (!txidResultsMatch(requestTxids, resultTxids)) {
+        await persistVaultRecovery(resultTxids);
+      }
 
       // Update store
       if (hasIssueTxid && setIssueTxid && txid) {
@@ -334,74 +518,6 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       if (!deferSuccessTransition) {
         setCurrentStep('success');
       }
-
-      // Track pending transaction
-      const pendingTx = createPendingTransaction({
-        config: operationConfig,
-        result: { txid, vaultTxid: resultVaultTxid },
-        taprootPubkey: wallet!.taprootPubkey || '',
-      });
-
-      if (txid) {
-        const livePendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
-        const { outputs, spentInputs, parentTxid } = extractVaultIssuePendingData(
-          request as {
-            issue_txhex?: string;
-            vault_txhex?: string;
-          },
-          wallet,
-          livePendingTransactions,
-        );
-
-        for (const spentInput of spentInputs) {
-          if (livePendingTransactions[spentInput.txid]?.status === 'pending') {
-            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
-          }
-        }
-
-        if (outputs.length > 0) {
-          await addPendingTransaction(
-            txid,
-            outputs,
-            'UNIT',
-            parentTxid,
-            pendingTx.unitAmt,
-            spentInputs,
-          );
-        }
-
-        const latestPendingTransactions = usePendingTransactionsStore.getState().pendingTransactions;
-        const finalizationPendingData = extractVaultFinalizationPendingData(
-          request as {
-            issue_txhex?: string;
-            vault_txhex?: string;
-          },
-          wallet,
-          latestPendingTransactions,
-        );
-
-        for (const spentInput of finalizationPendingData.spentInputs) {
-          if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
-            await markUtxoAsSpent(spentInput.txid, spentInput.vout);
-          }
-        }
-
-        if (
-          resultVaultTxid !== txid &&
-          finalizationPendingData.outputs.length > 0
-        ) {
-          await addPendingTransaction(
-            resultVaultTxid,
-            finalizationPendingData.outputs,
-            'BTC',
-            finalizationPendingData.parentTxid,
-            undefined,
-            finalizationPendingData.spentInputs,
-          );
-        }
-      }
-
-      await setPendingTransaction(pendingTx);
 
       // Show confirmation snackbar
       showSnackbar({
@@ -415,27 +531,50 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         txid,
         vault_txid: resultVaultTxid,
       });
-      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, { operation: operationName });
+      analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, {
+        operation: operationName,
+      });
 
-      // Register vault TX for push-notification monitoring (fire-and-forget)
-      watchTransaction(
-        resultVaultTxid,
-        wallet?.segwitAddress || '',
-        'vault transaction'
-      );
+      // Register vault TX for push-notification monitoring only when explicitly enabled.
+      if (await getNotificationsEnabled()) {
+        void watchTransaction(resultVaultTxid, wallet?.segwitAddress || '', 'vault transaction');
+      }
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : `${operationName} operation failed`;
+      const errorMessage = err instanceof Error ? err.message : `${operationName} operation failed`;
       const errorStack = err instanceof Error ? err.stack : undefined;
       logger.error(`[${operationName}] Error:`, {
         message: errorMessage,
         stack: errorStack,
       });
-      analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, { operation: operationName, error: errorMessage });
-      setError(errorMessage);
+      if (!guardianSubmitAttempted) {
+        if (spentInputsForPreSubmitRollback.length > 0) {
+          try {
+            await unmarkUtxosAsSpent(spentInputsForPreSubmitRollback);
+          } catch (rollbackError) {
+            logger.error(`[${operationName}] Failed to roll back pre-submit vault UTXO locks:`, {
+              error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+            });
+          }
+        }
+
+        if (localVaultRecoveryWrittenBeforeSubmit) {
+          try {
+            await clearPendingTransactionForAccount(currentAccount);
+          } catch (clearError) {
+            logger.error(`[${operationName}] Failed to clear pre-submit vault recovery lock:`, {
+              error: clearError instanceof Error ? clearError.message : String(clearError),
+            });
+          }
+        }
+      }
+      analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, {
+        operation: operationName,
+        error: errorMessage,
+      });
       setCurrentStep('confirm');
+      setError(errorMessage);
       return null;
     } finally {
       operationInProgressRef.current = false;
@@ -449,6 +588,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     selectedFeeRate,
     currentUnitBorrowed,
     currentBtcLocked,
+    pendingVaultTransaction,
     operationName,
     operationType,
     needsReservation,
@@ -469,9 +609,13 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setCurrentStep,
     updateProcessingStep,
     buildVaultProfileFromData,
-    setPendingTransaction,
+    setPendingTransactionForAccount,
+    currentAccount,
+    clearPendingTransactionForAccount,
     addPendingTransaction,
     markUtxoAsSpent,
+    markUtxosAsSpent,
+    unmarkUtxosAsSpent,
     showSnackbar,
   ]);
 

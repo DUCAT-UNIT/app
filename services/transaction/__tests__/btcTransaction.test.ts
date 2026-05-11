@@ -29,7 +29,10 @@ jest.mock('bitcoinjs-lib', () => {
         const txid = match ? match[1] : 'tx1';
 
         // C-02: UTXO value verification - output values must match UTXO values
-        const utxoValues = (global as Record<string, unknown>).__mockUtxoValues as Record<string, number>;
+        const utxoValues = (global as Record<string, unknown>).__mockUtxoValues as Record<
+          string,
+          number
+        >;
         const utxoValue = utxoValues[txid] ?? 100000;
 
         return {
@@ -146,8 +149,9 @@ describe('btcTransaction', () => {
         { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
       ]);
 
-      await expect(createBtcIntent(recipient, 'invalid', segwitAddress, 0))
-        .rejects.toThrow('Invalid amount');
+      await expect(createBtcIntent(recipient, 'invalid', segwitAddress, 0)).rejects.toThrow(
+        'Invalid amount'
+      );
     });
 
     it('should throw error for zero amount', async () => {
@@ -155,8 +159,9 @@ describe('btcTransaction', () => {
         { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
       ]);
 
-      await expect(createBtcIntent(recipient, '0', segwitAddress, 0))
-        .rejects.toThrow('Invalid amount');
+      await expect(createBtcIntent(recipient, '0', segwitAddress, 0)).rejects.toThrow(
+        'Invalid amount'
+      );
     });
 
     it('should throw error for negative amount', async () => {
@@ -164,15 +169,17 @@ describe('btcTransaction', () => {
         { txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } },
       ]);
 
-      await expect(createBtcIntent(recipient, '-0.001', segwitAddress, 0))
-        .rejects.toThrow('Invalid amount');
+      await expect(createBtcIntent(recipient, '-0.001', segwitAddress, 0)).rejects.toThrow(
+        'Invalid amount'
+      );
     });
 
     it('should throw error when no UTXOs available', async () => {
       (fetchUtxos as jest.Mock).mockResolvedValue([]);
 
-      await expect(createBtcIntent(recipient, amount, segwitAddress, 0))
-        .rejects.toThrow('No confirmed funds available');
+      await expect(createBtcIntent(recipient, amount, segwitAddress, 0)).rejects.toThrow(
+        'No confirmed funds available'
+      );
     });
 
     it('should throw error for insufficient funds', async () => {
@@ -198,6 +205,37 @@ describe('btcTransaction', () => {
       expect(result.inputs[0].txid).toBe('unconf_tx');
     });
 
+    it('should ignore pending UTXOs when current explorer UTXOs can fund the BTC send', async () => {
+      const currentUtxos = [
+        { txid: 'current_tx', vout: 0, value: 200000, status: { confirmed: true } },
+      ];
+      const stalePendingUtxos = [
+        { txid: 'stale_pending_tx', vout: 0, value: 200000, status: { confirmed: false } },
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(currentUtxos);
+      registerUtxoValues(currentUtxos);
+
+      const result = await createBtcIntent(recipient, amount, segwitAddress, 0, stalePendingUtxos);
+
+      expect(result.inputs).toHaveLength(1);
+      expect(result.inputs[0].txid).toBe('current_tx');
+    });
+
+    it('should use pending UTXOs when current explorer UTXOs cannot fund the BTC send', async () => {
+      const currentUtxos = [
+        { txid: 'current_tx', vout: 0, value: 50000, status: { confirmed: true } },
+      ];
+      const pendingUtxos = [
+        { txid: 'pending_tx', vout: 0, value: 100000, status: { confirmed: false } },
+      ];
+      (fetchUtxos as jest.Mock).mockResolvedValue(currentUtxos);
+      registerUtxoValues([...currentUtxos, ...pendingUtxos]);
+
+      const result = await createBtcIntent(recipient, amount, segwitAddress, 0, pendingUtxos);
+
+      expect(result.inputs.map((input) => input.txid)).toEqual(['current_tx', 'pending_tx']);
+    });
+
     it('should filter out spent UTXOs', async () => {
       const utxos = [
         { txid: 'spent_tx', vout: 0, value: 200000, status: { confirmed: true } },
@@ -209,8 +247,8 @@ describe('btcTransaction', () => {
 
       const result = await createBtcIntent(recipient, amount, segwitAddress, 0, [], spentUtxos);
 
-      expect(result.inputs.some(i => i.txid === 'spent_tx')).toBe(false);
-      expect(result.inputs.some(i => i.txid === 'available_tx')).toBe(true);
+      expect(result.inputs.some((i) => i.txid === 'spent_tx')).toBe(false);
+      expect(result.inputs.some((i) => i.txid === 'available_tx')).toBe(true);
     });
 
     it('should include fee and change in result', async () => {
@@ -244,8 +282,9 @@ describe('btcTransaction', () => {
         status: 404,
       });
 
-      await expect(createBtcIntent(recipient, amount, segwitAddress, 0))
-        .rejects.toThrow('Failed to fetch transaction tx1: HTTP 404');
+      await expect(createBtcIntent(recipient, amount, segwitAddress, 0)).rejects.toThrow(
+        'Failed to fetch transaction tx1: HTTP 404'
+      );
     });
 
     it('should use multiple UTXOs when needed', async () => {

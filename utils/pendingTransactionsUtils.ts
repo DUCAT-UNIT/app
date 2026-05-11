@@ -42,6 +42,7 @@ export interface PendingTransaction {
   outputs: TransactionOutput[];
   parentTxid?: string;
   assetType?: string;
+  inputUtxos?: TransactionInput[];
 }
 
 export interface UnconfirmedUTXO extends TransactionOutput {
@@ -132,6 +133,7 @@ export function getUnconfirmedUTXOsFromPending(
   spentUtxos: Set<string> = new Set()
 ): UnconfirmedUTXO[] {
   const utxos: UnconfirmedUTXO[] = [];
+  const pendingInputKeys = getPendingInputUtxoKeys(pendingTransactions);
 
   Object.values(pendingTransactions).forEach(tx => {
     // Only include pending transactions (not invalid)
@@ -145,6 +147,10 @@ export function getUnconfirmedUTXOsFromPending(
         }
         if (spentUtxos.has(key)) {
           logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (already spent):', { key });
+          return;
+        }
+        if (pendingInputKeys.has(key)) {
+          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (spent by pending input):', { key });
           return;
         }
 
@@ -350,20 +356,56 @@ export function convertSpentKeysToUtxos(
     });
 }
 
+export function getPendingInputUtxoKeys(
+  pendingTransactions: Record<string, PendingTransaction> | null | undefined
+): Set<string> {
+  const keys = new Set<string>();
+
+  if (!pendingTransactions) {
+    return keys;
+  }
+
+  Object.values(pendingTransactions).forEach((transaction) => {
+    if (transaction.status !== 'pending') {
+      return;
+    }
+
+    transaction.inputUtxos?.forEach(({ txid, vout }) => {
+      keys.add(`${txid}:${vout}`);
+    });
+  });
+
+  return keys;
+}
+
 /**
  * Release orphaned/spent UTXOs - utility to clean up after failed transactions
  * @param getSpentUtxos - Function that returns the Set of spent UTXO keys
  * @param unmarkFn - Function to unmark UTXOs as spent
+ * @param getPendingTransactions - Optional function returning pending transactions whose inputs must stay locked
  * @returns Promise<void>
  */
 export async function releaseOrphanedUtxos(
   getSpentUtxos: () => Set<string>,
-  unmarkFn: (utxos: Array<{ txid: string; vout: number }>) => Promise<void>
+  unmarkFn: (utxos: Array<{ txid: string; vout: number }>) => Promise<void>,
+  getPendingTransactions?: () => Record<string, PendingTransaction>
 ): Promise<void> {
   const currentSpent = getSpentUtxos();
-  if (currentSpent.size > 0) {
-    const utxosToRelease = convertSpentKeysToUtxos(currentSpent);
+  if (currentSpent.size === 0) {
+    return;
+  }
+
+  const protectedKeys = getPendingInputUtxoKeys(getPendingTransactions?.());
+  const releasableKeys = Array.from(currentSpent).filter((key) => !protectedKeys.has(key));
+
+  if (releasableKeys.length > 0) {
+    const utxosToRelease = convertSpentKeysToUtxos(releasableKeys);
     await unmarkFn(utxosToRelease);
     logger.debug('Released orphaned UTXOs:', { count: utxosToRelease.length });
+  }
+
+  const protectedCount = currentSpent.size - releasableKeys.length;
+  if (protectedCount > 0) {
+    logger.debug('Kept pending transaction input locks:', { count: protectedCount });
   }
 }

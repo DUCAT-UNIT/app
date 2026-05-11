@@ -155,6 +155,20 @@ export default StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.BORDER_COLOR,
   },
+  balanceText: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Regular',
+    color: COLORS.SECONDARY_TEXT,
+    marginTop: -12,
+    marginBottom: 16,
+  },
+  warningText: {
+    fontSize: 13,
+    fontFamily: 'CabinetGrotesk-Medium',
+    color: COLORS.ERROR || '#FF6B8A',
+    marginTop: -12,
+    marginBottom: 16,
+  },
   textAreaWrapper: {
     alignItems: 'flex-start',
   },
@@ -195,7 +209,10 @@ export default StyleSheet.create({
     minHeight: 52,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    backgroundColor: COLORS.CARD_BG,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_COLOR,
+    opacity: 0.75,
   },
   buttonText: {
     fontSize: 16,

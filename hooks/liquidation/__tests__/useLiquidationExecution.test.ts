@@ -29,6 +29,20 @@ jest.mock('../../../services/liquidation/execution', () => ({
   executeLiquidation: jest.fn(),
 }));
 
+jest.mock('../../../services/liquidation/swapService', () => ({
+  waitForMempool: jest.fn(),
+  broadcastSwapTx: jest.fn(),
+}));
+
+jest.mock('../../../services/liquidation/liquidationSwapBroadcastRecovery', () => ({
+  savePendingLiquidationSwapBroadcast: jest.fn().mockResolvedValue(undefined),
+  clearPendingLiquidationSwapBroadcast: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../../../services/transactionHistoryService', () => ({
+  registerSwapTxid: jest.fn(),
+}));
+
 jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -43,10 +57,14 @@ import {
   recomputePartialVaultProfile,
 } from '../../../services/liquidation/calculations';
 import { executeLiquidation } from '../../../services/liquidation/execution';
+import { waitForMempool } from '../../../services/liquidation/swapService';
+import { savePendingLiquidationSwapBroadcast } from '../../../services/liquidation/liquidationSwapBroadcastRecovery';
 
 const mockSelectItems = selectItemsForAmount as jest.Mock;
 const mockRecomputePartial = recomputePartialVaultProfile as jest.Mock;
 const mockExecuteLiquidation = executeLiquidation as jest.Mock;
+const mockWaitForMempool = waitForMempool as jest.Mock;
+const mockSavePendingLiquidationSwapBroadcast = savePendingLiquidationSwapBroadcast as jest.Mock;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -131,6 +149,7 @@ const DEFAULT_PARAMS = {
   vaultDebt: 3_000,
   btcPrice: 80_000,
   vaultData: MOCK_VAULT_DATA,
+  currentAccount: 0,
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -145,6 +164,7 @@ describe('useLiquidationExecution', () => {
     mockSelectItems.mockReturnValue([makeFullVault()]);
     mockExecuteLiquidation.mockResolvedValue({ success: true, txid: 'abc123', vaultTxid: 'abc123' });
     mockRecomputePartial.mockResolvedValue(makePartialVault());
+    mockWaitForMempool.mockResolvedValue(false);
   });
 
   describe('execute', () => {
@@ -229,6 +249,83 @@ describe('useLiquidationExecution', () => {
         expect(pending!.txid).toBe('pendingtx');
         expect(pending!.action).toBe('repo');
         expect(pending!.vaultPubkey).toBe(MOCK_WALLET.taprootPubkey);
+      });
+
+      it('registers the repo pending lock from the pre-submit request callback', async () => {
+        mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
+          await onRequestCreated({
+            txid: 'pre-submit-repo-txid',
+            vaultTxid: 'pre-submit-repo-txid',
+            request: {},
+          });
+          throw new Error('interrupted after request persistence');
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const pending = usePendingVaultTransactionStore.getState().pendingTransaction;
+        expect(pending).not.toBeNull();
+        expect(pending!.txid).toBe('pre-submit-repo-txid');
+        expect(pending!.action).toBe('repo');
+      });
+
+      it('saves liquidation swap recovery from the pre-submit request callback', async () => {
+        const vault = makeFullVault({ unit: 77 });
+        mockSelectItems.mockReturnValue([vault]);
+        mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
+          await onRequestCreated({
+            txid: 'pre-submit-repo-txid',
+            vaultTxid: 'pre-submit-repo-txid',
+            request: {},
+            swapPsbtHex: 'pre-submit-swap-hex',
+          });
+          throw new Error('interrupted after request persistence');
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        expect(mockSavePendingLiquidationSwapBroadcast).toHaveBeenCalledWith({
+          repoTxid: 'pre-submit-repo-txid',
+          swapTxHex: 'pre-submit-swap-hex',
+          unitAmount: 77,
+          createdAt: expect.any(Number),
+        });
+      });
+
+      it('durably saves a liquidation swap broadcast before waiting for repo mempool', async () => {
+        const vault = makeFullVault({ unit: 123 });
+        mockSelectItems.mockReturnValue([vault]);
+        useLiquidationFlowStore.getState().setVaultData([], [vault], 0, 0, 0);
+        mockExecuteLiquidation.mockResolvedValue({
+          success: true,
+          txid: 'repo-txid',
+          vaultTxid: 'repo-txid',
+          swapPsbtHex: 'finalized-swap-hex',
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        expect(mockSavePendingLiquidationSwapBroadcast).toHaveBeenCalledWith({
+          repoTxid: 'repo-txid',
+          swapTxHex: 'finalized-swap-hex',
+          unitAmount: 123,
+          createdAt: expect.any(Number),
+        });
+        expect(mockSavePendingLiquidationSwapBroadcast.mock.invocationCallOrder[0]).toBeLessThan(
+          mockWaitForMempool.mock.invocationCallOrder[0],
+        );
       });
 
       it('should compute deficitBtc as sum of claimAmountBtc for full vaults', async () => {

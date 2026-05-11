@@ -127,7 +127,8 @@ describe('TransactionBuildContext', () => {
       mockWallet.segwitAddress,
       0,
       [], // unconfirmed UTXOs
-      [] // spent UTXOs
+      [], // spent UTXOs
+      undefined
     );
     expect(result.current!.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -325,7 +326,8 @@ describe('TransactionBuildContext', () => {
       mockWallet.segwitAddress,
       0,
       [], // unconfirmed UTXOs
-      []  // spent UTXOs
+      [], // spent UTXOs
+      undefined
     );
   });
 
@@ -391,7 +393,8 @@ describe('TransactionBuildContext', () => {
       mockWallet.segwitAddress,
       0,
       mockUnconfirmedUtxos,
-      []
+      [],
+      undefined
     );
     expect(result.current!.sendIntent).toEqual(mockIntent);
   });

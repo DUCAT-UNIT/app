@@ -1,4 +1,5 @@
 import {
+  recoverConfirmedRedemptionTracking,
   reconcileSubmittedEvmTransactionCheckpoints,
   type EvmTransactionCheckpointReconciliationResult,
 } from './evmTransactionCheckpointService';
@@ -62,6 +63,7 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
 
   try {
     evmCheckpoints = await reconcileSubmittedEvmTransactionCheckpoints();
+    await recoverConfirmedRedemptionTracking();
   } catch (error) {
     const appError = classifyError(error);
     errors.push({

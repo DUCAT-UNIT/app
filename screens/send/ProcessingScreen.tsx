@@ -16,6 +16,7 @@ import { useSendFlow,type AssetType } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
 import { isE2E } from '../../utils/e2e';
 import { logger } from '../../utils/logger';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
 
 /**
  * Route parameters for ProcessingScreen
@@ -28,7 +29,10 @@ interface ProcessingRouteParams {
   isTurbo?: boolean;
   mintQuoteId?: string;
   mintAmount?: number;
+  mintClaimAmount?: number;
   turboRecipient?: string;
+  senderTaprootAddress?: string;
+  cashuUnit?: CashuUnit;
   assetType?: AssetType;
   amount?: string;
   recipient?: string;
@@ -59,7 +63,14 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   const isTurbo = route.params?.isTurbo === true;
   const mintQuoteId = route.params?.mintQuoteId;
   const mintAmount = route.params?.mintAmount;
+  const mintClaimAmount = route.params?.mintClaimAmount;
   const turboRecipient = route.params?.turboRecipient; // Original recipient for P2PK locking
+  const senderTaprootAddress = route.params?.senderTaprootAddress;
+  const cashuUnit = normalizeCashuUnit(route.params?.cashuUnit, DEFAULT_CASHU_UNIT);
+  const snackbarAction =
+    sendAssetType === 'unit'
+      ? (isTurbo ? 'swap' : 'unit_send')
+      : (isTurbo && cashuUnit === 'sat' ? 'btc_swap' : 'btc_send');
 
   // Helper to handle navigation errors - dismiss modal if coming from Settings
   const handleNavigationError = (errorMessage: string): void => {
@@ -76,9 +87,9 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
     navigationErrorTimerRef.current = setTimeout(() => {
       navigationErrorTimerRef.current = null;
       showSnackbar({
-      type: 'error',
-      message: errorMessage,
-      action: sendAssetType === 'unit' ? 'swap' : 'btc_send',
+        type: 'error',
+        message: errorMessage,
+        action: snackbarAction,
       });
     }, 300);
     (navigationErrorTimerRef.current as { unref?: () => void }).unref?.();
@@ -95,6 +106,12 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   const paramAssetType = route.params?.assetType;
   const paramAmount = route.params?.amount;
   const paramRecipient = route.params?.recipient;
+  const hasRouteSendParams = Boolean(paramAssetType && paramAmount && paramRecipient);
+  const routeSendParamsReady =
+    !hasRouteSendParams ||
+    (sendAssetType === paramAssetType &&
+      sendAmount === paramAmount &&
+      sendRecipient === paramRecipient);
 
   // Set send flow params from route if provided (for Cashu mint)
   useEffect(() => {
@@ -162,9 +179,10 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   // Start the action when screen mounts
   useEffect(() => {
     if (!hasStarted.current && action === 'create_intent') {
-      // For Cashu mint flow, wait for send flow state to be set from route params
-      if (isCashuMint && (!sendAssetType || !sendAmount || !sendRecipient)) {
-        // State not ready yet, wait for next render
+      // Mint/top-up routes provide the actual funding recipient and amount via
+      // route params. Wait until those values are reflected in the send store so
+      // we never build a PSBT from stale pre-navigation send state.
+      if (hasRouteSendParams && !routeSendParamsReady) {
         return;
       }
 
@@ -190,7 +208,10 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
                 isTurbo,
                 mintQuoteId,
                 mintAmount,
+                mintClaimAmount,
                 turboRecipient,
+                senderTaprootAddress,
+                cashuUnit,
                 cashuMint: isCashuMint,
                 quoteId: cashuQuoteId,
                 skipMint: false,
@@ -210,7 +231,10 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
                 isTurbo,
                 mintQuoteId,
                 mintAmount,
+                mintClaimAmount,
                 turboRecipient,
+                senderTaprootAddress,
+                cashuUnit,
                 cashuMint: isCashuMint,
                 quoteId: cashuQuoteId,
                 skipMint: false, // Let ConfirmationScreen handle the mint
@@ -232,7 +256,18 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       return () => { cancelled = true; clearTimeout(timer); };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [action, sendAssetType, sendAmount, sendRecipient, isCashuMint, isTurbo, mintQuoteId, cashuQuoteId]);
+  }, [
+    action,
+    sendAssetType,
+    sendAmount,
+    sendRecipient,
+    hasRouteSendParams,
+    routeSendParamsReady,
+    isTurbo,
+    mintQuoteId,
+    cashuQuoteId,
+    senderTaprootAddress,
+  ]);
 
   // Watch for intentStep changes after creating intent
   const hasNavigated = useRef(false);
@@ -249,7 +284,10 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
             isTurbo,
             mintQuoteId,
             mintAmount,
+            mintClaimAmount,
             turboRecipient,
+            senderTaprootAddress,
+            cashuUnit,
             cashuMint: isCashuMint,
             quoteId: cashuQuoteId,
           })

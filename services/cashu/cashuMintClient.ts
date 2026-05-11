@@ -6,9 +6,14 @@
 export {
   MINT_URL,
   CASHU_UNIT,
+  CASHU_BTC_UNIT,
   RUNE_ID,
   getMintInfo,
+  assertOnchainCashuMintSupport,
   assertOnchainUnitMintSupport,
+  mintRequiresDleqProofs,
+  mintSupportsNut12Dleq,
+  mintSupportsOnchainCashuUnit,
   mintSupportsOnchainUnit,
   getKeysets,
   getKeys,
@@ -21,7 +26,8 @@ export {
   checkMeltQuote,
   meltTokens,
   swapTokens,
-  checkProofsSpent
+  restoreSignatures,
+  checkProofsSpent,
 } from './mintClient';
 
 export type {
@@ -35,5 +41,5 @@ export type {
   MeltQuote,
   MeltResponse,
   ProofState,
-  CheckStateResponse
+  CheckStateResponse,
 } from './mintClient';

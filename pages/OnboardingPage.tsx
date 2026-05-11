@@ -39,7 +39,8 @@ export default function OnboardingPage(props: OnboardingPageProps) {
   const { screen, ...state } = useOnboardingStateMachine(props);
 
   return (
-    <View style={screen === 'welcome' ? localStyles.welcomeContainer : localStyles.container}
+    <View
+      style={screen === 'welcome' ? localStyles.welcomeContainer : localStyles.container}
       testID={screen === 'welcome' ? 'onboarding-page' : undefined}
     >
       <MutinynetBanner />
@@ -51,7 +52,7 @@ export default function OnboardingPage(props: OnboardingPageProps) {
 
 function renderScreen(
   screen: OnboardingScreen,
-  state: Omit<ReturnType<typeof useOnboardingStateMachine>, 'screen'>,
+  state: Omit<ReturnType<typeof useOnboardingStateMachine>, 'screen'>
 ): React.ReactElement {
   switch (screen) {
     case 'passkey_pin_create': {
@@ -60,8 +61,13 @@ function renderScreen(
       return (
         <PasskeyPinInput
           title={state.confirmingPin ? 'Confirm your PIN' : 'Create a 6-digit PIN'}
-          subtitle={state.confirmingPin ? 'Enter your PIN again to confirm' : 'This PIN secures your wallet'}
-          pin={currentPin} setPin={setCurrentPin} onPinComplete={state.handlePinEntry}
+          subtitle={
+            state.confirmingPin ? 'Enter your PIN again to confirm' : 'This PIN secures your wallet'
+          }
+          pin={currentPin}
+          setPin={setCurrentPin}
+          onPinComplete={state.handlePinEntry}
+          isLoading={state.isCreating}
           onCancel={() => {
             state.setShowPinInput(false);
             state.setPasskeyPin('');
@@ -74,8 +80,10 @@ function renderScreen(
     case 'passkey_pin_restore':
       return (
         <PasskeyPinInput
-          title="Enter your PIN" subtitle="Enter the PIN you created with your passkey wallet"
-          pin={state.restorePin} setPin={state.setRestorePin}
+          title="Enter your PIN"
+          subtitle="Enter the PIN you created with your passkey wallet"
+          pin={state.restorePin}
+          setPin={state.setRestorePin}
           onPinComplete={state.restoreWalletWithPasskey}
           onCancel={() => {
             state.setRestorePin('');
@@ -88,10 +96,12 @@ function renderScreen(
     case 'pin_setup':
       return (
         <PinSetupScreen
-          changingPin={state.changingPin} isBiometricSupported={state.isBiometricSupported}
+          changingPin={state.changingPin}
+          isBiometricSupported={state.isBiometricSupported}
           onPinSetupComplete={state.handlePinSetupComplete}
           onPinChangeComplete={state.handlePinChangeComplete}
-          onCancel={state.handleCancelPinChange} fetchBalance={state.fetchBalance}
+          onCancel={state.handleCancelPinChange}
+          fetchBalance={state.fetchBalance}
         />
       );
 

@@ -23,6 +23,7 @@ jest.mock('../../hooks/useVaultDataFetch', () => ({
 jest.mock('../WalletContext', () => ({
   useWallet: jest.fn(() => ({
     wallet: { taprootAddress: 'tb1pvault' },
+    currentAccount: 0,
   })),
 }));
 
@@ -39,10 +40,13 @@ const mockPendingVaultStore = {
     action: string;
   },
   clearPendingTransaction: jest.fn(),
+  clearPendingTransactionForAccount: jest.fn(),
 };
 
 jest.mock('../../stores/pendingVaultTransactionStore', () => {
-  const usePendingVaultTransactionStore = jest.fn((selector) => selector(mockPendingVaultStore)) as jest.Mock & {
+  const usePendingVaultTransactionStore = jest.fn((selector) =>
+    selector(mockPendingVaultStore)
+  ) as jest.Mock & {
     getState: jest.Mock;
   };
   usePendingVaultTransactionStore.getState = jest.fn(() => mockPendingVaultStore);
@@ -98,19 +102,30 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const mockUseVaultDataFetch = useVaultDataFetch as jest.MockedFunction<typeof useVaultDataFetch>;
-const mockUsePendingVaultTransactionStore = usePendingVaultTransactionStore as unknown as jest.Mock & {
-  getState: jest.Mock;
-};
+const mockUsePendingVaultTransactionStore =
+  usePendingVaultTransactionStore as unknown as jest.Mock & {
+    getState: jest.Mock;
+  };
 const mockUseNotificationStore = useNotificationStore as unknown as { getState: jest.Mock };
 const mockUseSendFlowStore = useSendFlowStore as unknown as { getState: jest.Mock };
-const mockSendLocalNotification = sendLocalNotification as jest.MockedFunction<typeof sendLocalNotification>;
-const mockGetNotificationsEnabled = getNotificationsEnabled as jest.MockedFunction<typeof getNotificationsEnabled>;
+const mockSendLocalNotification = sendLocalNotification as jest.MockedFunction<
+  typeof sendLocalNotification
+>;
+const mockGetNotificationsEnabled = getNotificationsEnabled as jest.MockedFunction<
+  typeof getNotificationsEnabled
+>;
 const mockAnalyticsTrack = analytics.track as jest.Mock;
 const mockIsE2E = isE2E as jest.MockedFunction<typeof isE2E>;
-const mockAsyncStorageGetItem = AsyncStorage.getItem as jest.MockedFunction<typeof AsyncStorage.getItem>;
-const mockAsyncStorageSetItem = AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>;
+const mockAsyncStorageGetItem = AsyncStorage.getItem as jest.MockedFunction<
+  typeof AsyncStorage.getItem
+>;
+const mockAsyncStorageSetItem = AsyncStorage.setItem as jest.MockedFunction<
+  typeof AsyncStorage.setItem
+>;
 
-function makeVault(overrides: Partial<ReturnType<typeof useVaultDataFetch>> = {}): ReturnType<typeof useVaultDataFetch> {
+function makeVault(
+  overrides: Partial<ReturnType<typeof useVaultDataFetch>> = {}
+): ReturnType<typeof useVaultDataFetch> {
   return {
     vaultData: null,
     vaultTransactions: [],
@@ -143,10 +158,13 @@ describe('VaultContext', () => {
     jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
     mockPendingVaultStore.pendingTransaction = null;
     mockPendingVaultStore.clearPendingTransaction = jest.fn();
+    mockPendingVaultStore.clearPendingTransactionForAccount = jest.fn();
     mockNotificationStore.snackbar = null;
     mockNotificationStore.showSnackbar = jest.fn();
     mockSendFlowStore.intentStep = 'idle';
-    mockUsePendingVaultTransactionStore.mockImplementation((selector) => selector(mockPendingVaultStore));
+    mockUsePendingVaultTransactionStore.mockImplementation((selector) =>
+      selector(mockPendingVaultStore)
+    );
     mockUsePendingVaultTransactionStore.getState = jest.fn(() => mockPendingVaultStore);
     mockUseNotificationStore.getState = jest.fn(() => mockNotificationStore);
     mockUseSendFlowStore.getState = jest.fn(() => mockSendFlowStore);
@@ -173,7 +191,7 @@ describe('VaultContext', () => {
       create(
         <VaultProvider>
           <Consumer onValue={onValue} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
 
@@ -188,19 +206,29 @@ describe('VaultContext', () => {
     };
     mockUseVaultDataFetch.mockReturnValue(
       makeVault({
-        vaultTransactions: [{ transaction_id: 'vault-txid' }] as never,
-      }),
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'vault-txid',
+            vault_amount: 50_000,
+            amount_borrowed: 10_000,
+          },
+        ] as never,
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
 
-    expect(mockPendingVaultStore.clearPendingTransaction).toHaveBeenCalled();
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
     expect(mockNotificationStore.showSnackbar).toHaveBeenCalledWith({
       type: 'success',
       action: 'open',
@@ -217,26 +245,70 @@ describe('VaultContext', () => {
     mockSendFlowStore.intentStep = 'review';
     mockUseVaultDataFetch.mockReturnValue(
       makeVault({
-        vaultTransactions: [{ transaction_id: 'issue-txid' }] as never,
-      }),
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'issue-txid',
+            vault_amount: 50_000,
+            amount_borrowed: 10_000,
+          },
+        ] as never,
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
 
-    expect(mockPendingVaultStore.clearPendingTransaction).toHaveBeenCalled();
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
+    expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('keeps pending vault transactions until vault balances reflect the history update', () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'deposit-txid',
+      vaultTxid: 'deposit-txid',
+      action: 'deposit',
+    };
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.00005,
+          totalDebt: 0,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'deposit-txid',
+            vault_amount: 6_000,
+            amount_borrowed: 0,
+          },
+        ] as never,
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+
+    expect(mockPendingVaultStore.clearPendingTransaction).not.toHaveBeenCalled();
     expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
   });
 
   it('sends throttled warning health notifications when vaults cross under 200%', async () => {
-    mockAsyncStorageGetItem.mockImplementation(async (key) => (
+    mockAsyncStorageGetItem.mockImplementation(async (key) =>
       key === 'vault_health_last_band' ? 'safe' : null
-    ));
+    );
     mockUseVaultDataFetch.mockReturnValue(
       makeVault({
         vaultData: {
@@ -245,14 +317,14 @@ describe('VaultContext', () => {
             unit_borrowed: 100,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();
@@ -264,7 +336,7 @@ describe('VaultContext', () => {
     });
     expect(mockAsyncStorageSetItem).toHaveBeenCalledWith(
       'vault_health_warning_last_alert',
-      '1700000000000',
+      '1700000000000'
     );
     expect(mockAnalyticsTrack).toHaveBeenCalledWith('vault_health_warning', {
       health_percent: 180,
@@ -281,30 +353,27 @@ describe('VaultContext', () => {
             unit_borrowed: 100,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();
 
     expect(mockSendLocalNotification).not.toHaveBeenCalled();
-    expect(mockAsyncStorageSetItem).toHaveBeenCalledWith(
-      'vault_health_last_band',
-      'warning',
-    );
+    expect(mockAsyncStorageSetItem).toHaveBeenCalledWith('vault_health_last_band', 'warning');
     expect(mockAnalyticsTrack).not.toHaveBeenCalled();
   });
 
   it('sends critical health notifications when collateral ratio is already a percentage', async () => {
-    mockAsyncStorageGetItem.mockImplementation(async (key) => (
+    mockAsyncStorageGetItem.mockImplementation(async (key) =>
       key === 'vault_health_last_band' ? 'safe' : null
-    ));
+    );
     mockUseVaultDataFetch.mockReturnValue(
       makeVault({
         vaultData: {
@@ -313,14 +382,14 @@ describe('VaultContext', () => {
             unit_borrowed: 100,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();
@@ -332,7 +401,7 @@ describe('VaultContext', () => {
     });
     expect(mockAsyncStorageSetItem).toHaveBeenCalledWith(
       'vault_health_critical_last_alert',
-      '1700000000000',
+      '1700000000000'
     );
     expect(mockAnalyticsTrack).toHaveBeenCalledWith('vault_health_warning', {
       health_percent: 160,
@@ -349,23 +418,20 @@ describe('VaultContext', () => {
             unit_borrowed: 100,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();
 
     expect(mockSendLocalNotification).not.toHaveBeenCalled();
-    expect(mockAsyncStorageSetItem).toHaveBeenCalledWith(
-      'vault_health_last_band',
-      'critical',
-    );
+    expect(mockAsyncStorageSetItem).toHaveBeenCalledWith('vault_health_last_band', 'critical');
     expect(mockAnalyticsTrack).not.toHaveBeenCalled();
   });
 
@@ -379,14 +445,14 @@ describe('VaultContext', () => {
             unit_borrowed: 0,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();
@@ -405,14 +471,14 @@ describe('VaultContext', () => {
             unit_borrowed: 100,
           },
         } as never,
-      }),
+      })
     );
 
     act(() => {
       create(
         <VaultProvider>
           <Consumer onValue={jest.fn()} />
-        </VaultProvider>,
+        </VaultProvider>
       );
     });
     await flushEffects();

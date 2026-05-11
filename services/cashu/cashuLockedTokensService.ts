@@ -6,6 +6,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
 import { DEVICE_ONLY } from '../storagePolicy';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from './cashuUnits';
 
 const SENT_TOKENS_KEY = 'sent_turbo_tokens';
 const RECEIVED_TOKENS_KEY = 'received_turbo_tokens';
@@ -47,14 +48,15 @@ export interface BaseTokenRecord {
   taprootAddress: string | null;
   id: string;
   claimed?: boolean;
+  claimedAt?: number | null;
   partiallySpent?: boolean;
+  unit?: CashuUnit;
 }
 
 export interface TokenRecord extends BaseTokenRecord {
   recipient: string;
   txid: string | null;
   shortUrl: string | null;
-  claimedAt?: number | null;
 }
 
 export interface ReceivedTokenRecord extends BaseTokenRecord {
@@ -65,6 +67,88 @@ export interface ReceivedTokenRecord extends BaseTokenRecord {
 /** Union type for any ecash token (sent or received) */
 export type EcashTokenRecord = TokenRecord | ReceivedTokenRecord;
 
+const tokenTimestamp = (token: Pick<BaseTokenRecord, 'timestamp'>): number =>
+  Number.isFinite(token.timestamp) ? token.timestamp : 0;
+
+const limitStoredTokens = <T extends BaseTokenRecord>(tokens: T[]): T[] =>
+  [...tokens]
+    .sort((a, b) => tokenTimestamp(a) - tokenTimestamp(b))
+    .slice(-MAX_STORED_TOKENS);
+
+const limitStoredSentTokens = (tokens: TokenRecord[]): TokenRecord[] => {
+  const activeTokens = tokens.filter((token) => token.claimed !== true);
+  const claimedTokens = tokens.filter((token) => token.claimed === true);
+  const claimedSlots = Math.max(0, MAX_STORED_TOKENS - activeTokens.length);
+  const keptClaimedTokens = claimedSlots > 0 ? limitStoredTokens(claimedTokens).slice(-claimedSlots) : [];
+
+  return [...activeTokens, ...keptClaimedTokens]
+    .sort((a, b) => tokenTimestamp(a) - tokenTimestamp(b));
+};
+
+const sortTokensNewestFirst = <T extends BaseTokenRecord>(tokens: T[]): T[] =>
+  [...tokens].sort((a, b) => tokenTimestamp(b) - tokenTimestamp(a));
+
+const quarantineCorruptTokenStorage = async (
+  storageKey: string,
+  stored: string,
+  reason: string
+): Promise<void> => {
+  const quarantineKey = `${storageKey}_corrupt_${Date.now()}`;
+  try {
+    await SecureStore.setItemAsync(quarantineKey, stored, DEVICE_ONLY);
+    logger.warn('Quarantined corrupt Cashu token storage', {
+      storageKey,
+      quarantineKey,
+      reason,
+    });
+  } catch (error) {
+    logger.error('Failed to quarantine corrupt Cashu token storage', {
+      storageKey,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+const loadTokenRecords = async <T extends BaseTokenRecord>(
+  storageKey: string,
+  label: string
+): Promise<T[]> => {
+  const tokensJson = await SecureStore.getItemAsync(storageKey);
+  if (!tokensJson) {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(tokensJson);
+  } catch (error) {
+    await quarantineCorruptTokenStorage(storageKey, tokensJson, 'invalid JSON');
+    throw new Error(`${label} token storage corrupted: invalid JSON`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    await quarantineCorruptTokenStorage(storageKey, tokensJson, 'invalid token list');
+    throw new Error(`${label} token storage corrupted: invalid token list`);
+  }
+
+  return parsed as T[];
+};
+
+const loadTokenRecordsForDisplay = async <T extends BaseTokenRecord>(
+  storageKey: string,
+  label: string
+): Promise<T[]> => {
+  try {
+    return await loadTokenRecords<T>(storageKey, label);
+  } catch (error) {
+    logger.error(`Failed to get ${label} locked tokens`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+};
+
 /**
  * Save a sent locked token with metadata
  */
@@ -74,7 +158,8 @@ export const saveSentLockedToken = async (
   amount: number,
   txid: string | null = null,
   shortUrl: string | null = null,
-  taprootAddress: string | null = null
+  taprootAddress: string | null = null,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<void> => {
   try {
     logger.info('Saving sent locked token', {
@@ -83,10 +168,11 @@ export const saveSentLockedToken = async (
       txid,
       hasShortUrl: Boolean(shortUrl),
       taprootAddress,
+      unit,
     });
 
-    // Load existing tokens
-    const existingTokens = await getSentLockedTokens();
+    // Load existing tokens strictly so corrupt history is not overwritten.
+    const existingTokens = await loadTokenRecords<TokenRecord>(SENT_TOKENS_KEY, 'sent');
 
     // Add new token with metadata
     const tokenRecord: TokenRecord = {
@@ -97,13 +183,30 @@ export const saveSentLockedToken = async (
       txid,
       shortUrl, // Store shortened URL if available
       taprootAddress, // Associate with account
+      unit,
       id: `${recipient}_${Date.now()}`, // Unique ID
     };
 
-    existingTokens.push(tokenRecord);
+    const existingIndex = existingTokens.findIndex((existing) => existing.token === token);
+    if (existingIndex >= 0) {
+      const existing = existingTokens[existingIndex];
+      existingTokens[existingIndex] = {
+        ...existing,
+        recipient,
+        amount,
+        txid: txid ?? existing.txid ?? null,
+        shortUrl: shortUrl ?? existing.shortUrl ?? null,
+        taprootAddress: taprootAddress ?? existing.taprootAddress ?? null,
+        unit: unit ?? existing.unit ?? DEFAULT_CASHU_UNIT,
+        timestamp: existing.timestamp,
+        id: existing.id,
+      };
+    } else {
+      existingTokens.push(tokenRecord);
+    }
 
     // Keep only last MAX_STORED_TOKENS to prevent storage bloat
-    const tokensToStore = existingTokens.slice(-MAX_STORED_TOKENS);
+    const tokensToStore = limitStoredSentTokens(existingTokens);
 
     await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
 
@@ -122,12 +225,7 @@ export const saveSentLockedToken = async (
  */
 export const getSentLockedTokens = async (taprootAddress: string | null = null): Promise<TokenRecord[]> => {
   try {
-    const tokensJson = await SecureStore.getItemAsync(SENT_TOKENS_KEY);
-    if (!tokensJson) {
-      return [];
-    }
-
-    const tokens: TokenRecord[] = JSON.parse(tokensJson);
+    const tokens = await loadTokenRecordsForDisplay<TokenRecord>(SENT_TOKENS_KEY, 'sent');
 
     logger.info('Getting sent locked tokens', {
       totalTokens: tokens.length,
@@ -147,7 +245,7 @@ export const getSentLockedTokens = async (taprootAddress: string | null = null):
     });
 
     // Sort by timestamp descending (newest first)
-    return filteredTokens.sort((a, b) => b.timestamp - a.timestamp);
+    return sortTokensNewestFirst(filteredTokens);
   } catch (error: unknown) {
     logger.error('Failed to get sent locked tokens', { error: (error as Error).message });
     return [];
@@ -161,7 +259,7 @@ export const deleteSentLockedToken = async (tokenId: string): Promise<void> => {
   try {
     logger.info('Deleting sent locked token', { tokenId });
 
-    const tokens = await getSentLockedTokens();
+    const tokens = await loadTokenRecords<TokenRecord>(SENT_TOKENS_KEY, 'sent');
     const filteredTokens = tokens.filter(t => t.id !== tokenId);
 
     await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(filteredTokens), DEVICE_ONLY);
@@ -176,11 +274,19 @@ export const deleteSentLockedToken = async (tokenId: string): Promise<void> => {
 /**
  * Update the claimed status of a token
  */
-export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean): Promise<void> => {
+export const updateTokenClaimedStatus = async (
+  tokenId: string,
+  claimed: boolean,
+  tokenKind: 'sent' | 'received' = 'sent'
+): Promise<void> => {
   try {
-    logger.info('Updating token claimed status', { tokenId, claimed });
+    logger.info('Updating token claimed status', { tokenId, claimed, tokenKind });
 
-    const tokens = await getSentLockedTokens();
+    const storageKey = tokenKind === 'received' ? RECEIVED_TOKENS_KEY : SENT_TOKENS_KEY;
+    const tokens = await loadTokenRecords<EcashTokenRecord>(
+      storageKey,
+      tokenKind === 'received' ? 'received' : 'sent'
+    );
     const updatedTokens = tokens.map(t => {
       if (t.id === tokenId) {
         return { ...t, claimed, claimedAt: claimed ? Date.now() : null };
@@ -188,9 +294,10 @@ export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean
       return t;
     });
 
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(updatedTokens), DEVICE_ONLY);
+    await SecureStore.setItemAsync(storageKey, JSON.stringify(updatedTokens), DEVICE_ONLY);
 
-    logger.info('Token claimed status updated', { tokenId, claimed });
+    logger.info('Token claimed status updated', { tokenId, claimed, tokenKind });
+    notifyTokenChange();
   } catch (error: unknown) {
     logger.error('Failed to update token claimed status', { error: (error as Error).message });
     throw error;
@@ -202,14 +309,35 @@ export const updateTokenClaimedStatus = async (tokenId: string, claimed: boolean
  */
 export const clearSentLockedTokens = async (): Promise<void> => {
   try {
-    logger.info('Clearing all sent locked tokens');
-    // Set to empty array instead of deleting — avoids errors if key doesn't exist
-    await SecureStore.setItemAsync(SENT_TOKENS_KEY, '[]', DEVICE_ONLY);
-    logger.info('All sent locked tokens cleared');
+    logger.info('Clearing claimed sent locked token history');
+    const tokens = await loadTokenRecords<TokenRecord>(SENT_TOKENS_KEY, 'sent');
+    const activeTokens = tokens.filter((token) => token.claimed !== true);
+    await SecureStore.setItemAsync(SENT_TOKENS_KEY, JSON.stringify(activeTokens), DEVICE_ONLY);
+    logger.info('Claimed sent locked token history cleared', {
+      removed: tokens.length - activeTokens.length,
+      activePreserved: activeTokens.length,
+    });
+    notifyTokenChange();
   } catch (error: unknown) {
     logger.error('Failed to clear sent locked tokens', { error: (error as Error).message });
     throw error;
   }
+};
+
+export const clearReceivedTokensHistory = async (): Promise<void> => {
+  try {
+    logger.info('Clearing received token history');
+    await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify([]), DEVICE_ONLY);
+    notifyTokenChange();
+  } catch (error: unknown) {
+    logger.error('Failed to clear received token history', { error: (error as Error).message });
+    throw error;
+  }
+};
+
+export const clearLockedTokensHistory = async (): Promise<void> => {
+  await clearSentLockedTokens();
+  await clearReceivedTokensHistory();
 };
 
 /**
@@ -254,29 +382,44 @@ export const saveReceivedToken = async (
   token: string,
   sender: string,
   amount: number,
-  taprootAddress: string
+  taprootAddress: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<void> => {
   try {
-    logger.info('Saving received token', { sender, amount, taprootAddress });
+    logger.info('Saving received token', { sender, amount, taprootAddress, unit });
 
-    // Load existing tokens
-    const existingTokens = await getReceivedTokens();
+    // Load existing tokens strictly so corrupt history is not overwritten.
+    const existingTokens = await loadTokenRecords<ReceivedTokenRecord>(RECEIVED_TOKENS_KEY, 'received');
 
-    // Add new token with metadata
-    const tokenRecord: ReceivedTokenRecord = {
-      token,
-      sender: sender || 'Unknown',
-      amount,
-      timestamp: Date.now(),
-      taprootAddress, // Associate with account
-      id: `received_${Date.now()}`, // Unique ID
-      type: 'receive', // Transaction type
-    };
+    const existingIndex = existingTokens.findIndex((existing) => existing.token === token);
+    if (existingIndex >= 0) {
+      const existing = existingTokens[existingIndex];
+      existingTokens[existingIndex] = {
+        ...existing,
+        sender: sender || existing.sender || 'Unknown',
+        amount,
+        taprootAddress: taprootAddress || existing.taprootAddress || null,
+        unit,
+        type: existing.type || 'receive',
+      };
+    } else {
+      // Add new token with metadata
+      const tokenRecord: ReceivedTokenRecord = {
+        token,
+        sender: sender || 'Unknown',
+        amount,
+        timestamp: Date.now(),
+        taprootAddress, // Associate with account
+        unit,
+        id: `received_${Date.now()}`, // Unique ID
+        type: 'receive', // Transaction type
+      };
 
-    existingTokens.push(tokenRecord);
+      existingTokens.push(tokenRecord);
+    }
 
     // Keep only last MAX_STORED_TOKENS to prevent storage bloat
-    const tokensToStore = existingTokens.slice(-MAX_STORED_TOKENS);
+    const tokensToStore = limitStoredTokens(existingTokens);
 
     await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
 
@@ -295,19 +438,14 @@ export const saveReceivedToken = async (
  */
 export const getReceivedTokens = async (taprootAddress: string | null = null): Promise<ReceivedTokenRecord[]> => {
   try {
-    const tokensJson = await SecureStore.getItemAsync(RECEIVED_TOKENS_KEY);
-    if (!tokensJson) {
-      return [];
-    }
-
-    const tokens: ReceivedTokenRecord[] = JSON.parse(tokensJson);
+    const tokens = await loadTokenRecordsForDisplay<ReceivedTokenRecord>(RECEIVED_TOKENS_KEY, 'received');
 
     // Filter by account if taprootAddress provided
-    if (taprootAddress) {
-      return tokens.filter(t => t.taprootAddress === taprootAddress);
-    }
+    const filteredTokens = taprootAddress
+      ? tokens.filter(t => t.taprootAddress === taprootAddress)
+      : tokens;
 
-    return tokens;
+    return sortTokensNewestFirst(filteredTokens);
   } catch (error: unknown) {
     logger.error('Failed to get received tokens', { error: (error as Error).message });
     return [];

@@ -135,6 +135,8 @@ describe('evmBridgeService native ETH transfers', () => {
 describe('evmBridgeService Sepolia error classification', () => {
   beforeEach(() => {
     jest.resetModules();
+    jest.unmock('../../stores/evmTransactionCheckpointStore');
+    jest.dontMock('../../stores/evmTransactionCheckpointStore');
   });
 
   it('classifies common Sepolia execution failures into actionable retry states', async () => {
@@ -526,6 +528,48 @@ describe('evmBridgeService Sepolia execution preflights', () => {
       releaseId: result.releaseId,
       destinationTaprootAddress: taprootDestination,
     });
+  });
+
+  it('stops after a submitted redemption if the checkpoint cannot be saved durably', async () => {
+    configurePreflightMocks({
+      ethBalance: parseEther('1'),
+      wunitBalance: 10_000_000n,
+      routerWunitAllowance: 10_000_000n,
+    });
+    const wait = jest.fn().mockResolvedValue({ hash: '0xconfirmed-burn' });
+    mockRouter.requestRedemption.mockResolvedValue({
+      hash: '0xsubmitted-burn',
+      wait,
+    });
+    const checkpointStore = require('../../stores/evmTransactionCheckpointStore');
+    const persistNow = jest
+      .spyOn(checkpointStore, 'persistEvmTransactionCheckpointsNow')
+      .mockRejectedValue(new Error('AsyncStorage full'));
+    const persistFallback = jest
+      .spyOn(checkpointStore, 'persistEvmTransactionCheckpointFallback')
+      .mockRejectedValue(new Error('SecureStore full'));
+    const { requestRedemption } = require('../evmBridgeService');
+    const { trackRedemption } = require('../bridgeApiService');
+
+    await expect(requestRedemption(0, '3', taprootDestination, 'wUNIT'))
+      .rejects
+      .toThrow(
+        'Sepolia redemption transaction 0xsubmitted-burn was submitted, but its recovery checkpoint could not be saved.'
+      );
+
+    expect(mockRouter.requestRedemption).toHaveBeenCalled();
+    expect(checkpointStore.useEvmTransactionCheckpointStore.getState().checkpoints[0]).toMatchObject({
+      kind: 'redemption',
+      txHash: '0xsubmitted-burn',
+      amount: '3.0',
+      destinationTaprootAddress: taprootDestination,
+    });
+    expect(persistNow).toHaveBeenCalled();
+    expect(persistFallback).toHaveBeenCalledWith(expect.objectContaining({
+      txHash: '0xsubmitted-burn',
+    }));
+    expect(wait).not.toHaveBeenCalled();
+    expect(trackRedemption).not.toHaveBeenCalled();
   });
 
   it('persists submitted redemption hashes when confirmation wait fails', async () => {

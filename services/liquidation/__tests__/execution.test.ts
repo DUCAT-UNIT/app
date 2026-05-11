@@ -40,6 +40,7 @@ jest.mock('../swapService', () => ({
   })),
   calculateSwapBtcAmount: jest.fn(() => 0.001),
   finalizeSwapPsbt: jest.fn(() => 'swap_tx_hex'),
+  validateSwapPsbtUnitPayout: jest.fn(),
 }));
 
 jest.mock('@ducat-unit/client-sdk', () => ({
@@ -132,11 +133,7 @@ jest.mock('../../../utils/logger', () => ({
 
 import { computeLiquidationPrice } from '../../../utils/vaultUtils';
 import { fetchPriceQuote } from '../../oracleService';
-import {
-  getGuardianClient,
-  withGuardianTimeout,
-  disconnectGuardian,
-} from '../../guardianService';
+import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../../guardianService';
 import { registerLiquidationTxid } from '../../transactionHistoryService';
 import { createVaultWallet, fetchProtocolContract } from '../../vaultWallet';
 import {
@@ -188,12 +185,14 @@ function makeHistoryTx(overrides: Record<string, unknown> = {}): Record<string, 
 }
 
 /** Factory for the mock wallet object used throughout tests */
-function makeMockWallet(overrides: {
-  repoCtxReturn?: unknown;
-  repoQuoteReturn?: unknown;
-  satsUtxosReturn?: unknown;
-  signBatchReturn?: unknown;
-} = {}) {
+function makeMockWallet(
+  overrides: {
+    repoCtxReturn?: unknown;
+    repoQuoteReturn?: unknown;
+    satsUtxosReturn?: unknown;
+    signBatchReturn?: unknown;
+  } = {}
+) {
   const mockVaultCtx = { deposit_amount: 0, tx_feerate: 10, _tag: 'vaultCtx' };
   const mockLiquidVaults = [makeLiquidVault()];
 
@@ -207,25 +206,23 @@ function makeMockWallet(overrides: {
     vault: {
       repo: {
         ctx: jest.fn().mockReturnValue(overrides.repoCtxReturn ?? mockVaultCtx),
-        quote: jest
-          .fn()
-          .mockReturnValue(overrides.repoQuoteReturn ?? { total_cost: 5000 }),
+        quote: jest.fn().mockReturnValue(overrides.repoQuoteReturn ?? { total_cost: 5000 }),
       },
     },
     fetch: {
-      sats_utxos: jest
-        .fn()
-        .mockResolvedValue(
-          overrides.satsUtxosReturn ?? [
-            { txid: 'utxo-txid-001', vout: 0, value: 100_000, script: '0014abc' },
-            { txid: 'utxo-txid-002', vout: 1, value: 200_000, script: '0014def' },
-          ]
-        ),
+      sats_utxos: jest.fn().mockResolvedValue(
+        overrides.satsUtxosReturn ?? [
+          { txid: 'utxo-txid-001', vout: 0, value: 100_000, script: '0014abc' },
+          { txid: 'utxo-txid-002', vout: 1, value: 200_000, script: '0014def' },
+        ]
+      ),
     },
     sign: {
       batch: jest
         .fn()
-        .mockResolvedValue(overrides.signBatchReturn ?? ['signed_psbt1_base64', 'signed_psbt2_base64']),
+        .mockResolvedValue(
+          overrides.signBatchReturn ?? ['signed_psbt1_base64', 'signed_psbt2_base64']
+        ),
     },
     _mockLiquidVaults: mockLiquidVaults,
   };
@@ -274,7 +271,9 @@ const mockComputeLiquidationPrice = computeLiquidationPrice as jest.MockedFuncti
 >;
 const mockFetchPriceQuote = fetchPriceQuote as jest.MockedFunction<typeof fetchPriceQuote>;
 const mockGetGuardianClient = getGuardianClient as jest.MockedFunction<typeof getGuardianClient>;
-const mockWithGuardianTimeout = withGuardianTimeout as jest.MockedFunction<typeof withGuardianTimeout>;
+const mockWithGuardianTimeout = withGuardianTimeout as jest.MockedFunction<
+  typeof withGuardianTimeout
+>;
 const mockDisconnectGuardian = disconnectGuardian as jest.MockedFunction<typeof disconnectGuardian>;
 const mockRegisterLiquidationTxid = registerLiquidationTxid as jest.MockedFunction<
   typeof registerLiquidationTxid
@@ -287,7 +286,9 @@ const mockSetPendingVaultSigningOperation = setPendingVaultSigningOperation as j
   typeof setPendingVaultSigningOperation
 >;
 const mockClearPendingVaultSigningOperation =
-  clearPendingVaultSigningOperation as jest.MockedFunction<typeof clearPendingVaultSigningOperation>;
+  clearPendingVaultSigningOperation as jest.MockedFunction<
+    typeof clearPendingVaultSigningOperation
+  >;
 const mockBuildVaultProfile = buildVaultProfile as jest.MockedFunction<typeof buildVaultProfile>;
 const mockComputeVaultPrevoutFromTx = computeVaultPrevoutFromTx as jest.MockedFunction<
   typeof computeVaultPrevoutFromTx
@@ -348,9 +349,7 @@ describe('executeLiquidation', () => {
     event_type: 'latest',
     is_expired: false,
   };
-  const mockSelectedUtxos = [
-    { txid: 'utxo-txid-001', vout: 0, value: 100_000, script: '0014abc' },
-  ];
+  const mockSelectedUtxos = [{ txid: 'utxo-txid-001', vout: 0, value: 100_000, script: '0014abc' }];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -367,24 +366,55 @@ describe('executeLiquidation', () => {
 
     // Default happy-path mocks
     mockComputeLiquidationPrice.mockReturnValue(70_000);
-    mockFetchPriceQuote.mockResolvedValue(mockOracleQuote as unknown as ReturnType<typeof fetchPriceQuote> extends Promise<infer T> ? T : never);
-    mockCreateVaultWallet.mockResolvedValue(mockWallet as unknown as ReturnType<typeof createVaultWallet> extends Promise<infer T> ? T : never);
-    mockFetchProtocolContract.mockResolvedValue(mockContract as unknown as ReturnType<typeof fetchProtocolContract> extends Promise<infer T> ? T : never);
-    mockFetchVaultHistory.mockResolvedValue([makeHistoryTx()] as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never);
-    mockComputeVaultPrevoutFromTx.mockReturnValue(mockPrevout as unknown as ReturnType<typeof computeVaultPrevoutFromTx>);
-    mockBuildVaultProfile.mockReturnValue(mockVaultProfile as unknown as ReturnType<typeof buildVaultProfile>);
+    mockFetchPriceQuote.mockResolvedValue(
+      mockOracleQuote as unknown as ReturnType<typeof fetchPriceQuote> extends Promise<infer T>
+        ? T
+        : never
+    );
+    mockCreateVaultWallet.mockResolvedValue(
+      mockWallet as unknown as ReturnType<typeof createVaultWallet> extends Promise<infer T>
+        ? T
+        : never
+    );
+    mockFetchProtocolContract.mockResolvedValue(
+      mockContract as unknown as ReturnType<typeof fetchProtocolContract> extends Promise<infer T>
+        ? T
+        : never
+    );
+    mockFetchVaultHistory.mockResolvedValue([makeHistoryTx()] as unknown as ReturnType<
+      typeof fetchVaultHistory
+    > extends Promise<infer T>
+      ? T
+      : never);
+    mockComputeVaultPrevoutFromTx.mockReturnValue(
+      mockPrevout as unknown as ReturnType<typeof computeVaultPrevoutFromTx>
+    );
+    mockBuildVaultProfile.mockReturnValue(
+      mockVaultProfile as unknown as ReturnType<typeof buildVaultProfile>
+    );
     mockGetAvailableCollateralBtc.mockReturnValue(0.005);
-    mockVaultApiRepoLiquidGetCtx.mockReturnValue(mockLiquidCtx as unknown as ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>);
-    mockSelectSatUtxos.mockReturnValue(mockSelectedUtxos as unknown as ReturnType<typeof select_sat_utxos>);
+    mockVaultApiRepoLiquidGetCtx.mockReturnValue(
+      mockLiquidCtx as unknown as ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>
+    );
+    mockSelectSatUtxos.mockReturnValue(
+      mockSelectedUtxos as unknown as ReturnType<typeof select_sat_utxos>
+    );
     mockVaultApiRepoCreatePsbt1.mockReturnValue('raw_psbt1_base64');
     mockVaultApiRepoCreatePsbt2.mockReturnValue('raw_psbt2_base64');
-    mockVaultApiRepoCreateReq.mockReturnValue({ liquid_psbt: 'signed_psbt1_base64', liquid_txid: 'signed_psbt2_base64' } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
+    mockVaultApiRepoCreateReq.mockReturnValue({
+      liquid_psbt: 'signed_psbt1_base64',
+      liquid_txid: 'signed_psbt2_base64',
+    } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
     mockFetchSwapPsbt.mockResolvedValue(null);
     mockSignPsbtRaw.mockResolvedValue('signed_swap_psbt_base64');
     mockFinalizeSwapPsbt.mockReturnValue('swap_tx_hex');
     mockSetPendingVaultSigningOperation.mockImplementation(() => undefined);
     mockClearPendingVaultSigningOperation.mockImplementation(() => undefined);
-    mockGetGuardianClient.mockResolvedValue(mockGuardian as unknown as ReturnType<typeof getGuardianClient> extends Promise<infer T> ? T : never);
+    mockGetGuardianClient.mockResolvedValue(
+      mockGuardian as unknown as ReturnType<typeof getGuardianClient> extends Promise<infer T>
+        ? T
+        : never
+    );
     mockWithGuardianTimeout.mockImplementation((op) => op);
     mockDisconnectGuardian.mockResolvedValue(undefined as never);
     mockRegisterLiquidationTxid.mockResolvedValue(undefined);
@@ -431,7 +461,11 @@ describe('executeLiquidation', () => {
 
     it('should call computeVaultPrevoutFromTx with the first history entry', async () => {
       const historyTx = makeHistoryTx({ transaction_id: 'unique-tx-001' });
-      mockFetchVaultHistory.mockResolvedValue([historyTx, makeHistoryTx()] as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never);
+      mockFetchVaultHistory.mockResolvedValue([historyTx, makeHistoryTx()] as unknown as ReturnType<
+        typeof fetchVaultHistory
+      > extends Promise<infer T>
+        ? T
+        : never);
 
       await executeLiquidation(makeParams());
 
@@ -461,11 +495,10 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.01 }));
 
-      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
-        mockOracleQuote,
-        mockVaultProfile,
-        { deposit_amount: 0, tx_feerate: 10 }
-      );
+      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(mockOracleQuote, mockVaultProfile, {
+        deposit_amount: 0,
+        tx_feerate: 10,
+      });
     });
 
     it('should compute correct depositAmountSats when deficitAmountBtc > availableCollateral', async () => {
@@ -475,21 +508,17 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.02 }));
 
-      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
-        mockOracleQuote,
-        mockVaultProfile,
-        { deposit_amount: 1_500_000, tx_feerate: 10 }
-      );
+      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(mockOracleQuote, mockVaultProfile, {
+        deposit_amount: 1_500_000,
+        tx_feerate: 10,
+      });
     });
 
     it('should call VaultAPI.repo.liquidation.get_ctx with liquidVaults and contract', async () => {
       const params = makeParams();
       await executeLiquidation(params);
 
-      expect(mockVaultApiRepoLiquidGetCtx).toHaveBeenCalledWith(
-        params.liquidVaults,
-        mockContract
-      );
+      expect(mockVaultApiRepoLiquidGetCtx).toHaveBeenCalledWith(params.liquidVaults, mockContract);
     });
 
     it('should call wallet.vault.repo.quote with vaultCtx and liquidVaults.length', async () => {
@@ -572,8 +601,8 @@ describe('executeLiquidation', () => {
       await executeLiquidation(makeParams());
 
       expect(mockWallet.sign.batch).toHaveBeenCalledWith([
-        ['raw_psbt1_base64', { 'tb1qsegwit000000000000000000000000000000': expect.any(Array) }],
-        ['raw_psbt2_base64', { 'tb1ptaproot00000000000000000000000000000': [0, 1] }],
+        ['raw_psbt1_base64', { tb1qsegwit000000000000000000000000000000: expect.any(Array) }],
+        ['raw_psbt2_base64', { tb1ptaproot00000000000000000000000000000: [0, 1] }],
       ]);
     });
 
@@ -621,7 +650,7 @@ describe('executeLiquidation', () => {
 
       expect(mockSignPsbtRaw).toHaveBeenCalledWith(
         'swap_psbt_base64',
-        { 'tb1qsegwit000000000000000000000000000000': [0] },
+        { tb1qsegwit000000000000000000000000000000: [0] },
         {
           recipient: 'tb1qsegwit000000000000000000000000000000',
           allowOpReturn: true,
@@ -661,12 +690,11 @@ describe('executeLiquidation', () => {
       await executeLiquidation(makeParams());
 
       expect(mockSelectSatUtxos).toHaveBeenCalledWith([extraUtxo], 6000);
-      expect(mockFetchSwapPsbt).toHaveBeenCalledWith(expect.objectContaining({
-        utxos: [
-          changeUtxo,
-          extraUtxo,
-        ],
-      }));
+      expect(mockFetchSwapPsbt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          utxos: [changeUtxo, extraUtxo],
+        })
+      );
     });
 
     it('should attach contract_id and network from wallet to the request', async () => {
@@ -679,6 +707,64 @@ describe('executeLiquidation', () => {
       });
     });
 
+    it('persists the signed repo request before connecting to the guardian', async () => {
+      const callOrder: string[] = [];
+      const onRequestCreated = jest.fn(async () => {
+        callOrder.push('persist');
+      });
+      mockGetGuardianClient.mockImplementation(async () => {
+        callOrder.push('guardian');
+        return mockGuardian as unknown as ReturnType<typeof getGuardianClient> extends Promise<infer T>
+          ? T
+          : never;
+      });
+
+      await executeLiquidation(makeParams({ onRequestCreated }));
+
+      expect(onRequestCreated).toHaveBeenCalledWith({
+        txid: 'signed_psbt2_base64',
+        vaultTxid: 'signed_psbt2_base64',
+        request: expect.objectContaining({
+          liquid_txid: 'signed_psbt2_base64',
+          contract_id: 'test_contract_id',
+          network: 'mutiny',
+        }),
+      });
+      expect(callOrder).toEqual(['persist', 'guardian']);
+    });
+
+    it('includes the finalized swap transaction in the pre-submit recovery callback', async () => {
+      mockFetchSwapPsbt.mockResolvedValue({
+        psbt: 'swap_psbt_base64',
+        message: 'ok',
+        inputs: {},
+        outputs: {},
+        user_input_indices: [0],
+      } as unknown as Awaited<ReturnType<typeof fetchSwapPsbt>>);
+      const onRequestCreated = jest.fn().mockResolvedValue(undefined);
+
+      await executeLiquidation(makeParams({ onRequestCreated }));
+
+      expect(onRequestCreated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          txid: 'signed_psbt2_base64',
+          vaultTxid: 'signed_psbt2_base64',
+          swapPsbtHex: 'swap_tx_hex',
+        })
+      );
+      expect(mockGetGuardianClient).toHaveBeenCalled();
+    });
+
+    it('aborts before guardian submission when repo request recovery cannot be persisted', async () => {
+      const onRequestCreated = jest.fn().mockRejectedValue(new Error('persist failed'));
+
+      const result = await executeLiquidation(makeParams({ onRequestCreated }));
+
+      expect(result).toMatchObject({ success: false, error: 'persist failed' });
+      expect(mockGetGuardianClient).not.toHaveBeenCalled();
+      expect(mockGuardian.req.vault.repo).not.toHaveBeenCalled();
+    });
+
     it('should call getGuardianClient with vaultPubkey', async () => {
       await executeLiquidation(makeParams({ vaultPubkey: 'my_vault_pubkey' }));
 
@@ -688,10 +774,7 @@ describe('executeLiquidation', () => {
     it('should call withGuardianTimeout wrapping guardSub.resolve(60000)', async () => {
       await executeLiquidation(makeParams());
 
-      expect(mockWithGuardianTimeout).toHaveBeenCalledWith(
-        expect.anything(),
-        70_000
-      );
+      expect(mockWithGuardianTimeout).toHaveBeenCalledWith(expect.anything(), 70_000);
       expect(mockGuardianSub.resolve).toHaveBeenCalledWith(60_000);
     });
 
@@ -858,7 +941,9 @@ describe('executeLiquidation', () => {
 
   describe('vault history failures (step 3)', () => {
     it('should return error "No vault history found" when fetchVaultHistory returns null', async () => {
-      mockFetchVaultHistory.mockResolvedValue(null as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never);
+      mockFetchVaultHistory.mockResolvedValue(
+        null as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never
+      );
 
       const result = await executeLiquidation(makeParams());
 
@@ -867,7 +952,9 @@ describe('executeLiquidation', () => {
     });
 
     it('should return error "No vault history found" when fetchVaultHistory returns empty array', async () => {
-      mockFetchVaultHistory.mockResolvedValue([] as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never);
+      mockFetchVaultHistory.mockResolvedValue(
+        [] as unknown as ReturnType<typeof fetchVaultHistory> extends Promise<infer T> ? T : never
+      );
 
       const result = await executeLiquidation(makeParams());
 
@@ -1156,13 +1243,23 @@ describe('executeLiquidation', () => {
         liquid_vaults: threeVaults,
       } as unknown as ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>);
 
-      const allUtxos = [
-        { txid: 'u1', vout: 0, value: 50_000, script: '0014' },
-      ];
-      mockWallet.fetch.sats_utxos.mockResolvedValue(allUtxos as unknown as ReturnType<typeof mockWallet.fetch.sats_utxos> extends Promise<infer T> ? T : never);
-      mockSelectSatUtxos.mockReturnValue(allUtxos as unknown as ReturnType<typeof select_sat_utxos>);
+      const allUtxos = [{ txid: 'u1', vout: 0, value: 50_000, script: '0014' }];
+      mockWallet.fetch.sats_utxos.mockResolvedValue(
+        allUtxos as unknown as ReturnType<typeof mockWallet.fetch.sats_utxos> extends Promise<
+          infer T
+        >
+          ? T
+          : never
+      );
+      mockSelectSatUtxos.mockReturnValue(
+        allUtxos as unknown as ReturnType<typeof select_sat_utxos>
+      );
 
-      await executeLiquidation(makeParams({ liquidVaults: threeVaults as unknown as LiquidationExecutionParams['liquidVaults'] }));
+      await executeLiquidation(
+        makeParams({
+          liquidVaults: threeVaults as unknown as LiquidationExecutionParams['liquidVaults'],
+        })
+      );
 
       const batchCallArg = mockWallet.sign.batch.mock.calls[0][0];
       const [, utxoManifest] = batchCallArg[0];
@@ -1174,7 +1271,9 @@ describe('executeLiquidation', () => {
       const fiveVaults = Array.from({ length: 5 }, () => makeLiquidVault());
 
       await executeLiquidation(
-        makeParams({ liquidVaults: fiveVaults as unknown as LiquidationExecutionParams['liquidVaults'] })
+        makeParams({
+          liquidVaults: fiveVaults as unknown as LiquidationExecutionParams['liquidVaults'],
+        })
       );
 
       expect(mockWallet.vault.repo.quote).toHaveBeenCalledWith(expect.anything(), 5);

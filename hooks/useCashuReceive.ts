@@ -7,7 +7,17 @@ import { useState, useCallback, useEffect, useRef, Dispatch, SetStateAction } fr
 import { Alert } from 'react-native';
 import { CommonActions, NavigationProp } from '@react-navigation/native';
 import { logger } from '../utils/logger';
-import type { MintQuoteResult, ReceiveTokenResult } from '../services/cashu/cashuWalletService';
+import {
+  decodeTokenMetadata,
+  type MintQuoteResult,
+  type ReceiveTokenResult,
+} from '../services/cashu/cashuWalletService';
+import {
+  DEFAULT_CASHU_UNIT,
+  cashuUnitTokenSymbol,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
 
 type ReceiveMode = 'choose' | 'mint' | 'receive';
 
@@ -23,6 +33,9 @@ interface UseCashuReceiveParams {
   receive: (token: string) => Promise<ReceiveTokenResult>;
   navigation: NavigationProp<Record<string, object | undefined>>;
   initialMode?: ReceiveMode;
+  cashuUnit?: CashuUnit;
+  senderTaprootAddress?: string;
+  availableRunesCents?: number;
 }
 
 interface UseCashuReceiveReturn {
@@ -38,9 +51,22 @@ interface UseCashuReceiveReturn {
   handleStartMint: () => Promise<void>;
   handleReceiveToken: () => Promise<void>;
   handleAutoMint: () => Promise<void>;
-  handleCopyAddress: (address: string | undefined, setStringAsync: (value: string) => Promise<boolean>) => Promise<void>;
+  handleCopyAddress: (
+    address: string | undefined,
+    setStringAsync: (value: string) => Promise<boolean>
+  ) => Promise<void>;
   resetMintQuote: () => void;
 }
+
+const formatCashuAmount = (amount: number, unit: CashuUnit): string =>
+  unit === 'sat'
+    ? (amount / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '')
+    : (amount / 100).toFixed(2);
+
+const formatOnchainFundingAmount = (amountSmallestUnits: number, unit: CashuUnit): string =>
+  unit === 'sat'
+    ? (amountSmallestUnits / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '')
+    : (amountSmallestUnits / 100).toString();
 
 export function useCashuReceive({
   startMint,
@@ -48,6 +74,9 @@ export function useCashuReceive({
   receive,
   navigation,
   initialMode,
+  cashuUnit = DEFAULT_CASHU_UNIT,
+  senderTaprootAddress,
+  availableRunesCents,
 }: UseCashuReceiveParams): UseCashuReceiveReturn {
   const [mode, setMode] = useState<ReceiveMode>(initialMode ?? 'choose');
   const [amount, setAmount] = useState('');
@@ -57,6 +86,12 @@ export function useCashuReceive({
   const [justCopied, setJustCopied] = useState(false);
   const mountedRef = useRef(true);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tokenSymbol = cashuUnitTokenSymbol(cashuUnit);
+  const formatMintedMessage = useCallback(
+    (mintedAmount: number) =>
+      `Minted ${formatCashuAmount(mintedAmount, cashuUnit)} ${tokenSymbol} worth of Cashu tokens`,
+    [cashuUnit, tokenSymbol]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -86,14 +121,14 @@ export function useCashuReceive({
         if (!stopped && result.completed) {
           clearInterval(interval);
           stopped = true;
-          Alert.alert(
-            'Success!',
-            `Minted ${result.amount} sats worth of Cashu tokens`,
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
-          );
+          Alert.alert('Success!', formatMintedMessage(result.amount ?? 0), [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
         }
       } catch (error: unknown) {
-        logger.error('Error checking mint:', { error: error instanceof Error ? error.message : String(error) });
+        logger.error('Error checking mint:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         checkInFlight = false;
       }
@@ -104,12 +139,24 @@ export function useCashuReceive({
       stopped = true;
       clearInterval(interval);
     };
-  }, [mintQuote, mode, checkAndCompleteMint, navigation]);
+  }, [mintQuote, mode, checkAndCompleteMint, navigation, formatMintedMessage]);
 
   const handleStartMint = useCallback(async (): Promise<void> => {
     const amountNum = parseInt(amount, 10);
     if (!amountNum || amountNum <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid amount');
+      return;
+    }
+
+    if (
+      cashuUnit !== 'sat' &&
+      availableRunesCents !== undefined &&
+      amountNum > availableRunesCents
+    ) {
+      Alert.alert(
+        'Insufficient On-chain UNIT',
+        `You only have ${(availableRunesCents / 100).toFixed(2)} on-chain UNIT available to mint.`
+      );
       return;
     }
 
@@ -127,7 +174,7 @@ export function useCashuReceive({
         setIsLoading(false);
       }
     }
-  }, [amount, startMint]);
+  }, [amount, availableRunesCents, cashuUnit, startMint]);
 
   const handleReceiveToken = useCallback(async (): Promise<void> => {
     if (!pasteValue.trim()) {
@@ -138,10 +185,24 @@ export function useCashuReceive({
     setIsLoading(true);
     try {
       const tokenToReceive = pasteValue.trim();
+      let receivedUnit = cashuUnit;
+      try {
+        const metadata = decodeTokenMetadata(tokenToReceive);
+        receivedUnit = metadata.unit ? normalizeCashuUnit(metadata.unit) : DEFAULT_CASHU_UNIT;
+      } catch (decodeError) {
+        const decodeErrorMessage =
+          decodeError instanceof Error ? decodeError.message : String(decodeError);
+        if (decodeErrorMessage.includes('Unsupported Cashu unit')) {
+          throw decodeError;
+        }
+        logger.warn('Unable to decode token unit before receive; using screen unit', {
+          error: decodeErrorMessage,
+        });
+      }
       const result = await receive(tokenToReceive);
       Alert.alert(
         'Success!',
-        `Received ${result.amount} sats worth of Cashu tokens`,
+        `Received ${formatCashuAmount(result.amount, receivedUnit)} ${cashuUnitTokenSymbol(receivedUnit)} worth of Cashu tokens`,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error: unknown) {
@@ -152,7 +213,7 @@ export function useCashuReceive({
         setIsLoading(false);
       }
     }
-  }, [pasteValue, receive, navigation]);
+  }, [pasteValue, receive, navigation, cashuUnit]);
 
   const handleAutoMint = useCallback(async (): Promise<void> => {
     const amountNum = parseInt(amount, 10);
@@ -161,9 +222,22 @@ export function useCashuReceive({
       return;
     }
 
+    if (
+      cashuUnit !== 'sat' &&
+      availableRunesCents !== undefined &&
+      amountNum > availableRunesCents
+    ) {
+      Alert.alert(
+        'Insufficient On-chain UNIT',
+        `You only have ${(availableRunesCents / 100).toFixed(2)} on-chain UNIT available to mint.`
+      );
+      return;
+    }
+
     setIsLoading(true);
     try {
       const quote = await startMint(amountNum);
+      const fundingAmountSmallestUnits = quote.amount ?? amountNum;
 
       navigation.dispatch(
         CommonActions.navigate({
@@ -175,8 +249,11 @@ export function useCashuReceive({
               action: 'create_intent',
               cashuMint: true,
               quoteId: quote.quoteId,
-              assetType: 'unit',
-              amount: amountNum.toString(),
+              mintAmount: quote.amount ?? amountNum,
+              cashuUnit,
+              senderTaprootAddress,
+              assetType: cashuUnit === 'sat' ? 'btc' : 'unit',
+              amount: formatOnchainFundingAmount(fundingAmountSmallestUnits, cashuUnit),
               recipient: quote.depositAddress,
             },
           },
@@ -190,27 +267,33 @@ export function useCashuReceive({
         setIsLoading(false);
       }
     }
-  }, [amount, startMint, navigation]);
+  }, [amount, availableRunesCents, startMint, navigation, cashuUnit, senderTaprootAddress]);
 
-  const handleCopyAddress = useCallback(async (address: string | undefined, setStringAsync: (value: string) => Promise<boolean>): Promise<void> => {
-    if (address) {
-      await setStringAsync(address);
-      if (!mountedRef.current) {
-        return;
-      }
-      setJustCopied(true);
-      if (copyResetTimerRef.current) {
-        clearTimeout(copyResetTimerRef.current);
-      }
-      copyResetTimerRef.current = setTimeout(() => {
-        copyResetTimerRef.current = null;
-        if (mountedRef.current) {
-          setJustCopied(false);
+  const handleCopyAddress = useCallback(
+    async (
+      address: string | undefined,
+      setStringAsync: (value: string) => Promise<boolean>
+    ): Promise<void> => {
+      if (address) {
+        await setStringAsync(address);
+        if (!mountedRef.current) {
+          return;
         }
-      }, 2000);
-      (copyResetTimerRef.current as { unref?: () => void }).unref?.();
-    }
-  }, []);
+        setJustCopied(true);
+        if (copyResetTimerRef.current) {
+          clearTimeout(copyResetTimerRef.current);
+        }
+        copyResetTimerRef.current = setTimeout(() => {
+          copyResetTimerRef.current = null;
+          if (mountedRef.current) {
+            setJustCopied(false);
+          }
+        }, 2000);
+        (copyResetTimerRef.current as { unref?: () => void }).unref?.();
+      }
+    },
+    []
+  );
 
   const resetMintQuote = useCallback((): void => {
     setMintQuote(null);

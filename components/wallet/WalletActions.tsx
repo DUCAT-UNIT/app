@@ -14,6 +14,7 @@ interface WalletActionsProps {
   isPendingVaultTx: boolean;
   isLowHealth: boolean;
   hasNoDebt: boolean;
+  hasVaultCollateral: boolean;
   onRepayPress: () => void;
   onBorrowPress: () => void;
   onSendPress: () => void;
@@ -24,54 +25,59 @@ const WalletActions = React.memo(function WalletActions({
   isPendingVaultTx,
   isLowHealth,
   hasNoDebt,
+  hasVaultCollateral,
   onRepayPress,
   onBorrowPress,
   onSendPress,
   onReceivePress,
 }: WalletActionsProps): React.ReactElement {
   const { s, sf } = useResponsive();
-  const styles = useMemo(() => StyleSheet.create({
-    row: {
-      flexDirection: 'row',
-      justifyContent: 'flex-start',
-      marginLeft: s(24),
-      gap: s(12),
-    },
-    action: {
-      alignItems: 'center',
-      minWidth: s(58),
-      minHeight: s(66),
-      justifyContent: 'center',
-    },
-    actionDisabled: {
-      opacity: 0.5,
-    },
-    icon: {
-      width: s(50),
-      height: s(50),
-      borderRadius: s(8),
-      backgroundColor: '#DDDDDD',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: s(2),
-    },
-    iconDisabled: {
-      backgroundColor: '#888888',
-    },
-    iconText: {
-      fontSize: sf(24),
-      color: COLORS.DARK_BG,
-      fontWeight: '200',
-    },
-    label: {
-      fontSize: sf(13),
-      color: COLORS.WHITE,
-      fontWeight: '600',
-    },
-    labelDisabled: {
-      color: COLORS.SECONDARY_TEXT,
-    },
-  }), [s, sf]);
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        row: {
+          flexDirection: 'row',
+          justifyContent: 'flex-start',
+          marginLeft: s(24),
+          gap: s(12),
+        },
+        action: {
+          alignItems: 'center',
+          minWidth: s(58),
+          minHeight: s(66),
+          justifyContent: 'center',
+        },
+        actionDisabled: {
+          opacity: 0.5,
+        },
+        icon: {
+          width: s(50),
+          height: s(50),
+          borderRadius: s(8),
+          backgroundColor: '#DDDDDD',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: s(2),
+        },
+        iconDisabled: {
+          backgroundColor: '#888888',
+        },
+        iconText: {
+          fontSize: sf(24),
+          color: COLORS.DARK_BG,
+          fontWeight: '200',
+        },
+        label: {
+          fontSize: sf(13),
+          color: COLORS.WHITE,
+          fontWeight: '600',
+        },
+        labelDisabled: {
+          color: COLORS.SECONDARY_TEXT,
+        },
+      }),
+    [s, sf]
+  );
 
   const handleDisabledPress = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -95,49 +101,101 @@ const WalletActions = React.memo(function WalletActions({
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     useNotificationStore.getState().showSnackbar({
       title: 'No debt',
-      description: 'You have no outstanding debt to repay or borrow against',
+      description: 'You have no outstanding debt to repay',
+      type: 'warning',
+    });
+  }, []);
+
+  const handleNoVaultCollateralPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'No collateral',
+      description: 'Deposit BTC into your vault before borrowing',
       type: 'warning',
     });
   }, []);
 
   const repayDisabled = isPendingVaultTx || hasNoDebt;
-  const borrowDisabled = isPendingVaultTx || isLowHealth || hasNoDebt;
+  const borrowDisabled = isPendingVaultTx || isLowHealth || !hasVaultCollateral;
   const actionHitSlop = { top: 10, bottom: 10, left: 8, right: 8 };
 
   return (
-    <View style={styles.row} testID="wallet-actions" accessibilityRole="toolbar" accessibilityLabel="Wallet actions">
+    <View
+      style={styles.row}
+      testID="wallet-actions"
+      accessibilityRole="toolbar"
+      accessibilityLabel="Wallet actions"
+    >
       <TouchableOpacity
         style={[styles.action, repayDisabled && styles.actionDisabled]}
-        onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress}
+        onPress={
+          isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress
+        }
         testID="wallet-repay-btn"
         accessibilityRole="button"
         accessibilityLabel="Repay vault debt"
-        accessibilityHint={isPendingVaultTx ? "Disabled while transaction is pending" : hasNoDebt ? "No debt to repay" : "Opens the repay screen"}
+        accessibilityHint={
+          isPendingVaultTx
+            ? 'Disabled while transaction is pending'
+            : hasNoDebt
+              ? 'No debt to repay'
+              : 'Opens the repay screen'
+        }
         accessibilityState={{ disabled: repayDisabled }}
         hitSlop={actionHitSlop}
         pressRetentionOffset={actionHitSlop}
       >
         <View style={[styles.icon, repayDisabled && styles.iconDisabled]}>
-          <Text style={styles.iconText} accessibilityElementsHidden>↓</Text>
+          <Text style={styles.iconText} accessibilityElementsHidden>
+            ↓
+          </Text>
         </View>
-        <Text style={[styles.label, repayDisabled && styles.labelDisabled]} accessibilityElementsHidden>Repay</Text>
+        <Text
+          style={[styles.label, repayDisabled && styles.labelDisabled]}
+          accessibilityElementsHidden
+        >
+          Repay
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.action, borrowDisabled && styles.actionDisabled]}
-        onPress={isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : isLowHealth ? handleLowHealthPress : onBorrowPress}
+        onPress={
+          isPendingVaultTx
+            ? handleDisabledPress
+            : !hasVaultCollateral
+              ? handleNoVaultCollateralPress
+              : isLowHealth
+                ? handleLowHealthPress
+                : onBorrowPress
+        }
         testID="wallet-borrow-btn"
         accessibilityRole="button"
         accessibilityLabel="Borrow against vault"
-        accessibilityHint={isPendingVaultTx ? "Disabled while transaction is pending" : hasNoDebt ? "No vault to borrow from" : isLowHealth ? "Vault health too low to borrow" : "Opens the borrow screen"}
+        accessibilityHint={
+          isPendingVaultTx
+            ? 'Disabled while transaction is pending'
+            : !hasVaultCollateral
+              ? 'No vault collateral to borrow against'
+              : isLowHealth
+                ? 'Vault health too low to borrow'
+                : 'Opens the borrow screen'
+        }
         accessibilityState={{ disabled: borrowDisabled }}
         hitSlop={actionHitSlop}
         pressRetentionOffset={actionHitSlop}
       >
         <View style={[styles.icon, borrowDisabled && styles.iconDisabled]}>
-          <Text style={styles.iconText} accessibilityElementsHidden>↑</Text>
+          <Text style={styles.iconText} accessibilityElementsHidden>
+            ↑
+          </Text>
         </View>
-        <Text style={[styles.label, borrowDisabled && styles.labelDisabled]} accessibilityElementsHidden>Borrow</Text>
+        <Text
+          style={[styles.label, borrowDisabled && styles.labelDisabled]}
+          accessibilityElementsHidden
+        >
+          Borrow
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -151,9 +209,13 @@ const WalletActions = React.memo(function WalletActions({
         pressRetentionOffset={actionHitSlop}
       >
         <View style={styles.icon}>
-          <Text style={styles.iconText} accessibilityElementsHidden>-</Text>
+          <Text style={styles.iconText} accessibilityElementsHidden>
+            -
+          </Text>
         </View>
-        <Text style={styles.label} accessibilityElementsHidden>Withdraw</Text>
+        <Text style={styles.label} accessibilityElementsHidden>
+          Withdraw
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -167,9 +229,13 @@ const WalletActions = React.memo(function WalletActions({
         pressRetentionOffset={actionHitSlop}
       >
         <View style={styles.icon}>
-          <Text style={styles.iconText} accessibilityElementsHidden>+</Text>
+          <Text style={styles.iconText} accessibilityElementsHidden>
+            +
+          </Text>
         </View>
-        <Text style={styles.label} accessibilityElementsHidden>Deposit</Text>
+        <Text style={styles.label} accessibilityElementsHidden>
+          Deposit
+        </Text>
       </TouchableOpacity>
     </View>
   );

@@ -102,6 +102,27 @@ const initialState: VaultCreationState = {
   _hasHydrated: false,
 };
 
+function normalizePersistedVaultCreationStep(currentStep: VaultCreationStep): VaultCreationStep {
+  return currentStep === 'processing' || currentStep === 'success' ? 'confirm' : currentStep;
+}
+
+export function getPersistedVaultCreationState(
+  state: VaultCreationStore
+): Pick<
+  VaultCreationState,
+  'btcAmount' | 'unitAmount' | 'receiveAsset' | 'selectedFeeRate' | 'currentStep'
+> {
+  const currentStep = normalizePersistedVaultCreationStep(state.currentStep);
+
+  return {
+    btcAmount: state.btcAmount,
+    unitAmount: state.unitAmount,
+    receiveAsset: state.receiveAsset,
+    selectedFeeRate: state.selectedFeeRate,
+    currentStep,
+  };
+}
+
 export const useVaultCreationStore = create<VaultCreationStore>()(
   persist(
     (set, get) => ({
@@ -208,24 +229,24 @@ export const useVaultCreationStore = create<VaultCreationStore>()(
       name: 'vault-creation',
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist user-progress fields, NOT transient state (loading, error, txid, processingStep)
-      partialize: (state) => ({
-        btcAmount: state.btcAmount,
-        unitAmount: state.unitAmount,
-        receiveAsset: state.receiveAsset,
-        selectedFeeRate: state.selectedFeeRate,
-        currentStep: state.currentStep,
-      }),
+      partialize: getPersistedVaultCreationState,
       onRehydrateStorage: () => {
         logger.debug('[VaultCreationStore] Hydration started');
         return (state, error) => {
           if (error) {
             logger.error('[VaultCreationStore] Hydration failed:', { error });
           } else {
+            const currentStep = normalizePersistedVaultCreationStep(
+              state?.currentStep ?? initialState.currentStep
+            );
             logger.debug('[VaultCreationStore] Hydration complete:', {
               btcAmount: state?.btcAmount,
               unitAmount: state?.unitAmount,
-              currentStep: state?.currentStep,
+              currentStep,
             });
+            if (state && state.currentStep !== currentStep) {
+              useVaultCreationStore.setState({ currentStep });
+            }
           }
           useVaultCreationStore.setState({ _hasHydrated: true });
         };
@@ -261,8 +282,8 @@ export const useVaultCreation = () => {
     processingStep: store.processingStep,
     loading: store.loading,
     error: store.error,
-      txid: store.txid,
-      vaultTxid: store.vaultTxid,
+    txid: store.txid,
+    vaultTxid: store.vaultTxid,
 
     // Computed
     protocolUnitAmount,

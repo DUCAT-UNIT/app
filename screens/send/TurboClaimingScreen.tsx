@@ -35,14 +35,24 @@ export default function TurboClaimingScreen({ navigation, route }: TurboClaiming
       return;
     }
 
-    logger.cashu('claim_screen_queued_token', {
-      step: 'UI_CLAIM',
-      tokenLength: token.length,
-      message: 'Queued legacy TurboClaiming token in root processor',
+    void (async () => {
+      logger.cashu('claim_screen_queued_token', {
+        step: 'UI_CLAIM',
+        tokenLength: token.length,
+        message: 'Queued legacy TurboClaiming token in root processor',
+      });
+      await setPendingToken(token);
+      triggerTokenCheck();
+      navigation.navigate('Wallet');
+    })().catch((error) => {
+      logger.error('[TurboClaimingScreen] Failed to queue token claim', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      navigation.navigate('Wallet', {
+        claimError: 'Failed to queue token claim. Please try again.',
+        claimToken: token,
+      });
     });
-    setPendingToken(token);
-    triggerTokenCheck();
-    navigation.navigate('Wallet');
   }, [navigation, setPendingToken, tokenString, triggerTokenCheck]);
 
   return (

@@ -4,11 +4,24 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { DEVICE_ONLY, clearPreferenceItems } from './storagePolicy';
 import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
+import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from './liquidation/recoveryKeys';
+import { EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY } from '../stores/evmTransactionCheckpointStore';
+import { OPERATION_JOURNAL_STORAGE_KEY } from '../stores/operationJournalStore';
+import { PENDING_TOKEN_KEY, PENDING_TOKEN_QUEUE_KEY } from '../stores/tokenProcessingStore';
+import { TURBO_PROCESSING_STORAGE_KEY } from '../stores/turboProcessingStore';
+import { VAULT_SETTLEMENT_STORAGE_KEY } from '../stores/vaultSettlementStore';
+import {
+  LIQUIDATION_TXIDS_KEY,
+  SWAP_TXIDS_KEY,
+  SWAP_TXIDS_MIGRATION_V2_KEY,
+} from './transactionHistoryService';
+import { VAULT_SETTLEMENT_HISTORY_STORAGE_KEY } from './vaultSettlementHistoryService';
 
 let sessionMnemonic: string | null = null;
 
@@ -111,6 +124,11 @@ export const deleteMnemonic = async (): Promise<void> => {
  */
 export const saveCurrentAccount = async (accountIndex: number): Promise<boolean> => {
   try {
+    if (!Number.isInteger(accountIndex) || accountIndex < 0) {
+      logger.error('Invalid current account index', { accountIndex });
+      return false;
+    }
+
     await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString(), DEVICE_ONLY);
     return true;
   } catch (error: unknown) {
@@ -121,15 +139,28 @@ export const saveCurrentAccount = async (accountIndex: number): Promise<boolean>
 
 /**
  * Retrieve current account index from secure storage
- * @returns Account index (defaults to 0)
+ * @returns Account index (defaults to 0 only when no account has been saved yet)
  */
 export const getCurrentAccount = async (): Promise<number> => {
   try {
     const account = await SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT);
-    return account ? parseInt(account, 10) : 0;
+    if (account === null) {
+      return 0;
+    }
+
+    if (!/^\d+$/.test(account)) {
+      throw new Error(`Invalid current account index: ${account}`);
+    }
+
+    const parsed = Number(account);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error(`Invalid current account index: ${account}`);
+    }
+
+    return parsed;
   } catch (error: unknown) {
     logger.error('Failed to get current account', { error: error instanceof Error ? error.message : String(error) });
-    return 0;
+    throw error;
   }
 };
 
@@ -377,24 +408,37 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       logger.warn('Failed to clear derived keys', { error: (derivedKeyError as Error).message });
     }
 
-    const [multiAccountCacheRaw, sentLockedTokensRaw, receivedLockedTokensRaw] = await Promise.all([
+    const [multiAccountCacheRaw, sentLockedTokensRaw, receivedLockedTokensRaw, currentAccountRaw] = await Promise.all([
       SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
       SecureStore.getItemAsync('sent_turbo_tokens'),
       SecureStore.getItemAsync('received_turbo_tokens'),
+      SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
     ]);
 
-    const proofKeys = new Set<string>(['cashu_proofs']);
+    const proofKeys = new Set<string>(['cashu_proofs', 'cashu_proofs_sat']);
+    const accountScopedStorageIndexes = new Set<number>([0]);
+    const addAccountScopedStorageIndex = (value: string | number | null | undefined): void => {
+      const parsed = typeof value === 'number' ? value : Number(value);
+      if (Number.isSafeInteger(parsed) && parsed >= 0) {
+        accountScopedStorageIndexes.add(parsed);
+      }
+    };
+    addAccountScopedStorageIndex(currentAccountRaw);
+
     try {
       if (multiAccountCacheRaw) {
         const parsed = JSON.parse(multiAccountCacheRaw) as Record<string, unknown>;
-        Object.values(parsed).forEach((value) => {
+        Object.entries(parsed).forEach(([accountIndex, value]) => {
+          addAccountScopedStorageIndex(accountIndex);
           if (
             value &&
             typeof value === 'object' &&
             !Array.isArray(value) &&
             typeof (value as { taprootAddress?: unknown }).taprootAddress === 'string'
           ) {
-            proofKeys.add(`cashu_proofs_${(value as { taprootAddress: string }).taprootAddress}`);
+            const taprootAddress = (value as { taprootAddress: string }).taprootAddress;
+            proofKeys.add(`cashu_proofs_${taprootAddress}`);
+            proofKeys.add(`cashu_proofs_${taprootAddress}_sat`);
           }
         });
       }
@@ -411,6 +455,7 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
         records.forEach((record) => {
           if (record?.taprootAddress) {
             proofKeys.add(`cashu_proofs_${record.taprootAddress}`);
+            proofKeys.add(`cashu_proofs_${record.taprootAddress}_sat`);
           }
         });
       } catch (error: unknown) {
@@ -433,6 +478,37 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       });
     }
 
+    const extraSecureStoreKeys = new Set<string>();
+    const collectRegistryEntries = async (
+      registryKey: string,
+      mapEntryToStorageKey: (entry: string) => string = (entry) => entry,
+    ): Promise<void> => {
+      extraSecureStoreKeys.add(registryKey);
+      try {
+        const raw = await SecureStore.getItemAsync(registryKey);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+          logger.warn('SecureStore registry was not an array during wallet deletion', { registryKey });
+          return;
+        }
+        parsed
+          .filter((entry): entry is string => typeof entry === 'string')
+          .forEach((entry) => extraSecureStoreKeys.add(mapEntryToStorageKey(entry)));
+      } catch (error) {
+        logger.warn('Failed to parse SecureStore registry during wallet deletion', {
+          registryKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    await Promise.all([
+      collectRegistryEntries('cashu_pending_swaps_v1', (swapId) => `cashu_pending_swap_${swapId}`),
+      collectRegistryEntries('cashu_pending_turbo_sends_v1'),
+      collectRegistryEntries('cashu_failed_proof_recovery_keys_v1'),
+    ]);
+
     await clearPreferenceItems([
       'pendingFaceIdEnable',
       'pendingNotificationsEnable',
@@ -449,13 +525,34 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
     // Clear all wallet-related secure storage keys
     await Promise.all([
       ...Array.from(proofKeys).map((key) => SecureStore.deleteItemAsync(key)),
+      AsyncStorage.removeItem(LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY),
+      AsyncStorage.removeItem(EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY),
+      AsyncStorage.removeItem(OPERATION_JOURNAL_STORAGE_KEY),
+      AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY),
+      AsyncStorage.removeItem(VAULT_SETTLEMENT_STORAGE_KEY),
+      AsyncStorage.removeItem(VAULT_SETTLEMENT_HISTORY_STORAGE_KEY),
+      AsyncStorage.removeItem(SWAP_TXIDS_KEY),
+      AsyncStorage.removeItem(SWAP_TXIDS_MIGRATION_V2_KEY),
+      AsyncStorage.removeItem(LIQUIDATION_TXIDS_KEY),
+      ...Array.from(accountScopedStorageIndexes).flatMap((accountIndex) => [
+        SecureStore.deleteItemAsync(`pending_txs_${accountIndex}`),
+        SecureStore.deleteItemAsync(`spent_utxos_${accountIndex}`),
+        SecureStore.deleteItemAsync(`pending_vault_tx_${accountIndex}`),
+      ]),
       SecureStore.deleteItemAsync('cashu_pending_swap'),
+      SecureStore.deleteItemAsync('cashu_pending_swaps_v1'),
       SecureStore.deleteItemAsync('cashu_pending_mint_quotes'),
       SecureStore.deleteItemAsync('cashu_pending_turbo_send'),
+      SecureStore.deleteItemAsync('cashu_pending_turbo_sends_v1'),
+      SecureStore.deleteItemAsync('cashu_recovered_outgoing_swap_tokens_v1'),
+      SecureStore.deleteItemAsync(PENDING_TOKEN_KEY),
+      SecureStore.deleteItemAsync(PENDING_TOKEN_QUEUE_KEY),
       SecureStore.deleteItemAsync('sent_turbo_tokens'),
       SecureStore.deleteItemAsync('received_turbo_tokens'),
       SecureStore.deleteItemAsync('cashu_proof_keys_v1'),
       SecureStore.deleteItemAsync('cashu_failed_proof_recovery_keys_v1'),
+      SecureStore.deleteItemAsync('cashu_failed_proofs_latest_v1'),
+      ...Array.from(extraSecureStoreKeys).map((key) => SecureStore.deleteItemAsync(key)),
 
       // Wallet data
       SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),

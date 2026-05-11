@@ -4,7 +4,10 @@
  */
 
 import React, { useCallback } from 'react';
-import { createBtcIntent as createBtcIntentService, createUnitIntent as createUnitIntentService } from '../services/transaction';
+import {
+  createBtcIntent as createBtcIntentService,
+  createUnitIntent as createUnitIntentService,
+} from '../services/transaction';
 import { parseErrorMessage } from '../utils/errorParser';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
@@ -14,7 +17,12 @@ import { isE2E } from '../utils/e2e';
 
 import type { AssetType, IntentStep } from '../stores/sendFlowStore';
 import type { WalletAddresses } from '../contexts/WalletContext';
-import type { TransactionIntent, AddressType, UnconfirmedUTXO as PendingUnconfirmedUTXO } from '../utils/pendingTransactionsUtils';
+import type {
+  TransactionIntent,
+  AddressType,
+  UnconfirmedUTXO as PendingUnconfirmedUTXO,
+  PendingTransaction as UtilsPendingTransaction,
+} from '../utils/pendingTransactionsUtils';
 import type { UTXO } from '../services/transaction/utxoSelection';
 import type { UtxoRef } from '../types/assets';
 import type { BtcTransactionIntent, UnitTransactionIntent } from '../services/transaction';
@@ -34,7 +42,12 @@ function toUtxo(pending: PendingUnconfirmedUTXO): UTXO {
 /**
  * Convert PendingUnconfirmedUTXO to UnconfirmedUtxo format for UNIT transaction services
  */
-function toUnconfirmedUtxo(pending: PendingUnconfirmedUTXO): { txid: string; vout: number; value: number; runeAmount?: number } {
+function toUnconfirmedUtxo(pending: PendingUnconfirmedUTXO): {
+  txid: string;
+  vout: number;
+  value: number;
+  runeAmount?: number;
+} {
   return {
     txid: pending.txid,
     vout: pending.vout,
@@ -63,12 +76,17 @@ export interface UseTransactionBuilderParams {
   sendRecipient: string;
   sendAmount: string;
   sendAssetType: AssetType;
+  selectedFeeRate: number;
   requireConfirmedUtxos: boolean;
   runesBalance: RuneBalanceItem[] | null;
   sendIntent: SendIntent | null;
   setSendIntent: React.Dispatch<React.SetStateAction<SendIntent | null>>;
   setIntentStep: (step: IntentStep) => void;
-  getUnconfirmedUTXOs: (addressType?: AddressType, excludeFromIntent?: TransactionIntent | null) => PendingUnconfirmedUTXO[];
+  getUnconfirmedUTXOs: (
+    addressType?: AddressType,
+    excludeFromIntent?: TransactionIntent | null
+  ) => PendingUnconfirmedUTXO[];
+  getPendingTransactions?: () => Record<string, UtilsPendingTransaction>;
   getSpentUtxos: () => Set<string>;
   markUtxosAsSpent: (utxos: UtxoRef[]) => Promise<void>;
   unmarkUtxosAsSpent: (utxos: UtxoRef[]) => Promise<void>;
@@ -108,12 +126,14 @@ export function useTransactionBuilder({
   sendRecipient,
   sendAmount,
   sendAssetType,
+  selectedFeeRate,
   requireConfirmedUtxos,
   runesBalance,
   sendIntent,
   setSendIntent,
   setIntentStep,
   getUnconfirmedUTXOs,
+  getPendingTransactions,
   getSpentUtxos,
   markUtxosAsSpent,
   unmarkUtxosAsSpent,
@@ -132,13 +152,16 @@ export function useTransactionBuilder({
       logger.debug('[createBtcIntent] Current sendIntent:', sendIntent ? 'exists' : 'null');
 
       // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
 
       // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
       if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'BTC') {
-        const oldUtxosToRelease: UtxoRef[] = sendIntent.inputs?.map((i: UTXO) => ({ txid: i.txid, vout: i.vout })) || [];
+        const oldUtxosToRelease: UtxoRef[] =
+          sendIntent.inputs?.map((i: UTXO) => ({ txid: i.txid, vout: i.vout })) || [];
         if (oldUtxosToRelease.length > 0) {
-          logger.debug('[createBtcIntent] Releasing old intent UTXOs before rebuild:', { count: oldUtxosToRelease.length });
+          logger.debug('[createBtcIntent] Releasing old intent UTXOs before rebuild:', {
+            count: oldUtxosToRelease.length,
+          });
           await unmarkUtxosAsSpent(oldUtxosToRelease);
         }
       }
@@ -149,7 +172,7 @@ export function useTransactionBuilder({
 
       logger.debug('[createBtcIntent] Unconfirmed UTXOs from pending:', {
         count: unconfirmedUtxos.length,
-        utxos: unconfirmedUtxos.map(u => ({
+        utxos: unconfirmedUtxos.map((u) => ({
           txid: u.txid.slice(0, 16) + '...',
           vout: u.vout,
           value: u.value,
@@ -166,30 +189,47 @@ export function useTransactionBuilder({
         wallet.segwitAddress,
         currentAccount,
         unconfirmedUtxos.map(toUtxo),
-        spentUtxos
+        spentUtxos,
+        selectedFeeRate
       );
 
       // Lock UTXOs immediately
       if (intent.inputs?.length > 0) {
         logger.debug('🔒 Locking UTXOs for BTC', { count: intent.inputs.length });
-        lockedUtxos = intent.inputs.map(i => ({ txid: i.txid, vout: i.vout }));
+        lockedUtxos = intent.inputs.map((i) => ({ txid: i.txid, vout: i.vout }));
         await markUtxosAsSpent(lockedUtxos);
       }
 
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error: unknown) {
-      logger.error('Error creating BTC intent:', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('Error creating BTC intent:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       if (lockedUtxos.length > 0) {
         await unmarkUtxosAsSpent(lockedUtxos);
       }
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
 
       notify.build.error(parseErrorMessage(error));
       setTimeout(() => setIntentStep('entering_amount'), 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, sendIntent, setSendIntent, setIntentStep, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
+  }, [
+    sendRecipient,
+    sendAmount,
+    wallet,
+    currentAccount,
+    sendIntent,
+    selectedFeeRate,
+    setSendIntent,
+    setIntentStep,
+    getUnconfirmedUTXOs,
+    getPendingTransactions,
+    getSpentUtxos,
+    markUtxosAsSpent,
+    unmarkUtxosAsSpent,
+  ]);
 
   // Create UNIT transaction
   const createUnitIntent = useCallback(async () => {
@@ -214,13 +254,15 @@ export function useTransactionBuilder({
           addressType: 'taproot',
           sourceAddress: wallet.taprootAddress,
           feeAddress: wallet.segwitAddress,
-          runeUtxos: [{
-            transaction: 'e2e-mock-rune-txid',
-            vout: 0,
-            value: 600,
-            runeAmount: Math.round(parsedAmount * 100),
-            status: { confirmed: true },
-          }],
+          runeUtxos: [
+            {
+              transaction: 'e2e-mock-rune-txid',
+              vout: 0,
+              value: 600,
+              runeAmount: Math.round(parsedAmount * 100),
+              status: { confirmed: true },
+            },
+          ],
           runeUtxo: {
             transaction: 'e2e-mock-rune-txid',
             vout: 0,
@@ -245,34 +287,46 @@ export function useTransactionBuilder({
         return;
       }
 
-      const unitAmount = runesBalance && runesBalance.length > 0
-        ? (Array.isArray(runesBalance[0]) ? runesBalance[0][1] : runesBalance[0].amount)
-        : 0;
+      const unitAmount =
+        runesBalance && runesBalance.length > 0
+          ? Array.isArray(runesBalance[0])
+            ? runesBalance[0][1]
+            : runesBalance[0].amount
+          : 0;
       if (unitAmount === 0) {
         throw new Error(ERRORS.NO_UNIT_BALANCE);
       }
 
       // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
 
       // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
       if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'UNIT') {
         const oldUtxosToRelease: UtxoRef[] = [];
         if (sendIntent.runeUtxo) {
-          oldUtxosToRelease.push({ txid: sendIntent.runeUtxo.transaction, vout: sendIntent.runeUtxo.vout });
+          oldUtxosToRelease.push({
+            txid: sendIntent.runeUtxo.transaction,
+            vout: sendIntent.runeUtxo.vout,
+          });
         }
         if (sendIntent.satUtxo) {
           oldUtxosToRelease.push({ txid: sendIntent.satUtxo.txid, vout: sendIntent.satUtxo.vout });
         }
         if (oldUtxosToRelease.length > 0) {
-          logger.debug('[createUnitIntent] Releasing old intent UTXOs before rebuild:', { count: oldUtxosToRelease.length });
+          logger.debug('[createUnitIntent] Releasing old intent UTXOs before rebuild:', {
+            count: oldUtxosToRelease.length,
+          });
           await unmarkUtxosAsSpent(oldUtxosToRelease);
         }
       }
 
       // Pass null to avoid excluding old intent's UTXOs - we're starting fresh
-      const unconfirmedTaprootUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('taproot', null);
-      const unconfirmedSegwitUtxos = requireConfirmedUtxos ? [] : getUnconfirmedUTXOs('segwit', null);
+      const unconfirmedTaprootUtxos = requireConfirmedUtxos
+        ? []
+        : getUnconfirmedUTXOs('taproot', null);
+      const unconfirmedSegwitUtxos = requireConfirmedUtxos
+        ? []
+        : getUnconfirmedUTXOs('segwit', null);
       const spentUtxos = getSpentUtxos();
 
       const intent = await createUnitIntentService(
@@ -290,7 +344,7 @@ export function useTransactionBuilder({
       const utxosToLock: UtxoRef[] = [];
 
       if (intent.runeUtxos?.length) {
-        intent.runeUtxos.forEach(u => utxosToLock.push({ txid: u.transaction, vout: u.vout }));
+        intent.runeUtxos.forEach((u) => utxosToLock.push({ txid: u.transaction, vout: u.vout }));
       } else if (intent.runeUtxo) {
         utxosToLock.push({ txid: intent.runeUtxo.transaction, vout: intent.runeUtxo.vout });
       }
@@ -308,17 +362,34 @@ export function useTransactionBuilder({
       setSendIntent(intent);
       setIntentStep('reviewing');
     } catch (error: unknown) {
-      logger.error('Error creating UNIT intent:', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('Error creating UNIT intent:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       if (lockedUtxos.length > 0) {
         await unmarkUtxosAsSpent(lockedUtxos);
       }
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent);
+      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
 
       notify.build.error(parseErrorMessage(error));
       setTimeout(() => setIntentStep('entering_amount'), 100);
     }
-  }, [sendRecipient, sendAmount, wallet, currentAccount, requireConfirmedUtxos, runesBalance, sendIntent, setSendIntent, setIntentStep, getUnconfirmedUTXOs, getSpentUtxos, markUtxosAsSpent, unmarkUtxosAsSpent]);
+  }, [
+    sendRecipient,
+    sendAmount,
+    wallet,
+    currentAccount,
+    requireConfirmedUtxos,
+    runesBalance,
+    sendIntent,
+    setSendIntent,
+    setIntentStep,
+    getUnconfirmedUTXOs,
+    getPendingTransactions,
+    getSpentUtxos,
+    markUtxosAsSpent,
+    unmarkUtxosAsSpent,
+  ]);
 
   // Main create intent function
   const createSendIntent = useCallback(async () => {
@@ -341,7 +412,15 @@ export function useTransactionBuilder({
       notify.build.assetRequired();
       setTimeout(() => setIntentStep('selecting_asset'), 100);
     }
-  }, [sendRecipient, sendAmount, sendAssetType, setIntentStep, setSendRecipient, createBtcIntent, createUnitIntent]);
+  }, [
+    sendRecipient,
+    sendAmount,
+    sendAssetType,
+    setIntentStep,
+    setSendRecipient,
+    createBtcIntent,
+    createUnitIntent,
+  ]);
 
   // Cancel intent and release UTXOs
   const cancelIntent = useCallback(async () => {
@@ -360,7 +439,10 @@ export function useTransactionBuilder({
       } else if (sendIntent.assetType === 'UNIT') {
         // UNIT transactions have runeUtxo and satUtxo
         if (sendIntent.runeUtxo) {
-          utxosToRelease.push({ txid: sendIntent.runeUtxo.transaction, vout: sendIntent.runeUtxo.vout });
+          utxosToRelease.push({
+            txid: sendIntent.runeUtxo.transaction,
+            vout: sendIntent.runeUtxo.vout,
+          });
         }
         if (sendIntent.satUtxo) {
           utxosToRelease.push({ txid: sendIntent.satUtxo.txid, vout: sendIntent.satUtxo.vout });

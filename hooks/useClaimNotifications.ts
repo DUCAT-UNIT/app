@@ -129,9 +129,20 @@ export function useClaimNotifications({
                 logger.info('[useClaimNotifications] Will retry token claim after delay');
                 // Small delay to ensure wallet state is updated
                 setTimeout(() => {
-                  logger.info('[useClaimNotifications] Queueing token retry in Turbo processor...');
-                  setPendingToken(tokenToRetry);
-                  triggerTokenCheck();
+                  void (async () => {
+                    logger.info('[useClaimNotifications] Queueing token retry in Turbo processor...');
+                    await setPendingToken(tokenToRetry);
+                    triggerTokenCheck();
+                  })().catch((err: unknown) => {
+                    logger.error('[useClaimNotifications] Failed to queue token retry:', {
+                      error: err instanceof Error ? err.message : String(err),
+                    });
+                    showSnackbar({
+                      message: 'Failed to queue token retry',
+                      type: 'error',
+                      action: 'claim',
+                    });
+                  });
                 }, 100);
               } else {
                 logger.warn('[useClaimNotifications] No token to retry!');

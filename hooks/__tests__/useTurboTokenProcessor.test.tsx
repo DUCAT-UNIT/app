@@ -26,6 +26,12 @@ jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   saveReceivedToken: jest.fn().mockResolvedValue(undefined),
 }));
 
+const mockDecodeTokenMetadata = jest.fn();
+
+jest.mock('../../services/cashu/cashuWalletService', () => ({
+  decodeTokenMetadata: (...args: unknown[]) => mockDecodeTokenMetadata(...args),
+}));
+
 jest.mock('expo-crypto', () => ({
   digestStringAsync: jest.fn().mockResolvedValue('mockhash123'),
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
@@ -35,22 +41,28 @@ jest.mock('expo-crypto', () => ({
 interface MockStoreState {
   pendingToken: string | null;
   consumePendingToken: jest.Mock<string | null, []>;
-  setPendingToken: jest.Mock<void, [string]>;
-  clearPendingToken: jest.Mock<void, []>;
+  hydratePendingToken: jest.Mock<Promise<string | null>, []>;
+  setPendingToken: jest.Mock<Promise<void>, [string]>;
+  clearPendingToken: jest.Mock<void, [string?]>;
+  pauseProcessingToken: jest.Mock<void, [string]>;
   registerTokenCheckCallback: jest.Mock<void, [() => void]>;
   unregisterTokenCheckCallback: jest.Mock<void, []>;
   triggerWalletReload: jest.Mock<void, []>;
+  markTokenProcessed: jest.Mock<Promise<void>, [string]>;
 }
 
 // Create a mock store state
 let mockStoreState: MockStoreState = {
   pendingToken: null,
   consumePendingToken: jest.fn(() => null),
-  setPendingToken: jest.fn(),
+  hydratePendingToken: jest.fn().mockResolvedValue(null),
+  setPendingToken: jest.fn().mockResolvedValue(undefined),
   clearPendingToken: jest.fn(),
+  pauseProcessingToken: jest.fn(),
   registerTokenCheckCallback: jest.fn(),
   unregisterTokenCheckCallback: jest.fn(),
   triggerWalletReload: jest.fn(),
+  markTokenProcessed: jest.fn().mockResolvedValue(undefined),
 };
 
 jest.mock('../../stores/tokenProcessingStore', () => ({
@@ -64,7 +76,7 @@ jest.mock('../../stores/tokenProcessingStore', () => ({
 }));
 
 import { useTurboTokenProcessor } from '../useTurboTokenProcessor';
-import { turboGlobal } from '../../services/turbo/turboTokenStorage';
+import { markTokenAsProcessed, turboGlobal } from '../../services/turbo/turboTokenStorage';
 import { saveReceivedToken } from '../../services/cashu/cashuLockedTokensService';
 
 // Define the mock params type for testing
@@ -91,15 +103,21 @@ describe('useTurboTokenProcessor', () => {
     mockStoreState = {
       pendingToken: null,
       consumePendingToken: jest.fn(() => null),
-      setPendingToken: jest.fn(),
+      hydratePendingToken: jest.fn().mockResolvedValue(null),
+      setPendingToken: jest.fn().mockResolvedValue(undefined),
       clearPendingToken: jest.fn(),
+      pauseProcessingToken: jest.fn(),
       registerTokenCheckCallback: jest.fn(),
       unregisterTokenCheckCallback: jest.fn(),
       triggerWalletReload: jest.fn(),
+      markTokenProcessed: jest.fn().mockResolvedValue(undefined),
     };
 
     // Reset turboGlobal
     turboGlobal.pendingTurboSnackbars = [];
+    (turboGlobal as typeof turboGlobal & { pendingCashuToken?: string }).pendingCashuToken =
+      undefined;
+    mockDecodeTokenMetadata.mockReturnValue({ unit: 'unit' });
 
     mockProps = {
       isAuthenticated: true,
@@ -129,18 +147,22 @@ describe('useTurboTokenProcessor', () => {
   });
 
   it('should not register callback when not authenticated', () => {
-    renderHook(() => useTurboTokenProcessor({
-      ...mockProps,
-      isAuthenticated: false,
-    } as any));
+    renderHook(() =>
+      useTurboTokenProcessor({
+        ...mockProps,
+        isAuthenticated: false,
+      } as any)
+    );
     expect(mockStoreState.registerTokenCheckCallback).not.toHaveBeenCalled();
   });
 
   it('should not register callback when pin overlay is shown', () => {
-    renderHook(() => useTurboTokenProcessor({
-      ...mockProps,
-      shouldShowPinOverlay: true,
-    } as any));
+    renderHook(() =>
+      useTurboTokenProcessor({
+        ...mockProps,
+        shouldShowPinOverlay: true,
+      } as any)
+    );
     expect(mockStoreState.registerTokenCheckCallback).not.toHaveBeenCalled();
   });
 
@@ -175,6 +197,31 @@ describe('useTurboTokenProcessor', () => {
     expect(mockProps.receive).toHaveBeenCalledWith('cashuAtoken123');
   });
 
+  it('should clear the matching legacy global token after consuming the durable token', async () => {
+    let tokenConsumed = false;
+    mockStoreState.consumePendingToken = jest.fn(() => {
+      if (!tokenConsumed) {
+        tokenConsumed = true;
+        return 'cashuAtoken123';
+      }
+      return null;
+    });
+    (turboGlobal as typeof turboGlobal & { pendingCashuToken?: string }).pendingCashuToken =
+      'cashuAtoken123';
+
+    renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
+    });
+
+    expect(
+      (turboGlobal as typeof turboGlobal & { pendingCashuToken?: string }).pendingCashuToken
+    ).toBeUndefined();
+    expect(mockProps.receive).toHaveBeenCalledWith('cashuAtoken123');
+  });
+
   describe('processToken success', () => {
     it('should call fetchBalance and refreshCashu after success', async () => {
       let tokenConsumed = false;
@@ -196,6 +243,7 @@ describe('useTurboTokenProcessor', () => {
       await waitFor(() => {
         expect(mockProps.fetchBalance).toHaveBeenCalled();
         expect(mockProps.refreshCashu).toHaveBeenCalled();
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalled();
       });
     });
 
@@ -256,6 +304,33 @@ describe('useTurboTokenProcessor', () => {
       });
     });
 
+    it('should fail closed before receive when token declares an unsupported Cashu unit', async () => {
+      mockDecodeTokenMetadata.mockImplementationOnce(() => {
+        throw new Error('Unsupported Cashu unit: msat');
+      });
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuBunsupportedunit';
+        }
+        return null;
+      });
+
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(mockProps.receive).not.toHaveBeenCalled();
+        expect(mockStoreState.pauseProcessingToken).toHaveBeenCalledWith('cashuBunsupportedunit');
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toContain('Unsupported Cashu unit');
+      });
+    });
+
     it('should handle "already spent" error', async () => {
       mockProps.receive.mockRejectedValueOnce(new Error('Token has already spent proofs'));
       let tokenConsumed = false;
@@ -276,6 +351,93 @@ describe('useTurboTokenProcessor', () => {
 
       await waitFor(() => {
         expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('Token already claimed');
+        expect(markTokenAsProcessed).toHaveBeenCalledWith('cashuAtoken123');
+        expect(mockStoreState.markTokenProcessed).toHaveBeenCalledWith('cashuAtoken123');
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalled();
+      });
+    });
+
+    it('should clear locally duplicated pending tokens after a successful claim was interrupted', async () => {
+      mockProps.receive.mockRejectedValueOnce(new Error('Token already received'));
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuBbtctoken123';
+        }
+        return null;
+      });
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'sat' });
+
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('Token already claimed');
+        expect(markTokenAsProcessed).toHaveBeenCalledWith('cashuBbtctoken123');
+        expect(mockStoreState.markTokenProcessed).toHaveBeenCalledWith('cashuBbtctoken123');
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalled();
+      });
+    });
+
+    it('should clear pending tokens when proof state shows a prior interrupted claim spent them', async () => {
+      mockProps.receive.mockRejectedValueOnce(new Error('Token proofs are not spendable'));
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuBspenttoken123';
+        }
+        return null;
+      });
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'sat' });
+
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe('Token already claimed');
+        expect(markTokenAsProcessed).toHaveBeenCalledWith('cashuBspenttoken123');
+        expect(mockStoreState.markTokenProcessed).toHaveBeenCalledWith('cashuBspenttoken123');
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalledWith('cashuBspenttoken123');
+        expect(mockStoreState.pauseProcessingToken).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should clear unclaimable P2PK tokens instead of retrying them in a loop', async () => {
+      const errorMessage =
+        'This token is not locked to any of your accounts. Make sure you are using the correct wallet.';
+      mockProps.receive.mockRejectedValueOnce(new Error(errorMessage));
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuBwrongwallettoken';
+        }
+        return null;
+      });
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'sat' });
+
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(turboGlobal.pendingTurboSnackbars![0].message).toBe(errorMessage);
+        expect(mockStoreState.clearPendingToken).toHaveBeenCalledWith('cashuBwrongwallettoken');
+        expect(mockStoreState.pauseProcessingToken).not.toHaveBeenCalled();
+        expect(markTokenAsProcessed).not.toHaveBeenCalledWith('cashuBwrongwallettoken');
       });
     });
 
@@ -536,7 +698,12 @@ describe('useTurboTokenProcessor', () => {
     it('should poll for pending tokens at 2000ms intervals', async () => {
       renderHook(() => useTurboTokenProcessor(mockProps as any));
 
-      // Should check immediately
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Should check immediately after pending-token hydration
       expect(mockStoreState.consumePendingToken).toHaveBeenCalledTimes(1);
 
       // Advance timer by 2000ms
@@ -565,9 +732,12 @@ describe('useTurboTokenProcessor', () => {
       });
 
       // Make receive take a long time
-      mockProps.receive.mockImplementationOnce(() => new Promise(resolve => {
-        setTimeout(() => resolve({ amount: 100 }), 2000);
-      }));
+      mockProps.receive.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve({ amount: 100 }), 2000);
+          })
+      );
 
       renderHook(() => useTurboTokenProcessor(mockProps as any));
 
@@ -612,8 +782,47 @@ describe('useTurboTokenProcessor', () => {
         expect(saveReceivedToken).toHaveBeenCalledWith(
           'cashuAtoken123',
           'Turbo Claim',
-          10000, // 100 * 100
+          100,
           'tb1p...'
+        );
+        expect(mockStoreState.markTokenProcessed).toHaveBeenCalledWith('cashuAtoken123');
+      });
+    });
+
+    it('should save BTC Cashu tokens with sat unit and show BTC claim action', async () => {
+      mockDecodeTokenMetadata.mockReturnValueOnce({ unit: 'sat' });
+      mockProps.receive.mockResolvedValueOnce({ amount: 2500 });
+      let tokenConsumed = false;
+      mockStoreState.consumePendingToken = jest.fn(() => {
+        if (!tokenConsumed) {
+          tokenConsumed = true;
+          return 'cashuBbtctoken123';
+        }
+        return null;
+      });
+
+      renderHook(() => useTurboTokenProcessor(mockProps as any));
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(saveReceivedToken).toHaveBeenCalledWith(
+          'cashuBbtctoken123',
+          'Turbo Claim',
+          2500,
+          'tb1p...',
+          'sat'
+        );
+        expect(mockStoreState.markTokenProcessed).toHaveBeenCalledWith('cashuBbtctoken123');
+        expect(mockProps.showSnackbar).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'success',
+            action: 'btc_claim',
+            description: 'Successfully received 0.000025 BTC',
+          })
         );
       });
     });
@@ -641,10 +850,9 @@ describe('useTurboTokenProcessor', () => {
       // Should still complete successfully even if saveReceivedToken fails
       await waitFor(() => {
         expect(mockProps.fetchBalance).toHaveBeenCalled();
-        expect(logger.warn).toHaveBeenCalledWith(
-          '[TURBO] Failed to save to history:',
-          { message: 'Storage error' }
-        );
+        expect(logger.warn).toHaveBeenCalledWith('[TURBO] Failed to save to history:', {
+          message: 'Storage error',
+        });
       });
     });
   });
@@ -761,7 +969,9 @@ describe('useTurboTokenProcessor', () => {
           jest.advanceTimersByTime(1000);
           mockStoreState.setPendingToken(tokenToRetry);
         } catch (err) {
-          logger.error('[TURBO] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
+          logger.error('[TURBO] Failed to switch account:', {
+            error: err instanceof Error ? err.message : String(err),
+          });
           mockProps.showSnackbar({
             type: 'error',
             action: 'switch',
@@ -770,10 +980,9 @@ describe('useTurboTokenProcessor', () => {
         }
       });
 
-      expect(logger.error).toHaveBeenCalledWith(
-        '[TURBO] Failed to switch account:',
-        { error: 'Switch failed' }
-      );
+      expect(logger.error).toHaveBeenCalledWith('[TURBO] Failed to switch account:', {
+        error: 'Switch failed',
+      });
       expect(mockProps.showSnackbar).toHaveBeenCalledWith({
         type: 'error',
         action: 'switch',

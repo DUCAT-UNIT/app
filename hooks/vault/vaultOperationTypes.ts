@@ -133,6 +133,7 @@ export interface VaultValidationParams {
   amount: number;
   currentUnitBorrowed: number;
   currentBtcLocked: number;
+  selectedFeeRate: number;
 }
 
 /**

@@ -15,9 +15,17 @@ import {
   receiveP2PKToken,
   receiveToken,
 } from '../services/cashu/cashuWalletService';
+import {
+  cashuUnitDisplayName,
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
+import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
 
 interface UseRedeemCashuTokenParams {
   fetchTransactionHistory: () => Promise<void> | void;
+  taprootAddress?: string;
 }
 
 interface UseRedeemCashuTokenReturn {
@@ -33,6 +41,7 @@ interface DecodedToken {
     id?: string;
   }>;
   amount: number;
+  unit?: CashuUnit;
 }
 
 interface AccountMatch {
@@ -43,7 +52,10 @@ interface AccountMatch {
 
 const isSupportedCashuToken = (token: string): boolean => /^cashuB/i.test(token);
 
-export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuTokenParams): UseRedeemCashuTokenReturn {
+export function useRedeemCashuToken({
+  fetchTransactionHistory,
+  taprootAddress = '',
+}: UseRedeemCashuTokenParams): UseRedeemCashuTokenReturn {
   const handleRedeemToken = useCallback(() => {
     Alert.prompt(
       'Redeem Cashu Token',
@@ -71,7 +83,7 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
             try {
               const trimmedToken = tokenString.trim();
               if (!isSupportedCashuToken(trimmedToken)) {
-                Alert.alert('Error', 'Only cashuB UNIT tokens are supported');
+                Alert.alert('Error', 'Only cashuB Cashu tokens are supported');
                 return;
               }
 
@@ -98,9 +110,9 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
               });
 
               if (hasP2PKProofs) {
-                await redeemP2PKToken(trimmedToken, decoded, fetchTransactionHistory);
+                await redeemP2PKToken(trimmedToken, decoded, fetchTransactionHistory, taprootAddress);
               } else {
-                await redeemRegularToken(trimmedToken, fetchTransactionHistory);
+                await redeemRegularToken(trimmedToken, decoded, fetchTransactionHistory, taprootAddress);
               }
             } catch (error: unknown) {
               logger.cashu('manual_redeem_error', {
@@ -114,7 +126,7 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
       ],
       'plain-text'
     );
-  }, [fetchTransactionHistory]);
+  }, [fetchTransactionHistory, taprootAddress]);
 
   return { handleRedeemToken };
 }
@@ -122,7 +134,8 @@ export function useRedeemCashuToken({ fetchTransactionHistory }: UseRedeemCashuT
 async function redeemP2PKToken(
   tokenString: string,
   decoded: DecodedToken,
-  fetchTransactionHistory: () => Promise<void> | void
+  fetchTransactionHistory: () => Promise<void> | void,
+  taprootAddress: string
 ): Promise<void> {
   logger.cashu('manual_p2pk_redeem_start', {
     step: 'MANUAL_REDEEM',
@@ -164,6 +177,7 @@ async function redeemP2PKToken(
   });
 
   const accountMatch: AccountMatch | null = await findAccountForP2PKToken(recipientPubkey);
+  const unit = decoded.unit ? normalizeCashuUnit(decoded.unit) : DEFAULT_CASHU_UNIT;
 
   if (!accountMatch) {
     logger.cashu('manual_p2pk_account_not_found', {
@@ -211,7 +225,8 @@ async function redeemP2PKToken(
     message: 'Executing P2PK token redemption',
   });
 
-  await receiveP2PKToken(tokenString, accountMatch.privateKey);
+  const result = await receiveP2PKToken(tokenString, accountMatch.privateKey, undefined, unit);
+  await saveReceivedTokenForHistory(tokenString, 'Manual P2PK Redeem', result.amount, taprootAddress, unit);
   await fetchTransactionHistory();
 
   logger.cashu('manual_p2pk_redeem_success', {
@@ -220,12 +235,14 @@ async function redeemP2PKToken(
     message: 'P2PK token redeemed successfully',
   });
 
-  Alert.alert('Success', 'P2PK token redeemed successfully!');
+  Alert.alert('Success', `${cashuUnitDisplayName(unit)} P2PK token redeemed successfully!`);
 }
 
 async function redeemRegularToken(
   tokenString: string,
-  fetchTransactionHistory: () => Promise<void> | void
+  decoded: DecodedToken,
+  fetchTransactionHistory: () => Promise<void> | void,
+  taprootAddress: string
 ): Promise<void> {
   logger.cashu('manual_regular_redeem_start', {
     step: 'MANUAL_REDEEM',
@@ -233,7 +250,9 @@ async function redeemRegularToken(
     message: 'Starting regular token redemption (manual)',
   });
 
-  await receiveToken(tokenString);
+  const unit = decoded.unit ? normalizeCashuUnit(decoded.unit) : DEFAULT_CASHU_UNIT;
+  const result = await receiveToken(tokenString, unit);
+  await saveReceivedTokenForHistory(tokenString, 'Manual Redeem', result.amount, taprootAddress, unit);
   await fetchTransactionHistory();
 
   logger.cashu('manual_regular_redeem_success', {
@@ -241,5 +260,22 @@ async function redeemRegularToken(
     message: 'Regular token redeemed successfully',
   });
 
-  Alert.alert('Success', 'Token redeemed successfully!');
+  Alert.alert('Success', `${cashuUnitDisplayName(unit)} token redeemed successfully!`);
+}
+
+async function saveReceivedTokenForHistory(
+  tokenString: string,
+  sender: string,
+  amount: number,
+  taprootAddress: string,
+  unit: CashuUnit
+): Promise<void> {
+  try {
+    await saveReceivedToken(tokenString, sender, amount, taprootAddress, unit);
+  } catch (error: unknown) {
+    logger.warn('[useRedeemCashuToken] Failed to save redeemed token history', {
+      error: error instanceof Error ? error.message : String(error),
+      unit,
+    });
+  }
 }

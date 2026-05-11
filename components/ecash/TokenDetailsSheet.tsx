@@ -17,17 +17,23 @@ import { COLORS } from '../../theme';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import BottomSheet from '../common/BottomSheet';
 import Icon from '../icons';
+import {
+  cashuUnitDisplayName,
+  DEFAULT_CASHU_UNIT,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 
 interface TokenDetailsSheetProps {
   visible: boolean;
   onClose: () => void;
   recipientAddress?: string;
-  shortUrl: string;
+  shortUrl?: string | null;
   cashuToken: string;
   onCopy?: (message: string) => void;
   advancedMode?: boolean;
   claimed?: boolean;
   isSelfClaim?: boolean;
+  cashuUnit?: CashuUnit;
 }
 
 export default function TokenDetailsSheet({
@@ -35,23 +41,31 @@ export default function TokenDetailsSheet({
   onClose,
   recipientAddress,
   shortUrl,
+  cashuToken,
   onCopy,
   claimed = false,
   isSelfClaim = false,
+  cashuUnit = DEFAULT_CASHU_UNIT,
 }: TokenDetailsSheetProps) {
-  const handleCopyShortUrl = async () => {
-    await Clipboard.setStringAsync(shortUrl);
-    onCopy?.('Short URL copied');
+  const tokenLabel = cashuUnitDisplayName(cashuUnit);
+  const isBtcCashu = cashuUnit === 'sat';
+  const hasShortUrl = Boolean(shortUrl);
+  const shareValue = shortUrl || cashuToken;
+  const handleCopyToken = async () => {
+    await Clipboard.setStringAsync(shareValue);
+    onCopy?.(hasShortUrl ? 'Short URL copied' : 'Token copied');
   };
 
   const handleOpenInSafari = () => {
-    Linking.openURL(shortUrl);
+    if (shortUrl) {
+      Linking.openURL(shortUrl);
+    }
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: shortUrl,
+        message: shareValue,
       });
     } catch (error: unknown) {
       // Silently fail
@@ -63,9 +77,9 @@ export default function TokenDetailsSheet({
       {/* Header with custom content */}
       <View style={styles.customHeader}>
         <View style={styles.headerContent}>
-          <Icon name="unit_logo" size={24} color={COLORS.PRIMARY_BLUE} />
+          <Icon name={isBtcCashu ? 'btc_logo' : 'unit_logo'} size={24} color={COLORS.PRIMARY_BLUE} />
           <View style={styles.headerText}>
-            <Text style={styles.title}>Turbo UNIT</Text>
+            <Text style={styles.title}>{tokenLabel}</Text>
             <Text style={styles.subtitle}>
               {recipientAddress
                 ? `Bound to address: ${truncateAddress(recipientAddress, 5, 5)}`
@@ -78,9 +92,9 @@ export default function TokenDetailsSheet({
         </TouchableOpacity>
       </View>
 
-      {/* Shortened URL Card or Claimed/Self-Claim Warning */}
+      {/* Token Card or Claimed/Self-Claim Warning */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Shortened URL</Text>
+        <Text style={styles.sectionLabel}>{hasShortUrl ? 'Shortened URL' : 'Cashu Token'}</Text>
         {isSelfClaim ? (
           <View style={styles.selfClaimCard}>
             <Icon name="check" size={20} color={COLORS.GREEN} />
@@ -95,11 +109,11 @@ export default function TokenDetailsSheet({
           <View style={styles.card}>
             <TouchableOpacity
               style={styles.cardContent}
-              onPress={handleCopyShortUrl}
+              onPress={handleCopyToken}
               activeOpacity={0.7}
             >
               <Text style={styles.cardText} numberOfLines={1}>
-                {shortUrl}
+                {shareValue}
               </Text>
             </TouchableOpacity>
             <View style={styles.actionButtons}>
@@ -110,13 +124,15 @@ export default function TokenDetailsSheet({
               >
                 <Icon name="share" size={20} color={COLORS.PRIMARY_BLUE} />
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={handleOpenInSafari}
-                activeOpacity={0.7}
-              >
-                <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
-              </TouchableOpacity>
+              {hasShortUrl && (
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={handleOpenInSafari}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="external_link" size={20} color={COLORS.PRIMARY_BLUE} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -126,7 +142,7 @@ export default function TokenDetailsSheet({
       <View style={styles.infoBox}>
         <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
         <Text style={styles.infoText}>
-          Share this token to send Turbo UNIT. The recipient can claim it by opening the link.
+          Share this token to send {tokenLabel}. The recipient can claim it from the {hasShortUrl ? 'link' : 'token'}.
         </Text>
       </View>
     </BottomSheet>

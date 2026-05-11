@@ -4,6 +4,7 @@
  */
 
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import type { CashuUnit } from '../services/cashu/cashuUnits';
 
 // Re-export types from types/assets.d.ts
 export type { AddressTypeParam,AssetTypeParam } from '../types/assets';
@@ -14,13 +15,74 @@ export type { AddressTypeParam,AssetTypeParam } from '../types/assets';
  */
 export type SendStackParamList = {
   AssetSelector: undefined;
-  SendInput: { assetType?: string; prefillAddress?: string; prefillAmount?: string };
-  TurboLoading: undefined;
-  Review: { assetType?: string; address?: string; amount?: number };
-  Processing: undefined;
-  TurboProcessing: undefined;
+  SendInput: {
+    assetType?: string;
+    prefillAddress?: string;
+    prefillAmount?: string;
+    showInsufficientSheet?: boolean;
+    insufficientAmount?: number;
+    insufficientBalance?: number;
+    cashuUnit?: CashuUnit;
+  };
+  TurboLoading: {
+    prefillAddress?: string;
+    prefillAmount?: number;
+    assetType?: 'btc' | 'unit' | null;
+    isTurbo?: boolean;
+    mintQuoteId?: string;
+    mintAmount?: number;
+    senderTaprootAddress?: string;
+  } | undefined;
+  Review: {
+    assetType?: string;
+    address?: string;
+    amount?: number;
+    isTurbo?: boolean;
+    mintQuoteId?: string;
+    mintAmount?: number;
+    mintClaimAmount?: number;
+    turboRecipient?: string;
+    senderTaprootAddress?: string;
+    cashuUnit?: CashuUnit;
+    cashuMint?: boolean;
+    quoteId?: string;
+  };
+  Processing: {
+    action?: 'create_intent' | 'sign_and_broadcast';
+    fromScreen?: string;
+    cashuMint?: boolean;
+    quoteId?: string;
+    isTurbo?: boolean;
+    mintQuoteId?: string;
+    mintAmount?: number;
+    mintClaimAmount?: number;
+    turboRecipient?: string;
+    senderTaprootAddress?: string;
+    cashuUnit?: CashuUnit;
+    assetType?: 'btc' | 'unit' | null;
+    amount?: string;
+    recipient?: string;
+  } | undefined;
+  TurboProcessing: { cashuUnit?: CashuUnit; senderTaprootAddress?: string } | undefined;
   TurboClaiming: { tokenString?: string; token?: string; tokenAmount?: number };
-  Confirmation: { txid?: string; amount?: number };
+  Confirmation: {
+    txid?: string;
+    amount?: number;
+    isTurbo?: boolean;
+    mintQuoteId?: string;
+    mintAmount?: number;
+    mintClaimAmount?: number;
+    turboRecipient?: string;
+    senderTaprootAddress?: string;
+    cashuUnit?: CashuUnit;
+    skipMint?: boolean;
+    cashuMint?: boolean;
+    quoteId?: string;
+    broadcastedTxid?: string;
+    turboToken?: string;
+    turboDeeplink?: string;
+    turboAmount?: number;
+  };
 };
 
 /**
@@ -135,8 +197,8 @@ export type WalletStackParamList = {
   SepoliaSwapSummary: { sourceAsset: 'UNIT' | 'USDC'; amountIn: string } | undefined;
   SepoliaRedeem: { amount?: string; sourceAsset?: 'USDC' | 'wUNIT'; maxInputAmount?: string } | undefined;
   SepoliaSend: { asset?: 'USDC' | 'wUNIT' | 'ETH' } | undefined;
-  CashuReceive: { token?: string };
-  RecoverMint: undefined;
+  CashuReceive: { token?: string; cashuUnit?: CashuUnit; mode?: 'choose' | 'mint' | 'receive' };
+  RecoverMint: { cashuUnit?: CashuUnit } | undefined;
   Preferences: undefined;
   Security: undefined;
   Advanced: undefined;

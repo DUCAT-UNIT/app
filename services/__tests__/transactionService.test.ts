@@ -69,7 +69,7 @@ interface MockPsbtData {
   inputs: Array<{
     witnessUtxo?: {
       script: Buffer;
-      value: number;
+      value: number | bigint;
     };
     tapKeySig?: Buffer;
   }>;
@@ -699,7 +699,7 @@ describe('transactionService', () => {
               {
                 witnessUtxo: {
                   script: Buffer.from('001400000000', 'hex'),
-                  value: 20000,
+                  value: BigInt(5_020_000),
                 },
               },
               {
@@ -899,7 +899,7 @@ describe('transactionService', () => {
               {
                 witnessUtxo: {
                   script: Buffer.from('001400000000', 'hex'),
-                  value: 20000,
+                  value: BigInt(5_020_000),
                 },
               },
             ],
@@ -963,6 +963,7 @@ describe('transactionService', () => {
           recipient: (mockPsbt as any).__recipient,
           sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
+          fee: 20_000,
           addressType: 'segwit' as const,
           inputs: [{ txid: 'tx1', vout: 0 }, { txid: 'tx2', vout: 1 }],
           psbt: 'mock_btc_psbt_base64',
@@ -975,6 +976,59 @@ describe('transactionService', () => {
         expect(result.txid).toBe('btc_txid');
         expect(mockPsbt.signInput).toHaveBeenCalledTimes(2); // Two inputs
         expect(mockPsbt.finalizeAllInputs).toHaveBeenCalled();
+      });
+
+      it('should sign BTC self-send when change returns to the recipient address', async () => {
+        const bitcoin = require('bitcoinjs-lib');
+
+        (SecureStorageService.withMnemonic as jest.Mock).mockReturnValueOnce({
+          segwitChild: mockSegwitChild,
+          taprootChild: mockTaprootChild,
+        });
+
+        const selfSendScript = mockPsbt.txOutputs![0].script;
+        const selfSendPsbt = {
+          ...mockPsbt,
+          signInput: jest.fn(),
+          finalizeAllInputs: jest.fn(),
+          extractTransaction: jest.fn(() => ({
+            toHex: jest.fn(() => 'signed_btc_self_send_tx_hex'),
+            getId: jest.fn(() => 'btc_self_send_txid'),
+            outs: [],
+          })),
+          txOutputs: [
+            {
+              script: selfSendScript,
+              value: BigInt(50_000),
+            },
+            {
+              script: selfSendScript,
+              value: BigInt(4_950_000),
+            },
+          ],
+        };
+
+        bitcoin.Psbt.fromBase64 = jest.fn(() => selfSendPsbt);
+
+        const btcIntent = {
+          type: 'send',
+          assetType: 'BTC' as const,
+          recipient: (mockPsbt as any).__recipient,
+          sourceAddress: (mockPsbt as any).__recipient,
+          amount: 50000,
+          fee: 20_000,
+          addressType: 'segwit' as const,
+          inputs: [{ txid: 'tx1', vout: 0 }],
+          psbt: 'mock_btc_self_send_psbt_base64',
+          feeAddress: (mockPsbt as any).__recipient,
+        };
+
+        const result = await TransactionService.signIntent(btcIntent, 0);
+
+        expect(result.signedTxHex).toBe('signed_btc_self_send_tx_hex');
+        expect(result.txid).toBe('btc_self_send_txid');
+        expect(selfSendPsbt.signInput).toHaveBeenCalledWith(0, mockSegwitChild);
+        expect(selfSendPsbt.finalizeAllInputs).toHaveBeenCalled();
       });
 
       it('should sign BTC Taproot transaction with tweaked keys', async () => {
@@ -1022,6 +1076,7 @@ describe('transactionService', () => {
           recipient: (mockPsbt as any).__recipient,
           sourceAddress: (mockPsbt as any).__source,
           amount: 50000,
+          fee: 20_000,
           addressType: 'taproot' as const,
           inputs: [{ txid: 'tx1', vout: 0 }],
           psbt: 'mock_taproot_psbt_base64',

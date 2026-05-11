@@ -9,6 +9,11 @@
  */
 
 import { TokenWithStatus } from '../services/cashu/tokenStatusService';
+import {
+  cashuUnitAssetType,
+  DEFAULT_CASHU_UNIT,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
 
 export type TransactionDisplayKind = 'turbo_mint_claim';
 
@@ -66,6 +71,20 @@ export interface MergeableTransaction {
   vaultTransaction?: boolean;
 }
 
+const tokenUnit = (token: Pick<TokenWithStatus, 'unit'>): CashuUnit =>
+  token.unit ?? DEFAULT_CASHU_UNIT;
+
+const normalizeEcashDisplayAmount = (token: Pick<TokenWithStatus, 'amount' | 'unit'>): number => {
+  const raw = token.amount;
+  if (tokenUnit(token) === 'sat') {
+    return raw;
+  }
+
+  // Token amounts may be in display units (legacy, e.g. 5.00) or cents (new, e.g. 500).
+  // Normalize to cents so formatUnitAmount() displays correctly.
+  return raw !== Math.floor(raw) ? Math.round(raw * 100) : raw;
+};
+
 /**
  * Convert pending transactions to a mergeable format
  * Filters by asset type and excludes already-confirmed transactions
@@ -122,14 +141,25 @@ export function processPendingTransactions(
  */
 export function findSelfClaimedTokenIds(
   ecashTokens: TokenWithStatus[],
-  currentPubkeyHex: string | null
+  currentPubkeyHex: string | null,
+  currentTaprootAddress?: string | null
 ): Set<string> {
   const selfClaimedSentTokenIds = new Set<string>();
+  const selfRecipients = new Set(
+    [currentPubkeyHex, currentTaprootAddress]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => value.trim().toLowerCase())
+  );
+  if (selfRecipients.size === 0) {
+    return selfClaimedSentTokenIds;
+  }
+
   ecashTokens.forEach((token) => {
     const isSentToken = 'recipient' in token;
     if (isSentToken && token.claimed) {
-      const sentToken = token as { recipient: string; taprootAddress: string | null };
-      const isSelfClaim = currentPubkeyHex && sentToken.recipient === currentPubkeyHex;
+      const sentToken = token as { recipient?: string | null };
+      const recipient = sentToken.recipient?.trim().toLowerCase();
+      const isSelfClaim = recipient ? selfRecipients.has(recipient) : false;
       if (isSelfClaim) {
         selfClaimedSentTokenIds.add(token.id);
       }
@@ -145,27 +175,32 @@ export function findSelfClaimedTokenIds(
 export function processEcashTokens(
   ecashTokens: TokenWithStatus[],
   selfClaimedSentTokenIds: Set<string>,
-  taprootAddress: string | undefined
+  _taprootAddress: string | undefined
 ): MergeableTransaction[] {
+  const selfClaimedTokenStrings = new Set(
+    ecashTokens
+      .filter((token) => 'recipient' in token && selfClaimedSentTokenIds.has(token.id))
+      .map((token) => token.token)
+      .filter((token): token is string => Boolean(token))
+  );
+
   return ecashTokens
     .filter((token) => {
       const isReceivedToken = 'sender' in token;
       if (isReceivedToken) {
-        const receivedToken = token as { sender: string; taprootAddress: string | null };
-        if (receivedToken.taprootAddress && taprootAddress && receivedToken.taprootAddress === taprootAddress) {
+        const receivedToken = token as { sender: string; token?: string };
+        if (receivedToken.token && selfClaimedTokenStrings.has(receivedToken.token)) {
           return false;
         }
       }
       return true;
     })
     .map((token) => {
-      // Token amounts may be in display units (legacy, e.g. 5.00) or cents (new, e.g. 500).
-      // Normalize to cents so formatUnitAmount() (which divides by 100) displays correctly.
-      // Heuristic: if amount has a fractional part, it's display units; otherwise cents.
-      const raw = token.amount;
-      const amountInCents = raw !== Math.floor(raw) ? Math.round(raw * 100) : raw;
+      const unit = tokenUnit(token);
+      const amount = normalizeEcashDisplayAmount(token);
       const isSentToken = 'recipient' in token;
       const isAutoclaim = selfClaimedSentTokenIds.has(token.id);
+      const signedAmount = isAutoclaim ? amount : (isSentToken ? -amount : amount);
 
       return {
         txid: token.id,
@@ -176,9 +211,9 @@ export function processEcashTokens(
         partiallySpent: token.partiallySpent,
         isAutoclaim,
         txData: {
-          amount: isAutoclaim ? amountInCents : (isSentToken ? -amountInCents : amountInCents),
-          assetType: 'UNIT',
-          numericAmount: isAutoclaim ? amountInCents : (isSentToken ? -amountInCents : amountInCents),
+          amount: signedAmount,
+          assetType: cashuUnitAssetType(unit),
+          numericAmount: signedAmount,
           isSent: isSentToken && !isAutoclaim,
           isReceived: !isSentToken || isAutoclaim,
           isAutoclaim,

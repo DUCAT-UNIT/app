@@ -8,6 +8,7 @@ import {
   encodeCashuTokenV4,
   type CashuTokenMetadata,
 } from '../cashuTsCompat';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 import { CashuProof } from './cryptoProofs';
 
 export interface DecodedToken {
@@ -23,7 +24,11 @@ export interface DecodedToken {
  * @param mint - Mint URL
  * @returns Encoded token in Cashu v4 cashuB format
  */
-export const encodeToken = (proofs: CashuProof[], mint: string, unit = 'unit'): string =>
+export const encodeToken = (
+  proofs: CashuProof[],
+  mint: string,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): string =>
   encodeCashuTokenV4(proofs, mint, unit);
 
 /**

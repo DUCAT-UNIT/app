@@ -5,7 +5,10 @@
 import React, { useCallback, useEffect } from 'react';
 import VaultActionSuccess from '../../components/vault/VaultActionSuccess';
 import { useRepay } from '../../stores/repayStore';
-import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
+import {
+  shouldPreserveVaultSettlementRecovery,
+  useVaultSettlementStore,
+} from '../../stores/vaultSettlementStore';
 import { analytics } from '../../services/analyticsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
@@ -59,7 +62,10 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
   }, []);
 
   const handleDone = useCallback(() => {
-    resetSettlement();
+    const latestPhase = useVaultSettlementStore.getState().phase;
+    if (!shouldPreserveVaultSettlementRecovery(latestPhase)) {
+      resetSettlement();
+    }
     reset();
     navigation.getParent()?.reset({
       index: 0,

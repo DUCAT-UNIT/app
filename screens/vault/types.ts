@@ -35,6 +35,7 @@ export interface VaultStoreState {
   loading: boolean;
   error: string | null;
   vaultTxid: string | null;
+  txid?: string | null;
 
   // Computed health values
   healthFactor: number;

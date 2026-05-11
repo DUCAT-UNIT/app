@@ -3,14 +3,12 @@
  * Creates the WalletConnectAPI interface for VaultWallet
  */
 
-import type {
-  VaultWallet,
-  WalletConnectAPI,
-} from '@ducat-unit/client-sdk';
+import type { VaultWallet, WalletConnectAPI } from '@ducat-unit/client-sdk';
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
 import { API } from '../../utils/constants';
 import { logger } from '../../utils/logger';
+import { withVaultBuildTimeout } from '../vault/operationTimeout';
 import {
   signPsbtRaw,
   signPsbtWithSdkObject,
@@ -28,14 +26,20 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
   return {
     fetch: {
       balance: (_client: VaultWallet) => async () => {
-        const res = await OracleAPI.wallet.fetch_address_bal(API.ORD_URL, segwitAddress);
+        const res = await withVaultBuildTimeout(
+          OracleAPI.wallet.fetch_address_bal(API.ORD_URL, segwitAddress),
+          'Timed out fetching vault wallet balance. Please try again.'
+        );
         if (!res.ok) throw new Error(res.error);
         return res.data;
       },
 
       sats_utxos: (client: VaultWallet) => async () => {
         const addr = client.acct.sats.address;
-        const res = await OracleAPI.esplora.esplora_get_utxos(API.ESPLORA_URL, addr);
+        const res = await withVaultBuildTimeout(
+          OracleAPI.esplora.esplora_get_utxos(API.ESPLORA_URL, addr),
+          'Timed out fetching BTC UTXOs. Please try again.'
+        );
         if (!res.ok) throw new Error(res.error);
 
         // Parse address to get the locking script
@@ -50,7 +54,10 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
       rune_utxos: (client: VaultWallet) => async () => {
         const addr = client.acct.runes.address;
-        const res = await OracleAPI.wallet.fetch_rune_utxos(API.ORD_URL, addr);
+        const res = await withVaultBuildTimeout(
+          OracleAPI.wallet.fetch_rune_utxos(API.ORD_URL, addr),
+          'Timed out fetching UNIT UTXOs. Please try again.'
+        );
         if (!res.ok) throw new Error(res.error);
         return res.data;
       },
@@ -58,11 +65,9 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
       vault_tokens: (client: VaultWallet) => async () => {
         const address = client.acct.vault.address;
         const postage = client.config.postage.vault;
-        const res = await OracleAPI.wallet.fetch_vault_tokens(
-          API.ESPLORA_URL,
-          API.ORD_URL,
-          address,
-          postage
+        const res = await withVaultBuildTimeout(
+          OracleAPI.wallet.fetch_vault_tokens(API.ESPLORA_URL, API.ORD_URL, address, postage),
+          'Timed out fetching vault tokens. Please try again.'
         );
         if (!res.ok) throw new Error(res.error);
         return res.data;
@@ -84,8 +89,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           const prevout = txin.witnessUtxo;
           if (prevout) {
             // SDK type mismatch: script is Uint8Array but SDK expects string | Bytes
-            const scriptMeta = TX.parse_script_meta(prevout.script as Parameters<typeof TX.parse_script_meta>[0]);
-            logger.debug(`[VaultWalletService] Input ${i}: type=${scriptMeta.type}, hasTapLeafScript=${!!txin.tapLeafScript}`);
+            const scriptMeta = TX.parse_script_meta(
+              prevout.script as Parameters<typeof TX.parse_script_meta>[0]
+            );
+            logger.debug(
+              `[VaultWalletService] Input ${i}: type=${scriptMeta.type}, hasTapLeafScript=${!!txin.tapLeafScript}`
+            );
           }
         }
 
@@ -131,7 +140,9 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           if (prevout === undefined) continue;
 
           // SDK type mismatch: script is Uint8Array but SDK expects string | Bytes
-          const meta = TX.parse_script_meta(prevout.script as Parameters<typeof TX.parse_script_meta>[0]);
+          const meta = TX.parse_script_meta(
+            prevout.script as Parameters<typeof TX.parse_script_meta>[0]
+          );
           if (meta.key === undefined) continue;
 
           if (meta.type === 'p2w-pkh' && meta.key.hex === sats_pkh) {
@@ -194,7 +205,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
             allowOpReturn: true,
             expectedPsbtTemplates,
           };
-          const signedPsbt = await signPsbtWithSdkObject(pre_pdata, signInputs, preProcessedPsbt, intent);
+          const signedPsbt = await signPsbtWithSdkObject(
+            pre_pdata,
+            signInputs,
+            preProcessedPsbt,
+            intent
+          );
 
           // Step 3: Post-process (finalize witnesses) - only first 2 PSBTs
           let finalPsbt = signedPsbt;

@@ -5,9 +5,10 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Linking } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
-import { clearWallet } from '../services/cashu/cashuWalletService';
+import { clearCashuCache } from '../services/cacheService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import {
   E2E_RESET_SETTINGS_URL_PREFIX,
@@ -17,6 +18,7 @@ import {
 import {
   getBoolean,
   getNumber,
+  exists,
   SettingKeys,
   setBoolean,
   setNumber,
@@ -34,6 +36,23 @@ const canonicalizeUsdcFeaturePassword = (password: string): string =>
   normalizeUsdcFeaturePassword(password)
     .replace(/[^a-z0-9]/gi, '')
     .toLocaleLowerCase('en-US');
+
+const formatUnitSmallestAmount = (amount: number): string =>
+  (amount / 100).toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  });
+
+type LockedChangeRecoveryResult = {
+  recovered: number;
+  amount: number;
+  message: string;
+};
+
+const EMPTY_LOCKED_CHANGE_RECOVERY: LockedChangeRecoveryResult = {
+  recovered: 0,
+  amount: 0,
+  message: '',
+};
 
 export interface UseAppSettingsParams {
   biometricEnabled: boolean;
@@ -60,9 +79,13 @@ interface UseAppSettingsReturn {
   showNotificationsModal: boolean;
   confirmNotificationsToggle: () => Promise<void>;
   cancelNotificationsToggle: () => void;
+  completeNotificationsEnableAfterAuth: () => Promise<void>;
 }
 
-export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppSettingsParams): UseAppSettingsReturn {
+export function useAppSettings({
+  biometricEnabled,
+  setIsAuthenticated,
+}: UseAppSettingsParams): UseAppSettingsReturn {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showZeroAssets, setShowZeroAssets] = useState(false);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -77,17 +100,33 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        setNotificationsEnabled(await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false));
+        const hasStoredNotificationPreference = await exists(SettingKeys.NOTIFICATIONS_ENABLED);
+        let storedNotificationsEnabled = await getBoolean(SettingKeys.NOTIFICATIONS_ENABLED, false);
+
+        if (!hasStoredNotificationPreference) {
+          const permissions = await Notifications.getPermissionsAsync();
+          if (permissions.status === 'granted') {
+            storedNotificationsEnabled = true;
+            await setBoolean(SettingKeys.NOTIFICATIONS_ENABLED, true);
+          }
+        }
+
+        setNotificationsEnabled(storedNotificationsEnabled);
         setShowZeroAssets(await getBoolean(SettingKeys.SHOW_ZERO_ASSETS, false));
         setAdvancedMode(await getBoolean(SettingKeys.ADVANCED_MODE, false));
         setEcashThreshold(await getNumber(SettingKeys.ECASH_THRESHOLD, 10000));
-        setAutoLockTimeoutMs(await getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT_MS));
-        const storedUsdcFeaturesEnabled = await getBoolean(SettingKeys.USDC_FEATURES_ENABLED, false);
+        setAutoLockTimeoutMs(
+          await getNumber(SettingKeys.AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT_MS)
+        );
+        const storedUsdcFeaturesEnabled = await getBoolean(
+          SettingKeys.USDC_FEATURES_ENABLED,
+          false
+        );
         setUsdcFeaturesEnabled(storedUsdcFeaturesEnabled);
         useUsdcFeatureFlagStore.getState().setEnabled(storedUsdcFeaturesEnabled);
       } catch (error: unknown) {
         logger.warn('Failed to load app settings', {
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     };
@@ -98,17 +137,23 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     setUsdcFeaturesEnabled(mirroredUsdcFeaturesEnabled);
   }, [mirroredUsdcFeaturesEnabled]);
 
-  const persistBooleanOrThrow = useCallback(async (key: string, value: boolean, failureMessage: string) => {
-    if (!await setBoolean(key, value)) {
-      throw new Error(failureMessage);
-    }
-  }, []);
+  const persistBooleanOrThrow = useCallback(
+    async (key: string, value: boolean, failureMessage: string) => {
+      if (!(await setBoolean(key, value))) {
+        throw new Error(failureMessage);
+      }
+    },
+    []
+  );
 
-  const persistNumberOrThrow = useCallback(async (key: string, value: number, failureMessage: string) => {
-    if (!await setNumber(key, value)) {
-      throw new Error(failureMessage);
-    }
-  }, []);
+  const persistNumberOrThrow = useCallback(
+    async (key: string, value: number, failureMessage: string) => {
+      if (!(await setNumber(key, value))) {
+        throw new Error(failureMessage);
+      }
+    },
+    []
+  );
 
   const resetE2ESettings = useCallback(async (): Promise<void> => {
     if (!__DEV__) return;
@@ -184,6 +229,49 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     setShowNotificationsModal(true);
   }, [notificationsEnabled]);
 
+  const enableNotificationsPreference = useCallback(async (): Promise<boolean> => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        setNotificationsEnabled(false);
+        await persistBooleanOrThrow(
+          SettingKeys.NOTIFICATIONS_ENABLED,
+          false,
+          'Failed to persist notifications setting'
+        );
+        notify.settings.notificationsFailed();
+        return false;
+      }
+
+      setNotificationsEnabled(true);
+      await persistBooleanOrThrow(
+        SettingKeys.NOTIFICATIONS_ENABLED,
+        true,
+        'Failed to persist notifications setting'
+      );
+      notify.settings.notificationsEnabled();
+      return true;
+    } catch (error: unknown) {
+      setNotificationsEnabled(false);
+      logger.error('Failed to enable notifications', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      notify.settings.notificationsFailed();
+      return false;
+    }
+  }, [persistBooleanOrThrow]);
+
+  const completeNotificationsEnableAfterAuth = useCallback(async (): Promise<void> => {
+    await enableNotificationsPreference();
+  }, [enableNotificationsPreference]);
+
   const confirmNotificationsToggle = useCallback(async () => {
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
@@ -217,10 +305,13 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
             true,
             'Failed to persist return-to-settings flag'
           );
+
+          await enableNotificationsPreference();
+          return;
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
           logger.warn('Biometric auth failed for notifications toggle', {
-            error: message
+            error: message,
           });
           if (message.includes('persist')) {
             notify.settings.notificationsFailed();
@@ -261,20 +352,22 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
         newValue,
         'Failed to persist notifications setting'
       );
-      if (newValue) {
-        notify.settings.notificationsEnabled();
-      } else {
-        notify.settings.notificationsDisabled();
-      }
+      notify.settings.notificationsDisabled();
     } catch (error: unknown) {
       setNotificationsEnabled(!newValue);
       logger.error('Failed to save notification setting', {
         error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newValue
+        attemptedValue: newValue,
       });
       notify.settings.notificationsFailed();
     }
-  }, [pendingNotificationsValue, biometricEnabled, persistBooleanOrThrow, setIsAuthenticated]);
+  }, [
+    pendingNotificationsValue,
+    biometricEnabled,
+    persistBooleanOrThrow,
+    setIsAuthenticated,
+    enableNotificationsPreference,
+  ]);
 
   const cancelNotificationsToggle = useCallback(() => {
     setShowNotificationsModal(false);
@@ -282,10 +375,12 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
 
   const handleClearCashuCache = useCallback(async () => {
     try {
-      await clearWallet();
+      await clearCashuCache();
       notify.cashu.cacheCleared();
     } catch (error) {
-      logger.warn('Failed to clear Cashu cache', { error: error instanceof Error ? error.message : String(error) });
+      logger.warn('Failed to clear Cashu cache', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       notify.cashu.cacheClearFailed();
     }
   }, []);
@@ -295,19 +390,46 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
     try {
       notify.cashu.recoveringChange();
 
-      const { recoverLockedChange } = await import('../services/cashu/cashuWalletService.js');
+      const { recoverLockedChange } = await Promise.resolve().then(
+        () =>
+          require('../services/cashu/cashuWalletService') as typeof import('../services/cashu/cashuWalletService')
+      );
       logger.debug('[useAppSettings] Calling recoverLockedChange');
-      const result = await recoverLockedChange();
-      logger.debug('[useAppSettings] Recovery result:', result);
+      const [unitRecovery, satRecovery] = await Promise.allSettled([
+        recoverLockedChange('unit'),
+        recoverLockedChange('sat'),
+      ]);
+      const unitResult =
+        unitRecovery.status === 'fulfilled' ? unitRecovery.value : EMPTY_LOCKED_CHANGE_RECOVERY;
+      const satResult =
+        satRecovery.status === 'fulfilled' ? satRecovery.value : EMPTY_LOCKED_CHANGE_RECOVERY;
+      logger.debug('[useAppSettings] Recovery result:', { unitResult, satResult });
 
-      if (result.recovered > 0) {
+      const recovered = unitResult.recovered + satResult.recovered;
+      const recoveryErrors = [unitRecovery, satRecovery]
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) =>
+          result.reason instanceof Error ? result.reason.message : String(result.reason)
+        );
+      if (recovered > 0) {
+        const parts = [
+          unitResult.recovered > 0 ? `${formatUnitSmallestAmount(unitResult.amount)} UNIT` : null,
+          satResult.recovered > 0 ? `${satResult.amount} sats` : null,
+        ].filter(Boolean);
+        if (recoveryErrors.length > 0) {
+          logger.warn('[useAppSettings] Some locked change recovery checks failed', {
+            errors: recoveryErrors,
+          });
+        }
         notify.snackbar({
-          title: `Recovered ${result.amount} UNIT from ${result.recovered} change proofs`,
+          title: `Recovered ${parts.join(' and ')} from ${recovered} change proofs`,
           type: 'success',
           action: 'claim',
         });
+      } else if (recoveryErrors.length > 0) {
+        throw new Error(recoveryErrors.join('; '));
       } else {
-        notify.info(result.message);
+        notify.info('No change proofs found in Turbo UNIT or Turbo BTC sent tokens');
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -322,91 +444,107 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
 
   const handleClearLockedTokens = useCallback(async (): Promise<void> => {
     try {
-      const { clearSentLockedTokens } = await import('../services/cashu/cashuLockedTokensService');
-      await clearSentLockedTokens();
+      const { clearLockedTokensHistory } = await import(
+        '../services/cashu/cashuLockedTokensService'
+      );
+      await clearLockedTokensHistory();
       notify.cashu.lockedTokensCleared();
     } catch (error) {
-      logger.warn('Failed to clear locked tokens', { error: error instanceof Error ? error.message : String(error) });
+      logger.warn('Failed to clear locked tokens', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       notify.cashu.lockedTokensClearFailed();
     }
   }, []);
 
-  const handleEcashThresholdChange = useCallback(async (newThreshold: number): Promise<void> => {
-    logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
-    const previousThreshold = ecashThreshold;
-    setEcashThreshold(newThreshold);
-    try {
-      await persistNumberOrThrow(
-        SettingKeys.ECASH_THRESHOLD,
-        newThreshold,
-        'Failed to persist ecash threshold'
-      );
-    } catch (error: unknown) {
-      setEcashThreshold(previousThreshold);
-      logger.warn('Failed to save ecash threshold', {
-        error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newThreshold,
-      });
-    }
-  }, [ecashThreshold, persistNumberOrThrow]);
+  const handleEcashThresholdChange = useCallback(
+    async (newThreshold: number): Promise<void> => {
+      logger.debug('[useAppSettings] Ecash threshold changed to:', newThreshold);
+      const previousThreshold = ecashThreshold;
+      setEcashThreshold(newThreshold);
+      try {
+        await persistNumberOrThrow(
+          SettingKeys.ECASH_THRESHOLD,
+          newThreshold,
+          'Failed to persist ecash threshold'
+        );
+      } catch (error: unknown) {
+        setEcashThreshold(previousThreshold);
+        logger.warn('Failed to save ecash threshold', {
+          error: error instanceof Error ? error.message : String(error),
+          attemptedValue: newThreshold,
+        });
+      }
+    },
+    [ecashThreshold, persistNumberOrThrow]
+  );
 
-  const handleAutoLockTimeoutChange = useCallback(async (newTimeoutMs: number): Promise<void> => {
-    const previousTimeout = autoLockTimeoutMs;
-    setAutoLockTimeoutMs(newTimeoutMs);
-    try {
-      await persistNumberOrThrow(
-        SettingKeys.AUTO_LOCK_TIMEOUT,
-        newTimeoutMs,
-        'Failed to persist auto-lock timeout'
-      );
-      notify.success('Auto-lock time updated');
-    } catch (error: unknown) {
-      setAutoLockTimeoutMs(previousTimeout);
-      logger.warn('Failed to save auto-lock timeout', {
-        error: error instanceof Error ? error.message : String(error),
-        attemptedValue: newTimeoutMs,
-      });
-      notify.settings.failed('auto-lock time');
-    }
-  }, [autoLockTimeoutMs, persistNumberOrThrow]);
+  const handleAutoLockTimeoutChange = useCallback(
+    async (newTimeoutMs: number): Promise<void> => {
+      const previousTimeout = autoLockTimeoutMs;
+      setAutoLockTimeoutMs(newTimeoutMs);
+      try {
+        await persistNumberOrThrow(
+          SettingKeys.AUTO_LOCK_TIMEOUT,
+          newTimeoutMs,
+          'Failed to persist auto-lock timeout'
+        );
+        notify.success('Auto-lock time updated');
+      } catch (error: unknown) {
+        setAutoLockTimeoutMs(previousTimeout);
+        logger.warn('Failed to save auto-lock timeout', {
+          error: error instanceof Error ? error.message : String(error),
+          attemptedValue: newTimeoutMs,
+        });
+        notify.settings.failed('auto-lock time');
+      }
+    },
+    [autoLockTimeoutMs, persistNumberOrThrow]
+  );
 
-  const handleEnableUsdcFeatures = useCallback(async (password: string): Promise<boolean> => {
-    const normalizedPassword = normalizeUsdcFeaturePassword(password);
-    const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-    const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
-    const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-    const allowDevelopmentAutomationBypass = normalizedPassword.length === 0 && (
-      hasActiveE2EBypass()
-    );
-    if (
-      !allowDevelopmentAutomationBypass
-      &&
-      normalizedPassword !== expectedPassword
-      && canonicalPassword !== expectedCanonicalPassword
-    ) {
-      notify.error('Incorrect Enable USDC password');
-      return false;
-    }
+  const handleEnableUsdcFeatures = useCallback(
+    async (password: string): Promise<boolean> => {
+      if (!__DEV__ && !hasActiveE2EBypass()) {
+        notify.error('USDC features are not enabled in this build');
+        return false;
+      }
 
-    const previousValue = usdcFeaturesEnabled;
-    setUsdcFeaturesEnabled(true);
-    useUsdcFeatureFlagStore.getState().setEnabled(true);
-    try {
-      await persistBooleanOrThrow(
-        SettingKeys.USDC_FEATURES_ENABLED,
-        true,
-        'Failed to persist USDC feature flag'
-      );
-      notify.success('USDC features enabled');
-      return true;
-    } catch (error: unknown) {
-      logger.warn('Failed to enable USDC features', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      notify.settings.failed('USDC features');
-      return true;
-    }
-  }, [persistBooleanOrThrow, usdcFeaturesEnabled]);
+      const normalizedPassword = normalizeUsdcFeaturePassword(password);
+      const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
+      const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
+      const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
+      const allowDevelopmentAutomationBypass =
+        normalizedPassword.length === 0 && hasActiveE2EBypass();
+      if (
+        !allowDevelopmentAutomationBypass &&
+        normalizedPassword !== expectedPassword &&
+        canonicalPassword !== expectedCanonicalPassword
+      ) {
+        notify.error('Incorrect Enable USDC password');
+        return false;
+      }
+
+      const previousValue = usdcFeaturesEnabled;
+      setUsdcFeaturesEnabled(true);
+      useUsdcFeatureFlagStore.getState().setEnabled(true);
+      try {
+        await persistBooleanOrThrow(
+          SettingKeys.USDC_FEATURES_ENABLED,
+          true,
+          'Failed to persist USDC feature flag'
+        );
+        notify.success('USDC features enabled');
+        return true;
+      } catch (error: unknown) {
+        logger.warn('Failed to enable USDC features', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        notify.settings.failed('USDC features');
+        return true;
+      }
+    },
+    [persistBooleanOrThrow, usdcFeaturesEnabled]
+  );
 
   const handleDisableUsdcFeatures = useCallback(async (): Promise<void> => {
     const previousValue = usdcFeaturesEnabled;
@@ -450,6 +588,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     }),
     [
       notificationsEnabled,
@@ -471,6 +610,7 @@ export function useAppSettings({ biometricEnabled, setIsAuthenticated }: UseAppS
       showNotificationsModal,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      completeNotificationsEnableAfterAuth,
     ]
   );
 }

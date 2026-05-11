@@ -19,6 +19,13 @@ export interface CheckStateResponse {
   states: ProofState[];
 }
 
+interface RestoreResponse {
+  outputs?: BlindedOutput[];
+  signatures?: MintResponse['signatures'];
+  promises?: MintResponse['signatures'];
+  error?: string;
+}
+
 /**
  * Swap tokens (e.g., for splitting/combining)
  * @param inputs - Proofs to swap
@@ -59,6 +66,65 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
     return response;
   } catch (error: unknown) {
     logger.error('Failed to swap tokens', { error: (error as Error).message });
+    throw error;
+  }
+};
+
+/**
+ * Restore blind signatures for already-signed blinded outputs (NUT-09).
+ * Used to recover an interrupted swap after the mint spent inputs but before
+ * the app durably stored the swap response.
+ */
+export const restoreSignatures = async (outputs: BlindedOutput[]): Promise<MintResponse> => {
+  try {
+    logger.info('Restoring Cashu signatures', { outputCount: outputs.length });
+
+    const response = await postJSON<RestoreResponse>(`${MINT_URL}/v1/restore`, {
+      outputs,
+    }, {
+      timeout: 10000,
+      description: 'Restore signatures',
+    });
+
+    if (response.error) {
+      throw new Error(`Restore failed: ${response.error}`);
+    }
+
+    const signatures = response.signatures ?? response.promises;
+    if (!signatures || !Array.isArray(signatures)) {
+      throw new Error('Invalid restore response: missing signatures');
+    }
+
+    if (response.outputs && Array.isArray(response.outputs)) {
+      if (response.outputs.length !== signatures.length) {
+        throw new Error('Invalid restore response: output/signature length mismatch');
+      }
+
+      const signaturesByOutput = new Map<string, MintResponse['signatures'][number]>();
+      response.outputs.forEach((output, index) => {
+        signaturesByOutput.set(output.B_, signatures[index]);
+      });
+
+      const restoredInRequestOrder = outputs
+        .map((output) => signaturesByOutput.get(output.B_))
+        .filter((signature): signature is MintResponse['signatures'][number] => Boolean(signature));
+
+      if (restoredInRequestOrder.length !== outputs.length) {
+        throw new Error('Restore returned partial signatures');
+      }
+
+      logger.info('Cashu signatures restored', { signatureCount: restoredInRequestOrder.length });
+      return { signatures: restoredInRequestOrder };
+    }
+
+    if (signatures.length !== outputs.length) {
+      throw new Error('Restore returned partial signatures');
+    }
+
+    logger.info('Cashu signatures restored', { signatureCount: signatures.length });
+    return { signatures };
+  } catch (error: unknown) {
+    logger.warn('Failed to restore Cashu signatures', { error: (error as Error).message });
     throw error;
   }
 };

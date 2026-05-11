@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { useCreateVaultToUsdcSettlement } from '../useCreateVaultToUsdcSettlement';
+import { persistVaultSettlementNow } from '../../stores/vaultSettlementStore';
 
 const mockRawCreateVault = {
   createVault: jest.fn(),
@@ -39,15 +40,26 @@ jest.mock('../useCreateVault', () => ({
 
 jest.mock('../../stores/vaultCreationStore', () => ({
   useVaultCreation: jest.fn(() => mockVaultCreationState),
-  useVaultCreationStore: Object.assign(jest.fn(() => mockVaultCreationState), {
-    getState: jest.fn(() => mockVaultCreationState),
-  }),
+  useVaultCreationStore: Object.assign(
+    jest.fn(() => mockVaultCreationState),
+    {
+      getState: jest.fn(() => mockVaultCreationState),
+    }
+  ),
 }));
 
 jest.mock('../../stores/vaultSettlementStore', () => ({
+  persistVaultSettlementNow: jest.fn().mockResolvedValue(undefined),
   useVaultSettlementStore: jest.fn(() => mockSettlementStore),
   resolveVaultSettlementRequestedAsset: (asset: string, allowUsdc: boolean) =>
     asset === 'USDC' && !allowUsdc ? 'UNIT' : asset,
+}));
+
+jest.mock('../../contexts/WalletContext', () => ({
+  useWallet: jest.fn(() => ({
+    currentAccount: 4,
+    wallet: { taprootAddress: 'tb1pwallet' },
+  })),
 }));
 
 jest.mock('../vault/useIssuedUnitSettlement', () => ({
@@ -90,7 +102,12 @@ describe('useCreateVaultToUsdcSettlement', () => {
     });
 
     expect(txid).toBe('issue-txid-1');
-    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'USDC');
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith(
+      'open',
+      125.5,
+      'USDC',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSettlementStore.setPhase).toHaveBeenCalledWith('issuing_vault');
     expect(mockRawCreateVault.createVault).toHaveBeenCalledWith({ isMaxDeposit: false });
     expect(mockSettlementStore.setIssueResult).toHaveBeenCalledWith('issue-txid-1', 'vault-txid-1');
@@ -140,7 +157,12 @@ describe('useCreateVaultToUsdcSettlement', () => {
       await result.current.createVault();
     });
 
-    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'UNIT');
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith(
+      'open',
+      125.5,
+      'UNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSettlementStore.completeSettlement).toHaveBeenCalledWith('UNIT', 'formatted-125.5');
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockIssuedSettlement.settleIssuedUnitToTurboUnit).not.toHaveBeenCalled();
@@ -155,7 +177,12 @@ describe('useCreateVaultToUsdcSettlement', () => {
       await result.current.createVault();
     });
 
-    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'TURBOUNIT');
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith(
+      'open',
+      125.5,
+      'TURBOUNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockIssuedSettlement.settleIssuedUnitToTurboUnit).toHaveBeenCalledWith('open', 125.5);
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockSettlementStore.completeSettlement).not.toHaveBeenCalled();
@@ -171,7 +198,12 @@ describe('useCreateVaultToUsdcSettlement', () => {
       await result.current.createVault();
     });
 
-    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'UNIT');
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith(
+      'open',
+      125.5,
+      'UNIT',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSettlementStore.completeSettlement).toHaveBeenCalledWith('UNIT', 'formatted-125.5');
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockVaultCreationState.setCurrentStep).toHaveBeenCalledWith('success');
@@ -187,11 +219,31 @@ describe('useCreateVaultToUsdcSettlement', () => {
     });
 
     expect(txid).toBeNull();
-    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith('open', 125.5, 'USDC');
+    expect(mockSettlementStore.startOperation).toHaveBeenCalledWith(
+      'open',
+      125.5,
+      'USDC',
+      expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
+    );
     expect(mockSettlementStore.setIssueResult).not.toHaveBeenCalled();
     expect(mockSettlementStore.completeSettlement).not.toHaveBeenCalled();
+    expect(mockSettlementStore.reset).toHaveBeenCalled();
+    expect(persistVaultSettlementNow).toHaveBeenCalledTimes(2);
     expect(mockIssuedSettlement.settleIssuedUnitToUsdc).not.toHaveBeenCalled();
     expect(mockVaultCreationState.setCurrentStep).not.toHaveBeenCalledWith('success');
+  });
+
+  it('clears pre-issue settlement state when raw vault creation throws', async () => {
+    mockRawCreateVault.createVault.mockRejectedValueOnce(new Error('Oracle unavailable'));
+    const { result } = renderHook(() => useCreateVaultToUsdcSettlement());
+
+    await act(async () => {
+      await expect(result.current.createVault()).rejects.toThrow('Oracle unavailable');
+    });
+
+    expect(mockSettlementStore.reset).toHaveBeenCalled();
+    expect(persistVaultSettlementNow).toHaveBeenCalledTimes(2);
+    expect(mockSettlementStore.setIssueResult).not.toHaveBeenCalled();
   });
 
   it('exposes the USDC quote function from the settlement hook', async () => {

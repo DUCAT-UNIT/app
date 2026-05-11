@@ -5,10 +5,10 @@
 
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useResponsive } from '../hooks/useResponsive';
 import styles from '../styles';
-import { colors,fonts,fontSizes } from '../styles/theme';
+import { colors, fonts, fontSizes } from '../styles/theme';
 import { COLORS } from '../theme';
 import Icon from './icons';
 
@@ -19,6 +19,7 @@ interface PasskeyPinInputProps {
   setPin: (pin: string) => void;
   onPinComplete: (pin: string) => void;
   onCancel: () => void;
+  isLoading?: boolean;
 }
 
 export default function PasskeyPinInput({
@@ -28,10 +29,12 @@ export default function PasskeyPinInput({
   setPin,
   onPinComplete,
   onCancel,
+  isLoading = false,
 }: PasskeyPinInputProps) {
   const { s, sf } = useResponsive();
 
   const handleDigit = (digit: string) => {
+    if (isLoading) return;
     if (pin.length < 6) {
       const newPin = pin + digit;
       setPin(newPin);
@@ -43,6 +46,7 @@ export default function PasskeyPinInput({
   };
 
   const handleDelete = () => {
+    if (isLoading) return;
     setPin(pin.slice(0, -1));
   };
 
@@ -52,6 +56,7 @@ export default function PasskeyPinInput({
       <TouchableOpacity
         style={[localStyles.cancelButton, { top: s(100), right: s(20), padding: s(12) }]}
         onPress={onCancel}
+        disabled={isLoading}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <Text style={[localStyles.cancelButtonText, { fontSize: sf(fontSizes.md) }]}>Cancel</Text>
@@ -59,20 +64,26 @@ export default function PasskeyPinInput({
 
       <View style={localStyles.contentWrapper}>
         <View style={localStyles.passkeyPinContainer}>
-          <Text style={styles.lockTitle} testID="pin-setup-title">{title}</Text>
+          <Text style={styles.lockTitle} testID="pin-setup-title">
+            {title}
+          </Text>
           <Text style={localStyles.passkeyPinSubtitle}>{subtitle}</Text>
 
           <View style={styles.lockPinDots}>
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <View
                 key={i}
-                style={[
-                  styles.lockPinDot,
-                  i < pin.length && styles.lockPinDotFilled,
-                ]}
+                style={[styles.lockPinDot, i < pin.length && styles.lockPinDotFilled]}
               />
             ))}
           </View>
+
+          {isLoading && (
+            <View style={localStyles.loadingContainer} testID="pin-setup-loading">
+              <ActivityIndicator color={COLORS.WHITE} />
+              <Text style={localStyles.loadingText}>Creating wallet...</Text>
+            </View>
+          )}
 
           <View style={styles.lockKeypad}>
             {[
@@ -86,6 +97,7 @@ export default function PasskeyPinInput({
                     key={num}
                     style={styles.lockKey}
                     onPress={() => handleDigit(String(num))}
+                    disabled={isLoading}
                     testID={`pin-keypad-${num}`}
                   >
                     <Text style={styles.lockKeyText}>{num}</Text>
@@ -98,6 +110,7 @@ export default function PasskeyPinInput({
               <TouchableOpacity
                 style={styles.lockKey}
                 onPress={() => handleDigit('0')}
+                disabled={isLoading}
                 testID="pin-keypad-0"
               >
                 <Text style={styles.lockKeyText}>0</Text>
@@ -105,6 +118,7 @@ export default function PasskeyPinInput({
               <TouchableOpacity
                 style={styles.lockKey}
                 onPress={handleDelete}
+                disabled={isLoading}
                 testID="pin-keypad-delete"
               >
                 <Icon name="delete" size={28} color={COLORS.WHITE} />
@@ -148,5 +162,15 @@ const localStyles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     marginHorizontal: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 22,
+  },
+  loadingText: {
+    color: COLORS.LIGHT_GRAY,
+    fontFamily: fonts.medium,
+    fontSize: 14,
   },
 });

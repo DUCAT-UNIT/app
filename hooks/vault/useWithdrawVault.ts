@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from 'react';
-import { useWithdrawStore } from '../../stores/withdrawStore';
+import { calculateMaxWithdrawableSats, useWithdrawStore } from '../../stores/withdrawStore';
 import {
   createWithdrawConfig,
   createVaultReqWithdraw,
@@ -38,11 +38,6 @@ type WithdrawRequest = WalletVaultWithdrawRequest;
 interface WithdrawResult {
   vault_txid: string;
 }
-
-// Store the validation context for health ratio check
-const validationContext: {
-  btcPrice: number | null;
-} = { btcPrice: null };
 
 /**
  * Create the withdraw-specific store adapter
@@ -91,34 +86,11 @@ function useWithdrawStoreAdapter(): VaultStore {
 }
 
 /**
- * Validate health ratio after withdrawal
- */
-function validateHealthAfterWithdraw(
-  btcPrice: number | null,
-  currentUnitBorrowed: number,
-  currentBtcLocked: number,
-  withdrawAmountSats: number
-): boolean {
-  if (!btcPrice || currentUnitBorrowed <= 0) return true; // No debt, can withdraw freely
-
-  const newCollateral = currentBtcLocked - withdrawAmountSats / 100_000_000;
-  if (newCollateral <= 0) return false;
-
-  // Calculate new health factor
-  const collateralValue = newCollateral * btcPrice;
-  const newHealthFactor = (collateralValue / currentUnitBorrowed) * 100;
-
-  return newHealthFactor >= VAULT_CONFIG.MIN_COL_RATE * 100;
-}
-
-/**
  * Validate withdraw operation
  */
 function validateWithdraw(params: VaultValidationParams): string | null {
-  const { wallet, btcPrice, amount, currentUnitBorrowed, currentBtcLocked } = params;
-
-  // Store btcPrice for health ratio validation
-  validationContext.btcPrice = btcPrice;
+  const { wallet, btcPrice, amount, currentUnitBorrowed, currentBtcLocked, selectedFeeRate } =
+    params;
 
   if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return 'Wallet not connected';
@@ -132,14 +104,14 @@ function validateWithdraw(params: VaultValidationParams): string | null {
     return 'Please enter an amount to withdraw';
   }
 
-  const maxWithdrawSats = Math.floor(currentBtcLocked * 100_000_000);
+  const maxWithdrawSats = calculateMaxWithdrawableSats({
+    currentBtcLocked,
+    currentUnitBorrowed,
+    bitcoinPrice: btcPrice,
+    selectedFeeRate,
+  });
   if (amount > maxWithdrawSats) {
-    return 'Withdraw amount cannot exceed current collateral';
-  }
-
-  // Validate health ratio after withdraw
-  if (!validateHealthAfterWithdraw(btcPrice, currentUnitBorrowed, currentBtcLocked, amount)) {
-    return `Withdrawal would put vault below minimum health ratio (${VAULT_CONFIG.MIN_COL_RATE * 100}%)`;
+    return `Withdraw amount exceeds the maximum available after vault transaction fees and minimum health (${VAULT_CONFIG.MIN_COL_RATE * 100}%)`;
   }
 
   if (currentBtcLocked <= 0) {
@@ -190,9 +162,7 @@ function extractWithdrawResult(result: WithdrawResult): { txid?: string; vaultTx
 /**
  * Create pending transaction for withdraw
  */
-function createWithdrawPendingTransaction(
-  params: PendingTransactionParams<WithdrawConfig>
-): {
+function createWithdrawPendingTransaction(params: PendingTransactionParams<WithdrawConfig>): {
   txid: string;
   vaultTxid: string;
   action: 'withdraw';

@@ -11,11 +11,14 @@ import {
   checkMintStatus,
   completeMint,
 } from '../services/cashu/cashuWalletService';
+import { getCurrentCashuAccount } from '../services/cashu/cashuProofManager';
 import { usePolling } from './usePolling';
 import type { CashuProof, MintQuoteResult } from '../services/cashu/cashuWalletService';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
 
 export interface PendingMintQuote extends MintQuoteResult {
   createdAt: number;
+  taprootAddress?: string;
   [key: string]: unknown;
 }
 
@@ -23,6 +26,7 @@ interface UseCashuMintParams {
   fetchBalance: () => Promise<number>;
   setIsLoading: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string | null>>;
+  unit?: CashuUnit;
 }
 
 interface MintCheckResult {
@@ -48,8 +52,25 @@ interface UseCashuMintReturn {
   setPendingMints: Dispatch<SetStateAction<PendingMintQuote[]>>;
 }
 
-export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuMintParams): UseCashuMintReturn {
+export function useCashuMint({
+  fetchBalance,
+  setIsLoading,
+  setError,
+  unit = DEFAULT_CASHU_UNIT,
+}: UseCashuMintParams): UseCashuMintReturn {
   const [pendingMints, setPendingMints] = useState<PendingMintQuote[]>([]);
+  const isDefaultUnit = unit === DEFAULT_CASHU_UNIT;
+
+  const assertPendingMintAccount = useCallback((quote: PendingMintQuote | undefined): void => {
+    if (!quote?.taprootAddress) {
+      return;
+    }
+
+    const currentAccount = getCurrentCashuAccount();
+    if (currentAccount !== quote.taprootAddress) {
+      throw new Error('Cashu account changed during mint completion; switch back to the account that created this quote to recover it');
+    }
+  }, []);
 
   /**
    * Start mint process - get deposit address
@@ -60,11 +81,12 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
 
     try {
       logger.cashu('mint_started', { amount });
-      const quote = await requestMint(amount);
+      const quote = isDefaultUnit ? await requestMint(amount) : await requestMint(amount, unit);
+      const taprootAddress = getCurrentCashuAccount() ?? undefined;
 
       setPendingMints((prev) => [
         ...prev,
-        { ...quote, createdAt: Date.now() },
+        { ...quote, createdAt: Date.now(), taprootAddress },
       ]);
 
       logger.cashu('mint_quote_received', { quoteId: quote.quoteId?.substring(0, 8) });
@@ -77,7 +99,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
     } finally {
       setIsLoading(false);
     }
-  }, [setIsLoading, setError]);
+  }, [setIsLoading, setError, unit, isDefaultUnit]);
 
   /**
    * Check mint status and complete if paid
@@ -90,19 +112,23 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
       const hasMintAccounting = status.amountPaid !== undefined || status.amountIssued !== undefined;
       const hasAvailableAmount = status.availableAmount > 0;
       const shouldCompleteMint = hasAvailableAmount || (!hasMintAccounting && status.state === 'PAID');
+      const quote = pendingMints.find((q) => q.quoteId === quoteId);
 
       if (shouldCompleteMint) {
         logger.cashu('mint_paid_completing', { quoteId: quoteId?.substring(0, 8) });
 
-        const quote = pendingMints.find((q) => q.quoteId === quoteId);
         if (!quote) {
           throw new Error('Quote not found');
         }
+        assertPendingMintAccount(quote);
         if (quote.amount === undefined) {
           throw new Error('Quote amount is undefined');
         }
 
-        const proofs = await completeMint(quoteId, quote.amount);
+        const claimAmount = hasAvailableAmount ? status.availableAmount : quote.amount;
+        const proofs = isDefaultUnit
+          ? await completeMint(quoteId, claimAmount)
+          : await completeMint(quoteId, claimAmount, unit);
         setPendingMints((prev) => prev.filter((q) => q.quoteId !== quoteId));
         await fetchBalance();
 
@@ -111,7 +137,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         return {
           completed: true,
           proofs,
-          amount: quote.amount,
+          amount: claimAmount,
         };
       }
 
@@ -123,6 +149,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
         );
 
       if (alreadyIssued) {
+        assertPendingMintAccount(quote);
         setPendingMints((prev) => prev.filter((q) => q.quoteId !== quoteId));
         await fetchBalance();
         logger.cashu('mint_already_issued', { quoteId: quoteId?.substring(0, 8) });
@@ -143,7 +170,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
       logger.error('Failed to check/complete mint', { error: errorMessage, quoteId });
       throw err;
     }
-  }, [pendingMints, fetchBalance]);
+  }, [pendingMints, fetchBalance, unit, isDefaultUnit, assertPendingMintAccount]);
 
   /**
    * Remove a pending mint quote
@@ -161,11 +188,12 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
 
     try {
       logger.info('Starting auto-mint', { amount });
-      const quote = await requestMint(amount);
+      const quote = isDefaultUnit ? await requestMint(amount) : await requestMint(amount, unit);
+      const taprootAddress = getCurrentCashuAccount() ?? undefined;
 
       setPendingMints((prev) => [
         ...prev,
-        { ...quote, createdAt: Date.now() },
+        { ...quote, createdAt: Date.now(), taprootAddress },
       ]);
 
       logger.info('Auto-mint quote created', {
@@ -191,7 +219,7 @@ export function useCashuMint({ fetchBalance, setIsLoading, setError }: UseCashuM
     } finally {
       setIsLoading(false);
     }
-  }, [setIsLoading, setError]);
+  }, [setIsLoading, setError, unit, isDefaultUnit]);
 
   // Auto-complete pending mints
   usePolling({

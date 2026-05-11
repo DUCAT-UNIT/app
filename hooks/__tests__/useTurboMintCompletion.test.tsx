@@ -21,17 +21,29 @@ jest.mock('../../utils/logger', () => ({
 // Mock service functions
 const mockCompleteMint = jest.fn();
 const mockCheckMintQuote = jest.fn();
+const mockGetBalance = jest.fn();
 const mockSendP2PKToken = jest.fn();
 const mockExtractPubkeyFromTaprootAddress = jest.fn();
 const mockSaveSentLockedToken = jest.fn();
-const mockShortenCashuToken = jest.fn();
+const mockGenerateTurboDeeplink = jest.fn();
+const mockSavePendingTurboSend = jest.fn();
+const mockUpdateTurboSendStage = jest.fn();
+const mockClearPendingTurboSend = jest.fn();
+const mockLoadPendingTurboSend = jest.fn();
+const mockGetMinimumTurboBalanceAfterMint = jest.fn();
+const mockGetCurrentCashuAccount = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
   completeMint: (...args: any[]) => mockCompleteMint(...args),
+  getBalance: (...args: any[]) => mockGetBalance(...args),
   getMintQuoteAvailableAmount: (quote: { amount_paid?: number; amount_issued?: number }) =>
     Math.max(0, (quote.amount_paid ?? 0) - (quote.amount_issued ?? 0)),
   sendP2PKToken: (...args: any[]) => mockSendP2PKToken(...args),
+}));
+
+jest.mock('../../services/cashu/cashuProofManager', () => ({
+  getCurrentCashuAccount: () => mockGetCurrentCashuAccount(),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({
@@ -39,17 +51,17 @@ jest.mock('../../utils/bitcoin', () => ({
 }));
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
+  generateTurboDeeplink: (...args: any[]) => mockGenerateTurboDeeplink(...args),
   saveSentLockedToken: (...args: any[]) => mockSaveSentLockedToken(...args),
 }));
 
-jest.mock('../../services/urlShortener', () => ({
-  shortenCashuToken: (...args: any[]) => mockShortenCashuToken(...args),
-}));
-
 jest.mock('../../services/cashu/cashuTurboRecovery', () => ({
-  savePendingTurboSend: jest.fn().mockResolvedValue(undefined),
-  updateTurboSendStage: jest.fn().mockResolvedValue(undefined),
-  clearPendingTurboSend: jest.fn().mockResolvedValue(undefined),
+  savePendingTurboSend: (...args: unknown[]) => mockSavePendingTurboSend(...args),
+  updateTurboSendStage: (...args: unknown[]) => mockUpdateTurboSendStage(...args),
+  clearPendingTurboSend: (...args: unknown[]) => mockClearPendingTurboSend(...args),
+  loadPendingTurboSend: (...args: unknown[]) => mockLoadPendingTurboSend(...args),
+  getMinimumTurboBalanceAfterMint: (...args: unknown[]) =>
+    mockGetMinimumTurboBalanceAfterMint(...args),
 }));
 
 // Helper to render hooks with props
@@ -94,10 +106,10 @@ const advanceThroughPolling = async () => {
   });
 };
 
-// Helper: exhaust the full 120-iteration polling loop.
+// Helper: exhaust the full 300-iteration polling loop.
 const exhaustPollingLoop = async () => {
   await act(async () => {
-    for (let i = 0; i < 125; i++) {
+    for (let i = 0; i < 305; i++) {
       await jest.advanceTimersByTimeAsync(2100);
     }
     // Final flushes for post-loop code
@@ -128,10 +140,17 @@ describe('useTurboMintCompletion', () => {
     // Default mocks
     mockCheckMintQuote.mockResolvedValue({ state: 'PENDING', amount: 100 });
     mockCompleteMint.mockResolvedValue([{ amount: 100 }]);
+    mockGetBalance.mockResolvedValue(100);
     mockExtractPubkeyFromTaprootAddress.mockReturnValue('02pubkey123');
     mockSendP2PKToken.mockResolvedValue({ token: 'cashuAtoken123' });
-    mockShortenCashuToken.mockResolvedValue('https://short.url/abc');
+    mockGenerateTurboDeeplink.mockResolvedValue('https://short.url/abc');
     mockSaveSentLockedToken.mockResolvedValue(undefined);
+    mockSavePendingTurboSend.mockResolvedValue(undefined);
+    mockUpdateTurboSendStage.mockResolvedValue(undefined);
+    mockClearPendingTurboSend.mockResolvedValue(undefined);
+    mockLoadPendingTurboSend.mockResolvedValue(null);
+    mockGetMinimumTurboBalanceAfterMint.mockReturnValue(100);
+    mockGetCurrentCashuAccount.mockReturnValue('tb1psender123');
   });
 
   afterEach(() => {
@@ -260,7 +279,7 @@ describe('useTurboMintCompletion', () => {
     it('should poll for payment and complete mint on PAID state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -279,7 +298,7 @@ describe('useTurboMintCompletion', () => {
         amount_issued: 25,
       });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -296,7 +315,7 @@ describe('useTurboMintCompletion', () => {
     it('should poll for payment and complete mint on ISSUED state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote456',
@@ -314,7 +333,7 @@ describe('useTurboMintCompletion', () => {
         amount_issued: 100,
       });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -325,13 +344,59 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockCompleteMint).not.toHaveBeenCalled();
-      expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(
+        100,
+        '02pubkey123',
+        {},
+        undefined,
+        'tb1precipient789'
+      );
+    });
+
+    it('should not create P2PK from existing balance when issued top-up proofs are not recovered', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        state: 'ISSUED',
+        amount_paid: 400,
+        amount_issued: 400,
+      });
+      mockLoadPendingTurboSend.mockResolvedValue({
+        quoteId: 'quote123',
+        recipient: 'tb1precipient789',
+        amount: 1000,
+        mintAmount: 400,
+        preMintBalance: 700,
+        senderTaprootAddress: 'tb1psender123',
+        createdAt: Date.now(),
+        stage: 'waiting_for_mint',
+        unit: 'sat',
+      });
+      mockGetMinimumTurboBalanceAfterMint.mockReturnValue(1100);
+      mockGetBalance.mockResolvedValue(1000);
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        mintAmount: 1000,
+        mintClaimAmount: 400,
+        cashuUnit: 'sat',
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+      expect(mockClearPendingTurboSend).not.toHaveBeenCalled();
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith(
+        expect.stringContaining('recovered Turbo balance is not spendable yet')
+      );
     });
 
     it('should create P2PK token when turboRecipient is provided', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -342,9 +407,126 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockExtractPubkeyFromTaprootAddress).toHaveBeenCalledWith('tb1precipient789');
-      expect(mockSendP2PKToken).toHaveBeenCalledWith(100, '02pubkey123', {});
-      expect(mockShortenCashuToken).toHaveBeenCalledWith('cashuAtoken123');
+      expect(mockSendP2PKToken).toHaveBeenCalledWith(
+        100,
+        '02pubkey123',
+        {},
+        undefined,
+        'tb1precipient789'
+      );
+      expect(mockGenerateTurboDeeplink).toHaveBeenCalledWith(
+        'cashuAtoken123',
+        'tb1precipient789',
+        100
+      );
       expect(mockSaveSentLockedToken).toHaveBeenCalled();
+    });
+
+    it('should persist a P2PK token even if the screen unmounts after token creation starts', async () => {
+      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+      let resolveP2PK: (value: { token: string }) => void = () => undefined;
+      mockSendP2PKToken.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveP2PK = resolve;
+          })
+      );
+
+      const { component } = renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        mintAmount: 100,
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(2100);
+        await jest.advanceTimersByTimeAsync(0);
+      });
+      expect(mockSendP2PKToken).toHaveBeenCalled();
+
+      act(() => {
+        component?.unmount();
+      });
+
+      await act(async () => {
+        resolveP2PK({ token: 'cashuAfterUnmount' });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockUpdateTurboSendStage).toHaveBeenCalledWith(
+        'p2pk_created',
+        { token: 'cashuAfterUnmount' },
+        expect.objectContaining({ quoteId: 'quote123' })
+      );
+      expect(mockSaveSentLockedToken).toHaveBeenCalledWith(
+        'cashuAfterUnmount',
+        'tb1precipient789',
+        100,
+        null,
+        null,
+        'tb1psender123'
+      );
+      expect(mockSaveSentLockedToken).toHaveBeenCalledWith(
+        'cashuAfterUnmount',
+        'tb1precipient789',
+        100,
+        null,
+        'https://short.url/abc',
+        'tb1psender123'
+      );
+    });
+
+    it('should fail closed before polling when a Turbo send cannot be journaled to a sender address', async () => {
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        senderTaprootAddress: undefined,
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      expect(mockSavePendingTurboSend).not.toHaveBeenCalled();
+      expect(mockCheckMintQuote).not.toHaveBeenCalled();
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith(
+        'Wallet Taproot address unavailable for Turbo recovery'
+      );
+    });
+
+    it('should not claim or spend when the active Cashu account changed', async () => {
+      mockGetCurrentCashuAccount.mockReturnValue('tb1potheraccount');
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        senderTaprootAddress: 'tb1psender123',
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      expect(mockSavePendingTurboSend).not.toHaveBeenCalled();
+      expect(mockCheckMintQuote).not.toHaveBeenCalled();
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Cashu account changed during Turbo mint recovery setup')
+      );
     });
 
     it('should show send notification when turboRecipient is provided', async () => {
@@ -381,7 +563,7 @@ describe('useTurboMintCompletion', () => {
       // Always return pending state
       mockCheckMintQuote.mockResolvedValue({ state: 'PENDING', amount: 100 });
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -389,13 +571,15 @@ describe('useTurboMintCompletion', () => {
 
       await exhaustPollingLoop();
 
+      expect(result.current!.processingStage).toBe('awaiting_confirmation');
+      expect(result.current!.processingMessage).toContain('Payment sent');
       expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
     }, 30000);
 
     it('should handle error during mint completion', async () => {
       mockCheckMintQuote.mockRejectedValue(new Error('Network error'));
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -404,7 +588,8 @@ describe('useTurboMintCompletion', () => {
       // Poll errors are caught and retried; after maxAttempts the flow times out
       await exhaustPollingLoop();
 
-      // After 120 failed polls, paidQuote is null → paymentSentAwaiting
+      // After the polling window, paidQuote is null → awaiting confirmation
+      expect(result.current!.processingStage).toBe('awaiting_confirmation');
       expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
     }, 30000);
 
@@ -421,8 +606,8 @@ describe('useTurboMintCompletion', () => {
 
       await advanceThroughPolling();
 
-      // Should still transition to ready on error
-      expect(result.current!.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('error');
+      expect(result.current!.processingMessage).toContain('Failed to extract pubkey');
     });
 
     it('should handle error when sendP2PKToken returns no token', async () => {
@@ -438,8 +623,8 @@ describe('useTurboMintCompletion', () => {
 
       await advanceThroughPolling();
 
-      // Should still transition to ready on error
-      expect(result.current!.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('error');
+      expect(result.current!.processingMessage).toBe('sendP2PKToken returned no token');
     });
 
     it('should refresh transaction history after successful mint', async () => {
@@ -486,7 +671,7 @@ describe('useTurboMintCompletion', () => {
     it('should handle non-Error exception during completion', async () => {
       mockCheckMintQuote.mockRejectedValue('String error');
 
-      renderHookWithProps({
+      const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -495,6 +680,7 @@ describe('useTurboMintCompletion', () => {
       // Poll errors are caught and retried; after maxAttempts the flow times out
       await exhaustPollingLoop();
 
+      expect(result.current!.processingStage).toBe('awaiting_confirmation');
       expect(notify.cashu.paymentSentAwaiting).toHaveBeenCalled();
     }, 30000);
 
@@ -511,8 +697,9 @@ describe('useTurboMintCompletion', () => {
 
       await advanceThroughPolling();
 
-      // Should still transition to ready on error
-      expect(result.current!.processingStage).toBe('ready');
+      expect(result.current!.processingStage).toBe('error');
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith('Storage string error');
+      expect(notify.transaction.success).not.toHaveBeenCalledWith('send');
     });
   });
 });

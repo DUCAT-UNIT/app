@@ -3,11 +3,12 @@
  * Shared logic for all vault confirm screens
  */
 
-import * as LocalAuthentication from 'expo-local-authentication';
-import { useCallback,useMemo,useRef,useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useBalance } from '../../../contexts/WalletDataContext';
+import { authenticateWithBiometrics } from '../../../services/biometricService';
+import { verifyPin } from '../../../services/pinService';
 import {
   requiresVaultSettlementUnitSend,
   resolveVaultSettlementRequestedAsset,
@@ -55,11 +56,15 @@ interface UseVaultConfirmScreenResult {
   // State
   isAuthenticating: boolean;
   isSubmitting: boolean;
+  showPinFallback: boolean;
+  pinFallbackError: string | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
   handleConfirm: () => Promise<void>;
+  handlePinFallbackSubmit: (pin: string) => Promise<void>;
+  handlePinFallbackCancel: () => void;
   handleClose: () => void;
   handleBack: () => void;
 }
@@ -70,7 +75,10 @@ function getReceiveAssetIfPresent(store: VaultStoreState): VaultSettlementReques
     : null;
 }
 
-export function useVaultConfirmScreen<TStore extends VaultStoreState, THook extends VaultOperationHookState>(
+export function useVaultConfirmScreen<
+  TStore extends VaultStoreState,
+  THook extends VaultOperationHookState,
+>(
   options: UseVaultConfirmScreenOptions<TStore, THook>,
   navigation: VaultScreenNavigationProp
 ): UseVaultConfirmScreenResult {
@@ -82,6 +90,8 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
   const { utxos } = useBalance();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPinFallback, setShowPinFallback] = useState(false);
+  const [pinFallbackError, setPinFallbackError] = useState<string | null>(null);
   const confirmInFlightRef = useRef(false);
 
   // Primary amount from config
@@ -119,10 +129,69 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
       config.operationType === 'borrow' && requiresVaultSettlementUnitSend(receiveAsset)
         ? getVaultSettlementReserveSats(selectedFeeRate)
         : 0;
-    return baseFee + settlementReserve;
+    return Math.max(0, Math.ceil(baseFee + settlementReserve));
   }, [config.operationType, receiveAsset, selectedFeeRate, utxos]);
 
   const feeUsdValue = btcPrice ? (estimatedFeeSats / 100_000_000) * btcPrice : 0;
+
+  const executeVaultOperation = useCallback(async (): Promise<void> => {
+    setIsAuthenticating(false);
+    store.setCurrentStep('processing');
+    navigation.navigate(config.routes.processing);
+
+    const executeOp = getOperationExecutor(vaultHook, config.operationType);
+    if (executeOp) {
+      await executeOp();
+    }
+  }, [config.operationType, config.routes.processing, navigation, store, vaultHook]);
+
+  const handleAuthFailure = useCallback((errorMessage?: string): void => {
+    if (errorMessage === 'user_cancel') {
+      return;
+    }
+
+    setPinFallbackError(null);
+    setShowPinFallback(true);
+  }, []);
+
+  const handlePinFallbackSubmit = useCallback(
+    async (pin: string): Promise<void> => {
+      if (confirmInFlightRef.current) {
+        return;
+      }
+
+      confirmInFlightRef.current = true;
+      setPinFallbackError(null);
+      setIsSubmitting(true);
+
+      try {
+        const pinResult = await verifyPin(pin);
+        if (!pinResult.success) {
+          setPinFallbackError(pinResult.error);
+          return;
+        }
+
+        setShowPinFallback(false);
+        await executeVaultOperation();
+      } catch (err) {
+        setIsAuthenticating(false);
+        Alert.alert('Error', `Failed to complete ${config.operationType}. Please try again.`);
+      } finally {
+        setIsSubmitting(false);
+        confirmInFlightRef.current = false;
+      }
+    },
+    [config.operationType, executeVaultOperation]
+  );
+
+  const handlePinFallbackCancel = useCallback((): void => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setPinFallbackError(null);
+    setShowPinFallback(false);
+  }, [isSubmitting]);
 
   // Handle confirm with biometric authentication
   const handleConfirm = useCallback(async () => {
@@ -136,37 +205,16 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
     try {
       setIsAuthenticating(true);
 
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-      if (!isE2E() && hasHardware && isEnrolled) {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: config.authMessage,
-          fallbackLabel: 'Use PIN',
-          cancelLabel: 'Cancel',
-          disableDeviceFallback: false,
-        });
+      if (!isE2E()) {
+        const result = await authenticateWithBiometrics(config.authMessage, 'Use PIN');
 
         if (!result.success) {
-          if (result.error !== 'user_cancel') {
-            Alert.alert('Authentication Failed', 'Please try again');
-          }
-          setIsAuthenticating(false);
-          setIsSubmitting(false);
-          confirmInFlightRef.current = false;
+          handleAuthFailure(result.error);
           return;
         }
       }
 
-      setIsAuthenticating(false);
-      store.setCurrentStep('processing');
-      navigation.navigate(config.routes.processing);
-
-      // Execute the vault operation
-      const executeOp = getOperationExecutor(vaultHook, config.operationType);
-      if (executeOp) {
-        await executeOp();
-      }
+      await executeVaultOperation();
     } catch (err) {
       setIsAuthenticating(false);
       Alert.alert('Error', `Failed to complete ${config.operationType}. Please try again.`);
@@ -174,7 +222,7 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
       setIsSubmitting(false);
       confirmInFlightRef.current = false;
     }
-  }, [config, store, vaultHook, navigation]);
+  }, [config.authMessage, config.operationType, executeVaultOperation, handleAuthFailure]);
 
   const handleBack = useCallback(() => {
     store.setCurrentStep(config.routes.selection ? 'payout' : 'input');
@@ -201,11 +249,15 @@ export function useVaultConfirmScreen<TStore extends VaultStoreState, THook exte
     // State
     isAuthenticating,
     isSubmitting,
+    showPinFallback,
+    pinFallbackError,
     isLoading: vaultHook.isLoading,
     error: store.error,
 
     // Actions
     handleConfirm,
+    handlePinFallbackSubmit,
+    handlePinFallbackCancel,
     handleClose,
     handleBack,
   };
