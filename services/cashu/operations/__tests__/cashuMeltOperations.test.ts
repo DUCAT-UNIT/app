@@ -18,6 +18,7 @@ jest.mock('../../../../utils/logger', () => ({
 }));
 
 jest.mock('../../cashuMintClient', () => ({
+  checkMeltQuote: jest.fn(),
   createMeltQuote: jest.fn(),
   meltTokens: jest.fn(),
   swapTokens: jest.fn(),
@@ -66,6 +67,7 @@ import {
   cleanupMeltProofs,
 } from '../cashuMeltOperations';
 import {
+  checkMeltQuote,
   createMeltQuote,
   meltTokens,
   mintRequiresDleqProofs,
@@ -670,6 +672,143 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).not.toHaveBeenCalled();
     });
 
+    it('should provide BTC fee-reserve blanks and return melt change proofs', async () => {
+      const satKeyData = {
+        keysets: [
+          {
+            id: 'satkeyset',
+            unit: 'sat',
+            active: true,
+            input_fee_ppk: 0,
+            keys: {
+              1: 'satkey1',
+              2: 'satkey2',
+              4: 'satkey4',
+              8: 'satkey8',
+              16: 'satkey16',
+              32: 'satkey32',
+              64: 'satkey64',
+              128: 'satkey128',
+              256: 'satkey256',
+              512: 'satkey512',
+              1024: 'satkey1024',
+            },
+          },
+        ],
+      };
+      const exactProof: MockProof = {
+        amount: 1700,
+        secret: 'sat-secret',
+        C: 'Csat',
+        id: 'satkeyset',
+      };
+      const blankOutputs = Array.from({ length: 10 }, (_, index) => ({
+        amount: 0,
+        B_: `B${index}`,
+        id: 'satkeyset',
+      }));
+      const blankData = Array.from({ length: 10 }, (_, index) => ({
+        amount: 0,
+        secret: `blank${index}`,
+        r: `r${index}`,
+        B_: `B${index}`,
+      }));
+      const changeSignature = { id: 'satkeyset', amount: 300, C_: 'Cchange' };
+      const changeProof = {
+        amount: 300,
+        secret: 'blank0',
+        C: 'Cunblinded',
+        id: 'satkeyset',
+      };
+
+      (getOrFetchKeys as jest.Mock).mockResolvedValue(satKeyData);
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (checkMeltQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount: 1000,
+        fee_reserve: 700,
+        unit: 'sat',
+      });
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: blankOutputs,
+        blindingData: blankData,
+      });
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PENDING',
+        change: [changeSignature],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue([changeProof]);
+
+      const result = await completeMeltWithoutCleanup('quote123', 1700, 'sat');
+
+      expect(checkMeltQuote).toHaveBeenCalledWith('quote123');
+      expect(createBlindedOutputs).toHaveBeenCalledWith(Array(10).fill(0), 'satkeyset');
+      expect(meltTokens).toHaveBeenCalledWith('quote123', [exactProof], blankOutputs);
+      expect(unblindSignatures).toHaveBeenCalledWith(
+        [changeSignature],
+        [{ ...blankData[0], amount: 300 }],
+        satKeyData.keysets[0].keys,
+        'satkeyset',
+        { requireDleq: false }
+      );
+      expect(result.changeProofs).toEqual([changeProof]);
+    });
+
+    it('should not provide BTC fee-change blanks for exact on-chain fees', async () => {
+      const satKeyData = {
+        keysets: [
+          {
+            id: 'satkeyset',
+            unit: 'sat',
+            active: true,
+            input_fee_ppk: 0,
+            keys: {
+              1: 'satkey1',
+              2: 'satkey2',
+              4: 'satkey4',
+              8: 'satkey8',
+              16: 'satkey16',
+              32: 'satkey32',
+              64: 'satkey64',
+              128: 'satkey128',
+              256: 'satkey256',
+              512: 'satkey512',
+              1024: 'satkey1024',
+            },
+          },
+        ],
+      };
+      const exactProof: MockProof = {
+        amount: 1700,
+        secret: 'sat-secret',
+        C: 'Csat',
+        id: 'satkeyset',
+      };
+
+      (getOrFetchKeys as jest.Mock).mockResolvedValue(satKeyData);
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (checkMeltQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount: 1000,
+        fee: 700,
+        unit: 'sat',
+      });
+      (meltTokens as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PENDING',
+      });
+
+      const result = await completeMeltWithoutCleanup('quote123', 1700, 'sat');
+
+      expect(checkMeltQuote).toHaveBeenCalledWith('quote123');
+      expect(createBlindedOutputs).not.toHaveBeenCalled();
+      expect(meltTokens).toHaveBeenCalledWith('quote123', [exactProof], []);
+      expect(result.changeProofs).toBeNull();
+    });
+
     it('should reject unpaid melt responses without returning proofs for cleanup', async () => {
       const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
       (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
@@ -687,7 +826,7 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).not.toHaveBeenCalled();
     });
 
-    it('should reconcile spent proofs and mark status unknown when melt submission errors', async () => {
+    it('should reconcile spent proofs and mark status accepted when melt submission errors', async () => {
       const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
       (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
       (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
@@ -696,13 +835,43 @@ describe('cashuMeltOperations', () => {
 
       await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toMatchObject({
         message: 'Network dropped after submit',
-        meltSubmissionStatus: 'unknown',
+        meltSubmissionStatus: 'accepted',
         spentProofsRemoved: 1,
       });
 
       expect(removeSpentProofs).toHaveBeenCalled();
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should keep network submission errors unknown when no spent proofs are found', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockRejectedValue(new Error('Network dropped after submit'));
+      (removeSpentProofs as jest.Mock).mockResolvedValueOnce({ removed: 0, kept: 1 });
+
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toMatchObject({
+        message: 'Network dropped after submit',
+        meltSubmissionStatus: 'unknown',
+        spentProofsRemoved: 0,
+      });
+    });
+
+    it('should mark explicit valid-proof mint failures as rejected', async () => {
+      const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
+      (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+      (meltTokens as jest.Mock).mockRejectedValue(
+        new Error('Withdrawal failed - your ecash tokens remain valid, please try again')
+      );
+      (removeSpentProofs as jest.Mock).mockResolvedValueOnce({ removed: 0, kept: 1 });
+
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toMatchObject({
+        message: 'Withdrawal failed - your ecash tokens remain valid, please try again',
+        meltSubmissionStatus: 'rejected',
+        spentProofsRemoved: 0,
+      });
     });
 
     it('should accept state PAID responses without paid boolean', async () => {

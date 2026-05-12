@@ -22,6 +22,7 @@ import {
   loadPendingTurboSend,
   getMinimumTurboBalanceAfterMint,
 } from '../services/cashu/cashuTurboRecovery';
+import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
 import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
 
 type ProcessingStage = 'converting' | 'awaiting_confirmation' | 'error' | 'ready';
@@ -30,7 +31,7 @@ const MINT_CONFIRMATION_POLL_MS = 2000;
 const MAX_MINT_CONFIRMATION_ATTEMPTS = 90;
 const CASHU_OPERATION_TIMEOUT_MS = 20000;
 
-const rejectAfter = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+const rejectAfter = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<T>((_resolve, reject) => {
     timeout = setTimeout(() => {
@@ -86,10 +87,11 @@ const isQuoteReadyToMint = (quote: MintQuoteLike): boolean => {
 };
 
 const isQuoteAlreadyIssued = (quote: MintQuoteLike): boolean =>
-  hasMintAccounting(quote) &&
-  (quote.amount_paid ?? 0) > 0 &&
-  (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0) &&
-  getMintQuoteAvailableAmount(quote) === 0;
+  quote.state === 'ISSUED' ||
+  (hasMintAccounting(quote) &&
+    (quote.amount_paid ?? 0) > 0 &&
+    (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0) &&
+    getMintQuoteAvailableAmount(quote) === 0);
 
 const getClaimAmount = (quote: MintQuoteLike, fallbackAmount: number): number => {
   const availableAmount = getMintQuoteAvailableAmount(quote);
@@ -248,6 +250,23 @@ export function useTurboMintCompletion({
                 amountIssued: paidQuote.amount_issued,
               }
             );
+            try {
+              const recoveryResult = await rejectAfter(
+                recoverUnclaimedMintQuotes(),
+                CASHU_OPERATION_TIMEOUT_MS,
+                'Recovering issued Turbo mint'
+              );
+              if (recoveryResult.errors.length > 0) {
+                logger.warn('[useTurboMintCompletion] Issued Turbo mint recovery had errors', {
+                  errors: recoveryResult.errors,
+                });
+              }
+            } catch (recoveryError) {
+              logger.warn('[useTurboMintCompletion] Issued Turbo mint recovery failed', {
+                error:
+                  recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+              });
+            }
             const pendingTurboSend = await loadPendingTurboSend(recoverySelector);
             const spendableBalance = await rejectAfter(
               getBalance(true, cashuUnit),
@@ -270,15 +289,15 @@ export function useTurboMintCompletion({
             // Complete mint to get e-cash tokens - amount is in smallest units
             const proofs = isDefaultCashuUnit(cashuUnit)
               ? await rejectAfter(
-                completeMint(mintQuoteId, claimAmount),
-                CASHU_OPERATION_TIMEOUT_MS,
-                'Completing Turbo mint'
-              )
+                  completeMint(mintQuoteId, claimAmount),
+                  CASHU_OPERATION_TIMEOUT_MS,
+                  'Completing Turbo mint'
+                )
               : await rejectAfter(
-                completeMint(mintQuoteId, claimAmount, cashuUnit),
-                CASHU_OPERATION_TIMEOUT_MS,
-                'Completing Turbo mint'
-              );
+                  completeMint(mintQuoteId, claimAmount, cashuUnit),
+                  CASHU_OPERATION_TIMEOUT_MS,
+                  'Completing Turbo mint'
+                );
             if (!mountedRef.current) return;
             logger.debug(
               '[useTurboMintCompletion] Mint completed successfully, received proofs:',

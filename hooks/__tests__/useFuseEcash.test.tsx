@@ -298,7 +298,7 @@ describe('useFuseEcash', () => {
         type: 'warning',
         title: 'Redeem status unknown',
         description:
-          'The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. Network dropped after submit',
+          'The app could not confirm whether the mint received the request. Refresh before sending TurboUNIT again.',
       });
       expect(mockSnackbar).not.toHaveBeenCalledWith(
         expect.objectContaining({
@@ -306,6 +306,35 @@ describe('useFuseEcash', () => {
           description: expect.stringContaining('remain valid'),
         })
       );
+    });
+
+    it('should keep explicit valid-token mint failures concise', async () => {
+      const rejectedError = Object.assign(
+        new Error('Withdrawal failed - your ecash tokens remain valid, please try again'),
+        {
+          meltSubmissionStatus: 'rejected',
+          spentProofsRemoved: 0,
+        }
+      );
+      mockCompleteMeltWithoutCleanup.mockRejectedValue(rejectedError);
+
+      const { result } = renderHookWithProps(mockProps);
+
+      await act(async () => {
+        await result.current!.handleFusePress();
+      });
+
+      const fuseButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+
+      await act(async () => {
+        await fuseButton.onPress();
+      });
+
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        title: 'Redeem failed',
+        description: 'Your TurboUNIT tokens remain valid. Try again in a moment.',
+      });
     });
 
     it('should not claim tokens remain valid after melt cleanup fails', async () => {
@@ -434,11 +463,13 @@ describe('useFuseEcash', () => {
     it('should poll for transaction and show success when found with recent block_time', async () => {
       const props = {
         ...mockProps,
-        transactionHistory: [{
-          txid: 'tx123',
-          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
-          status: { block_time: Math.floor(Date.now() / 1000) - 60 },
-        }],
+        transactionHistory: [
+          {
+            txid: 'tx123',
+            vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+            status: { block_time: Math.floor(Date.now() / 1000) - 60 },
+          },
+        ],
       };
       const { result } = renderHookWithProps(props);
 
@@ -474,11 +505,13 @@ describe('useFuseEcash', () => {
     it('should find unconfirmed transaction (no block_time)', async () => {
       const props = {
         ...mockProps,
-        transactionHistory: [{
-          txid: 'tx123',
-          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
-          status: {},
-        }],
+        transactionHistory: [
+          {
+            txid: 'tx123',
+            vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+            status: {},
+          },
+        ],
       };
       const { result } = renderHookWithProps(props);
 
@@ -546,11 +579,13 @@ describe('useFuseEcash', () => {
     it('should skip old transactions (block_time > 120 seconds ago)', async () => {
       const props = {
         ...mockProps,
-        transactionHistory: [{
-          txid: 'tx123',
-          vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
-          status: { block_time: Math.floor(Date.now() / 1000) - 300 },
-        }],
+        transactionHistory: [
+          {
+            txid: 'tx123',
+            vout: [{ scriptpubkey_address: 'tb1ptest12345' }],
+            status: { block_time: Math.floor(Date.now() / 1000) - 300 },
+          },
+        ],
       };
       const { result } = renderHookWithProps(props);
 
@@ -586,11 +621,13 @@ describe('useFuseEcash', () => {
     it('should skip transactions without matching address', async () => {
       const props = {
         ...mockProps,
-        transactionHistory: [{
-          txid: 'tx123',
-          vout: [{ scriptpubkey_address: 'tb1pother456' }],
-          status: { block_time: Math.floor(Date.now() / 1000) },
-        }],
+        transactionHistory: [
+          {
+            txid: 'tx123',
+            vout: [{ scriptpubkey_address: 'tb1pother456' }],
+            status: { block_time: Math.floor(Date.now() / 1000) },
+          },
+        ],
       };
       const { result } = renderHookWithProps(props);
 
@@ -626,10 +663,12 @@ describe('useFuseEcash', () => {
     it('should handle transaction without vout', async () => {
       const props = {
         ...mockProps,
-        transactionHistory: [{
-          txid: 'tx123',
-          status: { block_time: Math.floor(Date.now() / 1000) },
-        }],
+        transactionHistory: [
+          {
+            txid: 'tx123',
+            status: { block_time: Math.floor(Date.now() / 1000) },
+          },
+        ],
       };
       const { result } = renderHookWithProps(props);
 

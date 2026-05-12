@@ -653,6 +653,43 @@ describe('cashuMintQuoteRecovery', () => {
       expect(completeMint).not.toHaveBeenCalled();
     });
 
+    it('should restore a fresh pending claim when the mint already issued it', async () => {
+      const claimProofs = [{ amount: 1000, secret: 'secret', C: 'C', id: 'keyset1' }];
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote123',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: Date.now(),
+          state: 'PENDING',
+          claim: {
+            amount: 1000,
+            blindingData: [{ amount: 1000, B_: 'B_', r: 'r', secret: 'secret' }],
+            keys: { 1000: 'pubkey' },
+            keysetId: 'keyset1',
+            createdAt: Date.now(),
+          },
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        state: 'ISSUED',
+        amount_paid: 1000,
+        amount_issued: 1000,
+      });
+      (restoreSignatures as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1', C_: 'sig', amount: 1000 }],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue(claimProofs);
+
+      const result = await recoverUnclaimedMintQuotes();
+
+      expect(result.recovered).toBe(1);
+      expect(restoreSignatures).toHaveBeenCalledWith([{ amount: 1000, B_: 'B_', id: 'keyset1' }]);
+      expect(addProofs).toHaveBeenCalledWith(claimProofs, true, 'unit');
+      expect(completeMint).not.toHaveBeenCalled();
+    });
+
     it('should not save a restored BTC claim if the proofs do not total the claim amount', async () => {
       const storedQuotes: PersistedMintQuote[] = [
         {

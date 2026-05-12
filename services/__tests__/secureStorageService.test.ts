@@ -10,6 +10,7 @@ jest.mock('../passkey', () => ({
 
 import {
   clearSessionMnemonic,
+  hasAccessibleMnemonic,
   saveMnemonic,
   getMnemonic,
   withMnemonic,
@@ -101,6 +102,25 @@ describe('SecureStorageService', () => {
       const result = await getMnemonic();
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('hasAccessibleMnemonic', () => {
+    it('should return true and hydrate the session cache when mnemonic exists', async () => {
+      mockGetItemAsync.mockResolvedValue('test mnemonic phrase');
+
+      await expect(hasAccessibleMnemonic()).resolves.toBe(true);
+      expect(mockGetItemAsync).toHaveBeenCalledWith('wallet_mnemonic_v1');
+
+      mockGetItemAsync.mockClear();
+      await expect(getMnemonic()).resolves.toBe('test mnemonic phrase');
+      expect(mockGetItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should return false when no mnemonic exists', async () => {
+      mockGetItemAsync.mockResolvedValue(null);
+
+      await expect(hasAccessibleMnemonic()).resolves.toBe(false);
     });
   });
 

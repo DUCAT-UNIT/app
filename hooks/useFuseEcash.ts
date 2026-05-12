@@ -72,6 +72,15 @@ const getMeltErrorMetadata = (error: unknown): MeltErrorMetadata => {
   };
 };
 
+const VALID_TOKEN_FAILURE_PATTERN = /(?:tokens?|proofs?) remain valid/i;
+
+const getRedeemFailureDescription = (tokenLabel: string, message: string): string => {
+  if (VALID_TOKEN_FAILURE_PATTERN.test(message)) {
+    return `Your ${tokenLabel} tokens remain valid. Try again in a moment.`;
+  }
+  return `Your ${tokenLabel} tokens remain valid. ${message}`;
+};
+
 export function useFuseEcash({
   cashuBalance,
   taprootAddress,
@@ -80,11 +89,13 @@ export function useFuseEcash({
   cashuUnit = DEFAULT_CASHU_UNIT,
 }: UseFuseEcashParams): UseFuseEcashReturn {
   const handleFusePress = useCallback(async () => {
-    const tokenLabel = cashuUnit === DEFAULT_CASHU_UNIT ? 'TurboUNIT' : cashuUnitDisplayName(cashuUnit);
+    const tokenLabel =
+      cashuUnit === DEFAULT_CASHU_UNIT ? 'TurboUNIT' : cashuUnitDisplayName(cashuUnit);
     const assetSymbol = cashuUnitTokenSymbol(cashuUnit);
-    const availableAmountLabel = cashuUnit === DEFAULT_CASHU_UNIT
-      ? `${formatTurboAmount(cashuBalance, cashuUnit)} ${tokenLabel}`
-      : `${formatTurboAmount(cashuBalance, cashuUnit)} ${assetSymbol}`;
+    const availableAmountLabel =
+      cashuUnit === DEFAULT_CASHU_UNIT
+        ? `${formatTurboAmount(cashuBalance, cashuUnit)} ${tokenLabel}`
+        : `${formatTurboAmount(cashuBalance, cashuUnit)} ${assetSymbol}`;
     if (cashuBalance <= 0) {
       notify.snackbar({
         type: 'info',
@@ -106,9 +117,10 @@ export function useFuseEcash({
             let cleanupFailed = false;
             try {
               // Request the largest quote the current balance can cover after fees.
-              const quote = cashuUnit === DEFAULT_CASHU_UNIT
-                ? await requestMaxMelt(taprootAddress, cashuBalance)
-                : await requestMaxMelt(taprootAddress, cashuBalance, cashuUnit);
+              const quote =
+                cashuUnit === DEFAULT_CASHU_UNIT
+                  ? await requestMaxMelt(taprootAddress, cashuBalance)
+                  : await requestMaxMelt(taprootAddress, cashuBalance, cashuUnit);
               analytics.track(CASHU_EVENTS.CASHU_MELT_STARTED, {
                 amount: quote.amount,
                 availableAmount: cashuBalance,
@@ -116,9 +128,10 @@ export function useFuseEcash({
               });
 
               // Complete melt but keep proofs until we see the tx
-              const meltResult = cashuUnit === DEFAULT_CASHU_UNIT
-                ? await completeMeltWithoutCleanup(quote.quoteId, quote.total)
-                : await completeMeltWithoutCleanup(quote.quoteId, quote.total, cashuUnit);
+              const meltResult =
+                cashuUnit === DEFAULT_CASHU_UNIT
+                  ? await completeMeltWithoutCleanup(quote.quoteId, quote.total)
+                  : await completeMeltWithoutCleanup(quote.quoteId, quote.total, cashuUnit);
               meltSubmitted = true;
 
               // Clean up proofs immediately after successful melt
@@ -142,7 +155,8 @@ export function useFuseEcash({
               } catch (cleanupError) {
                 cleanupFailed = true;
                 logger.error('[Fuse] Melt accepted but local cleanup failed', {
-                  error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+                  error:
+                    cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
                 });
                 if (
                   cleanupError instanceof Error &&
@@ -151,16 +165,20 @@ export function useFuseEcash({
                   throw cleanupError;
                 }
                 try {
-                  const cleanup = cashuUnit === DEFAULT_CASHU_UNIT
-                    ? await removeSpentProofs()
-                    : await removeSpentProofs(cashuUnit);
+                  const cleanup =
+                    cashuUnit === DEFAULT_CASHU_UNIT
+                      ? await removeSpentProofs()
+                      : await removeSpentProofs(cashuUnit);
                   logger.info('[Fuse] Reconciled spent proofs after cleanup failure', {
                     removed: cleanup.removed,
                     kept: cleanup.kept,
                   });
                 } catch (reconcileError) {
                   logger.error('[Fuse] Failed to reconcile spent proofs after cleanup failure', {
-                    error: reconcileError instanceof Error ? reconcileError.message : String(reconcileError),
+                    error:
+                      reconcileError instanceof Error
+                        ? reconcileError.message
+                        : String(reconcileError),
                   });
                 }
               }
@@ -181,14 +199,14 @@ export function useFuseEcash({
               while (!txFound && attempts < maxAttempts) {
                 attempts++;
                 logger.debug(`[Fuse] Polling attempt ${attempts}/${maxAttempts}`);
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                await new Promise((resolve) => setTimeout(resolve, 2000));
 
                 await fetchTransactionHistory();
 
                 txFound = transactionHistory.some((rawTx) => {
                   const tx = rawTx as Transaction;
-                  const hasOurAddress = tx.vout?.some((output: TransactionOutput) =>
-                    output.scriptpubkey_address === taprootAddress
+                  const hasOurAddress = tx.vout?.some(
+                    (output: TransactionOutput) => output.scriptpubkey_address === taprootAddress
                   );
                   if (!hasOurAddress) return false;
 
@@ -199,7 +217,7 @@ export function useFuseEcash({
                   }
 
                   const now = Math.floor(Date.now() / 1000);
-                  return (now - txTime) < 120;
+                  return now - txTime < 120;
                 });
 
                 if (txFound) break;
@@ -237,10 +255,10 @@ export function useFuseEcash({
                     ? 'Redeem status unknown'
                     : 'Redeem failed',
                 description: submissionAccepted
-                  ? `The mint accepted the redeem, but local cleanup did not finish. Refresh before sending ${tokenLabel} again. ${message}`
+                  ? `The mint accepted the redeem, but local cleanup did not finish. Refresh before sending ${tokenLabel} again.`
                   : submissionUnknown
-                    ? `The mint request may have been submitted, but the app could not confirm the result. Refresh before sending ${tokenLabel} again. ${message}`
-                  : `Your ${tokenLabel} tokens remain valid. ${message}`,
+                    ? `The app could not confirm whether the mint received the request. Refresh before sending ${tokenLabel} again.`
+                    : getRedeemFailureDescription(tokenLabel, message),
               });
             }
           },

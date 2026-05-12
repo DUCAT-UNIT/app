@@ -51,6 +51,7 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
   const intentCreated = useRef(false);
   const stateInitialized = useRef(false);
   const timeoutAlertShown = useRef(false);
+  const expectedPrefillAmount = prefillAmount !== undefined ? prefillAmount.toString() : undefined;
 
   const clearErrorTimeout = () => {
     if (errorTimeout.current) {
@@ -70,17 +71,17 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
 
   // Set the send flow values - this happens once when the component mounts
   useEffect(() => {
-    if (!hasStarted.current && assetType && prefillAmount !== undefined && prefillAddress) {
+    if (!hasStarted.current && assetType && expectedPrefillAmount !== undefined && prefillAddress) {
       hasStarted.current = true;
-      logger.debug('[TurboLoading] Setting state:', { assetType, prefillAmount, prefillAddress });
+      logger.debug('[TurboLoading] Setting state:', { assetType, prefillAmount: expectedPrefillAmount, prefillAddress });
 
       // Set send flow values
       setSendAssetType(assetType);
-      setSendAmount(prefillAmount.toString());
+      setSendAmount(expectedPrefillAmount);
       setSendRecipient(prefillAddress);
       setRequireConfirmedUtxos(true); // Turbo requires confirmed UTXOs only
     }
-  }, [assetType, prefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos]);
+  }, [assetType, expectedPrefillAmount, prefillAddress, setSendAssetType, setSendAmount, setSendRecipient, setRequireConfirmedUtxos]);
 
   // Watch for state to be initialized, then create intent
   // This ensures the state has been updated before we call createSendIntent
@@ -94,13 +95,18 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
     });
 
     // Check that all required state values are set (allow "0" or any numeric string for amount)
-    if (hasStarted.current && !stateInitialized.current && currentAssetType && currentAmount !== '' && currentAmount !== null && currentRecipient) {
+    const stateMatchesPrefill =
+      currentAssetType === assetType &&
+      currentAmount === expectedPrefillAmount &&
+      currentRecipient === prefillAddress;
+
+    if (hasStarted.current && !stateInitialized.current && stateMatchesPrefill) {
       logger.debug('[TurboLoading] Creating intent...');
       // State is now initialized, create the intent
       stateInitialized.current = true;
       createSendIntent();
     }
-  }, [currentAssetType, currentAmount, currentRecipient, createSendIntent]);
+  }, [currentAssetType, currentAmount, currentRecipient, assetType, expectedPrefillAmount, prefillAddress, createSendIntent]);
 
   // Watch for intent creation to complete
   useEffect(() => {
@@ -133,7 +139,12 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
       );
     }
     // Error case: went back to entering_amount step (validation failed)
-    else if (stateInitialized.current && intentStep === 'entering_amount') {
+    else if (
+      stateInitialized.current &&
+      (intentStep === 'entering_amount' ||
+        intentStep === 'entering_address' ||
+        intentStep === 'selecting_asset')
+    ) {
       logger.debug('[TurboLoading] Error detected, showing alert...');
       // Error - show alert and go back
       hasNavigated.current = true;
@@ -189,7 +200,6 @@ export default function TurboLoadingScreen({ navigation, route }: TurboLoadingSc
         clearErrorTimeout();
       };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cleanup effect: Release UTXOs if component unmounts before transaction is created

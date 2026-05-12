@@ -17,6 +17,13 @@ const MIGRATABLE_PREFERENCE_KEYS = new Set([
   'priceDisplayMode',
   'autoLockEnabled',
   'autoLockTimeout',
+  'pendingFaceIdEnable',
+  'pendingBiometricEnable',
+  'pendingNotificationsEnable',
+  'returnToSettingsAfterAuth',
+  'returnToSettingsAfterPinChange',
+  'returnToSettingsAfterSeedPhrase',
+  'pendingWalletDelete',
 ]);
 
 const migrateLegacyPreferenceFromSecureStore = async (key: string): Promise<string | null> => {

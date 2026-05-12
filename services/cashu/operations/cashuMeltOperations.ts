@@ -13,6 +13,7 @@ import {
   selectProofsForAmountIncludingFees,
 } from '../cashuKeysetUtils';
 import {
+  checkMeltQuote,
   createMeltQuote,
   mintRequiresDleqProofs,
   meltTokens as meltTokensAPI,
@@ -483,6 +484,81 @@ const getMeltFee = (result: Pick<MeltResponse, 'fee_paid' | 'fee'>): number => {
   return normalizeOptionalCashuAmount(result.fee, 'melt fee') ?? 0;
 };
 
+const getMeltChangeOutputCount = (changeCapacity: number): number => {
+  if (!Number.isFinite(changeCapacity) || changeCapacity <= 0) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(Math.log2(changeCapacity)));
+};
+
+const getMeltChangeCapacity = async (
+  quoteId: string,
+  unit: CashuUnit
+): Promise<number> => {
+  if (isDefaultCashuUnit(unit)) {
+    return 0;
+  }
+
+  const quote = await checkMeltQuote(quoteId);
+  return quote.fee === undefined ? (quote.fee_reserve ?? 0) : 0;
+};
+
+const createMeltChangeOutputs = async (
+  quoteId: string,
+  _totalAmount: number,
+  keyData: MintKeys,
+  unit: CashuUnit
+): Promise<{ outputs: BlindedOutput[]; blindingData: BlindingData[] }> => {
+  const changeCapacity = await getMeltChangeCapacity(quoteId, unit);
+  const outputCount = getMeltChangeOutputCount(changeCapacity);
+  if (outputCount === 0) {
+    return { outputs: [], blindingData: [] };
+  }
+
+  const unitKeyset = selectActiveCashuKeyset(keyData, unit);
+  const blanks = Array(outputCount).fill(0);
+  return createBlindedOutputs(blanks, unitKeyset.id);
+};
+
+const unblindMeltChange = async (
+  change: MeltResponse['change'],
+  blindingData: BlindingData[],
+  keyData: MintKeys,
+  unit: CashuUnit
+): Promise<CashuProof[]> => {
+  if (!change || change.length === 0) {
+    return [];
+  }
+  if (change.length > blindingData.length) {
+    throw new Error(
+      `Mint returned ${change.length} melt change signatures, but only ${blindingData.length} blanks were provided`
+    );
+  }
+
+  const unitKeyset = selectActiveCashuKeyset(keyData, unit);
+  const { keysetId, keys } = resolveResponseSignatureKeysetForUnit(
+    change,
+    keyData,
+    unitKeyset,
+    unit,
+    'Cashu melt change'
+  );
+  const adjustedBlindingData = change.map((signature, index) => {
+    const amount = normalizeOptionalCashuAmount(signature.amount, 'melt change amount');
+    if (amount === undefined) {
+      throw new Error('Mint returned melt change signature without amount');
+    }
+    return {
+      ...blindingData[index],
+      amount,
+    };
+  });
+  const requireDleq = await mintRequiresDleqProofs();
+  return unblindSignatures(change, adjustedBlindingData, keys, keysetId, {
+    requireDleq,
+  });
+};
+
 /**
  * Complete melt through the onchain/unit flow.
  * Step 2: Send proofs and optional change outputs to the mint.
@@ -502,19 +578,31 @@ export const completeMelt = async (
     const keyData = await getOrFetchKeys();
     const prepared = await prepareMeltSpend(totalAmount, keyData, unit, operationAccount);
     preparedSpend = prepared;
+    const meltChangeOutputs = await createMeltChangeOutputs(quoteId, totalAmount, keyData, unit);
 
     // Melt exact proofs only. The advertised onchain/unit response does not
-    // return NUT-08 change, so any needed change is created via swap first.
+    // return proof-denomination change, so any needed proof change is created
+    // via swap first. BTC fee-reserve change is handled with NUT-08 blanks.
     assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt submission');
-    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, meltChangeOutputs.outputs);
     assertMeltPaid(result);
+    const meltChangeProofs = await unblindMeltChange(
+      result.change,
+      meltChangeOutputs.blindingData,
+      keyData,
+      unit
+    );
 
     // ONLY NOW that melt succeeded, remove the proofs that were submitted.
     // Pre-swap change was already saved before melt submission.
     assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt proof cleanup');
     await removeProofsForUnit(prepared.proofsToMelt, unit);
+    if (meltChangeProofs.length > 0) {
+      await addProofsForUnit(meltChangeProofs, unit);
+    }
     logger.info('Melt succeeded - removed spent proofs', {
       count: prepared.proofsToMelt.length,
+      changeCount: meltChangeProofs.length,
       didPreSwap: prepared.didPreSwap,
     });
 
@@ -572,6 +660,28 @@ export interface MeltOperationError extends Error {
   spentProofsRemoved?: number;
 }
 
+const DEFINITIVE_VALID_PROOFS_MELT_FAILURE = /(?:tokens?|proofs?) remain valid/i;
+
+const isApiClientRejection = (error: Error): boolean =>
+  (error as Error & { category?: unknown }).category === 'api_client';
+
+const resolveFailedMeltSubmissionStatus = (
+  error: Error,
+  currentStatus: MeltSubmissionStatus,
+  spentProofsRemoved: number
+): MeltSubmissionStatus => {
+  if (spentProofsRemoved > 0) {
+    return 'accepted';
+  }
+  if (
+    currentStatus === 'unknown' &&
+    (isApiClientRejection(error) || DEFINITIVE_VALID_PROOFS_MELT_FAILURE.test(error.message))
+  ) {
+    return 'rejected';
+  }
+  return currentStatus;
+};
+
 /**
  * Complete melt without removing proofs - for fuse flow
  * Returns the proofs that need to be removed so caller can wait for tx confirmation
@@ -592,19 +702,27 @@ export const completeMeltWithoutCleanup = async (
     const keyData = await getOrFetchKeys();
     const prepared = await prepareMeltSpend(totalAmount, keyData, unit, operationAccount);
     preparedSpend = prepared;
+    const meltChangeOutputs = await createMeltChangeOutputs(quoteId, totalAmount, keyData, unit);
 
     // Melt tokens
     submissionStatus = 'unknown';
     assertCashuOperationAccountUnchanged(operationAccount, 'Cashu melt submission');
-    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, []);
+    const result = await meltTokensAPI(quoteId, prepared.proofsToMelt, meltChangeOutputs.outputs);
     submissionStatus = isMeltPaid(result) ? 'accepted' : 'rejected';
     assertMeltPaid(result);
+    const meltChangeProofs = await unblindMeltChange(
+      result.change,
+      meltChangeOutputs.blindingData,
+      keyData,
+      unit
+    );
 
     logger.info('Melt completed without cleanup', {
       paid: result.paid,
       state: result.state,
       txid: getMeltTxid(result),
       didPreSwap: prepared.didPreSwap,
+      changeCount: meltChangeProofs.length,
     });
 
     // Return the proofs that need to be removed later
@@ -613,7 +731,7 @@ export const completeMeltWithoutCleanup = async (
       txid: getMeltTxid(result),
       fee: getMeltFee(result),
       proofsToRemove: prepared.proofsToMelt,
-      changeProofs: null,
+      changeProofs: meltChangeProofs.length > 0 ? meltChangeProofs : null,
       taprootAddress: operationAccount,
     };
   } catch (error: unknown) {
@@ -646,7 +764,11 @@ export const completeMeltWithoutCleanup = async (
     }
 
     const enrichedError = originalError as MeltOperationError;
-    enrichedError.meltSubmissionStatus = submissionStatus;
+    enrichedError.meltSubmissionStatus = resolveFailedMeltSubmissionStatus(
+      originalError,
+      submissionStatus,
+      spentProofsRemoved
+    );
     enrichedError.spentProofsRemoved = spentProofsRemoved;
     throw enrichedError;
   }

@@ -12,7 +12,7 @@ import {
   setBiometricEnabled as persistBiometricEnabled,
 } from '../../services/biometricService';
 import * as PasskeyService from '../../services/passkey';
-import { hasSessionMnemonic } from '../../services/secureStorageService';
+import { hasAccessibleMnemonic } from '../../services/secureStorageService';
 import { logger } from '../../utils/logger';
 import { useOnboardingHandlers } from '../useOnboardingHandlers';
 import { usePasskeyCreation } from '../usePasskeyCreation';
@@ -62,7 +62,7 @@ jest.mock('../../services/passkey', () => ({
 }));
 
 jest.mock('../../services/secureStorageService', () => ({
-  hasSessionMnemonic: jest.fn(),
+  hasAccessibleMnemonic: jest.fn(),
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -327,7 +327,7 @@ describe('useOnboardingStateMachine', () => {
     (authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
     (persistBiometricEnabled as jest.Mock).mockResolvedValue(true);
     (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(false);
-    (hasSessionMnemonic as jest.Mock).mockReturnValue(true);
+    (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
     (useWallet as jest.Mock).mockReturnValue({
       wallet: null,
       currentAccount: 2,
@@ -440,10 +440,10 @@ describe('useOnboardingStateMachine', () => {
     expect(mockHandleLockScreenAuthenticatedWrapper).toHaveBeenCalled();
   });
 
-  it('forces PIN unlock when a passkey wallet has no restored session mnemonic', async () => {
+  it('forces PIN unlock when a passkey wallet has no accessible standard mnemonic', async () => {
     configureAuth({ biometricEnabled: true });
     (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
-    (hasSessionMnemonic as jest.Mock).mockReturnValue(false);
+    (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(false);
 
     const { result } = renderHook(() => useOnboardingStateMachine(params));
 
@@ -459,10 +459,10 @@ describe('useOnboardingStateMachine', () => {
     expect(mockHandleLockScreenAuthenticatedWrapper).not.toHaveBeenCalled();
   });
 
-  it('unlocks with biometric auth when passkey session requirements are satisfied', async () => {
+  it('unlocks with biometric auth when passkey recovery is enabled but the PIN wallet mnemonic is accessible', async () => {
     configureAuth({ biometricEnabled: true });
     (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
-    (hasSessionMnemonic as jest.Mock).mockReturnValue(true);
+    (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
 
     const { result } = renderHook(() => useOnboardingStateMachine(params));
 

@@ -12,12 +12,6 @@ import type { ValidatorLiquidatedVault, ExtendedVaultProfile } from './types';
 
 const LIQUIDATION_FETCH_TIMEOUT_MS = 12_000;
 
-function filterActiveLiquidationQuotes(
-  vaults: ValidatorLiquidatedVault[]
-): ValidatorLiquidatedVault[] {
-  return vaults.filter((vault) => vault.quote?.is_expired !== true);
-}
-
 /**
  * Fetch all liquidatable vaults from the validator indexer.
  */
@@ -33,12 +27,10 @@ export async function fetchLiquidatableVaults(): Promise<ValidatorLiquidatedVaul
     }
 
     const data = await response.json() as ValidatorLiquidatedVault[] | null;
-    const rawVaults = data ?? [];
-    const vaults = filterActiveLiquidationQuotes(rawVaults);
+    const vaults = data ?? [];
     logger.debug('[Liquidation] Fetched vaults', {
       count: vaults.length,
-      rawCount: rawVaults.length,
-      expiredCount: rawVaults.length - vaults.length,
+      expiredQuoteCount: vaults.filter((vault) => vault.quote?.is_expired === true).length,
     });
     return vaults;
   } catch (error: unknown) {
@@ -65,7 +57,7 @@ export async function fetchVaultsByIds(ids: string[]): Promise<ValidatorLiquidat
     }
 
     const data = await response.json() as ValidatorLiquidatedVault[] | null;
-    return filterActiveLiquidationQuotes(data ?? []);
+    return data ?? [];
   } catch (error: unknown) {
     logger.warn('[Liquidation] Failed to fetch vault data', {
       error: error instanceof Error ? error.message : String(error),

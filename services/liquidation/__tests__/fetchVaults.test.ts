@@ -111,7 +111,7 @@ describe('fetchLiquidatableVaults', () => {
       expect(result[1].vault_id).toBe('v2');
     });
 
-    it('should filter out vaults with expired liquidation quotes', async () => {
+    it('should keep vaults from the liquidated feed even when the embedded quote is expired', async () => {
       const vaults = [
         makeVault({ vault_id: 'active' }),
         makeVault({
@@ -123,11 +123,12 @@ describe('fetchLiquidatableVaults', () => {
 
       const result = await fetchLiquidatableVaults();
 
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(2);
       expect(result[0].vault_id).toBe('active');
+      expect(result[1].vault_id).toBe('expired');
     });
 
-    it('should return [] when every returned liquidation quote is expired', async () => {
+    it('should return liquidated feed entries when every embedded quote is expired', async () => {
       mockFetchSuccess([
         makeVault({
           vault_id: 'expired-1',
@@ -141,7 +142,8 @@ describe('fetchLiquidatableVaults', () => {
 
       const result = await fetchLiquidatableVaults();
 
-      expect(result).toEqual([]);
+      expect(result).toHaveLength(2);
+      expect(result.map((vault) => vault.vault_id)).toEqual(['expired-1', 'expired-2']);
     });
 
     it('should return [] when server responds with null', async () => {
@@ -230,7 +232,7 @@ describe('fetchLiquidatableVaults', () => {
       );
     });
 
-    it('should log how many validator vaults were expired', async () => {
+    it('should log how many liquidated feed entries have expired embedded quotes', async () => {
       mockFetchSuccess([
         makeVault(),
         makeVault({
@@ -243,7 +245,7 @@ describe('fetchLiquidatableVaults', () => {
 
       expect(logger.debug).toHaveBeenCalledWith(
         '[Liquidation] Fetched vaults',
-        expect.objectContaining({ count: 1, rawCount: 2, expiredCount: 1 })
+        expect.objectContaining({ count: 2, expiredQuoteCount: 1 })
       );
     });
   });
@@ -278,7 +280,7 @@ describe('fetchVaultsByIds', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('should filter expired liquidation quotes for requested IDs', async () => {
+    it('should keep expired embedded quotes for requested liquidated IDs', async () => {
       mockFetchSuccess([
         makeVault({ vault_id: 'v-active' }),
         makeVault({
@@ -289,8 +291,9 @@ describe('fetchVaultsByIds', () => {
 
       const result = await fetchVaultsByIds(['v-active', 'v-expired']);
 
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(2);
       expect(result[0].vault_id).toBe('v-active');
+      expect(result[1].vault_id).toBe('v-expired');
     });
 
     it('should encode each ID as a separate query param', async () => {

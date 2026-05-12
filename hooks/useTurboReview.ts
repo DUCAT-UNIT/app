@@ -212,6 +212,9 @@ export function useTurboReview({
         mintClaimAmount: mintQuote.amount,
         turboRecipient: originalRecipient,
         senderTaprootAddress,
+        assetType: 'unit',
+        amount: quoteDisplayAmount,
+        recipient: mintQuote.depositAddress,
       });
     } catch (error: unknown) {
       setIsRequestingMint(false);

@@ -15,7 +15,9 @@ import {
   createMintQuote,
   mintRequiresDleqProofs,
   MintQuote,
+  MintResponse,
   mintTokens as mintTokensAPI,
+  restoreSignatures,
 } from '../cashuMintClient';
 import {
   ensureMintQuoteClaimCanBePersisted,
@@ -27,6 +29,7 @@ import {
 import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { addProofs } from '../cashuProofManager';
 import {
+  BlindedOutput,
   CashuProof,
   createBlindedOutputs,
   splitAmount,
@@ -47,6 +50,41 @@ export interface MintQuoteResult {
 }
 
 const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
+
+const addProofsForUnit = (proofs: CashuProof[], unit: CashuUnit): Promise<void> =>
+  isDefaultCashuUnit(unit) ? addProofs(proofs) : addProofs(proofs, true, unit);
+
+const restoreMintResponse = async (
+  quoteId: string,
+  outputs: BlindedOutput[],
+  originalError: unknown
+): Promise<MintResponse> => {
+  try {
+    logger.warn('Mint claim failed after outputs were persisted; attempting signature restore', {
+      quoteId,
+      error: originalError instanceof Error ? originalError.message : String(originalError),
+      outputCount: outputs.length,
+    });
+
+    const restoredResponse = await restoreSignatures(outputs);
+    if (restoredResponse.signatures.length !== outputs.length) {
+      throw new Error('Restored mint signature count does not match claim outputs');
+    }
+
+    logger.info('Recovered mint signatures after mint claim failure', {
+      quoteId,
+      signatureCount: restoredResponse.signatures.length,
+    });
+    return restoredResponse;
+  } catch (restoreError) {
+    logger.warn('Failed to restore mint signatures after mint claim failure', {
+      quoteId,
+      mintError: originalError instanceof Error ? originalError.message : String(originalError),
+      restoreError: restoreError instanceof Error ? restoreError.message : String(restoreError),
+    });
+    throw originalError;
+  }
+};
 
 /**
  * Request a mint quote (deposit address)
@@ -224,7 +262,12 @@ export const completeMint = async (
     claimPersisted = true;
 
     const requireDleq = await mintRequiresDleqProofs();
-    const response = await mintTokensAPI(quoteId, outputs, signature);
+    let response: MintResponse;
+    try {
+      response = await mintTokensAPI(quoteId, outputs, signature);
+    } catch (mintError) {
+      response = await restoreMintResponse(quoteId, outputs, mintError);
+    }
 
     logger.info('Received signatures from mint', {
       signatureCount: response.signatures.length,
@@ -289,11 +332,7 @@ export const completeMint = async (
           amount: availableAmount,
         });
       }
-      if (isDefaultCashuUnit(unit)) {
-        await addProofs(proofs);
-      } else {
-        await addProofs(proofs, true, unit);
-      }
+      await addProofsForUnit(proofs, unit);
       if (recoveryKey) {
         await clearProofRecoveryRecord(recoveryKey);
       }
@@ -317,11 +356,7 @@ export const completeMint = async (
     }
 
     // Add proofs to wallet
-    if (isDefaultCashuUnit(unit)) {
-      await addProofs(proofs);
-    } else {
-      await addProofs(proofs, true, unit);
-    }
+    await addProofsForUnit(proofs, unit);
 
     // Remove the quote from recovery storage after successful claim
     await removeMintQuote(quoteId);

@@ -32,6 +32,7 @@ const mockClearPendingTurboSend = jest.fn();
 const mockLoadPendingTurboSend = jest.fn();
 const mockGetMinimumTurboBalanceAfterMint = jest.fn();
 const mockGetCurrentCashuAccount = jest.fn();
+const mockRecoverUnclaimedMintQuotes = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   checkMintQuote: (...args: any[]) => mockCheckMintQuote(...args),
@@ -44,6 +45,10 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 
 jest.mock('../../services/cashu/cashuProofManager', () => ({
   getCurrentCashuAccount: () => mockGetCurrentCashuAccount(),
+}));
+
+jest.mock('../../services/cashu/cashuMintQuoteRecovery', () => ({
+  recoverUnclaimedMintQuotes: (...args: unknown[]) => mockRecoverUnclaimedMintQuotes(...args),
 }));
 
 jest.mock('../../utils/bitcoin', () => ({
@@ -151,6 +156,12 @@ describe('useTurboMintCompletion', () => {
     mockLoadPendingTurboSend.mockResolvedValue(null);
     mockGetMinimumTurboBalanceAfterMint.mockReturnValue(100);
     mockGetCurrentCashuAccount.mockReturnValue('tb1psender123');
+    mockRecoverUnclaimedMintQuotes.mockResolvedValue({
+      checked: 0,
+      recovered: 0,
+      totalAmountRecovered: 0,
+      errors: [],
+    });
   });
 
   afterEach(() => {
@@ -312,18 +323,21 @@ describe('useTurboMintCompletion', () => {
       expect(notify.transaction.success).toHaveBeenCalledWith('convert');
     });
 
-    it('should poll for payment and complete mint on ISSUED state', async () => {
+    it('should recover instead of reminting when quote reports ISSUED state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
+      mockGetBalance.mockResolvedValue(200);
 
       const { result } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote456',
+        mintAmount: 200,
       });
 
       await advanceThroughPolling();
 
-      expect(mockCompleteMint).toHaveBeenCalledWith('quote456', 200);
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
+      expect(mockCompleteMint).not.toHaveBeenCalled();
     });
 
     it('should continue to P2PK when accounting says quote is already issued', async () => {
@@ -344,6 +358,7 @@ describe('useTurboMintCompletion', () => {
       await advanceThroughPolling();
 
       expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockSendP2PKToken).toHaveBeenCalledWith(
         100,
         '02pubkey123',
@@ -385,6 +400,7 @@ describe('useTurboMintCompletion', () => {
 
       await advanceThroughPolling();
 
+      expect(mockRecoverUnclaimedMintQuotes).toHaveBeenCalled();
       expect(mockCompleteMint).not.toHaveBeenCalled();
       expect(mockSendP2PKToken).not.toHaveBeenCalled();
       expect(mockClearPendingTurboSend).not.toHaveBeenCalled();

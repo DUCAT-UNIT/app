@@ -292,9 +292,13 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
             quoteId: cashuQuoteId,
           })
         );
-      } else if (intentStep === 'entering_amount') {
-        // Error - go back to amount input
-        logger.debug('Error creating intent, going back to amount');
+      } else if (
+        intentStep === 'entering_amount' ||
+        intentStep === 'entering_address' ||
+        intentStep === 'selecting_asset'
+      ) {
+        // Error - go back to the previous input screen
+        logger.debug('Error creating intent, going back to input screen', { intentStep });
         hasNavigated.current = true;
         analytics.track(TRANSACTION_EVENTS.SEND_FAILED, {
           asset_type: sendAssetType,

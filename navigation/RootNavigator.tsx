@@ -27,7 +27,7 @@ import {
   setBiometricEnabled as persistBiometricEnabled,
 } from '../services/biometricService';
 import { isPasskeyEnabled } from '../services/passkey';
-import { hasSessionMnemonic } from '../services/secureStorageService';
+import { hasAccessibleMnemonic } from '../services/secureStorageService';
 import { COLORS } from '../theme';
 import {
   AuthStack,
@@ -502,7 +502,7 @@ export default function RootNavigator(): React.JSX.Element {
 
         if (result.success) {
           const passkeyEnabled = await isPasskeyEnabled();
-          if (passkeyEnabled && !hasSessionMnemonic()) {
+          if (passkeyEnabled && !(await hasAccessibleMnemonic())) {
             Alert.alert(
               'Use PIN To Unlock',
               'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'

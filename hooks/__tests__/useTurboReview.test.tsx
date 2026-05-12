@@ -425,6 +425,9 @@ describe('useTurboReview', () => {
         mintClaimAmount: 20,
         turboRecipient: 'original_recipient',
         senderTaprootAddress: 'tb1psender',
+        assetType: 'unit',
+        amount: '0.2',
+        recipient: 'bc1qtest',
       });
     });
 

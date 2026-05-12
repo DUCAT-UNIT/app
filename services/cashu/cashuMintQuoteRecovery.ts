@@ -314,6 +314,21 @@ const isPermanentFailure = (errorMsg: string): boolean => {
 const isExpiredMintQuote = (quote: PersistedMintQuote): boolean =>
   Date.now() - quote.createdAt >= QUOTE_EXPIRY_MS;
 
+const isMintQuoteAlreadyIssued = (
+  mintQuote: Awaited<ReturnType<typeof checkMintQuote>>
+): boolean => {
+  const mintState = deriveMintQuoteState(mintQuote);
+  const hasMintAccounting =
+    mintQuote.amount_paid !== undefined || mintQuote.amount_issued !== undefined;
+
+  return (
+    mintState === 'ISSUED' ||
+    (hasMintAccounting &&
+      (mintQuote.amount_paid ?? 0) > 0 &&
+      (mintQuote.amount_issued ?? 0) >= (mintQuote.amount_paid ?? 0))
+  );
+};
+
 const belongsToCurrentCashuAccount = (
   quote: PersistedMintQuote,
   currentAccount = getCurrentCashuAccount()
@@ -385,15 +400,19 @@ const recoverPersistedMintClaim = async (
   const keys = quote.claim.keys;
 
   if (!signatures || signatures.length === 0) {
-    if (quote.state === 'PENDING' && Date.now() - quote.claim.createdAt < STALE_PENDING_MS) {
+    const isActivePendingClaim =
+      quote.state === 'PENDING' && Date.now() - quote.claim.createdAt < STALE_PENDING_MS;
+    const mintQuote = await checkMintQuote(quote.quoteId);
+    const mintState = deriveMintQuoteState(mintQuote);
+    const alreadyIssued = isMintQuoteAlreadyIssued(mintQuote);
+
+    if (isActivePendingClaim && !alreadyIssued) {
       logger.debug('[MintQuoteRecovery] Skipping active persisted mint claim without signatures', {
         quoteId: quote.quoteId.substring(0, 8),
       });
       return;
     }
 
-    const mintQuote = await checkMintQuote(quote.quoteId);
-    const mintState = deriveMintQuoteState(mintQuote);
     const availableAmount = getMintQuoteAvailableAmount(mintQuote);
     const hasMintAccounting =
       mintQuote.amount_paid !== undefined || mintQuote.amount_issued !== undefined;
@@ -632,12 +651,7 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
               }
             }
           }
-        } else if (
-          mintState === 'ISSUED' ||
-          (hasMintAccounting &&
-            (mintQuote.amount_paid ?? 0) > 0 &&
-            (mintQuote.amount_issued ?? 0) >= (mintQuote.amount_paid ?? 0))
-        ) {
+        } else if (isMintQuoteAlreadyIssued(mintQuote)) {
           // Already claimed - remove from our list
           logger.info('[MintQuoteRecovery] Quote already issued, removing', {
             quoteId: quote.quoteId.substring(0, 8),

@@ -10,7 +10,7 @@ import {
   setBiometricEnabled as persistBiometricEnabled,
 } from '../services/biometricService';
 import * as PasskeyService from '../services/passkey';
-import { hasSessionMnemonic } from '../services/secureStorageService';
+import { hasAccessibleMnemonic } from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -197,7 +197,7 @@ export function useOnboardingStateMachine({
         const result = await authenticateWithBiometrics('Authenticate to unlock wallet', 'Use PIN');
         if (result.success) {
           const passkeyEnabled = await PasskeyService.isPasskeyEnabled();
-          if (passkeyEnabled && !hasSessionMnemonic()) {
+          if (passkeyEnabled && !(await hasAccessibleMnemonic())) {
             Alert.alert(
               'Use PIN To Unlock',
               'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'

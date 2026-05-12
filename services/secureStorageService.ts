@@ -42,6 +42,27 @@ export const clearSessionMnemonic = (): void => {
 
 export const hasSessionMnemonic = (): boolean => sessionMnemonic !== null;
 
+export const hasAccessibleMnemonic = async (): Promise<boolean> => {
+  if (sessionMnemonic) {
+    return true;
+  }
+
+  try {
+    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    if (!mnemonic) {
+      return false;
+    }
+
+    cacheSessionMnemonic(mnemonic);
+    return true;
+  } catch (error: unknown) {
+    logger.error('Failed to check mnemonic availability', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+};
+
 /**
  * Save mnemonic to secure storage
  * @param mnemonic - BIP39 mnemonic phrase
