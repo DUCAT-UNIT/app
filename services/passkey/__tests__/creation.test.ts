@@ -45,6 +45,7 @@ jest.mock('../core', () => ({
   PASSKEY_KEYS: {
     PRF_ENABLED: 'passkey_prf_enabled_v1',
     DERIVATION_VERSION: 'passkey_derivation_version_v1',
+    CREATION_METHOD: 'wallet_creation_method_v1',
   },
   PASSKEY_DERIVATION_VERSION: {
     LEGACY_V4: '4',
@@ -478,6 +479,26 @@ describe('Passkey Creation', () => {
         iv: mockIv,
         tag: mockTag,
       });
+    });
+
+    it('should preserve a standard PIN wallet after enabling passkey recovery', async () => {
+      await addPasskeyToExistingWallet(
+        mockMnemonic,
+        'test@example.com',
+        'Test User',
+        '123456'
+      );
+
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.MNEMONIC,
+        mockMnemonic,
+        expect.any(Object)
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'wallet_creation_method_v1',
+        'pin',
+        expect.any(Object)
+      );
     });
 
     it('should backup to iCloud with PIN salt', async () => {

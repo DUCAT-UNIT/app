@@ -11,6 +11,11 @@ import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
 import { postJSON } from '../utils/apiClient';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+import { getNotificationsEnabled } from './settingsService';
+
+interface GetExpoPushTokenOptions {
+  requestPermissions?: boolean;
+}
 
 function formatWatchTransactionType(type?: string): string {
   const raw = type?.trim();
@@ -29,15 +34,20 @@ function formatWatchTransactionType(type?: string): string {
  * Get the Expo push token for this device.
  * Returns null if permissions are not granted or running in E2E mode.
  */
-export async function getExpoPushToken(): Promise<string | null> {
+export async function getExpoPushToken(options: GetExpoPushTokenOptions = {}): Promise<string | null> {
   if (isE2E()) {
     logger.debug('[PushNotification] Skipped token retrieval in E2E mode');
     return null;
   }
 
   try {
+    const { requestPermissions = true } = options;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     if (existingStatus !== 'granted') {
+      if (!requestPermissions) {
+        logger.info('[PushNotification] Push notification permission not granted');
+        return null;
+      }
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== 'granted') {
         logger.info('[PushNotification] Push notification permission not granted');
@@ -118,6 +128,11 @@ export async function sendLocalNotification(params: {
   if (isE2E()) return;
 
   try {
+    if (!(await getNotificationsEnabled())) {
+      logger.debug('[PushNotification] Local notification skipped because notifications are disabled');
+      return;
+    }
+
     await Notifications.scheduleNotificationAsync({
       content: {
         title: params.title,
@@ -152,6 +167,11 @@ export async function watchTransaction(
   if (isE2E()) return;
 
   try {
+    if (!(await getNotificationsEnabled())) {
+      logger.debug('[PushNotification] TX watch skipped because notifications are disabled');
+      return;
+    }
+
     const token = await getExpoPushToken();
     if (!token) {
       logger.debug('[PushNotification] No push token — skipping watch-tx registration');
@@ -190,6 +210,11 @@ export async function initializePushNotifications(walletAddress: string, vaultPu
   }
 
   try {
+    if (!(await getNotificationsEnabled())) {
+      logger.debug('[PushNotification] Initialization skipped because notifications are disabled');
+      return null;
+    }
+
     // Configure Android notification channel
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {

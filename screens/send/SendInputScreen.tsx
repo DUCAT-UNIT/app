@@ -149,6 +149,9 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const activeMaxSendableBtc = isTurboBtc
     ? maxSendableTurboBtc + maxSendableBtc
     : maxSendableBtc;
+  const btcMaxButtonValue = isTurboBtc && maxSendableTurboBtc > 0
+    ? maxSendableTurboBtc
+    : activeMaxSendableBtc;
 
   // Turbo review hook for UNIT transactions
   const {
@@ -494,6 +497,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
             isBtc={isBtc}
             value={currentAmount}
             maxValue={isBtc ? activeMaxSendableBtc : maxSendableUnit}
+            maxButtonValue={isBtc ? btcMaxButtonValue : undefined}
             onValueChange={handleAmountChange}
             onLiveValueChange={handleLiveAmountChange}
             btcPrice={btcPrice ?? undefined}

@@ -172,7 +172,7 @@ describe('useWalletCalculations', () => {
       expect(result.current!.vaultCollateralRatio).toBe(0);
     });
 
-    it('should return 0 when debt is 0', () => {
+    it('should return Infinity when debt is 0 and collateral exists', () => {
       const { result } = renderHook(() =>
         useWalletCalculations({
           segwitBalance: 1.0,
@@ -195,7 +195,7 @@ describe('useWalletCalculations', () => {
         })
       );
 
-      expect(result.current!.vaultCollateralRatio).toBe(0);
+      expect(result.current!.vaultCollateralRatio).toBe(Infinity);
     });
 
     it('should use oracle price when btcPrice is not available', () => {
@@ -239,9 +239,44 @@ describe('useWalletCalculations', () => {
 
       expect(result.current!.vaultHealthPercentage).toBe(0);
     });
+
+    it('should return Infinity when vault has collateral and no debt', () => {
+      const { result } = renderHook(() =>
+        useWalletCalculations({
+          segwitBalance: 1.0,
+          runesBalance: [],
+          btcPrice: 50000,
+          vaultData: {
+            ...mockVaultData,
+            totalDebt: 0,
+            totalCollateral: 0.0995285,
+          },
+        })
+      );
+
+      expect(result.current!.vaultCollateralRatio).toBe(Infinity);
+      expect(result.current!.vaultHealthPercentage).toBe(Infinity);
+    });
   });
 
   describe('vaultHealthColor', () => {
+    it('should return GREEN when vault has collateral and no debt', () => {
+      const { result } = renderHook(() =>
+        useWalletCalculations({
+          segwitBalance: 1.0,
+          runesBalance: [],
+          btcPrice: 50000,
+          vaultData: {
+            ...mockVaultData,
+            totalDebt: 0,
+            totalCollateral: 0.0995285,
+          },
+        })
+      );
+
+      expect(result.current!.vaultHealthColor).toBe(COLORS.GREEN);
+    });
+
     it('should return GREEN when ratio >= 200%', () => {
       const { result } = renderHook(() =>
         useWalletCalculations({

@@ -18,7 +18,7 @@ interface UseWalletCalculationsReturn {
   totalBalanceBTC: number;
   totalBalanceUSD: number;
   vaultCollateralRatio: number;
-  vaultHealthPercentage: number;
+  vaultHealthPercentage: number | typeof Infinity;
   vaultHealthColor: string;
   vaultDebt: number;
   vaultCollateral: number;
@@ -94,7 +94,7 @@ export const useWalletCalculations = ({
     const collateralValue = (vaultData.totalCollateral || 0) * priceToUse;
 
     if (debt === 0) {
-      return 0;
+      return collateralValue > 0 ? Infinity : 0;
     }
 
     return (collateralValue / debt) * 100;
@@ -109,7 +109,7 @@ export const useWalletCalculations = ({
       return 0;
     }
 
-    return Math.floor(vaultCollateralRatio);
+    return Number.isFinite(vaultCollateralRatio) ? Math.floor(vaultCollateralRatio) : Infinity;
   }, [vaultData, vaultCollateralRatio]);
 
   /**

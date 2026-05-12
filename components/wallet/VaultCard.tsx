@@ -69,6 +69,7 @@ export default memo(function VaultCard({
     () => formatBalance(vaultCollateral, COLLATERAL_DECIMAL_PLACES),
     [vaultCollateral]
   );
+  const vaultHealthLabel = vaultHealthPercentage === Infinity ? '∞' : String(vaultHealthPercentage);
 
   return (
     <TouchableOpacity
@@ -78,7 +79,7 @@ export default memo(function VaultCard({
       disabled={!hasVault}
       testID="vault-card"
       accessibilityRole="button"
-      accessibilityLabel={hasVault ? `Vault with ${vaultHealthPercentage}% health, ${formatVaultUsd(vaultDebt)} debt, ${formattedCollateral} BTC collateral` : "No vault created"}
+      accessibilityLabel={hasVault ? `Vault with ${vaultHealthLabel}% health, ${formatVaultUsd(vaultDebt)} debt, ${formattedCollateral} BTC collateral` : "No vault created"}
       accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow dollar-denominated liquidity"}
       accessibilityState={{ disabled: !hasVault }}
     >
@@ -94,7 +95,7 @@ export default memo(function VaultCard({
             </View>
           </View>
           <Text style={[styles.assetValue, { color: vaultHealthColor }]}>
-            {vaultHealthPercentage}%
+            {vaultHealthLabel}%
           </Text>
         </View>
         <View style={styles.vaultDetailsContainer}>

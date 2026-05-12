@@ -481,8 +481,8 @@ describe('useTurboMintCompletion', () => {
       );
     });
 
-    it('should fail closed before polling when a Turbo send cannot be journaled to a sender address', async () => {
-      renderHookWithProps({
+    it('waits for sender address before starting Turbo mint completion', async () => {
+      const { result, rerender } = renderHookWithProps({
         ...mockProps,
         isTurbo: true,
         mintQuoteId: 'quote123',
@@ -499,9 +499,46 @@ describe('useTurboMintCompletion', () => {
       expect(mockCheckMintQuote).not.toHaveBeenCalled();
       expect(mockCompleteMint).not.toHaveBeenCalled();
       expect(mockSendP2PKToken).not.toHaveBeenCalled();
-      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith(
-        'Wallet Taproot address unavailable for Turbo recovery'
-      );
+      expect(notify.cashu.conversionFailed).not.toHaveBeenCalled();
+      expect(result.current!.processingMessage).toBe('Preparing wallet context...');
+
+      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+      rerender({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        senderTaprootAddress: 'tb1psender123',
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCheckMintQuote).toHaveBeenCalledWith('quote123');
+      expect(mockSendP2PKToken).toHaveBeenCalled();
+    });
+
+    it('continues polling when a mint status request hangs', async () => {
+      mockCheckMintQuote
+        .mockImplementationOnce(() => new Promise(() => undefined))
+        .mockResolvedValueOnce({ state: 'PAID', amount: 100 });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(2100);
+        await jest.advanceTimersByTimeAsync(20000);
+        await jest.advanceTimersByTimeAsync(2100);
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      expect(mockCheckMintQuote).toHaveBeenCalledTimes(2);
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
     });
 
     it('should not claim or spend when the active Cashu account changed', async () => {

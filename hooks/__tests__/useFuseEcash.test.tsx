@@ -31,12 +31,19 @@ const mockRequestMaxMelt = jest.fn();
 const mockCompleteMeltWithoutCleanup = jest.fn();
 const mockCleanupMeltProofs = jest.fn();
 const mockRemoveSpentProofs = jest.fn();
+const mockSnackbar = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   requestMaxMelt: (...args: unknown[]) => mockRequestMaxMelt(...args),
   completeMeltWithoutCleanup: (...args: unknown[]) => mockCompleteMeltWithoutCleanup(...args),
   cleanupMeltProofs: (...args: unknown[]) => mockCleanupMeltProofs(...args),
   removeSpentProofs: (...args: unknown[]) => mockRemoveSpentProofs(...args),
+}));
+
+jest.mock('../../utils/notify', () => ({
+  notify: {
+    snackbar: (...args: unknown[]) => mockSnackbar(...args),
+  },
 }));
 
 // Helper to render hooks with props
@@ -102,7 +109,7 @@ describe('useFuseEcash', () => {
     expect(typeof result.current!.handleFusePress).toBe('function');
   });
 
-  it('should show alert when cashuBalance is 0', async () => {
+  it('should show app snackbar when cashuBalance is 0', async () => {
     const props = { ...mockProps, cashuBalance: 0 };
     const { result } = renderHookWithProps(props);
 
@@ -110,7 +117,12 @@ describe('useFuseEcash', () => {
       await result.current!.handleFusePress();
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith('No TurboUNIT', "You don't have any TurboUNIT to withdraw.");
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockSnackbar).toHaveBeenCalledWith({
+      type: 'info',
+      title: 'No TurboUNIT',
+      description: "You don't have any TurboUNIT to redeem.",
+    });
   });
 
   it('should show confirmation alert with balance', async () => {
@@ -121,11 +133,11 @@ describe('useFuseEcash', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'Withdraw TurboUNIT?',
-      'Convert up to 100.50 TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.',
+      'Redeem TurboUNIT?',
+      'Convert up to 100.50 TurboUNIT to on-chain UNIT? Network fees are deducted from the redeemed amount.',
       expect.arrayContaining([
         expect.objectContaining({ text: 'Cancel', style: 'cancel' }),
-        expect.objectContaining({ text: 'Withdraw' }),
+        expect.objectContaining({ text: 'Redeem' }),
       ])
     );
   });
@@ -146,8 +158,8 @@ describe('useFuseEcash', () => {
       });
 
       expect(Alert.alert).toHaveBeenCalledWith(
-        'Withdraw Turbo BTC?',
-        'Convert up to 0.00012500 BTC to on-chain BTC? Network fees are deducted from the withdrawal amount.',
+        'Redeem Turbo BTC?',
+        'Convert up to 0.00012500 BTC to on-chain BTC? Network fees are deducted from the redeemed amount.',
         expect.any(Array)
       );
 
@@ -188,8 +200,8 @@ describe('useFuseEcash', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'Withdraw TurboUNIT?',
-      'Convert up to 50.12 TurboUNIT to on-chain UNIT? Network fees are deducted from the withdrawal amount.',
+      'Redeem TurboUNIT?',
+      'Convert up to 50.12 TurboUNIT to on-chain UNIT? Network fees are deducted from the redeemed amount.',
       expect.any(Array)
     );
   });
@@ -214,7 +226,7 @@ describe('useFuseEcash', () => {
     expect(buttons).toHaveLength(2);
     expect(buttons[0].text).toBe('Cancel');
     expect(buttons[0].style).toBe('cancel');
-    expect(buttons[1].text).toBe('Withdraw');
+    expect(buttons[1].text).toBe('Redeem');
     expect(typeof buttons[1].onPress).toBe('function');
   });
 
@@ -234,10 +246,11 @@ describe('useFuseEcash', () => {
         await fuseButton.onPress();
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Withdrawal failed',
-        'Your TurboUNIT tokens remain valid. Melt failed'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        title: 'Redeem failed',
+        description: 'Your TurboUNIT tokens remain valid. Melt failed',
+      });
     });
 
     it('should handle non-Error exception during fuse', async () => {
@@ -255,10 +268,11 @@ describe('useFuseEcash', () => {
         await fuseButton.onPress();
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Withdrawal failed',
-        'Your TurboUNIT tokens remain valid. String error'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'error',
+        title: 'Redeem failed',
+        description: 'Your TurboUNIT tokens remain valid. String error',
+      });
     });
 
     it('should not claim tokens remain valid when melt submission status is unknown', async () => {
@@ -280,13 +294,17 @@ describe('useFuseEcash', () => {
         await fuseButton.onPress();
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Withdrawal status unknown',
-        'The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. Network dropped after submit'
-      );
-      expect(Alert.alert).not.toHaveBeenCalledWith(
-        'Withdrawal failed',
-        expect.stringContaining('remain valid')
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'warning',
+        title: 'Redeem status unknown',
+        description:
+          'The mint request may have been submitted, but the app could not confirm the result. Refresh before sending TurboUNIT again. Network dropped after submit',
+      });
+      expect(mockSnackbar).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Redeem failed',
+          description: expect.stringContaining('remain valid'),
+        })
       );
     });
 
@@ -311,13 +329,17 @@ describe('useFuseEcash', () => {
         });
 
         expect(mockRemoveSpentProofs).toHaveBeenCalled();
-        expect(Alert.alert).toHaveBeenCalledWith(
-          'Withdrawal submitted',
-          'Withdrawing 90.50 UNIT. Local TurboUNIT cleanup did not finish; refresh before sending TurboUNIT again.'
-        );
-        expect(Alert.alert).not.toHaveBeenCalledWith(
-          'Withdrawal failed',
-          expect.stringContaining('remain valid')
+        expect(mockSnackbar).toHaveBeenCalledWith({
+          type: 'warning',
+          title: 'Redeem submitted',
+          description:
+            'Redeeming 90.50 UNIT. Local TurboUNIT cleanup did not finish; refresh before sending TurboUNIT again.',
+        });
+        expect(mockSnackbar).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: 'Redeem failed',
+            description: expect.stringContaining('remain valid'),
+          })
         );
 
         for (let i = 0; i < 35; i++) {
@@ -377,7 +399,7 @@ describe('useFuseEcash', () => {
       expect(mockCleanupMeltProofs).toHaveBeenCalled();
     });
 
-    it('should show processing alert after melt', async () => {
+    it('should show processing snackbar after melt', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
@@ -402,10 +424,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Withdrawal submitted',
-        'Withdrawing 90.50 UNIT. Waiting for transaction to appear on-chain...'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'submitted',
+        title: 'Redeem submitted',
+        description: 'Redeeming 90.50 UNIT. Waiting for transaction to appear on-chain...',
+      });
     });
 
     it('should poll for transaction and show success when found with recent block_time', async () => {
@@ -441,7 +464,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'success',
+        title: 'Redeem complete',
+        description: 'TurboUNIT was redeemed to on-chain UNIT.',
+      });
     });
 
     it('should find unconfirmed transaction (no block_time)', async () => {
@@ -477,7 +504,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith('Success', 'TurboUNIT successfully withdrawn to on-chain UNIT.');
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'success',
+        title: 'Redeem complete',
+        description: 'TurboUNIT was redeemed to on-chain UNIT.',
+      });
     });
 
     it('should show pending alert when transaction not found after polling', async () => {
@@ -505,10 +536,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Pending',
-        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'pending',
+        title: 'Redeem pending',
+        description: 'Transaction will appear on-chain shortly.',
+      });
     });
 
     it('should skip old transactions (block_time > 120 seconds ago)', async () => {
@@ -544,10 +576,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Pending',
-        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'pending',
+        title: 'Redeem pending',
+        description: 'Transaction will appear on-chain shortly.',
+      });
     });
 
     it('should skip transactions without matching address', async () => {
@@ -583,10 +616,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Pending',
-        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'pending',
+        title: 'Redeem pending',
+        description: 'Transaction will appear on-chain shortly.',
+      });
     });
 
     it('should handle transaction without vout', async () => {
@@ -621,10 +655,11 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Pending',
-        'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
-      );
+      expect(mockSnackbar).toHaveBeenCalledWith({
+        type: 'pending',
+        title: 'Redeem pending',
+        description: 'Transaction will appear on-chain shortly.',
+      });
     });
 
     it('should call fetchTransactionHistory during polling', async () => {

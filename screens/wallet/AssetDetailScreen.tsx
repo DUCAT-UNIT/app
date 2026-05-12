@@ -15,7 +15,6 @@ import {
   AssetInfo,
   AssetPriceChart,
   AssetTabs,
-  AssetTurboList,
 } from '../../components/assetDetail';
 import TokenDetailsSheet from '../../components/ecash/TokenDetailsSheet';
 import TransactionDetailsSheet from '../../components/transaction/TransactionDetailsSheet';
@@ -69,6 +68,8 @@ interface AssetDetailScreenProps {
     navigate: (screen: string, params?: object) => void;
     /** Go back to previous screen */
     goBack: () => void;
+    /** Whether this navigator has a previous route */
+    canGoBack?: () => boolean;
   };
 }
 
@@ -90,6 +91,15 @@ interface TokenData {
   cashuUnit?: CashuUnit;
 }
 
+function navigateBackToWalletHome(navigation: AssetDetailScreenProps['navigation']): void {
+  if (navigation.canGoBack?.()) {
+    navigation.goBack();
+    return;
+  }
+
+  navigation.navigate('WalletHome');
+}
+
 function AssetDetailScreen(props: AssetDetailScreenProps): React.JSX.Element {
   const assetType = props.route?.params?.assetType || 'BTC';
   const { settingsHandlers } = useSettingsHandlers();
@@ -98,7 +108,7 @@ function AssetDetailScreen(props: AssetDetailScreenProps): React.JSX.Element {
 
   useEffect(() => {
     if (isSepoliaAsset && !usdcFeaturesEnabled) {
-      props.navigation.goBack();
+      navigateBackToWalletHome(props.navigation);
     }
   }, [isSepoliaAsset, props.navigation, usdcFeaturesEnabled]);
 
@@ -159,6 +169,9 @@ function EvmAssetDetailScreen({
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
   const scrollY = useRef(new Animated.Value(0)).current;
   const balanceLoadedRef = useRef(Boolean(initialEvmAddress));
+  const handleBackPress = useCallback(() => {
+    navigateBackToWalletHome(navigation);
+  }, [navigation]);
   const { priceData, priceDirection, priceLoading, priceError, setPriceError } = usePriceChart(
     assetType,
     selectedTimeframe
@@ -251,7 +264,7 @@ function EvmAssetDetailScreen({
   return (
     <>
       <SafeAreaView style={styles.container} testID="asset-detail-screen">
-        <AssetHeader onBackPress={() => navigation.goBack()} />
+        <AssetHeader onBackPress={handleBackPress} />
 
         <Animated.ScrollView
           style={styles.scrollView}
@@ -301,7 +314,6 @@ function EvmAssetDetailScreen({
             selectedTab={selectedTab}
             onTabChange={(tab: string) => setSelectedTab(tab as 'ACTIVITY' | 'ABOUT')}
             assetType={assetType}
-            advancedMode={advancedMode}
           />
 
           {selectedTab === 'ACTIVITY' ? (
@@ -371,7 +383,7 @@ function BtcUnitAssetDetailScreen({
       vaultData,
     });
 
-  const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT' | 'TURBO'>('ACTIVITY');
+  const [selectedTab, setSelectedTab] = useState<'ACTIVITY' | 'ABOUT'>('ACTIVITY');
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1D' | '1W' | '1M' | '1Y'>('1M');
   const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
   const [showTokenDetails, setShowTokenDetails] = useState<boolean>(false);
@@ -393,6 +405,9 @@ function BtcUnitAssetDetailScreen({
   const scrollY = useRef(new Animated.Value(0)).current;
   const { showToast } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
+  const handleBackPress = useCallback(() => {
+    navigateBackToWalletHome(navigation);
+  }, [navigation]);
 
   // Track if balance has ever loaded (prevents spinner on background updates)
   const balanceLoadedRef = useRef(false);
@@ -664,7 +679,7 @@ function BtcUnitAssetDetailScreen({
   return (
     <>
       <SafeAreaView style={styles.container} testID="asset-detail-screen">
-        <AssetHeader onBackPress={() => navigation.goBack()} />
+        <AssetHeader onBackPress={handleBackPress} />
 
         <Animated.ScrollView
           style={styles.scrollView}
@@ -746,9 +761,8 @@ function BtcUnitAssetDetailScreen({
 
           <AssetTabs
             selectedTab={selectedTab}
-            onTabChange={(tab: string) => setSelectedTab(tab as 'ACTIVITY' | 'TURBO' | 'ABOUT')}
+            onTabChange={(tab: string) => setSelectedTab(tab as 'ACTIVITY' | 'ABOUT')}
             assetType={assetType}
-            advancedMode={advancedMode}
           />
 
           {selectedTab === 'ACTIVITY' ? (
@@ -760,8 +774,6 @@ function BtcUnitAssetDetailScreen({
               }
               advancedMode={advancedMode}
             />
-          ) : selectedTab === 'TURBO' ? (
-            <AssetTurboList cashuUnit={assetType === 'BTC' ? 'sat' : 'unit'} />
           ) : (
             <AssetAbout
               assetType={assetType}

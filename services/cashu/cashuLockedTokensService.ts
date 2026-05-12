@@ -5,6 +5,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
+import { withTimeout } from '../../utils/withTimeout';
 import { DEVICE_ONLY } from '../storagePolicy';
 import { DEFAULT_CASHU_UNIT, type CashuUnit } from './cashuUnits';
 
@@ -378,11 +379,21 @@ export const clearLockedTokensHistory = async (): Promise<void> => {
  */
 export const generateTurboDeeplink = async (token: string, _recipient: string, _amount: number): Promise<string> => {
   logger.debug('[TurboDeeplink] Generating deeplink for locked token', { tokenLength: token.length });
+  const fullDeeplink = `ducat://turbo/${token}`;
 
   // Try to shorten using Ducat server first
   try {
     const { shortenCashuToken } = await import('../urlShortener');
-    const shortUrl = await shortenCashuToken(token);
+    const shortUrl = await withTimeout(
+      shortenCashuToken(token),
+      12000,
+      fullDeeplink,
+      'turbo:shortenCashuToken'
+    );
+    if (shortUrl === fullDeeplink) {
+      logger.warn('[TurboDeeplink] Shortener timed out, using full deeplink fallback');
+      return fullDeeplink;
+    }
     logger.debug('[TurboDeeplink] Shortened URL from Ducat server', { shortUrlLength: shortUrl.length });
     return shortUrl;
   } catch (error: unknown) {
@@ -392,7 +403,6 @@ export const generateTurboDeeplink = async (token: string, _recipient: string, _
     // Fallback: Create ducat:// deeplink with the token directly
     // Cashu tokens are already URL-safe (alphanumeric + base64 characters)
     // No need to base64-encode again - just use the token as-is
-    const fullDeeplink = `ducat://turbo/${token}`;
     logger.debug('[TurboDeeplink] Full deeplink:', fullDeeplink.substring(0, 50) + '...');
     logger.debug('[TurboDeeplink] Full deeplink length:', fullDeeplink.length);
 

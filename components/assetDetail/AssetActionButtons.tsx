@@ -84,7 +84,7 @@ export function AssetActionButtons({
           <View style={[styles.actionButtonIcon, { width: s(50), height: s(50), borderRadius: s(8), marginBottom: s(2) }]}>
             <Icon name="receive" size={s(19)} color={COLORS.DARK_BG} />
           </View>
-          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Withdraw</Text>
+          <Text style={[styles.actionButtonLabel, { fontSize: sf(13) }]}>Redeem</Text>
         </TouchableOpacity>
       )}
     </View>

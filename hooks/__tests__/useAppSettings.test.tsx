@@ -53,6 +53,11 @@ jest.mock('../../services/cacheService', () => ({
   clearCashuCache: jest.fn(),
 }));
 
+jest.mock('../../services/pushNotificationService', () => ({
+  getExpoPushToken: jest.fn().mockResolvedValue(null),
+  unregisterPushToken: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock cashuLockedTokensService
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   clearSentLockedTokens: jest.fn(),

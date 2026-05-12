@@ -17,6 +17,8 @@ interface AmountSectionProps {
   value: number;
   /** Maximum sendable amount */
   maxValue: number;
+  /** Optional value used specifically by the MAX shortcut */
+  maxButtonValue?: number;
   /** Called when amount changes (on release) */
   onValueChange: (value: number) => void;
   /** Called during slider drag */
@@ -37,6 +39,7 @@ export function AmountSection({
   isBtc,
   value,
   maxValue,
+  maxButtonValue,
   onValueChange,
   onLiveValueChange,
   btcPrice,
@@ -60,6 +63,7 @@ export function AmountSection({
         <AmountSlider
           value={value}
           maxValue={maxValue}
+          maxButtonValue={maxButtonValue}
           onValueChange={onValueChange}
           onLiveValueChange={onLiveValueChange}
           label="Amount to Send"

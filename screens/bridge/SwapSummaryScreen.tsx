@@ -66,6 +66,7 @@ interface SwapSummaryScreenProps {
   navigation: {
     goBack: () => void;
     navigate: (screen: string, params?: object) => void;
+    reset?: (state: { index: number; routes: Array<{ name: string; params?: object }> }) => void;
   };
 }
 
@@ -78,6 +79,21 @@ type BridgePreparationState =
   | 'failed';
 
 type PendingPinAuthAction = 'bridge' | 'swap';
+
+function resetToUnitAssetDetail(navigation: SwapSummaryScreenProps['navigation']): void {
+  if (navigation.reset) {
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'WalletHome' },
+        { name: 'AssetDetail', params: { assetType: 'UNIT' } },
+      ],
+    });
+    return;
+  }
+
+  navigation.navigate('AssetDetail', { assetType: 'UNIT' });
+}
 
 function formatTokenAmount(value: string): string {
   const numeric = Number(value);
@@ -743,7 +759,7 @@ export default function SwapSummaryScreen({
       await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
       await fetchTransactionHistory();
       showToast('Bridge send submitted', 'success');
-      navigation.navigate('AssetDetail', { assetType: 'UNIT' });
+      resetToUnitAssetDetail(navigation);
     } catch (error) {
       Alert.alert(
         'Bridge send failed',
@@ -773,7 +789,7 @@ export default function SwapSummaryScreen({
       });
       await fetchTransactionHistory();
       showToast('Swap submitted', 'success');
-      navigation.navigate('AssetDetail', { assetType: 'UNIT' });
+      resetToUnitAssetDetail(navigation);
     } catch (error) {
       Alert.alert('Swap failed', classifyEvmExecutionError(error).userMessage);
     } finally {

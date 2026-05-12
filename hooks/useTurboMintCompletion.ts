@@ -26,6 +26,24 @@ import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits
 
 type ProcessingStage = 'converting' | 'awaiting_confirmation' | 'error' | 'ready';
 
+const MINT_CONFIRMATION_POLL_MS = 2000;
+const MAX_MINT_CONFIRMATION_ATTEMPTS = 90;
+const CASHU_OPERATION_TIMEOUT_MS = 20000;
+
+const rejectAfter = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    (timeout as { unref?: () => void }).unref?.();
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+};
+
 interface UseTurboMintCompletionParams {
   isTurbo: boolean;
   mintQuoteId: string | null;
@@ -127,6 +145,12 @@ export function useTurboMintCompletion({
       return;
     }
 
+    if (!senderTaprootAddress) {
+      logger.warn('[useTurboMintCompletion] Waiting for sender Taproot address before starting');
+      setProcessingMessage('Preparing wallet context...');
+      return;
+    }
+
     if (hasMintCompleted.current) {
       logger.debug('[useTurboMintCompletion] Mint already completed, skipping');
       return;
@@ -141,9 +165,6 @@ export function useTurboMintCompletion({
       setIsCompletingMint(true);
       const recoverySenderTaprootAddress = senderTaprootAddress;
       try {
-        if (!recoverySenderTaprootAddress) {
-          throw new Error('Wallet Taproot address unavailable for Turbo recovery');
-        }
         const assertSenderAccountActive = (operation: string): void => {
           const currentAccount = getCurrentCashuAccount();
           if (currentAccount !== recoverySenderTaprootAddress) {
@@ -174,25 +195,32 @@ export function useTurboMintCompletion({
 
         // Poll for payment confirmation
         // Mutinynet blocks ~30s + Ord indexing + mint deposit monitor (30s poll)
-        // Need at least 120s to reliably catch deposits
+        // Need at least 120s to reliably catch deposits. After that, move to
+        // a recoverable pending state instead of trapping the user on a spinner.
         let paidQuote: MintQuoteLike | null = null;
         let attempts = 0;
-        const maxAttempts = 300;
 
-        while (!paidQuote && attempts < maxAttempts) {
+        while (!paidQuote && attempts < MAX_MINT_CONFIRMATION_ATTEMPTS) {
           if (!mountedRef.current) return;
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, MINT_CONFIRMATION_POLL_MS));
           if (!mountedRef.current) return;
           try {
-            const quote = await checkMintQuote(mintQuoteId);
-            logger.debug(`[useTurboMintCompletion] Check ${attempts + 1}/${maxAttempts}:`, quote);
+            const quote = await rejectAfter(
+              checkMintQuote(mintQuoteId),
+              CASHU_OPERATION_TIMEOUT_MS,
+              'Checking Turbo mint status'
+            );
+            logger.debug(
+              `[useTurboMintCompletion] Check ${attempts + 1}/${MAX_MINT_CONFIRMATION_ATTEMPTS}:`,
+              quote
+            );
             if (isQuoteReadyToMint(quote)) {
               paidQuote = quote;
               break;
             }
           } catch (pollError: unknown) {
             logger.warn(
-              `[useTurboMintCompletion] Poll ${attempts + 1}/${maxAttempts} failed, retrying`,
+              `[useTurboMintCompletion] Poll ${attempts + 1}/${MAX_MINT_CONFIRMATION_ATTEMPTS} failed, retrying`,
               {
                 error: pollError instanceof Error ? pollError.message : String(pollError),
               }
@@ -221,7 +249,11 @@ export function useTurboMintCompletion({
               }
             );
             const pendingTurboSend = await loadPendingTurboSend(recoverySelector);
-            const spendableBalance = await getBalance(true, cashuUnit);
+            const spendableBalance = await rejectAfter(
+              getBalance(true, cashuUnit),
+              CASHU_OPERATION_TIMEOUT_MS,
+              'Checking recovered Turbo balance'
+            );
             const minimumRecoveredBalance = pendingTurboSend
               ? getMinimumTurboBalanceAfterMint(pendingTurboSend)
               : mintAmount;
@@ -237,8 +269,16 @@ export function useTurboMintCompletion({
             );
             // Complete mint to get e-cash tokens - amount is in smallest units
             const proofs = isDefaultCashuUnit(cashuUnit)
-              ? await completeMint(mintQuoteId, claimAmount)
-              : await completeMint(mintQuoteId, claimAmount, cashuUnit);
+              ? await rejectAfter(
+                completeMint(mintQuoteId, claimAmount),
+                CASHU_OPERATION_TIMEOUT_MS,
+                'Completing Turbo mint'
+              )
+              : await rejectAfter(
+                completeMint(mintQuoteId, claimAmount, cashuUnit),
+                CASHU_OPERATION_TIMEOUT_MS,
+                'Completing Turbo mint'
+              );
             if (!mountedRef.current) return;
             logger.debug(
               '[useTurboMintCompletion] Mint completed successfully, received proofs:',
@@ -268,19 +308,23 @@ export function useTurboMintCompletion({
 
               // Send exactly the mint amount as P2PK locked token
               logger.debug('[useTurboMintCompletion] Creating P2PK token for amount:', mintAmount);
-              const result = await sendP2PKToken(
-                mintAmount,
-                recipientPubkey,
-                {},
-                undefined,
-                turboRecipient,
-                ...(isDefaultCashuUnit(cashuUnit) ? [] : [cashuUnit])
+              const boundedResult = await rejectAfter(
+                sendP2PKToken(
+                  mintAmount,
+                  recipientPubkey,
+                  {},
+                  undefined,
+                  turboRecipient,
+                  ...(isDefaultCashuUnit(cashuUnit) ? [] : [cashuUnit])
+                ),
+                CASHU_OPERATION_TIMEOUT_MS,
+                'Creating Turbo token'
               );
               logger.debug('[useTurboMintCompletion] sendP2PKToken result:', {
-                hasToken: !!result?.token,
-                resultType: typeof result,
+                hasToken: !!boundedResult?.token,
+                resultType: typeof boundedResult,
               });
-              const token = result?.token;
+              const token = boundedResult?.token;
               if (!token) {
                 throw new Error('sendP2PKToken returned no token');
               }

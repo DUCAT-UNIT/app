@@ -31,6 +31,7 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 export interface AmountSliderProps {
   value: number;
   maxValue: number;
+  maxButtonValue?: number;
   onValueChange: (value: number) => void;
   onLiveValueChange?: (value: number) => void; // Called during drag for live preview
   label?: string;
@@ -52,6 +53,7 @@ const TRACK_HEIGHT = 4;
 export const AmountSlider = memo(function AmountSlider({
   value,
   maxValue,
+  maxButtonValue,
   onValueChange,
   onLiveValueChange,
   label = 'Amount',
@@ -157,13 +159,23 @@ export const AmountSlider = memo(function AmountSlider({
 
   const handleMax = useCallback(() => {
     if (disabled || maxValue <= 0) return;
-    currentValue.value = maxValue;
+    const nextValue = Math.max(0, Math.min(maxButtonValue ?? maxValue, maxValue));
+    currentValue.value = nextValue;
     if (width > 0) {
-      thumbX.value = width - THUMB_SIZE;
+      thumbX.value = (nextValue / maxValue) * (width - THUMB_SIZE);
     }
-    onValueChange(maxValue);
-    onLiveValueChange?.(maxValue);
-  }, [disabled, maxValue, onValueChange, onLiveValueChange, currentValue, thumbX, width]);
+    onValueChange(nextValue);
+    onLiveValueChange?.(nextValue);
+  }, [
+    disabled,
+    maxValue,
+    maxButtonValue,
+    onValueChange,
+    onLiveValueChange,
+    currentValue,
+    thumbX,
+    width,
+  ]);
 
   const handleHalf = useCallback(() => {
     if (disabled || maxValue <= 0) return;

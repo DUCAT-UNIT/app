@@ -15,6 +15,22 @@ import { logger } from '../../utils/logger';
 import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
 import { getCurrentCashuAccount } from '../../services/cashu/cashuProofManager';
 
+const TURBO_OPERATION_TIMEOUT_MS = 30000;
+
+const rejectAfter = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<T>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    (timeout as { unref?: () => void }).unref?.();
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+};
+
 /**
  * Props for TurboProcessingScreen
  */
@@ -165,6 +181,7 @@ export default function TurboProcessingScreen({
               isTurbo: true,
               turboRecipient: sendRecipient,
               turboToken: token,
+              turboDeeplink: shortUrl,
               turboAmount: amountInSmallestUnits,
               cashuUnit,
               skipMint: true,
@@ -292,18 +309,22 @@ export default function TurboProcessingScreen({
         // Create P2PK locked token with progress callback
         logger.info('Calling sendP2PKToken...');
         assertSenderAccountActive();
-        const { token } = await sendP2PKToken(
-          amountInSmallestUnits,
-          recipientPubkey,
-          {},
-          async (step, total, message) => {
-            logger.info('Progress update:', { step, total, message });
-            setCurrentStep(step);
-            setCurrentMessage(message);
-            await updateProgress(step, message);
-          },
-          sendRecipient,
-          cashuUnit
+        const { token } = await rejectAfter(
+          sendP2PKToken(
+            amountInSmallestUnits,
+            recipientPubkey,
+            {},
+            async (step, total, message) => {
+              logger.info('Progress update:', { step, total, message });
+              setCurrentStep(step);
+              setCurrentMessage(message);
+              await updateProgress(step, message);
+            },
+            sendRecipient,
+            cashuUnit
+          ),
+          TURBO_OPERATION_TIMEOUT_MS,
+          'Creating Turbo token'
         );
         logger.info('sendP2PKToken completed successfully');
 
@@ -367,6 +388,7 @@ export default function TurboProcessingScreen({
             isTurbo: true,
             turboRecipient: sendRecipient,
             turboToken: token,
+            turboDeeplink: shortUrl,
             turboAmount: amountInSmallestUnits,
             cashuUnit,
             skipMint: true,

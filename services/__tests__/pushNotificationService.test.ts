@@ -17,8 +17,13 @@ jest.mock('../../utils/e2e', () => ({
   isE2E: jest.fn(() => false),
 }));
 
+jest.mock('../settingsService', () => ({
+  getNotificationsEnabled: jest.fn().mockResolvedValue(true),
+}));
+
 // Pull the mocked implementations after jest.mock declarations
 import { postJSON } from '../../utils/apiClient';
+import { getNotificationsEnabled } from '../settingsService';
 import {
   getExpoPushToken,
   registerPushToken,
@@ -36,6 +41,7 @@ const mockGetExpoPushTokenAsync = Notifications.getExpoPushTokenAsync as jest.Mo
 const mockScheduleNotificationAsync = Notifications.scheduleNotificationAsync as jest.Mock;
 const mockSetNotificationChannelAsync = Notifications.setNotificationChannelAsync as jest.Mock;
 const mockPostJSON = postJSON as jest.Mock;
+const mockGetNotificationsEnabled = getNotificationsEnabled as jest.Mock;
 
 // ─── getExpoPushToken ────────────────────────────────────────────────────────
 
@@ -145,6 +151,7 @@ describe('getExpoPushToken', () => {
 describe('registerPushToken', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetNotificationsEnabled.mockResolvedValue(true);
   });
 
   describe('happy path', () => {
@@ -285,6 +292,14 @@ describe('sendLocalNotification', () => {
       const callArgs = mockScheduleNotificationAsync.mock.calls[0][0];
       expect(callArgs.content.sound).toBe(true);
     });
+
+    it('should not schedule when notifications are disabled', async () => {
+      mockGetNotificationsEnabled.mockResolvedValue(false);
+
+      await sendLocalNotification({ title: 'TX Confirmed', body: 'Your transaction was confirmed' });
+
+      expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
+    });
   });
 
   describe('error handling', () => {
@@ -311,6 +326,7 @@ describe('sendLocalNotification', () => {
 describe('watchTransaction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetNotificationsEnabled.mockResolvedValue(true);
     mockGetPermissionsAsync.mockResolvedValue({ status: 'granted' });
     mockGetExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[watch-token]' });
     mockPostJSON.mockResolvedValue(undefined);
@@ -343,6 +359,15 @@ describe('watchTransaction', () => {
       })
     );
   });
+
+  it('does not request a token or register a watch when notifications are disabled', async () => {
+    mockGetNotificationsEnabled.mockResolvedValue(false);
+
+    await watchTransaction('txid1234567890', 'tb1pMY_ADDRESS', 'liquidation');
+
+    expect(mockGetExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(mockPostJSON).not.toHaveBeenCalled();
+  });
 });
 
 // ─── initializePushNotifications ─────────────────────────────────────────────
@@ -350,6 +375,7 @@ describe('watchTransaction', () => {
 describe('initializePushNotifications', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetNotificationsEnabled.mockResolvedValue(true);
     mockGetPermissionsAsync.mockResolvedValue({ status: 'granted' });
     mockGetExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[init-token]' });
     mockPostJSON.mockResolvedValue(undefined);
@@ -376,6 +402,16 @@ describe('initializePushNotifications', () => {
       await initializePushNotifications('tb1pADDRESS');
 
       expect(mockSetNotificationChannelAsync).not.toHaveBeenCalled();
+    });
+
+    it('should skip initialization when notifications are disabled', async () => {
+      mockGetNotificationsEnabled.mockResolvedValue(false);
+
+      const token = await initializePushNotifications('tb1pADDRESS');
+
+      expect(token).toBeNull();
+      expect(mockGetExpoPushTokenAsync).not.toHaveBeenCalled();
+      expect(mockPostJSON).not.toHaveBeenCalled();
     });
   });
 

@@ -24,7 +24,12 @@ import {
   backupToICloudWithVerification,
   setCurrentAccount,
 } from './passkeyStorage';
-import { cacheSessionMnemonic, saveCachedAddresses, saveToMultiAccountCache } from '../secureStorageService';
+import {
+  cacheSessionMnemonic,
+  saveCachedAddresses,
+  saveMnemonic,
+  saveToMultiAccountCache,
+} from '../secureStorageService';
 
 interface CreateWalletOptions {
   userName: string;
@@ -214,6 +219,8 @@ export const addPasskeyToExistingWallet = async (
       throw new Error('Passkeys are not supported on this device');
     }
 
+    const existingStandardMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+
     // Create passkey credential (includes PRF extension request)
     const { credentialId, userHandle, prfEnabled, prfResult } =
       await createPasskeyCredential(userName, userDisplayName);
@@ -261,6 +268,13 @@ export const addPasskeyToExistingWallet = async (
       iv,
       tag,
     });
+
+    if (existingStandardMnemonic) {
+      await saveMnemonic(mnemonic);
+      await SecureStore.setItemAsync(PASSKEY_KEYS.CREATION_METHOD, 'pin', {
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+      });
+    }
 
     await SecureStore.setItemAsync(PASSKEY_KEYS.PRF_ENABLED, prfSecret ? 'true' : 'false', {
       keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,

@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
 import { clearCashuCache } from '../services/cacheService';
+import { getExpoPushToken, unregisterPushToken } from '../services/pushNotificationService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import {
   E2E_RESET_SETTINGS_URL_PREFIX,
@@ -352,6 +353,12 @@ export function useAppSettings({
         newValue,
         'Failed to persist notifications setting'
       );
+      if (!newValue) {
+        const token = await getExpoPushToken({ requestPermissions: false });
+        if (token) {
+          await unregisterPushToken(token);
+        }
+      }
       notify.settings.notificationsDisabled();
     } catch (error: unknown) {
       setNotificationsEnabled(!newValue);

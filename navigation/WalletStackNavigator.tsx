@@ -124,15 +124,30 @@ const AdvancedScreen: AnyComponent = withErrorBoundary(AdvancedScreenComponent, 
   fallbackMessage: 'Unable to load advanced settings. Please try again.',
 });
 
+type FeatureGateNavigation = {
+  canGoBack?: () => boolean;
+  goBack: () => void;
+  navigate: (screen: string) => void;
+};
+
+function leaveGatedScreen(navigation: FeatureGateNavigation): void {
+  if (navigation.canGoBack?.()) {
+    navigation.goBack();
+    return;
+  }
+
+  navigation.navigate('WalletHome');
+}
+
 function withUsdcFeatureGate(Component: AnyComponent): AnyComponent {
   return function UsdcFeatureGate(props: {
-    navigation: { goBack: () => void };
+    navigation: FeatureGateNavigation;
   }): React.ReactElement | null {
     const { settingsHandlers } = useSettingsHandlers();
 
     React.useEffect(() => {
       if (!settingsHandlers.usdcFeaturesEnabled) {
-        props.navigation.goBack();
+        leaveGatedScreen(props.navigation);
       }
     }, [props.navigation, settingsHandlers.usdcFeaturesEnabled]);
 

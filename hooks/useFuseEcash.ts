@@ -8,6 +8,7 @@ import { Alert } from 'react-native';
 import { analytics } from '../services/analyticsService';
 import { CASHU_EVENTS } from '../constants/analyticsEvents';
 import { logger } from '../utils/logger';
+import { notify } from '../utils/notify';
 import {
   requestMaxMelt,
   completeMeltWithoutCleanup,
@@ -85,17 +86,21 @@ export function useFuseEcash({
       ? `${formatTurboAmount(cashuBalance, cashuUnit)} ${tokenLabel}`
       : `${formatTurboAmount(cashuBalance, cashuUnit)} ${assetSymbol}`;
     if (cashuBalance <= 0) {
-      Alert.alert(`No ${tokenLabel}`, `You don't have any ${tokenLabel} to withdraw.`);
+      notify.snackbar({
+        type: 'info',
+        title: `No ${tokenLabel}`,
+        description: `You don't have any ${tokenLabel} to redeem.`,
+      });
       return;
     }
 
     Alert.alert(
-      `Withdraw ${tokenLabel}?`,
-      `Convert up to ${availableAmountLabel} to on-chain ${assetSymbol}? Network fees are deducted from the withdrawal amount.`,
+      `Redeem ${tokenLabel}?`,
+      `Convert up to ${availableAmountLabel} to on-chain ${assetSymbol}? Network fees are deducted from the redeemed amount.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Withdraw',
+          text: 'Redeem',
           onPress: async () => {
             let meltSubmitted = false;
             let cleanupFailed = false;
@@ -160,12 +165,13 @@ export function useFuseEcash({
                 }
               }
 
-              Alert.alert(
-                'Withdrawal submitted',
-                cleanupFailed
-                  ? `Withdrawing ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Local ${tokenLabel} cleanup did not finish; refresh before sending ${tokenLabel} again.`
-                  : `Withdrawing ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Waiting for transaction to appear on-chain...`
-              );
+              notify.snackbar({
+                type: cleanupFailed ? 'warning' : 'submitted',
+                title: cleanupFailed ? 'Redeem submitted' : 'Redeem submitted',
+                description: cleanupFailed
+                  ? `Redeeming ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Local ${tokenLabel} cleanup did not finish; refresh before sending ${tokenLabel} again.`
+                  : `Redeeming ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Waiting for transaction to appear on-chain...`,
+              });
 
               // Poll for transaction
               let txFound = false;
@@ -202,12 +208,17 @@ export function useFuseEcash({
               await fetchTransactionHistory();
 
               if (txFound) {
-                Alert.alert('Success', `${tokenLabel} successfully withdrawn to on-chain ${assetSymbol}.`);
+                notify.snackbar({
+                  type: 'success',
+                  title: 'Redeem complete',
+                  description: `${tokenLabel} was redeemed to on-chain ${assetSymbol}.`,
+                });
               } else {
-                Alert.alert(
-                  'Pending',
-                  'Withdrawal submitted successfully. Transaction will appear on-chain shortly.'
-                );
+                notify.snackbar({
+                  type: 'pending',
+                  title: 'Redeem pending',
+                  description: 'Transaction will appear on-chain shortly.',
+                });
               }
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : String(error);
@@ -218,18 +229,19 @@ export function useFuseEcash({
                 (meltMetadata.spentProofsRemoved ?? 0) > 0;
               const submissionUnknown =
                 !submissionAccepted && meltMetadata.meltSubmissionStatus === 'unknown';
-              Alert.alert(
-                submissionAccepted
-                  ? 'Withdrawal submitted'
+              notify.snackbar({
+                type: submissionAccepted || submissionUnknown ? 'warning' : 'error',
+                title: submissionAccepted
+                  ? 'Redeem submitted'
                   : submissionUnknown
-                    ? 'Withdrawal status unknown'
-                  : 'Withdrawal failed',
-                submissionAccepted
-                  ? `The mint accepted the withdrawal, but local cleanup did not finish. Refresh before sending ${tokenLabel} again. ${message}`
+                    ? 'Redeem status unknown'
+                    : 'Redeem failed',
+                description: submissionAccepted
+                  ? `The mint accepted the redeem, but local cleanup did not finish. Refresh before sending ${tokenLabel} again. ${message}`
                   : submissionUnknown
                     ? `The mint request may have been submitted, but the app could not confirm the result. Refresh before sending ${tokenLabel} again. ${message}`
-                  : `Your ${tokenLabel} tokens remain valid. ${message}`
-              );
+                  : `Your ${tokenLabel} tokens remain valid. ${message}`,
+              });
             }
           },
         },
