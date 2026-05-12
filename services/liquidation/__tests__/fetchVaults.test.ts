@@ -111,6 +111,39 @@ describe('fetchLiquidatableVaults', () => {
       expect(result[1].vault_id).toBe('v2');
     });
 
+    it('should filter out vaults with expired liquidation quotes', async () => {
+      const vaults = [
+        makeVault({ vault_id: 'active' }),
+        makeVault({
+          vault_id: 'expired',
+          quote: { ...makeVault().quote, is_expired: true },
+        }),
+      ];
+      mockFetchSuccess(vaults);
+
+      const result = await fetchLiquidatableVaults();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].vault_id).toBe('active');
+    });
+
+    it('should return [] when every returned liquidation quote is expired', async () => {
+      mockFetchSuccess([
+        makeVault({
+          vault_id: 'expired-1',
+          quote: { ...makeVault().quote, is_expired: true },
+        }),
+        makeVault({
+          vault_id: 'expired-2',
+          quote: { ...makeVault().quote, is_expired: true },
+        }),
+      ]);
+
+      const result = await fetchLiquidatableVaults();
+
+      expect(result).toEqual([]);
+    });
+
     it('should return [] when server responds with null', async () => {
       mockFetchSuccess(null);
 
@@ -196,6 +229,23 @@ describe('fetchLiquidatableVaults', () => {
         expect.objectContaining({ count: 2 })
       );
     });
+
+    it('should log how many validator vaults were expired', async () => {
+      mockFetchSuccess([
+        makeVault(),
+        makeVault({
+          vault_id: 'expired',
+          quote: { ...makeVault().quote, is_expired: true },
+        }),
+      ]);
+
+      await fetchLiquidatableVaults();
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[Liquidation] Fetched vaults',
+        expect.objectContaining({ count: 1, rawCount: 2, expiredCount: 1 })
+      );
+    });
   });
 });
 
@@ -226,6 +276,21 @@ describe('fetchVaultsByIds', () => {
       const result = await fetchVaultsByIds(['v-001', 'v-002']);
 
       expect(result).toHaveLength(2);
+    });
+
+    it('should filter expired liquidation quotes for requested IDs', async () => {
+      mockFetchSuccess([
+        makeVault({ vault_id: 'v-active' }),
+        makeVault({
+          vault_id: 'v-expired',
+          quote: { ...makeVault().quote, is_expired: true },
+        }),
+      ]);
+
+      const result = await fetchVaultsByIds(['v-active', 'v-expired']);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].vault_id).toBe('v-active');
     });
 
     it('should encode each ID as a separate query param', async () => {

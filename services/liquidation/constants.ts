@@ -2,6 +2,8 @@
  * Liquidation Constants
  */
 
+import { APP_NETWORK_CONFIG } from '../../utils/networkConfig';
+
 /** Minimum collateral ratio to maintain vault health */
 export const MIN_COL_RATE = 1.6;
 
@@ -34,5 +36,14 @@ export const SWAP_PSBT_MIN_FEE_BUFFER_SATS = 10_000;
 // This app is Mutinynet-only; never switch to the non-test faucet endpoint.
 export const FAUCET_SWAP_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
 
+function resolveLiquidationValidatorUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_LIQ_VALIDATOR_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, '');
+  }
+
+  return APP_NETWORK_CONFIG.api.vaultUrl.replace(/\/api\/?$/, '').replace(/\/$/, '') + '/liq';
+}
+
 /** Liquidation validator base URL */
-export const LIQ_VALIDATOR_URL = 'https://validator.ducatprotocol.com/liq';
+export const LIQ_VALIDATOR_URL = resolveLiquidationValidatorUrl();
