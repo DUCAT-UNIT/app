@@ -606,6 +606,41 @@ describe('cashuLockedTokensService', () => {
       });
     });
 
+    it('should mark matching sent token claimed when a self-sent token is received', async () => {
+      const sentTokens = [
+        {
+          id: 'sent1',
+          token: 'cashuBself',
+          recipient: 'tb1pself',
+          amount: 500,
+          timestamp: 1000,
+          taprootAddress: 'tb1pself',
+          unit: 'unit',
+          txid: null,
+          shortUrl: null,
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'received_turbo_tokens') return Promise.resolve(JSON.stringify([]));
+        if (key === 'sent_turbo_tokens') return Promise.resolve(JSON.stringify(sentTokens));
+        return Promise.resolve(null);
+      });
+
+      await saveReceivedToken('cashuBself', 'Turbo Claim', 500, 'tb1pself');
+
+      const sentWrite = (SecureStore.setItemAsync as jest.Mock).mock.calls.find(
+        ([key]) => key === 'sent_turbo_tokens'
+      );
+      expect(sentWrite).toBeTruthy();
+      const savedSentTokens = JSON.parse(sentWrite[1]);
+      expect(savedSentTokens[0]).toMatchObject({
+        id: 'sent1',
+        token: 'cashuBself',
+        claimed: true,
+      });
+      expect(savedSentTokens[0].claimedAt).toEqual(expect.any(Number));
+    });
+
     it('should limit to MAX_STORED_TOKENS (100)', async () => {
       const existingTokens = Array.from({ length: 100 }, (_, i) => ({
         id: `received_${i}`,

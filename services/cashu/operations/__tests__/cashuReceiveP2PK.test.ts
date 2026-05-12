@@ -36,6 +36,7 @@ jest.mock('react-native', () => ({
 jest.mock('../../cashuMintClient', () => ({
   MINT_URL: 'https://mint.test.com',
   swapTokens: jest.fn(),
+  checkProofsSpent: jest.fn(),
   mintRequiresDleqProofs: jest.fn(async () => false),
 }));
 
@@ -59,6 +60,7 @@ jest.mock('../../cashuBalanceService', () => ({
 
 jest.mock('../../cashuProofManager', () => ({
   addProofs: jest.fn(),
+  loadProofs: jest.fn(),
   getCurrentCashuAccount: jest.fn(() => 'tb1paccount'),
 }));
 
@@ -69,7 +71,7 @@ jest.mock('../../cashuSwapRecovery', () => ({
 }));
 
 import { receiveP2PKToken } from '../cashuReceiveP2PK';
-import { MINT_URL, swapTokens } from '../../cashuMintClient';
+import { checkProofsSpent, MINT_URL, swapTokens } from '../../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -79,7 +81,7 @@ import {
 } from '../../crypto';
 import { isP2PKSecret, signP2PKSecret } from '../../p2pk';
 import { getOrFetchKeys } from '../../cashuBalanceService';
-import { addProofs } from '../../cashuProofManager';
+import { addProofs, loadProofs } from '../../cashuProofManager';
 import { savePendingSwap } from '../../cashuSwapRecovery';
 
 describe('cashuReceiveP2PK', () => {
@@ -88,6 +90,10 @@ describe('cashuReceiveP2PK', () => {
     (decodeTokenMetadata as jest.Mock).mockImplementation((token: string) =>
       (decodeToken as jest.Mock)(token)
     );
+    (loadProofs as jest.Mock).mockResolvedValue([]);
+    (checkProofsSpent as jest.Mock).mockImplementation(async (proofs: unknown[]) => ({
+      states: proofs.map(() => ({ state: 'UNSPENT' })),
+    }));
   });
 
   describe('receiveP2PKToken', () => {
@@ -225,6 +231,38 @@ describe('cashuReceiveP2PK', () => {
       await expect(receiveP2PKToken('cashuBtoken...', 'privatekey')).rejects.toThrow(
         'Token does not contain P2PK locked proofs'
       );
+    });
+
+    it('should reject already received P2PK token proofs before swapping', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (isP2PKSecret as jest.Mock).mockReturnValue(true);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
+      });
+      (loadProofs as jest.Mock).mockResolvedValueOnce([
+        { amount: 64, secret: '["P2PK",{"data":"pubkey123"}]', C: 'existing', id: 'keyset1' },
+      ]);
+
+      await expect(
+        receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'))
+      ).rejects.toThrow('Token already received');
+      expect(swapTokens).not.toHaveBeenCalled();
+    });
+
+    it('should reject spent P2PK token proofs before swapping', async () => {
+      (decodeToken as jest.Mock).mockReturnValue(mockToken);
+      (isP2PKSecret as jest.Mock).mockReturnValue(true);
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 1: 'key1' } }],
+      });
+      (checkProofsSpent as jest.Mock).mockResolvedValueOnce({
+        states: mockP2PKProofs.map(() => ({ state: 'SPENT' })),
+      });
+
+      await expect(
+        receiveP2PKToken('cashuBtoken...', 'privatekey123'.padEnd(64, '0'))
+      ).rejects.toThrow('Token proofs are not spendable');
+      expect(swapTokens).not.toHaveBeenCalled();
     });
 
     it('should handle non-P2PK proofs in mixed token (line 79)', async () => {

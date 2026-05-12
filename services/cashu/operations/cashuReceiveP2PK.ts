@@ -4,7 +4,7 @@
  */
 
 import { logger } from '../../../utils/logger';
-import { MINT_URL, mintRequiresDleqProofs } from '../cashuMintClient';
+import { checkProofsSpent, MINT_URL, mintRequiresDleqProofs } from '../cashuMintClient';
 import {
   createBlindedOutputs,
   unblindSignatures,
@@ -16,7 +16,7 @@ import {
 } from '../crypto';
 import { isP2PKSecret, signP2PKSecret } from '../p2pk';
 import { getOrFetchKeys } from '../cashuBalanceService';
-import { addProofs } from '../cashuProofManager';
+import { addProofs, loadProofs } from '../cashuProofManager';
 import { clearProofRecoveryRecord, persistProofRecoveryRecord } from '../cashuProofRecoveryQueue';
 import { clearPendingSwap, savePendingSwap, updateSwapWithResponse } from '../cashuSwapRecovery';
 import {
@@ -128,6 +128,26 @@ export const receiveP2PKToken = async (
     const unitKeyset = selectActiveCashuKeyset(keyData, unit);
     const keysetId = unitKeyset.id;
     const keys = unitKeyset.keys!;
+
+    const existingProofs = await loadProofs(unit);
+    const existingSecrets = new Set(existingProofs.map((proof) => proof.secret));
+    const hasDuplicate = fullProofs.some((proof) => existingSecrets.has(proof.secret));
+    if (hasDuplicate) {
+      throw new Error('Token already received');
+    }
+
+    const spendCheck = await checkProofsSpent(fullProofs);
+    if (!Array.isArray(spendCheck?.states) || spendCheck.states.length !== fullProofs.length) {
+      throw new Error('Unable to verify token spend state with mint');
+    }
+    if (
+      spendCheck.states.some((state) => {
+        const proofState = (state as { state: string }).state;
+        return proofState !== 'UNSPENT';
+      })
+    ) {
+      throw new Error('Token proofs are not spendable');
+    }
 
     logger.cashu('p2pk_keys_fetched', {
       step: 'RECEIVE',

@@ -304,6 +304,38 @@ export const updateTokenClaimedStatus = async (
   }
 };
 
+const markMatchingSentTokenClaimed = async (token: string): Promise<void> => {
+  try {
+    const sentTokens = await loadTokenRecords<TokenRecord>(SENT_TOKENS_KEY, 'sent');
+    let changed = false;
+    const updatedTokens = sentTokens.map((sentToken) => {
+      if (sentToken.token !== token || sentToken.claimed === true) {
+        return sentToken;
+      }
+      changed = true;
+      return {
+        ...sentToken,
+        claimed: true,
+        claimedAt: Date.now(),
+      };
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    await SecureStore.setItemAsync(
+      SENT_TOKENS_KEY,
+      JSON.stringify(limitStoredSentTokens(updatedTokens)),
+      DEVICE_ONLY
+    );
+  } catch (error: unknown) {
+    logger.warn('Failed to mark matching sent token as claimed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
 /**
  * Clear all sent locked tokens
  */
@@ -422,6 +454,7 @@ export const saveReceivedToken = async (
     const tokensToStore = limitStoredTokens(existingTokens);
 
     await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
+    await markMatchingSentTokenClaimed(token);
 
     logger.info('Received token saved', { totalStored: tokensToStore.length });
 
