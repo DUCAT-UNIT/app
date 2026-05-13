@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ducatprotocol.DucatProtocolWallet",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "associatedDomains": [
         "webcredentials:ducatprotocol.com",
         "applinks:ducatprotocol.com"
@@ -38,7 +38,7 @@
           "fetch"
         ],
         "NSFaceIDUsageDescription": "We use Face ID to securely authenticate and protect your wallet.",
-        "NSCameraUsageDescription": "We need camera access to scan QR codes for sending Bitcoin.",
+        "NSCameraUsageDescription": "DUCAT uses the camera to scan wallet addresses, payment requests, and e-cash tokens.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -65,7 +65,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow DUCAT to access your camera to scan QR codes."
+          "cameraPermission": "Allow DUCAT to use the camera to scan wallet addresses, payment requests, and e-cash tokens."
         }
       ]
     ],

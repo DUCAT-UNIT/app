@@ -95,11 +95,11 @@ export default function AirdropSuccessModal({ visible, onClose }: AirdropSuccess
           </View>
 
           {/* Title */}
-          <Text style={localStyles.title}>Mutiny BTC Airdropped</Text>
+          <Text style={localStyles.title}>Wallet Funding Requested</Text>
 
           {/* Message */}
           <Text style={localStyles.message}>
-            An airdrop is on the way.{'\n'}You should see it reflected in your balance in 30 seconds.
+            Network BTC is on the way.{'\n'}Your balance will update once the transaction appears.
           </Text>
 
           {/* Get Started Button - Instantly dismisses modal */}

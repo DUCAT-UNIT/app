@@ -76,6 +76,7 @@ import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
 import { decodeTokenMetadata } from '../services/cashu/cashuWalletService';
 import { DEFAULT_CASHU_UNIT, normalizeCashuUnit } from '../services/cashu/cashuUnits';
+import { ENABLE_QUANTA_REWARDS } from '../utils/releaseFlags';
 
 import type { LogContext } from '../types';
 import type { RootNavigatorParamList } from './types';
@@ -715,11 +716,13 @@ export default function RootNavigator(): React.JSX.Element {
                 component={WithdrawNavigator}
                 options={bubbleZoomOptions}
               />
-              <Stack.Screen
-                name="QuantaSeedPhraseGuide"
-                component={QuantaSeedPhraseGuideScreen}
-                options={rootFlowOptions}
-              />
+              {ENABLE_QUANTA_REWARDS && (
+                <Stack.Screen
+                  name="QuantaSeedPhraseGuide"
+                  component={QuantaSeedPhraseGuideScreen}
+                  options={rootFlowOptions}
+                />
+              )}
               {__DEV__ && (
                 <Stack.Screen
                   name="VaultSuccessPreview"

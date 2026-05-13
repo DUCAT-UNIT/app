@@ -117,7 +117,7 @@ function resolveMutinynetConfig(): AppNetworkConfig {
   return {
     id: 'mutinynet',
     displayName: 'Mutinynet',
-    editionLabel: 'Mutinynet Edition',
+    editionLabel: 'Mutinynet Network',
     isTestNetwork: true,
     bitcoinjs: MUTINYNET_BITCOIN_NETWORK,
     coinType: 1,

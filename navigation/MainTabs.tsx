@@ -14,6 +14,7 @@ import LiquidationsTabScreen from '../screens/liquidation/LiquidationsTabScreen'
 import QuantaTabScreen from '../screens/quanta/QuantaTabScreen';
 import WalletPageComponent from '../pages/WalletPage';
 import { COLORS } from '../theme';
+import { ENABLE_QUANTA_REWARDS } from '../utils/releaseFlags';
 import type { MainTabParamList } from './types';
 
 const Tab = createNativeBottomTabNavigator<MainTabParamList>();
@@ -95,7 +96,9 @@ export default function MainTabs(): React.JSX.Element {
         component={LiquidationsTabScreen}
         options={liquidationTabOptions}
       />
-      <Tab.Screen name="QuantaTab" component={QuantaTabScreen} options={quantaTabOptions} />
+      {ENABLE_QUANTA_REWARDS && (
+        <Tab.Screen name="QuantaTab" component={QuantaTabScreen} options={quantaTabOptions} />
+      )}
     </Tab.Navigator>
   );
 }

@@ -32,6 +32,7 @@ import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
 import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { COLORS } from '../theme';
+import { ENABLE_QUANTA_REWARDS } from '../utils/releaseFlags';
 
 import type { RootNavigatorParamList, WalletStackParamList } from './types';
 
@@ -180,6 +181,26 @@ const GatedSwapScreen = withUsdcFeatureGate(SwapScreen);
 const GatedSwapSummaryScreen = withUsdcFeatureGate(SwapSummaryScreen);
 const GatedRedeemScreen = withUsdcFeatureGate(RedeemScreen);
 const GatedSepoliaSendScreen = withUsdcFeatureGate(SepoliaSendScreen);
+
+function withQuantaFeatureGate(Component: AnyComponent): AnyComponent {
+  return function QuantaFeatureGate(props: {
+    navigation: FeatureGateNavigation;
+  }): React.ReactElement | null {
+    React.useEffect(() => {
+      if (!ENABLE_QUANTA_REWARDS) {
+        leaveGatedScreen(props.navigation);
+      }
+    }, [props.navigation]);
+
+    if (!ENABLE_QUANTA_REWARDS) {
+      return null;
+    }
+
+    return <Component {...props} />;
+  };
+}
+
+const GatedQuantaLinkScreen = withQuantaFeatureGate(QuantaLinkScreen);
 
 const Stack = createStackNavigator<WalletStackParamList>();
 
@@ -405,7 +426,7 @@ export default function WalletStackNavigator({
       />
       <Stack.Screen
         name="QuantaLink"
-        component={QuantaLinkScreen}
+        component={GatedQuantaLinkScreen}
         options={settingsScreenOptions}
       />
       <Stack.Screen name="About" component={AboutScreen} options={settingsScreenOptions} />
