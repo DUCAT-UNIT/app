@@ -32,7 +32,7 @@ interface LinkingConfig {
  * Default options for getStateFromPath calls in tests
  */
 const defaultOptions = { screens: {} };
-const flushPromises = () => new Promise(resolve => setImmediate(resolve));
+const flushPromises = () => new Promise((resolve) => setImmediate(resolve));
 
 // Type-safe global accessor for tests
 const testGlobal = global as typeof global & TurboLinkingGlobal;
@@ -116,10 +116,7 @@ testGlobal.atob = jest.fn((str) => Buffer.from(str, 'base64').toString('utf8'));
 import { Linking, AppState } from 'react-native';
 import { createLinkingConfig } from '../turboLinkingConfig';
 import { hashToken, initializeTokenStorage } from '../turboTokenStorage';
-import {
-  enableUsdcFeaturesForE2E,
-  resetNonSecretE2ESettings,
-} from '../../e2eSettingsResetService';
+import { enableUsdcFeaturesForE2E, resetNonSecretE2ESettings } from '../../e2eSettingsResetService';
 
 // Type assertion for the linking config
 const getTypedConfig = (): LinkingConfig => createLinkingConfig() as unknown as LinkingConfig;
@@ -129,7 +126,9 @@ describe('turboLinkingConfig', () => {
     jest.clearAllMocks();
     (Linking.getInitialURL as jest.Mock).mockResolvedValue(null);
     mockFetchWithTimeout.mockReset();
-    testGlobal.atob.mockImplementation((str: string) => Buffer.from(str, 'base64').toString('utf8'));
+    testGlobal.atob.mockImplementation((str: string) =>
+      Buffer.from(str, 'base64').toString('utf8')
+    );
     delete testGlobal.processedCashuTokens;
     delete testGlobal.processedCashuTokensLoading;
     delete testGlobal.pendingCashuToken;
@@ -165,9 +164,7 @@ describe('turboLinkingConfig', () => {
 
       expect(screens.Main).toBeDefined();
       const mainScreens = (screens.Main as { screens: Record<string, unknown> }).screens;
-      const walletTab = mainScreens.WalletTab as { screens: Record<string, unknown> };
-      expect(walletTab).toBeDefined();
-      expect(walletTab.screens.WalletHome).toBe('wallet');
+      expect(mainScreens.WalletTab).toBe('wallet');
     });
   });
 
@@ -233,7 +230,10 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set<string>();
 
       // getStateFromPath is now synchronous and fires async processing in background
-      const result = config.getStateFromPath('https://example.com/unit?t=base64token', defaultOptions);
+      const result = config.getStateFromPath(
+        'https://example.com/unit?t=base64token',
+        defaultOptions
+      );
 
       expect(result).toBe(undefined);
     });
@@ -270,10 +270,12 @@ describe('turboLinkingConfig', () => {
       await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBeUndefined();
-      expect(testGlobal.pendingTurboSnackbars).toEqual([{
-        type: 'error',
-        message: 'Token already claimed',
-      }]);
+      expect(testGlobal.pendingTurboSnackbars).toEqual([
+        {
+          type: 'error',
+          message: 'Token already claimed',
+        },
+      ]);
     });
 
     it('should bypass duplicate check when app just resumed', async () => {
@@ -300,12 +302,14 @@ describe('turboLinkingConfig', () => {
 
       const result = config.getStateFromPath(
         'ducat://e2e/enable-usdc?password=fx-570ES%20PLUS',
-        defaultOptions,
+        defaultOptions
       );
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(result).toBe(undefined);
-      expect(enableUsdcFeaturesForE2E).toHaveBeenCalledWith('ducat://e2e/enable-usdc?password=fx-570ES%20PLUS');
+      expect(enableUsdcFeaturesForE2E).toHaveBeenCalledWith(
+        'ducat://e2e/enable-usdc?password=fx-570ES%20PLUS'
+      );
       expect(testGlobal.pendingCashuToken).toBeUndefined();
     });
 
@@ -314,7 +318,8 @@ describe('turboLinkingConfig', () => {
       testGlobal.processedCashuTokens = new Set<string>();
 
       // Create base64 encoded "cashuBtesttoken"
-      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken')
+        .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
@@ -329,7 +334,10 @@ describe('turboLinkingConfig', () => {
       const config = getTypedConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      await config.getStateFromPath('https://redeem.ducatprotocol.com?token=cashuBtokenparam', defaultOptions);
+      await config.getStateFromPath(
+        'https://redeem.ducatprotocol.com?token=cashuBtokenparam',
+        defaultOptions
+      );
       await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtokenparam');
@@ -339,7 +347,10 @@ describe('turboLinkingConfig', () => {
       const config = getTypedConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      await config.getStateFromPath('https://ducatprotocol.com/unit#token=cashuBhashtoken', defaultOptions);
+      await config.getStateFromPath(
+        'https://ducatprotocol.com/unit#token=cashuBhashtoken',
+        defaultOptions
+      );
       await flushPromises();
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBhashtoken');
@@ -362,7 +373,7 @@ describe('turboLinkingConfig', () => {
       expect(mockFetchWithTimeout).toHaveBeenCalledWith(
         'https://short.ducatprotocol.com/api/info/abc12345',
         { method: 'GET' },
-        5000,
+        5000
       );
       expect(testGlobal.pendingCashuToken).toBe('cashuBshorttoken');
     });
@@ -433,7 +444,7 @@ describe('turboLinkingConfig', () => {
       const result = config.getStateFromPath('ducat://turbo/cashuBtoken123', defaultOptions);
 
       // Wait for async processing
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(result).toBe(undefined);
       expect(testGlobal.pendingCashuToken).toBeUndefined();
@@ -467,7 +478,7 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
 
       // Wait for initial URL processing
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBinitialToken');
     });
@@ -476,17 +487,20 @@ describe('turboLinkingConfig', () => {
       const config = createLinkingConfig();
       testGlobal.processedCashuTokens = new Set<string>();
 
-      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken')
+        .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');
 
-      (Linking.getInitialURL as jest.Mock).mockResolvedValue(`https://example.com/unit?t=${base64Token}`);
+      (Linking.getInitialURL as jest.Mock).mockResolvedValue(
+        `https://example.com/unit?t=${base64Token}`
+      );
 
       config.subscribe!(jest.fn());
 
       // Wait for initial URL processing
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(testGlobal.pendingCashuToken).toBe('cashuBtesttoken');
     });
@@ -502,7 +516,7 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
 
       // Wait for error handling
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       // No crash, error was caught
       expect(testGlobal.pendingCashuToken).toBeUndefined();
@@ -517,7 +531,7 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
 
       // Wait for error handling
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       // No crash, error was caught
       expect(testGlobal.pendingCashuToken).toBeUndefined();
@@ -532,7 +546,7 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
 
       // Wait for initial URL processing
-      await new Promise(resolve => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(testGlobal.pendingCashuToken).toBeUndefined();
     });
@@ -561,7 +575,8 @@ describe('turboLinkingConfig', () => {
       config.subscribe!(jest.fn());
       const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
 
-      const base64Token = Buffer.from('cashuBtesttoken').toString('base64')
+      const base64Token = Buffer.from('cashuBtesttoken')
+        .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=/g, '');

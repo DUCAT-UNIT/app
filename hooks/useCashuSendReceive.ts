@@ -6,12 +6,20 @@
 import { useCallback, Dispatch, SetStateAction } from 'react';
 import { logger } from '../utils/logger';
 import {
+  decodeTokenMetadata,
   receiveToken,
   sendToken as sendTokenService,
 } from '../services/cashu/cashuWalletService';
-import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
+import {
+  deleteReceivedTokenByToken,
+  saveReceivedToken,
+} from '../services/cashu/cashuLockedTokensService';
 import type { ReceiveTokenResult, SendTokenResult } from '../services/cashu/cashuWalletService';
-import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
+import {
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../services/cashu/cashuUnits';
 
 interface UseCashuSendReceiveParams {
   setIsLoading: Dispatch<SetStateAction<boolean>>;
@@ -44,15 +52,37 @@ export function useCashuSendReceive({
 
     try {
       logger.info('Receiving Cashu token');
+      let tokenUnit = unit;
+      let pendingAmount = 0;
+      try {
+        const metadata = decodeTokenMetadata(token);
+        tokenUnit = metadata.unit ? normalizeCashuUnit(metadata.unit) : DEFAULT_CASHU_UNIT;
+        pendingAmount = metadata.amount;
+        await saveReceivedToken(
+          token,
+          'Cashu Receive',
+          metadata.amount,
+          taprootAddress || '',
+          tokenUnit,
+          { pendingRedeem: true }
+        );
+      } catch (metadataError) {
+        logger.warn('Failed to save pending received token:', {
+          error: metadataError instanceof Error ? metadataError.message : String(metadataError),
+        });
+      }
+
       const result = await receiveToken(token, unit);
 
       // Save to transaction history
       try {
-        if (unit === DEFAULT_CASHU_UNIT) {
-          await saveReceivedToken(token, 'Cashu Receive', result.amount, taprootAddress || '');
-        } else {
-          await saveReceivedToken(token, 'Cashu Receive', result.amount, taprootAddress || '', unit);
-        }
+        await saveReceivedToken(
+          token,
+          'Cashu Receive',
+          result.amount || pendingAmount,
+          taprootAddress || '',
+          tokenUnit
+        );
         logger.info('Received token saved to history');
       } catch (saveErr) {
         logger.warn('Failed to save received token to history:', { error: saveErr instanceof Error ? saveErr.message : String(saveErr) });
@@ -65,6 +95,8 @@ export function useCashuSendReceive({
       const errorMessage = err instanceof Error ? err.message : String(err);
       logger.error('Failed to receive token', { error: errorMessage });
       setError(errorMessage);
+      setIsLoading(false);
+      await deleteReceivedTokenByToken(token);
       throw err;
     } finally {
       setIsLoading(false);

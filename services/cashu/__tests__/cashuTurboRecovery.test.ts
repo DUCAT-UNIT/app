@@ -853,7 +853,9 @@ describe('cashuTurboRecovery', () => {
       );
 
       expect(result.recovered).toBe(true);
-      expect(mockCompleteMint).toHaveBeenCalledWith(mockQuoteId, 400, 'sat');
+      expect(mockCompleteMint).toHaveBeenCalledWith(mockQuoteId, 400, 'sat', {
+        requireExactAmount: true,
+      });
       expect(mockSendP2PKToken).toHaveBeenCalledWith(
         mockAmount,
         '02abc123pubkey',
@@ -862,6 +864,66 @@ describe('cashuTurboRecovery', () => {
         mockRecipient,
         'sat'
       );
+    });
+
+    it('should refuse partial available amounts when recovering a top-up send', async () => {
+      const pending: PendingTurboSend = {
+        quoteId: mockQuoteId,
+        recipient: mockRecipient,
+        amount: mockAmount,
+        mintAmount: 400,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now(),
+        stage: 'waiting_for_mint',
+        unit: 'sat',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pending));
+      mockCheckMintStatus.mockResolvedValue({ state: 'PAID', availableAmount: 250 });
+      mockGetBalance.mockResolvedValue(mockAmount);
+
+      const result = await recoverPendingTurboSend(
+        mockSendP2PKToken,
+        mockExtractPubkey,
+        mockShortenToken,
+        mockSaveToken
+      );
+
+      expect(result.recovered).toBe(false);
+      expect(result.error).toContain('partially available');
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+    });
+
+    it('should refuse issued recovery when the mint issued less than expected', async () => {
+      const pending: PendingTurboSend = {
+        quoteId: mockQuoteId,
+        recipient: mockRecipient,
+        amount: mockAmount,
+        mintAmount: 400,
+        senderTaprootAddress: mockSenderAddress,
+        createdAt: Date.now(),
+        stage: 'waiting_for_mint',
+        unit: 'sat',
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pending));
+      mockCheckMintStatus.mockResolvedValue({
+        state: 'ISSUED',
+        availableAmount: 0,
+        amountIssued: 250,
+      });
+      mockGetBalance.mockResolvedValue(mockAmount);
+
+      const result = await recoverPendingTurboSend(
+        mockSendP2PKToken,
+        mockExtractPubkey,
+        mockShortenToken,
+        mockSaveToken
+      );
+
+      expect(result.recovered).toBe(false);
+      expect(result.error).toContain('issued only');
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
     });
 
     it('should recover from mint_completed stage', async () => {

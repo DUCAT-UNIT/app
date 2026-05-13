@@ -14,10 +14,17 @@ interface UseAccountSwitcherParams {
   resetBalances?: () => void;
   fetchBalance?: (segwitAddr?: string, taprootAddr?: string) => void | Promise<void>;
   resetTransactionHistory?: () => void;
-  fetchTransactionHistory?: () => void | Promise<void>;
+  fetchTransactionHistory?: (walletAddresses?: WalletAddresses) => void | Promise<void>;
   resetVaultData?: () => void;
-  fetchVault?: () => void | Promise<void>;
+  fetchVault?: (vaultPubkey?: string) => void | Promise<void>;
+  fetchVaultTransactions?: (vaultPubkey?: string) => void | Promise<void>;
+  resetEcashTokens?: () => void;
+  fetchEcashTokens?: (taprootAddress?: string) => void | Promise<void>;
   resetAndRefreshCashu?: (newTaprootAddress?: string) => void | Promise<void>;
+  resetEvmAssets?: () => void;
+  refreshEvmBalances?: (accountIndex?: number) => void | Promise<void>;
+  refreshUsdcHistory?: (accountIndex?: number) => void | Promise<void>;
+  refreshEthHistory?: (accountIndex?: number) => void | Promise<void>;
   onAccountSwitched?: (accountIndex: number) => void;
   showToast?: (message: string, type: 'success' | 'error') => void;
 }
@@ -39,7 +46,14 @@ export function useAccountSwitcher({
   fetchTransactionHistory,
   resetVaultData,
   fetchVault,
+  fetchVaultTransactions,
+  resetEcashTokens,
+  fetchEcashTokens,
   resetAndRefreshCashu,
+  resetEvmAssets,
+  refreshEvmBalances,
+  refreshUsdcHistory,
+  refreshEthHistory,
   onAccountSwitched,
   showToast,
 }: UseAccountSwitcherParams): UseAccountSwitcherReturn {
@@ -59,6 +73,7 @@ export function useAccountSwitcher({
       const newAddresses = await switchAccountContext(accountIndex);
       const newSegwitAddress = newAddresses?.segwitAddress;
       const newTaprootAddress = newAddresses?.taprootAddress;
+      const newVaultPubkey = newAddresses?.taprootPubkey;
 
       // STEP 2: Dismiss modal but keep loading overlay visible
       setShowAccountPicker(false);
@@ -72,6 +87,8 @@ export function useAccountSwitcher({
       if (resetBalances) resetBalances();
       if (resetTransactionHistory) resetTransactionHistory();
       if (resetVaultData) resetVaultData();
+      if (resetEcashTokens) resetEcashTokens();
+      if (resetEvmAssets) resetEvmAssets();
 
       // STEP 4: Fetch balance and vault data in parallel, wait for both
       // Pass addresses explicitly to avoid stale closure issue
@@ -86,9 +103,9 @@ export function useAccountSwitcher({
         );
       }
 
-      if (fetchVault) {
+      if (fetchVault && newVaultPubkey) {
         fetchPromises.push(
-          Promise.resolve(fetchVault()).catch((err: unknown) => {
+          Promise.resolve(fetchVault(newVaultPubkey)).catch((err: unknown) => {
             logger.warn('[useAccountSwitcher] fetchVault failed', { error: err instanceof Error ? err.message : String(err) });
           })
         );
@@ -96,6 +113,14 @@ export function useAccountSwitcher({
 
       if (resetAndRefreshCashu && newTaprootAddress) {
         fetchPromises.push(Promise.resolve(resetAndRefreshCashu(newTaprootAddress)));
+      }
+
+      if (refreshEvmBalances) {
+        fetchPromises.push(
+          Promise.resolve(refreshEvmBalances(accountIndex)).catch((err: unknown) => {
+            logger.warn('[useAccountSwitcher] refreshEvmBalances failed', { error: err instanceof Error ? err.message : String(err) });
+          })
+        );
       }
 
       // Wait for critical account-scoped state to load before the new account is interactive.
@@ -111,8 +136,28 @@ export function useAccountSwitcher({
 
       // STEP 7: Fetch remaining data in background (non-blocking)
       if (fetchTransactionHistory) {
-        Promise.resolve(fetchTransactionHistory()).catch((err: unknown) => {
+        Promise.resolve(fetchTransactionHistory(newAddresses)).catch((err: unknown) => {
           logger.warn('[useAccountSwitcher] fetchTransactionHistory failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+      if (fetchVaultTransactions && newVaultPubkey) {
+        Promise.resolve(fetchVaultTransactions(newVaultPubkey)).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] fetchVaultTransactions failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+      if (fetchEcashTokens && newTaprootAddress) {
+        Promise.resolve(fetchEcashTokens(newTaprootAddress)).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] fetchEcashTokens failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+      if (refreshUsdcHistory) {
+        Promise.resolve(refreshUsdcHistory(accountIndex)).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] refreshUsdcHistory failed', { error: err instanceof Error ? err.message : String(err) });
+        });
+      }
+      if (refreshEthHistory) {
+        Promise.resolve(refreshEthHistory(accountIndex)).catch((err: unknown) => {
+          logger.warn('[useAccountSwitcher] refreshEthHistory failed', { error: err instanceof Error ? err.message : String(err) });
         });
       }
     } catch (error: unknown) {

@@ -607,14 +607,14 @@ describe('getMaxInvest', () => {
     it('should respect investCap and not exceed it', () => {
       const cap = 0.003;
       const result = getMaxInvest(false, availableCollateral, walletSats, btcPrice, 1, [vault1, vault2], cap);
-      // maxInvestBtc may equal investCap - fees after cap adjustment
-      expect(result.maxInvestBtc).toBeLessThanOrEqual(cap + 0.001); // fees can shift slightly
+      // The slider cap is the selected claim amount.
+      expect(result.maxInvestBtc).toBeLessThanOrEqual(cap);
     });
 
-    it('should include fees (feesBtc) in returned maxInvestBtc', () => {
+    it('should return claim amount as maxInvestBtc for the slider', () => {
       const result = getMaxInvest(false, availableCollateral, walletSats, btcPrice, 1, [vault1]);
-      // maxInvestBtc = claimPortion + feesBtc — should be > raw claimAmountBtc alone
-      expect(result.maxInvestBtc).toBeGreaterThan(vault1.claimAmountBtc);
+      expect(result.maxInvestBtc).toBeCloseTo(vault1.claimAmountBtc, 8);
+      expect(result.maxClaimAmountBtc).toBeCloseTo(vault1.claimAmountBtc, 8);
     });
   });
 
@@ -629,12 +629,28 @@ describe('getMaxInvest', () => {
       expect(getMaxInvest(false, availableCollateral, 0, btcPrice, 1, [vault1])).toEqual(empty);
     });
 
-    it('should return empty stats when availableCollateral is 0', () => {
-      expect(getMaxInvest(false, 0, walletSats, btcPrice, 1, [vault1])).toEqual(empty);
-    });
-
     it('should return empty stats when liquidationData is empty', () => {
       expect(getMaxInvest(false, availableCollateral, walletSats, btcPrice, 1, [])).toEqual(empty);
+    });
+  });
+
+  describe('wallet-funded deficit deposits', () => {
+    it('should allow claims when vault free collateral is zero but wallet BTC can fund the deposit', () => {
+      const result = getMaxInvest(false, 0, walletSats, btcPrice, 1, [vault1]);
+
+      expect(result.maxInvestBtc).toBeCloseTo(vault1.claimAmountBtc, 8);
+      expect(result.maxClaimAmountBtc).toBeCloseTo(vault1.claimAmountBtc, 8);
+      expect(result.maxVaultCount).toBe(1);
+    });
+
+    it('should partially cap claims by wallet BTC needed for deposit, swap, and fees', () => {
+      const walletBudgetSats = 100_000;
+      const result = getMaxInvest(true, 0, walletBudgetSats, btcPrice, 1, [vault1]);
+
+      expect(result.maxInvestBtc).toBeGreaterThan(0);
+      expect(result.maxInvestBtc).toBeLessThan(vault1.claimAmountBtc);
+      expect(result.maxSwapBtc).toBeGreaterThan(0);
+      expect(result.maxVaultCount).toBe(1);
     });
   });
 

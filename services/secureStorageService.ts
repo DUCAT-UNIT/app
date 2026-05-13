@@ -10,6 +10,10 @@ import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { DEVICE_ONLY, clearPreferenceItems } from './storagePolicy';
 import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  type WalletDerivationMode,
+} from '../constants/bitcoin';
 import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from './liquidation/recoveryKeys';
 import { EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY } from '../stores/evmTransactionCheckpointStore';
 import { OPERATION_JOURNAL_STORAGE_KEY } from '../stores/operationJournalStore';
@@ -191,6 +195,7 @@ export const getCurrentAccount = async (): Promise<number> => {
 interface CachedAddresses {
   version: number;
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
   addresses: {
     segwitAddress: string;
     taprootAddress: string;
@@ -198,6 +203,27 @@ interface CachedAddresses {
     taprootPubkey: string;
   };
 }
+
+type WalletAddressCache = CachedAddresses['addresses'];
+
+const ADDRESS_CACHE_VERSION = 3;
+
+const isWalletDerivationMode = (value: unknown): value is WalletDerivationMode =>
+  value === 'legacy_address_index' || value === 'bip44_account';
+
+const hasValidAddressFields = (value: unknown): value is WalletAddressCache => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.segwitAddress === 'string' &&
+    typeof record.taprootAddress === 'string' &&
+    typeof record.segwitPubkey === 'string' &&
+    typeof record.taprootPubkey === 'string'
+  );
+};
 
 /**
  * Save cached addresses to secure storage
@@ -207,10 +233,16 @@ interface CachedAddresses {
  */
 export const saveCachedAddresses = async (
   accountIndex: number,
-  addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
+  addresses: WalletAddressCache,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
 ): Promise<boolean> => {
   try {
-    const cached: CachedAddresses = { version: 2, accountIndex, addresses };
+    const cached: CachedAddresses = {
+      version: ADDRESS_CACHE_VERSION,
+      accountIndex,
+      derivationMode,
+      addresses,
+    };
     await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached), DEVICE_ONLY);
     return true;
   } catch (error: unknown) {
@@ -225,8 +257,9 @@ export const saveCachedAddresses = async (
  * @returns Cached addresses or null if not found/mismatch
  */
 export const getCachedAddresses = async (
-  accountIndex: number
-): Promise<{ segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string } | null> => {
+  accountIndex: number,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): Promise<WalletAddressCache | null> => {
   try {
     const cached = await SecureStore.getItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
     if (!cached) return null;
@@ -244,14 +277,15 @@ export const getCachedAddresses = async (
     if (typeof parsed !== 'object' || parsed === null ||
         typeof parsed.accountIndex !== 'number' ||
         typeof parsed.version !== 'number' ||
+        !isWalletDerivationMode(parsed.derivationMode) ||
         !parsed.addresses ||
-        typeof parsed.addresses.segwitAddress !== 'string') {
+        !hasValidAddressFields(parsed.addresses)) {
       logger.warn('Invalid cached addresses structure, clearing cache');
       await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
       return null;
     }
 
-    if (parsed.version !== 2) {
+    if (parsed.version !== ADDRESS_CACHE_VERSION) {
       logger.warn('Cached addresses version mismatch, clearing cache');
       await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
       return null;
@@ -259,6 +293,7 @@ export const getCachedAddresses = async (
 
     // Return null if account index doesn't match (need to re-derive)
     if (parsed.accountIndex !== accountIndex) return null;
+    if (parsed.derivationMode !== derivationMode) return null;
 
     return parsed.addresses;
   } catch (error: unknown) {
@@ -276,6 +311,7 @@ interface AccountAddresses {
   taprootAddress: string;
   segwitPubkey: string;
   taprootPubkey: string;
+  derivationMode: WalletDerivationMode;
 }
 
 interface MultiAccountCache {
@@ -296,12 +332,21 @@ let cacheOperationInProgress: Promise<void> | null = null;
  * @returns Cached addresses or null if not found
  */
 export const getMultiAccountCache = async (
-  accountIndex: number
-): Promise<{ segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string } | null> => {
+  accountIndex: number,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): Promise<WalletAddressCache | null> => {
   try {
     // Check in-memory cache first (instant)
-    if (memoryCache && memoryCache[accountIndex.toString()]) {
-      return memoryCache[accountIndex.toString()] as AccountAddresses;
+    const cacheKey = accountIndex.toString();
+    const memoryEntry = memoryCache?.[cacheKey];
+    if (
+      memoryCache?.__version === ADDRESS_CACHE_VERSION &&
+      hasValidAddressFields(memoryEntry) &&
+      isWalletDerivationMode((memoryEntry as AccountAddresses).derivationMode) &&
+      (memoryEntry as AccountAddresses).derivationMode === derivationMode
+    ) {
+      const { derivationMode: _mode, ...addresses } = memoryEntry as AccountAddresses;
+      return addresses;
     }
 
     // Fall back to secure storage
@@ -324,7 +369,7 @@ export const getMultiAccountCache = async (
       return null;
     }
 
-    if (parsed.__version !== 2) {
+    if (parsed.__version !== ADDRESS_CACHE_VERSION) {
       logger.warn('Multi-account cache version mismatch, clearing cache');
       await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
       return null;
@@ -333,7 +378,17 @@ export const getMultiAccountCache = async (
     // Populate memory cache
     memoryCache = parsed;
 
-    return (parsed[accountIndex.toString()] as AccountAddresses) || null;
+    const storedEntry = parsed[cacheKey];
+    if (
+      hasValidAddressFields(storedEntry) &&
+      isWalletDerivationMode((storedEntry as AccountAddresses).derivationMode) &&
+      (storedEntry as AccountAddresses).derivationMode === derivationMode
+    ) {
+      const { derivationMode: _mode, ...addresses } = storedEntry as AccountAddresses;
+      return addresses;
+    }
+
+    return null;
   } catch (error: unknown) {
     logger.error('Failed to get multi-account cache', { error: error instanceof Error ? error.message : String(error) });
     return null;
@@ -349,7 +404,8 @@ export const getMultiAccountCache = async (
  */
 export const saveToMultiAccountCache = async (
   accountIndex: number,
-  addresses: { segwitAddress: string; taprootAddress: string; segwitPubkey: string; taprootPubkey: string }
+  addresses: WalletAddressCache,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
 ): Promise<boolean> => {
   // Wait for any pending operation to complete (prevents race conditions)
   if (cacheOperationInProgress) {
@@ -363,9 +419,9 @@ export const saveToMultiAccountCache = async (
 
   try {
     // Load existing cache or create new
-    let cache: MultiAccountCache = { __version: 2 };
+    let cache: MultiAccountCache = { __version: ADDRESS_CACHE_VERSION };
 
-    if (memoryCache) {
+    if (memoryCache?.__version === ADDRESS_CACHE_VERSION) {
       cache = { ...memoryCache };
     } else {
       const existing = await SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
@@ -373,8 +429,13 @@ export const saveToMultiAccountCache = async (
         try {
           const parsed = JSON.parse(existing);
           // Validate structure
-          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            cache = { __version: 2, ...parsed };
+          if (
+            typeof parsed === 'object' &&
+            parsed !== null &&
+            !Array.isArray(parsed) &&
+            parsed.__version === ADDRESS_CACHE_VERSION
+          ) {
+            cache = { __version: ADDRESS_CACHE_VERSION, ...parsed };
           }
         } catch (parseError) {
           logger.warn('Invalid JSON in multi-account cache during save, resetting', { error: parseError instanceof Error ? parseError.message : String(parseError) });
@@ -383,7 +444,7 @@ export const saveToMultiAccountCache = async (
     }
 
     // Add/update entry
-    cache[accountIndex.toString()] = addresses;
+    cache[accountIndex.toString()] = { ...addresses, derivationMode };
 
     // Update memory cache
     memoryCache = cache;
@@ -407,8 +468,16 @@ export const saveToMultiAccountCache = async (
  * @param clearICloudBackup - Whether to also clear iCloud passkey backup (default: false)
  * @throws Error if critical deletion fails
  */
-export const deleteWalletData = async (clearICloudBackup = false): Promise<void> => {
+interface DeleteWalletDataOptions {
+  preservePinAuth?: boolean;
+}
+
+export const deleteWalletData = async (
+  clearICloudBackup = false,
+  options: DeleteWalletDataOptions = {}
+): Promise<void> => {
   try {
+    const { preservePinAuth = false } = options;
     memoryCache = null;
     clearSessionMnemonic();
 
@@ -582,12 +651,16 @@ export const deleteWalletData = async (clearICloudBackup = false): Promise<void>
       SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
 
       // PIN and authentication
-      SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT_HMAC),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_HMAC_KEY),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PIN_VERSION),
-      SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
+      ...(preservePinAuth
+        ? []
+        : [
+            SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
+            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
+            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT_HMAC),
+            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_HMAC_KEY),
+            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_VERSION),
+            SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
+          ]),
 
       // Unified auth lockout state
       SecureStore.deleteItemAsync('pin_failed_attempts'),

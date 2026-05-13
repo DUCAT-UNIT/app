@@ -16,6 +16,8 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../../utils/vaultUtils', () => ({
   computeLiquidationPrice: jest.fn(() => 50000),
+  getOpCostRepay: jest.fn(() => 1000),
+  getVaultSettlementReserveSats: jest.fn(() => 0),
   validateVaultParams: jest.fn(() => ({ isValid: true, errors: [] })),
 }));
 

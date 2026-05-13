@@ -57,6 +57,7 @@ jest.mock('../../../stores/priceStore', () => ({
 jest.mock('../../../stores/pendingVaultTransactionStore', () => ({
   usePendingVaultTransactionStore: jest.fn((selector) =>
     selector({
+      pendingTransaction: null,
       setPendingTransaction: mockSetPendingVaultTransaction,
       setPendingTransactionForAccount: mockSetPendingVaultTransactionForAccount,
       clearPendingTransactionForAccount: mockClearPendingVaultTransactionForAccount,

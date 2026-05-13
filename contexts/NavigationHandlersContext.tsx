@@ -13,7 +13,13 @@
 import React, { createContext, useContext, useCallback, useMemo, ReactNode, MutableRefObject } from 'react';
 import { useAuthPinFlow, useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
-import { useBalance, useTransactionHistory, useVaultData } from './WalletDataContext';
+import {
+  useBalance,
+  useEcashTokens,
+  useEvmAssets,
+  useTransactionHistory,
+  useVaultData,
+} from './WalletDataContext';
 import { useOnboardingFlow } from './AuthContext';
 import { useSeedPhrase } from './SeedPhraseContext';
 import { useNotifications } from '../stores/notificationStore';
@@ -131,7 +137,10 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   const { resetWallet, switchAccount: switchAccountContext } = useWallet();
   const { fetchBalance, resetBalances } = useBalance();
   const { fetchTransactionHistory, resetTransactionHistory } = useTransactionHistory();
-  const { fetchVault, resetVaultData } = useVaultData();
+  const { fetchVault, fetchVaultTransactions, resetVaultData } = useVaultData();
+  const { fetchEcashTokens, resetEcashTokens } = useEcashTokens();
+  const { refreshEvmBalances, refreshUsdcHistory, refreshEthHistory, resetEvmAssets } =
+    useEvmAssets();
   const { resetAndRefresh: resetAndRefreshCashu } = useCashuOperations();
   const { setSeedConfirmed, resetWalletAndState: onboardingResetWalletAndState } = useOnboardingFlow();
   const { requestingSeedPhrase, loadSeedPhrase, requestViewSeedPhrase } = useSeedPhrase();
@@ -185,7 +194,9 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
   } = useAccountSwitcher({
     switchAccountContext, resetBalances, fetchBalance,
     resetTransactionHistory, fetchTransactionHistory,
-    resetVaultData, fetchVault, resetAndRefreshCashu,
+    resetVaultData, fetchVault, fetchVaultTransactions,
+    resetEcashTokens, fetchEcashTokens, resetAndRefreshCashu,
+    resetEvmAssets, refreshEvmBalances, refreshUsdcHistory, refreshEthHistory,
     showToast: (message: string, type: 'success' | 'error') => showSnackbar({ title: message, type }),
   });
 

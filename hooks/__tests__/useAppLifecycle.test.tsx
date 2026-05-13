@@ -1,13 +1,12 @@
 /**
  * Tests for useAppLifecycle Hook
- * Validates app lifecycle management including auto-lock, inactivity timer, and screen capture
+ * Validates app lifecycle management including auto-lock and inactivity timer.
  */
 
 import React, { MutableRefObject } from 'react';
 import { create, act } from 'react-test-renderer';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAppLifecycle } from '../useAppLifecycle';
-import * as ScreenCapture from 'expo-screen-capture';
 
 // Type for the hook params
 interface UseAppLifecycleParams {
@@ -20,12 +19,6 @@ interface UseAppLifecycleParams {
   onLock: jest.Mock;
   onAuthenticateUser: jest.Mock;
 }
-
-// Mock expo-screen-capture
-jest.mock('expo-screen-capture', () => ({
-  allowScreenCaptureAsync: jest.fn().mockResolvedValue(undefined),
-  preventScreenCaptureAsync: jest.fn().mockResolvedValue(undefined),
-}));
 
 // Mock timers for inactivity
 jest.useFakeTimers();
@@ -84,22 +77,6 @@ describe('useAppLifecycle', () => {
       onLock: jest.fn(),
       onAuthenticateUser: jest.fn(),
     };
-  });
-
-  describe('Screen Capture Management', () => {
-    it('should prevent screen capture on mount', async () => {
-      renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
-        initialProps: mockProps,
-      });
-
-      await act(async () => {
-        await Promise.resolve();
-      });
-
-      expect(ScreenCapture.preventScreenCaptureAsync).toHaveBeenCalled();
-    });
-
-
   });
 
   describe('App State Changes', () => {

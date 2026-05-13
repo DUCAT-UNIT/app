@@ -20,7 +20,7 @@ interface RenderHookOptions {
 function renderHook<T>(
   hook: () => T,
   { wrapper: Wrapper }: RenderHookOptions = {}
-): { result: { current: T | null }; rerender: (element: React.ReactElement) => void; unmount: () => void } {
+): { result: { current: T | null }; rerender: () => void; unmount: () => void } {
   const result: { current: T | null } = { current: null };
 
   function TestComponent(): null {
@@ -29,13 +29,23 @@ function renderHook<T>(
   }
 
   let component: ReturnType<typeof create> | undefined;
+  const renderElement = () =>
+    Wrapper ? (
+      <Wrapper>
+        <TestComponent />
+      </Wrapper>
+    ) : (
+      <TestComponent />
+    );
   act(() => {
-    component = Wrapper
-      ? create(<Wrapper><TestComponent /></Wrapper>)
-      : create(<TestComponent />);
+    component = create(renderElement());
   });
 
-  return { result, rerender: component!.update, unmount: component!.unmount };
+  return {
+    result,
+    rerender: () => component!.update(renderElement()),
+    unmount: component!.unmount,
+  };
 }
 
 // Mock dependencies
@@ -44,9 +54,11 @@ jest.mock('../WalletContext');
 jest.mock('../AuthContext');
 // Configurable mock for NavigationHandlersContext
 let mockShowBiometricSetupModal = false;
+let mockShowPasskeyMigrationModal = false;
 jest.mock('../NavigationHandlersContext', () => ({
   useAuthFlowHandlers: () => ({
     showBiometricSetupModal: mockShowBiometricSetupModal,
+    showPasskeyMigrationModal: mockShowPasskeyMigrationModal,
   }),
 }));
 jest.mock('expo-secure-store');
@@ -81,6 +93,7 @@ describe('AirdropContext', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     mockShowBiometricSetupModal = false; // Reset to default
+    mockShowPasskeyMigrationModal = false;
 
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
@@ -202,7 +215,6 @@ describe('AirdropContext', () => {
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(pendingKey);
   });
 
-
   it('should not request airdrop when balance is > 0', async () => {
     const mockWallet = createMockWallet('hasbalance');
 
@@ -261,6 +273,45 @@ describe('AirdropContext', () => {
     });
 
     expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
+  });
+
+  it('should wait for the passkey migration decision before requesting airdrop', async () => {
+    const mockWallet = createMockWallet('passkeymigrationactive');
+    const mockTxId = 'passkey_done_txid';
+
+    mockShowPasskeyMigrationModal = true;
+
+    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
+    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
+    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
+    (AirdropService.requestAirdrop as jest.Mock).mockResolvedValue({ txId: mockTxId });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
+    );
+
+    const { rerender } = renderHook(() => useAirdrop(), { wrapper });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+    });
+
+    expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
+
+    mockShowPasskeyMigrationModal = false;
+    await act(async () => {
+      rerender();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(3000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(AirdropService.requestAirdrop).toHaveBeenCalledWith(mockWallet.segwitAddress);
   });
 
   it('should not request airdrop within 24 hours of last request', async () => {
@@ -975,5 +1026,4 @@ describe('AirdropContext', () => {
     // audioReady should be false when preload fails
     expect(result!.current!.audioReady).toBe(false);
   });
-
 });

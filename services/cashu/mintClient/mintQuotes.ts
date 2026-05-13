@@ -89,16 +89,18 @@ const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => {
  */
 export const createMintQuote = async (
   pubkey: string,
-  unit: CashuUnit = DEFAULT_CASHU_UNIT
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  amount?: number
 ): Promise<MintQuote> => {
   try {
-    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10), unit });
+    logger.info('Creating mint quote', { pubkey: pubkey.substring(0, 10), unit, amount });
 
     await assertOnchainCashuMintSupport(unit);
 
     const body = {
       unit,
       pubkey,
+      ...(amount !== undefined ? { amount } : {}),
       ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
     };
 

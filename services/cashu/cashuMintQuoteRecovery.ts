@@ -53,6 +53,7 @@ export interface PersistedMintQuote {
   createdAt: number;
   state: 'UNPAID' | 'PAID' | 'ISSUED' | 'PENDING';
   unit?: CashuUnit;
+  purpose?: 'turbo_send';
   failCount?: number; // Track consecutive claim failures
   lastError?: string; // Last error message for debugging
   claim?: PersistedMintClaim;
@@ -211,6 +212,35 @@ export const updateMintQuoteState = async (
     logger.error('[MintQuoteRecovery] Failed to update quote state', {
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+};
+
+export const markMintQuoteAsTurboSend = async (quoteId: string): Promise<void> => {
+  try {
+    const quotes = await loadAllMintQuotes();
+    const currentAccount = getCurrentCashuAccount();
+    const quote = quotes.find(
+      (q) => q.quoteId === quoteId && belongsToCurrentCashuAccount(q, currentAccount)
+    );
+
+    if (!quote) {
+      logger.warn('[MintQuoteRecovery] Cannot mark missing quote as Turbo send', {
+        quoteId: quoteId.substring(0, 8),
+      });
+      return;
+    }
+
+    quote.purpose = 'turbo_send';
+    await SecureStore.setItemAsync(PENDING_MINT_QUOTES_KEY, JSON.stringify(quotes), DEVICE_ONLY);
+    logger.info('[MintQuoteRecovery] Marked quote as Turbo send', {
+      quoteId: quoteId.substring(0, 8),
+    });
+  } catch (error) {
+    logger.error('[MintQuoteRecovery] Failed to mark quote as Turbo send', {
+      quoteId: quoteId.substring(0, 8),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
 };
 
@@ -529,6 +559,13 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
 
     for (const quote of quotes) {
       result.checked++;
+
+      if (quote.purpose === 'turbo_send') {
+        logger.debug('[MintQuoteRecovery] Skipping Turbo send quote; Turbo recovery owns it', {
+          quoteId: quote.quoteId.substring(0, 8),
+        });
+        continue;
+      }
 
       if (quote.claim) {
         try {

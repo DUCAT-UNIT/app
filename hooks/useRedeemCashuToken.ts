@@ -21,7 +21,10 @@ import {
   normalizeCashuUnit,
   type CashuUnit,
 } from '../services/cashu/cashuUnits';
-import { saveReceivedToken } from '../services/cashu/cashuLockedTokensService';
+import {
+  deleteReceivedTokenByToken,
+  saveReceivedToken,
+} from '../services/cashu/cashuLockedTokensService';
 
 interface UseRedeemCashuTokenParams {
   fetchTransactionHistory: () => Promise<void> | void;
@@ -217,6 +220,15 @@ async function redeemP2PKToken(
     return;
   }
 
+  await saveReceivedTokenForHistory(
+    tokenString,
+    'Manual P2PK Redeem',
+    decoded.amount,
+    taprootAddress,
+    unit,
+    { pendingRedeem: true }
+  );
+
   // Redeem with correct private key
   logger.cashu('manual_p2pk_redeem_execute', {
     step: 'MANUAL_REDEEM',
@@ -225,7 +237,13 @@ async function redeemP2PKToken(
     message: 'Executing P2PK token redemption',
   });
 
-  const result = await receiveP2PKToken(tokenString, accountMatch.privateKey, undefined, unit);
+  const result = await receiveP2PKToken(tokenString, accountMatch.privateKey, undefined, unit).catch(
+    async (error: unknown) => {
+      await deleteReceivedTokenByToken(tokenString);
+      throw error;
+    }
+  );
+
   await saveReceivedTokenForHistory(tokenString, 'Manual P2PK Redeem', result.amount, taprootAddress, unit);
   await fetchTransactionHistory();
 
@@ -251,7 +269,20 @@ async function redeemRegularToken(
   });
 
   const unit = decoded.unit ? normalizeCashuUnit(decoded.unit) : DEFAULT_CASHU_UNIT;
-  const result = await receiveToken(tokenString, unit);
+  await saveReceivedTokenForHistory(
+    tokenString,
+    'Manual Redeem',
+    decoded.amount,
+    taprootAddress,
+    unit,
+    { pendingRedeem: true }
+  );
+
+  const result = await receiveToken(tokenString, unit).catch(async (error: unknown) => {
+    await deleteReceivedTokenByToken(tokenString);
+    throw error;
+  });
+
   await saveReceivedTokenForHistory(tokenString, 'Manual Redeem', result.amount, taprootAddress, unit);
   await fetchTransactionHistory();
 
@@ -268,9 +299,14 @@ async function saveReceivedTokenForHistory(
   sender: string,
   amount: number,
   taprootAddress: string,
-  unit: CashuUnit
+  unit: CashuUnit,
+  options: { pendingRedeem?: boolean } = {}
 ): Promise<void> {
   try {
+    if (options.pendingRedeem === true) {
+      await saveReceivedToken(tokenString, sender, amount, taprootAddress, unit, options);
+      return;
+    }
     await saveReceivedToken(tokenString, sender, amount, taprootAddress, unit);
   } catch (error: unknown) {
     logger.warn('[useRedeemCashuToken] Failed to save redeemed token history', {

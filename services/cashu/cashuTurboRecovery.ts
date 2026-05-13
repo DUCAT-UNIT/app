@@ -16,6 +16,7 @@ import { checkMintStatus, completeMint } from './operations/cashuMintOperations'
 import { clearRecoveredOutgoingSwapToken } from './cashuSwapRecovery';
 import { getBalance } from './cashuBalanceService';
 import { getCurrentCashuAccount } from './cashuProofManager';
+import { markMintQuoteAsTurboSend } from './cashuMintQuoteRecovery';
 import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 const PENDING_TURBO_SEND_KEY = 'cashu_pending_turbo_send';
@@ -483,6 +484,7 @@ export const savePendingTurboSend = async (
     if (unit !== DEFAULT_CASHU_UNIT) {
       pendingSend.unit = unit;
     }
+    await markMintQuoteAsTurboSend(quoteId);
 
     const storageKey = turboSendStorageKey(senderTaprootAddress, quoteId, unit);
     await SecureStore.setItemAsync(
@@ -650,12 +652,29 @@ const recoverPendingTurboSendEntry = async (
     if (pending.stage === 'waiting_for_mint') {
       const mintStatus = await checkMintStatus(pending.quoteId);
       if (mintStatus.availableAmount > 0 || mintStatus.state === 'PAID') {
+        const expectedClaimAmount = pending.mintAmount ?? pending.amount;
+        if (mintStatus.availableAmount > 0 && mintStatus.availableAmount < expectedClaimAmount) {
+          logger.warn('[TurboRecovery] Refusing partial Turbo mint recovery', {
+            quoteId: pending.quoteId.substring(0, 8),
+            availableAmount: mintStatus.availableAmount,
+            expectedClaimAmount,
+            unit: pendingUnit,
+          });
+          return {
+            recovered: false,
+            error: `Turbo mint is only partially available (${mintStatus.availableAmount}/${expectedClaimAmount})`,
+          };
+        }
         const claimAmount =
-          mintStatus.availableAmount > 0 ? mintStatus.availableAmount : (pending.mintAmount ?? pending.amount);
+          mintStatus.availableAmount > 0 ? mintStatus.availableAmount : expectedClaimAmount;
         if (pendingUnit === DEFAULT_CASHU_UNIT) {
-          await completeMint(pending.quoteId, claimAmount);
+          await completeMint(pending.quoteId, claimAmount, DEFAULT_CASHU_UNIT, {
+            requireExactAmount: true,
+          });
         } else {
-          await completeMint(pending.quoteId, claimAmount, pendingUnit);
+          await completeMint(pending.quoteId, claimAmount, pendingUnit, {
+            requireExactAmount: true,
+          });
         }
         await updateTurboSendEntry(entry, 'mint_completed');
         pending.stage = 'mint_completed';
@@ -671,6 +690,22 @@ const recoverPendingTurboSendEntry = async (
             state: mintStatus.state,
           }
         );
+        const expectedIssuedAmount = pending.mintAmount ?? pending.amount;
+        if (
+          mintStatus.amountIssued !== undefined &&
+          mintStatus.amountIssued < expectedIssuedAmount
+        ) {
+          logger.warn('[TurboRecovery] Refusing issued Turbo recovery with partial amount', {
+            quoteId: pending.quoteId.substring(0, 8),
+            amountIssued: mintStatus.amountIssued,
+            expectedIssuedAmount,
+            unit: pendingUnit,
+          });
+          return {
+            recovered: false,
+            error: `Turbo mint issued only ${mintStatus.amountIssued}/${expectedIssuedAmount}`,
+          };
+        }
       } else {
         logger.debug('[TurboRecovery] Still waiting for mint payment');
         return { recovered: false };

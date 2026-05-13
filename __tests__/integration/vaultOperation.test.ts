@@ -84,10 +84,12 @@ const mockSetPendingTransactionForAccount = jest.fn().mockResolvedValue(undefine
 jest.mock('../../stores/pendingVaultTransactionStore', () => ({
   usePendingVaultTransactionStore: (
     selector: (s: {
+      pendingTransaction: null;
       setPendingTransaction: jest.Mock;
       setPendingTransactionForAccount: jest.Mock;
     }) => unknown
   ) => selector({
+    pendingTransaction: null,
     setPendingTransaction: mockSetPendingTransaction,
     setPendingTransactionForAccount: mockSetPendingTransactionForAccount,
   }),
@@ -159,6 +161,7 @@ interface FakeConfig {
 }
 interface FakeRequest {
   psbt: string;
+  vault_txid: string;
 }
 interface FakeResult {
   vault_txid: string;
@@ -170,7 +173,7 @@ const mockCreateConfig = jest.fn<FakeConfig, [number, number]>().mockImplementat
 );
 const mockCreateRequest = jest
   .fn<Promise<FakeRequest>, [VaultRequestParams<FakeConfig>]>()
-  .mockResolvedValue({ psbt: 'signed-psbt-hex' });
+  .mockResolvedValue({ psbt: 'signed-psbt-hex', vault_txid: 'vault-tx-abc' });
 const mockSendRequest = jest
   .fn<Promise<FakeResult>, [unknown, FakeRequest]>()
   .mockResolvedValue({ vault_txid: 'vault-tx-abc' });
@@ -275,7 +278,7 @@ describe('useVaultOperation integration', () => {
     mockCreateConfig.mockImplementation(
       (amount: number, feeRate: number) => ({ deposit_amount: amount, fee_rate: feeRate })
     );
-    mockCreateRequest.mockResolvedValue({ psbt: 'signed-psbt-hex' });
+    mockCreateRequest.mockResolvedValue({ psbt: 'signed-psbt-hex', vault_txid: 'vault-tx-abc' });
     mockSendRequest.mockResolvedValue({ vault_txid: 'vault-tx-abc' });
     mockExtractResult.mockImplementation((r: FakeResult) => ({ vaultTxid: r.vault_txid }));
     mockCreatePendingTransaction.mockImplementation(

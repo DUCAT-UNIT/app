@@ -6,9 +6,8 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { API } from '../utils/constants';
 import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
-import { postJSON } from '../utils/apiClient';
+import { deleteJSON, postJSON } from '../utils/apiClient';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 import { getNotificationsEnabled } from './settingsService';
@@ -107,7 +106,7 @@ export async function unregisterPushToken(token: string): Promise<void> {
   if (isE2E()) return;
 
   try {
-    await postJSON('https://notifications.ducatprotocol.com/api/unregister', { token });
+    await deleteJSON('https://notifications.ducatprotocol.com/api/unregister', { token });
     logger.info('[PushNotification] Token unregistered from backend');
   } catch (error: unknown) {
     logger.error('[PushNotification] Failed to unregister push token', {

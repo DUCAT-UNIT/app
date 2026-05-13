@@ -112,6 +112,9 @@ function sendJournalScope(
   if (transaction.displayKind === 'turbo_mint_claim') {
     return 'turbounit-claim';
   }
+  if (transaction.displayKind === 'turbo_redeem') {
+    return transaction.assetType === 'BTC' ? 'turbobtc-redeem' : 'turbounit-redeem';
+  }
   return transaction.assetType === 'UNIT' ? 'unit-send' : 'btc-send';
 }
 
@@ -120,6 +123,9 @@ function sendJournalLabel(
 ): string {
   if (transaction.displayKind === 'turbo_mint_claim') {
     return 'TurboUNIT claim submitted';
+  }
+  if (transaction.displayKind === 'turbo_redeem') {
+    return transaction.assetType === 'BTC' ? 'TurboBTC redeem submitted' : 'TurboUNIT redeem submitted';
   }
   return transaction.assetType === 'UNIT' ? 'UNIT send submitted' : 'BTC send submitted';
 }

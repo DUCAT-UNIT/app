@@ -51,6 +51,10 @@ const isValidTokenString = (tokenString: string | undefined): boolean => {
 export const checkTokenStatus = async (
   token: EcashTokenRecord
 ): Promise<TokenWithStatus> => {
+  if (token.pendingRedeem === true) {
+    return { ...token, claimed: false, partiallySpent: false };
+  }
+
   // If already marked as claimed in storage, return immediately
   if (token.claimed === true) {
     return { ...token, claimed: true };

@@ -1,0 +1,198 @@
+diff --git a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/TabsHostViewManager.kt b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/TabsHostViewManager.kt
+index a9caf89..4f4e9d1 100644
+--- a/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/TabsHostViewManager.kt
++++ b/node_modules/react-native-screens/android/src/main/java/com/swmansion/rnscreens/gamma/tabs/TabsHostViewManager.kt
+@@ -137,6 +137,11 @@ class TabsHostViewManager :
+         value: String?,
+     ) = Unit
+ 
++    override fun setTabBarHidden(
++        view: TabsHost,
++        value: Boolean,
++    ) = Unit
++
+     // Android additional
+ 
+     @ReactProp(name = "tabBarItemTitleFontColorActive", customType = "Color")
+diff --git a/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerDelegate.java b/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerDelegate.java
+index 0386a05..00a48f5 100644
+--- a/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerDelegate.java
++++ b/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerDelegate.java
+@@ -71,6 +71,9 @@ public class RNSBottomTabsManagerDelegate<T extends View, U extends BaseViewMana
+       case "tabBarMinimizeBehavior":
+         mViewManager.setTabBarMinimizeBehavior(view, (String) value);
+         break;
++      case "tabBarHidden":
++        mViewManager.setTabBarHidden(view, value == null ? false : (boolean) value);
++        break;
+       case "controlNavigationStateInJS":
+         mViewManager.setControlNavigationStateInJS(view, value == null ? false : (boolean) value);
+         break;
+diff --git a/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerInterface.java b/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerInterface.java
+index ba58275..a5ecd36 100644
+--- a/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerInterface.java
++++ b/node_modules/react-native-screens/android/src/paper/java/com/facebook/react/viewmanagers/RNSBottomTabsManagerInterface.java
+@@ -30,5 +30,6 @@ public interface RNSBottomTabsManagerInterface<T extends View>  {
+   void setTabBarItemLabelVisibilityMode(T view, @Nullable String value);
+   void setTabBarTintColor(T view, @Nullable Integer value);
+   void setTabBarMinimizeBehavior(T view, @Nullable String value);
++  void setTabBarHidden(T view, boolean value);
+   void setControlNavigationStateInJS(T view, boolean value);
+ }
+diff --git a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.h b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.h
+index 11059f8..3d3c6dd 100644
+--- a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.h
++++ b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.h
+@@ -49,6 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
+ @property (nonatomic, strong, readonly, nullable) UIColor *tabBarTintColor;
+ 
+ @property (nonatomic, readonly) BOOL experimental_controlNavigationStateInJS;
++@property (nonatomic, readonly) BOOL tabBarHidden;
+ 
+ #if RNS_IPHONE_OS_VERSION_AVAILABLE(26_0)
+ @property (nonatomic, readonly) UITabBarMinimizeBehavior tabBarMinimizeBehavior API_AVAILABLE(ios(26.0));
+diff --git a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.mm b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.mm
+index fe7d959..591bb19 100644
+--- a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.mm
++++ b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentView.mm
+@@ -101,6 +101,7 @@ - (void)resetProps
+   _props = defaultProps;
+ #endif
+   _tabBarTintColor = nil;
++  _tabBarHidden = NO;
+ }
+ 
+ #pragma mark - UIView methods
+@@ -118,6 +119,7 @@ - (void)didMoveToWindow
+ {
+   if ([self window] != nil) {
+     [self reactAddControllerToClosestParent:_controller];
++    [self applyTabBarHiddenState];
+ 
+ #if !RCT_NEW_ARCH_ENABLED
+     // This is required on legacy architecture to prevent a bug with doubled size of UIViewControllerWrapperView.
+@@ -207,6 +209,21 @@ - (BOOL)emitOnNativeFocusChangeRequestSelectedTabScreen:(RNSBottomTabsScreenComp
+   return [_reactEventEmitter emitOnNativeFocusChange:OnNativeFocusChangePayload{.tabKey = tabScreen.tabKey}];
+ }
+ 
++- (void)applyTabBarHiddenState
++{
++  _controller.tabBar.hidden = _tabBarHidden;
++  _controller.tabBar.alpha = _tabBarHidden ? 0 : 1;
++  _controller.tabBar.userInteractionEnabled = !_tabBarHidden;
++  _controller.tabBar.layer.zPosition = _tabBarHidden ? -1 : 0;
++  [_controller.view setNeedsLayout];
++}
++
++- (void)setTabBarHidden:(BOOL)tabBarHidden
++{
++  _tabBarHidden = tabBarHidden;
++  [self applyTabBarHiddenState];
++}
++
+ #pragma mark - RCTViewComponentViewProtocol
+ #if RCT_NEW_ARCH_ENABLED
+ 
+@@ -248,6 +265,10 @@ - (void)updateProps:(const facebook::react::Props::Shared &)props
+     _experimental_controlNavigationStateInJS = newComponentProps.controlNavigationStateInJS;
+   }
+ 
++  if (newComponentProps.tabBarHidden != oldComponentProps.tabBarHidden) {
++    [self setTabBarHidden:newComponentProps.tabBarHidden];
++  }
++
+   if (newComponentProps.tabBarTintColor != oldComponentProps.tabBarTintColor) {
+     _needsTabBarAppearanceUpdate = YES;
+     _tabBarTintColor = RCTUIColorFromSharedColor(newComponentProps.tabBarTintColor);
+@@ -293,6 +314,7 @@ - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
+     _needsTabBarAppearanceUpdate = NO;
+     [_controller setNeedsUpdateOfTabBarAppearance:true];
+   }
++  [self applyTabBarHiddenState];
+   [super finalizeUpdates:updateMask];
+ }
+ 
+diff --git a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentViewManager.mm b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentViewManager.mm
+index d043c67..c75d5d6 100644
+--- a/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentViewManager.mm
++++ b/node_modules/react-native-screens/ios/bottom-tabs/RNSBottomTabsHostComponentViewManager.mm
+@@ -23,6 +23,7 @@ - (UIView *)view
+ #pragma mark - LEGACY Props
+ 
+ RCT_EXPORT_VIEW_PROPERTY(tabBarTintColor, UIColor);
++RCT_EXPORT_VIEW_PROPERTY(tabBarHidden, BOOL);
+ // This remapping allows us to store UITabBarMinimizeBehavior in the component while accepting a custom enum as input
+ // from JS.
+ RCT_REMAP_VIEW_PROPERTY(
+diff --git a/node_modules/react-native-screens/lib/typescript/components/bottom-tabs/BottomTabs.types.d.ts b/node_modules/react-native-screens/lib/typescript/components/bottom-tabs/BottomTabs.types.d.ts
+index f6966d9..ab5cdf4 100644
+--- a/node_modules/react-native-screens/lib/typescript/components/bottom-tabs/BottomTabs.types.d.ts
++++ b/node_modules/react-native-screens/lib/typescript/components/bottom-tabs/BottomTabs.types.d.ts
+@@ -152,6 +152,13 @@ export interface BottomTabsProps extends ViewProps {
+      * @supported iOS 26 or higher
+      */
+     tabBarMinimizeBehavior?: TabBarMinimizeBehavior;
++    /**
++     * @summary Hides the native tab bar while keeping the selected tab screen mounted.
++     *
++     * @default false
++     * @platform ios
++     */
++    tabBarHidden?: boolean;
+     /**
+      * @summary Experimental prop for changing container control.
+      *
+diff --git a/node_modules/react-native-screens/lib/typescript/fabric/bottom-tabs/BottomTabsNativeComponent.d.ts b/node_modules/react-native-screens/lib/typescript/fabric/bottom-tabs/BottomTabsNativeComponent.d.ts
+index 844d005..381e148 100644
+--- a/node_modules/react-native-screens/lib/typescript/fabric/bottom-tabs/BottomTabsNativeComponent.d.ts
++++ b/node_modules/react-native-screens/lib/typescript/fabric/bottom-tabs/BottomTabsNativeComponent.d.ts
+@@ -23,6 +23,7 @@ export interface NativeProps extends ViewProps {
+     tabBarItemLabelVisibilityMode?: WithDefault<TabBarItemLabelVisibilityMode, 'auto'>;
+     tabBarTintColor?: ColorValue;
+     tabBarMinimizeBehavior?: WithDefault<TabBarMinimizeBehavior, 'automatic'>;
++    tabBarHidden?: WithDefault<boolean, false>;
+     controlNavigationStateInJS?: WithDefault<boolean, false>;
+ }
+ declare const _default: import("react-native/Libraries/Utilities/codegenNativeComponent").NativeComponentType<NativeProps>;
+diff --git a/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabs.types.ts b/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabs.types.ts
+index 407d8a9..3c2dd04 100644
+--- a/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabs.types.ts
++++ b/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabs.types.ts
+@@ -180,6 +180,14 @@ export interface BottomTabsProps extends ViewProps {
+    * @supported iOS 26 or higher
+    */
+   tabBarMinimizeBehavior?: TabBarMinimizeBehavior;
++
++  /**
++   * @summary Hides the native tab bar while keeping the selected tab screen mounted.
++   *
++   * @default false
++   * @platform ios
++   */
++  tabBarHidden?: boolean;
+   // #endregion iOS-only appearance
+ 
+   // #region Experimental support
+diff --git a/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabsScreen.tsx b/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabsScreen.tsx
+index ce02d94..ea3436b 100644
+--- a/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabsScreen.tsx
++++ b/node_modules/react-native-screens/src/components/bottom-tabs/BottomTabsScreen.tsx
+@@ -323,5 +323,6 @@ const styles = StyleSheet.create({
+     flex: 1,
+     width: '100%',
+     height: '100%',
++    backgroundColor: '#111015',
+   },
+ });
+diff --git a/node_modules/react-native-screens/src/fabric/bottom-tabs/BottomTabsNativeComponent.ts b/node_modules/react-native-screens/src/fabric/bottom-tabs/BottomTabsNativeComponent.ts
+index f50437a..b675d93 100644
+--- a/node_modules/react-native-screens/src/fabric/bottom-tabs/BottomTabsNativeComponent.ts
++++ b/node_modules/react-native-screens/src/fabric/bottom-tabs/BottomTabsNativeComponent.ts
+@@ -61,6 +61,7 @@ export interface NativeProps extends ViewProps {
+   // iOS-specific
+   tabBarTintColor?: ColorValue;
+   tabBarMinimizeBehavior?: WithDefault<TabBarMinimizeBehavior, 'automatic'>;
++  tabBarHidden?: WithDefault<boolean, false>;
+ 
+   // Control
+ 

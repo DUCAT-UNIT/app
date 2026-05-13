@@ -35,17 +35,24 @@ jest.mock('../walletDerivationService', () => ({
 
 // Typed mock references
 const mockCrypto = jest.requireMock('expo-crypto') as { getRandomBytesAsync: jest.Mock };
-const mockBip39 = jest.requireMock('bip39') as { entropyToMnemonic: jest.Mock; validateMnemonic: jest.Mock };
-const mockBitcoin = jest.requireMock('../../utils/bitcoin') as { deriveAddressesFromMnemonic: jest.Mock };
+const mockBip39 = jest.requireMock('bip39') as {
+  entropyToMnemonic: jest.Mock;
+  validateMnemonic: jest.Mock;
+};
+const mockBitcoin = jest.requireMock('../../utils/bitcoin') as {
+  deriveAddressesFromMnemonic: jest.Mock;
+};
 const mockSecureStorage = SecureStorageService as jest.Mocked<typeof SecureStorageService>;
 const mockWalletDerivation = WalletDerivationService as jest.Mocked<typeof WalletDerivationService>;
-const NEW_MODE = 'bip44_account';
+const NEW_MODE = 'legacy_address_index';
 const LEGACY_MODE = 'legacy_address_index';
 
 describe('walletService', () => {
   const mockAddresses = {
+    legacyAddress: '2N5Z9zDkP8SmCYbPcR9UfzJX2dqkWmupMhQ',
     segwitAddress: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx',
     taprootAddress: 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297',
+    legacyPubkey: 'mockLegacyPubkey',
     segwitPubkey: 'mockSegwitPubkey',
     taprootPubkey: 'mockTaprootPubkey',
   };
@@ -59,7 +66,8 @@ describe('walletService', () => {
   describe('generateWallet', () => {
     it('should generate a new wallet with mnemonic and addresses', async () => {
       const mockRandomBytes = new Uint8Array(16);
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockCrypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
       mockBip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
@@ -73,12 +81,17 @@ describe('walletService', () => {
       });
 
       expect(mockCrypto.getRandomBytesAsync).toHaveBeenCalledWith(16);
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 0, NEW_MODE);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(
+        mockMnemonic,
+        0,
+        NEW_MODE
+      );
     });
 
     it('should generate wallet with custom account index', async () => {
       const mockRandomBytes = new Uint8Array(16);
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockCrypto.getRandomBytesAsync.mockResolvedValueOnce(mockRandomBytes);
       mockBip39.entropyToMnemonic.mockReturnValueOnce(mockMnemonic);
@@ -86,7 +99,11 @@ describe('walletService', () => {
 
       await generateWallet(5);
 
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 5, NEW_MODE);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(
+        mockMnemonic,
+        5,
+        NEW_MODE
+      );
     });
 
     it('should throw error if wallet generation fails', async () => {
@@ -106,7 +123,8 @@ describe('walletService', () => {
 
   describe('importWallet', () => {
     it('should import wallet from valid mnemonic', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockBip39.validateMnemonic.mockReturnValueOnce(true);
       mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
@@ -122,8 +140,10 @@ describe('walletService', () => {
     });
 
     it('should normalize and trim mnemonic before validation', async () => {
-      const mnemonic = '  ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABOUT  ';
-      const normalized = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        '  ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABANDON ABOUT  ';
+      const normalized =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockBip39.validateMnemonic.mockReturnValueOnce(true);
       mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
@@ -135,7 +155,8 @@ describe('walletService', () => {
     });
 
     it('should import wallet with custom account index', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockBip39.validateMnemonic.mockReturnValueOnce(true);
       mockBitcoin.deriveAddressesFromMnemonic.mockReturnValueOnce(mockAddresses);
@@ -156,7 +177,8 @@ describe('walletService', () => {
     });
 
     it('should reject invalid account indexes before validating mnemonic', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       await expect(importWallet(mnemonic, -1)).rejects.toThrow('Invalid account index: -1');
 
@@ -177,7 +199,7 @@ describe('walletService', () => {
       });
 
       expect(mockSecureStorage.getCurrentAccount).toHaveBeenCalled();
-      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(0);
+      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(0, LEGACY_MODE);
       expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
     });
 
@@ -194,7 +216,7 @@ describe('walletService', () => {
         accountIndex: 0,
       });
 
-      expect(mockSecureStorage.getCachedAddresses).toHaveBeenCalledWith(0);
+      expect(mockSecureStorage.getCachedAddresses).toHaveBeenCalledWith(0, LEGACY_MODE);
     });
 
     it('should continue even if saveToMultiAccountCache fails when loading from single cache', async () => {
@@ -202,7 +224,9 @@ describe('walletService', () => {
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.getCachedAddresses.mockResolvedValueOnce(mockAddresses);
       // saveToMultiAccountCache fails but should not break the flow
-      mockSecureStorage.saveToMultiAccountCache.mockRejectedValueOnce(new Error('Cache write error'));
+      mockSecureStorage.saveToMultiAccountCache.mockRejectedValueOnce(
+        new Error('Cache write error')
+      );
 
       const result = await loadWalletFromStorage();
 
@@ -214,7 +238,8 @@ describe('walletService', () => {
     });
 
     it('should derive addresses when all caches miss', async () => {
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
@@ -237,7 +262,8 @@ describe('walletService', () => {
     });
 
     it('should continue even if caching derived addresses fails', async () => {
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getCurrentAccount.mockResolvedValueOnce(0);
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
@@ -305,7 +331,7 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(2);
+      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(2, LEGACY_MODE);
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
       // Should NOT derive addresses when cache hit
       expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
@@ -330,7 +356,8 @@ describe('walletService', () => {
     });
 
     it('should derive addresses when cache misses (slow path)', async () => {
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
@@ -347,9 +374,17 @@ describe('walletService', () => {
         addresses: mockAddresses,
       });
 
-      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(mockMnemonic, 2, LEGACY_MODE);
+      expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(
+        mockMnemonic,
+        2,
+        LEGACY_MODE
+      );
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
-      expect(mockSecureStorage.saveToMultiAccountCache).toHaveBeenCalledWith(2, mockAddresses);
+      expect(mockSecureStorage.saveToMultiAccountCache).toHaveBeenCalledWith(
+        2,
+        mockAddresses,
+        LEGACY_MODE
+      );
     });
 
     it('should throw error if mnemonic cannot be retrieved on cache miss', async () => {
@@ -364,7 +399,8 @@ describe('walletService', () => {
     });
 
     it('should throw error if account save fails after derivation', async () => {
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
@@ -377,7 +413,8 @@ describe('walletService', () => {
     });
 
     it('should throw error if account save returns false after derivation', async () => {
-      const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mockMnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(null);
       mockSecureStorage.withMnemonic.mockImplementationOnce(async (callback) => {
@@ -394,7 +431,8 @@ describe('walletService', () => {
 
   describe('saveWalletToStorage', () => {
     it('should reject invalid account indexes before saving mnemonic', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       await expect(saveWalletToStorage(mnemonic, -1)).rejects.toThrow('Invalid account index: -1');
 
@@ -403,7 +441,8 @@ describe('walletService', () => {
     });
 
     it('should save wallet mnemonic and account index', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
@@ -415,7 +454,8 @@ describe('walletService', () => {
     });
 
     it('should save with custom account index', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
@@ -426,15 +466,19 @@ describe('walletService', () => {
     });
 
     it('should throw error if mnemonic save fails', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
-      mockSecureStorage.saveMnemonic.mockRejectedValueOnce(new Error('Failed to save wallet securely'));
+      mockSecureStorage.saveMnemonic.mockRejectedValueOnce(
+        new Error('Failed to save wallet securely')
+      );
 
       await expect(saveWalletToStorage(mnemonic)).rejects.toThrow('Failed to save wallet securely');
     });
 
     it('should throw error if account save fails', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockRejectedValueOnce(new Error('Storage error'));
@@ -443,7 +487,8 @@ describe('walletService', () => {
     });
 
     it('should throw error if account save returns false', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockResolvedValueOnce(undefined);
       mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(false);
@@ -457,7 +502,8 @@ describe('walletService', () => {
     });
 
     it('should throw error on storage error', async () => {
-      const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+      const mnemonic =
+        'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
       mockSecureStorage.saveMnemonic.mockRejectedValueOnce(new Error('Storage error'));
 

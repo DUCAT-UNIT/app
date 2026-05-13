@@ -7,7 +7,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { CashuUnit } from '../services/cashu/cashuUnits';
 
 // Re-export types from types/assets.d.ts
-export type { AddressTypeParam,AssetTypeParam } from '../types/assets';
+export type { AddressTypeParam, AssetTypeParam } from '../types/assets';
 
 /**
  * Send Flow Navigator
@@ -24,15 +24,17 @@ export type SendStackParamList = {
     insufficientBalance?: number;
     cashuUnit?: CashuUnit;
   };
-  TurboLoading: {
-    prefillAddress?: string;
-    prefillAmount?: number;
-    assetType?: 'btc' | 'unit' | null;
-    isTurbo?: boolean;
-    mintQuoteId?: string;
-    mintAmount?: number;
-    senderTaprootAddress?: string;
-  } | undefined;
+  TurboLoading:
+    | {
+        prefillAddress?: string;
+        prefillAmount?: number;
+        assetType?: 'btc' | 'unit' | null;
+        isTurbo?: boolean;
+        mintQuoteId?: string;
+        mintAmount?: number;
+        senderTaprootAddress?: string;
+      }
+    | undefined;
   Review: {
     assetType?: string;
     address?: string;
@@ -47,22 +49,24 @@ export type SendStackParamList = {
     cashuMint?: boolean;
     quoteId?: string;
   };
-  Processing: {
-    action?: 'create_intent' | 'sign_and_broadcast';
-    fromScreen?: string;
-    cashuMint?: boolean;
-    quoteId?: string;
-    isTurbo?: boolean;
-    mintQuoteId?: string;
-    mintAmount?: number;
-    mintClaimAmount?: number;
-    turboRecipient?: string;
-    senderTaprootAddress?: string;
-    cashuUnit?: CashuUnit;
-    assetType?: 'btc' | 'unit' | null;
-    amount?: string;
-    recipient?: string;
-  } | undefined;
+  Processing:
+    | {
+        action?: 'create_intent' | 'sign_and_broadcast';
+        fromScreen?: string;
+        cashuMint?: boolean;
+        quoteId?: string;
+        isTurbo?: boolean;
+        mintQuoteId?: string;
+        mintAmount?: number;
+        mintClaimAmount?: number;
+        turboRecipient?: string;
+        senderTaprootAddress?: string;
+        cashuUnit?: CashuUnit;
+        assetType?: 'btc' | 'unit' | null;
+        amount?: string;
+        recipient?: string;
+      }
+    | undefined;
   TurboProcessing: { cashuUnit?: CashuUnit; senderTaprootAddress?: string } | undefined;
   TurboClaiming: { tokenString?: string; token?: string; tokenAmount?: number };
   Confirmation: {
@@ -151,12 +155,15 @@ export type RootNavigatorParamList = {
   Auth: undefined;
   LockScreen: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  WalletFlow: NavigatorScreenParams<WalletStackParamList> | undefined;
+  LiquidationFlow: undefined;
   SendFlow: NavigatorScreenParams<SendStackParamList> | undefined;
   VaultCreateFlow: NavigatorScreenParams<VaultCreateStackParamList> | undefined;
   BorrowFlow: NavigatorScreenParams<BorrowStackParamList> | undefined;
   DepositFlow: NavigatorScreenParams<DepositStackParamList> | undefined;
   RepayFlow: NavigatorScreenParams<RepayStackParamList> | undefined;
   WithdrawFlow: NavigatorScreenParams<WithdrawStackParamList> | undefined;
+  QuantaSeedPhraseGuide: undefined;
   VaultSuccessPreview: undefined;
 };
 
@@ -195,14 +202,18 @@ export type WalletStackParamList = {
   UnitBridge: { amount?: string; autoSwap?: boolean } | undefined;
   SepoliaSwap: { sourceAsset?: 'UNIT' | 'USDC' } | undefined;
   SepoliaSwapSummary: { sourceAsset: 'UNIT' | 'USDC'; amountIn: string } | undefined;
-  SepoliaRedeem: { amount?: string; sourceAsset?: 'USDC' | 'wUNIT'; maxInputAmount?: string } | undefined;
+  SepoliaRedeem:
+    | { amount?: string; sourceAsset?: 'USDC' | 'wUNIT'; maxInputAmount?: string }
+    | undefined;
   SepoliaSend: { asset?: 'USDC' | 'wUNIT' | 'ETH' } | undefined;
   CashuReceive: { token?: string; cashuUnit?: CashuUnit; mode?: 'choose' | 'mint' | 'receive' };
   RecoverMint: { cashuUnit?: CashuUnit } | undefined;
+  SettingsHome: undefined;
   Preferences: undefined;
   Security: undefined;
   Advanced: undefined;
   CashuSettings: undefined;
+  QuantaLink: undefined;
   About: undefined;
   TermsOfService: { onClose: () => void };
   PrivacyPolicy: { onClose: () => void };
@@ -213,7 +224,15 @@ export type WalletStackParamList = {
  * Bottom tab navigation
  */
 export type MainTabParamList = {
-  WalletTab: NavigatorScreenParams<WalletStackParamList>;
+  WalletTab:
+    | {
+        openReceive?: boolean;
+        claimToken?: string;
+        accountIndex?: number;
+      }
+    | undefined;
+  LiquidationsTab: undefined;
+  QuantaTab: undefined;
 };
 
 /**

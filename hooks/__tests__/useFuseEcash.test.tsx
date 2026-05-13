@@ -461,6 +461,11 @@ describe('useFuseEcash', () => {
     });
 
     it('should poll for transaction and show success when found with recent block_time', async () => {
+      mockCompleteMeltWithoutCleanup.mockResolvedValue({
+        proofsToRemove: [],
+        changeProofs: [],
+        txid: 'tx123',
+      });
       const props = {
         ...mockProps,
         transactionHistory: [
@@ -503,6 +508,11 @@ describe('useFuseEcash', () => {
     });
 
     it('should find unconfirmed transaction (no block_time)', async () => {
+      mockCompleteMeltWithoutCleanup.mockResolvedValue({
+        proofsToRemove: [],
+        changeProofs: [],
+        txid: 'tx123',
+      });
       const props = {
         ...mockProps,
         transactionHistory: [
@@ -544,7 +554,7 @@ describe('useFuseEcash', () => {
       });
     });
 
-    it('should show pending alert when transaction not found after polling', async () => {
+    it('should keep the initial submitted toast when transaction is not found after polling', async () => {
       const { result } = renderHookWithProps(mockProps);
 
       await act(async () => {
@@ -569,14 +579,20 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
+      expect(mockSnackbar).toHaveBeenCalledTimes(1);
       expect(mockSnackbar).toHaveBeenCalledWith({
-        type: 'pending',
-        title: 'Redeem pending',
-        description: 'Transaction will appear on-chain shortly.',
+        type: 'submitted',
+        title: 'Redeem submitted',
+        description: 'Redeeming 90.50 UNIT. Waiting for transaction to appear on-chain...',
       });
     });
 
-    it('should skip old transactions (block_time > 120 seconds ago)', async () => {
+    it('should not match unrelated transactions while polling', async () => {
+      mockCompleteMeltWithoutCleanup.mockResolvedValue({
+        proofsToRemove: [],
+        changeProofs: [],
+        txid: 'redeem-txid',
+      });
       const props = {
         ...mockProps,
         transactionHistory: [
@@ -611,14 +627,20 @@ describe('useFuseEcash', () => {
         await fusePromise;
       });
 
+      expect(mockSnackbar).toHaveBeenCalledTimes(1);
       expect(mockSnackbar).toHaveBeenCalledWith({
-        type: 'pending',
-        title: 'Redeem pending',
-        description: 'Transaction will appear on-chain shortly.',
+        type: 'submitted',
+        title: 'Redeem submitted',
+        description: 'Redeeming 90.50 UNIT. Waiting for transaction to appear on-chain...',
       });
     });
 
-    it('should skip transactions without matching address', async () => {
+    it('should match by submitted transaction id instead of output address', async () => {
+      mockCompleteMeltWithoutCleanup.mockResolvedValue({
+        proofsToRemove: [],
+        changeProofs: [],
+        txid: 'tx123',
+      });
       const props = {
         ...mockProps,
         transactionHistory: [
@@ -654,13 +676,18 @@ describe('useFuseEcash', () => {
       });
 
       expect(mockSnackbar).toHaveBeenCalledWith({
-        type: 'pending',
-        title: 'Redeem pending',
-        description: 'Transaction will appear on-chain shortly.',
+        type: 'success',
+        title: 'Redeem complete',
+        description: 'TurboUNIT was redeemed to on-chain UNIT.',
       });
     });
 
-    it('should handle transaction without vout', async () => {
+    it('should match by submitted transaction id without vout data', async () => {
+      mockCompleteMeltWithoutCleanup.mockResolvedValue({
+        proofsToRemove: [],
+        changeProofs: [],
+        txid: 'tx123',
+      });
       const props = {
         ...mockProps,
         transactionHistory: [
@@ -695,9 +722,9 @@ describe('useFuseEcash', () => {
       });
 
       expect(mockSnackbar).toHaveBeenCalledWith({
-        type: 'pending',
-        title: 'Redeem pending',
-        description: 'Transaction will appear on-chain shortly.',
+        type: 'success',
+        title: 'Redeem complete',
+        description: 'TurboUNIT was redeemed to on-chain UNIT.',
       });
     });
 

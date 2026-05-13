@@ -1366,6 +1366,44 @@ describe('useAssetTransactions', () => {
       expect(result.current.transactions[0].isPending).toBeUndefined();
     });
 
+    it('should keep a matching unconfirmed history transaction as one pending row', () => {
+      mockPendingTransactions = {
+        'pending_tx_unconfirmed': {
+          txid: 'tx_seen_unconfirmed',
+          status: 'pending',
+          assetType: 'UNIT',
+          timestamp: 5000000,
+          outputs: [{ runeAmount: 8953 }],
+          displayKind: 'turbo_redeem',
+        },
+      };
+
+      const txHistory = [
+        {
+          txid: 'tx_seen_unconfirmed',
+          status: { confirmed: false, block_time: 1000 },
+          txData: {
+            amount: 8953,
+            assetType: 'UNIT',
+            numericAmount: 8953,
+            isSent: false,
+            isReceived: true,
+          },
+        },
+      ];
+
+      const { result } = renderHook({
+        txHistory,
+        assetType: 'UNIT',
+        segwit: segwitAddress,
+        taproot: taprootAddress,
+      });
+
+      expect(result.current!.transactions).toHaveLength(1);
+      expect(result.current.transactions[0].txid).toBe('tx_seen_unconfirmed');
+      expect(result.current.transactions[0].isPending).toBe(true);
+    });
+
     it('should sort pending transactions at top before confirmed', () => {
       mockPendingTransactions = {
         'pending_tx_1': {

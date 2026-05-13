@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analytics } from '../../services/analyticsService';
 import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 import Icon from '../icons';
 import ErrorBoundary from '../ErrorBoundary';
+import MutinynetBanner from '../MutinynetBanner';
 import {
   selectItemsForAmount,
   getTotalClaimBtc,
@@ -56,6 +58,9 @@ export interface LiquidationScreenProps {
   visible: boolean;
   onClose: () => void;
   onToggle: () => void;
+  onReviewStart?: () => void;
+  onBackToInput?: () => void;
+  bottomInset?: number;
 }
 
 const LiquidationScreen = React.memo(function LiquidationScreen({
@@ -70,7 +75,12 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   currentAccount,
   visible,
   onClose,
+  onReviewStart,
+  onBackToInput,
+  bottomInset,
 }: LiquidationScreenProps): React.ReactElement | null {
+  const insets = useSafeAreaInsets();
+
   // ── Store selectors ──────────────────────────────────────────────
   const currentStep = useLiqStep();
   const fetchStatus = useLiqFetchStatus();
@@ -85,8 +95,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const vaults = useLiqVaults();
   const vaultsFull = useLiqVaultsFull();
   const profitRate = useLiqProfitRate();
-  const depositRate = useLiqDepositRate();
-  const swapRate = useLiqSwapRate();
+  const _depositRate = useLiqDepositRate();
+  const _swapRate = useLiqSwapRate();
 
   const { setCurrentStep, setInvestAmount, setShowBTC, setReviewTab, setVaultExpanded } =
     useLiquidationFlowStore.getState();
@@ -137,12 +147,14 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const handleBack = useCallback(() => {
     if (currentStep === 'review') {
       setCurrentStep('input');
+      onBackToInput?.();
     }
-  }, [currentStep, setCurrentStep]);
+  }, [currentStep, onBackToInput, setCurrentStep]);
 
   const handleButtonPress = useCallback(async () => {
     if (currentStep === 'input') {
       setCurrentStep('review');
+      onReviewStart?.();
     } else if (currentStep === 'review') {
       await execute();
     } else if (currentStep === 'success') {
@@ -151,10 +163,15 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     } else if (currentStep === 'error') {
       resetAfterError();
     }
-  }, [currentStep, setCurrentStep, execute, resetAfterSuccess, resetAfterError, onClose]);
-
-  // ── Early return ─────────────────────────────────────────────────
-  if (!visible) return null;
+  }, [
+    currentStep,
+    setCurrentStep,
+    onReviewStart,
+    execute,
+    resetAfterSuccess,
+    onClose,
+    resetAfterError,
+  ]);
 
   // ── Derived state for empty/loading ──────────────────────────────
   const isLoaded = fetchStatus === 'loaded' || fetchStatus === 'error';
@@ -180,6 +197,31 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           : isReview
             ? 'Claim Liquidation'
             : 'Continue';
+
+  const headerTopPadding = 0;
+  const useStickyActionBar = !isInput;
+  const continueBottomInset = useStickyActionBar
+    ? 0
+    : (bottomInset ?? Math.max(insets.bottom + 24, 38));
+  const actionWrapStyle = [
+    useStickyActionBar ? styles.stickyActionWrap : styles.continueWrap,
+    useStickyActionBar
+      ? { paddingBottom: Math.max(insets.bottom + 14, 24) }
+      : { bottom: continueBottomInset },
+  ];
+
+  const bottomAction = shouldShowBottomButton ? (
+    <View style={actionWrapStyle}>
+      <TouchableOpacity
+        style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}
+        onPress={handleButtonPress}
+        testID="liquidation-continue-btn"
+        disabled={buttonDisabled}
+      >
+        <Text style={styles.continueBtnText}>{buttonLabel}</Text>
+      </TouchableOpacity>
+    </View>
+  ) : null;
 
   // ── Render body ──────────────────────────────────────────────────
   const renderBody = (): React.ReactElement => {
@@ -289,9 +331,11 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
         onClose();
       }}
     >
+      {!isProcessingOrResult && <MutinynetBanner />}
+
       {/* Header — hidden during processing/success/error (status screen has its own title) */}
       {!isProcessingOrResult && (
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: headerTopPadding }]}>
           <View style={styles.headerLeft}>
             {isReview && (
               <TouchableOpacity
@@ -300,17 +344,6 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
                 testID="liquidation-back-btn"
               >
                 <Icon name="back" size={24} color={colors.text.primary} />
-              </TouchableOpacity>
-            )}
-            {!isReview && (
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Back to wallet"
-                onPress={onClose}
-                style={styles.backButton}
-                testID="liquidation-close-btn"
-              >
-                <Icon name="close" size={24} color={colors.text.primary} />
               </TouchableOpacity>
             )}
             <Text style={styles.title}>Liquidations</Text>
@@ -323,43 +356,35 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       {renderBody()}
 
       {/* Bottom Button — hidden during processing */}
-      {shouldShowBottomButton && (
-        <View style={styles.continueWrap}>
-          <TouchableOpacity
-            style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}
-            onPress={handleButtonPress}
-            testID="liquidation-continue-btn"
-            disabled={buttonDisabled}
-          >
-            <Text style={styles.continueBtnText}>{buttonLabel}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {bottomAction}
     </ErrorBoundary>
   );
 });
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 8,
-    paddingHorizontal: 24,
-    paddingBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerLeft: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minWidth: 0,
   },
   backButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: fontSizes.xxl,
+    flexShrink: 1,
+    fontSize: 30,
     fontFamily: fonts.bold,
     color: colors.text.primary,
   },
@@ -372,9 +397,21 @@ const styles = StyleSheet.create({
   continueWrap: {
     position: 'absolute',
     bottom: 38,
-    left: 80,
-    right: 16,
+    left: 24,
+    right: 24,
     zIndex: 100,
+  },
+  stickyActionWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    backgroundColor: colors.bg.primary,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
   },
   continueBtn: {
     backgroundColor: colors.brand.primary,

@@ -5,12 +5,12 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../vaultCreation/ProcessingStepsList';
-import TouchableScale from '../common/TouchableScale';
 import { useNotifications } from '../../stores/notificationStore';
 import { getTxUrl } from '../../utils/constants';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
@@ -38,10 +38,14 @@ const INITIAL_DELAY = 2000;
 
 function getStatusMessage(visualStep: ProcessingStep): string {
   switch (visualStep) {
-    case 1: return 'Preparing liquidation...';
-    case 2: return 'Connecting to network...';
-    case 3: return 'Validating transaction...';
-    case 4: return 'Finalizing liquidation...';
+    case 1:
+      return 'Preparing liquidation...';
+    case 2:
+      return 'Connecting to network...';
+    case 3:
+      return 'Validating transaction...';
+    case 4:
+      return 'Finalizing liquidation...';
   }
 }
 
@@ -57,12 +61,12 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   error,
 }: LiquidationStatusScreenProps): React.ReactElement {
   const { showToast } = useNotifications();
+  const insets = useSafeAreaInsets();
 
   // ── Processing step animation (matches VaultProcessingScreen) ──
   const [visualStep, setVisualStep] = useState<ProcessingStep>(1);
   const isProcessing = step === 'processing';
   const isSuccess = step === 'success';
-  const isError = step === 'error';
 
   useEffect(() => {
     if (!isProcessing) return;
@@ -118,43 +122,38 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
 
   const handleViewExplorer = useCallback(() => {
     if (txid) {
-      void Linking.openURL(getTxUrl(txid));
+      Linking.openURL(getTxUrl(txid)).catch(() => undefined);
     }
   }, [txid]);
 
   const handleViewSwapExplorer = useCallback(() => {
     if (swapTxid) {
-      void Linking.openURL(getTxUrl(swapTxid));
+      Linking.openURL(getTxUrl(swapTxid)).catch(() => undefined);
     }
   }, [swapTxid]);
 
-  const truncatedTxid = txid
-    ? `${txid.slice(0, 8)}...${txid.slice(-8)}`
-    : '';
+  const truncatedTxid = txid ? `${txid.slice(0, 8)}...${txid.slice(-8)}` : '';
 
-  const truncatedSwapTxid = swapTxid
-    ? `${swapTxid.slice(0, 8)}...${swapTxid.slice(-8)}`
-    : '';
+  const truncatedSwapTxid = swapTxid ? `${swapTxid.slice(0, 8)}...${swapTxid.slice(-8)}` : '';
+
+  const topPadding = Math.max(insets.top + spacing.lg, 76);
+  const bottomPadding = Math.max(insets.bottom + 132, 148);
 
   // ── Processing ──
   if (isProcessing) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
         <View style={styles.header}>
           <Text style={styles.title}>Claiming Liquidation</Text>
-          <Text style={styles.headerSubtitle}>
-            Please wait while we process your claim
-          </Text>
+          <Text style={styles.headerSubtitle}>Please wait while we process your claim</Text>
         </View>
 
-        <View style={styles.stepsContainer}>
+        <View style={styles.processingCard}>
           <ProcessingStepsList currentStep={visualStep} />
         </View>
 
         <View style={styles.statusContainer}>
-          <Text style={styles.statusText}>
-            {processingMessage || getStatusMessage(visualStep)}
-          </Text>
+          <Text style={styles.statusText}>{processingMessage || getStatusMessage(visualStep)}</Text>
         </View>
       </View>
     );
@@ -163,81 +162,105 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   // ── Success ──
   if (isSuccess) {
     return (
-      <View style={styles.container}>
-        <View style={styles.successContent}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="checkmark" size={48} color={colors.semantic.success} />
-          </View>
-
-          <Text style={styles.title}>Liquidation Claimed!</Text>
-          <Text style={styles.successMessage}>
-            Your vault has been updated with the liquidated collateral and debt.
-          </Text>
-
-          {txid && (
-            <View style={styles.linksContainer}>
-              <Text style={styles.txLabelText}>Repo TX</Text>
-              <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
-                <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
-                <Text style={styles.txidText}>{truncatedTxid}</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider} />
-
-              <TouchableOpacity onPress={handleViewExplorer} style={styles.linkRow} activeOpacity={0.7}>
-                <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
-                <Text style={styles.explorerText}>View on Explorer</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {swapTxid && (
-            <View style={styles.swapContainer}>
-              {swapTxid ? (
-                <>
-                  <Text style={styles.txLabelText}>Swap TX</Text>
-                  <TouchableOpacity onPress={handleCopySwapTxid} style={styles.linkRow} activeOpacity={0.7}>
-                    <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
-                    <Text style={styles.txidText}>{truncatedSwapTxid}</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.divider} />
-
-                  <TouchableOpacity onPress={handleViewSwapExplorer} style={styles.linkRow} activeOpacity={0.7}>
-                    <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
-                    <Text style={styles.explorerText}>View on Explorer</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <View style={styles.linkRow}>
-                  <Ionicons name="swap-horizontal-outline" size={16} color={colors.text.tertiary} />
-                  <Text style={styles.swapPendingText}>Swap pending...</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={styles.warningRow}>
-            <Ionicons name="time-outline" size={14} color={colors.text.tertiary} />
-            <Text style={styles.infoText}>May take a few minutes to confirm.</Text>
-          </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.resultContent,
+          { paddingTop: topPadding, paddingBottom: bottomPadding },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.iconCircle}>
+          <Ionicons name="checkmark" size={48} color={colors.semantic.success} />
         </View>
-      </View>
+
+        <Text style={styles.title}>Liquidation Claimed!</Text>
+        <Text style={styles.successMessage}>
+          Your vault has been updated with the liquidated collateral and debt.
+        </Text>
+
+        {txid && (
+          <View style={styles.linksContainer}>
+            <Text style={styles.txLabelText}>Repo TX</Text>
+            <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
+              <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
+              <Text style={styles.txidText}>{truncatedTxid}</Text>
+            </TouchableOpacity>
+
+            <View style={styles.divider} />
+
+            <TouchableOpacity
+              onPress={handleViewExplorer}
+              style={styles.linkRow}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
+              <Text style={styles.explorerText}>View on Explorer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {swapTxid && (
+          <View style={styles.swapContainer}>
+            {swapTxid ? (
+              <>
+                <Text style={styles.txLabelText}>Swap TX</Text>
+                <TouchableOpacity
+                  onPress={handleCopySwapTxid}
+                  style={styles.linkRow}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
+                  <Text style={styles.txidText}>{truncatedSwapTxid}</Text>
+                </TouchableOpacity>
+
+                <View style={styles.divider} />
+
+                <TouchableOpacity
+                  onPress={handleViewSwapExplorer}
+                  style={styles.linkRow}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="open-outline" size={16} color={colors.brand.primary} />
+                  <Text style={styles.explorerText}>View on Explorer</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.linkRow}>
+                <Ionicons name="swap-horizontal-outline" size={16} color={colors.text.tertiary} />
+                <Text style={styles.swapPendingText}>Swap pending...</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        <View style={styles.warningRow}>
+          <Ionicons name="time-outline" size={14} color={colors.text.tertiary} />
+          <Text style={styles.infoText}>May take a few minutes to confirm.</Text>
+        </View>
+      </ScrollView>
     );
   }
 
   // ── Error ──
   return (
-    <View style={styles.container}>
-      <View style={styles.successContent}>
-        <View style={[styles.iconCircle, styles.iconCircleError]}>
-          <Ionicons name="close" size={48} color={colors.semantic.error} />
-        </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.resultContent,
+        { paddingTop: topPadding, paddingBottom: bottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.iconCircle, styles.iconCircleError]}>
+        <Ionicons name="close" size={48} color={colors.semantic.error} />
+      </View>
 
-        <Text style={styles.title}>Liquidation Failed</Text>
+      <Text style={styles.title}>Liquidation Failed</Text>
+      <View style={styles.errorCard}>
         <Text style={styles.errorMessage}>{error || 'An error occurred'}</Text>
       </View>
-    </View>
+    </ScrollView>
   );
 });
 
@@ -248,13 +271,12 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: spacing.lg,
   },
   // ── Processing ──
   header: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
   },
   headerSubtitle: {
     fontSize: fontSizes.md,
@@ -263,16 +285,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.sm,
   },
-  stepsContainer: {
+  processingCard: {
     flex: 1,
-    paddingVertical: spacing.xl,
-    paddingHorizontal: spacing.lg,
+    minHeight: 360,
+    maxHeight: 430,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.bg.secondary,
+    paddingVertical: spacing.sm,
     justifyContent: 'center',
   },
   statusContainer: {
     alignItems: 'center',
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   statusText: {
     fontSize: fontSizes.sm,
@@ -281,11 +307,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   // ── Success / Error ──
-  successContent: {
-    flex: 1,
+  resultContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    minHeight: '100%',
   },
   title: {
     fontSize: fontSizes.xxl,
@@ -320,7 +345,14 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
-    paddingHorizontal: spacing.md,
+  },
+  errorCard: {
+    width: '100%',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.bg.secondary,
+    padding: spacing.md,
   },
   linksContainer: {
     marginTop: spacing.md,
@@ -329,6 +361,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   swapContainer: {
     marginTop: spacing.sm,
@@ -337,6 +371,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xl,
     width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
   txLabelText: {
     fontSize: fontSizes.xs,

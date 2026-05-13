@@ -8,13 +8,23 @@ import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 
 jest.mock('expo-secure-store');
+jest.mock('../../services/pushNotificationService', () => ({
+  getExpoPushToken: jest.fn(),
+  unregisterPushToken: jest.fn(),
+}));
 
 import { useNotificationsPreference } from '../useNotificationsPreference';
+import { getExpoPushToken, unregisterPushToken } from '../../services/pushNotificationService';
+
+const mockGetExpoPushToken = getExpoPushToken as jest.Mock;
+const mockUnregisterPushToken = unregisterPushToken as jest.Mock;
 
 describe('useNotificationsPreference', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+    mockGetExpoPushToken.mockResolvedValue(null);
+    mockUnregisterPushToken.mockResolvedValue(undefined);
   });
 
   it('should initialize with loading state', () => {
@@ -51,6 +61,20 @@ describe('useNotificationsPreference', () => {
     });
 
     expect(result.current!.notificationsEnabled).toBe(false);
+  });
+
+  it('should unregister stored push token when stored preference is false', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('false');
+    mockGetExpoPushToken.mockResolvedValue('ExponentPushToken[stale-token]');
+
+    const { result } = renderHook(() => useNotificationsPreference());
+
+    await waitFor(() => {
+      expect(result.current!.isLoading).toBe(false);
+    });
+
+    expect(mockGetExpoPushToken).toHaveBeenCalledWith({ requestPermissions: false });
+    expect(mockUnregisterPushToken).toHaveBeenCalledWith('ExponentPushToken[stale-token]');
   });
 
   it('should default to false when storage returns null', async () => {

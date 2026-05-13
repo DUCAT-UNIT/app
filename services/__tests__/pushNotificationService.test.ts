@@ -1,7 +1,7 @@
 /**
  * Tests for Push Notification Service
  *
- * expo-notifications, expo-constants, react-native Platform, postJSON, and isE2E
+ * expo-notifications, expo-constants, react-native Platform, apiClient, and isE2E
  * are all mocked so no native code executes.
  */
 
@@ -10,6 +10,7 @@ import Constants from 'expo-constants';
 
 // Inline-mock the modules that pushNotificationService depends on beyond jest.setup.js
 jest.mock('../../utils/apiClient', () => ({
+  deleteJSON: jest.fn(),
   postJSON: jest.fn(),
 }));
 
@@ -22,7 +23,7 @@ jest.mock('../settingsService', () => ({
 }));
 
 // Pull the mocked implementations after jest.mock declarations
-import { postJSON } from '../../utils/apiClient';
+import { deleteJSON, postJSON } from '../../utils/apiClient';
 import { getNotificationsEnabled } from '../settingsService';
 import {
   getExpoPushToken,
@@ -40,6 +41,7 @@ const mockRequestPermissionsAsync = Notifications.requestPermissionsAsync as jes
 const mockGetExpoPushTokenAsync = Notifications.getExpoPushTokenAsync as jest.Mock;
 const mockScheduleNotificationAsync = Notifications.scheduleNotificationAsync as jest.Mock;
 const mockSetNotificationChannelAsync = Notifications.setNotificationChannelAsync as jest.Mock;
+const mockDeleteJSON = deleteJSON as jest.Mock;
 const mockPostJSON = postJSON as jest.Mock;
 const mockGetNotificationsEnabled = getNotificationsEnabled as jest.Mock;
 
@@ -203,21 +205,22 @@ describe('unregisterPushToken', () => {
   });
 
   describe('happy path', () => {
-    it('should call postJSON with the unregister endpoint and token', async () => {
-      mockPostJSON.mockResolvedValue(undefined);
+    it('should call deleteJSON with the unregister endpoint and token', async () => {
+      mockDeleteJSON.mockResolvedValue(undefined);
 
       await unregisterPushToken('ExponentPushToken[xyz]');
 
-      expect(mockPostJSON).toHaveBeenCalledWith(
+      expect(mockDeleteJSON).toHaveBeenCalledWith(
         'https://notifications.ducatprotocol.com/api/unregister',
         { token: 'ExponentPushToken[xyz]' }
       );
+      expect(mockPostJSON).not.toHaveBeenCalled();
     });
   });
 
   describe('error handling', () => {
-    it('should not throw when postJSON rejects', async () => {
-      mockPostJSON.mockRejectedValue(new Error('Server error'));
+    it('should not throw when deleteJSON rejects', async () => {
+      mockDeleteJSON.mockRejectedValue(new Error('Server error'));
 
       await expect(unregisterPushToken('token')).resolves.toBeUndefined();
     });

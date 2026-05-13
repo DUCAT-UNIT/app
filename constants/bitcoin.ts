@@ -28,11 +28,12 @@ const COIN_TYPE = APP_NETWORK_CONFIG.coinType;
 
 export type WalletDerivationMode = 'legacy_address_index' | 'bip44_account';
 
-export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
+// Match Xverse/Quanta account discovery: fixed BIP account 0, increment external address index.
+export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
 
 export const LEGACY_DERIVATION_PATHS = {
-  // BIP44: Legacy P2PKH
-  LEGACY: (account = 0): string => `m/44'/${COIN_TYPE}'/0'/0/${account}`,
+  // BIP49: Nested SegWit P2SH-P2WPKH used by Xverse payment addresses
+  LEGACY: (account = 0): string => `m/49'/${COIN_TYPE}'/0'/0/${account}`,
 
   // BIP84: Native SegWit P2WPKH
   SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/0'/0/${account}`,
@@ -42,8 +43,8 @@ export const LEGACY_DERIVATION_PATHS = {
 } as const;
 
 export const DERIVATION_PATHS = {
-  // BIP44: Legacy P2PKH
-  LEGACY: (account = 0): string => `m/44'/${COIN_TYPE}'/${account}'/0/0`,
+  // BIP49: Nested SegWit P2SH-P2WPKH used by Xverse payment addresses
+  LEGACY: (account = 0): string => `m/49'/${COIN_TYPE}'/${account}'/0/0`,
 
   // BIP84: Native SegWit P2WPKH
   SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/${account}'/0/0`,

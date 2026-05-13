@@ -28,6 +28,15 @@ jest.mock('../../services/secureStorageService', () => ({
   deleteWalletData: jest.fn(),
 }));
 
+jest.mock('../../services/walletResetService', () => ({
+  performFullWalletReset: jest.fn(async ({ resetWallet, resetAuth }) => {
+    const { deleteWalletData } = require('../../services/secureStorageService');
+    await deleteWalletData();
+    await Promise.resolve(resetWallet?.());
+    resetAuth?.();
+  }),
+}));
+
 // Helper to render hooks with props
 function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
   const result: { current: T | null } = { current: null };

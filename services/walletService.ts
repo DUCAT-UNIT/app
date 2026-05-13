@@ -4,9 +4,20 @@
 
 import { Buffer } from 'buffer';
 import * as Crypto from 'expo-crypto';
+import * as bitcoin from 'bitcoinjs-lib';
+import { BIP32Factory } from 'bip32';
 import * as bip39 from 'bip39';
-import { deriveAddressesFromMnemonic, type DerivedAddresses } from '../utils/bitcoin';
-import { DEFAULT_WALLET_DERIVATION_MODE } from '../constants/bitcoin';
+import * as ecc from '@bitcoinerlab/secp256k1';
+import {
+  deriveAddressesFromMnemonic,
+  MUTINYNET_NETWORK,
+  type DerivedAddresses,
+} from '../utils/bitcoin';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getDerivationPathForType,
+  type WalletDerivationMode,
+} from '../constants/bitcoin';
 import {
   getCurrentAccount,
   withMnemonic,
@@ -25,6 +36,8 @@ import { startupDiagnostics } from './startupDiagnostics';
 // Per-operation timeout for SecureStore reads during wallet load.
 // iPad in iPhone compatibility mode can stall individual SecureStore calls.
 const SECURESTORE_READ_TIMEOUT_MS = 5000;
+const bip32 = BIP32Factory(ecc);
+type Bip32Root = ReturnType<typeof bip32.fromSeed>;
 
 const withRequiredSecureStoreRead = async <T>(promise: Promise<T>, label: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -66,6 +79,21 @@ export interface SwitchAccountResult {
   addresses: DerivedAddresses;
 }
 
+export type WalletAddressMatchType = 'legacy' | 'segwit' | 'taproot';
+
+export interface FindWalletAccountResult {
+  accountIndex: number;
+  addresses: DerivedAddresses;
+  matchedAddressType: WalletAddressMatchType;
+}
+
+export type FindTaprootAccountResult = FindWalletAccountResult;
+
+export interface WalletAccountAddresses {
+  accountIndex: number;
+  addresses: DerivedAddresses;
+}
+
 const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> => {
   const saved = await saveCurrentAccount(accountIndex);
   if (!saved) {
@@ -73,11 +101,88 @@ const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> =>
   }
 };
 
+const deriveAddressesFromRoot = (
+  root: Bip32Root,
+  accountIndex: number,
+  derivationMode: WalletDerivationMode
+): DerivedAddresses => {
+  const legacyChild = root.derivePath(
+    getDerivationPathForType('legacy', accountIndex, derivationMode)
+  );
+  const legacyPubkey = Buffer.from(legacyChild.publicKey);
+  const legacyPayment = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2wpkh({
+      pubkey: legacyPubkey,
+      network: MUTINYNET_NETWORK,
+    }),
+    network: MUTINYNET_NETWORK,
+  });
+
+  const segwitChild = root.derivePath(
+    getDerivationPathForType('segwit', accountIndex, derivationMode)
+  );
+  const segwitPubkey = Buffer.from(segwitChild.publicKey);
+  const segwitPayment = bitcoin.payments.p2wpkh({
+    pubkey: segwitPubkey,
+    network: MUTINYNET_NETWORK,
+  });
+
+  const taprootChild = root.derivePath(
+    getDerivationPathForType('taproot', accountIndex, derivationMode)
+  );
+  const xOnlyPubkey = Buffer.from(taprootChild.publicKey.slice(1, 33));
+  const taprootPayment = bitcoin.payments.p2tr({
+    internalPubkey: xOnlyPubkey,
+    network: MUTINYNET_NETWORK,
+  });
+
+  if (!legacyPayment.address) {
+    throw new Error('Failed to generate nested SegWit address from public key');
+  }
+  if (!segwitPayment.address) {
+    throw new Error('Failed to generate SegWit address from public key');
+  }
+  if (!taprootPayment.address) {
+    throw new Error('Failed to generate Taproot address from public key');
+  }
+
+  return {
+    legacyAddress: legacyPayment.address,
+    segwitAddress: segwitPayment.address,
+    taprootAddress: taprootPayment.address,
+    legacyPubkey: legacyPubkey.toString('hex'),
+    segwitPubkey: segwitPubkey.toString('hex'),
+    taprootPubkey: xOnlyPubkey.toString('hex'),
+  };
+};
+
 const assertValidAccountIndex = (accountIndex: number): void => {
   if (!Number.isSafeInteger(accountIndex) || accountIndex < 0) {
     throw new Error(`Invalid account index: ${accountIndex}`);
   }
 };
+
+const getWalletAddressMatchType = (
+  addresses: DerivedAddresses,
+  normalizedAddress: string
+): WalletAddressMatchType | null => {
+  if (addresses.legacyAddress?.toLowerCase() === normalizedAddress) {
+    return 'legacy';
+  }
+
+  if (addresses.segwitAddress.toLowerCase() === normalizedAddress) {
+    return 'segwit';
+  }
+
+  if (addresses.taprootAddress.toLowerCase() === normalizedAddress) {
+    return 'taproot';
+  }
+
+  return null;
+};
+
+const hasLegacyPaymentAddress = (addresses: DerivedAddresses): boolean =>
+  typeof addresses.legacyAddress === 'string' && addresses.legacyAddress.length > 0;
 
 /**
  * Generate a new wallet with a 12-word mnemonic
@@ -118,7 +223,8 @@ export const generateWallet = async (accountIndex = 0): Promise<GenerateWalletRe
  */
 export const importWallet = async (
   mnemonic: string,
-  accountIndex = 0
+  accountIndex = 0,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
 ): Promise<ImportWalletResult> => {
   assertValidAccountIndex(accountIndex);
 
@@ -131,11 +237,7 @@ export const importWallet = async (
   }
 
   // Derive addresses from mnemonic
-  const addresses = deriveAddressesFromMnemonic(
-    normalizedMnemonic,
-    accountIndex,
-    DEFAULT_WALLET_DERIVATION_MODE
-  );
+  const addresses = deriveAddressesFromMnemonic(normalizedMnemonic, accountIndex, derivationMode);
 
   return {
     addresses,
@@ -170,7 +272,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
     // Try multi-account cache first (instant if in memory)
     const multiCached = await withTimeout(
-      getMultiAccountCache(accountIndex),
+      getMultiAccountCache(accountIndex, derivationMode),
       SECURESTORE_READ_TIMEOUT_MS,
       null,
       'getMultiAccountCache'
@@ -179,7 +281,12 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       startupDiagnostics.recordCheckpoint('wallet_multi_account_cache_hit', {
         account_index: accountIndex,
       });
-      return { addresses: multiCached, accountIndex };
+      if (hasLegacyPaymentAddress(multiCached)) {
+        return { addresses: multiCached, accountIndex };
+      }
+      startupDiagnostics.recordWarning('wallet_multi_account_cache_stale', {
+        account_index: accountIndex,
+      });
     }
     startupDiagnostics.recordCheckpoint('wallet_multi_account_cache_miss', {
       account_index: accountIndex,
@@ -187,7 +294,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
 
     // Try single-account cache (fast path - ~5ms)
     const cachedAddresses = await withTimeout(
-      getCachedAddresses(accountIndex),
+      getCachedAddresses(accountIndex, derivationMode),
       SECURESTORE_READ_TIMEOUT_MS,
       null,
       'getCachedAddresses'
@@ -196,14 +303,20 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       startupDiagnostics.recordCheckpoint('wallet_cached_addresses_hit', {
         account_index: accountIndex,
       });
-      // Populate multi-account cache for future fast switching (non-blocking with error logging)
-      saveToMultiAccountCache(accountIndex, cachedAddresses).catch((error) => {
-        logger.error('[walletService] Failed to save to multi-account cache during wallet load', {
-          accountIndex,
-          error: error instanceof Error ? error.message : String(error),
+      if (!hasLegacyPaymentAddress(cachedAddresses)) {
+        startupDiagnostics.recordWarning('wallet_cached_addresses_stale', {
+          account_index: accountIndex,
         });
-      });
-      return { addresses: cachedAddresses, accountIndex };
+      } else {
+        // Populate multi-account cache for future fast switching (non-blocking with error logging)
+        saveToMultiAccountCache(accountIndex, cachedAddresses, derivationMode).catch((error) => {
+          logger.error('[walletService] Failed to save to multi-account cache during wallet load', {
+            accountIndex,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        return { addresses: cachedAddresses, accountIndex };
+      }
     }
     startupDiagnostics.recordCheckpoint('wallet_cached_addresses_miss', {
       account_index: accountIndex,
@@ -247,8 +360,8 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
     // Cache the derived addresses for next startup and fast switching (non-blocking with error logging)
     if (addresses) {
       Promise.all([
-        saveCachedAddresses(accountIndex, addresses),
-        saveToMultiAccountCache(accountIndex, addresses),
+        saveCachedAddresses(accountIndex, addresses, derivationMode),
+        saveToMultiAccountCache(accountIndex, addresses, derivationMode),
       ]).catch((error) => {
         logger.error('[walletService] Failed to cache derived addresses after derivation', {
           accountIndex,
@@ -280,8 +393,8 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
     const derivationMode = await getWalletDerivationMode();
 
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
-    const cachedAddresses = await getMultiAccountCache(accountIndex);
-    if (cachedAddresses) {
+    const cachedAddresses = await getMultiAccountCache(accountIndex, derivationMode);
+    if (cachedAddresses && hasLegacyPaymentAddress(cachedAddresses)) {
       // Persist current account before returning so storage-backed consumers stay in sync.
       await saveCurrentAccountOrThrow(accountIndex);
       return { addresses: cachedAddresses };
@@ -298,8 +411,8 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
     // Save the new account index and cache the addresses for future fast switching
     await Promise.all([
       saveCurrentAccountOrThrow(accountIndex),
-      saveCachedAddresses(accountIndex, addresses),
-      saveToMultiAccountCache(accountIndex, addresses),
+      saveCachedAddresses(accountIndex, addresses, derivationMode),
+      saveToMultiAccountCache(accountIndex, addresses, derivationMode),
     ]);
 
     return { addresses };
@@ -308,25 +421,95 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
   }
 };
 
+export const findAccountBySegwitOrTaprootAddress = async (
+  walletAddress: string,
+  searchLimit = 100
+): Promise<FindWalletAccountResult | null> => {
+  const normalizedAddress = walletAddress.trim().toLowerCase();
+  if (!normalizedAddress) {
+    return null;
+  }
+  if (!Number.isSafeInteger(searchLimit) || searchLimit <= 0) {
+    throw new Error(`Invalid account search limit: ${searchLimit}`);
+  }
+
+  const derivationMode = DEFAULT_WALLET_DERIVATION_MODE;
+
+  for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
+    const cachedAddresses = await getMultiAccountCache(accountIndex, derivationMode);
+    if (cachedAddresses) {
+      const matchedAddressType = getWalletAddressMatchType(cachedAddresses, normalizedAddress);
+      if (matchedAddressType) {
+        return { accountIndex, addresses: cachedAddresses, matchedAddressType };
+      }
+    }
+  }
+
+  return withMnemonic(async (mnemonic: string) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
+
+    for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
+      const addresses = deriveAddressesFromRoot(root, accountIndex, derivationMode);
+      const matchedAddressType = getWalletAddressMatchType(addresses, normalizedAddress);
+
+      if (matchedAddressType) {
+        return { accountIndex, addresses, matchedAddressType };
+      }
+    }
+
+    return null;
+  });
+};
+
+export const findAccountByWalletAddress = findAccountBySegwitOrTaprootAddress;
+
+export const deriveWalletAccounts = async (
+  searchLimit = 100
+): Promise<WalletAccountAddresses[]> => {
+  if (!Number.isSafeInteger(searchLimit) || searchLimit <= 0) {
+    throw new Error(`Invalid account search limit: ${searchLimit}`);
+  }
+
+  const derivationMode = DEFAULT_WALLET_DERIVATION_MODE;
+
+  return withMnemonic(async (mnemonic: string) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
+    const accounts: WalletAccountAddresses[] = [];
+
+    for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
+      accounts.push({
+        accountIndex,
+        addresses: deriveAddressesFromRoot(root, accountIndex, derivationMode),
+      });
+    }
+
+    return accounts;
+  });
+};
+
+export const findTaprootAccountByAddress = findAccountBySegwitOrTaprootAddress;
+
 /**
  * Save wallet to secure storage
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index
  * @throws Error if save fails (critical operation)
  */
-export const saveWalletToStorage = async (mnemonic: string, accountIndex = 0): Promise<void> => {
+export const saveWalletToStorage = async (
+  mnemonic: string,
+  accountIndex = 0,
+  derivationMode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
+): Promise<void> => {
   assertValidAccountIndex(accountIndex);
 
   await saveMnemonic(mnemonic);
-  await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
+  await setWalletDerivationMode(derivationMode);
   await saveCurrentAccountOrThrow(accountIndex);
-  const addresses = deriveAddressesFromMnemonic(
-    mnemonic,
-    accountIndex,
-    DEFAULT_WALLET_DERIVATION_MODE
-  );
+  const addresses = deriveAddressesFromMnemonic(mnemonic, accountIndex, derivationMode);
   await Promise.all([
-    saveCachedAddresses(accountIndex, addresses),
-    saveToMultiAccountCache(accountIndex, addresses),
+    saveCachedAddresses(accountIndex, addresses, derivationMode),
+    saveToMultiAccountCache(accountIndex, addresses, derivationMode),
   ]);
 };

@@ -19,7 +19,7 @@ export interface UseVaultDataFetchReturn {
   vaultLastUpdated: number | null;
   vaultIsStale: boolean;
   vaultError: string | null;
-  fetchVault: () => Promise<void>;
+  fetchVault: (vaultPubkeyOverride?: string) => Promise<void>;
   resetVaultData: () => void;
   // Vault transactions (cached like BTC transaction history)
   vaultTransactions: VaultHistoryTransaction[];
@@ -27,7 +27,7 @@ export interface UseVaultDataFetchReturn {
   vaultTransactionsIsRefreshing: boolean;
   vaultTransactionsLastUpdated: number | null;
   vaultTransactionsIsStale: boolean;
-  fetchVaultTransactions: () => Promise<void>;
+  fetchVaultTransactions: (vaultPubkeyOverride?: string) => Promise<void>;
 }
 
 const VAULT_STALE_AFTER_MS = 60_000;
@@ -91,8 +91,8 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
   /**
    * Fetch vault data from validator API
    */
-  const fetchVault = useCallback(async (): Promise<void> => {
-    const vaultPubkey = wallet?.taprootPubkey;
+  const fetchVault = useCallback(async (vaultPubkeyOverride?: string): Promise<void> => {
+    const vaultPubkey = vaultPubkeyOverride ?? wallet?.taprootPubkey;
 
     if (!vaultPubkey || vaultFetchInFlightRef.current) {
       return;
@@ -189,8 +189,10 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
    * Fetch vault transactions (history) from validator API
    * Cached in context to avoid refetching on every screen visit
    */
-  const fetchVaultTransactions = useCallback(async (): Promise<void> => {
-    const vaultPubkey = wallet?.taprootPubkey;
+  const fetchVaultTransactions = useCallback(async (
+    vaultPubkeyOverride?: string
+  ): Promise<void> => {
+    const vaultPubkey = vaultPubkeyOverride ?? wallet?.taprootPubkey;
 
     if (!vaultPubkey || vaultTxFetchInFlightRef.current) {
       return;

@@ -4,11 +4,43 @@
  */
 
 import React, { memo, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder, Modal } from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { formatBalance, formatFiat } from '../../utils/formatters';
+import { isE2E } from '../../utils/e2e';
+
+interface TransferSheetLayerProps {
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function TransferSheetLayer({
+  visible,
+  onClose,
+  children,
+}: TransferSheetLayerProps): React.ReactElement | null {
+  if (!visible) return null;
+
+  if (isE2E()) {
+    return <>{children}</>;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+    >
+      <View style={styles.modalLayer}>{children}</View>
+    </Modal>
+  );
+}
 
 interface WithdrawSheetProps {
   visible: boolean;
@@ -39,10 +71,19 @@ export const WithdrawSheet = memo(function WithdrawSheet({
   const translateY = useRef(new Animated.Value(0)).current;
 
   const formattedBtcBalance = useMemo(() => formatBalance(btcBalance, 8), [btcBalance]);
-  const formattedBtcUsd = useMemo(() => formatFiat(btcBalance * (btcPrice || 0)), [btcBalance, btcPrice]);
+  const formattedBtcUsd = useMemo(
+    () => formatFiat(btcBalance * (btcPrice || 0)),
+    [btcBalance, btcPrice]
+  );
   const formattedUnitBalance = useMemo(() => formatFiat(unitBalance), [unitBalance]);
-  const formattedVaultCollateral = useMemo(() => formatBalance(vaultCollateral, 8), [vaultCollateral]);
-  const formattedVaultUsd = useMemo(() => formatFiat(vaultCollateral * (btcPrice || 0)), [vaultCollateral, btcPrice]);
+  const formattedVaultCollateral = useMemo(
+    () => formatBalance(vaultCollateral, 8),
+    [vaultCollateral]
+  );
+  const formattedVaultUsd = useMemo(
+    () => formatFiat(vaultCollateral * (btcPrice || 0)),
+    [vaultCollateral, btcPrice]
+  );
 
   const handleDismiss = useCallback(() => {
     onClose();
@@ -84,26 +125,23 @@ export const WithdrawSheet = memo(function WithdrawSheet({
     }
   }, [visible, translateY, sheetOpacity]);
 
-  const handleSelectAsset = useCallback((assetType: AssetType) => {
-    setSendAssetType(assetType);
-    onAssetSelect(assetType);
-    onClose();
-  }, [setSendAssetType, onAssetSelect, onClose]);
+  const handleSelectAsset = useCallback(
+    (assetType: AssetType) => {
+      setSendAssetType(assetType);
+      onAssetSelect(assetType);
+      onClose();
+    },
+    [setSendAssetType, onAssetSelect, onClose]
+  );
 
   const handleVaultWithdraw = useCallback(() => {
     onClose();
     onVaultWithdraw?.();
   }, [onClose, onVaultWithdraw]);
 
-  if (!visible) return null;
-
   return (
-    <>
-      <TouchableOpacity
-        style={styles.backdrop}
-        activeOpacity={1}
-        onPress={handleDismiss}
-      />
+    <TransferSheetLayer visible={visible} onClose={handleDismiss}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleDismiss} />
 
       <Animated.View
         style={[
@@ -168,7 +206,7 @@ export const WithdrawSheet = memo(function WithdrawSheet({
           </TouchableOpacity>
         )}
       </Animated.View>
-    </>
+    </TransferSheetLayer>
   );
 });
 
@@ -235,25 +273,22 @@ export const DepositSheet = memo(function DepositSheet({
     }
   }, [visible, translateY, sheetOpacity]);
 
-  const handleSelectAsset = useCallback((assetType: 'btc' | 'unit') => {
-    onAssetSelect(assetType);
-    onClose();
-  }, [onAssetSelect, onClose]);
+  const handleSelectAsset = useCallback(
+    (assetType: 'btc' | 'unit') => {
+      onAssetSelect(assetType);
+      onClose();
+    },
+    [onAssetSelect, onClose]
+  );
 
   const handleVaultDeposit = useCallback(() => {
     onClose();
     onVaultDeposit?.();
   }, [onClose, onVaultDeposit]);
 
-  if (!visible) return null;
-
   return (
-    <>
-      <TouchableOpacity
-        style={styles.backdrop}
-        activeOpacity={1}
-        onPress={handleDismiss}
-      />
+    <TransferSheetLayer visible={visible} onClose={handleDismiss}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleDismiss} />
 
       <Animated.View
         style={[
@@ -315,11 +350,14 @@ export const DepositSheet = memo(function DepositSheet({
           </TouchableOpacity>
         )}
       </Animated.View>
-    </>
+    </TransferSheetLayer>
   );
 });
 
 const styles = StyleSheet.create({
+  modalLayer: {
+    flex: 1,
+  },
   backdrop: {
     position: 'absolute',
     top: 0,

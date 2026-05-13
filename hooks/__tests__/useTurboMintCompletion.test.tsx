@@ -323,6 +323,69 @@ describe('useTurboMintCompletion', () => {
       expect(notify.transaction.success).toHaveBeenCalledWith('convert');
     });
 
+    it('should use the requested mint claim amount when live quote accounting is larger', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        quote: 'quote123',
+        amount_paid: 2355,
+        amount_issued: 1355,
+      });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        mintAmount: 1000,
+        mintClaimAmount: 1000,
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 1000);
+    });
+
+    it('should not complete a partial Turbo mint amount', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        quote: 'quote123',
+        amount_paid: 100,
+        amount_issued: 100,
+      });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        mintAmount: 500,
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+      expect(notify.cashu.paymentSentAwaiting).not.toHaveBeenCalled();
+    });
+
+    it('should not combine a partial mint with existing Turbo balance for recipient sends', async () => {
+      mockCheckMintQuote.mockResolvedValue({
+        quote: 'quote123',
+        amount_paid: 400,
+        amount_issued: 150,
+      });
+      mockGetBalance.mockResolvedValue(1000);
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        mintAmount: 500,
+      });
+
+      await advanceThroughPolling();
+
+      expect(mockCompleteMint).not.toHaveBeenCalled();
+      expect(mockSendP2PKToken).not.toHaveBeenCalled();
+    });
+
     it('should recover instead of reminting when quote reports ISSUED state', async () => {
       mockCheckMintQuote.mockResolvedValue({ state: 'ISSUED', amount: 200 });
       mockGetBalance.mockResolvedValue(200);
@@ -422,6 +485,10 @@ describe('useTurboMintCompletion', () => {
 
       await advanceThroughPolling();
 
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100, 'unit', {
+        notifyProofChange: false,
+        requireExactAmount: true,
+      });
       expect(mockExtractPubkeyFromTaprootAddress).toHaveBeenCalledWith('tb1precipient789');
       expect(mockSendP2PKToken).toHaveBeenCalledWith(
         100,
@@ -436,6 +503,29 @@ describe('useTurboMintCompletion', () => {
         100
       );
       expect(mockSaveSentLockedToken).toHaveBeenCalled();
+    });
+
+    it('should refresh Cashu balance if a silent Turbo top-up cannot be locked', async () => {
+      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+      mockSendP2PKToken.mockRejectedValue(new Error('P2PK failed'));
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+        turboRecipient: 'tb1precipient789',
+        mintAmount: 100,
+      });
+
+      await advanceThroughPolling();
+
+      expect(result.current!.processingStage).toBe('error');
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100, 'unit', {
+        notifyProofChange: false,
+        requireExactAmount: true,
+      });
+      expect(mockProps.refreshCashuBalance).toHaveBeenCalled();
+      expect(notify.cashu.conversionFailed).toHaveBeenCalledWith('P2PK failed');
     });
 
     it('should persist a P2PK token even if the screen unmounts after token creation starts', async () => {

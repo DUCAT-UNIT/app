@@ -3,7 +3,13 @@
  * Switches between Auth flow and Main app based on authentication state
  */
 
-import { NavigationContainer, NavigationContainerRef, Route } from '@react-navigation/native';
+import {
+  DarkTheme,
+  NavigationContainer,
+  NavigationContainerRef,
+  Route,
+  Theme,
+} from '@react-navigation/native';
 import { createStackNavigator, StackNavigationOptions } from '@react-navigation/stack';
 import React, { createRef, useCallback, useEffect, useRef } from 'react';
 import {
@@ -22,6 +28,8 @@ import { withErrorBoundary } from '../components/withErrorBoundary';
 import LockScreen from '../screens/auth/LockScreen';
 import VaultSuccessPreviewScreenComponent from '../screens/dev/VaultSuccessPreviewScreen';
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
+import LiquidationFlowScreenComponent from '../screens/liquidation/LiquidationFlowScreen';
+import QuantaSeedPhraseGuideScreenComponent from '../screens/quanta/QuantaSeedPhraseGuideScreen';
 import {
   authenticateWithBiometrics,
   setBiometricEnabled as persistBiometricEnabled,
@@ -37,6 +45,7 @@ import {
   RepayNavigator,
   SendNavigator,
   VaultCreateNavigator,
+  WalletStackNavigator,
   WithdrawNavigator,
 } from './navigators';
 
@@ -75,6 +84,19 @@ import type { RootNavigatorParamList } from './types';
 type AnyComponent = React.ComponentType<any>;
 
 const Stack = createStackNavigator<RootNavigatorParamList>();
+
+const DUCAT_NAVIGATION_THEME: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: COLORS.PRIMARY_BLUE,
+    background: COLORS.DARK_BG,
+    card: COLORS.DARK_BG,
+    text: COLORS.TEXT_PRIMARY,
+    border: COLORS.BORDER_COLOR,
+    notification: COLORS.PRIMARY_BLUE,
+  },
+};
 
 // Bubble zoom animation for vault action flows (Repay, Borrow, Deposit, Withdraw)
 const bubbleZoomOptions: StackNavigationOptions = {
@@ -117,6 +139,26 @@ const VaultSuccessPreviewScreen: AnyComponent = withErrorBoundary(
     fallbackMessage: 'Unable to load success preview. Please try again.',
   }
 );
+
+const LiquidationFlowScreen: AnyComponent = withErrorBoundary(LiquidationFlowScreenComponent, {
+  boundaryName: 'LiquidationFlowScreen',
+  fallbackMessage: 'Unable to load liquidations. Please try again.',
+});
+
+const QuantaSeedPhraseGuideScreen: AnyComponent = withErrorBoundary(
+  QuantaSeedPhraseGuideScreenComponent,
+  {
+    boundaryName: 'QuantaSeedPhraseGuideScreen',
+    fallbackMessage: 'Unable to load Quanta guide. Please try again.',
+  }
+);
+
+const rootFlowOptions: StackNavigationOptions = {
+  animation: 'slide_from_right',
+  gestureEnabled: true,
+  gestureDirection: 'horizontal',
+  cardStyle: { backgroundColor: COLORS.DARK_BG },
+};
 
 // Create linking config once
 const linking = createLinkingConfig();
@@ -260,14 +302,10 @@ export default function RootNavigator(): React.JSX.Element {
           // Stay on wallet — already the default screen
           break;
         case 'vault_health':
-          navigationRef.current.navigate('Main', {
-            screen: 'WalletTab',
-            params: { screen: 'VaultDetail' },
-          } as never);
+          navigationRef.current.navigate('WalletFlow', { screen: 'VaultDetail' });
           break;
         case 'liquidation_opportunity':
-          // Navigate to main tab (liquidation is accessible from there)
-          navigationRef.current.navigate('Main');
+          navigationRef.current.navigate('Main', { screen: 'LiquidationsTab' } as never);
           break;
         default:
           break;
@@ -362,13 +400,16 @@ export default function RootNavigator(): React.JSX.Element {
           persistedState.senderTaprootAddress !== wallet?.taprootAddress
         ) {
           pendingTurboChecked.current = true;
-          logger.info('[RootNavigator] Pending turbo transaction belongs to another account; leaving it paused', {
-            senderTaprootAddress: persistedState.senderTaprootAddress.substring(0, 12) + '...',
-            activeTaprootAddress: wallet?.taprootAddress
-              ? wallet.taprootAddress.substring(0, 12) + '...'
-              : null,
-            cashuUnit: persistedState.cashuUnit,
-          });
+          logger.info(
+            '[RootNavigator] Pending turbo transaction belongs to another account; leaving it paused',
+            {
+              senderTaprootAddress: persistedState.senderTaprootAddress.substring(0, 12) + '...',
+              activeTaprootAddress: wallet?.taprootAddress
+                ? wallet.taprootAddress.substring(0, 12) + '...'
+                : null,
+              cashuUnit: persistedState.cashuUnit,
+            }
+          );
           return;
         }
 
@@ -452,10 +493,13 @@ export default function RootNavigator(): React.JSX.Element {
 
     // Reset navigation to main screen
     if (navigationRef.current?.isReady()) {
-      navigationRef.current.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      const rootRouteNames = navigationRef.current.getRootState()?.routeNames ?? [];
+      if (rootRouteNames.includes('Main')) {
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      }
     }
 
     // Lock the app
@@ -604,6 +648,7 @@ export default function RootNavigator(): React.JSX.Element {
         linking={linking}
         ref={navigationRef}
         onStateChange={onNavigationStateChange}
+        theme={DUCAT_NAVIGATION_THEME}
       >
         <Stack.Navigator
           screenOptions={{
@@ -628,6 +673,14 @@ export default function RootNavigator(): React.JSX.Element {
           ) : (
             <React.Fragment>
               <Stack.Screen name="Main" component={MainTabs} />
+              <Stack.Screen name="WalletFlow" options={rootFlowOptions}>
+                {() => <WalletStackNavigator redirectHomeToMain />}
+              </Stack.Screen>
+              <Stack.Screen
+                name="LiquidationFlow"
+                component={LiquidationFlowScreen}
+                options={rootFlowOptions}
+              />
               <Stack.Screen
                 name="SendFlow"
                 component={SendNavigator}
@@ -661,6 +714,11 @@ export default function RootNavigator(): React.JSX.Element {
                 name="WithdrawFlow"
                 component={WithdrawNavigator}
                 options={bubbleZoomOptions}
+              />
+              <Stack.Screen
+                name="QuantaSeedPhraseGuide"
+                component={QuantaSeedPhraseGuideScreen}
+                options={rootFlowOptions}
               />
               {__DEV__ && (
                 <Stack.Screen
@@ -720,6 +778,7 @@ export default function RootNavigator(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.DARK_BG,
   },
   pinOverlay: {
     position: 'absolute',

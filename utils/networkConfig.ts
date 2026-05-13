@@ -37,6 +37,7 @@ export interface AppNetworkConfig {
     feeRecommendationsUrl: string;
     faucetUrl: string | null;
     faucetNetwork: string | null;
+    quantaUrl: string;
   };
   protocol: {
     masterContractId: string;
@@ -139,6 +140,7 @@ function resolveMutinynetConfig(): AppNetworkConfig {
         'https://mempool.space/testnet/api/v1/fees/recommended',
       faucetUrl: getEnv('EXPO_PUBLIC_FAUCET_URL') ?? 'https://faucet.ducatprotocol.com/btc/faucet',
       faucetNetwork: 'mutinynet',
+      quantaUrl: getEnv('EXPO_PUBLIC_QUANTA_API_URL') ?? 'https://points.ducatprotocol.com',
     },
     protocol: {
       masterContractId:

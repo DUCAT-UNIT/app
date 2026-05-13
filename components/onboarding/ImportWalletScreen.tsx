@@ -29,6 +29,11 @@ interface ImportWalletScreenProps {
   keyboardHeight: number;
   onImport: () => void;
   onCancel: () => void;
+  title?: string;
+  subtitle?: string;
+  importButtonLabel?: string;
+  cancelButtonLabel?: string;
+  warningText?: string;
 }
 
 const WORD_COUNT = 12;
@@ -41,6 +46,11 @@ export default function ImportWalletScreen({
   isImporting,
   onImport,
   onCancel,
+  title = 'Import Wallet',
+  subtitle = 'Enter your 12-word recovery phrase',
+  importButtonLabel = 'Import Wallet',
+  cancelButtonLabel = 'Cancel',
+  warningText,
 }: ImportWalletScreenProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
@@ -228,8 +238,9 @@ export default function ImportWalletScreen({
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Import Wallet</Text>
-          <Text style={styles.subtitle}>Enter your 12-word recovery phrase</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+          {warningText ? <Text style={styles.warningText}>{warningText}</Text> : null}
         </View>
 
         {/* Progress row with paste/clear button */}
@@ -279,12 +290,12 @@ export default function ImportWalletScreen({
           testID="import-wallet-btn"
         >
           <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
-            {isImporting ? 'Importing...' : 'Import Wallet'}
+            {isImporting ? 'Importing...' : importButtonLabel}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.cancelButton} onPress={onCancel} activeOpacity={0.7}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>{cancelButtonLabel}</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -319,6 +330,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: isSmallScreen ? fontSizes.sm : fontSizes.md,
     color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  warningText: {
+    marginTop: 10,
+    color: colors.semantic.error,
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
     textAlign: 'center',
   },
   progressRow: {

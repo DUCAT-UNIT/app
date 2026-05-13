@@ -22,19 +22,10 @@ import {
   type CashuUnit,
 } from '../services/cashu/cashuUnits';
 import { formatBalance } from '../utils/formatters';
-
-interface TransactionOutput {
-  scriptpubkey_address?: string;
-}
-
-interface TransactionStatus {
-  block_time?: number;
-}
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 
 interface Transaction {
   txid: string;
-  vout?: TransactionOutput[];
-  status?: TransactionStatus;
 }
 
 interface UseFuseEcashParams {
@@ -88,6 +79,8 @@ export function useFuseEcash({
   fetchTransactionHistory,
   cashuUnit = DEFAULT_CASHU_UNIT,
 }: UseFuseEcashParams): UseFuseEcashReturn {
+  const addPendingTransaction = usePendingTransactionsStore((state) => state.addPendingTransaction);
+
   const handleFusePress = useCallback(async () => {
     const tokenLabel =
       cashuUnit === DEFAULT_CASHU_UNIT ? 'TurboUNIT' : cashuUnitDisplayName(cashuUnit);
@@ -133,6 +126,25 @@ export function useFuseEcash({
                   ? await completeMeltWithoutCleanup(quote.quoteId, quote.total)
                   : await completeMeltWithoutCleanup(quote.quoteId, quote.total, cashuUnit);
               meltSubmitted = true;
+
+              if (meltResult.txid) {
+                await addPendingTransaction(
+                  meltResult.txid,
+                  [
+                    {
+                      address: taprootAddress,
+                      value: cashuUnit === 'sat' ? quote.amount : 0,
+                      vout: 0,
+                      ...(cashuUnit === 'sat' ? {} : { runeAmount: quote.amount }),
+                    },
+                  ],
+                  cashuUnit === 'sat' ? 'BTC' : 'UNIT',
+                  null,
+                  undefined,
+                  undefined,
+                  { displayKind: 'turbo_redeem' }
+                );
+              }
 
               // Clean up proofs immediately after successful melt
               logger.debug('[Fuse] Melt successful, cleaning up proofs');
@@ -191,12 +203,14 @@ export function useFuseEcash({
                   : `Redeeming ${formatTurboAmount(quote.amount, cashuUnit)} ${assetSymbol}. Waiting for transaction to appear on-chain...`,
               });
 
-              // Poll for transaction
+              // Poll for a short confirmation refresh, but keep the pending row as the source
+              // of truth. The transaction history hook removes it once the tx is confirmed.
               let txFound = false;
               let attempts = 0;
               const maxAttempts = 30;
+              const submittedTxid = meltResult.txid;
 
-              while (!txFound && attempts < maxAttempts) {
+              while (submittedTxid && !txFound && attempts < maxAttempts) {
                 attempts++;
                 logger.debug(`[Fuse] Polling attempt ${attempts}/${maxAttempts}`);
                 await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -205,19 +219,7 @@ export function useFuseEcash({
 
                 txFound = transactionHistory.some((rawTx) => {
                   const tx = rawTx as Transaction;
-                  const hasOurAddress = tx.vout?.some(
-                    (output: TransactionOutput) => output.scriptpubkey_address === taprootAddress
-                  );
-                  if (!hasOurAddress) return false;
-
-                  const txTime = tx.status?.block_time;
-                  if (!txTime) {
-                    logger.debug(`[Fuse] Found unconfirmed transaction: ${tx.txid}`);
-                    return true;
-                  }
-
-                  const now = Math.floor(Date.now() / 1000);
-                  return now - txTime < 120;
+                  return tx.txid === submittedTxid;
                 });
 
                 if (txFound) break;
@@ -230,12 +232,6 @@ export function useFuseEcash({
                   type: 'success',
                   title: 'Redeem complete',
                   description: `${tokenLabel} was redeemed to on-chain ${assetSymbol}.`,
-                });
-              } else {
-                notify.snackbar({
-                  type: 'pending',
-                  title: 'Redeem pending',
-                  description: 'Transaction will appear on-chain shortly.',
                 });
               }
             } catch (error: unknown) {
@@ -265,7 +261,14 @@ export function useFuseEcash({
         },
       ]
     );
-  }, [cashuBalance, taprootAddress, fetchTransactionHistory, transactionHistory, cashuUnit]);
+  }, [
+    addPendingTransaction,
+    cashuBalance,
+    taprootAddress,
+    fetchTransactionHistory,
+    transactionHistory,
+    cashuUnit,
+  ]);
 
   return { handleFusePress };
 }

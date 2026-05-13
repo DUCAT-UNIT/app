@@ -57,7 +57,7 @@ describe('walletResetService', () => {
       setSeedConfirmed,
     });
 
-    expect(deleteWalletData).toHaveBeenCalledWith(true);
+    expect(deleteWalletData).toHaveBeenCalledWith(true, { preservePinAuth: false });
     expect(resetOnboardingState).toHaveBeenCalled();
     expect(resetSwapDiagnosticsStore).toHaveBeenCalled();
     expect(resetEvmTransactionCheckpointStore).toHaveBeenCalled();
@@ -68,5 +68,16 @@ describe('walletResetService', () => {
     expect(resetWallet).toHaveBeenCalled();
     expect(setSeedConfirmed).toHaveBeenCalledWith(false);
     expect(resetAuth).toHaveBeenCalled();
+  });
+
+  it('can preserve PIN auth while replacing wallet data', async () => {
+    const { performFullWalletReset } = require('../walletResetService');
+    const { deleteWalletData } = require('../secureStorageService');
+
+    await performFullWalletReset({
+      preservePinAuth: true,
+    });
+
+    expect(deleteWalletData).toHaveBeenCalledWith(false, { preservePinAuth: true });
   });
 });

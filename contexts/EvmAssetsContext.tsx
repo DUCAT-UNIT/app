@@ -41,9 +41,10 @@ export interface EvmAssetsValue {
   loadingEthHistory: boolean;
   isSepoliaConfigured: boolean;
   isEvmConfigured: boolean;
-  refreshEvmBalances: () => Promise<void>;
-  refreshUsdcHistory: () => Promise<void>;
-  refreshEthHistory: () => Promise<void>;
+  refreshEvmBalances: (accountOverride?: number) => Promise<void>;
+  refreshUsdcHistory: (accountOverride?: number) => Promise<void>;
+  refreshEthHistory: (accountOverride?: number) => Promise<void>;
+  resetEvmAssets: () => void;
 }
 
 const EvmAssetsContext = createContext<EvmAssetsValue | undefined>(undefined);
@@ -92,11 +93,27 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     accountRef.current = currentAccount;
   }, [currentAccount]);
 
-  const refreshEvmBalances = useCallback(async () => {
+  const resetEvmAssets = useCallback((): void => {
+    setEvmBalances(null);
+    setUsdcHistory([]);
+    setEthHistory([]);
+    setLoadingEvmBalances(false);
+    setLoadingUsdcHistory(false);
+    setLoadingEthHistory(false);
+    balanceInFlightRef.current = false;
+    historyInFlightRef.current = false;
+    ethHistoryInFlightRef.current = false;
+    balancesLoadedRef.current = false;
+    historyLoadedRef.current = false;
+    ethHistoryLoadedRef.current = false;
+  }, []);
+
+  const refreshEvmBalances = useCallback(async (accountOverride?: number) => {
     if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || balanceInFlightRef.current) {
       return;
     }
 
+    const targetAccount = accountOverride ?? currentAccount;
     balanceInFlightRef.current = true;
     const shouldShowLoading = !balancesLoadedRef.current;
     if (shouldShowLoading) {
@@ -104,8 +121,8 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     }
 
     try {
-      const nextBalances = await getEvmBalances(currentAccount);
-      if (accountRef.current === currentAccount) {
+      const nextBalances = await getEvmBalances(targetAccount);
+      if (accountOverride !== undefined || accountRef.current === currentAccount) {
         setEvmBalances(nextBalances);
         balancesLoadedRef.current = true;
       }
@@ -115,17 +132,18 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       }
     } finally {
       balanceInFlightRef.current = false;
-      if (accountRef.current === currentAccount && shouldShowLoading) {
+      if ((accountOverride !== undefined || accountRef.current === currentAccount) && shouldShowLoading) {
         setLoadingEvmBalances(false);
       }
     }
   }, [activeWallet, currentAccount, isSepoliaConfigured, usdcFeaturesEnabled]);
 
-  const refreshUsdcHistory = useCallback(async () => {
+  const refreshUsdcHistory = useCallback(async (accountOverride?: number) => {
     if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || historyInFlightRef.current) {
       return;
     }
 
+    const targetAccount = accountOverride ?? currentAccount;
     historyInFlightRef.current = true;
     const shouldShowLoading = !historyLoadedRef.current;
     if (shouldShowLoading) {
@@ -133,8 +151,8 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     }
 
     try {
-      const nextHistory = await fetchSepoliaTokenHistory(currentAccount, 'USDC');
-      if (accountRef.current === currentAccount) {
+      const nextHistory = await fetchSepoliaTokenHistory(targetAccount, 'USDC');
+      if (accountOverride !== undefined || accountRef.current === currentAccount) {
         setUsdcHistory(nextHistory);
         historyLoadedRef.current = true;
       }
@@ -144,17 +162,18 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       }
     } finally {
       historyInFlightRef.current = false;
-      if (accountRef.current === currentAccount && shouldShowLoading) {
+      if ((accountOverride !== undefined || accountRef.current === currentAccount) && shouldShowLoading) {
         setLoadingUsdcHistory(false);
       }
     }
   }, [activeWallet, currentAccount, isSepoliaConfigured, usdcFeaturesEnabled]);
 
-  const refreshEthHistory = useCallback(async () => {
+  const refreshEthHistory = useCallback(async (accountOverride?: number) => {
     if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || ethHistoryInFlightRef.current) {
       return;
     }
 
+    const targetAccount = accountOverride ?? currentAccount;
     ethHistoryInFlightRef.current = true;
     const shouldShowLoading = !ethHistoryLoadedRef.current;
     if (shouldShowLoading) {
@@ -162,8 +181,8 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     }
 
     try {
-      const nextHistory = await fetchSepoliaEthHistory(currentAccount);
-      if (accountRef.current === currentAccount) {
+      const nextHistory = await fetchSepoliaEthHistory(targetAccount);
+      if (accountOverride !== undefined || accountRef.current === currentAccount) {
         setEthHistory(nextHistory);
         ethHistoryLoadedRef.current = true;
       }
@@ -173,7 +192,7 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       }
     } finally {
       ethHistoryInFlightRef.current = false;
-      if (accountRef.current === currentAccount && shouldShowLoading) {
+      if ((accountOverride !== undefined || accountRef.current === currentAccount) && shouldShowLoading) {
         setLoadingEthHistory(false);
       }
     }
@@ -189,18 +208,7 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       evmCheckpointRecoveryTaskRef.current?.cancel();
       evmCheckpointRecoveryTaskRef.current = null;
       evmCheckpointRecoveryKeyRef.current = null;
-      setEvmBalances(null);
-      setUsdcHistory([]);
-      setEthHistory([]);
-      setLoadingEvmBalances(false);
-      setLoadingUsdcHistory(false);
-      setLoadingEthHistory(false);
-      balanceInFlightRef.current = false;
-      historyInFlightRef.current = false;
-      ethHistoryInFlightRef.current = false;
-      balancesLoadedRef.current = false;
-      historyLoadedRef.current = false;
-      ethHistoryLoadedRef.current = false;
+      resetEvmAssets();
       return;
     }
 
@@ -216,7 +224,16 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
       initialHistoryTaskRef.current?.cancel();
       initialHistoryTaskRef.current = null;
     };
-  }, [activeWallet, currentAccount, isSepoliaConfigured, refreshEvmBalances, refreshEthHistory, refreshUsdcHistory, usdcFeaturesEnabled]);
+  }, [
+    activeWallet,
+    currentAccount,
+    isSepoliaConfigured,
+    refreshEvmBalances,
+    refreshEthHistory,
+    refreshUsdcHistory,
+    resetEvmAssets,
+    usdcFeaturesEnabled,
+  ]);
 
   useEffect(() => {
     if (!activeWallet || !usdcFeaturesEnabled || !isSepoliaConfigured || !isEvmConfigured) {
@@ -387,6 +404,7 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     refreshEvmBalances,
     refreshUsdcHistory,
     refreshEthHistory,
+    resetEvmAssets,
   }), [
     evmBalances,
     displayUsdcHistory,
@@ -399,6 +417,7 @@ export const EvmAssetsProvider: React.FC<EvmAssetsProviderProps> = ({ children }
     refreshEvmBalances,
     refreshUsdcHistory,
     refreshEthHistory,
+    resetEvmAssets,
     usdcFeaturesEnabled,
   ]);
 

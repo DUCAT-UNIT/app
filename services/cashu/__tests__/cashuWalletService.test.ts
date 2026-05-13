@@ -122,6 +122,17 @@ describe('cashuWalletService', () => {
   const testAddress = 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297';
   const proofStorageKey = `cashu_proofs_${testAddress}`;
   const mintQuoteStorageKey = 'cashu_pending_mint_quotes';
+  const expectStoredProofEnvelope = (key: string, proofs: typeof mockProofs) => {
+    const proofWrite = (SecureStore.setItemAsync as jest.Mock).mock.calls.find(
+      ([storedKey]) => storedKey === key
+    );
+    expect(proofWrite).toBeDefined();
+    expect(JSON.parse(proofWrite![1])).toMatchObject({
+      version: 1,
+      proofs,
+      integrityHash: expect.any(String),
+    });
+  };
 
   const seedMintQuoteRecovery = (
     storage: Record<string, string>,
@@ -223,20 +234,25 @@ describe('cashuWalletService', () => {
       it('should migrate global proofs to account-specific storage', async () => {
         const address = 'tb1pnewaddress';
         const oldProofs = JSON.stringify(mockProofs);
+        const storage: Record<string, string> = {
+          cashu_proofs: oldProofs,
+        };
 
-        (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: any) => {
-          if (key === 'cashu_proofs') return Promise.resolve(oldProofs);
-          if (key === `cashu_proofs_${address}`) return Promise.resolve(null);
-          return Promise.resolve(null);
+        (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+          return Promise.resolve(storage[key] || null);
+        });
+        (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string, value: string) => {
+          storage[key] = value;
+          return Promise.resolve();
+        });
+        (SecureStore.deleteItemAsync as jest.Mock).mockImplementation((key: string) => {
+          delete storage[key];
+          return Promise.resolve();
         });
 
         await cashuWalletService.setCurrentAccount(address);
 
-        expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-          `cashu_proofs_${address}`,
-          oldProofs,
-          expect.any(Object)
-        );
+        expectStoredProofEnvelope(`cashu_proofs_${address}`, mockProofs);
         expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_proofs');
       });
 
@@ -457,7 +473,7 @@ describe('cashuWalletService', () => {
       it('should request mint quote', async () => {
         const mockQuote = {
           quote: 'quote123',
-          amount: 1000,
+          amount: 2355,
           request: 'tb1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297',
           expiry: Date.now() + 3600000,
           state: 'UNPAID',
@@ -474,7 +490,10 @@ describe('cashuWalletService', () => {
           expiry: mockQuote.expiry,
           state: 'UNPAID',
         });
-        expect(cashuMintClient.createMintQuote).toHaveBeenCalledWith('02' + 'a'.repeat(64));
+        expect(cashuMintClient.createMintQuote).toHaveBeenCalledWith(
+          '02' + 'a'.repeat(64),
+          'unit'
+        );
       });
 
       it('should handle mint request errors', async () => {
@@ -653,6 +672,7 @@ describe('cashuWalletService', () => {
           pubkey: '02' + 'a'.repeat(64),
         });
         (cashuCrypto.splitAmount as jest.Mock).mockReturnValueOnce([1, 2, 4, 8]);
+        (cashuCrypto.unblindSignatures as jest.Mock).mockReturnValueOnce(mockProofs);
 
         // Use a stateful mock that tracks storage
         const storage: Record<string, string> = {};
@@ -982,19 +1002,25 @@ describe('cashuWalletService', () => {
 
     it('should handle account migration on first use', async () => {
       const oldProofs = JSON.stringify(mockProofs);
+      const storage: Record<string, string> = {
+        cashu_proofs: oldProofs,
+      };
 
-      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: any) => {
-        if (key === 'cashu_proofs') return Promise.resolve(oldProofs);
-        return Promise.resolve(null);
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        return Promise.resolve(storage[key] || null);
+      });
+      (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string, value: string) => {
+        storage[key] = value;
+        return Promise.resolve();
+      });
+      (SecureStore.deleteItemAsync as jest.Mock).mockImplementation((key: string) => {
+        delete storage[key];
+        return Promise.resolve();
       });
 
       await cashuWalletService.setCurrentAccount('tb1pnewaccount');
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-        'cashu_proofs_tb1pnewaccount',
-        oldProofs,
-        expect.any(Object)
-      );
+      expectStoredProofEnvelope('cashu_proofs_tb1pnewaccount', mockProofs);
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('cashu_proofs');
     });
   });
@@ -1209,10 +1235,15 @@ describe('cashuWalletService', () => {
         (cashuCrypto.splitAmount as jest.Mock)
           .mockReturnValueOnce([1, 2])  // send (amounts as jest.Mock)
           .mockReturnValueOnce([4]);     // change amounts
-        (cashuCrypto.createBlindedOutputs as jest.Mock).mockResolvedValueOnce({
-          outputs: mockOutputs,
-          blindingData: mockBlindingData,
-        });
+        (cashuCrypto.createBlindedOutputs as jest.Mock)
+          .mockResolvedValueOnce({
+            outputs: mockOutputs.slice(0, 2),
+            blindingData: mockBlindingData.slice(0, 2),
+          })
+          .mockResolvedValueOnce({
+            outputs: [{ amount: 4, B_: 'B3', id: 'keyset1' }],
+            blindingData: [{ amount: 4, secret: 'secret3', r: 'r3', B_: 'B3' }],
+          });
         (cashuMintClient.swapTokens as jest.Mock).mockResolvedValueOnce({
           signatures: mockSignatures,
         });
@@ -1563,7 +1594,11 @@ describe('cashuWalletService', () => {
     const privateKey = 'deadbeef1234567890';
 
     beforeEach(() => {
-      (cashuP2PK.createP2PKSecret as jest.Mock).mockResolvedValue('["P2PK",{"nonce":"abc","data":"02abc123"}]');
+      (cashuP2PK.createP2PKSecret as jest.Mock).mockImplementation(async () => {
+        const nonce =
+          (cashuP2PK.createP2PKSecret as jest.Mock).mock.calls.length === 1 ? 'abc' : 'def';
+        return `["P2PK",{"nonce":"${nonce}","data":"02abc123"}]`;
+      });
       (cashuP2PK.isP2PKSecret as jest.Mock).mockImplementation((secret: string) => {
         return typeof secret === 'string' && secret.startsWith('["P2PK"');
       });
@@ -1802,6 +1837,7 @@ describe('cashuWalletService', () => {
         expect(logger.info).toHaveBeenCalledWith('Successfully recovered change proofs', {
           recovered: 2,
           amount: 3,
+          unit: 'unit',
         });
       });
 

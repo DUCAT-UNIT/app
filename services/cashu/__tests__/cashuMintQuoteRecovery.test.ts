@@ -523,6 +523,32 @@ describe('cashuMintQuoteRecovery', () => {
       expect(completeMint).toHaveBeenCalledWith('quote123', 1000);
     });
 
+    it('should skip Turbo send quotes because Turbo recovery owns exact recovery', async () => {
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote_turbo',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: Date.now(),
+          state: 'UNPAID',
+          purpose: 'turbo_send',
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        amount_paid: 250,
+        amount_issued: 0,
+      });
+
+      const result = await recoverUnclaimedMintQuotes();
+
+      expect(result.checked).toBe(1);
+      expect(result.recovered).toBe(0);
+      expect(result.totalAmountRecovered).toBe(0);
+      expect(checkMintQuote).not.toHaveBeenCalled();
+      expect(completeMint).not.toHaveBeenCalled();
+    });
+
     it('should not recover account-tagged quotes before the current account is initialized', async () => {
       const storedQuotes: PersistedMintQuote[] = [
         {

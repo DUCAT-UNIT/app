@@ -2,14 +2,17 @@ import React, { createContext, useContext, useState, useCallback, useMemo, React
 import { InteractionManager } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secureStorageService';
+import { getWalletDerivationMode } from '../services/walletDerivationService';
 import { logger } from '../utils/logger';
 import { clearP2PKCache } from '../services/cashu/cashuWalletService';
 import { resetE2eVaultState } from '../utils/e2eVaultState';
 import { analytics } from '../services/analyticsService';
 
 export interface WalletAddresses {
+  legacyAddress?: string;
   segwitAddress: string;
   taprootAddress: string;
+  legacyPubkey?: string;
   segwitPubkey: string;
   taprootPubkey: string;
 }
@@ -38,7 +41,6 @@ interface WalletProviderProps {
 }
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-
   // Wallet state
   const [wallet, setWallet] = useState<WalletAddresses | null>(null);
   const [currentAccount, setCurrentAccount] = useState(0);
@@ -54,14 +56,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   // Load wallet from secure storage
-  const loadWallet = useCallback(async (): Promise<{ exists: boolean; addresses?: WalletAddresses }> => {
+  const loadWallet = useCallback(async (): Promise<{
+    exists: boolean;
+    addresses?: WalletAddresses;
+  }> => {
     try {
       const { addresses, accountIndex } = await WalletService.loadWalletFromStorage();
 
       if (addresses) {
         setWallet({
+          legacyAddress: addresses.legacyAddress,
           segwitAddress: addresses.segwitAddress,
           taprootAddress: addresses.taprootAddress,
+          legacyPubkey: addresses.legacyPubkey,
           segwitPubkey: addresses.segwitPubkey,
           taprootPubkey: addresses.taprootPubkey,
         });
@@ -81,28 +88,37 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, [scheduleAnalyticsIdentify]);
 
   // Set wallet addresses (for creating/importing wallet)
-  const setWalletAddresses = useCallback((addresses: WalletAddresses, accountIndex = 0) => {
-    setWallet({
-      segwitAddress: addresses.segwitAddress,
-      taprootAddress: addresses.taprootAddress,
-      segwitPubkey: addresses.segwitPubkey,
-      taprootPubkey: addresses.taprootPubkey,
-    });
-    setCurrentAccount(accountIndex);
-
-    // Identify user with hashed address for analytics
-    scheduleAnalyticsIdentify(addresses.segwitAddress);
-
-    Promise.all([
-      saveCachedAddresses(accountIndex, addresses),
-      saveToMultiAccountCache(accountIndex, addresses),
-    ]).catch((error: unknown) => {
-      logger.warn('[WalletContext] Failed to cache wallet addresses', {
-        accountIndex,
-        error: error instanceof Error ? error.message : String(error),
+  const setWalletAddresses = useCallback(
+    (addresses: WalletAddresses, accountIndex = 0) => {
+      setWallet({
+        legacyAddress: addresses.legacyAddress,
+        segwitAddress: addresses.segwitAddress,
+        taprootAddress: addresses.taprootAddress,
+        legacyPubkey: addresses.legacyPubkey,
+        segwitPubkey: addresses.segwitPubkey,
+        taprootPubkey: addresses.taprootPubkey,
       });
-    });
-  }, [scheduleAnalyticsIdentify]);
+      setCurrentAccount(accountIndex);
+
+      // Identify user with hashed address for analytics
+      scheduleAnalyticsIdentify(addresses.segwitAddress);
+
+      getWalletDerivationMode()
+        .then((derivationMode) =>
+          Promise.all([
+            saveCachedAddresses(accountIndex, addresses, derivationMode),
+            saveToMultiAccountCache(accountIndex, addresses, derivationMode),
+          ])
+        )
+        .catch((error: unknown) => {
+          logger.warn('[WalletContext] Failed to cache wallet addresses', {
+            accountIndex,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+    },
+    [scheduleAnalyticsIdentify]
+  );
 
   // Reset wallet (for logout/delete)
   const resetWallet = useCallback(async () => {
@@ -116,7 +132,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       await clearP2PKCache();
     } catch (error: unknown) {
       if (error instanceof Error) {
-        logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', { error: error.message });
+        logger.warn('[WalletContext] Failed to clear P2PK cache on reset:', {
+          error: error.message,
+        });
       }
     }
   }, []);
@@ -130,8 +148,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     // Update state immediately (this is what triggers UI update)
     setWallet({
+      legacyAddress: addresses.legacyAddress,
       segwitAddress: addresses.segwitAddress,
       taprootAddress: addresses.taprootAddress,
+      legacyPubkey: addresses.legacyPubkey,
       segwitPubkey: addresses.segwitPubkey,
       taprootPubkey: addresses.taprootPubkey,
     });
@@ -141,12 +161,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     // Clear P2PK cache in background (fire and forget - non-critical)
     // Note: Account index is already saved in WalletService.switchToAccount
-    clearP2PKCache()
-      .catch(err => {
-        if (err instanceof Error) {
-          logger.warn('[WalletContext] Failed to clear P2PK cache:', { error: err.message });
-        }
-      });
+    clearP2PKCache().catch((err) => {
+      if (err instanceof Error) {
+        logger.warn('[WalletContext] Failed to clear P2PK cache:', { error: err.message });
+      }
+    });
 
     return addresses;
   }, []);

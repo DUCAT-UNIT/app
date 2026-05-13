@@ -25,7 +25,7 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
   return (
     <ScrollView
       style={styles.body}
-      contentContainerStyle={{ paddingBottom: s(120) }}
+      contentContainerStyle={{ paddingBottom: s(168) }}
       showsVerticalScrollIndicator={false}
     >
       {/* Description */}
@@ -35,8 +35,8 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
           liquidated vault's collateral and debt to your vault, including a{' '}
           <Text style={{ color: LIQ_GREEN, fontFamily: fonts.bold }}>
             {Math.round(profitPercent)}% profit
-          </Text>
-          {' '}for taking on the liquidation.
+          </Text>{' '}
+          for taking on the liquidation.
         </Text>
       </View>
 
@@ -80,12 +80,10 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
             <Text
               style={[
                 styles.howStepBadge,
-                step.auto
-                  ? { color: LIQ_GREEN }
-                  : { color: colors.text.secondary },
+                step.auto ? { color: LIQ_GREEN } : { color: colors.text.secondary },
               ]}
             >
-              {step.auto ? 'Automatic \u26A1' : 'Manual\n(Optional)'}
+              {step.auto ? 'Automatic' : 'Manual'}
             </Text>
           </View>
         ))}
@@ -97,15 +95,15 @@ const LiquidationReviewHowItWorks = React.memo(function LiquidationReviewHowItWo
 const styles = StyleSheet.create({
   body: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   card: {
     backgroundColor: colors.bg.secondary,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border.default,
-    padding: 14,
-    marginBottom: 8,
+    padding: 16,
+    marginBottom: 12,
     marginTop: 0,
   },
   howDesc: {
@@ -122,9 +120,9 @@ const styles = StyleSheet.create({
   },
   howStep: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: colors.bg.tertiary,
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 12,
     marginBottom: 8,
   },
@@ -144,6 +142,7 @@ const styles = StyleSheet.create({
   },
   howStepContent: {
     flex: 1,
+    minWidth: 0,
   },
   howStepTitle: {
     fontSize: fontSizes.sm,
@@ -155,13 +154,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text.secondary,
     marginTop: 2,
-    marginRight: 50,
+    marginRight: 8,
+    lineHeight: 15,
   },
   howStepBadge: {
     fontSize: 10,
     fontFamily: fonts.medium,
     textAlign: 'right',
-    width: 65,
+    width: 58,
+    paddingTop: 1,
   },
 });
 

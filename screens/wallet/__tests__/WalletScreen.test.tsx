@@ -1,6 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useAirdrop } from '../../../contexts/AirdropContext';
 import { useCashu } from '../../../contexts/CashuContext';
 import { useSettingsHandlers } from '../../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../../contexts/WalletContext';
@@ -102,6 +103,10 @@ jest.mock('../../../contexts/CashuContext', () => ({
   useCashu: jest.fn(),
 }));
 
+jest.mock('../../../contexts/AirdropContext', () => ({
+  useAirdrop: jest.fn(),
+}));
+
 jest.mock('../../../contexts/NavigationHandlersContext', () => ({
   useSettingsHandlers: jest.fn(),
 }));
@@ -199,6 +204,11 @@ describe('WalletScreen Sepolia asset cards', () => {
     (usePrice as jest.Mock).mockReturnValue({ btcPrice: 100_000, ethPrice: 3_000 });
     (useVaultData as jest.Mock).mockReturnValue({ vaultData: null });
     (useCashu as jest.Mock).mockReturnValue({ balance: 0, refresh: jest.fn() });
+    (useAirdrop as jest.Mock).mockReturnValue({
+      airdropPending: false,
+      showAirdropModal: false,
+      openAirdropModal: jest.fn(),
+    });
     (useSettingsHandlers as jest.Mock).mockReturnValue({
       settingsHandlers: {
         usdcFeaturesEnabled: false,

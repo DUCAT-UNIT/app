@@ -5,7 +5,9 @@
 import {
   postWithRetry,
   getWithRetry,
+  deleteWithRetry,
   postJSON,
+  deleteJSON,
   getJSON,
   fetchPaginated,
   fetchParallel,
@@ -90,6 +92,31 @@ describe('postWithRetry', () => {
       expect.any(Function),
       { maxRetries: 5 }
     );
+  });
+});
+
+describe('deleteWithRetry', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
+  });
+
+  it('should make DELETE request with default options', async () => {
+    const mockResponse = { ok: true };
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
+
+    const result = await deleteWithRetry('https://api.test', { token: 'test-token' });
+
+    expect(api.fetchWithTimeout).toHaveBeenCalledWith(
+      'https://api.test',
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: 'test-token' }),
+      },
+      10000
+    );
+    expect(result).toBe(mockResponse);
   });
 });
 
@@ -226,6 +253,46 @@ describe('postJSON', () => {
     (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
     await expect(postJSON('https://api.test', { data: 'test' })).rejects.toThrow('HTTP 500: Internal Server Error');
+  });
+});
+
+describe('deleteJSON', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (retry.retrySilently as jest.Mock).mockImplementation((fn: () => unknown) => fn());
+  });
+
+  it('should DELETE and parse JSON response', async () => {
+    const mockData = { success: true };
+    const mockResponse = {
+      ok: true,
+      json: jest.fn().mockResolvedValue(mockData),
+    };
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
+
+    const result = await deleteJSON('https://api.test', { token: 'test-token' });
+
+    expect(result).toEqual(mockData);
+    expect(api.fetchWithTimeout).toHaveBeenCalledWith(
+      'https://api.test',
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ token: 'test-token' }),
+      }),
+      10000
+    );
+  });
+
+  it('should throw error with error message when response is not ok', async () => {
+    const mockResponse = {
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: jest.fn().mockResolvedValue({ error: 'Token not found' }),
+    };
+    (api.fetchWithTimeout as jest.Mock).mockResolvedValue(mockResponse);
+
+    await expect(deleteJSON('https://api.test', { token: 'test-token' })).rejects.toThrow('Token not found');
   });
 });
 

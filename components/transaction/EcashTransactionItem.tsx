@@ -36,6 +36,7 @@ export interface EcashTransaction {
   ecashToken: true;
   claimed?: boolean;
   partiallySpent?: boolean;
+  pendingRedeem?: boolean;
   isAutoclaim?: boolean;
   timestamp: number;
   status: {
@@ -64,6 +65,7 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
   const { amount, assetType = 'UNIT', isSent, isReceived, isAutoclaim } = tx.txData;
   const isClaimed = tx.claimed === true;
   const isPartial = tx.partiallySpent === true;
+  const isPendingRedeem = tx.pendingRedeem === true;
   const isBtcCashu = assetType === 'BTC';
 
   // Determine action text based on send/receive/autoclaim status
@@ -84,6 +86,13 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
 
   // Determine status - use explicit type annotation to allow union
   const getStatusConfig = () => {
+    if (isPendingRedeem) {
+      return {
+        statusText: 'Pending',
+        chipStyle: localStyles.pendingChip,
+        chipTextStyle: localStyles.pendingChipText,
+      };
+    }
     if (isClaimed) {
       return {
         statusText: 'Claimed',

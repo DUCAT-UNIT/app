@@ -52,6 +52,8 @@ export interface PostOptions {
   circuitKey?: string;
 }
 
+export type DeleteOptions = PostOptions;
+
 export interface GetOptions {
   headers?: Record<string, string>;
   timeout?: number;
@@ -121,6 +123,60 @@ export async function postWithRetry(
   } catch (error: unknown) {
     const duration = Date.now() - startTime;
     logApi(url, 'POST', 0, duration);
+    analytics.track(ERROR_EVENTS.API_ERROR, {
+      endpoint: getEndpointPath(url),
+      status_code: 0,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Makes a DELETE request with automatic retry and timeout
+ * @param url - The endpoint URL
+ * @param body - Request body (will be JSON stringified)
+ * @param options - Additional options
+ * @returns Fetch response object
+ */
+export async function deleteWithRetry(
+  url: string,
+  body: unknown,
+  options: DeleteOptions = {}
+): Promise<Response> {
+  assertHttps(url);
+  const {
+    headers = {},
+    timeout = DEFAULT_TIMEOUT,
+    retryOptions = {},
+    signal,
+  } = options;
+
+  const startTime = Date.now();
+  try {
+    const response = await retrySilently(
+      () =>
+        fetchWithTimeout(
+          url,
+          {
+            method: 'DELETE',
+            headers: {
+              ...DEFAULT_HEADERS,
+              ...headers,
+            },
+            body: JSON.stringify(body),
+            signal,
+          },
+          timeout
+        ),
+      retryOptions
+    );
+    const duration = Date.now() - startTime;
+    logApi(url, 'DELETE', response.status, duration);
+    return response;
+  } catch (error: unknown) {
+    const duration = Date.now() - startTime;
+    logApi(url, 'DELETE', 0, duration);
     analytics.track(ERROR_EVENTS.API_ERROR, {
       endpoint: getEndpointPath(url),
       status_code: 0,
@@ -216,6 +272,57 @@ export async function postJSON<T = unknown>(url: string, body: unknown, options:
     staleOnError: options.staleOnError,
     circuitKey: options.circuitKey,
   });
+}
+
+/**
+ * Makes a DELETE request and parses JSON response with automatic retry
+ * @param url - The endpoint URL
+ * @param body - Request body
+ * @param options - Additional options (see deleteWithRetry)
+ * @returns Parsed JSON response
+ */
+export async function deleteJSON<T = unknown>(
+  url: string,
+  body: unknown,
+  options: DeleteOptions = {}
+): Promise<T> {
+  return runRequestWithPolicy(
+    async () => {
+      const response = await deleteWithRetry(url, body, options);
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        const errorMessage =
+          errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        if (response.status >= 500) {
+          analytics.track(ERROR_EVENTS.API_ERROR, {
+            endpoint: getEndpointPath(url),
+            status_code: response.status,
+            error: errorMessage,
+          });
+        }
+        throw new AppRequestError({
+          category: classifyHttpStatus(response.status),
+          message: errorMessage,
+          statusCode: response.status,
+          endpoint: getEndpointPath(url),
+          method: 'DELETE',
+        });
+      }
+
+      return response.json() as Promise<T>;
+    },
+    {
+      dedupeKey: options.dedupeKey,
+      cacheKey: options.cacheKey,
+      cacheTtlMs: options.cacheTtlMs,
+      staleOnError: options.staleOnError,
+      circuitKey: options.circuitKey,
+    }
+  );
 }
 
 /**

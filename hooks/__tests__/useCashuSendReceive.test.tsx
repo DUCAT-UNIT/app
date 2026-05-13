@@ -23,6 +23,7 @@ jest.mock('../../services/cashu/cashuWalletService', () => ({
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   saveReceivedToken: jest.fn(),
+  deleteReceivedTokenByToken: jest.fn(),
 }));
 
 import { receiveToken, sendToken } from '../../services/cashu/cashuWalletService';
@@ -180,7 +181,13 @@ describe('useCashuSendReceive', () => {
         await result.current!.receive('cashuA...');
       });
 
-      expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, 'tb1ptestaddress');
+      expect(saveReceivedToken).toHaveBeenCalledWith(
+        'cashuA...',
+        'Cashu Receive',
+        100,
+        'tb1ptestaddress',
+        'unit'
+      );
     });
 
     it('should use empty string when taprootAddress is undefined', async () => {
@@ -192,7 +199,7 @@ describe('useCashuSendReceive', () => {
         await result.current!.receive('cashuA...');
       });
 
-      expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, '');
+      expect(saveReceivedToken).toHaveBeenCalledWith('cashuA...', 'Cashu Receive', 100, '', 'unit');
     });
 
     it('should scope BTC Cashu receives and history to sat', async () => {

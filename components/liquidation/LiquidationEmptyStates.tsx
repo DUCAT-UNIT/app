@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
-import { colors, fonts, fontSizes } from '../../styles/theme';
+import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
 export type LiquidationEmptyVariant =
@@ -69,7 +69,15 @@ const LiquidationEmptyStates = React.memo(function LiquidationEmptyStates({
   const cfg = VARIANT_CONFIG[variant];
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: spacing.lg,
+          paddingBottom: 148,
+        },
+      ]}
+    >
       <View style={[styles.icon, { backgroundColor: cfg.bgColor }]}>
         <Icon name={cfg.icon} size={s(48)} color={cfg.iconColor} />
       </View>
@@ -95,7 +103,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 32,
   },
   icon: {
     width: 80,

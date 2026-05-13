@@ -99,6 +99,10 @@ interface StoredProofEnvelope {
 type ProofChangeListener = () => void;
 const proofChangeListeners: Set<ProofChangeListener> = new Set();
 
+interface ProofMutationOptions {
+  notify?: boolean;
+}
+
 /**
  * Subscribe to proof changes (when proofs are added/removed)
  * Returns unsubscribe function
@@ -322,9 +326,7 @@ export const loadProofsForStorageKey = async (storageKey: string): Promise<Cashu
 /**
  * Load proofs from secure storage (non-locking; callers that mutate should lock separately)
  */
-export const loadProofs = async (
-  unit: CashuUnit = DEFAULT_CASHU_UNIT
-): Promise<CashuProof[]> => {
+export const loadProofs = async (unit: CashuUnit = DEFAULT_CASHU_UNIT): Promise<CashuProof[]> => {
   return readProofsUnsafe(getStorageKey(unit));
 };
 
@@ -406,7 +408,8 @@ export const saveProofs = async (
 export const addProofs = async (
   newProofs: CashuProof[],
   verify = true,
-  unit: CashuUnit = DEFAULT_CASHU_UNIT
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  options: ProofMutationOptions = {}
 ): Promise<void> => {
   await withProofLock(async ({ storageKey }) => {
     const existing = await loadProofsForStorageKey(storageKey);
@@ -429,8 +432,9 @@ export const addProofs = async (
     logger.info('Added proofs', { added: uniqueNewProofs.length, total: combined.length });
   }, unit);
 
-  // Notify listeners that proofs have changed (triggers balance refresh)
-  notifyProofChange();
+  if (options.notify !== false) {
+    notifyProofChange();
+  }
 };
 
 /**

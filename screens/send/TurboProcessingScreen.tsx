@@ -57,6 +57,8 @@ export default function TurboProcessingScreen({
   const currentMessageRef = useRef(currentMessage);
   const persistedUnit = useTurboProcessingStore((state) => state.cashuUnit);
   const persistedStartedAt = useTurboProcessingStore((state) => state.startedAt);
+  const persistedSendAmount = useTurboProcessingStore((state) => state.sendAmount);
+  const persistedSendRecipient = useTurboProcessingStore((state) => state.sendRecipient);
   const persistedSenderTaprootAddress = useTurboProcessingStore((state) => state.senderTaprootAddress);
   const cashuUnit = normalizeCashuUnit(route.params?.cashuUnit ?? persistedUnit, DEFAULT_CASHU_UNIT);
   const isBtcCashu = cashuUnit === 'sat';
@@ -93,6 +95,14 @@ export default function TurboProcessingScreen({
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
+
+    const persistedUnitMatches = normalizeCashuUnit(persistedUnit, DEFAULT_CASHU_UNIT) === cashuUnit;
+    const shouldTryResumeExistingToken = Boolean(
+      persistedStartedAt &&
+      persistedSendAmount === sendAmount &&
+      persistedSendRecipient === sendRecipient &&
+      persistedUnitMatches
+    );
 
     // Persist state immediately
     startProcessing({ sendAmount, sendRecipient, cashuUnit, senderTaprootAddress });
@@ -190,9 +200,13 @@ export default function TurboProcessingScreen({
         };
 
         const resumeExistingTokenIfPresent = async (): Promise<boolean> => {
-          if (!persistedStartedAt) {
+          if (!shouldTryResumeExistingToken || !persistedStartedAt) {
             return false;
           }
+
+          setCurrentStep(1);
+          setCurrentMessage('Checking recovery');
+          await updateProgress(1, 'Checking recovery');
 
           const minimumTokenTimestamp = persistedStartedAt - 5000;
           const {
@@ -225,7 +239,11 @@ export default function TurboProcessingScreen({
             clearRecoveredOutgoingSwapToken,
             loadRecoveredOutgoingSwapTokens,
           } = await import('../../services/cashu/cashuSwapRecovery');
-          await checkAndRecoverSwaps();
+          await rejectAfter(
+            checkAndRecoverSwaps(),
+            5000,
+            'Checking Turbo recovery'
+          );
           const recoveredTokens = await loadRecoveredOutgoingSwapTokens();
           const matchingRecoveredToken = recoveredTokens.find(
             (item) =>
@@ -260,8 +278,15 @@ export default function TurboProcessingScreen({
         assertSenderAccountActive();
 
         // Early balance check before attempting to create token
+        setCurrentStep(1);
+        setCurrentMessage('Checking balance');
+        await updateProgress(1, 'Checking balance');
         const { getBalance } = await import('../../services/cashu/cashuBalanceService');
-        const availableBalance = await getBalance(true, cashuUnit);
+        const availableBalance = await rejectAfter(
+          getBalance(true, cashuUnit),
+          5000,
+          'Checking Turbo balance'
+        );
 
         if (availableBalance < amountInSmallestUnits) {
           // Not enough ecash - go back and show the insufficient sheet
@@ -433,6 +458,9 @@ export default function TurboProcessingScreen({
     cashuUnit,
     isBtcCashu,
     persistedStartedAt,
+    persistedSendAmount,
+    persistedSendRecipient,
+    persistedUnit,
     senderTaprootAddress,
     wallet?.taprootAddress,
     startProcessing,

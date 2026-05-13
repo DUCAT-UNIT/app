@@ -12,7 +12,7 @@ import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
 type ProtocolProfile = Parameters<typeof VaultAPI.repo.liquidation.get_profile>[0];
 import { logger } from '../../utils/logger';
 import { fetchProtocolContract } from '../vaultWallet';
-import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, VIN_ALLOWANCE } from './constants';
+import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, UNIT_TO_BTC_RATE, VIN_ALLOWANCE } from './constants';
 import { formatValidatorResponse } from './fetchVaults';
 import type {
   ValidatorLiquidatedVault,
@@ -41,10 +41,6 @@ function roundNumberDown(value: number, decimals = 8): number {
 
 function toBtc(sats: number): number {
   return sats / COIN_SIZE;
-}
-
-function getPortionRate(available: number, required: number, threshold = DUST_BTC, decimals = 6): number {
-  return available - required >= threshold ? 1 : roundNumberDown(available / required, decimals);
 }
 
 // ============================================================
@@ -247,12 +243,13 @@ export function getMaxInvest(
   liquidationData: LiquidVaultProfileWithMeta[],
   investCap?: number
 ): LiquidationInvestStats {
-  if (!btcPrice || !walletSats || !availableCollateralBtc || liquidationData.length === 0) {
+  if (!btcPrice || walletSats <= 0 || liquidationData.length === 0) {
     return { maxInvestBtc: 0, maxClaimAmountBtc: 0, maxSwapBtc: 0, maxSwapUnit: 0, maxVaultCount: 0, lastPortionRate: 1 };
   }
 
-  let collateralRemaining = availableCollateralBtc;
-  let walletBtcRemaining = toBtc(walletSats);
+  let collateralRemaining = Math.max(0, availableCollateralBtc);
+  const walletBtc = toBtc(walletSats);
+  let walletCostBtc = 0;
   let feesBtc = 0;
   let maxInvestBtc = 0;
   let maxClaimAmountBtc = 0;
@@ -262,40 +259,69 @@ export function getMaxInvest(
   let lastPortionRate = 1;
 
   for (const vaultProfile of liquidationData) {
-    if (investCap && maxInvestBtc >= investCap) break;
-    if (walletBtcRemaining - feesBtc <= DUST_BTC || collateralRemaining <= DUST_BTC) break;
+    if (investCap && maxClaimAmountBtc >= investCap) break;
 
     vaultCount++;
     const opcost = getOpCostRepo(feeRate, vaultCount);
     feesBtc = toBtc(opcost);
-    const walletBtcAfterFees = walletBtcRemaining - feesBtc;
+    const walletBtcAvailable = walletBtc - feesBtc - walletCostBtc;
+    if (walletBtcAvailable <= DUST_BTC) {
+      vaultCount--;
+      feesBtc = vaultCount > 0 ? toBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
+      break;
+    }
 
     const { claimAmountBtc, unit } = vaultProfile;
-    const requiredSwapBtc = isAutoSwap ? unit / btcPrice : 0;
+    if (claimAmountBtc <= 0) continue;
 
-    const portionCollateral = getPortionRate(collateralRemaining, claimAmountBtc);
-    const portionSwap = isAutoSwap ? getPortionRate(walletBtcAfterFees, requiredSwapBtc) : 1;
-    const portionRate = isAutoSwap ? Math.min(portionCollateral, portionSwap) : portionCollateral;
+    const capRemaining = investCap ? Math.max(0, investCap - maxClaimAmountBtc) : claimAmountBtc;
+    const maxClaimForVault = Math.min(claimAmountBtc, capRemaining);
+    const requiredSwapBtc = isAutoSwap ? (unit / btcPrice) * UNIT_TO_BTC_RATE : 0;
+    const swapPerClaimBtc = requiredSwapBtc / claimAmountBtc;
 
-    const claimPortion = roundNumberDown(portionRate * claimAmountBtc, 8);
+    const walletCostForClaim = (claimBtc: number): number => {
+      const walletDepositBtc = Math.max(0, claimBtc - collateralRemaining);
+      return walletDepositBtc + claimBtc * swapPerClaimBtc;
+    };
+
+    let claimPortion = maxClaimForVault;
+    if (walletCostForClaim(claimPortion) > walletBtcAvailable) {
+      const collateralOnlySwapCost = collateralRemaining * swapPerClaimBtc;
+      if (walletBtcAvailable <= collateralOnlySwapCost) {
+        claimPortion = swapPerClaimBtc > 0
+          ? walletBtcAvailable / swapPerClaimBtc
+          : Math.min(maxClaimForVault, collateralRemaining);
+      } else {
+        claimPortion = (walletBtcAvailable + collateralRemaining) / (1 + swapPerClaimBtc);
+      }
+    }
+
+    claimPortion = Math.min(maxClaimForVault, Math.max(0, roundNumberDown(claimPortion)));
+    if (claimPortion <= DUST_BTC) {
+      vaultCount--;
+      feesBtc = vaultCount > 0 ? toBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
+      break;
+    }
+
+    const portionRate = claimPortion / claimAmountBtc;
     const swapPortion = roundNumberDown(portionRate * requiredSwapBtc, 8);
     const unitPortion = portionRate * unit;
+    const collateralUsed = Math.min(collateralRemaining, claimPortion);
+    const walletDepositBtc = claimPortion - collateralUsed;
 
-    collateralRemaining -= claimPortion;
-    walletBtcRemaining = walletBtcAfterFees - swapPortion;
-    maxInvestBtc += claimPortion + swapPortion;
+    collateralRemaining -= collateralUsed;
+    walletCostBtc += walletDepositBtc + swapPortion;
     maxClaimAmountBtc += claimPortion;
     maxSwapBtc += swapPortion;
     maxSwapUnit += unitPortion;
     lastPortionRate = portionRate;
 
-    if (investCap && maxInvestBtc > investCap) {
-      maxInvestBtc = investCap - feesBtc;
-    }
+    // The liquidation slider selects claim BTC. Swap and fee costs are shown on review.
+    maxInvestBtc = maxClaimAmountBtc;
   }
 
   return {
-    maxInvestBtc: Number((maxInvestBtc + feesBtc).toFixed(8)),
+    maxInvestBtc: Number(maxInvestBtc.toFixed(8)),
     maxClaimAmountBtc: Number(maxClaimAmountBtc.toFixed(8)),
     maxSwapBtc: Number(maxSwapBtc.toFixed(8)),
     maxSwapUnit: Number(maxSwapUnit.toFixed(2)),

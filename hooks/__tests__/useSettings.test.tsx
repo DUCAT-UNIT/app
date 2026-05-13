@@ -1002,6 +1002,12 @@ describe('useSettings', () => {
 
     it('should handle notifications enable storage error gracefully', async () => {
       (BiometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation((key: string) => {
+        if (key === 'notificationsEnabled') {
+          return Promise.resolve('false');
+        }
+        return Promise.resolve(null);
+      });
       (SecureStore.setItemAsync as jest.Mock).mockImplementation((key: string) => {
         if (key === 'notificationsEnabled') {
           return Promise.reject(new Error('Storage error'));

@@ -25,7 +25,7 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
   profitBtc,
   profitPercent,
   totalBtc,
-  returnBtc,
+  returnBtc: _returnBtc,
   btcPrice,
   showBTC,
 }: LiquidationReviewOverviewProps): React.ReactElement {
@@ -37,11 +37,11 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
   return (
     <ScrollView
       style={styles.body}
-      contentContainerStyle={{ paddingBottom: s(120) }}
+      contentContainerStyle={{ paddingBottom: s(168) }}
       showsVerticalScrollIndicator={false}
     >
       {/* Profit (upper) + Breakdown (lower) -- two-tone card */}
-      <View style={[styles.vaultOuter, { marginTop: 0 }]}>
+      <View style={styles.vaultOuter}>
         {/* Upper: Profit */}
         <View style={styles.reviewUpper}>
           <View style={styles.profitHeader}>
@@ -51,14 +51,10 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
             </View>
           </View>
           <Text style={styles.profitAmount}>
-            {showBTC
-              ? `+${fmt(profitBtc)} BTC`
-              : `+$${(profitBtc * price).toFixed(2)}`}
+            {showBTC ? `+${fmt(profitBtc)} BTC` : `+$${(profitBtc * price).toFixed(2)}`}
           </Text>
           <Text style={styles.profitSub}>
-            {showBTC
-              ? `$ ${(profitBtc * price).toFixed(2)}`
-              : `\u20BF ${fmt(profitBtc)}`}
+            {showBTC ? `$ ${(profitBtc * price).toFixed(2)}` : `\u20BF ${fmt(profitBtc)}`}
           </Text>
         </View>
 
@@ -86,7 +82,7 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
               <Text style={[styles.rowSub, { textAlign: 'left' }]}>from your wallet</Text>
             </View>
             <View>
-              <Text style={[styles.rowValue, { fontFamily: fonts.bold }]}>{fmt(totalBtc)} BTC</Text>
+              <Text style={styles.rowValueEmphasis}>{fmt(totalBtc)} BTC</Text>
               <Text style={styles.rowSub}>$ {(totalBtc * price).toFixed(2)}</Text>
             </View>
           </View>
@@ -119,7 +115,7 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
           <Icon name="wallet" size={s(20)} color={colors.text.secondary} />
           <Text style={styles.getTitle}>You get in your wallet</Text>
         </View>
-        <View style={[styles.getBox, { borderColor: colors.brand.primary, alignSelf: 'center', width: '60%' }]}>
+        <View style={styles.walletUnitBox}>
           <Text style={styles.getBoxValue}>{swapUnit.toFixed(2)} UNIT</Text>
           <Text style={styles.getBoxSub}>to pay the vault debt</Text>
         </View>
@@ -131,21 +127,18 @@ const LiquidationReviewOverview = React.memo(function LiquidationReviewOverview(
 const styles = StyleSheet.create({
   body: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   vaultOuter: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border.default,
   },
   reviewUpper: {
     backgroundColor: colors.bg.secondary,
-    padding: 20,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    padding: 18,
   },
   profitHeader: {
     flexDirection: 'row',
@@ -170,7 +163,7 @@ const styles = StyleSheet.create({
     color: LIQ_GREEN,
   },
   profitAmount: {
-    fontSize: fontSizes.xxl,
+    fontSize: 30,
     fontFamily: fonts.bold,
     color: LIQ_GREEN,
     textAlign: 'center',
@@ -184,9 +177,8 @@ const styles = StyleSheet.create({
   },
   reviewLower: {
     backgroundColor: colors.bg.tertiary,
-    padding: 20,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   row: {
     flexDirection: 'row',
@@ -205,6 +197,12 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     textAlign: 'right',
   },
+  rowValueEmphasis: {
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.bold,
+    color: colors.text.primary,
+    textAlign: 'right',
+  },
   rowSub: {
     fontSize: fontSizes.xs,
     fontFamily: fonts.regular,
@@ -218,9 +216,9 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.bg.secondary,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border.default,
   },
@@ -245,7 +243,16 @@ const styles = StyleSheet.create({
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border.default,
-    borderRadius: 12,
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+  },
+  walletUnitBox: {
+    width: '68%',
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: colors.brand.primary,
+    borderRadius: 10,
     padding: 12,
     alignItems: 'center',
   },

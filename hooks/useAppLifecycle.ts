@@ -1,7 +1,6 @@
 /**
  * useAppLifecycle Hook
  * Manages app lifecycle events including:
- * - Screen capture prevention (always enabled for security)
  * - App state changes (background/foreground)
  * - Inactivity timer for auto-lock
  * - Cleanup on unmount
@@ -9,7 +8,6 @@
 
 import { useEffect, useRef, useCallback, MutableRefObject } from 'react';
 import { AppState, AppStateStatus, Platform, PlatformIOSStatic } from 'react-native';
-import * as ScreenCapture from 'expo-screen-capture';
 
 const IS_IPAD = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true;
 import { logger } from '../utils/logger';
@@ -80,20 +78,6 @@ export function useAppLifecycle({
   useEffect(() => {
     biometricEnabledRef.current = biometricEnabled;
   }, [biometricEnabled]);
-
-  // Protect wallet screens from screenshots/recordings. E2E keeps capture enabled so
-  // Maestro and test diagnostics can still inspect the UI.
-  useEffect(() => {
-    const configureScreenCapture = isE2E()
-      ? ScreenCapture.allowScreenCaptureAsync
-      : ScreenCapture.preventScreenCaptureAsync;
-
-    configureScreenCapture().catch(() => {});
-
-    return () => {
-      ScreenCapture.allowScreenCaptureAsync().catch(() => {});
-    };
-  }, []);
 
   // Handle app state changes (background/foreground)
   useEffect(() => {

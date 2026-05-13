@@ -26,7 +26,7 @@ import styles from '../styles';
 interface PasskeyMigrationModalProps {
   visible: boolean;
   onClose: () => void;
-  onPasskeyEnabled?: () => void;
+  onPasskeyEnabled?: () => void | Promise<void>;
   currentPin?: string | null;
   mode?: 'import' | 'upgrade';
   showToast: (message: string, type: 'success' | 'error') => void;
@@ -95,7 +95,13 @@ export default function PasskeyMigrationModal({
       });
 
       showToast(successMessage, 'success');
-      onPasskeyEnabled?.();
+      try {
+        await onPasskeyEnabled?.();
+      } catch (callbackError: unknown) {
+        logger.warn('[PasskeyMigrationModal] Post-passkey setup callback failed', {
+          error: callbackError instanceof Error ? callbackError.message : String(callbackError),
+        });
+      }
       onClose();
     } catch (error: unknown) {
       logger.error(error instanceof Error ? error : new Error(String(error)), {

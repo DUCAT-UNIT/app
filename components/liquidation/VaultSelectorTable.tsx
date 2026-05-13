@@ -80,8 +80,8 @@ const VaultSelectorTable = React.memo(function VaultSelectorTable({
             <Text style={styles.colHeader}>Claim</Text>
           </View>
           {selectedDisplay.length === 0 ? (
-            <View style={{ padding: 16, alignItems: 'center' }}>
-              <Text style={{ color: colors.text.secondary, fontSize: fontSizes.sm }}>
+            <View style={styles.emptyVaultState}>
+              <Text style={styles.emptyVaultText}>
                 {!vaultsLoaded
                   ? 'Loading vaults...'
                   : vaults.length === 0
@@ -137,13 +137,17 @@ const VaultSelectorTable = React.memo(function VaultSelectorTable({
                 </View>
                 <View style={styles.rowValue}>
                   <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
-                  <Text style={styles.rowText}>{formatFiat(vault.unit, 2)}</Text>
+                  <Text style={styles.rowText} numberOfLines={1}>
+                    {formatFiat(vault.unit, 2)}
+                  </Text>
                 </View>
                 <View style={styles.rowValue}>
                   <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
-                  <Text style={styles.rowText}>{vault.btcInVault.toFixed(6)}</Text>
+                  <Text style={styles.rowText} numberOfLines={1}>
+                    {vault.btcInVault.toFixed(6)}
+                  </Text>
                 </View>
-                <Text style={[styles.rowText, { flex: 1, textAlign: 'center' }]}>
+                <Text style={styles.claimText} numberOfLines={1}>
                   {showBTC
                     ? `${vault.claimAmountBtc.toFixed(6)} \u20BF`
                     : `$${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}`}
@@ -160,7 +164,7 @@ const VaultSelectorTable = React.memo(function VaultSelectorTable({
 const styles = StyleSheet.create({
   vaultOuter: {
     marginTop: 12,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   vaultUpper: {
     backgroundColor: colors.bg.secondary,
@@ -169,7 +173,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border.default,
     zIndex: 2,
@@ -191,11 +195,14 @@ const styles = StyleSheet.create({
   },
   vaultLower: {
     backgroundColor: colors.bg.tertiary,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
-    marginTop: -16,
-    paddingTop: 24,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
+    marginTop: -14,
+    paddingTop: 22,
     paddingBottom: 4,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.border.default,
     zIndex: 1,
   },
   tableHeader: {
@@ -203,7 +210,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.bg.tertiary,
+    borderBottomColor: colors.border.light,
   },
   colHeader: {
     flex: 1,
@@ -230,11 +237,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    minWidth: 0,
   },
   rowText: {
     fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
     color: colors.text.primary,
+  },
+  claimText: {
+    flex: 1,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptyVaultState: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyVaultText: {
+    color: colors.text.secondary,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.regular,
+    textAlign: 'center',
   },
 });
 

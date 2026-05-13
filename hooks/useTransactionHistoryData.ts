@@ -38,7 +38,7 @@ interface TxData {
   isReceived: boolean;
   isSelfTransfer?: boolean;
   isAutoclaim?: boolean;
-  displayKind?: 'turbo_mint_claim';
+  displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
 }
 
 export interface ProcessedTransaction extends Transaction {
@@ -229,13 +229,19 @@ export function useTransactionHistoryData(
     const selfClaimedSentTokenIds = findSelfClaimedTokenIds(ecashTokens, currentPubkeyHex, taprootAddress);
     const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress) as ProcessedTransaction[];
 
-    const confirmedTxids = new Set(transactionHistory.map(tx => tx.txid));
+    const confirmedTxids = new Set(
+      transactionHistory.filter(tx => tx.status?.confirmed).map(tx => tx.txid)
+    );
     const pendingTxs = processPendingTransactions(
       pendingTransactions as unknown as Record<string, PendingTx>,
       undefined,
       confirmedTxids,
       { turboMintClaimTxids },
     ) as ProcessedTransaction[];
+    const pendingTxids = new Set(pendingTxs.map(tx => tx.txid));
+    const visibleRegularTxs = regularTxs.filter(
+      tx => !(pendingTxids.has(tx.txid) && tx.status?.confirmed !== true)
+    );
 
     const indexedEvmTxids = new Set([...visibleUsdcHistory, ...visibleEthHistory].map((tx) => tx.txid.toLowerCase()));
     const checkpointTxs = usdcFeaturesEnabled
@@ -262,7 +268,7 @@ export function useTransactionHistoryData(
       },
     })) as ProcessedTransaction[];
 
-    return mergeAndSortTransactions(pendingTxs, regularTxs, ecashTxs, evmTxs) as unknown as ProcessedTransaction[];
+    return mergeAndSortTransactions(pendingTxs, visibleRegularTxs, ecashTxs, evmTxs) as unknown as ProcessedTransaction[];
   }, [
     transactionHistory,
     ecashTokens,

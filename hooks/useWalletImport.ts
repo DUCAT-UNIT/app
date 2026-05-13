@@ -6,13 +6,14 @@
  * - Handles seed input refs for focus management
  */
 
-import { useState, useRef, MutableRefObject } from 'react';
+import { useEffect, useState, useRef, MutableRefObject } from 'react';
 import { TextInput } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 import { isE2E } from '../utils/e2e';
+import { consumeSeedRestoreRequest } from '../utils/onboardingHelpers';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 
@@ -51,7 +52,27 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
   // SECURITY: Only expose a boolean flag via React state to avoid holding the mnemonic
   // in the component tree / React DevTools. The actual value lives only in the ref.
   const importedMnemonicRef = useRef<string | null>(null);
-  const [hasImportedMnemonic, setHasImportedMnemonic] = useState(false);
+  const [_hasImportedMnemonic, setHasImportedMnemonic] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    consumeSeedRestoreRequest()
+      .then((shouldOpenSeedRestore) => {
+        if (mounted && shouldOpenSeedRestore) {
+          setImportingWallet(true);
+        }
+      })
+      .catch((error: unknown) => {
+        logger.warn('[useWalletImport] Failed to consume seed restore request', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const setImportedMnemonic = (value: string | null) => {
     importedMnemonicRef.current = value;

@@ -4,7 +4,11 @@
  */
 
 import React from 'react';
-import { createStackNavigator, StackNavigationOptions, StackCardStyleInterpolator } from '@react-navigation/stack';
+import {
+  createStackNavigator,
+  StackNavigationOptions,
+  StackCardStyleInterpolator,
+} from '@react-navigation/stack';
 import { withErrorBoundary } from '../components/withErrorBoundary';
 import WalletPageComponent from '../pages/WalletPage';
 import AssetDetailScreenComponent from '../screens/wallet/AssetDetailScreen';
@@ -17,7 +21,9 @@ import SwapScreenComponent from '../screens/bridge/SwapScreen';
 import SwapSummaryScreenComponent from '../screens/bridge/SwapSummaryScreen';
 import RedeemScreenComponent from '../screens/bridge/RedeemScreen';
 import SepoliaSendScreenComponent from '../screens/bridge/SepoliaSendScreen';
+import SettingsHomeScreenComponent from '../screens/settings/SettingsHomeScreen';
 import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
+import QuantaLinkScreenComponent from '../screens/settings/QuantaLinkScreen';
 import AboutScreenComponent from '../screens/settings/AboutScreen';
 import TermsOfServiceScreenComponent from '../screens/settings/TermsOfServiceScreen';
 import PrivacyPolicyScreenComponent from '../screens/settings/PrivacyPolicyScreen';
@@ -27,7 +33,7 @@ import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
 import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { COLORS } from '../theme';
 
-import type { WalletStackParamList } from './types';
+import type { RootNavigatorParamList, WalletStackParamList } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyComponent = React.ComponentType<any>;
@@ -89,9 +95,19 @@ const SepoliaSendScreen: AnyComponent = withErrorBoundary(SepoliaSendScreenCompo
   fallbackMessage: 'Unable to load the USDC send screen. Please try again.',
 });
 
+const SettingsHomeScreen: AnyComponent = withErrorBoundary(SettingsHomeScreenComponent, {
+  boundaryName: 'SettingsHomeScreen',
+  fallbackMessage: 'Unable to load settings. Please try again.',
+});
+
 const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenComponent, {
   boundaryName: 'CashuSettingsScreen',
   fallbackMessage: 'Unable to load Cashu settings. Please try again.',
+});
+
+const QuantaLinkScreen: AnyComponent = withErrorBoundary(QuantaLinkScreenComponent, {
+  boundaryName: 'QuantaLinkScreen',
+  fallbackMessage: 'Unable to load Quanta linking. Please try again.',
 });
 
 const AboutScreen: AnyComponent = withErrorBoundary(AboutScreenComponent, {
@@ -165,8 +181,54 @@ const GatedSwapSummaryScreen = withUsdcFeatureGate(SwapSummaryScreen);
 const GatedRedeemScreen = withUsdcFeatureGate(RedeemScreen);
 const GatedSepoliaSendScreen = withUsdcFeatureGate(SepoliaSendScreen);
 
-
 const Stack = createStackNavigator<WalletStackParamList>();
+
+type WalletStackNavigatorProps = {
+  onActiveRouteNameChange?: (routeName: keyof WalletStackParamList) => void;
+  redirectHomeToMain?: boolean;
+};
+
+type WalletStackState = {
+  index?: number;
+  routes?: Array<{ name?: string }>;
+};
+
+function getActiveWalletRouteName(state?: WalletStackState): keyof WalletStackParamList {
+  if (!state?.routes?.length) {
+    return 'WalletHome';
+  }
+
+  const index = typeof state.index === 'number' ? state.index : 0;
+  const routeName = state.routes[index]?.name ?? 'WalletHome';
+  return routeName as keyof WalletStackParamList;
+}
+
+type WalletHomeRedirectNavigation = {
+  getParent?: () =>
+    | {
+        canGoBack?: () => boolean;
+        goBack?: () => void;
+        navigate?: <T extends keyof RootNavigatorParamList>(
+          screen: T,
+          params?: RootNavigatorParamList[T]
+        ) => void;
+      }
+    | undefined;
+};
+
+function WalletHomeRedirect({ navigation }: { navigation: WalletHomeRedirectNavigation }): null {
+  React.useEffect(() => {
+    const parent = navigation.getParent?.();
+    if (parent?.goBack && parent.canGoBack?.()) {
+      parent.goBack();
+      return;
+    }
+
+    parent?.navigate?.('Main', { screen: 'WalletTab', params: undefined });
+  }, [navigation]);
+
+  return null;
+}
 
 // Custom card style interpolator for slide from right animation
 const slideFromRight: StackCardStyleInterpolator = ({ current, layouts }) => {
@@ -253,9 +315,21 @@ const detailScreenOptions: StackNavigationOptions = {
   cardStyleInterpolator: slideFromRight,
 };
 
-export default function WalletStackNavigator(): React.JSX.Element {
+export default function WalletStackNavigator({
+  onActiveRouteNameChange,
+  redirectHomeToMain = false,
+}: WalletStackNavigatorProps): React.JSX.Element {
+  React.useEffect(() => {
+    onActiveRouteNameChange?.('WalletHome');
+  }, [onActiveRouteNameChange]);
+
   return (
     <Stack.Navigator
+      screenListeners={{
+        state: (event) => {
+          onActiveRouteNameChange?.(getActiveWalletRouteName(event.data.state as WalletStackState));
+        },
+      }}
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: COLORS.DARK_BG },
@@ -272,7 +346,7 @@ export default function WalletStackNavigator(): React.JSX.Element {
     >
       <Stack.Screen
         name="WalletHome"
-        component={WalletPage}
+        component={redirectHomeToMain ? WalletHomeRedirect : WalletPage}
       />
       <Stack.Screen
         name="AssetDetail"
@@ -284,21 +358,9 @@ export default function WalletStackNavigator(): React.JSX.Element {
         component={VaultDetailScreen}
         options={detailScreenOptions}
       />
-      <Stack.Screen
-        name="ReceiveQR"
-        component={ReceiveQRScreen}
-        options={detailScreenOptions}
-      />
-      <Stack.Screen
-        name="UnitBridge"
-        component={GatedBridgeScreen}
-        options={detailScreenOptions}
-      />
-      <Stack.Screen
-        name="SepoliaSwap"
-        component={GatedSwapScreen}
-        options={detailScreenOptions}
-      />
+      <Stack.Screen name="ReceiveQR" component={ReceiveQRScreen} options={detailScreenOptions} />
+      <Stack.Screen name="UnitBridge" component={GatedBridgeScreen} options={detailScreenOptions} />
+      <Stack.Screen name="SepoliaSwap" component={GatedSwapScreen} options={detailScreenOptions} />
       <Stack.Screen
         name="SepoliaSwapSummary"
         component={GatedSwapSummaryScreen}
@@ -325,30 +387,28 @@ export default function WalletStackNavigator(): React.JSX.Element {
         options={detailScreenOptions}
       />
       <Stack.Screen
+        name="SettingsHome"
+        component={SettingsHomeScreen}
+        options={settingsScreenOptions}
+      />
+      <Stack.Screen
         name="Preferences"
         component={PreferencesScreen}
         options={settingsScreenOptions}
       />
-      <Stack.Screen
-        name="Security"
-        component={SecurityScreen}
-        options={settingsScreenOptions}
-      />
-      <Stack.Screen
-        name="Advanced"
-        component={AdvancedScreen}
-        options={settingsScreenOptions}
-      />
+      <Stack.Screen name="Security" component={SecurityScreen} options={settingsScreenOptions} />
+      <Stack.Screen name="Advanced" component={AdvancedScreen} options={settingsScreenOptions} />
       <Stack.Screen
         name="CashuSettings"
         component={CashuSettingsScreen}
         options={settingsScreenOptions}
       />
       <Stack.Screen
-        name="About"
-        component={AboutScreen}
+        name="QuantaLink"
+        component={QuantaLinkScreen}
         options={settingsScreenOptions}
       />
+      <Stack.Screen name="About" component={AboutScreen} options={settingsScreenOptions} />
       <Stack.Screen
         name="TermsOfService"
         component={TermsOfServiceScreen}

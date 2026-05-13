@@ -51,6 +51,7 @@ export interface BaseTokenRecord {
   claimed?: boolean;
   claimedAt?: number | null;
   partiallySpent?: boolean;
+  pendingRedeem?: boolean;
   unit?: CashuUnit;
 }
 
@@ -425,10 +426,17 @@ export const saveReceivedToken = async (
   sender: string,
   amount: number,
   taprootAddress: string,
-  unit: CashuUnit = DEFAULT_CASHU_UNIT
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  options: { pendingRedeem?: boolean } = {}
 ): Promise<void> => {
   try {
-    logger.info('Saving received token', { sender, amount, taprootAddress, unit });
+    logger.info('Saving received token', {
+      sender,
+      amount,
+      taprootAddress,
+      unit,
+      pendingRedeem: options.pendingRedeem === true,
+    });
 
     // Load existing tokens strictly so corrupt history is not overwritten.
     const existingTokens = await loadTokenRecords<ReceivedTokenRecord>(RECEIVED_TOKENS_KEY, 'received');
@@ -443,6 +451,7 @@ export const saveReceivedToken = async (
         taprootAddress: taprootAddress || existing.taprootAddress || null,
         unit,
         type: existing.type || 'receive',
+        pendingRedeem: options.pendingRedeem === true,
       };
     } else {
       // Add new token with metadata
@@ -455,6 +464,7 @@ export const saveReceivedToken = async (
         unit,
         id: `received_${Date.now()}`, // Unique ID
         type: 'receive', // Transaction type
+        pendingRedeem: options.pendingRedeem === true,
       };
 
       existingTokens.push(tokenRecord);
@@ -464,7 +474,9 @@ export const saveReceivedToken = async (
     const tokensToStore = limitStoredTokens(existingTokens);
 
     await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(tokensToStore), DEVICE_ONLY);
-    await markMatchingSentTokenClaimed(token);
+    if (options.pendingRedeem !== true) {
+      await markMatchingSentTokenClaimed(token);
+    }
 
     logger.info('Received token saved', { totalStored: tokensToStore.length });
 
@@ -473,6 +485,23 @@ export const saveReceivedToken = async (
   } catch (error: unknown) {
     logger.error('Failed to save received token', { error: (error as Error).message });
     throw error;
+  }
+};
+
+export const deleteReceivedTokenByToken = async (token: string): Promise<void> => {
+  try {
+    const tokens = await loadTokenRecords<ReceivedTokenRecord>(RECEIVED_TOKENS_KEY, 'received');
+    const updatedTokens = tokens.filter((receivedToken) => receivedToken.token !== token);
+    if (updatedTokens.length === tokens.length) {
+      return;
+    }
+
+    await SecureStore.setItemAsync(RECEIVED_TOKENS_KEY, JSON.stringify(updatedTokens), DEVICE_ONLY);
+    notifyTokenChange();
+  } catch (error: unknown) {
+    logger.warn('Failed to delete received token', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 

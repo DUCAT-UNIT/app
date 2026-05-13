@@ -49,6 +49,7 @@ const mockGetCurrentAccount = jest.fn();
 const mockReceiveP2PKToken = jest.fn();
 const mockReceiveToken = jest.fn();
 const mockSaveReceivedToken = jest.fn();
+const mockDeleteReceivedTokenByToken = jest.fn();
 
 jest.mock('../../services/cashu/cashuWalletService', () => ({
   decodeTokenMetadata: (...args: unknown[]) => mockDecodeToken(...args),
@@ -65,6 +66,7 @@ jest.mock('../../services/secureStorageService', () => ({
 
 jest.mock('../../services/cashu/cashuLockedTokensService', () => ({
   saveReceivedToken: (...args: unknown[]) => mockSaveReceivedToken(...args),
+  deleteReceivedTokenByToken: (...args: unknown[]) => mockDeleteReceivedTokenByToken(...args),
 }));
 
 // Type for the hook's return value
@@ -117,6 +119,7 @@ describe('useRedeemCashuToken', () => {
     mockReceiveP2PKToken.mockResolvedValue({ amount: 100, proofCount: 1 });
     mockReceiveToken.mockResolvedValue({ amount: 100, proofCount: 1 });
     mockSaveReceivedToken.mockResolvedValue(undefined);
+    mockDeleteReceivedTokenByToken.mockResolvedValue(undefined);
   });
 
   it('should return handleRedeemToken function', () => {

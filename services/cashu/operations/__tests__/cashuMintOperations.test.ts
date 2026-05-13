@@ -97,7 +97,7 @@ describe('cashuMintOperations', () => {
     it('should request a mint quote successfully', async () => {
       (createMintQuote as jest.Mock).mockResolvedValue({
         quote: 'quote123',
-        amount: 100,
+        amount: 2355,
         request: 'tb1p...',
         expiry: 1234567890,
         state: 'UNPAID',
@@ -105,7 +105,7 @@ describe('cashuMintOperations', () => {
 
       const result = await requestMint(100);
 
-      expect(createMintQuote).toHaveBeenCalledWith(pubkey);
+      expect(createMintQuote).toHaveBeenCalledWith(pubkey, 'unit');
       expect(result).toEqual({
         quoteId: 'quote123',
         amount: 100,
@@ -113,6 +113,20 @@ describe('cashuMintOperations', () => {
         expiry: 1234567890,
         state: 'UNPAID',
       });
+    });
+
+    it('should keep sending an amount for sat onchain mint quotes', async () => {
+      (createMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote-sat',
+        request: 'tb1pbtc...',
+        expiry: 1234567890,
+        state: 'UNPAID',
+        unit: 'sat',
+      });
+
+      await requestMint(1000, 'sat');
+
+      expect(createMintQuote).toHaveBeenCalledWith(pubkey, 'sat', 1000);
     });
 
     it('should throw error on failure', async () => {
@@ -286,6 +300,131 @@ describe('cashuMintOperations', () => {
 
       expect(result).toHaveLength(1);
       expect(splitAmount).toHaveBeenCalledWith(8);
+    });
+
+    it('should not claim more than the amount requested by the flow', async () => {
+      const proofs = [
+        { amount: 512, secret: 's1', C: 'C', id: 'id' },
+        { amount: 256, secret: 's2', C: 'C', id: 'id' },
+        { amount: 128, secret: 's3', C: 'C', id: 'id' },
+        { amount: 64, secret: 's4', C: 'C', id: 'id' },
+        { amount: 32, secret: 's5', C: 'C', id: 'id' },
+        { amount: 8, secret: 's6', C: 'C', id: 'id' },
+      ];
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [
+          {
+            id: 'keyset1',
+            unit: 'unit',
+            active: true,
+            keys: {
+              8: 'key8',
+              32: 'key32',
+              64: 'key64',
+              128: 'key128',
+              256: 'key256',
+              512: 'key512',
+            },
+          },
+        ],
+      });
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 2355,
+        amount_issued: 0,
+        pubkey,
+      });
+      (splitAmount as jest.Mock).mockReturnValue([512, 256, 128, 64, 32, 8]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [
+          { amount: 512 },
+          { amount: 256 },
+          { amount: 128 },
+          { amount: 64 },
+          { amount: 32 },
+          { amount: 8 },
+        ],
+        blindingData: [{}, {}, {}, {}, {}, {}],
+      });
+      (mintTokens as jest.Mock).mockResolvedValue({
+        signatures: [
+          { id: 'keyset1' },
+          { id: 'keyset1' },
+          { id: 'keyset1' },
+          { id: 'keyset1' },
+          { id: 'keyset1' },
+          { id: 'keyset1' },
+        ],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue(proofs);
+
+      const result = await completeMint('quote123', 1000);
+
+      expect(result).toEqual(proofs);
+      expect(splitAmount).toHaveBeenCalledWith(1000);
+      expect(persistMintQuoteClaim).toHaveBeenCalledWith(
+        'quote123',
+        expect.objectContaining({ amount: 1000 })
+      );
+      expect(addProofs).toHaveBeenCalledWith(proofs);
+    });
+
+    it('rejects extra available amount when exact mint completion is required', async () => {
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [
+          {
+            id: 'keyset1',
+            unit: 'unit',
+            active: true,
+            keys: { 1: 'key1' },
+          },
+        ],
+      });
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 2355,
+        amount_issued: 0,
+        pubkey,
+      });
+
+      await expect(
+        completeMint('quote123', 1000, 'unit', { requireExactAmount: true })
+      ).rejects.toThrow('Mint quote has 2355 available; expected exactly 1000');
+
+      expect(splitAmount).not.toHaveBeenCalled();
+      expect(mintTokens).not.toHaveBeenCalled();
+      expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('can save minted proofs without notifying balance listeners', async () => {
+      const proofs = [{ amount: 64, secret: 's1', C: 'C', id: 'id' }];
+      (getOrFetchKeys as jest.Mock).mockResolvedValue({
+        keysets: [{ id: 'keyset1', unit: 'unit', active: true, keys: { 64: 'key64' } }],
+      });
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        state: 'PAID',
+        amount_paid: 64,
+        amount_issued: 0,
+        pubkey,
+      });
+      (splitAmount as jest.Mock).mockReturnValue([64]);
+      (createBlindedOutputs as jest.Mock).mockResolvedValue({
+        outputs: [{ amount: 64 }],
+        blindingData: [{}],
+      });
+      (mintTokens as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset1' }],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue(proofs);
+
+      const result = await completeMint('quote123', 64, 'unit', { notifyProofChange: false });
+
+      expect(result).toEqual(proofs);
+      expect(addProofs).toHaveBeenCalledWith(proofs, true, 'unit', { notify: false });
+      expect(removeMintQuote).toHaveBeenCalledWith('quote123');
     });
 
     it('should abort before asking the mint for signatures if quote recovery cannot be persisted', async () => {

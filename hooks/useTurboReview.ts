@@ -47,7 +47,7 @@ export function useTurboReview({
   setTurboEnabled,
   setSendRecipient,
   setSendAmount,
-  ecashThreshold,
+  ecashThreshold: _ecashThreshold,
   navigation,
   isCashuMint,
   cashuQuoteId,
@@ -65,21 +65,8 @@ export function useTurboReview({
       return;
     }
 
-    // Auto-enable Turbo for UNIT transactions less than threshold
-    // ecashThreshold is in cents, sendAmount is in display units — convert for comparison
-    let shouldUseTurbo = turboEnabled;
-    if (sendAssetType === 'unit') {
-      const displayAmount = parseFloat(sendAmount);
-      const thresholdDisplay = ecashThreshold / 100;
-      if (displayAmount < thresholdDisplay && !turboEnabled) {
-        logger.debug(`[useTurboReview] Auto-enabling Turbo for < ${thresholdDisplay} UNIT`);
-        setTurboEnabled(true);
-        shouldUseTurbo = true;
-      }
-    }
-
     // Turbo mode for UNIT transfers
-    if (shouldUseTurbo && sendAssetType === 'unit') {
+    if (turboEnabled && sendAssetType === 'unit') {
       try {
         setIsRequestingMint(true);
 
@@ -111,7 +98,10 @@ export function useTurboReview({
         setIsRequestingMint(false);
         setInsufficientTurboAmount(displayAmount);
         // Convert smallest units back to display units for UI
-        setInsufficientTurboBalance(ecashBalanceSmallestUnits / 100);
+        // The top-up path intentionally mints the full requested token amount.
+        // Existing spendable Turbo change is left alone so stale/recovered
+        // leftovers cannot be mixed into a new recipient token.
+        setInsufficientTurboBalance(0);
         setShowInsufficientTurboSheet(true);
         return;
       } catch (error: unknown) {
@@ -133,8 +123,6 @@ export function useTurboReview({
     sendAmount,
     sendAssetType,
     turboEnabled,
-    ecashThreshold,
-    setTurboEnabled,
     navigation,
     isCashuMint,
     cashuQuoteId,
@@ -149,24 +137,21 @@ export function useTurboReview({
     try {
       setIsRequestingMint(true);
 
-      // Calculate the difference needed to mint (not the full amount)
-      // insufficientTurboAmount is in display units, insufficientTurboBalance is also in display units
-      // Convert to smallest units (integer) for the mint request
-      const differenceDisplayUnits = insufficientTurboAmount - insufficientTurboBalance;
-      const differenceSmallestUnits = Math.round(differenceDisplayUnits * 100);
+      // Mint the full send amount when topping up. Partial top-ups can race with
+      // proof spends/recovery and leave the P2PK token creation short of funds.
       const fullTurboAmountSmallestUnits = Math.round(insufficientTurboAmount * 100);
       logger.debug('[useTurboReview] Calculating mint amount:', {
         totalRequired: insufficientTurboAmount,
         currentBalance: insufficientTurboBalance,
-        differenceDisplayUnits,
-        differenceSmallestUnits,
+        mintAmount: fullTurboAmountSmallestUnits,
       });
 
       if (!senderTaprootAddress) {
         throw new Error('Wallet Taproot address unavailable for Turbo recovery');
       }
 
-      const mintQuote = await requestMint(differenceSmallestUnits);
+      const mintQuote = await requestMint(fullTurboAmountSmallestUnits);
+      const requestedMintAmount = fullTurboAmountSmallestUnits;
       const originalRecipient = sendRecipient;
       await savePendingTurboSend(
         mintQuote.quoteId,
@@ -174,31 +159,26 @@ export function useTurboReview({
         fullTurboAmountSmallestUnits,
         senderTaprootAddress,
         undefined,
-        mintQuote.amount
+        requestedMintAmount
       );
 
       logger.debug('[useTurboReview] Mint quote received:', {
         quoteId: mintQuote.quoteId,
         depositAddress: mintQuote.depositAddress,
         quoteAmount: mintQuote.amount,
+        requestedMintAmount,
       });
 
-      // The mint quote is for the difference amount
-      // After minting completes, we'll send the FULL original amount to the recipient
-      if (mintQuote.amount === undefined) {
-        throw new Error('Mint quote amount is undefined');
-      }
-
-      // sendAmount for the BTC transaction is the difference (to mint)
-      const quoteDisplayAmount = (mintQuote.amount / 100).toString();
+      // sendAmount for the funding transaction is the exact Turbo token amount.
+      const quoteDisplayAmount = (requestedMintAmount / 100).toString();
       logger.debug('[useTurboReview] Mint flow setup:', {
         originalSendAmount: sendAmount,
-        mintDifferenceAmount: mintQuote.amount,
+        mintAmount: requestedMintAmount,
         btcSendAmount: quoteDisplayAmount,
         finalTurboAmount: insufficientTurboAmount,
       });
 
-      // Set send amount to the mint difference (this is the BTC we send to the mint)
+      // Set send amount to the full mint amount. The existing Turbo balance stays untouched.
       setSendAmount(quoteDisplayAmount);
       setSendRecipient(mintQuote.depositAddress);
       setIsRequestingMint(false);
@@ -209,7 +189,7 @@ export function useTurboReview({
         isTurbo: true,
         mintQuoteId: mintQuote.quoteId,
         mintAmount: fullTurboAmountSmallestUnits, // Full amount to send after minting
-        mintClaimAmount: mintQuote.amount,
+        mintClaimAmount: requestedMintAmount,
         turboRecipient: originalRecipient,
         senderTaprootAddress,
         assetType: 'unit',

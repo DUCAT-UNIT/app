@@ -48,7 +48,7 @@ function getOppositeNetworkError(): string {
 
 function matchesPrefix(address: string, prefixes: string[]): boolean {
   const lower = address.toLowerCase();
-  return prefixes.some(prefix => lower.startsWith(prefix.toLowerCase()));
+  return prefixes.some((prefix) => lower.startsWith(prefix.toLowerCase()));
 }
 
 /**
@@ -59,24 +59,24 @@ export const validateNetworkConfig = (): boolean => {
   if (BITCOIN_NETWORK.bech32 !== EXPECTED_NETWORK_CONFIG.bech32Prefix) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected ${EXPECTED_NETWORK_CONFIG.name} bech32 prefix ${EXPECTED_NETWORK_CONFIG.bech32Prefix}, ` +
-      `but found: ${BITCOIN_NETWORK.bech32}.`
+        `Expected ${EXPECTED_NETWORK_CONFIG.name} bech32 prefix ${EXPECTED_NETWORK_CONFIG.bech32Prefix}, ` +
+        `but found: ${BITCOIN_NETWORK.bech32}.`
     );
   }
 
   if (BITCOIN_NETWORK.pubKeyHash !== EXPECTED_NETWORK_CONFIG.pubKeyHash) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected ${EXPECTED_NETWORK_CONFIG.name} pubKeyHash (0x${EXPECTED_NETWORK_CONFIG.pubKeyHash.toString(16)}), ` +
-      `but found: 0x${BITCOIN_NETWORK.pubKeyHash.toString(16)}.`
+        `Expected ${EXPECTED_NETWORK_CONFIG.name} pubKeyHash (0x${EXPECTED_NETWORK_CONFIG.pubKeyHash.toString(16)}), ` +
+        `but found: 0x${BITCOIN_NETWORK.pubKeyHash.toString(16)}.`
     );
   }
 
   if (BITCOIN_NETWORK.scriptHash !== EXPECTED_NETWORK_CONFIG.scriptHash) {
     throw new Error(
       `CRITICAL: Network misconfiguration detected! ` +
-      `Expected ${EXPECTED_NETWORK_CONFIG.name} scriptHash (0x${EXPECTED_NETWORK_CONFIG.scriptHash.toString(16)}), ` +
-      `but found: 0x${BITCOIN_NETWORK.scriptHash.toString(16)}.`
+        `Expected ${EXPECTED_NETWORK_CONFIG.name} scriptHash (0x${EXPECTED_NETWORK_CONFIG.scriptHash.toString(16)}), ` +
+        `but found: 0x${BITCOIN_NETWORK.scriptHash.toString(16)}.`
     );
   }
 
@@ -84,8 +84,10 @@ export const validateNetworkConfig = (): boolean => {
 };
 
 export interface DerivedAddresses {
+  legacyAddress?: string;
   segwitAddress: string;
   taprootAddress: string;
+  legacyPubkey?: string;
   segwitPubkey: string;
   taprootPubkey: string;
 }
@@ -94,7 +96,7 @@ export interface DerivedAddresses {
  * Derive SegWit and Taproot addresses from a BIP39 mnemonic
  * @param mnemonic - BIP39 mnemonic phrase
  * @param accountIndex - Account index for derivation (default: 0)
- * @param derivationMode - Wallet derivation mode (defaults to BIP44/BIP84/BIP86 account isolation)
+ * @param derivationMode - Wallet derivation mode (defaults to external address-index derivation)
  * @returns Object containing segwitAddress, taprootAddress, segwitPubkey, taprootPubkey
  */
 export const deriveAddressesFromMnemonic = (
@@ -107,6 +109,16 @@ export const deriveAddressesFromMnemonic = (
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   const root = bip32.fromSeed(seed, BITCOIN_NETWORK);
   const derivationPaths = getDerivationPathSet(derivationMode);
+  const legacyPath = derivationPaths.LEGACY(accountIndex);
+  const legacyChild = root.derivePath(legacyPath);
+  const legacyPayment = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2wpkh({
+      pubkey: legacyChild.publicKey,
+      network: BITCOIN_NETWORK,
+    }),
+    network: BITCOIN_NETWORK,
+  });
+
   const segwitPath = derivationPaths.SEGWIT(accountIndex);
   const segwitChild = root.derivePath(segwitPath);
   const segwitPayment = bitcoin.payments.p2wpkh({
@@ -122,6 +134,9 @@ export const deriveAddressesFromMnemonic = (
     network: BITCOIN_NETWORK,
   });
 
+  if (!legacyPayment.address) {
+    throw new Error('Failed to generate nested SegWit address from public key');
+  }
   if (!segwitPayment.address) {
     throw new Error('Failed to generate SegWit address from public key');
   }
@@ -130,8 +145,10 @@ export const deriveAddressesFromMnemonic = (
   }
 
   return {
+    legacyAddress: legacyPayment.address,
     segwitAddress: segwitPayment.address,
     taprootAddress: taprootPayment.address,
+    legacyPubkey: Buffer.from(legacyChild.publicKey).toString('hex'),
     segwitPubkey: Buffer.from(segwitChild.publicKey).toString('hex'),
     taprootPubkey: Buffer.from(xOnlyPubkey).toString('hex'), // Use x-only pubkey (32 bytes) for Taproot
   };

@@ -47,15 +47,7 @@ export default function DepositSuccessScreen({ navigation, route }: DepositSucce
         {
           name: 'Main',
           state: {
-            routes: [
-              {
-                name: 'WalletTab',
-                state: {
-                  routes: [{ name: 'WalletHome' }],
-                  index: 0,
-                },
-              },
-            ],
+            routes: [{ name: 'WalletTab' }],
             index: 0,
           },
         },

@@ -51,7 +51,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
   return (
     <ScrollView
       style={styles.body}
-      contentContainerStyle={{ paddingBottom: s(80) }}
+      contentContainerStyle={{ paddingBottom: s(168) }}
       showsVerticalScrollIndicator={false}
     >
       {/* Investment Amount */}
@@ -79,17 +79,13 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>You get back</Text>
                 <Text style={styles.infoValue}>
-                  {showBTC
-                    ? `${returnBtc.toFixed(8)} BTC`
-                    : `$${(returnBtc * price).toFixed(2)}`}
+                  {showBTC ? `${returnBtc.toFixed(8)} BTC` : `$${(returnBtc * price).toFixed(2)}`}
                 </Text>
               </View>
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
                 <Text style={styles.profitLabel}>Total profit</Text>
                 <Text style={styles.profitValue}>
-                  {showBTC
-                    ? `+${profitBtc.toFixed(8)} BTC`
-                    : `+$${(profitBtc * price).toFixed(2)}`}
+                  {showBTC ? `+${profitBtc.toFixed(8)} BTC` : `+$${(profitBtc * price).toFixed(2)}`}
                 </Text>
               </View>
             </View>
@@ -115,7 +111,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
 const styles = StyleSheet.create({
   body: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   footer: {
     paddingTop: 8,

@@ -73,15 +73,7 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
         {
           name: 'Main',
           state: {
-            routes: [
-              {
-                name: 'WalletTab',
-                state: {
-                  routes: [{ name: 'WalletHome' }],
-                  index: 0,
-                },
-              },
-            ],
+            routes: [{ name: 'WalletTab' }],
             index: 0,
           },
         },
@@ -89,12 +81,17 @@ export default function RepaySuccessScreen({ navigation, route }: RepaySuccessSc
     });
   }, [resetSettlement, reset, navigation]);
 
-  const repaidFromUsdc = settingsHandlers.usdcFeaturesEnabled && kind === 'repay' && payoutAsset === 'USDC' && payoutAmount;
+  const repaidFromUsdc =
+    settingsHandlers.usdcFeaturesEnabled &&
+    kind === 'repay' &&
+    payoutAsset === 'USDC' &&
+    payoutAmount;
   const repaidFromTurboUnit = kind === 'repay' && payoutAsset === 'TURBOUNIT' && payoutAmount;
   const successUnit = repaidFromUsdc ? 'USDC' : repaidFromTurboUnit ? 'TURBOUNIT' : 'USD';
-  const successAmount = repaidFromUsdc || repaidFromTurboUnit
-    ? Number.parseFloat(payoutAmount) || repayAmountUsd
-    : repayAmountUsd;
+  const successAmount =
+    repaidFromUsdc || repaidFromTurboUnit
+      ? Number.parseFloat(payoutAmount) || repayAmountUsd
+      : repayAmountUsd;
   const titleOverride = repaidFromUsdc || repaidFromTurboUnit ? 'Repayment Complete!' : undefined;
   const messageOverride = repaidFromUsdc
     ? 'Sepolia USDC was swapped back into UNIT and the released UNIT repaid your vault on Mutinynet.'

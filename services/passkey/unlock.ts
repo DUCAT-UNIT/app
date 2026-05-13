@@ -479,7 +479,10 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     await SecureStore.setItemAsync(SECURE_KEYS.PIN_SALT, pinSalt, DEVICE_ONLY);
     await savePinWithExistingSalt(pin, pinSalt);
 
-    await Promise.all([saveCachedAddresses(0, addresses), saveToMultiAccountCache(0, addresses)]);
+    await Promise.all([
+      saveCachedAddresses(0, addresses, DEFAULT_WALLET_DERIVATION_MODE),
+      saveToMultiAccountCache(0, addresses, DEFAULT_WALLET_DERIVATION_MODE),
+    ]);
 
     logger.debug('Wallet recovered successfully from iCloud');
 

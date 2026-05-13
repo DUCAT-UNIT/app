@@ -33,7 +33,7 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
   onTabChange,
 }: LiquidationReviewScreenProps): React.ReactElement {
   return (
-    <>
+    <View style={styles.container}>
       {/* Tab Bar */}
       <View style={styles.tabBar}>
         <TouchableOpacity
@@ -41,7 +41,7 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
           onPress={() => onTabChange('overview')}
         >
           <Text style={[styles.tabText, reviewTab === 'overview' && styles.tabTextActive]}>
-            {'\u26A1'} Quick Overview
+            Overview
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -49,7 +49,7 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
           onPress={() => onTabChange('howItWorks')}
         >
           <Text style={[styles.tabText, reviewTab === 'howItWorks' && styles.tabTextActive]}>
-            {'\u24D8'} How it works
+            Details
           </Text>
         </TouchableOpacity>
       </View>
@@ -74,37 +74,38 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
           profitPercent={profitPercent}
         />
       )}
-    </>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   tabBar: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
     backgroundColor: colors.bg.secondary,
-    borderRadius: 12,
-    padding: 3,
+    borderRadius: 14,
+    padding: 4,
     borderWidth: 1,
     borderColor: colors.border.default,
     alignItems: 'stretch',
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
+    minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 11,
   },
   tabActive: {
     backgroundColor: colors.bg.tertiary,
-    borderWidth: 1,
-    borderColor: '#3A3A3C',
   },
   tabText: {
-    fontSize: 12,
-    fontFamily: fonts.medium,
+    fontSize: 14,
+    fontFamily: fonts.bold,
     color: colors.text.secondary,
   },
   tabTextActive: {

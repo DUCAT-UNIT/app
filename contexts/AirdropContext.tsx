@@ -1,4 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback, ReactNode, MutableRefObject } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  ReactNode,
+  MutableRefObject,
+} from 'react';
 import { Audio } from 'expo-av';
 import { useBalance } from './WalletDataContext';
 import { useWallet } from './WalletContext';
@@ -57,7 +67,8 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
   const { segwitBalance, taprootBalance } = useBalance();
   const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuthSession();
-  const { showBiometricSetupModal } = useAuthFlowHandlers();
+  const { showBiometricSetupModal, showPasskeyMigrationModal } = useAuthFlowHandlers();
+  const securitySetupActive = showBiometricSetupModal || showPasskeyMigrationModal;
 
   // Airdrop modal state
   const [showAirdropModal, setShowAirdropModal] = useState(false);
@@ -65,14 +76,14 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
   const [airdropPending, setAirdropPending] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
 
-  // Track pending airdrop txId to show modal after biometric modal is dismissed
+  // Track pending airdrop txId to show modal after onboarding security prompts are dismissed.
   const pendingAirdropTxIdRef = useRef<string | null>(null);
 
-  // Store biometric modal state in ref for use in async functions (avoids stale closures)
-  const showBiometricSetupModalRef = useRef(showBiometricSetupModal);
+  // Store setup modal state in ref for use in async functions (avoids stale closures)
+  const securitySetupActiveRef = useRef(securitySetupActive);
   useEffect(() => {
-    showBiometricSetupModalRef.current = showBiometricSetupModal;
-  }, [showBiometricSetupModal]);
+    securitySetupActiveRef.current = securitySetupActive;
+  }, [securitySetupActive]);
 
   // Track if airdrop is in progress using ref + lock mechanism
   // Using ref avoids infinite loops from state updates triggering effects
@@ -114,7 +125,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
         setAudioReady(true);
       } catch (error: unknown) {
         logger.warn('Failed to preload confetti sound', {
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     };
@@ -138,14 +149,14 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     taprootBalanceRef.current = taprootBalance;
   }, [segwitBalance, taprootBalance]);
 
-  // Show pending airdrop modal when biometric modal is dismissed
+  // Show pending airdrop modal when onboarding security prompts are dismissed.
   useEffect(() => {
-    if (!showBiometricSetupModal && pendingAirdropTxIdRef.current) {
+    if (!securitySetupActive && pendingAirdropTxIdRef.current) {
       setAirdropTxId(pendingAirdropTxIdRef.current);
       setShowAirdropModal(true);
       pendingAirdropTxIdRef.current = null;
     }
-  }, [showBiometricSetupModal]);
+  }, [securitySetupActive]);
 
   // Clean up expired airdrop locks on mount
   useEffect(() => {
@@ -166,7 +177,9 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     };
 
     cleanup();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [wallet?.segwitAddress, currentAccount]);
 
   // Check for pending airdrop modal on mount and when balance updates
@@ -197,8 +210,10 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     };
 
     checkPending();
-    return () => { cancelled = true; };
-  }, [wallet, currentAccount, segwitBalance, taprootBalance, showBiometricSetupModal]);
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet, currentAccount, segwitBalance, taprootBalance]);
 
   // Store wallet address in ref so the async closure always reads the fresh value
   // without needing the entire wallet object in the dependency array.
@@ -224,6 +239,10 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       logger.debug('[Airdrop] Skipping: seed not confirmed');
       return;
     }
+    if (securitySetupActive) {
+      logger.debug('[Airdrop] Skipping: onboarding security setup active');
+      return;
+    }
 
     let cancelled = false;
 
@@ -233,6 +252,11 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
     });
 
     const requestAirdropIfNeeded = async () => {
+      if (securitySetupActiveRef.current) {
+        logger.debug('[Airdrop] Skipping: onboarding security setup active');
+        return;
+      }
+
       // Skip if already in progress
       if (airdropInProgress.current) {
         logger.debug('[Airdrop] Skipping: already in progress');
@@ -257,7 +281,11 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
 
         // Get current balance from refs (always fresh, not stale closure values)
         const totalBtcBalance = segwitBalanceRef.current + taprootBalanceRef.current;
-        logger.debug('[Airdrop] Balance check', { totalBtcBalance, segwit: segwitBalanceRef.current, taproot: taprootBalanceRef.current });
+        logger.debug('[Airdrop] Balance check', {
+          totalBtcBalance,
+          segwit: segwitBalanceRef.current,
+          taproot: taprootBalanceRef.current,
+        });
 
         // If balance is 0, request airdrop
         if (totalBtcBalance === 0) {
@@ -279,7 +307,9 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             if (cancelled) return;
 
             // Request airdrop
-            logger.debug('[Airdrop] Requesting airdrop for', { address: address.slice(0, 12) + '...' });
+            logger.debug('[Airdrop] Requesting airdrop for', {
+              address: address.slice(0, 12) + '...',
+            });
             const result = await AirdropService.requestAirdrop(address);
             if (cancelled) return;
 
@@ -291,10 +321,10 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             setAirdropTxId(result.txId);
             setAirdropPending(true);
 
-            // Show modal - defer if biometric setup modal is visible
+            // Show modal - defer if passkey or biometric setup is visible.
             pendingAirdropTxIdRef.current = result.txId;
-            // If biometric modal is not showing, display immediately (use ref for fresh value)
-            if (!showBiometricSetupModalRef.current) {
+            // If setup modals are not showing, display immediately (use ref for fresh value)
+            if (!securitySetupActiveRef.current) {
               setAirdropTxId(result.txId);
               setShowAirdropModal(true);
               pendingAirdropTxIdRef.current = null;
@@ -302,7 +332,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             // Don't trigger effects here - wait for user to click "Get Started"
           } catch (error: unknown) {
             logger.warn('[Airdrop] Failed to request airdrop', {
-              error: error instanceof Error ? error.message : String(error)
+              error: error instanceof Error ? error.message : String(error),
             });
             // Keep the lastAirdropTime to prevent immediate retries
           } finally {
@@ -336,19 +366,22 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
-  }, [wallet?.segwitAddress, currentAccount, isAuthenticated, seedConfirmed]);
+  }, [wallet?.segwitAddress, currentAccount, isAuthenticated, seedConfirmed, securitySetupActive]);
 
-  const value = useMemo(() => ({
-    // Airdrop modal state
-    showAirdropModal,
-    setShowAirdropModal,
-    airdropTxId,
-    airdropPending,
-    // Celebration trigger
-    triggerCelebration,
-    // Audio state
-    audioReady,
-  }), [showAirdropModal, airdropTxId, airdropPending, triggerCelebration, audioReady]);
+  const value = useMemo(
+    () => ({
+      // Airdrop modal state
+      showAirdropModal,
+      setShowAirdropModal,
+      airdropTxId,
+      airdropPending,
+      // Celebration trigger
+      triggerCelebration,
+      // Audio state
+      audioReady,
+    }),
+    [showAirdropModal, airdropTxId, airdropPending, triggerCelebration, audioReady]
+  );
 
   return <AirdropContext.Provider value={value}>{children}</AirdropContext.Provider>;
 };

@@ -4,19 +4,22 @@
  */
 
 import * as Clipboard from 'expo-clipboard';
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-Linking,
-Share,
-StyleSheet,
-Text,
-TouchableOpacity,
-View,
+  ActivityIndicator,
+  Linking,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { COLORS } from '../../theme';
 import { truncateAddress } from '../../utils/formatters/addresses';
 import BottomSheet from '../common/BottomSheet';
 import Icon from '../icons';
+import { decodeTokenMetadata } from '../../services/cashu/cashuWalletService';
+import { generateTurboDeeplink } from '../../services/cashu/cashuLockedTokensService';
 import {
   cashuUnitDisplayName,
   DEFAULT_CASHU_UNIT,
@@ -34,6 +37,7 @@ interface TokenDetailsSheetProps {
   claimed?: boolean;
   isSelfClaim?: boolean;
   cashuUnit?: CashuUnit;
+  onShortUrlReady?: (shortUrl: string, amount: number) => void | Promise<void>;
 }
 
 export default function TokenDetailsSheet({
@@ -46,23 +50,108 @@ export default function TokenDetailsSheet({
   claimed = false,
   isSelfClaim = false,
   cashuUnit = DEFAULT_CASHU_UNIT,
+  onShortUrlReady,
 }: TokenDetailsSheetProps) {
+  const [generatedShortUrl, setGeneratedShortUrl] = useState<string | null>(null);
+  const [isGeneratingShortUrl, setIsGeneratingShortUrl] = useState(false);
+  const [shortUrlError, setShortUrlError] = useState(false);
   const tokenLabel = cashuUnitDisplayName(cashuUnit);
   const isBtcCashu = cashuUnit === 'sat';
-  const hasShortUrl = Boolean(shortUrl);
-  const shareValue = shortUrl || cashuToken;
+  const effectiveShortUrl = shortUrl || generatedShortUrl;
+  const hasShortUrl = Boolean(effectiveShortUrl);
+  const shouldUseShortUrl = Boolean(recipientAddress) && !claimed && !isSelfClaim;
+  const shareValue = effectiveShortUrl || (shouldUseShortUrl ? '' : cashuToken);
+  const canShare = Boolean(shareValue);
+  const sectionLabel = shouldUseShortUrl || hasShortUrl ? 'Shortened URL' : 'Cashu Token';
+  const cardText = useMemo(() => {
+    if (shareValue) {
+      return shareValue;
+    }
+    if (isGeneratingShortUrl) {
+      return 'Generating link...';
+    }
+    if (shortUrlError) {
+      return 'Unable to generate link';
+    }
+    return 'Preparing link...';
+  }, [isGeneratingShortUrl, shareValue, shortUrlError]);
+
+  useEffect(() => {
+    setGeneratedShortUrl(null);
+    setShortUrlError(false);
+  }, [cashuToken, shortUrl]);
+
+  useEffect(() => {
+    if (!visible || !shouldUseShortUrl || shortUrl || generatedShortUrl || isGeneratingShortUrl) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const generateShortUrl = async (): Promise<void> => {
+      setIsGeneratingShortUrl(true);
+      setShortUrlError(false);
+
+      try {
+        const metadata = decodeTokenMetadata(cashuToken);
+        const generatedUrl = await generateTurboDeeplink(
+          cashuToken,
+          recipientAddress || '',
+          metadata.amount
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setGeneratedShortUrl(generatedUrl);
+        await onShortUrlReady?.(generatedUrl, metadata.amount);
+      } catch (_error: unknown) {
+        if (!cancelled) {
+          setShortUrlError(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsGeneratingShortUrl(false);
+        }
+      }
+    };
+
+    void generateShortUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cashuToken,
+    generatedShortUrl,
+    isGeneratingShortUrl,
+    onShortUrlReady,
+    recipientAddress,
+    shortUrl,
+    shouldUseShortUrl,
+    visible,
+  ]);
+
   const handleCopyToken = async () => {
+    if (!canShare) {
+      return;
+    }
     await Clipboard.setStringAsync(shareValue);
     onCopy?.(hasShortUrl ? 'Short URL copied' : 'Token copied');
   };
 
   const handleOpenInSafari = () => {
-    if (shortUrl) {
-      Linking.openURL(shortUrl);
+    if (effectiveShortUrl) {
+      Linking.openURL(effectiveShortUrl);
     }
   };
 
   const handleShare = async () => {
+    if (!canShare) {
+      return;
+    }
+
     try {
       await Share.share({
         message: shareValue,
@@ -94,7 +183,7 @@ export default function TokenDetailsSheet({
 
       {/* Token Card or Claimed/Self-Claim Warning */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{hasShortUrl ? 'Shortened URL' : 'Cashu Token'}</Text>
+        <Text style={styles.sectionLabel}>{sectionLabel}</Text>
         {isSelfClaim ? (
           <View style={styles.selfClaimCard}>
             <Icon name="check" size={20} color={COLORS.GREEN} />
@@ -110,17 +199,18 @@ export default function TokenDetailsSheet({
             <TouchableOpacity
               style={styles.cardContent}
               onPress={handleCopyToken}
-              activeOpacity={0.7}
+              activeOpacity={canShare ? 0.7 : 1}
+              disabled={!canShare}
             >
-              <Text style={styles.cardText} numberOfLines={1}>
-                {shareValue}
-              </Text>
+              {isGeneratingShortUrl && <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />}
+              <Text style={styles.cardText} numberOfLines={1}>{cardText}</Text>
             </TouchableOpacity>
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={handleShare}
-                activeOpacity={0.7}
+                activeOpacity={canShare ? 0.7 : 1}
+                disabled={!canShare}
               >
                 <Icon name="share" size={20} color={COLORS.PRIMARY_BLUE} />
               </TouchableOpacity>
@@ -142,7 +232,8 @@ export default function TokenDetailsSheet({
       <View style={styles.infoBox}>
         <Icon name="info" size={16} color={COLORS.SECONDARY_TEXT} />
         <Text style={styles.infoText}>
-          Share this token to send {tokenLabel}. The recipient can claim it from the {hasShortUrl ? 'link' : 'token'}.
+          Share this {hasShortUrl || shouldUseShortUrl ? 'link' : 'token'} to send {tokenLabel}.
+          The recipient can claim it from the {hasShortUrl || shouldUseShortUrl ? 'link' : 'token'}.
         </Text>
       </View>
     </BottomSheet>

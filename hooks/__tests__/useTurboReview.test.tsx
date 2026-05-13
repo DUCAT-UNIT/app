@@ -144,7 +144,7 @@ describe('useTurboReview', () => {
       });
     });
 
-    it('should auto-enable turbo for small amounts below threshold', async () => {
+    it('should send normally for small amounts below threshold when turbo is off', async () => {
       mockProps.sendAmount = '50';
       mockProps.ecashThreshold = 10000; // 10000 cents = 100 UNIT; sendAmount 50 < 100
       mockProps.turboEnabled = false;
@@ -154,10 +154,16 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      expect(mockProps.setTurboEnabled).toHaveBeenCalledWith(true);
+      expect(mockProps.setTurboEnabled).not.toHaveBeenCalled();
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
+        fromScreen: 'SendInput',
+        action: 'create_intent',
+        cashuMint: false,
+        quoteId: null,
+      });
     });
 
-    it('should not auto-enable turbo when already enabled', async () => {
+    it('should check turbo balance when already enabled', async () => {
       mockProps.sendAmount = '50';
       mockProps.ecashThreshold = 1000;
       mockProps.turboEnabled = true;
@@ -167,8 +173,8 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      // setTurboEnabled should not be called if already true
       expect(mockProps.setTurboEnabled).not.toHaveBeenCalled();
+      expect(result.current!.showInsufficientTurboSheet).toBe(true);
     });
 
     // Note: Tests for lines 55-77 (ecash balance check) are covered via integration
@@ -211,7 +217,7 @@ describe('useTurboReview', () => {
       });
     });
 
-    it('should not auto-enable turbo when amount equals threshold', async () => {
+    it('should send normally when amount equals threshold and turbo is off', async () => {
       mockProps.sendAmount = '1000';
       mockProps.ecashThreshold = 1000;
       mockProps.turboEnabled = false;
@@ -221,11 +227,11 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      // At threshold (not below), should not auto-enable
       expect(mockProps.setTurboEnabled).not.toHaveBeenCalled();
+      expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', expect.any(Object));
     });
 
-    it('should not auto-enable turbo when amount is above threshold', async () => {
+    it('should send normally when amount is above threshold and turbo is off', async () => {
       mockProps.sendAmount = '2000';
       mockProps.ecashThreshold = 1000;
       mockProps.turboEnabled = false;
@@ -275,7 +281,7 @@ describe('useTurboReview', () => {
 
       expect(result.current!.showInsufficientTurboSheet).toBe(true);
       expect(result.current!.insufficientTurboAmount).toBe(100); // display units
-      expect(result.current!.insufficientTurboBalance).toBe(50); // converted to display units (5000/100)
+      expect(result.current!.insufficientTurboBalance).toBe(0);
       expect(mockNavigation.navigate).not.toHaveBeenCalled();
     });
 
@@ -385,7 +391,7 @@ describe('useTurboReview', () => {
       mockRequestMintImpl.mockResolvedValue({
         quoteId: 'quote123',
         depositAddress: 'bc1qtest',
-        amount: 20,
+        amount: 2355,
       });
       const { result, rerender } = renderHookWithProps(mockProps);
 
@@ -406,14 +412,14 @@ describe('useTurboReview', () => {
         await result.current!.handleUseTurbo();
       });
 
-      expect(mockRequestMintImpl).toHaveBeenCalledWith(20);
+      expect(mockRequestMintImpl).toHaveBeenCalledWith(50);
       expect(mockSavePendingTurboSend).toHaveBeenCalledWith(
         'quote123',
         'original_recipient',
         50,
         'tb1psender',
         undefined,
-        20
+        50
       );
       expect(mockProps.setSendRecipient).toHaveBeenCalledWith('bc1qtest');
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', {
@@ -422,11 +428,11 @@ describe('useTurboReview', () => {
         isTurbo: true,
         mintQuoteId: 'quote123',
         mintAmount: 50, // insufficientTurboAmount (0.5) * 100
-        mintClaimAmount: 20,
+        mintClaimAmount: 50,
         turboRecipient: 'original_recipient',
         senderTaprootAddress: 'tb1psender',
         assetType: 'unit',
-        amount: '0.2',
+        amount: '0.5',
         recipient: 'bc1qtest',
       });
     });
@@ -439,7 +445,7 @@ describe('useTurboReview', () => {
       const { result, rerender } = renderHookWithProps(mockProps);
 
       // First trigger the insufficient balance flow to set insufficientTurboAmount
-      mockGetBalanceImpl.mockResolvedValue(0.3);
+      mockGetBalanceImpl.mockResolvedValue(0);
       mockProps.sendAmount = '0.5';
       mockProps.turboEnabled = true;
       rerender(mockProps);
@@ -464,11 +470,11 @@ describe('useTurboReview', () => {
       );
     });
 
-    it('should throw error when mint quote amount is undefined', async () => {
+    it('should use the full requested amount when the mint quote amount is missing', async () => {
       mockRequestMintImpl.mockResolvedValue({
         quoteId: 'quote123',
         depositAddress: 'bc1qtest',
-        amount: undefined, // Missing amount
+        amount: undefined,
       });
       mockProps.sendRecipient = 'original_recipient';
       mockProps.senderTaprootAddress = 'tb1psender';
@@ -484,15 +490,20 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
-      // Now call handleUseTurbo which will fail due to undefined amount
       await act(async () => {
         await result.current!.handleUseTurbo();
       });
 
       expect(result.current!.isRequestingMint).toBe(false);
-      expect(Alert.alert).toHaveBeenCalledWith(
-        'Error',
-        'Failed to initiate Turbo transaction. Please try again.'
+      expect(Alert.alert).not.toHaveBeenCalled();
+      expect(mockNavigation.navigate).toHaveBeenCalledWith(
+        'Processing',
+        expect.objectContaining({
+          mintAmount: 50,
+          mintClaimAmount: 50,
+          amount: '0.5',
+          recipient: 'bc1qtest',
+        })
       );
     });
   });

@@ -1,0 +1,347 @@
+/**
+ * Quanta Reward Service
+ * Links a Ducat mobile install to an existing Quanta wallet address.
+ */
+
+import * as Application from 'expo-application';
+import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import { APP_NETWORK_CONFIG } from '../utils/networkConfig';
+import { postJSON } from '../utils/apiClient';
+import { logger } from '../utils/logger';
+
+const LEGACY_QUANTA_INSTALL_ID_KEYS = ['ducat_quanta_install_id_v1'];
+const LEGACY_QUANTA_LINKED_ADDRESS_KEYS = ['ducat_quanta_linked_address_v1'];
+const QUANTA_INSTALL_ID_KEY = 'ducat_quanta_install_id_v2';
+const QUANTA_LINKED_ADDRESS_KEY = 'ducat_quanta_linked_address_v2';
+const QUANTA_LOCAL_STATE_RESET_KEY = 'ducat_quanta_local_state_reset_token_v1';
+const QUANTA_LOCAL_STATE_RESET_TOKEN = '2026-05-13-mobile-reward-retest';
+const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+let legacyStorageCleanupPromise: Promise<void> | null = null;
+
+export type QuantaRewardStatus = 'awarded' | 'already_claimed' | 'install_already_claimed';
+export type QuantaMobileMatchedAddressType = 'legacy' | 'segwit' | 'taproot';
+
+export interface QuantaRewardClaimResult {
+  status: QuantaRewardStatus;
+  awarded: boolean;
+  points: number;
+  user: {
+    user_id: string;
+    test_net_wallet: string;
+  };
+  task: {
+    task_id: number;
+    name: string;
+    points: number;
+  };
+  claim: {
+    claimed_at: string;
+    platform?: string | null;
+    app_version?: string | null;
+    build_version?: string | null;
+    mobile_wallet_address?: string | null;
+    addresses_match?: boolean | null;
+  } | null;
+}
+
+export interface QuantaRewardStatusResult {
+  status: 'connected' | 'not_connected';
+  connected: boolean;
+  points: number;
+  user: {
+    user_id: string;
+    test_net_wallet: string;
+  } | null;
+  task: {
+    task_id: number;
+    name: string;
+    points: number;
+    completed: boolean;
+    completed_at?: string | null;
+  } | null;
+  claim: QuantaRewardClaimResult['claim'];
+  stats: {
+    total_points: number;
+    tasks_completed: number;
+    rank?: number | null;
+  } | null;
+}
+
+export interface QuantaRewardDisconnectResult {
+  disconnected: boolean;
+  user: {
+    user_id: string;
+    test_net_wallet: string;
+  } | null;
+  task: {
+    task_id: number;
+    name: string;
+    points: number;
+  };
+  removed: {
+    claim: boolean;
+    task: boolean;
+    points: number;
+  };
+}
+
+export interface ClaimQuantaMobileRewardInput {
+  quantaAddress: string;
+  mobileWalletAddress?: string | null;
+  mobileLegacyAddress?: string | null;
+  mobileTaprootAddress?: string | null;
+  mobileSegwitAddress?: string | null;
+  matchedAddressType?: QuantaMobileMatchedAddressType | null;
+  addressesMatch: boolean;
+}
+
+export interface GetQuantaMobileRewardStatusInput {
+  quantaAddress?: string | null;
+  mobileWalletAddress?: string | null;
+  mobileLegacyAddress?: string | null;
+  mobileTaprootAddress?: string | null;
+  mobileSegwitAddress?: string | null;
+  matchedAddressType?: QuantaMobileMatchedAddressType | null;
+}
+
+export interface GetQuantaMobileRewardStatusOptions {
+  storeConnectedAddress?: boolean;
+}
+
+interface ApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+}
+
+function createInstallId(): string {
+  if (typeof Crypto.randomUUID === 'function') {
+    return Crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function clearLegacyQuantaStorage(): Promise<void> {
+  legacyStorageCleanupPromise ??= (async () => {
+    const resetToken = await SecureStore.getItemAsync(QUANTA_LOCAL_STATE_RESET_KEY, DEVICE_ONLY);
+    const keysToDelete = [...LEGACY_QUANTA_INSTALL_ID_KEYS, ...LEGACY_QUANTA_LINKED_ADDRESS_KEYS];
+
+    if (resetToken !== QUANTA_LOCAL_STATE_RESET_TOKEN) {
+      keysToDelete.push(QUANTA_INSTALL_ID_KEY, QUANTA_LINKED_ADDRESS_KEY);
+    }
+
+    await Promise.all(keysToDelete.map((key) => SecureStore.deleteItemAsync(key, DEVICE_ONLY)));
+
+    if (resetToken !== QUANTA_LOCAL_STATE_RESET_TOKEN) {
+      await SecureStore.setItemAsync(
+        QUANTA_LOCAL_STATE_RESET_KEY,
+        QUANTA_LOCAL_STATE_RESET_TOKEN,
+        DEVICE_ONLY
+      );
+    }
+  })();
+
+  await legacyStorageCleanupPromise;
+}
+
+async function getOrCreateInstallId(): Promise<string> {
+  await clearLegacyQuantaStorage();
+
+  const existing = await SecureStore.getItemAsync(QUANTA_INSTALL_ID_KEY, DEVICE_ONLY);
+  if (existing) {
+    return existing;
+  }
+
+  const installId = createInstallId();
+  await SecureStore.setItemAsync(QUANTA_INSTALL_ID_KEY, installId, DEVICE_ONLY);
+  return installId;
+}
+
+export function isLikelyQuantaAddress(address: string): boolean {
+  const trimmed = address.trim();
+  if (trimmed.length < 8 || trimmed.length > 128 || /\s/.test(trimmed)) {
+    return false;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  return APP_NETWORK_CONFIG.addressPrefixes.all.some((prefix) => normalized.startsWith(prefix));
+}
+
+export async function getStoredQuantaAddress(): Promise<string | null> {
+  await clearLegacyQuantaStorage();
+  return SecureStore.getItemAsync(QUANTA_LINKED_ADDRESS_KEY, DEVICE_ONLY);
+}
+
+export async function clearStoredQuantaAddress(): Promise<void> {
+  await clearLegacyQuantaStorage();
+  await SecureStore.deleteItemAsync(QUANTA_LINKED_ADDRESS_KEY, DEVICE_ONLY);
+}
+
+export async function clearQuantaRewardLocalState(): Promise<void> {
+  await clearLegacyQuantaStorage();
+  await Promise.all([
+    SecureStore.deleteItemAsync(QUANTA_INSTALL_ID_KEY, DEVICE_ONLY),
+    SecureStore.deleteItemAsync(QUANTA_LINKED_ADDRESS_KEY, DEVICE_ONLY),
+  ]);
+}
+
+export async function getQuantaMobileRewardStatus(
+  {
+    quantaAddress,
+    mobileWalletAddress,
+    mobileLegacyAddress,
+    mobileTaprootAddress,
+    mobileSegwitAddress,
+    matchedAddressType,
+  }: GetQuantaMobileRewardStatusInput = {},
+  options: GetQuantaMobileRewardStatusOptions = {}
+): Promise<QuantaRewardStatusResult> {
+  const installId = await getOrCreateInstallId();
+  const url = joinUrl(APP_NETWORK_CONFIG.api.quantaUrl, '/mobile/quanta-reward-status');
+
+  const response = await postJSON<ApiEnvelope<QuantaRewardStatusResult>>(
+    url,
+    {
+      installId,
+      quantaAddress: quantaAddress?.trim() || undefined,
+      mobileWalletAddress: mobileWalletAddress?.trim() || undefined,
+      mobileLegacyAddress: mobileLegacyAddress?.trim() || undefined,
+      mobileTaprootAddress: mobileTaprootAddress?.trim() || undefined,
+      mobileSegwitAddress: mobileSegwitAddress?.trim() || undefined,
+      matchedAddressType: matchedAddressType ?? undefined,
+    },
+    {
+      timeout: 10000,
+      description: 'Check Quanta mobile app reward status',
+    }
+  );
+
+  if (response.success === false || !response.data) {
+    throw new Error('Quanta reward status check failed');
+  }
+
+  const connectedAddress = quantaAddress?.trim() || response.data.user?.test_net_wallet;
+  if (options.storeConnectedAddress !== false && response.data.connected && connectedAddress) {
+    await SecureStore.setItemAsync(QUANTA_LINKED_ADDRESS_KEY, connectedAddress, DEVICE_ONLY);
+  } else if (options.storeConnectedAddress !== false && !response.data.connected) {
+    await SecureStore.deleteItemAsync(QUANTA_LINKED_ADDRESS_KEY, DEVICE_ONLY);
+  }
+
+  return response.data;
+}
+
+export async function disconnectQuantaMobileReward(): Promise<QuantaRewardDisconnectResult> {
+  const installId = await getOrCreateInstallId();
+  const url = joinUrl(APP_NETWORK_CONFIG.api.quantaUrl, '/mobile/disconnect-quanta-reward');
+
+  const response = await postJSON<ApiEnvelope<QuantaRewardDisconnectResult>>(
+    url,
+    {
+      installId,
+    },
+    {
+      timeout: 10000,
+      description: 'Disconnect Quanta mobile app reward',
+    }
+  );
+
+  if (response.success === false || !response.data) {
+    throw new Error('Quanta reward disconnect failed');
+  }
+
+  await clearQuantaRewardLocalState();
+  logger.info('[QuantaReward] Mobile reward disconnected', {
+    disconnected: response.data.disconnected,
+    pointsRemoved: response.data.removed.points,
+  });
+
+  return response.data;
+}
+
+export async function claimQuantaMobileReward({
+  quantaAddress,
+  mobileWalletAddress,
+  mobileLegacyAddress,
+  mobileTaprootAddress,
+  mobileSegwitAddress,
+  matchedAddressType,
+  addressesMatch,
+}: ClaimQuantaMobileRewardInput): Promise<QuantaRewardClaimResult> {
+  const trimmedAddress = quantaAddress.trim();
+  if (!isLikelyQuantaAddress(trimmedAddress)) {
+    throw new Error('Enter a valid Mutinynet wallet address');
+  }
+
+  const trimmedMobileLegacyAddress = mobileLegacyAddress?.trim() || undefined;
+  const trimmedMobileTaprootAddress = mobileTaprootAddress?.trim() || undefined;
+  const trimmedMobileSegwitAddress = mobileSegwitAddress?.trim() || undefined;
+  const trimmedMobileAddress =
+    mobileWalletAddress?.trim() ||
+    trimmedMobileLegacyAddress ||
+    trimmedMobileTaprootAddress ||
+    trimmedMobileSegwitAddress;
+
+  if (!trimmedMobileAddress || !isLikelyQuantaAddress(trimmedMobileAddress)) {
+    throw new Error('Mobile wallet address is missing or invalid');
+  }
+  if (
+    trimmedMobileLegacyAddress !== undefined &&
+    !isLikelyQuantaAddress(trimmedMobileLegacyAddress)
+  ) {
+    throw new Error('Mobile legacy address is invalid');
+  }
+  if (
+    trimmedMobileTaprootAddress !== undefined &&
+    !isLikelyQuantaAddress(trimmedMobileTaprootAddress)
+  ) {
+    throw new Error('Mobile Taproot address is invalid');
+  }
+  if (
+    trimmedMobileSegwitAddress !== undefined &&
+    !isLikelyQuantaAddress(trimmedMobileSegwitAddress)
+  ) {
+    throw new Error('Mobile SegWit address is invalid');
+  }
+
+  const installId = await getOrCreateInstallId();
+  const url = joinUrl(APP_NETWORK_CONFIG.api.quantaUrl, '/mobile/link-quanta-reward');
+
+  const response = await postJSON<ApiEnvelope<QuantaRewardClaimResult>>(
+    url,
+    {
+      quantaAddress: trimmedAddress,
+      mobileWalletAddress: trimmedMobileAddress,
+      mobileLegacyAddress: trimmedMobileLegacyAddress,
+      mobileTaprootAddress: trimmedMobileTaprootAddress,
+      mobileSegwitAddress: trimmedMobileSegwitAddress,
+      matchedAddressType: matchedAddressType ?? undefined,
+      addressesMatch,
+      installId,
+      platform: Platform.OS,
+      appVersion: Application.nativeApplicationVersion ?? undefined,
+      buildVersion: Application.nativeBuildVersion ?? undefined,
+    },
+    {
+      timeout: 10000,
+      description: 'Claim Quanta mobile app reward',
+    }
+  );
+
+  if (response.success === false || !response.data) {
+    throw new Error('Quanta reward claim failed');
+  }
+
+  await SecureStore.setItemAsync(QUANTA_LINKED_ADDRESS_KEY, trimmedAddress, DEVICE_ONLY);
+  logger.info('[QuantaReward] Mobile reward claim checked', {
+    status: response.data.status,
+    awarded: response.data.awarded,
+  });
+
+  return response.data;
+}

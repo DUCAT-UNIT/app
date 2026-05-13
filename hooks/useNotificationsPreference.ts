@@ -12,6 +12,7 @@ import {
   setNotificationsEnabled as persistNotificationsEnabled,
   SettingKeys,
 } from '../services/settingsService';
+import { getExpoPushToken, unregisterPushToken } from '../services/pushNotificationService';
 
 interface UseNotificationsPreferenceReturn {
   notificationsEnabled: boolean;
@@ -37,6 +38,13 @@ export function useNotificationsPreference(): UseNotificationsPreferenceReturn {
           if (permissions.status === 'granted') {
             enabled = true;
             await persistNotificationsEnabled(true);
+          }
+        }
+
+        if (hasStoredPreference && !enabled) {
+          const token = await getExpoPushToken({ requestPermissions: false });
+          if (token) {
+            await unregisterPushToken(token);
           }
         }
 

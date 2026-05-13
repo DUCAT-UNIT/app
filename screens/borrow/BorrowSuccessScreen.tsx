@@ -3,7 +3,9 @@
  */
 
 import React, { useCallback, useEffect } from 'react';
-import VaultActionSuccess, { buildVaultSuccessTxItems } from '../../components/vault/VaultActionSuccess';
+import VaultActionSuccess, {
+  buildVaultSuccessTxItems,
+} from '../../components/vault/VaultActionSuccess';
 import { useBorrow } from '../../stores/borrowStore';
 import {
   shouldPreserveVaultSettlementRecovery,
@@ -79,15 +81,7 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
         {
           name: 'Main',
           state: {
-            routes: [
-              {
-                name: 'WalletTab',
-                state: {
-                  routes: [{ name: 'WalletHome' }],
-                  index: 0,
-                },
-              },
-            ],
+            routes: [{ name: 'WalletTab' }],
             index: 0,
           },
         },
@@ -95,50 +89,51 @@ export default function BorrowSuccessScreen({ navigation, route }: BorrowSuccess
     });
   }, [resetSettlement, reset, navigation]);
 
-  const successUnit =
-    showUsdcPayout
-      ? 'USDC'
-      : payoutAsset === 'UNIT'
-        ? 'UNIT'
-        : showTurboUnitPayout
-          ? 'TURBOUNIT'
+  const successUnit = showUsdcPayout
+    ? 'USDC'
+    : payoutAsset === 'UNIT'
+      ? 'UNIT'
+      : showTurboUnitPayout
+        ? 'TURBOUNIT'
         : showWrappedUnitPayout
           ? 'wUNIT'
-        : 'USD';
+          : 'USD';
   const successAmount =
-    (showUsdcPayout || showWrappedUnitPayout || showTurboUnitPayout || payoutAsset === 'UNIT') && payoutAmount ? Number.parseFloat(payoutAmount) || borrowAmountUsd : borrowAmountUsd;
-  const titleOverride =
-    showUsdcPayout
-      ? 'Sepolia USDC Received!'
-      : payoutAsset === 'UNIT'
-        ? 'UNIT Received!'
-        : showTurboUnitPayout
-          ? 'TurboUNIT Received!'
+    (showUsdcPayout || showWrappedUnitPayout || showTurboUnitPayout || payoutAsset === 'UNIT') &&
+    payoutAmount
+      ? Number.parseFloat(payoutAmount) || borrowAmountUsd
+      : borrowAmountUsd;
+  const titleOverride = showUsdcPayout
+    ? 'Sepolia USDC Received!'
+    : payoutAsset === 'UNIT'
+      ? 'UNIT Received!'
+      : showTurboUnitPayout
+        ? 'TurboUNIT Received!'
         : showWrappedUnitPayout
           ? 'wUNIT Received!'
-      : phase === 'pending_settlement'
-        ? 'Borrow Complete!'
-        : phase === 'needs_retry'
-          ? 'Borrow Complete!'
-          : undefined;
-  const messageOverride =
-    showUsdcPayout
-      ? 'Borrow recorded and automatically settled to Sepolia USDC.'
-      : payoutAsset === 'UNIT'
-        ? 'Borrow recorded and issued as UNIT on Mutinynet.'
-        : showTurboUnitPayout
-          ? 'Borrow recorded and the issued UNIT was minted into TurboUNIT.'
+          : phase === 'pending_settlement'
+            ? 'Borrow Complete!'
+            : phase === 'needs_retry'
+              ? 'Borrow Complete!'
+              : undefined;
+  const messageOverride = showUsdcPayout
+    ? 'Borrow recorded and automatically settled to Sepolia USDC.'
+    : payoutAsset === 'UNIT'
+      ? 'Borrow recorded and issued as UNIT on Mutinynet.'
+      : showTurboUnitPayout
+        ? 'Borrow recorded and the issued UNIT was minted into TurboUNIT.'
         : showWrappedUnitPayout
           ? 'Borrow recorded. Auto-swap could not clear safely, so you received wUNIT on Sepolia instead.'
-      : phase === 'pending_settlement'
-        ? showUsdcSettlementCopy
-          ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
-          : 'Borrow recorded. Settlement is still processing in the background.'
-      : phase === 'needs_retry'
-          ? showUsdcSettlementCopy
-            ? settlementError || 'Borrow recorded. Automatic Sepolia USDC settlement needs retry.'
-            : 'Borrow recorded. Automatic settlement needs retry.'
-          : undefined;
+          : phase === 'pending_settlement'
+            ? showUsdcSettlementCopy
+              ? 'Borrow recorded. Sepolia settlement is still processing in the background.'
+              : 'Borrow recorded. Settlement is still processing in the background.'
+            : phase === 'needs_retry'
+              ? showUsdcSettlementCopy
+                ? settlementError ||
+                  'Borrow recorded. Automatic Sepolia USDC settlement needs retry.'
+                : 'Borrow recorded. Automatic settlement needs retry.'
+              : undefined;
   const txItems = buildVaultSuccessTxItems({
     mutinynetTxid: txid,
     turboMintSendTxid: showTurboUnitPayout ? cashuMintSendTxid : null,

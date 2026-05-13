@@ -15,7 +15,7 @@ import {
   type CashuUnit,
 } from '../services/cashu/cashuUnits';
 
-export type TransactionDisplayKind = 'turbo_mint_claim';
+export type TransactionDisplayKind = 'turbo_mint_claim' | 'turbo_redeem';
 
 /**
  * Minimal transaction data computed from calculateTransactionAmount
@@ -66,6 +66,7 @@ export interface MergeableTransaction {
   tokenData?: TokenWithStatus;
   claimed?: boolean;
   partiallySpent?: boolean;
+  pendingRedeem?: boolean;
   isAutoclaim?: boolean;
   isPending?: boolean;
   vaultTransaction?: boolean;
@@ -105,8 +106,13 @@ export function processPendingTransactions(
       const isTurboMintClaim =
         tx.displayKind === 'turbo_mint_claim' ||
         displayHints.turboMintClaimTxids?.has(tx.txid) === true;
+      const isTurboRedeem = tx.displayKind === 'turbo_redeem';
       let amount: number;
-      if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
+      if (isTurboRedeem) {
+        const totalValue = tx.outputs.reduce((sum, output) => sum + (output.value || 0), 0);
+        const totalRuneAmount = tx.outputs.reduce((sum, output) => sum + (output.runeAmount || 0), 0);
+        amount = tx.assetType === 'UNIT' ? totalRuneAmount : totalValue;
+      } else if (tx.sentAmount !== undefined && tx.sentAmount > 0) {
         amount = -tx.sentAmount;
       } else {
         const totalValue = tx.outputs.reduce((sum, output) => sum + (output.value || 0), 0);
@@ -127,9 +133,9 @@ export function processPendingTransactions(
           amount: displayAmount,
           assetType: tx.assetType,
           numericAmount: displayAmount,
-          isSent: !isTurboMintClaim,
-          isReceived: isTurboMintClaim,
-          ...(isTurboMintClaim ? { displayKind: 'turbo_mint_claim' as const } : {}),
+          isSent: !isTurboMintClaim && !isTurboRedeem,
+          isReceived: isTurboMintClaim || isTurboRedeem,
+          ...(isTurboMintClaim || isTurboRedeem ? { displayKind: tx.displayKind } : {}),
         },
       } as MergeableTransaction;
     });
@@ -209,6 +215,7 @@ export function processEcashTokens(
         tokenData: token,
         claimed: token.claimed,
         partiallySpent: token.partiallySpent,
+        pendingRedeem: token.pendingRedeem,
         isAutoclaim,
         txData: {
           amount: signedAmount,

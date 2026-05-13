@@ -12,7 +12,7 @@ import { useWallet } from './WalletContext';
 export interface EcashTokensValue {
   ecashTokens: TokenWithStatus[];
   loadingEcashTokens: boolean;
-  fetchEcashTokens: () => Promise<void>;
+  fetchEcashTokens: (taprootAddressOverride?: string) => Promise<void>;
   resetEcashTokens: () => void;
 }
 
@@ -37,6 +37,7 @@ const ecashTokenStateKey = (token: TokenWithStatus): string => {
     token.timestamp,
     token.claimed ? 1 : 0,
     token.partiallySpent ? 1 : 0,
+    token.pendingRedeem ? 1 : 0,
     recipient,
     sender,
     shortUrl,
@@ -56,8 +57,9 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
   const hasLoadedOnceRef = useRef(false);
   const prevTokenHashRef = useRef('');
 
-  const fetchEcashTokens = useCallback(async () => {
-    if (!wallet?.taprootAddress || ecashFetchingRef.current) return;
+  const fetchEcashTokens = useCallback(async (taprootAddressOverride?: string) => {
+    const taprootAddress = taprootAddressOverride ?? wallet?.taprootAddress;
+    if (!taprootAddress || ecashFetchingRef.current) return;
 
     ecashFetchingRef.current = true;
     // Only show loading on first fetch, not background refreshes
@@ -67,7 +69,7 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
 
     try {
       const tokensWithStatus = await loadTokensWithStatus(
-        wallet.taprootAddress,
+        taprootAddress,
         getSentLockedTokens,
         getReceivedTokens
       );
@@ -99,6 +101,7 @@ export const EcashTokensProvider: React.FC<EcashTokensProviderProps> = ({ childr
   const resetEcashTokens = useCallback(() => {
     setEcashTokens([]);
     setLoadingEcashTokens(false);
+    ecashFetchingRef.current = false;
     hasLoadedOnceRef.current = false;
     prevTokenHashRef.current = '';
   }, []);

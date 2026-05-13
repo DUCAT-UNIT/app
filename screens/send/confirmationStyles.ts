@@ -43,6 +43,8 @@ export interface ConfirmationStyles {
   footer: ViewStyle;
   doneButton: ViewStyle;
   doneButtonText: TextStyle;
+  secondaryButton: ViewStyle;
+  secondaryButtonText: TextStyle;
 }
 
 /**
@@ -251,6 +253,19 @@ export function createConfirmationStyles(
       fontSize: fontSizes.md,
       fontFamily: fonts.bold,
       color: colors.text.white,
+    },
+    secondaryButton: {
+      backgroundColor: COLORS.CARD_BG,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: COLORS.PRIMARY_BLUE + '40',
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+    },
+    secondaryButtonText: {
+      fontSize: fontSizes.md,
+      fontFamily: fonts.bold,
+      color: colors.brand.primary,
     },
   });
 }

@@ -51,8 +51,22 @@ export interface MintQuoteResult {
 
 const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
 
-const addProofsForUnit = (proofs: CashuProof[], unit: CashuUnit): Promise<void> =>
-  isDefaultCashuUnit(unit) ? addProofs(proofs) : addProofs(proofs, true, unit);
+interface MintCompletionOptions {
+  notifyProofChange?: boolean;
+  requireExactAmount?: boolean;
+}
+
+const addProofsForUnit = (
+  proofs: CashuProof[],
+  unit: CashuUnit,
+  options: MintCompletionOptions = {}
+): Promise<void> => {
+  if (options.notifyProofChange === false) {
+    return addProofs(proofs, true, unit, { notify: false });
+  }
+
+  return isDefaultCashuUnit(unit) ? addProofs(proofs) : addProofs(proofs, true, unit);
+};
 
 const restoreMintResponse = async (
   quoteId: string,
@@ -98,9 +112,9 @@ export const requestMint = async (
     logger.info('Requesting mint', { amount, type: typeof amount, unit });
     requireCashuOperationAccount('Cashu mint quote request');
     const signingKey = await getMintQuoteSigningKey();
-    const quote: MintQuote = isDefaultCashuUnit(unit)
-      ? await createMintQuote(signingKey.pubkey)
-      : await createMintQuote(signingKey.pubkey, unit);
+    const quote: MintQuote = await (unit === DEFAULT_CASHU_UNIT
+      ? createMintQuote(signingKey.pubkey, unit)
+      : createMintQuote(signingKey.pubkey, unit, amount));
 
     logger.info('Mint quote received from mint', {
       quoteId: quote.quote,
@@ -109,26 +123,19 @@ export const requestMint = async (
       depositAddress: quote.request,
     });
 
-    // Persist the quote for recovery in case of crash
-    if (quote.amount !== undefined) {
-      await saveMintQuote({
-        quoteId: quote.quote,
-        amount: quote.amount,
-        depositAddress: quote.request,
-        unit,
-      });
-    } else {
-      await saveMintQuote({
-        quoteId: quote.quote,
-        amount,
-        depositAddress: quote.request,
-        unit,
-      });
-    }
+    // On-chain mint quotes are funded by the app after quote creation. Treat the
+    // caller's requested amount as the intended funding/claim amount; some mint
+    // responses include an amount field that is not the user's requested top-up.
+    await saveMintQuote({
+      quoteId: quote.quote,
+      amount,
+      depositAddress: quote.request,
+      unit,
+    });
 
     return {
       quoteId: quote.quote,
-      amount: quote.amount ?? amount,
+      amount,
       depositAddress: quote.request, // Taproot address
       expiry: quote.expiry,
       state: quote.state ?? 'UNPAID',
@@ -191,7 +198,8 @@ export const checkMintStatus = async (quoteId: string): Promise<MintStatusResult
 export const completeMint = async (
   quoteId: string,
   amount: number,
-  unit: CashuUnit = DEFAULT_CASHU_UNIT
+  unit: CashuUnit = DEFAULT_CASHU_UNIT,
+  options: MintCompletionOptions = {}
 ): Promise<CashuProof[]> => {
   let claimPersisted = false;
 
@@ -216,9 +224,15 @@ export const completeMint = async (
     const amountPaid = paidQuote.amount_paid ?? paidQuote.amount ?? amount;
     const amountIssued = paidQuote.amount_issued ?? 0;
     const availableAmount = amountPaid - amountIssued;
+    const claimAmount = Math.min(availableAmount, amount);
 
     if (availableAmount <= 0) {
       throw new Error(`No available mint amount for quote ${quoteId}`);
+    }
+    if (options.requireExactAmount === true && availableAmount !== amount) {
+      throw new Error(
+        `Mint quote has ${availableAmount} available; expected exactly ${amount}`
+      );
     }
 
     const unitKeyset = selectActiveCashuKeyset(keyData, unit);
@@ -226,7 +240,7 @@ export const completeMint = async (
     const keys = unitKeyset.keys!;
 
     // Split amount into denominations
-    const amounts = splitAmount(availableAmount);
+    const amounts = splitAmount(claimAmount);
 
     logger.info('Creating blinded outputs', {
       amounts,
@@ -253,7 +267,7 @@ export const completeMint = async (
     // app dies after mintTokensAPI succeeds but before its response is stored,
     // recovery can restore the signatures from these exact outputs.
     await persistMintQuoteClaim(quoteId, {
-      amount: availableAmount,
+      amount: claimAmount,
       blindingData,
       keys,
       keysetId,
@@ -283,7 +297,7 @@ export const completeMint = async (
 
     try {
       await persistMintQuoteClaim(quoteId, {
-        amount: availableAmount,
+        amount: claimAmount,
         signatures: response.signatures,
         blindingData,
         keys: unblindKeys,
@@ -303,9 +317,9 @@ export const completeMint = async (
         { requireDleq }
       );
       const proofTotal = sumProofs(proofs);
-      if (proofTotal !== availableAmount) {
+      if (proofTotal !== claimAmount) {
         throw new Error(
-          `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+          `Mint verification failed: expected ${claimAmount} but received ${proofTotal}`
         );
       }
       let recoveryKey: string | null = null;
@@ -313,13 +327,13 @@ export const completeMint = async (
         recoveryKey = isDefaultCashuUnit(unit)
           ? await persistProofRecoveryRecord(
               proofs,
-              availableAmount,
+              claimAmount,
               'mint_claim',
               persistError instanceof Error ? persistError.message : String(persistError)
             )
           : await persistProofRecoveryRecord(
               proofs,
-              availableAmount,
+              claimAmount,
               'mint_claim',
               persistError instanceof Error ? persistError.message : String(persistError),
               unit
@@ -329,10 +343,10 @@ export const completeMint = async (
           quoteId,
           error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           proofCount: proofs.length,
-          amount: availableAmount,
+          amount: claimAmount,
         });
       }
-      await addProofsForUnit(proofs, unit);
+      await addProofsForUnit(proofs, unit, options);
       if (recoveryKey) {
         await clearProofRecoveryRecord(recoveryKey);
       }
@@ -349,14 +363,14 @@ export const completeMint = async (
       { requireDleq }
     );
     const proofTotal = sumProofs(proofs);
-    if (proofTotal !== availableAmount) {
+    if (proofTotal !== claimAmount) {
       throw new Error(
-        `Mint verification failed: expected ${availableAmount} but received ${proofTotal}`
+        `Mint verification failed: expected ${claimAmount} but received ${proofTotal}`
       );
     }
 
     // Add proofs to wallet
-    await addProofsForUnit(proofs, unit);
+    await addProofsForUnit(proofs, unit, options);
 
     // Remove the quote from recovery storage after successful claim
     await removeMintQuote(quoteId);

@@ -19,7 +19,7 @@ interface TransactionData {
   assetType: DisplayAssetType;
   isSent: boolean;
   isReceived: boolean;
-  displayKind?: 'turbo_mint_claim';
+  displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
 }
 
 interface TransactionDetailsSheetProps {
@@ -55,6 +55,7 @@ const formatTxid = (txid: string): string => {
 // Get action label
 const getActionLabel = (txData: TransactionData): string => {
   if (txData.displayKind === 'turbo_mint_claim') return 'Claimed TurboUNIT';
+  if (txData.displayKind === 'turbo_redeem') return 'Received';
   if (txData.isSent && txData.isReceived) return 'Self Transfer';
   return txData.isSent ? 'Sent' : 'Received';
 };
@@ -67,6 +68,7 @@ const getActionDescription = (txData: TransactionData): string => {
   if (txData.assetType === 'UNIT') {
     const formatted = formatUnitAmount(absAmount);
     if (txData.displayKind === 'turbo_mint_claim') return `Claimed ${formatted} TurboUNIT`;
+    if (txData.displayKind === 'turbo_redeem') return `Received ${formatted}`;
     if (txData.isSent && txData.isReceived) return `Moved ${formatted} UNIT to self`;
     return txData.isSent ? `Sent ${formatted} UNIT` : `Received ${formatted} UNIT`;
   } else if (txData.assetType === 'USDC') {

@@ -38,7 +38,9 @@ export interface UseTransactionHistoryFetchReturn {
   transactionHistory: Transaction[];
   loadingTransactionHistory: boolean;
   historyError: string | null;
-  fetchTransactionHistory: () => Promise<void>;
+  fetchTransactionHistory: (
+    walletOverride?: Pick<WalletAddresses, 'segwitAddress' | 'taprootAddress' | 'taprootPubkey'>
+  ) => Promise<void>;
   resetTransactionHistory: () => void;
 }
 
@@ -62,10 +64,13 @@ export function useTransactionHistoryFetch(
    * Fetch transaction history in background
    * Fetches from both blockchain addresses and vault API
    */
-  const fetchTransactionHistory = useCallback(async () => {
-    const segwitAddress = wallet?.segwitAddress;
-    const taprootAddress = wallet?.taprootAddress;
-    const vaultPubkey = wallet?.taprootPubkey;
+  const fetchTransactionHistory = useCallback(async (
+    walletOverride?: Pick<WalletAddresses, 'segwitAddress' | 'taprootAddress' | 'taprootPubkey'>
+  ) => {
+    const activeWallet = walletOverride ?? wallet;
+    const segwitAddress = activeWallet?.segwitAddress;
+    const taprootAddress = activeWallet?.taprootAddress;
+    const vaultPubkey = activeWallet?.taprootPubkey;
 
     if (!segwitAddress || !taprootAddress || !vaultPubkey) return;
 

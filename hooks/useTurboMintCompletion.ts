@@ -65,6 +65,7 @@ interface UseTurboMintCompletionReturn {
   processingStage: ProcessingStage;
   processingMessage: string | null;
   isCompletingMint: boolean;
+  continueInBackground: () => void;
 }
 
 type MintQuoteLike = Awaited<ReturnType<typeof checkMintQuote>>;
@@ -72,18 +73,21 @@ type MintQuoteLike = Awaited<ReturnType<typeof checkMintQuote>>;
 const hasMintAccounting = (quote: MintQuoteLike): boolean =>
   quote.amount_paid !== undefined || quote.amount_issued !== undefined;
 
-const isQuoteReadyToMint = (quote: MintQuoteLike): boolean => {
+const isQuoteReadyToMint = (quote: MintQuoteLike, expectedAmount: number): boolean => {
   const availableAmount = getMintQuoteAvailableAmount(quote);
 
   if (availableAmount > 0) {
-    return true;
+    return availableAmount >= expectedAmount;
   }
 
   if (!hasMintAccounting(quote)) {
     return quote.state === 'PAID' || quote.state === 'ISSUED';
   }
 
-  return (quote.amount_paid ?? 0) > 0 && (quote.amount_issued ?? 0) >= (quote.amount_paid ?? 0);
+  return (
+    (quote.amount_paid ?? 0) >= expectedAmount &&
+    (quote.amount_issued ?? 0) >= expectedAmount
+  );
 };
 
 const isQuoteAlreadyIssued = (quote: MintQuoteLike): boolean =>
@@ -95,7 +99,22 @@ const isQuoteAlreadyIssued = (quote: MintQuoteLike): boolean =>
 
 const getClaimAmount = (quote: MintQuoteLike, fallbackAmount: number): number => {
   const availableAmount = getMintQuoteAvailableAmount(quote);
-  return availableAmount > 0 ? availableAmount : (quote.amount ?? fallbackAmount);
+  if (availableAmount > 0) {
+    if (availableAmount !== fallbackAmount) {
+      throw new Error(
+        `Turbo mint returned ${availableAmount}; expected exactly ${fallbackAmount}`
+      );
+    }
+    return fallbackAmount;
+  }
+
+  const quoteAmount = quote.amount ?? fallbackAmount;
+  if (quoteAmount !== fallbackAmount) {
+    throw new Error(
+      `Turbo mint returned ${quoteAmount}; expected exactly ${fallbackAmount}`
+    );
+  }
+  return fallbackAmount;
 };
 
 const isDefaultCashuUnit = (unit: CashuUnit): boolean => unit === DEFAULT_CASHU_UNIT;
@@ -130,6 +149,9 @@ export function useTurboMintCompletion({
   const [isCompletingMint, setIsCompletingMint] = useState(false);
   const hasMintCompleted = useRef(false);
   const mountedRef = useRef(true);
+  const continueInBackgroundRef = useRef(false);
+  const shouldContinueProcessing = (): boolean =>
+    mountedRef.current || continueInBackgroundRef.current;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -163,9 +185,10 @@ export function useTurboMintCompletion({
     setProcessingMessage(null);
 
     const completeMintProcess = async () => {
-      if (!mountedRef.current) return;
+      if (!shouldContinueProcessing()) return;
       setIsCompletingMint(true);
       const recoverySenderTaprootAddress = senderTaprootAddress;
+      let mintProofsAddedSilently = false;
       try {
         const assertSenderAccountActive = (operation: string): void => {
           const currentAccount = getCurrentCashuAccount();
@@ -200,12 +223,13 @@ export function useTurboMintCompletion({
         // Need at least 120s to reliably catch deposits. After that, move to
         // a recoverable pending state instead of trapping the user on a spinner.
         let paidQuote: MintQuoteLike | null = null;
+        const expectedClaimAmount = mintClaimAmount ?? mintAmount;
         let attempts = 0;
 
         while (!paidQuote && attempts < MAX_MINT_CONFIRMATION_ATTEMPTS) {
-          if (!mountedRef.current) return;
+          if (!shouldContinueProcessing()) return;
           await new Promise((resolve) => setTimeout(resolve, MINT_CONFIRMATION_POLL_MS));
-          if (!mountedRef.current) return;
+          if (!shouldContinueProcessing()) return;
           try {
             const quote = await rejectAfter(
               checkMintQuote(mintQuoteId),
@@ -216,7 +240,7 @@ export function useTurboMintCompletion({
               `[useTurboMintCompletion] Check ${attempts + 1}/${MAX_MINT_CONFIRMATION_ATTEMPTS}:`,
               quote
             );
-            if (isQuoteReadyToMint(quote)) {
+            if (isQuoteReadyToMint(quote, expectedClaimAmount)) {
               paidQuote = quote;
               break;
             }
@@ -231,7 +255,7 @@ export function useTurboMintCompletion({
           attempts++;
         }
 
-        if (!mountedRef.current) return;
+        if (!shouldContinueProcessing()) return;
 
         if (paidQuote) {
           const claimAmount = getClaimAmount(paidQuote, mintClaimAmount ?? mintAmount);
@@ -286,19 +310,32 @@ export function useTurboMintCompletion({
               '[useTurboMintCompletion] Payment confirmed! Completing mint with amount:',
               claimAmount
             );
+            const mintCompletionOptions = turboRecipient
+              ? { notifyProofChange: false, requireExactAmount: true }
+              : undefined;
             // Complete mint to get e-cash tokens - amount is in smallest units
             const proofs = isDefaultCashuUnit(cashuUnit)
               ? await rejectAfter(
-                  completeMint(mintQuoteId, claimAmount),
+                  mintCompletionOptions
+                    ? completeMint(
+                        mintQuoteId,
+                        claimAmount,
+                        DEFAULT_CASHU_UNIT,
+                        mintCompletionOptions
+                      )
+                    : completeMint(mintQuoteId, claimAmount),
                   CASHU_OPERATION_TIMEOUT_MS,
                   'Completing Turbo mint'
                 )
               : await rejectAfter(
-                  completeMint(mintQuoteId, claimAmount, cashuUnit),
+                  mintCompletionOptions
+                    ? completeMint(mintQuoteId, claimAmount, cashuUnit, mintCompletionOptions)
+                    : completeMint(mintQuoteId, claimAmount, cashuUnit),
                   CASHU_OPERATION_TIMEOUT_MS,
                   'Completing Turbo mint'
                 );
-            if (!mountedRef.current) return;
+            if (!shouldContinueProcessing()) return;
+            mintProofsAddedSilently = Boolean(turboRecipient);
             logger.debug(
               '[useTurboMintCompletion] Mint completed successfully, received proofs:',
               proofs?.length
@@ -448,15 +485,19 @@ export function useTurboMintCompletion({
             // No turbo recipient - just transition to ready
             // Clear pending since there's no P2PK to send
             await clearPendingTurboSend(recoverySelector);
-            setProcessingMessage(null);
-            setProcessingStage('ready');
+            if (mountedRef.current) {
+              setProcessingMessage(null);
+              setProcessingStage('ready');
+            }
           }
 
           // Refresh all balances — Runes (ord indexer) + Cashu + TX history
           await Promise.all([fetchTransactionHistory(), fetchBalance()]);
 
-          if (!mountedRef.current) return;
-          setIsCompletingMint(false);
+          if (!shouldContinueProcessing()) return;
+          if (mountedRef.current) {
+            setIsCompletingMint(false);
+          }
 
           // Refresh cashu balance to reflect the new tokens
           await refreshCashuBalance();
@@ -485,6 +526,15 @@ export function useTurboMintCompletion({
         logger.error('[useTurboMintCompletion] Error during mint completion:', {
           error: errorMessage,
         });
+        if (mintProofsAddedSilently) {
+          try {
+            await refreshCashuBalance();
+          } catch (refreshError) {
+            logger.warn('[useTurboMintCompletion] Failed to refresh balance after Turbo error', {
+              error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+            });
+          }
+        }
         // Don't clear pending turbo send - will retry on next app start
         if (mountedRef.current) {
           setProcessingStage('error');
@@ -520,5 +570,8 @@ export function useTurboMintCompletion({
     processingStage,
     processingMessage,
     isCompletingMint,
+    continueInBackground: () => {
+      continueInBackgroundRef.current = true;
+    },
   };
 }

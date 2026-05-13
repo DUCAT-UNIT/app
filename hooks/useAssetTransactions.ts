@@ -28,7 +28,7 @@ interface TxData {
   isSent: boolean;
   isReceived: boolean;
   isAutoclaim?: boolean;
-  displayKind?: 'turbo_mint_claim';
+  displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
 }
 
 // Use a more flexible type for processed transactions
@@ -65,6 +65,7 @@ const ecashTokenStateKey = (token: EcashToken): string => {
     token.timestamp,
     token.claimed ? 1 : 0,
     token.partiallySpent ? 1 : 0,
+    token.pendingRedeem ? 1 : 0,
     recipient,
     sender,
     shortUrl,
@@ -235,7 +236,9 @@ export function useAssetTransactions(
     const ecashTxs = processEcashTokens(ecashTokens, selfClaimedSentTokenIds, taprootAddress)
       .filter((tx) => tx.txData?.assetType === assetType) as ProcessedTransaction[];
 
-    const confirmedTxids = new Set(transactionHistory.map(tx => tx.txid));
+    const confirmedTxids = new Set(
+      transactionHistory.filter(tx => tx.status?.confirmed).map(tx => tx.txid)
+    );
     const pendingTxs = processPendingTransactions(
       pendingTransactions as unknown as Record<string, PendingTx>,
       assetType,
@@ -243,7 +246,12 @@ export function useAssetTransactions(
       { turboMintClaimTxids },
     ) as ProcessedTransaction[];
 
-    const merged = mergeAndSortTransactions(pendingTxs, filtered, ecashTxs) as unknown as ProcessedTransaction[];
+    const pendingTxids = new Set(pendingTxs.map(tx => tx.txid));
+    const visibleFiltered = filtered.filter(
+      tx => !(pendingTxids.has(tx.txid) && tx.status?.confirmed !== true)
+    );
+
+    const merged = mergeAndSortTransactions(pendingTxs, visibleFiltered, ecashTxs) as unknown as ProcessedTransaction[];
 
     lastTxHashRef.current = txHash;
     filteredTxRef.current = merged;

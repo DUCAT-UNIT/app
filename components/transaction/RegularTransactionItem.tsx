@@ -46,7 +46,7 @@ interface RegularTransaction {
     assetType: DisplayAssetType;
     isSent: boolean;
     isReceived: boolean;
-    displayKind?: 'turbo_mint_claim';
+    displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
   };
   vout?: TransactionOutput[];
 }
@@ -63,6 +63,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
   const { amount, assetType, isSent, isReceived, displayKind } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
   const isTurboMintClaim = displayKind === 'turbo_mint_claim';
+  const isTurboRedeem = displayKind === 'turbo_redeem';
 
   // Memoize expensive calculations
   const { showTurboUI, actionLabel, statusConfig, formattedAmount, formattedDate } = useMemo(() => {
@@ -78,6 +79,7 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
     // Determine action label
     let label: string;
     if (isTurboMintClaim) label = tx.status.confirmed ? 'Claimed TurboUNIT' : 'Claiming TurboUNIT';
+    else if (isTurboRedeem) label = 'Received';
     else if (isEcashSwap) label = 'tUNIT Swap';
     else if (isSent && isReceived) label = assetType === 'UNIT' ? 'Self Claim' : 'Self Transfer';
     else label = isSent ? 'Sent' : 'Received';
@@ -109,12 +111,12 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
       formattedAmount: formatted,
       formattedDate: date,
     };
-  }, [assetType, isSent, isReceived, isTurboMintClaim, tx.vout, tx.status.confirmed, tx.status.block_time, numericAmount]);
+  }, [assetType, isSent, isReceived, isTurboMintClaim, isTurboRedeem, tx.vout, tx.status.confirmed, tx.status.block_time, numericAmount]);
 
   // tUNIT Swap is a conversion (positive action) — show green
   const isEcashSwap = actionLabel === 'tUNIT Swap';
   const isSelfTransfer = isSent && isReceived;
-  const amountColor = isSelfTransfer ? COLORS.WHITE : (isReceived || isEcashSwap || isTurboMintClaim) ? COLORS.GREEN : COLORS.RED;
+  const amountColor = isSelfTransfer ? COLORS.WHITE : (isReceived || isEcashSwap || isTurboMintClaim || isTurboRedeem) ? COLORS.GREEN : COLORS.RED;
 
   return (
     <TouchableOpacity

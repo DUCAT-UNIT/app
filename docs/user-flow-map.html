@@ -1,0 +1,2567 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ducat Wallet User Flow Map</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel-2: #1b2330;
+      --panel-3: #202938;
+      --text: #eef3f8;
+      --muted: #97a6b7;
+      --soft: #c5ced8;
+      --border: #2d3848;
+      --accent: #f7931a;
+      --accent-2: #2dd4bf;
+      --accent-3: #6ea8fe;
+      --danger: #ef6a6a;
+      --success: #79d28a;
+      --shadow: rgba(0, 0, 0, 0.32);
+      --radius: 8px;
+      --space: 16px;
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      color-scheme: dark;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(18, 27, 39, 0.94), rgba(13, 17, 23, 1) 42%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      padding: 24px clamp(18px, 4vw, 40px) 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13, 17, 23, 0.82);
+      backdrop-filter: blur(18px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: clamp(28px, 3vw, 42px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 860px;
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .metric {
+      min-width: 92px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      box-shadow: 0 16px 28px var(--shadow);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(300px, 380px);
+      gap: 18px;
+      padding: 18px clamp(18px, 3vw, 32px) 28px;
+      min-height: 0;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      background: rgba(21, 27, 35, 0.94);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 40px var(--shadow);
+      min-width: 0;
+    }
+
+    .sidebar,
+    .inspector {
+      position: sticky;
+      top: 116px;
+      height: calc(100vh - 142px);
+      overflow: auto;
+    }
+
+    .panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h2 {
+      margin-bottom: 6px;
+      font-size: 18px;
+    }
+
+    .panel-header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .field label {
+      color: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #0f151d;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent-3);
+      box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.16);
+    }
+
+    .flow-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .flow-button {
+      display: grid;
+      gap: 7px;
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      border-radius: var(--radius);
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+    }
+
+    .flow-button:hover,
+    .flow-button:focus-visible {
+      border-color: var(--accent-3);
+      transform: translateY(-1px);
+    }
+
+    .flow-button.active {
+      border-color: var(--accent);
+      background: rgba(247, 147, 26, 0.12);
+    }
+
+    .flow-button strong {
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .flow-button span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .flow-meta {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--soft);
+      background: rgba(255, 255, 255, 0.04);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .chip.accent {
+      color: #ffe0b3;
+      border-color: rgba(247, 147, 26, 0.45);
+      background: rgba(247, 147, 26, 0.12);
+    }
+
+    .map-shell {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .map-toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(27, 35, 48, 0.72);
+    }
+
+    .map-toolbar h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+    }
+
+    .dot.active {
+      background: var(--accent);
+    }
+
+    .dot.current {
+      background: var(--accent-2);
+    }
+
+    .dot.neutral {
+      background: var(--panel-3);
+    }
+
+    .map-scroll {
+      overflow: auto;
+      max-height: calc(100vh - 190px);
+    }
+
+    .map-stage {
+      position: relative;
+      min-width: 760px;
+      padding: 18px;
+    }
+
+    .path-layer {
+      position: absolute;
+      inset: 0;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .group-section {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 20px;
+      padding-bottom: 4px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .group-title h3 {
+      margin: 0;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .group-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .screen-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .screen-card {
+      position: relative;
+      min-height: 154px;
+      border: 1px solid var(--border);
+      background: rgba(27, 35, 48, 0.92);
+      border-radius: var(--radius);
+      padding: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+    }
+
+    .screen-card:hover,
+    .screen-card:focus-visible {
+      border-color: var(--accent-3);
+      transform: translateY(-1px);
+    }
+
+    .screen-card.in-flow {
+      border-color: rgba(247, 147, 26, 0.68);
+      background:
+        linear-gradient(180deg, rgba(247, 147, 26, 0.13), rgba(27, 35, 48, 0.96)),
+        var(--panel-2);
+    }
+
+    .screen-card.current {
+      border-color: var(--accent-2);
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.16), 0 18px 32px var(--shadow);
+    }
+
+    .screen-type {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .screen-card h4 {
+      margin: 8px 0 8px;
+      font-size: 15px;
+      line-height: 1.18;
+    }
+
+    .screen-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.42;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .step-badge {
+      display: inline-grid;
+      place-items: center;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      padding: 0 6px;
+      background: var(--accent);
+      color: #1b1205;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .empty-state {
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      color: var(--muted);
+      padding: 18px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .inspector-content {
+      padding: 16px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .section {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: rgba(15, 21, 29, 0.58);
+    }
+
+    .section h3 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .section p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 8px;
+    }
+
+    .step-button {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 10px;
+      align-items: start;
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      padding: 10px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .step-button:hover,
+    .step-button:focus-visible {
+      border-color: var(--accent-3);
+    }
+
+    .step-button.active {
+      border-color: var(--accent-2);
+      background: rgba(45, 212, 191, 0.12);
+    }
+
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--panel-3);
+      color: var(--soft);
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    .step-button.active .step-number {
+      background: var(--accent-2);
+      color: #061412;
+    }
+
+    .step-title {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .step-next {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .details-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .detail-row {
+      border-left: 3px solid var(--border);
+      padding-left: 10px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .detail-row strong {
+      font-size: 12px;
+      color: var(--soft);
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .detail-row span,
+    .detail-row li {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .detail-row ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .json-toggle {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 36px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel-2);
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .json-toggle:hover,
+    .json-toggle:focus-visible {
+      border-color: var(--accent-3);
+    }
+
+    .json-panel {
+      display: none;
+    }
+
+    .json-panel.open {
+      display: block;
+    }
+
+    .json-panel textarea {
+      min-height: 240px;
+      resize: vertical;
+      color: #d7e2ed;
+      font-family:
+        "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .layout {
+        grid-template-columns: minmax(250px, 300px) minmax(420px, 1fr);
+      }
+
+      .inspector {
+        grid-column: 1 / -1;
+        position: static;
+        height: auto;
+      }
+
+      .map-scroll {
+        max-height: none;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .topbar {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .top-actions {
+        justify-content: start;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .map-stage {
+        min-width: 0;
+      }
+
+      .screen-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="product-eyebrow">Product flow map</p>
+        <h1 id="product-title">User Flow Map</h1>
+        <p class="subtitle" id="product-description"></p>
+      </div>
+      <div class="top-actions" aria-label="Map totals">
+        <div class="metric"><strong id="screen-count">0</strong><span>Screens</span></div>
+        <div class="metric"><strong id="flow-count">0</strong><span>Flows</span></div>
+        <div class="metric"><strong id="step-count">0</strong><span>Steps</span></div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sidebar" aria-label="Flows">
+        <div class="panel-header">
+          <h2>User Flows</h2>
+          <p>Select a flow to highlight the screen sequence and step annotations.</p>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label for="flow-search">Search flows</label>
+            <input id="flow-search" type="search" placeholder="Send, vault, settings">
+          </div>
+          <div class="field">
+            <label for="group-filter">Screen group</label>
+            <select id="group-filter"></select>
+          </div>
+        </div>
+        <div class="flow-list" id="flow-list"></div>
+      </aside>
+
+      <section class="panel map-shell" aria-label="Screen map">
+        <div class="map-toolbar">
+          <div>
+            <h2 id="map-title">Screens</h2>
+          </div>
+          <div class="legend" aria-label="Legend">
+            <span class="legend-item"><span class="dot active"></span>In selected flow</span>
+            <span class="legend-item"><span class="dot current"></span>Current step</span>
+            <span class="legend-item"><span class="dot neutral"></span>Other screen</span>
+          </div>
+        </div>
+        <div class="map-scroll" id="map-scroll">
+          <div class="map-stage" id="map-stage">
+            <svg class="path-layer" id="flow-lines" aria-hidden="true"></svg>
+            <div id="screen-map"></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel inspector" aria-label="Flow details">
+        <div class="panel-header">
+          <h2>Flow Details</h2>
+          <p id="inspector-summary">Choose a flow to inspect the user path.</p>
+        </div>
+        <div class="inspector-content" id="inspector"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script id="product-flow-data" type="application/json">
+{
+  "product": {
+    "name": "Ducat Wallet",
+    "environment": "Mutinynet testnet",
+    "description": "Interactive map of user-facing screens and flows in the Ducat Wallet mobile app. The UI below is generated from this JSON document: screens, flows, steps, transitions, data, system events, state changes, and outcomes."
+  },
+  "screenGroups": [
+    "Entry and Auth",
+    "Wallet Core",
+    "Receive and Cashu",
+    "Send and Turbo",
+    "Vault",
+    "Bridge and EVM",
+    "Settings"
+  ],
+  "screens": [
+    {
+      "id": "app.splash",
+      "name": "Splash / Startup Router",
+      "group": "Entry and Auth",
+      "type": "System screen",
+      "route": "SplashScreen / RootNavigator",
+      "description": "Initial loading state that resolves wallet, authentication, and navigation state."
+    },
+    {
+      "id": "auth.welcome",
+      "name": "Welcome and Wallet Setup",
+      "group": "Entry and Auth",
+      "type": "Onboarding",
+      "route": "Auth > Onboarding > WelcomeScreen",
+      "description": "Entry point for creating a passkey wallet, importing a seed phrase, or restoring with passkey."
+    },
+    {
+      "id": "auth.import-seed",
+      "name": "Import Seed Phrase",
+      "group": "Entry and Auth",
+      "type": "Onboarding mode",
+      "route": "WelcomeScreen import mode",
+      "description": "Seed phrase input path inside the welcome flow."
+    },
+    {
+      "id": "auth.passkey-create",
+      "name": "Create Passkey PIN",
+      "group": "Entry and Auth",
+      "type": "Secure input",
+      "route": "Onboarding passkey_pin_create",
+      "description": "Collects and confirms the PIN used to protect a passkey-backed wallet."
+    },
+    {
+      "id": "auth.passkey-restore",
+      "name": "Restore Passkey PIN",
+      "group": "Entry and Auth",
+      "type": "Secure input",
+      "route": "Onboarding passkey_pin_restore",
+      "description": "Collects the PIN needed to restore an existing passkey wallet session."
+    },
+    {
+      "id": "auth.pin-setup",
+      "name": "PIN Setup",
+      "group": "Entry and Auth",
+      "type": "Secure input",
+      "route": "PinSetupScreen",
+      "description": "Creates or changes the wallet PIN and optionally enables biometrics."
+    },
+    {
+      "id": "auth.lock",
+      "name": "Lock Screen",
+      "group": "Entry and Auth",
+      "type": "Authentication",
+      "route": "LockScreen",
+      "description": "Unlocks an existing wallet with PIN or biometrics."
+    },
+    {
+      "id": "wallet.home",
+      "name": "Dashboard / Wallet Home",
+      "group": "Wallet Core",
+      "type": "Dashboard",
+      "route": "Main > WalletTab > WalletHome",
+      "description": "Primary authenticated screen showing total value, BTC, UNIT, Cashu balances, vault card, actions, and bridge entry points."
+    },
+    {
+      "id": "wallet.asset-detail",
+      "name": "Asset Detail",
+      "group": "Wallet Core",
+      "type": "Detail screen",
+      "route": "WalletStack > AssetDetail",
+      "description": "Per-asset detail view for BTC, UNIT, USDC, ETH, or related balances."
+    },
+    {
+      "id": "wallet.transaction-history",
+      "name": "Transaction History",
+      "group": "Wallet Core",
+      "type": "Sheet",
+      "route": "WalletPage transaction history sheet",
+      "description": "Scrollable history sheet for wallet transactions and pending activity."
+    },
+    {
+      "id": "wallet.deposit-sheet",
+      "name": "Receive Asset Sheet",
+      "group": "Wallet Core",
+      "type": "Sheet",
+      "route": "WalletPage DepositSheet",
+      "description": "Asset selection sheet opened from Receive, used to choose BTC, UNIT, or other supported receive paths."
+    },
+    {
+      "id": "wallet.withdraw-sheet",
+      "name": "Send Asset Sheet",
+      "group": "Wallet Core",
+      "type": "Sheet",
+      "route": "WalletPage WithdrawSheet",
+      "description": "Asset selection sheet opened from Send before entering the send navigator."
+    },
+    {
+      "id": "wallet.qr-scanner",
+      "name": "QR Scanner",
+      "group": "Wallet Core",
+      "type": "Scanner",
+      "route": "QRScanner",
+      "description": "Scans payment requests, Cashu tokens, Turbo links, and wallet addresses."
+    },
+    {
+      "id": "wallet.receive-qr",
+      "name": "Receive QR",
+      "group": "Wallet Core",
+      "type": "Detail screen",
+      "route": "WalletStack > ReceiveQR",
+      "description": "Displays a selected receive address as QR plus copyable address details."
+    },
+    {
+      "id": "wallet.vault-detail",
+      "name": "Vault Detail",
+      "group": "Wallet Core",
+      "type": "Detail screen",
+      "route": "WalletStack > VaultDetail",
+      "description": "Shows current vault collateral, debt, health, and available vault operations."
+    },
+    {
+      "id": "cashu.receive",
+      "name": "Cashu Receive",
+      "group": "Receive and Cashu",
+      "type": "Receive flow",
+      "route": "WalletStack > CashuReceive",
+      "description": "Receives, mints, or claims Cashu e-cash tokens for UNIT or BTC."
+    },
+    {
+      "id": "cashu.recover-mint",
+      "name": "Recover Mint",
+      "group": "Receive and Cashu",
+      "type": "Recovery",
+      "route": "WalletStack > RecoverMint",
+      "description": "Recovery screen for mint state and unresolved Cashu balances."
+    },
+    {
+      "id": "cashu.low-balance",
+      "name": "Low E-cash Balance",
+      "group": "Receive and Cashu",
+      "type": "Modal",
+      "route": "LowEcashBalanceModal",
+      "description": "Warns when Cashu balance is below the configured threshold and offers top-up."
+    },
+    {
+      "id": "cashu.conversion",
+      "name": "E-cash Conversion",
+      "group": "Receive and Cashu",
+      "type": "Modal",
+      "route": "EcashConversionModal",
+      "description": "Confirms conversion from on-chain UNIT to Cashu UNIT when thresholds or top-ups require it."
+    },
+    {
+      "id": "send.asset-selector",
+      "name": "Send Asset Selector",
+      "group": "Send and Turbo",
+      "type": "Flow screen",
+      "route": "SendFlow > AssetSelector",
+      "description": "Chooses which asset and rail the user wants to send."
+    },
+    {
+      "id": "send.input",
+      "name": "Send Input",
+      "group": "Send and Turbo",
+      "type": "Flow screen",
+      "route": "SendFlow > SendInput",
+      "description": "Collects recipient, amount, asset type, and Turbo preference."
+    },
+    {
+      "id": "send.turbo-loading",
+      "name": "Turbo Loading",
+      "group": "Send and Turbo",
+      "type": "Processing gate",
+      "route": "SendFlow > TurboLoading",
+      "description": "Prepares Turbo mint quote or token context before review."
+    },
+    {
+      "id": "send.review",
+      "name": "Send Review",
+      "group": "Send and Turbo",
+      "type": "Review screen",
+      "route": "SendFlow > Review",
+      "description": "Shows recipient, amount, fees, mode, and warnings before signing or minting."
+    },
+    {
+      "id": "send.processing",
+      "name": "Send Processing",
+      "group": "Send and Turbo",
+      "type": "Processing",
+      "route": "SendFlow > Processing",
+      "description": "Builds, signs, broadcasts, and tracks on-chain BTC or UNIT sends."
+    },
+    {
+      "id": "send.turbo-processing",
+      "name": "Turbo Processing",
+      "group": "Send and Turbo",
+      "type": "Processing",
+      "route": "SendFlow > TurboProcessing",
+      "description": "Processes Turbo Cashu token send and persists resumable state."
+    },
+    {
+      "id": "send.turbo-claiming",
+      "name": "Turbo Claiming",
+      "group": "Send and Turbo",
+      "type": "Claim screen",
+      "route": "SendFlow > TurboClaiming",
+      "description": "Claims a Turbo token opened from a link or scan."
+    },
+    {
+      "id": "send.confirmation",
+      "name": "Send Confirmation",
+      "group": "Send and Turbo",
+      "type": "Success screen",
+      "route": "SendFlow > Confirmation",
+      "description": "Shows transaction id, token link, or broadcast result after the send completes."
+    },
+    {
+      "id": "vault.create.amounts",
+      "name": "Vault Amounts",
+      "group": "Vault",
+      "type": "Vault creation",
+      "route": "VaultCreateFlow > VaultAmounts",
+      "description": "Collects BTC collateral and desired UNIT borrow amount for a new vault."
+    },
+    {
+      "id": "vault.create.payout",
+      "name": "Vault Payout",
+      "group": "Vault",
+      "type": "Vault creation",
+      "route": "VaultCreateFlow > VaultPayout",
+      "description": "Chooses how borrowed UNIT should be delivered."
+    },
+    {
+      "id": "vault.create.confirm",
+      "name": "Vault Confirm",
+      "group": "Vault",
+      "type": "Vault creation",
+      "route": "VaultCreateFlow > VaultConfirm",
+      "description": "Reviews collateral, debt, fees, payout, and vault terms before signing."
+    },
+    {
+      "id": "vault.create.processing",
+      "name": "Vault Processing",
+      "group": "Vault",
+      "type": "Processing",
+      "route": "VaultCreateFlow > VaultProcessing",
+      "description": "Coordinates Guardian calls, PSBT signing, broadcast, and pending vault state."
+    },
+    {
+      "id": "vault.create.success",
+      "name": "Vault Success",
+      "group": "Vault",
+      "type": "Success screen",
+      "route": "VaultCreateFlow > VaultSuccess",
+      "description": "Confirms vault creation and routes user back to vault detail or dashboard."
+    },
+    {
+      "id": "vault.borrow.input",
+      "name": "Borrow Input",
+      "group": "Vault",
+      "type": "Borrow flow",
+      "route": "BorrowFlow > BorrowInput",
+      "description": "Collects additional UNIT borrow amount for an existing vault."
+    },
+    {
+      "id": "vault.borrow.payout",
+      "name": "Borrow Payout",
+      "group": "Vault",
+      "type": "Borrow flow",
+      "route": "BorrowFlow > BorrowPayout",
+      "description": "Selects payout destination for additional borrowed UNIT."
+    },
+    {
+      "id": "vault.borrow.confirm",
+      "name": "Borrow Confirm",
+      "group": "Vault",
+      "type": "Borrow flow",
+      "route": "BorrowFlow > BorrowConfirm",
+      "description": "Reviews updated debt, health, payout, and signing requirements."
+    },
+    {
+      "id": "vault.borrow.processing",
+      "name": "Borrow Processing",
+      "group": "Vault",
+      "type": "Processing",
+      "route": "BorrowFlow > BorrowProcessing",
+      "description": "Executes borrow operation, including Guardian interaction and settlement tracking."
+    },
+    {
+      "id": "vault.borrow.success",
+      "name": "Borrow Success",
+      "group": "Vault",
+      "type": "Success screen",
+      "route": "BorrowFlow > BorrowSuccess",
+      "description": "Confirms additional UNIT borrow and completed settlement details."
+    },
+    {
+      "id": "vault.deposit.input",
+      "name": "Deposit Input",
+      "group": "Vault",
+      "type": "Deposit flow",
+      "route": "DepositFlow > DepositInput",
+      "description": "Collects additional BTC collateral amount for an existing vault."
+    },
+    {
+      "id": "vault.deposit.confirm",
+      "name": "Deposit Confirm",
+      "group": "Vault",
+      "type": "Deposit flow",
+      "route": "DepositFlow > DepositConfirm",
+      "description": "Reviews collateral increase, fees, and new vault health."
+    },
+    {
+      "id": "vault.deposit.processing",
+      "name": "Deposit Processing",
+      "group": "Vault",
+      "type": "Processing",
+      "route": "DepositFlow > DepositProcessing",
+      "description": "Signs and broadcasts the vault deposit transaction."
+    },
+    {
+      "id": "vault.deposit.success",
+      "name": "Deposit Success",
+      "group": "Vault",
+      "type": "Success screen",
+      "route": "DepositFlow > DepositSuccess",
+      "description": "Confirms new collateral has been submitted."
+    },
+    {
+      "id": "vault.repay.input",
+      "name": "Repay Input",
+      "group": "Vault",
+      "type": "Repay flow",
+      "route": "RepayFlow > RepayInput",
+      "description": "Collects UNIT repayment amount for an existing vault."
+    },
+    {
+      "id": "vault.repay.funding",
+      "name": "Repay Funding",
+      "group": "Vault",
+      "type": "Repay flow",
+      "route": "RepayFlow > RepayFunding",
+      "description": "Chooses repayment funding source across on-chain and Cashu balances."
+    },
+    {
+      "id": "vault.repay.confirm",
+      "name": "Repay Confirm",
+      "group": "Vault",
+      "type": "Repay flow",
+      "route": "RepayFlow > RepayConfirm",
+      "description": "Reviews debt reduction, health change, and funding details."
+    },
+    {
+      "id": "vault.repay.processing",
+      "name": "Repay Processing",
+      "group": "Vault",
+      "type": "Processing",
+      "route": "RepayFlow > RepayProcessing",
+      "description": "Executes repayment and tracks vault update."
+    },
+    {
+      "id": "vault.repay.success",
+      "name": "Repay Success",
+      "group": "Vault",
+      "type": "Success screen",
+      "route": "RepayFlow > RepaySuccess",
+      "description": "Confirms debt repayment was submitted."
+    },
+    {
+      "id": "vault.withdraw.input",
+      "name": "Withdraw Input",
+      "group": "Vault",
+      "type": "Withdraw flow",
+      "route": "WithdrawFlow > WithdrawInput",
+      "description": "Collects BTC collateral withdrawal amount."
+    },
+    {
+      "id": "vault.withdraw.confirm",
+      "name": "Withdraw Confirm",
+      "group": "Vault",
+      "type": "Withdraw flow",
+      "route": "WithdrawFlow > WithdrawConfirm",
+      "description": "Reviews collateral reduction, health impact, and fees."
+    },
+    {
+      "id": "vault.withdraw.processing",
+      "name": "Withdraw Processing",
+      "group": "Vault",
+      "type": "Processing",
+      "route": "WithdrawFlow > WithdrawProcessing",
+      "description": "Builds, signs, broadcasts, and tracks the collateral withdrawal."
+    },
+    {
+      "id": "vault.withdraw.success",
+      "name": "Withdraw Success",
+      "group": "Vault",
+      "type": "Success screen",
+      "route": "WithdrawFlow > WithdrawSuccess",
+      "description": "Confirms collateral withdrawal was submitted."
+    },
+    {
+      "id": "bridge.home",
+      "name": "USDC Bridge",
+      "group": "Bridge and EVM",
+      "type": "Bridge",
+      "route": "WalletStack > UnitBridge",
+      "description": "Bridge entry point for UNIT, USDC, and EVM-related movement when feature-gated on."
+    },
+    {
+      "id": "bridge.swap",
+      "name": "Sepolia Swap",
+      "group": "Bridge and EVM",
+      "type": "Swap",
+      "route": "WalletStack > SepoliaSwap",
+      "description": "Collects source asset and amount for UNIT/USDC swap."
+    },
+    {
+      "id": "bridge.swap-summary",
+      "name": "Swap Summary",
+      "group": "Bridge and EVM",
+      "type": "Review screen",
+      "route": "WalletStack > SepoliaSwapSummary",
+      "description": "Reviews bridge or swap quote before the user confirms."
+    },
+    {
+      "id": "bridge.redeem",
+      "name": "Sepolia Redeem",
+      "group": "Bridge and EVM",
+      "type": "Redeem",
+      "route": "WalletStack > SepoliaRedeem",
+      "description": "Redeems USDC or wrapped UNIT back through the bridge path."
+    },
+    {
+      "id": "bridge.send",
+      "name": "Sepolia Send",
+      "group": "Bridge and EVM",
+      "type": "Send",
+      "route": "WalletStack > SepoliaSend",
+      "description": "Sends USDC, wrapped UNIT, or ETH on the Sepolia side."
+    },
+    {
+      "id": "settings.panel",
+      "name": "Settings Panel",
+      "group": "Settings",
+      "type": "Panel",
+      "route": "WalletPage > SettingsScreen",
+      "description": "Slide-over settings surface with preferences, security, Cashu, account, and about entry points."
+    },
+    {
+      "id": "settings.preferences",
+      "name": "Preferences",
+      "group": "Settings",
+      "type": "Settings",
+      "route": "WalletStack > Preferences",
+      "description": "Display, notification, feature, and wallet preference controls."
+    },
+    {
+      "id": "settings.security",
+      "name": "Security",
+      "group": "Settings",
+      "type": "Settings",
+      "route": "WalletStack > Security",
+      "description": "PIN, biometrics, passkey backup, seed, and wallet reset actions."
+    },
+    {
+      "id": "settings.advanced",
+      "name": "Advanced",
+      "group": "Settings",
+      "type": "Settings",
+      "route": "WalletStack > Advanced",
+      "description": "Advanced toggles and developer-oriented settings."
+    },
+    {
+      "id": "settings.cashu",
+      "name": "Cashu Settings",
+      "group": "Settings",
+      "type": "Settings",
+      "route": "WalletStack > CashuSettings",
+      "description": "Cashu mint, threshold, recovery, and e-cash behavior controls."
+    },
+    {
+      "id": "settings.about",
+      "name": "About",
+      "group": "Settings",
+      "type": "Settings",
+      "route": "WalletStack > About",
+      "description": "App version, support, legal, and product information."
+    },
+    {
+      "id": "settings.terms",
+      "name": "Terms of Service",
+      "group": "Settings",
+      "type": "Legal",
+      "route": "WalletStack > TermsOfService",
+      "description": "Terms document opened from onboarding or about settings."
+    },
+    {
+      "id": "settings.privacy",
+      "name": "Privacy Policy",
+      "group": "Settings",
+      "type": "Legal",
+      "route": "WalletStack > PrivacyPolicy",
+      "description": "Privacy document opened from onboarding or about settings."
+    }
+  ],
+  "flows": [
+    {
+      "id": "complete-onboarding",
+      "name": "Complete onboarding",
+      "persona": "New wallet user",
+      "goal": "Create or restore a wallet and land on the dashboard with the wallet authenticated.",
+      "trigger": "First app launch without an accessible wallet.",
+      "outcome": "Wallet exists in secure storage, PIN or passkey guard is configured, balance/history fetches start, and the user lands on Wallet Home.",
+      "tags": ["auth", "setup"],
+      "steps": [
+        {
+          "screen": "app.splash",
+          "title": "Resolve startup state",
+          "userAction": "Opens the app.",
+          "data": ["No wallet is found yet", "Launch context"],
+          "systemEvents": ["Root navigation evaluates auth and wallet state", "Splash falls through to Auth stack"],
+          "stateChanges": ["shouldShowAuth becomes true"],
+          "nextScreen": "auth.welcome",
+          "transition": "Auth stack presents onboarding"
+        },
+        {
+          "screen": "auth.welcome",
+          "title": "Choose setup path",
+          "userAction": "Selects create with passkey, import seed phrase, or restore with passkey.",
+          "data": ["Setup method", "Optional seed phrase", "Passkey restore intent"],
+          "systemEvents": ["Onboarding state machine selects the next secure input mode"],
+          "stateChanges": ["importingWallet or restoringWithPasskey is set when applicable"],
+          "nextScreen": "auth.passkey-create",
+          "transition": "Welcome switches internal onboarding screen"
+        },
+        {
+          "screen": "auth.passkey-create",
+          "title": "Create passkey PIN",
+          "userAction": "Enters and confirms the PIN used to protect passkey wallet access.",
+          "data": ["6 digit PIN", "Passkey credential response", "Generated mnemonic when creating"],
+          "systemEvents": ["Passkey wallet creation starts", "Secure storage persists encrypted wallet material"],
+          "stateChanges": ["Wallet context receives wallet and account data"],
+          "nextScreen": "auth.pin-setup",
+          "transition": "Secure setup advances to app PIN setup when needed"
+        },
+        {
+          "screen": "auth.pin-setup",
+          "title": "Configure app unlock",
+          "userAction": "Creates wallet PIN and optionally enables biometrics.",
+          "data": ["PIN hash input", "Biometric preference"],
+          "systemEvents": ["PIN is hashed and stored", "Biometric preference persists", "Initial balance and history fetch begin"],
+          "stateChanges": ["isAuthenticated becomes true", "seedConfirmed is updated for imported wallets"],
+          "nextScreen": "wallet.home",
+          "transition": "Root navigator switches from Auth to Main"
+        },
+        {
+          "screen": "wallet.home",
+          "title": "Arrive on dashboard",
+          "userAction": "Reviews balances, vault state, and available actions.",
+          "data": ["Wallet addresses", "BTC and UNIT balances", "Cashu balance", "Vault data"],
+          "systemEvents": ["Polling contexts start their first fetch cycle", "Analytics screen event is recorded"],
+          "stateChanges": ["Authenticated session is active"],
+          "nextScreen": null,
+          "transition": "Flow complete"
+        }
+      ]
+    },
+    {
+      "id": "unlock-wallet",
+      "name": "Unlock existing wallet",
+      "persona": "Returning wallet user",
+      "goal": "Authenticate an existing wallet session and return to the dashboard.",
+      "trigger": "App launch or app lock while a wallet already exists.",
+      "outcome": "Authenticated session resumes and the user can perform wallet actions.",
+      "tags": ["auth", "returning"],
+      "steps": [
+        {
+          "screen": "app.splash",
+          "title": "Find existing wallet",
+          "userAction": "Opens the app.",
+          "data": ["Secure wallet exists", "Biometric preference", "Passkey accessibility"],
+          "systemEvents": ["Root navigation chooses LockScreen instead of onboarding"],
+          "stateChanges": ["shouldShowLockOverlay or auth route is set"],
+          "nextScreen": "auth.lock",
+          "transition": "Lock screen is shown"
+        },
+        {
+          "screen": "auth.lock",
+          "title": "Authenticate",
+          "userAction": "Enters PIN or uses biometrics.",
+          "data": ["PIN verification input", "Biometric result"],
+          "systemEvents": ["PIN or biometric service validates user", "Passkey accessibility is checked after restart"],
+          "stateChanges": ["isAuthenticated becomes true"],
+          "nextScreen": "wallet.home",
+          "transition": "Root resets to Main"
+        },
+        {
+          "screen": "wallet.home",
+          "title": "Resume wallet session",
+          "userAction": "Continues from the dashboard.",
+          "data": ["Current account index", "Persisted wallet addresses"],
+          "systemEvents": ["Balance, vault, Cashu, and history contexts refresh"],
+          "stateChanges": ["Session-scoped providers are active"],
+          "nextScreen": null,
+          "transition": "Flow complete"
+        }
+      ]
+    },
+    {
+      "id": "send-unit-onchain",
+      "name": "Send UNIT on-chain",
+      "persona": "Wallet sender",
+      "goal": "Send UNIT to a Taproot recipient using the on-chain Runes path.",
+      "trigger": "User taps Send from Wallet Home.",
+      "outcome": "A signed transaction is broadcast and the confirmation screen shows the txid.",
+      "tags": ["send", "unit", "on-chain"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Start send",
+          "userAction": "Taps Send.",
+          "data": ["Current balances", "Selected account", "Address type defaults"],
+          "systemEvents": ["WalletPage opens the send asset sheet"],
+          "stateChanges": ["showWithdrawSheet becomes true"],
+          "nextScreen": "wallet.withdraw-sheet",
+          "transition": "Send asset sheet slides over dashboard"
+        },
+        {
+          "screen": "wallet.withdraw-sheet",
+          "title": "Choose UNIT",
+          "userAction": "Chooses UNIT as the send asset.",
+          "data": ["assetType: unit"],
+          "systemEvents": ["Root SendFlow navigator is opened"],
+          "stateChanges": ["sendAssetType is initialized"],
+          "nextScreen": "send.input",
+          "transition": "Root stack presents SendFlow"
+        },
+        {
+          "screen": "send.input",
+          "title": "Enter recipient and amount",
+          "userAction": "Pastes or scans recipient and enters UNIT amount.",
+          "data": ["recipient address", "display amount", "turboEnabled: false"],
+          "systemEvents": ["Send validation checks address, amount, balance, and fee assumptions"],
+          "stateChanges": ["sendFlowStore holds recipient, amount, and asset type"],
+          "nextScreen": "send.review",
+          "transition": "Validated form navigates to review"
+        },
+        {
+          "screen": "send.review",
+          "title": "Review on-chain send",
+          "userAction": "Confirms the send.",
+          "data": ["recipient", "amount", "estimated fee", "UTXO selection preview"],
+          "systemEvents": ["Transaction intent is created or prepared for signing"],
+          "stateChanges": ["intentStep moves toward signing and broadcast"],
+          "nextScreen": "send.processing",
+          "transition": "Processing screen locks gestures"
+        },
+        {
+          "screen": "send.processing",
+          "title": "Sign and broadcast",
+          "userAction": "Waits while the app signs and submits the transaction.",
+          "data": ["PSBT", "selected UTXOs", "Rune edict amount in cents"],
+          "systemEvents": ["Transaction builder creates PSBT", "Wallet signs", "Broadcast service submits transaction", "Pending transaction tracking starts"],
+          "stateChanges": ["broadcastedTxid is stored", "pending transaction store is updated"],
+          "nextScreen": "send.confirmation",
+          "transition": "Broadcast result routes to confirmation"
+        },
+        {
+          "screen": "send.confirmation",
+          "title": "Show tx result",
+          "userAction": "Reviews transaction result and exits.",
+          "data": ["txid", "amount", "asset type"],
+          "systemEvents": ["Notification and snackbar logic can surface confirmation status"],
+          "stateChanges": ["Send flow state resets when dismissed"],
+          "nextScreen": "wallet.home",
+          "transition": "User returns to dashboard"
+        }
+      ]
+    },
+    {
+      "id": "send-turbo-unit",
+      "name": "Send Turbo UNIT",
+      "persona": "Wallet sender",
+      "goal": "Send UNIT through the Cashu Turbo path and produce a claimable token or link.",
+      "trigger": "User enables Turbo while sending UNIT.",
+      "outcome": "A Turbo token or deep link is generated, persisted for resume if needed, and shown on confirmation.",
+      "tags": ["send", "turbo", "cashu"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Start send",
+          "userAction": "Taps Send from the dashboard.",
+          "data": ["Cashu UNIT balance", "Runes UNIT balance"],
+          "systemEvents": ["WalletPage opens send asset sheet"],
+          "stateChanges": ["showWithdrawSheet becomes true"],
+          "nextScreen": "wallet.withdraw-sheet",
+          "transition": "Sheet opens"
+        },
+        {
+          "screen": "wallet.withdraw-sheet",
+          "title": "Select UNIT",
+          "userAction": "Selects UNIT and proceeds to send.",
+          "data": ["assetType: unit"],
+          "systemEvents": ["SendFlow is presented"],
+          "stateChanges": ["sendAssetType becomes unit"],
+          "nextScreen": "send.input",
+          "transition": "Send input opens"
+        },
+        {
+          "screen": "send.input",
+          "title": "Enable Turbo",
+          "userAction": "Enters recipient and amount, then enables Turbo.",
+          "data": ["recipient", "amount", "turboEnabled: true", "senderTaprootAddress"],
+          "systemEvents": ["Cashu balance and mint requirements are evaluated"],
+          "stateChanges": ["turboEnabled and send fields are stored"],
+          "nextScreen": "send.turbo-loading",
+          "transition": "Turbo preparation screen opens"
+        },
+        {
+          "screen": "send.turbo-loading",
+          "title": "Prepare Turbo context",
+          "userAction": "Waits while the app prepares a mint quote or token spend.",
+          "data": ["mintQuoteId", "mintAmount", "cashuUnit"],
+          "systemEvents": ["Mint quote can be requested", "P2PK token context is prepared"],
+          "stateChanges": ["Turbo processing store receives resumable metadata"],
+          "nextScreen": "send.review",
+          "transition": "Prepared Turbo send moves to review"
+        },
+        {
+          "screen": "send.review",
+          "title": "Review Turbo send",
+          "userAction": "Confirms amount, recipient, and Turbo rail.",
+          "data": ["recipient", "turbo amount", "mint claim amount", "quote id"],
+          "systemEvents": ["Review passes token context into processing route params"],
+          "stateChanges": ["send flow remains locked for processing"],
+          "nextScreen": "send.turbo-processing",
+          "transition": "Turbo processing opens"
+        },
+        {
+          "screen": "send.turbo-processing",
+          "title": "Generate token",
+          "userAction": "Waits for token creation and mint claim if required.",
+          "data": ["Cashu proofs", "P2PK lock", "turbo deeplink"],
+          "systemEvents": ["Cashu proofs are selected or minted", "Turbo token is serialized", "Persisted processing state clears on success"],
+          "stateChanges": ["Cashu balance updates", "turboToken and turboDeeplink are set"],
+          "nextScreen": "send.confirmation",
+          "transition": "Confirmation receives Turbo token result"
+        },
+        {
+          "screen": "send.confirmation",
+          "title": "Share Turbo result",
+          "userAction": "Copies or shares the token link, then exits.",
+          "data": ["turboToken", "turboDeeplink", "amount"],
+          "systemEvents": ["Snackbar queue can announce claim state later"],
+          "stateChanges": ["Send flow resets after exit"],
+          "nextScreen": "wallet.home",
+          "transition": "Return to dashboard"
+        }
+      ]
+    },
+    {
+      "id": "receive-address",
+      "name": "Receive BTC or UNIT",
+      "persona": "Wallet receiver",
+      "goal": "Show a QR code and address for receiving on-chain assets.",
+      "trigger": "User taps Receive from Wallet Home.",
+      "outcome": "User shares the selected receive address and returns to the dashboard.",
+      "tags": ["receive", "address"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Start receive",
+          "userAction": "Taps Receive.",
+          "data": ["Wallet addresses", "Asset balances"],
+          "systemEvents": ["WalletPage opens deposit sheet"],
+          "stateChanges": ["showDepositSheet becomes true"],
+          "nextScreen": "wallet.deposit-sheet",
+          "transition": "Receive asset sheet opens"
+        },
+        {
+          "screen": "wallet.deposit-sheet",
+          "title": "Choose receive asset",
+          "userAction": "Selects BTC or UNIT.",
+          "data": ["assetType", "segwit or taproot address"],
+          "systemEvents": ["Receive route params are prepared"],
+          "stateChanges": ["receiveAssetType is set"],
+          "nextScreen": "wallet.receive-qr",
+          "transition": "QR screen opens"
+        },
+        {
+          "screen": "wallet.receive-qr",
+          "title": "Share address",
+          "userAction": "Copies address or lets payer scan QR.",
+          "data": ["address", "networkLabel", "assetType"],
+          "systemEvents": ["No transaction is created until funds arrive externally"],
+          "stateChanges": ["Wallet state remains unchanged until polling sees new funds"],
+          "nextScreen": "wallet.home",
+          "transition": "User goes back"
+        }
+      ]
+    },
+    {
+      "id": "claim-cashu-token",
+      "name": "Claim Cashu or Turbo token",
+      "persona": "Wallet receiver",
+      "goal": "Claim a Cashu token from a QR scan or deep link.",
+      "trigger": "User scans a token QR or opens a token link.",
+      "outcome": "Token proofs are accepted into Cashu state and balances refresh.",
+      "tags": ["receive", "cashu", "turbo"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Open scanner",
+          "userAction": "Taps the QR scanner action.",
+          "data": ["Current account", "Cashu mint settings"],
+          "systemEvents": ["QR scanner modal opens"],
+          "stateChanges": ["showQRScanner becomes true"],
+          "nextScreen": "wallet.qr-scanner",
+          "transition": "Scanner overlays dashboard"
+        },
+        {
+          "screen": "wallet.qr-scanner",
+          "title": "Scan token",
+          "userAction": "Scans a Cashu token or Turbo link.",
+          "data": ["token string", "cashuUnit metadata"],
+          "systemEvents": ["QR handler decodes token metadata and chooses UNIT or BTC receive function"],
+          "stateChanges": ["Scanner closes after a valid token"],
+          "nextScreen": "cashu.receive",
+          "transition": "Cashu receive handles the token"
+        },
+        {
+          "screen": "cashu.receive",
+          "title": "Accept proofs",
+          "userAction": "Confirms receipt when prompted.",
+          "data": ["Cashu proofs", "mint", "unit"],
+          "systemEvents": ["Mint verifies token", "Proof store is updated", "Cashu balance refreshes"],
+          "stateChanges": ["cashuBalance or btcBalanceSats increases"],
+          "nextScreen": "wallet.home",
+          "transition": "Return to dashboard"
+        }
+      ]
+    },
+    {
+      "id": "create-vault",
+      "name": "Create vault",
+      "persona": "Borrower",
+      "goal": "Open a BTC-backed vault and borrow UNIT.",
+      "trigger": "User taps Create Vault on Wallet Home.",
+      "outcome": "Vault creation transaction is submitted, pending vault state is tracked, and vault detail becomes available.",
+      "tags": ["vault", "borrow"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Start vault creation",
+          "userAction": "Taps Create Vault.",
+          "data": ["BTC collateral balance", "BTC price", "Vault availability"],
+          "systemEvents": ["Root navigator opens VaultCreateFlow"],
+          "stateChanges": ["Vault create store initializes"],
+          "nextScreen": "vault.create.amounts",
+          "transition": "Vault amount screen opens"
+        },
+        {
+          "screen": "vault.create.amounts",
+          "title": "Enter collateral and debt",
+          "userAction": "Sets BTC collateral and UNIT borrow amount.",
+          "data": ["collateral amount", "borrow amount", "computed health"],
+          "systemEvents": ["Validation checks balance and vault ratios"],
+          "stateChanges": ["Vault create amounts are stored"],
+          "nextScreen": "vault.create.payout",
+          "transition": "Payout selection opens"
+        },
+        {
+          "screen": "vault.create.payout",
+          "title": "Choose payout",
+          "userAction": "Chooses on-chain, Cashu, or supported payout option.",
+          "data": ["payout asset", "recipient or account destination"],
+          "systemEvents": ["Payout config is attached to vault request"],
+          "stateChanges": ["Vault payout store updates"],
+          "nextScreen": "vault.create.confirm",
+          "transition": "Confirmation opens"
+        },
+        {
+          "screen": "vault.create.confirm",
+          "title": "Confirm vault terms",
+          "userAction": "Reviews and confirms collateral, debt, and risk.",
+          "data": ["collateral", "debt", "health", "fees", "payout"],
+          "systemEvents": ["Pending vault signing operation security context is prepared"],
+          "stateChanges": ["Signing confirmation is recorded"],
+          "nextScreen": "vault.create.processing",
+          "transition": "Processing locks gestures"
+        },
+        {
+          "screen": "vault.create.processing",
+          "title": "Submit vault transaction",
+          "userAction": "Waits while the app signs and submits the vault transaction.",
+          "data": ["Vault request", "PSBT", "Guardian websocket response"],
+          "systemEvents": ["Guardian API builds vault operation", "Wallet signs PSBT", "Broadcast and polling begin"],
+          "stateChanges": ["Pending vault transaction store updates", "vaultData refresh is scheduled"],
+          "nextScreen": "vault.create.success",
+          "transition": "Success opens after submission"
+        },
+        {
+          "screen": "vault.create.success",
+          "title": "Vault created",
+          "userAction": "Views success and returns to vault detail.",
+          "data": ["txid", "vault summary"],
+          "systemEvents": ["Success event and analytics are recorded"],
+          "stateChanges": ["Vault is shown as pending or active after refresh"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "User navigates to detail"
+        }
+      ]
+    },
+    {
+      "id": "borrow-more",
+      "name": "Borrow more UNIT",
+      "persona": "Existing vault owner",
+      "goal": "Increase UNIT debt against an existing vault.",
+      "trigger": "User taps Borrow from a vault card or vault detail.",
+      "outcome": "Borrow operation is submitted and the vault debt and health update after settlement.",
+      "tags": ["vault", "borrow"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Open vault",
+          "userAction": "Taps the vault card.",
+          "data": ["Current vault data"],
+          "systemEvents": ["WalletStack navigates to VaultDetail"],
+          "stateChanges": ["Vault detail route becomes active"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "Vault detail opens"
+        },
+        {
+          "screen": "wallet.vault-detail",
+          "title": "Start borrow",
+          "userAction": "Taps Borrow.",
+          "data": ["Current debt", "Collateral", "Vault health"],
+          "systemEvents": ["Root navigator opens BorrowFlow"],
+          "stateChanges": ["Borrow store initializes from vault data"],
+          "nextScreen": "vault.borrow.input",
+          "transition": "Borrow input opens"
+        },
+        {
+          "screen": "vault.borrow.input",
+          "title": "Enter additional borrow amount",
+          "userAction": "Enters UNIT amount.",
+          "data": ["borrow amount", "post-borrow health"],
+          "systemEvents": ["Validation checks collateralization limits"],
+          "stateChanges": ["Borrow amount is stored"],
+          "nextScreen": "vault.borrow.payout",
+          "transition": "Payout screen opens"
+        },
+        {
+          "screen": "vault.borrow.payout",
+          "title": "Choose payout",
+          "userAction": "Chooses payout destination.",
+          "data": ["payout asset", "destination"],
+          "systemEvents": ["Payout route params are prepared"],
+          "stateChanges": ["Borrow payout selection is stored"],
+          "nextScreen": "vault.borrow.confirm",
+          "transition": "Confirm screen opens"
+        },
+        {
+          "screen": "vault.borrow.confirm",
+          "title": "Confirm updated position",
+          "userAction": "Confirms new debt and payout.",
+          "data": ["updated debt", "updated health", "fees"],
+          "systemEvents": ["Borrow operation is prepared for Guardian execution"],
+          "stateChanges": ["Pending signing context is set"],
+          "nextScreen": "vault.borrow.processing",
+          "transition": "Processing opens"
+        },
+        {
+          "screen": "vault.borrow.processing",
+          "title": "Execute borrow",
+          "userAction": "Waits for settlement.",
+          "data": ["Borrow request", "Guardian response", "settlement ids"],
+          "systemEvents": ["Guardian borrow API executes", "Settlement store tracks bridge or mint work"],
+          "stateChanges": ["Pending vault transaction and settlement phase update"],
+          "nextScreen": "vault.borrow.success",
+          "transition": "Success opens"
+        },
+        {
+          "screen": "vault.borrow.success",
+          "title": "Borrow complete",
+          "userAction": "Returns to vault detail.",
+          "data": ["txid", "settlement summary"],
+          "systemEvents": ["Vault data refresh is requested"],
+          "stateChanges": ["Debt and health update after indexer refresh"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "Return to vault detail"
+        }
+      ]
+    },
+    {
+      "id": "repay-vault",
+      "name": "Repay vault debt",
+      "persona": "Existing vault owner",
+      "goal": "Pay back UNIT debt and improve vault health.",
+      "trigger": "User taps Repay from dashboard or vault detail.",
+      "outcome": "Repayment is submitted and the vault debt decreases after refresh.",
+      "tags": ["vault", "repay"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Start repay",
+          "userAction": "Taps Repay on the vault card.",
+          "data": ["Vault debt", "Available UNIT and Cashu balances"],
+          "systemEvents": ["Root navigator opens RepayFlow"],
+          "stateChanges": ["Repay store initializes"],
+          "nextScreen": "vault.repay.input",
+          "transition": "Repay input opens"
+        },
+        {
+          "screen": "vault.repay.input",
+          "title": "Enter repay amount",
+          "userAction": "Sets amount of UNIT debt to repay.",
+          "data": ["repay amount", "remaining debt preview"],
+          "systemEvents": ["Validation checks debt and available funds"],
+          "stateChanges": ["Repay amount is stored"],
+          "nextScreen": "vault.repay.funding",
+          "transition": "Funding selection opens"
+        },
+        {
+          "screen": "vault.repay.funding",
+          "title": "Choose funding source",
+          "userAction": "Chooses on-chain UNIT, Cashu UNIT, or available combination.",
+          "data": ["funding source", "proofs or on-chain balance"],
+          "systemEvents": ["Funding plan is attached to repay operation"],
+          "stateChanges": ["Repay funding selection updates"],
+          "nextScreen": "vault.repay.confirm",
+          "transition": "Confirm screen opens"
+        },
+        {
+          "screen": "vault.repay.confirm",
+          "title": "Confirm repayment",
+          "userAction": "Confirms the repay operation.",
+          "data": ["repay amount", "funding source", "new health"],
+          "systemEvents": ["Repay transaction or token spend is prepared"],
+          "stateChanges": ["Pending signing context is set"],
+          "nextScreen": "vault.repay.processing",
+          "transition": "Processing opens"
+        },
+        {
+          "screen": "vault.repay.processing",
+          "title": "Execute repayment",
+          "userAction": "Waits while repayment is submitted.",
+          "data": ["Repay request", "PSBT or token spend", "vault txid"],
+          "systemEvents": ["Guardian repay API executes", "Broadcast and polling start"],
+          "stateChanges": ["Pending vault transaction store updates"],
+          "nextScreen": "vault.repay.success",
+          "transition": "Success screen opens"
+        },
+        {
+          "screen": "vault.repay.success",
+          "title": "Debt reduced",
+          "userAction": "Returns to vault detail.",
+          "data": ["vaultTxid", "repay summary"],
+          "systemEvents": ["Vault data refresh is requested"],
+          "stateChanges": ["Vault debt decreases after refresh"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "Return to vault detail"
+        }
+      ]
+    },
+    {
+      "id": "deposit-collateral",
+      "name": "Add vault collateral",
+      "persona": "Existing vault owner",
+      "goal": "Deposit more BTC collateral to improve vault health.",
+      "trigger": "User taps Deposit from vault detail.",
+      "outcome": "Deposit transaction is submitted and vault collateral increases after refresh.",
+      "tags": ["vault", "deposit"],
+      "steps": [
+        {
+          "screen": "wallet.vault-detail",
+          "title": "Start deposit",
+          "userAction": "Taps Deposit.",
+          "data": ["Current collateral", "Available BTC"],
+          "systemEvents": ["Root navigator opens DepositFlow"],
+          "stateChanges": ["Deposit store initializes"],
+          "nextScreen": "vault.deposit.input",
+          "transition": "Deposit input opens"
+        },
+        {
+          "screen": "vault.deposit.input",
+          "title": "Enter BTC amount",
+          "userAction": "Types collateral amount.",
+          "data": ["BTC amount", "new health preview"],
+          "systemEvents": ["Validation checks BTC balance and minimums"],
+          "stateChanges": ["Deposit amount is stored"],
+          "nextScreen": "vault.deposit.confirm",
+          "transition": "Confirm opens"
+        },
+        {
+          "screen": "vault.deposit.confirm",
+          "title": "Confirm collateral deposit",
+          "userAction": "Confirms the operation.",
+          "data": ["deposit amount", "fees", "new health"],
+          "systemEvents": ["Deposit PSBT is prepared"],
+          "stateChanges": ["Pending signing context is set"],
+          "nextScreen": "vault.deposit.processing",
+          "transition": "Processing opens"
+        },
+        {
+          "screen": "vault.deposit.processing",
+          "title": "Submit deposit",
+          "userAction": "Waits for signing and broadcast.",
+          "data": ["Deposit request", "PSBT", "vaultTxid"],
+          "systemEvents": ["Wallet signs", "Broadcast submits", "Pending vault transaction tracking starts"],
+          "stateChanges": ["Pending collateral update is tracked"],
+          "nextScreen": "vault.deposit.success",
+          "transition": "Success opens"
+        },
+        {
+          "screen": "vault.deposit.success",
+          "title": "Collateral submitted",
+          "userAction": "Returns to vault detail.",
+          "data": ["vaultTxid"],
+          "systemEvents": ["Vault refresh is requested"],
+          "stateChanges": ["Collateral increases after confirmation and refresh"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "Return to detail"
+        }
+      ]
+    },
+    {
+      "id": "withdraw-collateral",
+      "name": "Withdraw vault collateral",
+      "persona": "Existing vault owner",
+      "goal": "Withdraw safe BTC collateral from an existing vault.",
+      "trigger": "User taps Withdraw from vault detail.",
+      "outcome": "Withdrawal is submitted while preserving required vault health.",
+      "tags": ["vault", "withdraw"],
+      "steps": [
+        {
+          "screen": "wallet.vault-detail",
+          "title": "Start withdrawal",
+          "userAction": "Taps Withdraw.",
+          "data": ["Current collateral", "Current debt", "Health limit"],
+          "systemEvents": ["Root navigator opens WithdrawFlow"],
+          "stateChanges": ["Withdraw store initializes"],
+          "nextScreen": "vault.withdraw.input",
+          "transition": "Withdraw input opens"
+        },
+        {
+          "screen": "vault.withdraw.input",
+          "title": "Enter BTC amount",
+          "userAction": "Types withdrawal amount.",
+          "data": ["withdraw amount", "post-withdraw health"],
+          "systemEvents": ["Validation prevents unsafe collateral removal"],
+          "stateChanges": ["Withdraw amount is stored"],
+          "nextScreen": "vault.withdraw.confirm",
+          "transition": "Confirm opens"
+        },
+        {
+          "screen": "vault.withdraw.confirm",
+          "title": "Confirm health impact",
+          "userAction": "Confirms withdrawal.",
+          "data": ["amount", "fees", "new collateral", "new health"],
+          "systemEvents": ["Withdraw request is prepared for signing"],
+          "stateChanges": ["Pending signing context is set"],
+          "nextScreen": "vault.withdraw.processing",
+          "transition": "Processing opens"
+        },
+        {
+          "screen": "vault.withdraw.processing",
+          "title": "Submit withdrawal",
+          "userAction": "Waits while the app signs and broadcasts.",
+          "data": ["Withdraw request", "PSBT", "vaultTxid"],
+          "systemEvents": ["Guardian withdraw API executes", "Wallet signs", "Broadcast starts polling"],
+          "stateChanges": ["Pending vault transaction store updates"],
+          "nextScreen": "vault.withdraw.success",
+          "transition": "Success opens"
+        },
+        {
+          "screen": "vault.withdraw.success",
+          "title": "Withdrawal submitted",
+          "userAction": "Returns to vault detail.",
+          "data": ["vaultTxid"],
+          "systemEvents": ["Vault refresh is requested"],
+          "stateChanges": ["Collateral decreases after confirmation and refresh"],
+          "nextScreen": "wallet.vault-detail",
+          "transition": "Return to detail"
+        }
+      ]
+    },
+    {
+      "id": "configure-ecash-threshold",
+      "name": "Configure e-cash threshold",
+      "persona": "Wallet user",
+      "goal": "Change the Cashu threshold and optionally top up e-cash.",
+      "trigger": "User opens Cashu settings from Settings.",
+      "outcome": "Threshold preference is persisted and optional conversion is started.",
+      "tags": ["settings", "cashu"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Open settings",
+          "userAction": "Taps the settings button.",
+          "data": ["Current settings flags"],
+          "systemEvents": ["WalletPage opens SettingsScreen slide-over"],
+          "stateChanges": ["showSettings becomes true"],
+          "nextScreen": "settings.panel",
+          "transition": "Settings panel slides in"
+        },
+        {
+          "screen": "settings.panel",
+          "title": "Choose Cashu settings",
+          "userAction": "Taps Cashu Settings.",
+          "data": ["Current e-cash threshold", "Cashu mint config"],
+          "systemEvents": ["WalletStack navigates to CashuSettings"],
+          "stateChanges": ["Settings panel remains mounted behind stack screen"],
+          "nextScreen": "settings.cashu",
+          "transition": "Settings detail slides from right"
+        },
+        {
+          "screen": "settings.cashu",
+          "title": "Edit threshold",
+          "userAction": "Changes threshold or starts top-up.",
+          "data": ["threshold in cents", "cashuUnit", "top-up amount"],
+          "systemEvents": ["AsyncStorage persists threshold", "Conversion may be requested if top-up is needed"],
+          "stateChanges": ["settingsHandlers.ecashThreshold updates"],
+          "nextScreen": "cashu.conversion",
+          "transition": "Conversion modal opens when on-chain UNIT must become e-cash"
+        },
+        {
+          "screen": "cashu.conversion",
+          "title": "Confirm conversion",
+          "userAction": "Confirms converting on-chain UNIT into Cashu UNIT.",
+          "data": ["conversion amount", "sender taproot address"],
+          "systemEvents": ["Turbo mint path is prepared for the conversion"],
+          "stateChanges": ["Pending threshold conversion is cleared after submit"],
+          "nextScreen": "send.turbo-loading",
+          "transition": "Turbo loading opens when conversion is submitted"
+        },
+        {
+          "screen": "send.turbo-loading",
+          "title": "Prepare mint",
+          "userAction": "Waits for mint quote preparation.",
+          "data": ["mint quote", "amount in cents"],
+          "systemEvents": ["requestMint is called with integer cents"],
+          "stateChanges": ["Cashu top-up continues through send/Turbo state"],
+          "nextScreen": "send.turbo-processing",
+          "transition": "Processing begins"
+        },
+        {
+          "screen": "send.turbo-processing",
+          "title": "Mint e-cash",
+          "userAction": "Waits for token processing.",
+          "data": ["mintQuoteId", "proofs"],
+          "systemEvents": ["Mint proofs are claimed and stored"],
+          "stateChanges": ["cashuBalance increases"],
+          "nextScreen": "wallet.home",
+          "transition": "Return to dashboard after completion"
+        }
+      ]
+    },
+    {
+      "id": "change-security",
+      "name": "Change security settings",
+      "persona": "Wallet user",
+      "goal": "Update PIN, biometrics, passkey backup, or reset-sensitive security settings.",
+      "trigger": "User opens Security from Settings.",
+      "outcome": "Security preference or PIN change is persisted and the user returns to the wallet.",
+      "tags": ["settings", "security"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Open settings",
+          "userAction": "Taps settings.",
+          "data": ["Biometric enabled flag", "Passkey state"],
+          "systemEvents": ["Settings panel opens"],
+          "stateChanges": ["showSettings becomes true"],
+          "nextScreen": "settings.panel",
+          "transition": "Panel opens"
+        },
+        {
+          "screen": "settings.panel",
+          "title": "Open Security",
+          "userAction": "Taps Security.",
+          "data": ["Security settings summary"],
+          "systemEvents": ["WalletStack navigates to Security"],
+          "stateChanges": ["Security screen is active"],
+          "nextScreen": "settings.security",
+          "transition": "Security detail opens"
+        },
+        {
+          "screen": "settings.security",
+          "title": "Choose security action",
+          "userAction": "Toggles biometrics or chooses Change PIN.",
+          "data": ["Requested action", "Current auth state"],
+          "systemEvents": ["Biometric service or PIN overlay is invoked"],
+          "stateChanges": ["changingPin can become true"],
+          "nextScreen": "auth.pin-setup",
+          "transition": "PIN setup overlay opens for PIN changes"
+        },
+        {
+          "screen": "auth.pin-setup",
+          "title": "Confirm new PIN",
+          "userAction": "Enters and confirms new PIN.",
+          "data": ["New PIN", "Biometric preference"],
+          "systemEvents": ["PIN hash is replaced", "Biometric preference persists if changed"],
+          "stateChanges": ["changingPin clears", "Security settings reflect update"],
+          "nextScreen": "settings.security",
+          "transition": "Overlay closes back to Security"
+        }
+      ]
+    },
+    {
+      "id": "bridge-usdc",
+      "name": "Bridge or swap USDC",
+      "persona": "Bridge user",
+      "goal": "Move value through the feature-gated USDC bridge and Sepolia swap screens.",
+      "trigger": "User taps a bridge or swap action from Wallet Home.",
+      "outcome": "Swap, redeem, or send operation is submitted or the user exits with reviewed quote details.",
+      "tags": ["bridge", "usdc"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Open bridge",
+          "userAction": "Taps Bridge or Swap.",
+          "data": ["USDC feature flag", "EVM balances", "UNIT balance"],
+          "systemEvents": ["Feature gate checks usdcFeaturesEnabled"],
+          "stateChanges": ["WalletStack route opens if feature is enabled"],
+          "nextScreen": "bridge.home",
+          "transition": "Bridge screen opens"
+        },
+        {
+          "screen": "bridge.home",
+          "title": "Choose bridge action",
+          "userAction": "Chooses swap, redeem, or send.",
+          "data": ["source asset", "available balances"],
+          "systemEvents": ["Route params for source asset are prepared"],
+          "stateChanges": ["Bridge route state advances"],
+          "nextScreen": "bridge.swap",
+          "transition": "Swap screen opens"
+        },
+        {
+          "screen": "bridge.swap",
+          "title": "Enter swap amount",
+          "userAction": "Sets source asset and amount.",
+          "data": ["sourceAsset", "amountIn"],
+          "systemEvents": ["Quote and validation logic checks available balance"],
+          "stateChanges": ["Swap input state updates"],
+          "nextScreen": "bridge.swap-summary",
+          "transition": "Summary opens"
+        },
+        {
+          "screen": "bridge.swap-summary",
+          "title": "Review quote",
+          "userAction": "Confirms or goes back to edit.",
+          "data": ["quote", "source amount", "destination amount"],
+          "systemEvents": ["Swap or bridge submission is prepared"],
+          "stateChanges": ["Pending bridge state may begin after confirm"],
+          "nextScreen": "wallet.home",
+          "transition": "Result or cancellation returns to wallet"
+        }
+      ]
+    },
+    {
+      "id": "inspect-history",
+      "name": "Inspect asset and history",
+      "persona": "Wallet user",
+      "goal": "Drill into an asset and review transaction history.",
+      "trigger": "User taps an asset card or history action on the dashboard.",
+      "outcome": "User understands balances and recent activity without changing wallet state.",
+      "tags": ["dashboard", "history"],
+      "steps": [
+        {
+          "screen": "wallet.home",
+          "title": "Choose information path",
+          "userAction": "Taps an asset card or transaction history.",
+          "data": ["asset id", "asset type", "current balances"],
+          "systemEvents": ["WalletStack navigates to AssetDetail or opens history sheet"],
+          "stateChanges": ["No financial state changes"],
+          "nextScreen": "wallet.asset-detail",
+          "transition": "Detail screen opens"
+        },
+        {
+          "screen": "wallet.asset-detail",
+          "title": "Review asset detail",
+          "userAction": "Reads balance and asset metadata.",
+          "data": ["assetType", "advancedMode", "optional EVM balance params"],
+          "systemEvents": ["Asset-specific data is displayed from wallet data context"],
+          "stateChanges": ["No financial state changes"],
+          "nextScreen": "wallet.transaction-history",
+          "transition": "User opens history"
+        },
+        {
+          "screen": "wallet.transaction-history",
+          "title": "Review activity",
+          "userAction": "Scrolls through recent transactions.",
+          "data": ["transaction rows", "pending tx state"],
+          "systemEvents": ["History context may refresh in background"],
+          "stateChanges": ["No financial state changes unless background polling finds updates"],
+          "nextScreen": "wallet.home",
+          "transition": "User dismisses sheet or navigates back"
+        }
+      ]
+    }
+  ]
+}
+  </script>
+
+  <script>
+    (() => {
+      const rawData = document.getElementById("product-flow-data").textContent;
+      const data = JSON.parse(rawData);
+      const screensById = new Map(data.screens.map((screen) => [screen.id, screen]));
+      const state = {
+        selectedFlowId: data.flows[0] ? data.flows[0].id : null,
+        selectedStepIndex: 0,
+        selectedScreenId: null,
+        query: "",
+        group: "all",
+        jsonOpen: false
+      };
+
+      const els = {
+        productEyebrow: document.getElementById("product-eyebrow"),
+        productTitle: document.getElementById("product-title"),
+        productDescription: document.getElementById("product-description"),
+        screenCount: document.getElementById("screen-count"),
+        flowCount: document.getElementById("flow-count"),
+        stepCount: document.getElementById("step-count"),
+        flowSearch: document.getElementById("flow-search"),
+        groupFilter: document.getElementById("group-filter"),
+        flowList: document.getElementById("flow-list"),
+        mapTitle: document.getElementById("map-title"),
+        screenMap: document.getElementById("screen-map"),
+        mapStage: document.getElementById("map-stage"),
+        flowLines: document.getElementById("flow-lines"),
+        inspectorSummary: document.getElementById("inspector-summary"),
+        inspector: document.getElementById("inspector")
+      };
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          "\"": "&quot;",
+          "'": "&#39;"
+        })[char]);
+      }
+
+      function currentFlow() {
+        return data.flows.find((flow) => flow.id === state.selectedFlowId) || data.flows[0] || null;
+      }
+
+      function currentStep() {
+        const flow = currentFlow();
+        return flow ? flow.steps[state.selectedStepIndex] || flow.steps[0] || null : null;
+      }
+
+      function screenName(screenId) {
+        return screensById.get(screenId)?.name || screenId || "End";
+      }
+
+      function stepNumbersForScreen(flow, screenId) {
+        if (!flow) return [];
+        return flow.steps
+          .map((step, index) => step.screen === screenId ? index + 1 : null)
+          .filter(Boolean);
+      }
+
+      function uniqueScreenIdsForFlow(flow) {
+        return new Set(flow ? flow.steps.map((step) => step.screen) : []);
+      }
+
+      function itemList(items) {
+        const values = Array.isArray(items) ? items : items ? [items] : [];
+        if (!values.length) return "<span>None</span>";
+        return `<ul>${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+      }
+
+      function renderChrome() {
+        const totalSteps = data.flows.reduce((sum, flow) => sum + flow.steps.length, 0);
+        els.productEyebrow.textContent = `${data.product.environment} / user movement map`;
+        els.productTitle.textContent = `${data.product.name} User Flow Map`;
+        els.productDescription.textContent = data.product.description;
+        els.screenCount.textContent = data.screens.length;
+        els.flowCount.textContent = data.flows.length;
+        els.stepCount.textContent = totalSteps;
+      }
+
+      function renderGroupFilter() {
+        const groups = data.screenGroups || Array.from(new Set(data.screens.map((screen) => screen.group)));
+        els.groupFilter.innerHTML = [
+          `<option value="all">All screen groups</option>`,
+          ...groups.map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`)
+        ].join("");
+        els.groupFilter.value = state.group;
+      }
+
+      function filteredFlows() {
+        const query = state.query.trim().toLowerCase();
+        if (!query) return data.flows;
+        return data.flows.filter((flow) => {
+          const searchText = [
+            flow.name,
+            flow.goal,
+            flow.trigger,
+            flow.outcome,
+            ...(flow.tags || [])
+          ].join(" ").toLowerCase();
+          return searchText.includes(query);
+        });
+      }
+
+      function renderFlows() {
+        const flows = filteredFlows();
+        if (!flows.length) {
+          els.flowList.innerHTML = `<div class="empty-state">No matching flows.</div>`;
+          return;
+        }
+
+        els.flowList.innerHTML = flows.map((flow) => {
+          const active = flow.id === state.selectedFlowId ? " active" : "";
+          const tags = (flow.tags || []).slice(0, 3).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("");
+          return `
+            <button class="flow-button${active}" type="button" data-flow-id="${escapeHtml(flow.id)}">
+              <strong>${escapeHtml(flow.name)}</strong>
+              <span>${escapeHtml(flow.goal)}</span>
+              <span class="flow-meta">
+                <span class="chip accent">${flow.steps.length} steps</span>
+                ${tags}
+              </span>
+            </button>
+          `;
+        }).join("");
+      }
+
+      function filteredScreens() {
+        return data.screens.filter((screen) => state.group === "all" || screen.group === state.group);
+      }
+
+      function renderScreens() {
+        const flow = currentFlow();
+        const activeStep = currentStep();
+        const activeScreenIds = uniqueScreenIdsForFlow(flow);
+        const groups = data.screenGroups || Array.from(new Set(data.screens.map((screen) => screen.group)));
+        const screens = filteredScreens();
+
+        els.mapTitle.textContent = flow ? `${flow.name}: screen sequence` : "Screens";
+
+        const sections = groups
+          .map((group) => {
+            const groupScreens = screens.filter((screen) => screen.group === group);
+            if (!groupScreens.length) return "";
+            const cards = groupScreens.map((screen) => {
+              const inFlow = activeScreenIds.has(screen.id);
+              const isCurrent = activeStep && activeStep.screen === screen.id;
+              const isSelected = state.selectedScreenId === screen.id;
+              const classes = [
+                "screen-card",
+                inFlow ? "in-flow" : "",
+                isCurrent || isSelected ? "current" : ""
+              ].filter(Boolean).join(" ");
+              const badges = stepNumbersForScreen(flow, screen.id)
+                .map((number) => `<span class="step-badge">${number}</span>`)
+                .join("");
+              return `
+                <button class="${classes}" type="button" data-screen-card="${escapeHtml(screen.id)}" data-screen-id="${escapeHtml(screen.id)}">
+                  <span class="screen-type">${escapeHtml(screen.type)}</span>
+                  <h4>${escapeHtml(screen.name)}</h4>
+                  <p>${escapeHtml(screen.description)}</p>
+                  ${badges ? `<div class="badges" aria-label="Flow step numbers">${badges}</div>` : ""}
+                </button>
+              `;
+            }).join("");
+            return `
+              <section class="group-section" aria-label="${escapeHtml(group)} screens">
+                <div class="group-title">
+                  <h3>${escapeHtml(group)}</h3>
+                  <span>${groupScreens.length} screens</span>
+                </div>
+                <div class="screen-grid">${cards}</div>
+              </section>
+            `;
+          })
+          .join("");
+
+        els.screenMap.innerHTML = sections || `<div class="empty-state">No screens in this group.</div>`;
+        requestAnimationFrame(drawConnectors);
+      }
+
+      function renderInspector() {
+        const flow = currentFlow();
+        if (!flow) {
+          els.inspector.innerHTML = `<div class="empty-state">No flow data is available.</div>`;
+          return;
+        }
+
+        const step = currentStep();
+        const screen = step ? screensById.get(step.screen) : null;
+        const selectedScreen = state.selectedScreenId ? screensById.get(state.selectedScreenId) : null;
+        els.inspectorSummary.textContent = flow.goal;
+
+        const timeline = flow.steps.map((item, index) => {
+          const active = index === state.selectedStepIndex ? " active" : "";
+          return `
+            <button class="step-button${active}" type="button" data-step-index="${index}">
+              <span class="step-number">${index + 1}</span>
+              <span>
+                <span class="step-title">${escapeHtml(item.title || screenName(item.screen))}</span>
+                <span class="step-next">${escapeHtml(screenName(item.screen))}${item.nextScreen ? ` > ${escapeHtml(screenName(item.nextScreen))}` : " > Outcome"}</span>
+              </span>
+            </button>
+          `;
+        }).join("");
+
+        const stepDetails = step ? `
+          <div class="section">
+            <h3>Current Step Annotation</h3>
+            <div class="details-grid">
+              <div class="detail-row"><strong>Screen</strong><span>${escapeHtml(screenName(step.screen))}</span></div>
+              <div class="detail-row"><strong>User action</strong><span>${escapeHtml(step.userAction)}</span></div>
+              <div class="detail-row"><strong>Data entered or passed</strong>${itemList(step.data)}</div>
+              <div class="detail-row"><strong>Backend or system events</strong>${itemList(step.systemEvents)}</div>
+              <div class="detail-row"><strong>State changes</strong>${itemList(step.stateChanges)}</div>
+              <div class="detail-row"><strong>Next</strong><span>${escapeHtml(step.nextScreen ? screenName(step.nextScreen) : flow.outcome)}</span></div>
+              <div class="detail-row"><strong>Transition</strong><span>${escapeHtml(step.transition)}</span></div>
+            </div>
+          </div>
+        ` : "";
+
+        const selectedScreenDetails = selectedScreen ? `
+          <div class="section">
+            <h3>Selected Screen</h3>
+            <div class="details-grid">
+              <div class="detail-row"><strong>Name</strong><span>${escapeHtml(selectedScreen.name)}</span></div>
+              <div class="detail-row"><strong>Route</strong><span>${escapeHtml(selectedScreen.route)}</span></div>
+              <div class="detail-row"><strong>Group</strong><span>${escapeHtml(selectedScreen.group)}</span></div>
+              <div class="detail-row"><strong>Description</strong><span>${escapeHtml(selectedScreen.description)}</span></div>
+            </div>
+          </div>
+        ` : screen ? `
+          <div class="section">
+            <h3>Current Screen</h3>
+            <div class="details-grid">
+              <div class="detail-row"><strong>Route</strong><span>${escapeHtml(screen.route)}</span></div>
+              <div class="detail-row"><strong>Type</strong><span>${escapeHtml(screen.type)}</span></div>
+              <div class="detail-row"><strong>Description</strong><span>${escapeHtml(screen.description)}</span></div>
+            </div>
+          </div>
+        ` : "";
+
+        els.inspector.innerHTML = `
+          <div class="section">
+            <h3>${escapeHtml(flow.name)}</h3>
+            <p>${escapeHtml(flow.trigger)}</p>
+            <div class="flow-meta">
+              <span class="chip accent">${flow.steps.length} steps</span>
+              <span class="chip">${escapeHtml(flow.persona)}</span>
+              ${(flow.tags || []).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+            </div>
+          </div>
+          <div class="section">
+            <h3>Sequence</h3>
+            <div class="timeline">${timeline}</div>
+          </div>
+          ${stepDetails}
+          <div class="section">
+            <h3>Final Outcome</h3>
+            <p>${escapeHtml(flow.outcome)}</p>
+          </div>
+          ${selectedScreenDetails}
+          <button class="json-toggle" type="button" id="json-toggle">${state.jsonOpen ? "Hide JSON data" : "View JSON data"}</button>
+          <div class="json-panel${state.jsonOpen ? " open" : ""}" id="json-panel">
+            <label class="sr-only" for="json-data">Embedded JSON data</label>
+            <textarea id="json-data" readonly>${escapeHtml(JSON.stringify(data, null, 2))}</textarea>
+          </div>
+        `;
+      }
+
+      function getCardByScreenId(screenId) {
+        return Array.from(els.mapStage.querySelectorAll("[data-screen-card]"))
+          .find((card) => card.dataset.screenCard === screenId);
+      }
+
+      function drawConnectors() {
+        const flow = currentFlow();
+        els.flowLines.innerHTML = "";
+        if (!flow || !flow.steps.length) return;
+
+        const stageRect = els.mapStage.getBoundingClientRect();
+        const width = Math.max(els.mapStage.scrollWidth, els.mapStage.clientWidth);
+        const height = Math.max(els.mapStage.scrollHeight, els.mapStage.clientHeight);
+        els.flowLines.setAttribute("viewBox", `0 0 ${width} ${height}`);
+        els.flowLines.setAttribute("width", width);
+        els.flowLines.setAttribute("height", height);
+
+        const namespace = "http://www.w3.org/2000/svg";
+        const defs = document.createElementNS(namespace, "defs");
+        const marker = document.createElementNS(namespace, "marker");
+        marker.setAttribute("id", "arrowhead");
+        marker.setAttribute("markerWidth", "10");
+        marker.setAttribute("markerHeight", "10");
+        marker.setAttribute("refX", "8");
+        marker.setAttribute("refY", "3");
+        marker.setAttribute("orient", "auto");
+        marker.setAttribute("markerUnits", "strokeWidth");
+        const arrow = document.createElementNS(namespace, "path");
+        arrow.setAttribute("d", "M 0 0 L 8 3 L 0 6 z");
+        arrow.setAttribute("fill", "rgba(247, 147, 26, 0.86)");
+        marker.appendChild(arrow);
+        defs.appendChild(marker);
+        els.flowLines.appendChild(defs);
+
+        const points = flow.steps.map((step) => {
+          const card = getCardByScreenId(step.screen);
+          if (!card) return null;
+          const rect = card.getBoundingClientRect();
+          return {
+            x: rect.left - stageRect.left + rect.width / 2 + els.mapStage.scrollLeft,
+            y: rect.top - stageRect.top + rect.height / 2 + els.mapStage.scrollTop,
+            screen: step.screen
+          };
+        });
+
+        for (let index = 0; index < points.length - 1; index += 1) {
+          const start = points[index];
+          const end = points[index + 1];
+          if (!start || !end || start.screen === end.screen) continue;
+          const path = document.createElementNS(namespace, "path");
+          const midX = (start.x + end.x) / 2;
+          const distance = Math.abs(end.y - start.y) + Math.abs(end.x - start.x);
+          const bend = Math.min(120, Math.max(48, distance * 0.16));
+          const c1x = midX;
+          const c1y = start.y + (end.y >= start.y ? bend : -bend);
+          const c2x = midX;
+          const c2y = end.y - (end.y >= start.y ? bend : -bend);
+          path.setAttribute("d", `M ${start.x} ${start.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${end.x} ${end.y}`);
+          path.setAttribute("fill", "none");
+          path.setAttribute("stroke", "rgba(247, 147, 26, 0.58)");
+          path.setAttribute("stroke-width", "3");
+          path.setAttribute("stroke-linecap", "round");
+          path.setAttribute("marker-end", "url(#arrowhead)");
+          els.flowLines.appendChild(path);
+        }
+      }
+
+      function render() {
+        renderChrome();
+        renderGroupFilter();
+        renderFlows();
+        renderScreens();
+        renderInspector();
+      }
+
+      els.flowSearch.addEventListener("input", (event) => {
+        state.query = event.target.value;
+        renderFlows();
+      });
+
+      els.groupFilter.addEventListener("change", (event) => {
+        state.group = event.target.value;
+        renderScreens();
+      });
+
+      els.flowList.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-flow-id]");
+        if (!button) return;
+        state.selectedFlowId = button.dataset.flowId;
+        state.selectedStepIndex = 0;
+        state.selectedScreenId = null;
+        state.group = "all";
+        els.groupFilter.value = "all";
+        render();
+      });
+
+      els.screenMap.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-screen-id]");
+        if (!button) return;
+        state.selectedScreenId = button.dataset.screenId;
+        const flow = currentFlow();
+        const stepIndex = flow ? flow.steps.findIndex((step) => step.screen === state.selectedScreenId) : -1;
+        if (stepIndex >= 0) state.selectedStepIndex = stepIndex;
+        renderScreens();
+        renderInspector();
+      });
+
+      els.inspector.addEventListener("click", (event) => {
+        const stepButton = event.target.closest("[data-step-index]");
+        if (stepButton) {
+          state.selectedStepIndex = Number(stepButton.dataset.stepIndex);
+          const step = currentStep();
+          state.selectedScreenId = step ? step.screen : null;
+          renderScreens();
+          renderInspector();
+          return;
+        }
+
+        const jsonButton = event.target.closest("#json-toggle");
+        if (jsonButton) {
+          state.jsonOpen = !state.jsonOpen;
+          renderInspector();
+        }
+      });
+
+      window.addEventListener("resize", () => requestAnimationFrame(drawConnectors));
+      document.getElementById("map-scroll").addEventListener("scroll", () => requestAnimationFrame(drawConnectors));
+
+      render();
+    })();
+  </script>
+</body>
+</html>

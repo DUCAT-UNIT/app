@@ -14,11 +14,7 @@ import {
   resetNonSecretE2ESettings,
 } from '../e2eSettingsResetService';
 import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
-import {
-  isSupportedCashuToken,
-  isTurboTokenUrl,
-  resolveCashuTokenFromUrl,
-} from './turboTokenUrl';
+import { isSupportedCashuToken, isTurboTokenUrl, resolveCashuTokenFromUrl } from './turboTokenUrl';
 import { useTokenProcessingStore } from '../../stores/tokenProcessingStore';
 import type { RootNavigatorParamList } from '../../navigation/types';
 
@@ -79,10 +75,13 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
   if (typeof global !== 'undefined') {
     // Wait for processed tokens to load from storage if still loading
     if (turboGlobal.processedCashuTokensLoading) {
-      logger.cashu('p2pk_waiting_storage', { step: 'ENTRY_POINT', reason: 'Waiting for processed tokens to load' });
+      logger.cashu('p2pk_waiting_storage', {
+        step: 'ENTRY_POINT',
+        reason: 'Waiting for processed tokens to load',
+      });
       let attempts = 0;
       while (turboGlobal.processedCashuTokensLoading && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         attempts++;
       }
       logger.cashu('p2pk_storage_ready', { step: 'ENTRY_POINT', attempts });
@@ -103,11 +102,16 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
     if (skipDuplicateCheck) {
       logger.cashu('p2pk_bypass_duplicate', { step: 'ENTRY_POINT', reason: 'App just resumed' });
     } else if (isAlreadyProcessed) {
-      logger.cashu('p2pk_duplicate_rejected', { step: 'ENTRY_POINT', reason: 'Token already processed' });
-      turboGlobal.pendingTurboSnackbars = [{
-        type: 'error',
-        message: 'Token already claimed',
-      }];
+      logger.cashu('p2pk_duplicate_rejected', {
+        step: 'ENTRY_POINT',
+        reason: 'Token already processed',
+      });
+      turboGlobal.pendingTurboSnackbars = [
+        {
+          type: 'error',
+          message: 'Token already claimed',
+        },
+      ];
       return;
     }
 
@@ -124,10 +128,7 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
 /**
  * Handle URL event (app is open, deeplink tapped)
  */
-const onReceiveURL = async (
-  event: URLEvent,
-  listener?: (url: string) => void,
-): Promise<void> => {
+const onReceiveURL = async (event: URLEvent, listener?: (url: string) => void): Promise<void> => {
   const url = event?.url;
   logger.debug('[TURBO] URL event received:', {
     urlLength: url?.length,
@@ -185,11 +186,7 @@ const linkingConfig: LinkingOptions<RootNavigatorParamList>['config'] = {
     VaultSuccessPreview: 'preview/vault-success',
     Main: {
       screens: {
-        WalletTab: {
-          screens: {
-            WalletHome: 'wallet',
-          },
-        },
+        WalletTab: 'wallet',
       },
     },
   },
@@ -212,31 +209,39 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
 
     // Check for initial URL (cold start from deep link)
     logger.debug('[TURBO] Checking for initial URL');
-    Linking.getInitialURL().then((initialUrl) => {
-      if (initialUrl) {
-        logger.debug('[TURBO] Initial URL found:', {
-          urlLength: initialUrl?.length,
-          isTurboUrl: isTurboTokenUrl(initialUrl),
-          isE2EControlUrl: isE2EControlUrl(initialUrl),
-        });
-        if (isTurboTokenUrl(initialUrl)) {
-          processUrlAndStoreToken(initialUrl).catch((error) => {
-            logger.error('[TURBO] Failed to process initial URL:', { error: error instanceof Error ? error.message : String(error) });
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        if (initialUrl) {
+          logger.debug('[TURBO] Initial URL found:', {
+            urlLength: initialUrl?.length,
+            isTurboUrl: isTurboTokenUrl(initialUrl),
+            isE2EControlUrl: isE2EControlUrl(initialUrl),
           });
-        } else if (isE2EControlUrl(initialUrl)) {
-          processE2EControlUrl(initialUrl).catch((error) => {
-            logger.error('[TURBO] Failed to process E2E control URL:', { error: error instanceof Error ? error.message : String(error) });
-          });
-          return;
+          if (isTurboTokenUrl(initialUrl)) {
+            processUrlAndStoreToken(initialUrl).catch((error) => {
+              logger.error('[TURBO] Failed to process initial URL:', {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+          } else if (isE2EControlUrl(initialUrl)) {
+            processE2EControlUrl(initialUrl).catch((error) => {
+              logger.error('[TURBO] Failed to process E2E control URL:', {
+                error: error instanceof Error ? error.message : String(error),
+              });
+            });
+            return;
+          } else {
+            listener(initialUrl);
+          }
         } else {
-          listener(initialUrl);
+          logger.debug('[TURBO] No initial URL');
         }
-      } else {
-        logger.debug('[TURBO] No initial URL');
-      }
-    }).catch((error) => {
-      logger.error('[TURBO] Failed to get initial URL:', { error: error instanceof Error ? error.message : String(error) });
-    });
+      })
+      .catch((error) => {
+        logger.error('[TURBO] Failed to get initial URL:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
 
     // Listen for URL events (app already open)
     logger.debug('[TURBO] Registering URL listener');
@@ -250,7 +255,10 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
 
     // Handle app state changes
     const handleAppStateChange = createAppStateHandler();
-    const appStateSubscription: NativeEventSubscription = AppState.addEventListener('change', handleAppStateChange);
+    const appStateSubscription: NativeEventSubscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange
+    );
 
     return () => {
       urlSubscription.remove();
@@ -270,14 +278,18 @@ export const createLinkingConfig = (): LinkingOptions<RootNavigatorParamList> =>
       logger.debug('[TURBO] Processing token URL');
       // Fire-and-forget async processing with error logging
       processUrlAndStoreToken(path).catch((error) => {
-        logger.error('[TURBO] Failed to process URL token:', { error: error instanceof Error ? error.message : String(error) });
+        logger.error('[TURBO] Failed to process URL token:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
       return undefined; // Return undefined to prevent navigation, let async processing handle token
     }
 
     if (isE2EControlUrl(path)) {
       processE2EControlUrl(path).catch((error) => {
-        logger.error('[TURBO] Failed to process E2E control path:', { error: error instanceof Error ? error.message : String(error) });
+        logger.error('[TURBO] Failed to process E2E control path:', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
       return undefined;
     }

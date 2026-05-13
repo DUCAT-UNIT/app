@@ -35,7 +35,7 @@ interface TransactionData {
   assetType: DisplayAssetType;
   isSent: boolean;
   isReceived: boolean;
-  displayKind?: 'turbo_mint_claim';
+  displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
 }
 
 
@@ -58,10 +58,12 @@ export interface EcashTokenTransaction extends BaseTransaction {
   ecashToken: true;
   claimed?: boolean;
   partiallySpent?: boolean;
+  pendingRedeem?: boolean;
   tokenData?: {
     amount?: number;
     unit?: string;
     shortUrl?: string | null;
+    pendingRedeem?: boolean;
   };
   timestamp: number;
   txData: {
@@ -69,7 +71,7 @@ export interface EcashTokenTransaction extends BaseTransaction {
     assetType?: DisplayAssetType;
     isSent?: boolean;
     isReceived?: boolean;
-    displayKind?: 'turbo_mint_claim';
+    displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
   };
   vaultTransaction?: never;
   vaultData?: never;
@@ -135,6 +137,8 @@ export default memo(TransactionItem, (prev: TransactionItemProps, next: Transact
     prev.tx.txData?.isReceived === next.tx.txData?.isReceived &&
     prevEcash?.claimed === nextEcash?.claimed &&
     prevEcash?.partiallySpent === nextEcash?.partiallySpent &&
+    prevEcash?.pendingRedeem === nextEcash?.pendingRedeem &&
+    prevEcash?.tokenData?.pendingRedeem === nextEcash?.tokenData?.pendingRedeem &&
     prevEcash?.tokenData?.unit === nextEcash?.tokenData?.unit &&
     prevEcash?.tokenData?.amount === nextEcash?.tokenData?.amount &&
     prevEcash?.tokenData?.shortUrl === nextEcash?.tokenData?.shortUrl &&

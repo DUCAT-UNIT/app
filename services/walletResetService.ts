@@ -21,6 +21,7 @@ import { useWithdrawStore } from '../stores/withdrawStore';
 
 interface PerformFullWalletResetParams {
   clearICloudBackup?: boolean;
+  preservePinAuth?: boolean;
   clearVaultCredentials?: (() => Promise<void> | void) | undefined;
   resetWallet?: (() => Promise<void> | void) | undefined;
   resetAuth?: (() => void) | undefined;
@@ -50,12 +51,13 @@ const resetRuntimeStores = async () => {
 
 export const performFullWalletReset = async ({
   clearICloudBackup = false,
+  preservePinAuth = false,
   clearVaultCredentials,
   resetWallet,
   resetAuth,
   setSeedConfirmed,
 }: PerformFullWalletResetParams = {}): Promise<void> => {
-  await deleteWalletData(clearICloudBackup);
+  await deleteWalletData(clearICloudBackup, { preservePinAuth });
   await resetOnboardingState();
 
   if (clearVaultCredentials) {

@@ -44,6 +44,7 @@ import type { DisplayAssetType } from '../../types/assets';
 import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/pendingTransactionsUtils';
 import { getRunesAmount } from '../../utils/runesHelper';
 import type { CashuUnit } from '../../services/cashu/cashuUnits';
+import { saveSentLockedToken } from '../../services/cashu/cashuLockedTokensService';
 
 /**
  * Props for AssetDetailScreen component
@@ -163,7 +164,7 @@ function EvmAssetDetailScreen({
       assetType: DisplayAssetType;
       isSent: boolean;
       isReceived: boolean;
-      displayKind?: 'turbo_mint_claim';
+      displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
     };
   } | null>(null);
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
@@ -398,7 +399,7 @@ function BtcUnitAssetDetailScreen({
       assetType: DisplayAssetType;
       isSent: boolean;
       isReceived: boolean;
-      displayKind?: 'turbo_mint_claim';
+      displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
     };
   } | null>(null);
   const [showRegularTxDetails, setShowRegularTxDetails] = useState(false);
@@ -610,6 +611,31 @@ function BtcUnitAssetDetailScreen({
     [showToast]
   );
 
+  const handleShortUrlReady = useCallback(
+    async (shortUrl: string, amount: number) => {
+      const token = selectedToken;
+      if (!token?.recipient) {
+        return;
+      }
+
+      setSelectedToken({
+        ...token,
+        shortUrl,
+      });
+
+      await saveSentLockedToken(
+        token.token,
+        token.recipient,
+        amount,
+        null,
+        shortUrl,
+        taprootAddress ?? null,
+        token.cashuUnit
+      );
+    },
+    [selectedToken, taprootAddress]
+  );
+
   const handleChartScrubStart = useCallback(() => {
     setIsChartScrubbing(true);
   }, []);
@@ -636,7 +662,7 @@ function BtcUnitAssetDetailScreen({
         assetType: string;
         isSent: boolean;
         isReceived: boolean;
-        displayKind?: 'turbo_mint_claim';
+        displayKind?: 'turbo_mint_claim' | 'turbo_redeem';
       };
     }) => {
       if (tx.ecashToken) {
@@ -795,6 +821,7 @@ function BtcUnitAssetDetailScreen({
           claimed={selectedToken.claimed}
           isSelfClaim={selectedToken.isSelfClaim}
           cashuUnit={selectedToken.cashuUnit}
+          onShortUrlReady={handleShortUrlReady}
         />
       )}
 

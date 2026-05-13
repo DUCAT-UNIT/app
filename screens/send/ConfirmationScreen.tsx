@@ -104,6 +104,7 @@ export default function ConfirmationScreen({
     turboDeeplink: generatedTurboDeeplink,
     processingStage,
     processingMessage,
+    continueInBackground,
   } = useTurboMintCompletion({
     isTurbo,
     mintQuoteId: mintQuoteId ?? null,
@@ -203,6 +204,12 @@ export default function ConfirmationScreen({
       showToast('Transaction ID copied');
     }
   }, [broadcastedTxid, showToast]);
+
+  const handleProcessInBackground = useCallback(() => {
+    continueInBackground();
+    showToast('Turbo conversion will continue in the background');
+    handleDone();
+  }, [continueInBackground, handleDone, showToast]);
 
   // Truncate txid for display
   const truncatedTxid = broadcastedTxid
@@ -405,6 +412,19 @@ export default function ConfirmationScreen({
       </View>
 
       {/* Done Button - Fixed at bottom, only show when ready */}
+      {processingStage === 'converting' && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleProcessInBackground}
+            activeOpacity={0.7}
+            testID="confirmation-background-btn"
+          >
+            <Text style={styles.secondaryButtonText}>Process in background</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {!isWaitingForTurboData && processingStage !== 'converting' && (
         <View style={styles.footer}>
           <TouchableOpacity

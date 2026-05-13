@@ -1,7 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  Animated,
   ActivityIndicator,
   RefreshControl,
   ScrollView,
@@ -11,11 +10,8 @@ import {
   TouchableOpacity,
   View,
   ViewStyle,
-  Dimensions,
 } from 'react-native';
 import Icon from '../../components/icons';
-import LiquidationScreen from '../../components/liquidation/LiquidationScreen';
-import { colors } from '../../styles/theme';
 import AssetCard, { AssetCardStyles } from '../../components/wallet/AssetCard';
 import ErrorBanner from '../../components/wallet/ErrorBanner';
 import TotalBalanceSection, {
@@ -102,7 +98,7 @@ const WalletScreen = React.memo(function WalletScreen({
   showZeroAssets,
   isPendingVaultTx = false,
 }: WalletScreenProps): React.ReactElement {
-  const { wallet: _wallet, currentAccount } = useWallet();
+  const { currentAccount } = useWallet();
   const {
     segwitBalance,
     taprootBalance,
@@ -239,36 +235,6 @@ const WalletScreen = React.memo(function WalletScreen({
     runesBalance: getRunesAmount(runesBalance),
     btcPrice,
   });
-
-  // Liquidations screen state
-  const [showLiquidations, setShowLiquidations] = useState(false);
-  const expandAnim = useRef(new Animated.Value(0)).current;
-  const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
-
-  const handleLiquidationClose = useCallback(() => {
-    Animated.timing(expandAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowLiquidations(false);
-    });
-  }, [expandAnim]);
-
-  const toggleLiquidations = useCallback(() => {
-    if (showLiquidations) {
-      handleLiquidationClose();
-    } else {
-      // Expand from bottom-left (spring for natural feel)
-      setShowLiquidations(true);
-      Animated.spring(expandAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [showLiquidations, expandAnim, handleLiquidationClose]);
 
   // Pull-to-refresh state
   const [refreshing, setRefreshing] = useState(false);
@@ -580,67 +546,6 @@ const WalletScreen = React.memo(function WalletScreen({
         )}
       </ScrollView>
 
-      {showLiquidations && (
-        <Animated.View
-          style={[
-            localStyles.liquidationsScreen,
-            {
-              opacity: expandAnim.interpolate({
-                inputRange: [0, 0.3, 1],
-                outputRange: [0, 1, 1],
-              }),
-              transform: [
-                {
-                  translateX: expandAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-screenWidth * 0.5, 0],
-                  }),
-                },
-                {
-                  translateY: expandAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [screenHeight * 0.5, 0],
-                  }),
-                },
-                {
-                  scale: expandAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <LiquidationScreen
-            btcPrice={btcPrice}
-            segwitBalance={segwitBalance}
-            taprootBalance={taprootBalance}
-            vaultCollateral={vaultCollateral}
-            vaultDebt={vaultDebt}
-            hasVault={hasVault}
-            wallet={_wallet}
-            vaultData={vaultData}
-            currentAccount={currentAccount}
-            visible={showLiquidations}
-            onClose={handleLiquidationClose}
-            onToggle={toggleLiquidations}
-          />
-        </Animated.View>
-      )}
-
-      <TouchableOpacity
-        style={[
-          localStyles.liquidationsFab,
-          { bottom: s(38), left: s(16), width: s(52), height: s(52), borderRadius: s(26) },
-        ]}
-        onPress={toggleLiquidations}
-        testID="liquidations-fab"
-        accessibilityRole="button"
-        accessibilityLabel={showLiquidations ? 'Back to wallet' : 'Liquidations'}
-      >
-        <Icon name={showLiquidations ? 'vault' : 'liquidations'} size={s(24)} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 });
@@ -723,29 +628,6 @@ const localStyles = StyleSheet.create({
   },
   ducatAmount: {
     textAlign: 'left',
-  },
-  liquidationsFab: {
-    position: 'absolute',
-    backgroundColor: '#2A2A2E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 100,
-  },
-  liquidationsScreen: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.bg.primary,
-    zIndex: 50,
-    borderRadius: 0,
-    overflow: 'hidden',
   },
 });
 

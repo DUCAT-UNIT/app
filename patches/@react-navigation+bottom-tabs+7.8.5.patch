@@ -1,0 +1,170 @@
+diff --git a/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js b/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
+index 188a36d..d271fae 100644
+--- a/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
++++ b/node_modules/@react-navigation/bottom-tabs/lib/module/unstable/NativeBottomTabView.native.js
+@@ -82,6 +82,7 @@ export function NativeBottomTabView({
+       tabBarItemLabelVisibilityMode: currentOptions?.tabBarLabelVisibilityMode,
+       tabBarControllerMode: currentOptions?.tabBarControllerMode,
+       tabBarMinimizeBehavior: currentOptions?.tabBarMinimizeBehavior,
++      tabBarHidden: currentOptions?.tabBarHidden,
+       tabBarTintColor: activeTintColor,
+       tabBarItemIconColor: inactiveTintColor,
+       tabBarItemIconColorActive: activeTintColor,
+@@ -96,7 +97,7 @@ export function NativeBottomTabView({
+       tabBarItemActiveIndicatorColor: activeIndicatorColor,
+       tabBarItemActiveIndicatorEnabled: currentOptions?.tabBarActiveIndicatorEnabled,
+       tabBarItemRippleColor: currentOptions?.tabBarRippleColor,
+-      experimentalControlNavigationStateInJS: false,
++      experimentalControlNavigationStateInJS: true,
+       onNativeFocusChange: e => {
+         const route = state.routes.find(route => route.key === e.nativeEvent.tabKey);
+         if (route) {
+@@ -157,6 +158,16 @@ export function NativeBottomTabView({
+         const selectedIcon = typeof tabBarIcon === 'function' ? getPlatformIcon(tabBarIcon({
+           focused: true
+         })) : undefined;
++        const resolvedIcon = Platform.select({
++          ios: icon?.ios ?? icon?.shared,
++          android: icon?.android ?? icon?.shared,
++          default: icon?.shared
++        }) ?? undefined;
++        const resolvedSelectedIcon = Platform.select({
++          ios: selectedIcon?.ios ?? selectedIcon?.shared,
++          android: selectedIcon?.android ?? selectedIcon?.shared,
++          default: selectedIcon?.shared
++        }) ?? undefined;
+         return /*#__PURE__*/_jsx(BottomTabsScreen, {
+           onWillDisappear: () => onTransitionStart({
+             closing: true,
+@@ -175,8 +186,8 @@ export function NativeBottomTabView({
+             route
+           }),
+           tabKey: route.key,
+-          icon: icon,
+-          selectedIcon: selectedIcon?.ios ?? selectedIcon?.shared,
++          icon: resolvedIcon,
++          selectedIcon: resolvedSelectedIcon,
+           tabBarItemBadgeBackgroundColor: badgeBackgroundColor,
+           tabBarItemBadgeTextColor: badgeTextColor,
+           badgeValue: tabBarBadge?.toString(),
+@@ -256,13 +267,13 @@ function ScreenWithHeader({
+ }
+ function getPlatformIcon(icon) {
+   return {
+-    ios: icon?.type === 'sfSymbol' ? icon : icon?.type === 'image' && icon.tinted !== false ? {
+-      type: 'templateSource',
++    ios: icon?.type === 'sfSymbol' ? {
++      sfSymbolName: icon.name
++    } : icon?.type === 'image' && icon.tinted !== false ? {
+       templateSource: icon.source
+     } : undefined,
+     android: icon?.type === 'drawableResource' ? icon : undefined,
+     shared: icon?.type === 'image' ? {
+-      type: 'imageSource',
+       imageSource: icon.source
+     } : undefined
+   };
+diff --git a/node_modules/@react-navigation/bottom-tabs/lib/typescript/src/unstable/types.d.ts b/node_modules/@react-navigation/bottom-tabs/lib/typescript/src/unstable/types.d.ts
+index 8d0bec8..1f0599e 100644
+--- a/node_modules/@react-navigation/bottom-tabs/lib/typescript/src/unstable/types.d.ts
++++ b/node_modules/@react-navigation/bottom-tabs/lib/typescript/src/unstable/types.d.ts
+@@ -200,6 +200,10 @@ export type NativeBottomTabNavigationOptions = NativeHeaderOptions & {
+          */
+         shadowColor?: ColorValue;
+     };
++    /**
++     * Whether the native tab bar should be hidden for the focused screen.
++     */
++    tabBarHidden?: boolean;
+     /**
+      * Blur effect applied to the tab bar when tab screen is selected.
+      *
+diff --git a/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx b/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
+index 6f194e6..341d0cc 100644
+--- a/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
++++ b/node_modules/@react-navigation/bottom-tabs/src/unstable/NativeBottomTabView.native.tsx
+@@ -134,6 +134,7 @@ export function NativeBottomTabView({ state, navigation, descriptors }: Props) {
+         }
+         tabBarControllerMode={currentOptions?.tabBarControllerMode}
+         tabBarMinimizeBehavior={currentOptions?.tabBarMinimizeBehavior}
++        tabBarHidden={currentOptions?.tabBarHidden}
+         tabBarTintColor={activeTintColor}
+         tabBarItemIconColor={inactiveTintColor}
+         tabBarItemIconColorActive={activeTintColor}
+@@ -152,7 +153,7 @@ export function NativeBottomTabView({ state, navigation, descriptors }: Props) {
+           currentOptions?.tabBarActiveIndicatorEnabled
+         }
+         tabBarItemRippleColor={currentOptions?.tabBarRippleColor}
+-        experimentalControlNavigationStateInJS={false}
++        experimentalControlNavigationStateInJS={true}
+         onNativeFocusChange={(e) => {
+           const route = state.routes.find(
+             (route) => route.key === e.nativeEvent.tabKey
+@@ -234,6 +235,18 @@ export function NativeBottomTabView({ state, navigation, descriptors }: Props) {
+             typeof tabBarIcon === 'function'
+               ? getPlatformIcon(tabBarIcon({ focused: true }))
+               : undefined;
++          const resolvedIcon =
++            Platform.select({
++              ios: icon?.ios ?? icon?.shared,
++              android: icon?.android ?? icon?.shared,
++              default: icon?.shared,
++            }) ?? undefined;
++          const resolvedSelectedIcon =
++            Platform.select({
++              ios: selectedIcon?.ios ?? selectedIcon?.shared,
++              android: selectedIcon?.android ?? selectedIcon?.shared,
++              default: selectedIcon?.shared,
++            }) ?? undefined;
+ 
+           return (
+             <BottomTabsScreen
+@@ -245,8 +258,8 @@ export function NativeBottomTabView({ state, navigation, descriptors }: Props) {
+               onDidDisappear={() => onTransitionEnd({ closing: true, route })}
+               key={route.key}
+               tabKey={route.key}
+-              icon={icon}
+-              selectedIcon={selectedIcon?.ios ?? selectedIcon?.shared}
++              icon={resolvedIcon}
++              selectedIcon={resolvedSelectedIcon}
+               tabBarItemBadgeBackgroundColor={badgeBackgroundColor}
+               tabBarItemBadgeTextColor={badgeTextColor}
+               badgeValue={tabBarBadge?.toString()}
+@@ -347,10 +360,11 @@ function getPlatformIcon(icon: Icon): PlatformIcon {
+   return {
+     ios:
+       icon?.type === 'sfSymbol'
+-        ? icon
++        ? {
++            sfSymbolName: icon.name,
++          }
+         : icon?.type === 'image' && icon.tinted !== false
+           ? {
+-              type: 'templateSource',
+               templateSource: icon.source,
+             }
+           : undefined,
+@@ -358,7 +372,6 @@ function getPlatformIcon(icon: Icon): PlatformIcon {
+     shared:
+       icon?.type === 'image'
+         ? {
+-            type: 'imageSource',
+             imageSource: icon.source,
+           }
+         : undefined,
+diff --git a/node_modules/@react-navigation/bottom-tabs/src/unstable/types.tsx b/node_modules/@react-navigation/bottom-tabs/src/unstable/types.tsx
+index 6a68331..687b52e 100644
+--- a/node_modules/@react-navigation/bottom-tabs/src/unstable/types.tsx
++++ b/node_modules/@react-navigation/bottom-tabs/src/unstable/types.tsx
+@@ -251,6 +251,11 @@ export type NativeBottomTabNavigationOptions = NativeHeaderOptions & {
+     shadowColor?: ColorValue;
+   };
+ 
++  /**
++   * Whether the native tab bar should be hidden for the focused screen.
++   */
++  tabBarHidden?: boolean;
++
+   /**
+    * Blur effect applied to the tab bar when tab screen is selected.
+    *

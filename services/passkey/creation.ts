@@ -142,8 +142,8 @@ export const createWalletWithPasskey = async ({
     // Save current account (always 0 for new wallets)
     await setCurrentAccount(0);
     await Promise.all([
-      saveCachedAddresses(0, addresses),
-      saveToMultiAccountCache(0, addresses),
+      saveCachedAddresses(0, addresses, DEFAULT_WALLET_DERIVATION_MODE),
+      saveToMultiAccountCache(0, addresses, DEFAULT_WALLET_DERIVATION_MODE),
     ]);
 
     logger.debug('Wallet created with passkey successfully (before iCloud backup)', {
