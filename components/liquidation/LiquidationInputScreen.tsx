@@ -22,6 +22,7 @@ export interface LiquidationInputScreenProps {
   vaultExpanded: boolean;
   onExpandToggle: () => void;
   profitRate: number;
+  disabled?: boolean;
 }
 
 const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
@@ -36,6 +37,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
   vaultExpanded,
   onExpandToggle,
   profitRate,
+  disabled = false,
 }: LiquidationInputScreenProps): React.ReactElement {
   const { s } = useResponsive();
   const price = btcPrice;
@@ -62,6 +64,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
         onLiveValueChange={onInvestAmountChange}
         label="Amount to Invest"
         btcPrice={btcPrice || undefined}
+        disabled={disabled}
         attachedBottom
         renderFooter={() => {
           const profitBtc = investAmount * profitRate;

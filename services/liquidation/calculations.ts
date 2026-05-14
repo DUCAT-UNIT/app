@@ -476,7 +476,7 @@ export function getHealthAfterLiquidation(params: {
     finalDepositAmount,
     finalVaultCollateral,
     finalUnitDebt,
-    finalHealthValue: rawHealth < 160 ? 160 : rawHealth,
+    finalHealthValue: rawHealth,
     finalAssetValueBtc,
   };
 }

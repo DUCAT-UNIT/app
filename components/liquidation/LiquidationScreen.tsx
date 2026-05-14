@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { analytics } from '../../services/analyticsService';
@@ -10,8 +10,9 @@ import {
   selectItemsForAmount,
   getTotalClaimBtc,
   getTotalEstimatedProfit,
+  getHealthAfterLiquidation,
 } from '../../services/liquidation/calculations';
-import { UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
+import { MIN_COL_RATE, UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
 import CurrencyToggle from './CurrencyToggle';
 import LiquidationStatusScreen from './LiquidationStatusScreen';
 import LiquidationReviewScreen from './LiquidationReviewScreen';
@@ -37,6 +38,7 @@ import {
   useLiqDepositRate,
   useLiqSwapRate,
 } from '../../stores/liquidationFlowStore';
+import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationVaults } from '../../hooks/liquidation/useLiquidationVaults';
 import { useLiquidationExecution } from '../../hooks/liquidation/useLiquidationExecution';
 import { colors, fonts, fontSizes } from '../../styles/theme';
@@ -99,6 +101,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const profitRate = useLiqProfitRate();
   const _depositRate = useLiqDepositRate();
   const _swapRate = useLiqSwapRate();
+  const hasPendingVaultTx = useHasPendingVaultTx();
 
   const { setCurrentStep, setInvestAmount, setShowBTC, setReviewTab, setVaultExpanded } =
     useLiquidationFlowStore.getState();
@@ -111,7 +114,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   }, [visible]);
 
   // ── Hooks ────────────────────────────────────────────────────────
-  const { maxInvestable } = useLiquidationVaults({
+  const { maxInvestable, refreshLiqVaults } = useLiquidationVaults({
     btcPrice,
     segwitBalance,
     taprootBalance,
@@ -120,6 +123,16 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     hasVault,
     visible,
   });
+  const hadPendingVaultTxRef = useRef(hasPendingVaultTx);
+
+  useEffect(() => {
+    const hadPendingVaultTx = hadPendingVaultTxRef.current;
+    hadPendingVaultTxRef.current = hasPendingVaultTx;
+
+    if (hadPendingVaultTx && !hasPendingVaultTx) {
+      refreshLiqVaults({ force: true }).catch(() => undefined);
+    }
+  }, [hasPendingVaultTx, refreshLiqVaults]);
 
   const { execute, resetAfterSuccess, resetAfterError } = useLiquidationExecution({
     wallet,
@@ -140,6 +153,35 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const hasClaimableLiquidations = hasVault && isLoaded && vaults.length > 0 && maxInvestable > 0;
   const shouldShowBottomButton =
     currentStep !== 'processing' && (!isInput || hasClaimableLiquidations);
+  const selectedInputVaults = useMemo(() => {
+    if (investAmount <= 0 || vaultsFull.length === 0) {
+      return [];
+    }
+
+    return selectItemsForAmount(vaultsFull, investAmount);
+  }, [investAmount, vaultsFull]);
+  const healthAfterLiquidation = useMemo(() => {
+    if (!btcPrice || selectedInputVaults.length === 0) {
+      return null;
+    }
+
+    return getHealthAfterLiquidation({
+      btcPrice,
+      btcInVault: vaultCollateral || 0,
+      unitInVault: vaultDebt || 0,
+      claimedVaults: selectedInputVaults,
+    });
+  }, [btcPrice, selectedInputVaults, vaultCollateral, vaultDebt]);
+  const wouldBreakMinimumHealth =
+    healthAfterLiquidation !== null
+    && (!Number.isFinite(healthAfterLiquidation.finalHealthValue)
+      || healthAfterLiquidation.finalHealthValue < MIN_COL_RATE * 100);
+  const inputAmountInvalid =
+    investAmount <= 0
+    || investAmount > maxInvestable
+    || wouldBreakMinimumHealth
+    || hasPendingVaultTx
+    || !hasClaimableLiquidations;
 
   // ── Callbacks ────────────────────────────────────────────────────
   const handleToggleBTC = useCallback(() => {
@@ -173,12 +215,21 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     const isLocked = latestState.isExecuting;
     const latestStep = latestState.currentStep;
 
-    if (isLocked || latestStep === 'processing') {
+    if (
+      isLocked
+      || latestStep === 'processing'
+      || (hasPendingVaultTx && (latestStep === 'input' || latestStep === 'review'))
+    ) {
       return;
     }
 
     if (latestStep === 'input') {
-      if (latestState.investAmount <= 0 || !hasClaimableLiquidations) {
+      if (
+        latestState.investAmount <= 0
+        || latestState.investAmount > maxInvestable
+        || wouldBreakMinimumHealth
+        || !hasClaimableLiquidations
+      ) {
         return;
       }
 
@@ -194,6 +245,9 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     }
   }, [
     hasClaimableLiquidations,
+    hasPendingVaultTx,
+    maxInvestable,
+    wouldBreakMinimumHealth,
     setCurrentStep,
     onReviewStart,
     execute,
@@ -205,7 +259,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
     isExecuting
-    || (isInput && (investAmount <= 0 || !hasClaimableLiquidations))
+    || (isInput && inputAmountInvalid)
+    || (isReview && hasPendingVaultTx)
     || currentStep === 'processing';
   const buttonLabel =
     currentStep === 'processing'
@@ -338,6 +393,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           vaultExpanded={vaultExpanded}
           onExpandToggle={handleExpandToggle}
           profitRate={profitRate}
+          disabled={hasPendingVaultTx}
         />
       </View>
     );

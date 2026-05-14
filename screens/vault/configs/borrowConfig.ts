@@ -91,7 +91,7 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
 
   validate: (
     amount: number,
-    _maxAmount: number,
+    maxAmount: number,
     _effectiveBtcLocked: number,
     _effectiveUnitBorrowed: number,
     preview: VaultPreview,
@@ -102,6 +102,10 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
 
     if (amount > 0 && amount < 0.01) {
       errors.push('Enter at least $0.01 to borrow.');
+    }
+
+    if (amount > maxAmount) {
+      errors.push('Borrow amount exceeds maximum available before liquidation risk.');
     }
 
     // Check min health violation
@@ -115,7 +119,7 @@ export const borrowInputConfig: VaultInputScreenConfig<BorrowVaultStore> = {
     }
 
     return {
-      canContinue: amount >= 0.01 && errors.length === 0,
+      canContinue: amount >= 0.01 && amount <= maxAmount && errors.length === 0,
       warnings,
       errors,
     };

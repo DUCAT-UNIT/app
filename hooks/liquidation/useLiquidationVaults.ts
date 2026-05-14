@@ -46,7 +46,7 @@ interface UseLiquidationVaultsParams {
 
 interface UseLiquidationVaultsReturn {
   maxInvestable: number;
-  refreshLiqVaults: () => Promise<void>;
+  refreshLiqVaults: (options?: LiquidationRefreshOptions) => Promise<void>;
 }
 
 type LiquidationRefreshOptions = {

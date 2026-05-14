@@ -264,7 +264,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   // Validation
   const baseValidation = useMemo(() => {
     return config.validate(
-      amountConfig.value,
+      previewAmount,
       amountConfig.maxValue,
       effectiveBtcLocked,
       effectiveUnitBorrowed,
@@ -274,7 +274,7 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
     );
   }, [
     config,
-    amountConfig.value,
+    previewAmount,
     amountConfig.maxValue,
     effectiveBtcLocked,
     effectiveUnitBorrowed,
@@ -314,6 +314,9 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
 
   const handleContinue = useCallback(() => {
     if (!validation.canContinue || isContinuing) return;
+    if (previewAmount !== amountConfig.value) {
+      amountConfig.setValue(previewAmount);
+    }
     setIsContinuing(true);
     if (continueUnlockTimerRef.current) {
       clearTimeout(continueUnlockTimerRef.current);
@@ -344,6 +347,8 @@ export function useVaultInputScreen<TStore extends VaultStoreState, TAdditionalD
   }, [
     validation.canContinue,
     isContinuing,
+    previewAmount,
+    amountConfig,
     storedReceiveAsset,
     receiveAsset,
     store,

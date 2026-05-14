@@ -1078,7 +1078,7 @@ describe('getHealthAfterLiquidation', () => {
       expect(result.finalUnitDebt).toBeCloseTo(112, 4);
     });
 
-    it('should floor finalHealthValue at 160 when raw health is lower', () => {
+    it('should return raw finalHealthValue when it is below minimum health', () => {
       // Force very low health: tiny btcInVault, large unitDebt
       const claimed = [makeProfile({ unit: 0.001, claimAmountBtc: 0.0001, postTaxBtcInVault: 0.00001 })];
       const result = getHealthAfterLiquidation({
@@ -1087,7 +1087,7 @@ describe('getHealthAfterLiquidation', () => {
         unitInVault: 10_000,
         claimedVaults: claimed,
       });
-      expect(result.finalHealthValue).toBeGreaterThanOrEqual(160);
+      expect(result.finalHealthValue).toBeLessThan(160);
     });
 
     it('should return raw health when it is above 160', () => {
@@ -1116,14 +1116,14 @@ describe('getHealthAfterLiquidation', () => {
   });
 
   describe('edge cases', () => {
-    it('should return 160 as finalHealthValue when claimedVaults is empty and vault is unhealthy', () => {
+    it('should return raw finalHealthValue when claimedVaults is empty and vault is unhealthy', () => {
       const result = getHealthAfterLiquidation({
         btcPrice: 80_000,
         btcInVault: 0.0001,
         unitInVault: 10_000,
         claimedVaults: [],
       });
-      expect(result.finalHealthValue).toBe(160);
+      expect(result.finalHealthValue).toBeLessThan(160);
     });
 
     it('should handle claimedVaults with partial fills', () => {

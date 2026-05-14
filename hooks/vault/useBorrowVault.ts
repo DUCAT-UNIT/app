@@ -20,7 +20,8 @@ guardianSendReqBorrow,
 } from '../../services/vaultOperationsService';
 import type { BorrowProcessingStep,BorrowStep } from '../../stores/borrowStore';
 import { useBorrowStore } from '../../stores/borrowStore';
-import { computeLiquidationPrice } from '../../utils/vaultUtils';
+import { computeHealthFactor, computeLiquidationPrice, getMaxUnit } from '../../utils/vaultUtils';
+import { VAULT_CONFIG } from '../../utils/constants';
 import { useVaultOperation } from './useVaultOperation';
 import type {
 LiquidationPriceParams,
@@ -95,7 +96,7 @@ function useBorrowStoreAdapter(): VaultStore {
  * Validate borrow operation
  */
 function validateBorrow(params: VaultValidationParams): string | null {
-  const { wallet, btcPrice, amount, currentBtcLocked } = params;
+  const { wallet, btcPrice, amount, currentUnitBorrowed, currentBtcLocked } = params;
 
   if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return 'Wallet not connected';
@@ -111,6 +112,18 @@ function validateBorrow(params: VaultValidationParams): string | null {
 
   if (currentBtcLocked <= 0) {
     return 'No vault data. Please load vault data first.';
+  }
+
+  const maxTotalDebt = getMaxUnit(currentBtcLocked, btcPrice);
+  const maxBorrowable = maxTotalDebt === null ? 0 : Math.max(0, maxTotalDebt - currentUnitBorrowed);
+  if (amount > maxBorrowable) {
+    return `Borrow amount exceeds the maximum available before minimum health (${VAULT_CONFIG.MIN_COL_RATE * 100}%).`;
+  }
+
+  const newDebt = currentUnitBorrowed + amount;
+  const newHealth = computeHealthFactor(currentBtcLocked, btcPrice, newDebt);
+  if (newHealth < VAULT_CONFIG.MIN_COL_RATE * 100) {
+    return `This would put your vault below the minimum health of ${VAULT_CONFIG.MIN_COL_RATE * 100}%.`;
   }
 
   return null;
