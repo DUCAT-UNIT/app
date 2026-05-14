@@ -1,5 +1,5 @@
 import type { QuantaRewardClaimResult } from '../../../services/quantaRewardService';
-import type { DerivedAddresses } from '../../../utils/bitcoin';
+import { makeDerivedAddresses } from '../../../services/__tests__/testUtils';
 import {
   formatAddressPreview,
   getAccountAddressEntries,
@@ -9,22 +9,12 @@ import {
   type QuantaAccountCandidate,
 } from '../quantaLinkUtils';
 
-function makeAddresses(accountIndex: number): DerivedAddresses {
-  return {
-    legacyAddress: `2Naccount${accountIndex}`,
-    segwitAddress: `tb1qaccount${accountIndex}`,
-    taprootAddress: `tb1paccount${accountIndex}`,
-    segwitPubkey: `segwit-pubkey-${accountIndex}`,
-    taprootPubkey: `taproot-pubkey-${accountIndex}`,
-  };
-}
-
 function makeCandidate(
   accountIndex: number,
   addressType: QuantaAccountCandidate['addressType'],
   points: number
 ): QuantaAccountCandidate {
-  const addresses = makeAddresses(accountIndex);
+  const addresses = makeDerivedAddresses(accountIndex);
   const quantaAddress =
     addressType === 'legacy'
       ? addresses.legacyAddress!
@@ -69,7 +59,7 @@ describe('quantaLinkUtils', () => {
   });
 
   it('sorts account address entries by account first, then p2sh, segwit, taproot', () => {
-    const entries = [makeAddresses(2), makeAddresses(1)]
+    const entries = [makeDerivedAddresses(2), makeDerivedAddresses(1)]
       .map((addresses, index) => ({
         accountIndex: index === 0 ? 2 : 1,
         addresses,

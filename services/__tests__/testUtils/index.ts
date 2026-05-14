@@ -44,3 +44,5 @@ export {
   type MockFunction,
   type MockedFunction,
 } from './mockHelpers';
+
+export { makeDerivedAddresses, makeWalletAccountAddresses } from './walletFactories';
