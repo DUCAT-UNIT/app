@@ -19,7 +19,7 @@ import { isPendingVaultTransactionApplied } from '../utils/vaultPendingGuard';
 import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
-const VAULT_HEALTH_ALERT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const VAULT_HEALTH_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const VAULT_HEALTH_WARNING_KEY = 'vault_health_warning_last_alert';
 const VAULT_HEALTH_CRITICAL_KEY = 'vault_health_critical_last_alert';
 const VAULT_HEALTH_BAND_KEY = 'vault_health_last_band';

@@ -175,14 +175,14 @@ Express.js on port 3020 (PM2 managed, nginx proxied via Cloudflare).
 - `POST /api/broadcast` -- send notification to all devices
 - `POST /api/watch-tx` -- watch a TX for confirmation
 - `GET /api/health` -- server status + token count
-- `GET /api/tokens` -- list registered tokens
+- `GET /api/tokens` -- admin-only token registry inspection; must not be publicly exposed
 
 **Background Watchers (cron):**
 - TX Watcher (30s) -- polls Esplora for watched TX confirmations
 - Vault Health Watcher (60s) -- alerts when health <200% or <170%
 - Liquidation Watcher (120s) -- alerts when vaults available for liquidation
 
-Throttling: max 1 alert per category per hour per device.
+Throttling: max 1 alert per category per day per device.
 
 ## Quick Start
 

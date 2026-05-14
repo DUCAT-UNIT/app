@@ -26,7 +26,7 @@ import { logger } from '../../utils/logger';
 
 const POLL_INTERVAL_ACTIVE_MS = 30_000;  // 30s when screen is open
 const POLL_INTERVAL_BG_MS = 120_000;    // 2 min background prefetch
-const LIQ_ALERT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour throttle
+const LIQ_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hour throttle
 const LIQ_CONTRACT_FETCH_TIMEOUT_MS = 12_000;
 
 interface UseLiquidationVaultsParams {
