@@ -36,8 +36,7 @@ interface GuideStep {
   image: ImageSourcePropType;
 }
 
-type GuideProfile = 'xverse' | 'unisat' | 'unisat_private_key';
-type GuideRestoreKind = 'seed' | 'privateKey';
+type GuideProfile = 'xverse' | 'unisat';
 
 interface GuideProfileConfig {
   id: GuideProfile;
@@ -45,7 +44,6 @@ interface GuideProfileConfig {
   title: string;
   subtitle: string;
   warningText: string;
-  restoreKind: GuideRestoreKind;
   restoreTitle: string;
   restoreSubtitle: string;
   importProfile?: WalletImportProfile;
@@ -62,7 +60,6 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       'Ducat needs the seed phrase for the wallet that owns your Quanta address. Follow the Xverse steps, then restore that wallet here.',
     warningText:
       'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
-    restoreKind: 'seed',
     restoreTitle: 'Restore Xverse Wallet',
     restoreSubtitle: 'Enter the 12 words exported from Xverse.',
     importProfile: 'xverse',
@@ -108,7 +105,6 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       'Use this for UniSat HD wallets. Ducat will restore the seed with UniSat account derivation so Quanta can find the same addresses.',
     warningText:
       'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
-    restoreKind: 'seed',
     restoreTitle: 'Restore UniSat Wallet',
     restoreSubtitle: 'Enter the 12 words exported from UniSat.',
     importProfile: 'unisat',
@@ -141,48 +137,9 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       },
     ],
   },
-  unisat_private_key: {
-    id: 'unisat_private_key',
-    label: 'UniSat Key',
-    title: 'Export your UniSat private key',
-    subtitle:
-      'Use this only for UniSat single-account fallback. The private key controls one address, not the full HD wallet.',
-    warningText:
-      'Never share your private key. Anyone with this key can move the assets for that address.',
-    restoreKind: 'privateKey',
-    restoreTitle: 'Import UniSat Private Key',
-    restoreSubtitle: 'Enter the WIF private key exported from UniSat.',
-    steps: [
-      {
-        title: 'Open the account card',
-        body: 'On the UniSat home screen, tap the account card for the address you use with Quanta.',
-        image: require('../../assets/quanta-guide/unisat-private-key-open-account.png'),
-      },
-      {
-        title: 'Open account options',
-        body: 'On Switch Account, tap the three-dot menu for the exact account address.',
-        image: require('../../assets/quanta-guide/unisat-private-key-open-account-menu.png'),
-      },
-      {
-        title: 'Choose Export Private Key',
-        body: 'Select Export Private Key from the account menu.',
-        image: require('../../assets/quanta-guide/unisat-private-key-select-export.png'),
-      },
-      {
-        title: 'Enter your password',
-        body: 'Read the warning, enter your UniSat password, then tap Show Private Key.',
-        image: require('../../assets/quanta-guide/unisat-private-key-enter-password.png'),
-      },
-      {
-        title: 'Copy the WIF private key',
-        body: 'Use the WIF private key value. Keep it secret and do not share the hex key.',
-        image: require('../../assets/quanta-guide/unisat-private-key-copy-key.png'),
-      },
-    ],
-  },
 };
 
-const GUIDE_PROFILE_OPTIONS: GuideProfile[] = ['xverse', 'unisat', 'unisat_private_key'];
+const GUIDE_PROFILE_OPTIONS: GuideProfile[] = ['xverse', 'unisat'];
 
 export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const navigation = useNavigation<NavigationProp<RootNavigatorParamList>>();
@@ -230,8 +187,8 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
     setIsRestoring(true);
 
     try {
-      if (activeGuide.restoreKind !== 'seed' || !activeGuide.derivationMode) {
-        throw new Error('Private key import is not available yet');
+      if (!activeGuide.derivationMode) {
+        throw new Error('Wallet import profile is not available yet');
       }
 
       await WalletService.importWallet(mnemonic, 0, activeGuide.derivationMode);
@@ -396,25 +353,16 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
         </View>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
-        {activeGuide.restoreKind === 'seed' ? (
-          <Pressable
-            accessibilityLabel="Restore wallet from seed phrase"
-            accessibilityRole="button"
-            onPress={handleStartRestore}
-            style={styles.restoreButton}
-            testID="quanta-restore-from-seed-button"
-          >
-            <Ionicons name="key-outline" size={18} color={COLORS.WHITE} />
-            <Text style={styles.restoreButtonText}>Restore {activeGuide.label} seed phrase</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.privateKeyFooterNotice}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.TEXT_SECONDARY} />
-            <Text style={styles.privateKeyFooterText}>
-              Private key import is a single-address wallet path and is not enabled yet.
-            </Text>
-          </View>
-        )}
+        <Pressable
+          accessibilityLabel="Restore wallet from seed phrase"
+          accessibilityRole="button"
+          onPress={handleStartRestore}
+          style={styles.restoreButton}
+          testID="quanta-restore-from-seed-button"
+        >
+          <Ionicons name="key-outline" size={18} color={COLORS.WHITE} />
+          <Text style={styles.restoreButtonText}>Restore {activeGuide.label} seed phrase</Text>
+        </Pressable>
       </View>
       <Modal
         animationType="fade"
@@ -722,26 +670,5 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontFamily: 'CabinetGrotesk-Bold',
     textAlign: 'center',
-  },
-  privateKeyFooterNotice: {
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.045)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  privateKeyFooterText: {
-    flex: 1,
-    color: COLORS.TEXT_SECONDARY,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: 'CabinetGrotesk-Medium',
-    textAlign: 'left',
   },
 });
