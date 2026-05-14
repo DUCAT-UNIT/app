@@ -198,6 +198,10 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const seedInputRefs = React.useRef<(TextInput | null)[]>([]);
   const activeGuide = GUIDE_PROFILES[selectedGuideProfile];
 
+  const handleRestoreWalletProfileChange = React.useCallback((profile: WalletImportProfile) => {
+    setSelectedGuideProfile(profile);
+  }, []);
+
   const handleStartRestore = React.useCallback(() => {
     Alert.alert(
       'Replace current wallet?',
@@ -289,8 +293,8 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
           }}
           title={activeGuide.restoreTitle}
           subtitle={activeGuide.restoreSubtitle}
-          importWalletProfile={activeGuide.importProfile}
-          setImportWalletProfile={setSelectedGuideProfile}
+          importWalletProfile={activeGuide.importProfile ?? 'xverse'}
+          setImportWalletProfile={handleRestoreWalletProfileChange}
           importButtonLabel="Replace Wallet"
           cancelButtonLabel="Back to Guide"
           warningText="Destructive action: importing here replaces the current Ducat wallet on this device."
@@ -342,7 +346,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
             const isSelected = selectedGuideProfile === profile;
 
             return (
-            <Pressable
+              <Pressable
                 accessibilityLabel={`Show ${guide.label} guide`}
                 accessibilityRole="button"
                 key={guide.id}
@@ -718,5 +722,26 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontFamily: 'CabinetGrotesk-Bold',
     textAlign: 'center',
+  },
+  privateKeyFooterNotice: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.045)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  privateKeyFooterText: {
+    flex: 1,
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'CabinetGrotesk-Medium',
+    textAlign: 'left',
   },
 });
