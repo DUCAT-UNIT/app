@@ -14,6 +14,7 @@ import { logger } from '../../utils/logger';
 import { fetchProtocolContract } from '../vaultWallet';
 import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, UNIT_TO_BTC_RATE, VIN_ALLOWANCE } from './constants';
 import { formatValidatorResponse } from './fetchVaults';
+import { roundNumber, roundNumberDown, satsToBtc } from './math';
 import type {
   ValidatorLiquidatedVault,
   LiquidationVaultComputedData,
@@ -24,24 +25,6 @@ import type {
   HealthAfterLiquidation,
   SelectionStats,
 } from './types';
-
-// ============================================================
-// Utility Functions
-// ============================================================
-
-function roundNumber(value: number, decimals = 2): number {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
-}
-
-function roundNumberDown(value: number, decimals = 8): number {
-  const factor = 10 ** decimals;
-  return Math.floor(value * factor) / factor;
-}
-
-function toBtc(sats: number): number {
-  return sats / COIN_SIZE;
-}
 
 // ============================================================
 // Health Factor
@@ -248,7 +231,7 @@ export function getMaxInvest(
   }
 
   let collateralRemaining = Math.max(0, availableCollateralBtc);
-  const walletBtc = toBtc(walletSats);
+  const walletBtc = satsToBtc(walletSats);
   let walletCostBtc = 0;
   let feesBtc = 0;
   let maxInvestBtc = 0;
@@ -263,11 +246,11 @@ export function getMaxInvest(
 
     vaultCount++;
     const opcost = getOpCostRepo(feeRate, vaultCount);
-    feesBtc = toBtc(opcost);
+    feesBtc = satsToBtc(opcost);
     const walletBtcAvailable = walletBtc - feesBtc - walletCostBtc;
     if (walletBtcAvailable <= DUST_BTC) {
       vaultCount--;
-      feesBtc = vaultCount > 0 ? toBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
+      feesBtc = vaultCount > 0 ? satsToBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
       break;
     }
 
@@ -299,7 +282,7 @@ export function getMaxInvest(
     claimPortion = Math.min(maxClaimForVault, Math.max(0, roundNumberDown(claimPortion)));
     if (claimPortion <= DUST_BTC) {
       vaultCount--;
-      feesBtc = vaultCount > 0 ? toBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
+      feesBtc = vaultCount > 0 ? satsToBtc(getOpCostRepo(feeRate, vaultCount)) : 0;
       break;
     }
 
@@ -349,7 +332,7 @@ export function computeClaimFromInvest(
 
     vaultCount++;
     opcost = getOpCostRepo(feeRate, vaultCount);
-    const investAfterFees = investRemaining - toBtc(opcost);
+    const investAfterFees = investRemaining - satsToBtc(opcost);
 
     const { claimAmountBtc, unitSwapBtc } = vaultProfile;
     const swapRequired = isAutoSwap ? unitSwapBtc : 0;
