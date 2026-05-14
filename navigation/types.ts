@@ -213,7 +213,6 @@ export type WalletStackParamList = {
   Security: undefined;
   Advanced: undefined;
   CashuSettings: undefined;
-  QuantaLink: undefined;
   About: undefined;
   TermsOfService: { onClose: () => void };
   PrivacyPolicy: { onClose: () => void };

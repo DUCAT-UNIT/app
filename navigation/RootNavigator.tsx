@@ -306,7 +306,7 @@ export default function RootNavigator(): React.JSX.Element {
           navigationRef.current.navigate('WalletFlow', { screen: 'VaultDetail' });
           break;
         case 'liquidation_opportunity':
-          navigationRef.current.navigate('Main', { screen: 'LiquidationsTab' } as never);
+          navigationRef.current.navigate('Main', { screen: 'LiquidationsTab' });
           break;
         default:
           break;

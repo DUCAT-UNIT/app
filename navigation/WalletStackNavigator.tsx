@@ -23,7 +23,6 @@ import RedeemScreenComponent from '../screens/bridge/RedeemScreen';
 import SepoliaSendScreenComponent from '../screens/bridge/SepoliaSendScreen';
 import SettingsHomeScreenComponent from '../screens/settings/SettingsHomeScreen';
 import CashuSettingsScreenComponent from '../screens/settings/CashuSettingsScreen';
-import QuantaLinkScreenComponent from '../screens/settings/QuantaLinkScreen';
 import AboutScreenComponent from '../screens/settings/AboutScreen';
 import TermsOfServiceScreenComponent from '../screens/settings/TermsOfServiceScreen';
 import PrivacyPolicyScreenComponent from '../screens/settings/PrivacyPolicyScreen';
@@ -32,7 +31,6 @@ import SecurityScreenComponent from '../screens/settings/SecurityScreen';
 import AdvancedScreenComponent from '../screens/settings/AdvancedScreen';
 import { useSettingsHandlers } from '../contexts/NavigationHandlersContext';
 import { COLORS } from '../theme';
-import { ENABLE_QUANTA_REWARDS } from '../utils/releaseFlags';
 
 import type { RootNavigatorParamList, WalletStackParamList } from './types';
 
@@ -106,11 +104,6 @@ const CashuSettingsScreen: AnyComponent = withErrorBoundary(CashuSettingsScreenC
   fallbackMessage: 'Unable to load Cashu settings. Please try again.',
 });
 
-const QuantaLinkScreen: AnyComponent = withErrorBoundary(QuantaLinkScreenComponent, {
-  boundaryName: 'QuantaLinkScreen',
-  fallbackMessage: 'Unable to load Quanta linking. Please try again.',
-});
-
 const AboutScreen: AnyComponent = withErrorBoundary(AboutScreenComponent, {
   boundaryName: 'AboutScreen',
   fallbackMessage: 'Unable to load about screen. Please try again.',
@@ -181,26 +174,6 @@ const GatedSwapScreen = withUsdcFeatureGate(SwapScreen);
 const GatedSwapSummaryScreen = withUsdcFeatureGate(SwapSummaryScreen);
 const GatedRedeemScreen = withUsdcFeatureGate(RedeemScreen);
 const GatedSepoliaSendScreen = withUsdcFeatureGate(SepoliaSendScreen);
-
-function withQuantaFeatureGate(Component: AnyComponent): AnyComponent {
-  return function QuantaFeatureGate(props: {
-    navigation: FeatureGateNavigation;
-  }): React.ReactElement | null {
-    React.useEffect(() => {
-      if (!ENABLE_QUANTA_REWARDS) {
-        leaveGatedScreen(props.navigation);
-      }
-    }, [props.navigation]);
-
-    if (!ENABLE_QUANTA_REWARDS) {
-      return null;
-    }
-
-    return <Component {...props} />;
-  };
-}
-
-const GatedQuantaLinkScreen = withQuantaFeatureGate(QuantaLinkScreen);
 
 const Stack = createStackNavigator<WalletStackParamList>();
 
@@ -422,11 +395,6 @@ export default function WalletStackNavigator({
       <Stack.Screen
         name="CashuSettings"
         component={CashuSettingsScreen}
-        options={settingsScreenOptions}
-      />
-      <Stack.Screen
-        name="QuantaLink"
-        component={GatedQuantaLinkScreen}
         options={settingsScreenOptions}
       />
       <Stack.Screen name="About" component={AboutScreen} options={settingsScreenOptions} />

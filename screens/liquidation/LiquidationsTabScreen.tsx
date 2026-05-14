@@ -4,14 +4,14 @@
  */
 
 import type { NativeBottomTabNavigationProp } from '@react-navigation/bottom-tabs/unstable';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation, type NavigationProp } from '@react-navigation/native';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import LiquidationScreen from '../../components/liquidation/LiquidationScreen';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance, useVaultData } from '../../contexts/WalletDataContext';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
-import type { MainTabParamList } from '../../navigation/types';
+import type { MainTabParamList, RootNavigatorParamList } from '../../navigation/types';
 import { usePrice } from '../../stores/priceStore';
 import { COLORS } from '../../theme';
 
@@ -41,7 +41,7 @@ export default function LiquidationsTabScreen(): React.ReactElement {
   }, [navigation]);
 
   const navigateReview = React.useCallback(() => {
-    navigation.getParent()?.navigate('LiquidationFlow' as never);
+    navigation.getParent<NavigationProp<RootNavigatorParamList>>()?.navigate('LiquidationFlow');
   }, [navigation]);
 
   return (
