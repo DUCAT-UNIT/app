@@ -7,6 +7,7 @@ jest.unmock('../logger');
 
 // Store original __DEV__ value
 const originalDev = (global as Record<string, unknown>).__DEV__;
+const originalVerboseDebug = process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS;
 
 describe('logger', () => {
   let logger: ReturnType<typeof require>;
@@ -19,8 +20,10 @@ describe('logger', () => {
 
     // Reset to dev mode by default
     (global as Record<string, unknown>).__DEV__ = true;
+    process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS = 'true';
+    jest.resetModules();
 
-    // Import logger (module reuse - __DEV__ is checked at runtime for most methods)
+    // Import logger after setting debug env because debug verbosity is captured at module load.
     logger = require('../logger').logger;
 
     // Spy on console methods
@@ -34,6 +37,11 @@ describe('logger', () => {
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
     (global as Record<string, unknown>).__DEV__ = originalDev;
+    if (originalVerboseDebug === undefined) {
+      delete process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS;
+    } else {
+      process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS = originalVerboseDebug;
+    }
   });
 
   describe('debug', () => {

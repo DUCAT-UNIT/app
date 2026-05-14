@@ -14,6 +14,7 @@ import { DEFAULT_CASHU_UNIT, isCashuUnit, normalizeCashuUnit, type CashuUnit } f
 export type CashuAmountLike = AmountLike;
 
 const CASHU_TOKEN_PREFIX_V4 = /^cashuB/i;
+// sat tokens are BTC/Lightning only and must not be decoded as Ducat UNIT tokens.
 
 interface AmountObject {
   toBigInt?: () => bigint;

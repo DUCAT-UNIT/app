@@ -17,8 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ImportWalletScreen from '../../components/onboarding/ImportWalletScreen';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 import {
+  DEFAULT_WALLET_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
-  XVERSE_WALLET_DERIVATION_MODE,
   type WalletDerivationMode,
   type WalletImportProfile,
 } from '../../constants/bitcoin';
@@ -63,7 +63,7 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
     restoreTitle: 'Restore Xverse Wallet',
     restoreSubtitle: 'Enter the 12 words exported from Xverse.',
     importProfile: 'xverse',
-    derivationMode: XVERSE_WALLET_DERIVATION_MODE,
+    derivationMode: DEFAULT_WALLET_DERIVATION_MODE,
     steps: [
       {
         title: 'Open the account menu',

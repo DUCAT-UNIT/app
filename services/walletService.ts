@@ -16,7 +16,6 @@ import {
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
-  XVERSE_WALLET_DERIVATION_MODE,
   getDerivationPathForType,
   getWalletDerivationModeForProfile,
   getWalletProfileForDerivationMode,
@@ -111,7 +110,7 @@ export interface WalletAccountAddresses {
 }
 
 export const QUANTA_DISCOVERY_DERIVATION_MODES: readonly WalletDerivationMode[] = [
-  XVERSE_WALLET_DERIVATION_MODE,
+  DEFAULT_WALLET_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
 ];
 

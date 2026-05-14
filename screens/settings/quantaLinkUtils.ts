@@ -8,7 +8,6 @@ import {
   DEFAULT_WALLET_DERIVATION_MODE,
   getWalletProfileForDerivationMode,
   getWalletProfileLabelForDerivationMode,
-  XVERSE_WALLET_DERIVATION_MODE,
   type WalletDerivationMode,
   type WalletImportProfile,
 } from '../../constants/bitcoin';
@@ -17,7 +16,7 @@ import type { DerivedAddresses } from '../../utils/bitcoin';
 export const ACCOUNT_COMPATIBILITY_TIMEOUT_MS = 5000;
 export const ACCOUNT_CHECK_TIMEOUT_RESULT = { timedOut: true } as const;
 export const NO_MATCH_ACCOUNT_MESSAGE =
-  'No matching Quanta account found in the first 100 wallet accounts.';
+  'No matching Quanta account found in the scanned wallet accounts.';
 export const ACCOUNT_CHECK_TIMEOUT_MESSAGE = 'Account compatibility check timed out. Try again.';
 export const ACCOUNT_CHECK_FAILURE_MESSAGE = 'Could not check wallet accounts. Try again.';
 export const CONNECT_QUANTA_ERROR_MESSAGE = 'Could not connect Quanta. Try again.';
@@ -27,7 +26,6 @@ export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 3;
 export const QUANTA_DISCOVERY_STATUS_CACHE_TTL_MS = 60_000;
 export const QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY = 'quanta-mobile-reward-discovery';
 export const QUANTA_DISCOVERY_STATUS_TIMEOUT_MS = 3000;
-export const QUANTA_DIFFERENT_WALLET_STATUS_CIRCUIT_KEY = 'quanta-mobile-reward-different-wallet';
 export const QUANTA_DIFFERENT_WALLET_STATUS_TIMEOUT_MS = 1200;
 export const QUANTA_SEARCH_START_DELAY_MS = 32;
 export const QUANTA_WALLET_SEARCH_TIMEOUT_MS = 3500;
@@ -108,7 +106,7 @@ function getAddressTypeSortRank(addressType: WalletAddressMatchType): number {
 }
 
 function getDerivationModeSortRank(derivationMode: WalletDerivationMode): number {
-  return derivationMode === XVERSE_WALLET_DERIVATION_MODE ? 0 : 1;
+  return derivationMode === DEFAULT_WALLET_DERIVATION_MODE ? 0 : 1;
 }
 
 export function getCandidateKey(candidate: QuantaAccountCandidate): string {

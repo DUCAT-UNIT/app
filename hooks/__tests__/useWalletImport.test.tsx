@@ -9,8 +9,8 @@ import { useWalletImport } from '../useWalletImport';
 import * as WalletService from '../../services/walletService';
 import { notify } from '../../utils/notify';
 import {
+  DEFAULT_WALLET_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
-  XVERSE_WALLET_DERIVATION_MODE,
 } from '../../constants/bitcoin';
 
 // Mock wallet service
@@ -198,7 +198,7 @@ describe('useWalletImport', () => {
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         seedPhrase.join(' '),
         mockProps.currentAccount,
-        XVERSE_WALLET_DERIVATION_MODE
+        DEFAULT_WALLET_DERIVATION_MODE
       );
       expect(WalletService.saveWalletToStorage).not.toHaveBeenCalled();
       // loadWallet is intentionally not called during import - it's called after PIN setup
@@ -236,7 +236,7 @@ describe('useWalletImport', () => {
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         'abandon ability able about above absent absorb abstract absurd abuse access accident',
         mockProps.currentAccount,
-        XVERSE_WALLET_DERIVATION_MODE
+        DEFAULT_WALLET_DERIVATION_MODE
       );
     });
 
@@ -523,7 +523,7 @@ describe('useWalletImport', () => {
       expect(WalletService.saveWalletToStorage).toHaveBeenCalledWith(
         seedPhrase.join(' '),
         mockProps.currentAccount,
-        XVERSE_WALLET_DERIVATION_MODE
+        DEFAULT_WALLET_DERIVATION_MODE
       );
     });
 

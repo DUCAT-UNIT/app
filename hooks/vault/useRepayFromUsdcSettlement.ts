@@ -3,10 +3,11 @@ import { useCashuOperations } from '../../contexts/CashuContext';
 import { useBalance, useTransactionHistory } from '../../contexts/WalletDataContext';
 import { useWallet } from '../../contexts/WalletContext';
 import { getBalance as getCashuBalance } from '../../services/cashu/cashuBalanceService';
-import { checkMeltQuote, type MeltQuote } from '../../services/cashu/cashuMintClient';
 import {
+  checkMeltQuote,
   requestMelt,
   completeMelt,
+  type MeltQuote,
   type MeltQuoteResult,
 } from '../../services/cashu/cashuWalletService';
 import { requestRedemption } from '../../services/evmBridgeService';

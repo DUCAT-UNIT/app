@@ -31,7 +31,7 @@ export type WalletProfile = 'xverse' | 'unisat' | 'private_key';
 export type WalletImportProfile = Exclude<WalletProfile, 'private_key'>;
 
 // Match Xverse/Quanta account discovery: fixed BIP account 0, increment external address index.
-export const XVERSE_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
+const XVERSE_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
 export const UNISAT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
 export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = XVERSE_WALLET_DERIVATION_MODE;
 

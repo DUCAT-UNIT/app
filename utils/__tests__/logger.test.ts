@@ -1,6 +1,7 @@
 jest.unmock('../logger');
 
 const originalDev = (global as Record<string, unknown>).__DEV__;
+const originalVerboseDebug = process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS;
 
 describe('logger redaction', () => {
   let testLogger: typeof import('../logger').logger;
@@ -11,6 +12,7 @@ describe('logger redaction', () => {
   beforeEach(() => {
     jest.resetModules();
     (global as Record<string, unknown>).__DEV__ = true;
+    process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS = 'true';
     testLogger = require('../logger').logger;
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -22,6 +24,11 @@ describe('logger redaction', () => {
     warnSpy.mockRestore();
     errorSpy.mockRestore();
     (global as Record<string, unknown>).__DEV__ = originalDev;
+    if (originalVerboseDebug === undefined) {
+      delete process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS;
+    } else {
+      process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS = originalVerboseDebug;
+    }
   });
 
   it('redacts sensitive fields recursively for info logs', () => {
