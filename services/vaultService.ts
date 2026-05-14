@@ -103,6 +103,17 @@ export interface FetchVaultDataOptions {
   includeLatestTransaction?: boolean;
 }
 
+export interface FetchVaultHistoryOptions {
+  /** Reuse an already-known vault id to avoid an extra /vault_list round trip. */
+  vaultId?: string;
+  /** Page size for each vault_history_tx request. */
+  limit?: number;
+  /** Maximum number of pages to request. Defaults to full historical scan. */
+  maxPages?: number;
+  /** History lookback window. Defaults to 18 months. */
+  lookbackDays?: number;
+}
+
 const isValidPrice = (price: unknown): price is number => (
   typeof price === 'number'
   && Number.isFinite(price)
@@ -162,26 +173,39 @@ export async function fetchLatestVaultHistoryTransaction(
   );
 }
 
-const fetchVaultHistoryUncached = async (vaultPubkey: string): Promise<VaultHistoryTransaction[]> => {
+const fetchVaultHistoryUncached = async (
+  vaultPubkey: string,
+  options: FetchVaultHistoryOptions = {}
+): Promise<VaultHistoryTransaction[]> => {
   try {
-    // Step 1: Get vault list to retrieve vault_id
-    const vaultListResponse = await postWithRetry(
-      `${API.VAULT}/vault_list`,
-      { vault_pubkey: vaultPubkey },
-      { description: 'Fetch vault list' }
-    );
+    let vaultId = options.vaultId;
 
-    const vaultListData = await vaultListResponse.json() as VaultListResponse;
+    if (!vaultId) {
+      // Step 1: Get vault list to retrieve vault_id
+      const vaultListResponse = await postWithRetry(
+        `${API.VAULT}/vault_list`,
+        { vault_pubkey: vaultPubkey },
+        { description: 'Fetch vault list' }
+      );
 
-    if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
-      return [];
+      const vaultListData = await vaultListResponse.json() as VaultListResponse;
+
+      if (!vaultListData.vaults || vaultListData.vaults.length === 0) {
+        return [];
+      }
+
+      vaultId = vaultListData.vaults[0]?.vault_id;
     }
 
-    const vaultId = vaultListData.vaults[0].vault_id;
+    if (!vaultId) {
+      return [];
+    }
+    const selectedVaultId = vaultId;
 
     // Step 2: Get all vault history with pagination
     const now = Math.floor(Date.now() / 1000);
-    const eighteenMonthsAgo = now - 540 * 24 * 60 * 60; // 18 months of history
+    const lookbackDays = options.lookbackDays ?? 540;
+    const lookbackStart = now - lookbackDays * 24 * 60 * 60;
 
     // Use unified pagination utility
     const allHistory = await fetchPaginated<VaultHistoryTransaction>(
@@ -189,8 +213,8 @@ const fetchVaultHistoryUncached = async (vaultPubkey: string): Promise<VaultHist
         const response = await postWithRetry(
           `${API.VAULT}/vault_history_tx`,
           {
-            vault_id: vaultId,
-            timestamp_start: eighteenMonthsAgo,
+            vault_id: selectedVaultId,
+            timestamp_start: lookbackStart,
             timestamp_end: now,
             pagination: { limit, offset },
           },
@@ -199,7 +223,7 @@ const fetchVaultHistoryUncached = async (vaultPubkey: string): Promise<VaultHist
         const data = await response.json() as VaultHistoryResponse;
         return data.history || [];
       },
-      { limit: 250, maxPages: 20 }
+      { limit: options.limit ?? 250, maxPages: options.maxPages ?? 20 }
     );
 
     return allHistory;
@@ -211,15 +235,26 @@ const fetchVaultHistoryUncached = async (vaultPubkey: string): Promise<VaultHist
   }
 };
 
-export const fetchVaultHistory = async (vaultPubkey: string): Promise<VaultHistoryTransaction[]> => {
+export const fetchVaultHistory = async (
+  vaultPubkey: string,
+  options: FetchVaultHistoryOptions = {}
+): Promise<VaultHistoryTransaction[]> => {
   if (!vaultPubkey) {
     return [];
   }
 
+  const cacheKey = [
+    vaultPubkey,
+    options.vaultId ?? 'lookup',
+    options.limit ?? 250,
+    options.maxPages ?? 20,
+    options.lookbackDays ?? 540,
+  ].join(':');
+
   return dedupeInFlight(
     vaultHistoryInFlight,
-    vaultPubkey,
-    () => fetchVaultHistoryUncached(vaultPubkey)
+    cacheKey,
+    () => fetchVaultHistoryUncached(vaultPubkey, options)
   );
 };
 

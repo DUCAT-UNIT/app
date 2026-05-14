@@ -70,7 +70,7 @@ describe('reconciliationWorker', () => {
     expect(reconcileSubmittedEvmTransactionCheckpoints).not.toHaveBeenCalled();
   });
 
-  it('refreshes core wallet data every enabled cycle', async () => {
+  it('refreshes only lightweight core wallet data every enabled cycle', async () => {
     const cycleInput = input();
 
     const result = await runWalletReconciliationCycle(cycleInput);
@@ -78,13 +78,12 @@ describe('reconciliationWorker', () => {
     expect(result.refreshed).toEqual(expect.arrayContaining([
       'balance',
       'vault',
-      'vault-history',
-      'transaction-history',
-      'ecash',
     ]));
     expect(cycleInput.fetchBalance).toHaveBeenCalled();
-    expect(cycleInput.fetchVaultTransactions).toHaveBeenCalled();
-    expect(cycleInput.fetchTransactionHistory).toHaveBeenCalled();
+    expect(cycleInput.fetchVault).toHaveBeenCalled();
+    expect(cycleInput.fetchVaultTransactions).not.toHaveBeenCalled();
+    expect(cycleInput.fetchTransactionHistory).not.toHaveBeenCalled();
+    expect(cycleInput.fetchEcashTokens).not.toHaveBeenCalled();
     expect(recoverConfirmedRedemptionTracking).toHaveBeenCalledTimes(1);
   });
 
@@ -101,10 +100,16 @@ describe('reconciliationWorker', () => {
     const result = await runWalletReconciliationCycle(cycleInput);
 
     expect(result.refreshed).toEqual(expect.arrayContaining([
+      'vault-history',
+      'transaction-history',
+      'ecash',
       'evm-balances',
       'usdc-history',
       'eth-history',
     ]));
+    expect(cycleInput.fetchVaultTransactions).toHaveBeenCalled();
+    expect(cycleInput.fetchTransactionHistory).toHaveBeenCalled();
+    expect(cycleInput.fetchEcashTokens).toHaveBeenCalled();
     expect(cycleInput.refreshEvmBalances).toHaveBeenCalled();
     expect(cycleInput.refreshUsdcHistory).toHaveBeenCalled();
     expect(cycleInput.refreshEthHistory).toHaveBeenCalled();

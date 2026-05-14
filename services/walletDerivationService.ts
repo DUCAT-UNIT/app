@@ -1,7 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletDerivationModeForProfile,
+  getWalletProfileForDerivationMode,
   type WalletDerivationMode,
+  type WalletImportProfile,
 } from '../constants/bitcoin';
 import { logger } from '../utils/logger';
 import { DEVICE_ONLY } from './storagePolicy';
@@ -44,4 +47,13 @@ export const setWalletDerivationMode = async (
 ): Promise<void> => {
   await SecureStore.setItemAsync(WALLET_DERIVATION_MODE_KEY, mode, DEVICE_ONLY);
   cachedMode = mode;
+};
+
+export const getWalletProfile = async (): Promise<WalletImportProfile> => {
+  const derivationMode = await getWalletDerivationMode();
+  return getWalletProfileForDerivationMode(derivationMode);
+};
+
+export const setWalletProfile = async (profile: WalletImportProfile): Promise<void> => {
+  await setWalletDerivationMode(getWalletDerivationModeForProfile(profile));
 };

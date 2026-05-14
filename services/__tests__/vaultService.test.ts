@@ -225,6 +225,50 @@ describe('vaultService', () => {
       expect(requestBody?.timestamp_start).toBeDefined();
       expect(requestBody?.timestamp_end).toBeDefined();
     });
+
+    it('should fetch a limited page directly when vault id is provided', async () => {
+      const vaultPubkey = 'vault_pubkey_123';
+      const historyResponse = {
+        history: [
+          {
+            transaction_id: 'tx1',
+            timestamp: 1000,
+          },
+        ],
+      };
+
+      getMockFetch().mockResolvedValueOnce(createMockResponse(historyResponse));
+
+      const result = await fetchVaultHistory(vaultPubkey, {
+        vaultId: 'vault_1',
+        limit: 50,
+        maxPages: 1,
+        lookbackDays: 120,
+      });
+
+      expect(result).toEqual(historyResponse.history);
+      expect(getFetchCallCount()).toBe(1);
+      expect(String(getFetchCall(0)?.[0])).toContain('vault_history_tx');
+
+      const requestBody = getFetchCallBody<{
+        vault_id: string;
+        pagination: { limit: number; offset: number };
+        timestamp_start?: number;
+        timestamp_end?: number;
+      }>(0);
+
+      expect(requestBody).toMatchObject({
+        vault_id: 'vault_1',
+        pagination: {
+          limit: 50,
+          offset: 0,
+        },
+      });
+
+      const oneHundredTwentyDaysInSeconds = 120 * 24 * 60 * 60;
+      const timeDiff = (requestBody?.timestamp_end ?? 0) - (requestBody?.timestamp_start ?? 0);
+      expect(timeDiff).toBeCloseTo(oneHundredTwentyDaysInSeconds, -2);
+    });
   });
 
   describe('fetchVaultData', () => {

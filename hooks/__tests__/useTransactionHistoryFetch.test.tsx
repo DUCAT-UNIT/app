@@ -97,6 +97,19 @@ describe('useTransactionHistoryFetch', () => {
     expect(result.current!.transactionHistory).toEqual(mockHistory);
     expect(result.current!.historyError).toBe(null);
     expect(result.current!.loadingTransactionHistory).toBe(false);
+    expect(transactionHistoryService.fetchAllTransactionHistory).toHaveBeenCalledWith(
+      mockWallet.segwitAddress,
+      mockWallet.taprootAddress,
+      mockWallet.taprootPubkey,
+      {
+        addressMaxPages: 4,
+        vaultHistoryOptions: {
+          limit: 50,
+          maxPages: 1,
+          lookbackDays: 120,
+        },
+      }
+    );
   });
 
   it('should handle transaction history fetch error', async () => {

@@ -255,9 +255,41 @@ describe('useVaultDataFetch', () => {
       });
 
       expect(result.current!.vaultTransactions).toEqual(mockTransactions);
+      expect(vaultService.fetchVaultHistory).toHaveBeenCalledWith(mockWallet.taprootPubkey, {
+        limit: 50,
+        maxPages: 1,
+        lookbackDays: 120,
+      });
       expect(result.current!.loadingVaultTransactions).toBe(false);
       expect(result.current!.vaultTransactionsLastUpdated).toEqual(expect.any(Number));
       expect(result.current!.vaultTransactionsIsStale).toBe(false);
+    });
+
+    it('reuses loaded vault id when fetching vault transactions', async () => {
+      const mockVaultData = {
+        vaultId: 'vault_1',
+        vaultTag: 'vault-123',
+        totalDebt: 50000,
+        totalCollateral: 0.001,
+        currentPrice: 50000000,
+      };
+
+      (vaultService.fetchVaultData as jest.Mock).mockResolvedValue(mockVaultData);
+      (vaultService.fetchVaultHistory as jest.Mock).mockResolvedValue(mockTransactions);
+
+      const { result } = renderHook(() => useVaultDataFetch(mockWallet));
+
+      await act(async () => {
+        await result.current!.fetchVault();
+        await result.current!.fetchVaultTransactions();
+      });
+
+      expect(vaultService.fetchVaultHistory).toHaveBeenCalledWith(mockWallet.taprootPubkey, {
+        vaultId: 'vault_1',
+        limit: 50,
+        maxPages: 1,
+        lookbackDays: 120,
+      });
     });
 
     it('should show loading only on initial fetch', async () => {

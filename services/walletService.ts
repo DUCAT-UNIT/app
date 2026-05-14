@@ -18,7 +18,10 @@ import {
   UNISAT_WALLET_DERIVATION_MODE,
   XVERSE_WALLET_DERIVATION_MODE,
   getDerivationPathForType,
+  getWalletDerivationModeForProfile,
+  getWalletProfileForDerivationMode,
   type WalletDerivationMode,
+  type WalletImportProfile,
 } from '../constants/bitcoin';
 import {
   getCurrentAccount,
@@ -75,10 +78,19 @@ export interface ImportWalletResult {
 export interface LoadWalletResult {
   addresses: DerivedAddresses | null;
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
 }
 
 export interface SwitchAccountResult {
   addresses: DerivedAddresses;
+  derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
+}
+
+export interface SwitchAccountOptions {
+  derivationMode?: WalletDerivationMode;
+  walletProfile?: WalletImportProfile;
 }
 
 export type WalletAddressMatchType = 'legacy' | 'segwit' | 'taproot';
@@ -86,6 +98,7 @@ export type WalletAddressMatchType = 'legacy' | 'segwit' | 'taproot';
 export interface FindWalletAccountResult {
   accountIndex: number;
   derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
   addresses: DerivedAddresses;
   matchedAddressType: WalletAddressMatchType;
 }
@@ -93,6 +106,7 @@ export interface FindWalletAccountResult {
 export interface WalletAccountAddresses {
   accountIndex: number;
   derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
   addresses: DerivedAddresses;
 }
 
@@ -106,6 +120,24 @@ const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> =>
   if (!saved) {
     throw new Error('Failed to save current account securely');
   }
+};
+
+const resolveSwitchDerivationMode = async (
+  options: SwitchAccountOptions | undefined
+): Promise<WalletDerivationMode> => {
+  const profileDerivationMode = options?.walletProfile
+    ? getWalletDerivationModeForProfile(options.walletProfile)
+    : null;
+
+  if (
+    profileDerivationMode &&
+    options?.derivationMode &&
+    profileDerivationMode !== options.derivationMode
+  ) {
+    throw new Error('Wallet profile does not match requested derivation mode');
+  }
+
+  return profileDerivationMode ?? options?.derivationMode ?? (await getWalletDerivationMode());
 };
 
 const deriveAddressesFromRoot = (
@@ -272,9 +304,11 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       getWalletDerivationMode(),
       'getWalletDerivationMode'
     );
+    const walletProfile = getWalletProfileForDerivationMode(derivationMode);
     startupDiagnostics.recordCheckpoint('wallet_derivation_mode_loaded', {
       account_index: accountIndex,
       derivation_mode: derivationMode,
+      wallet_profile: walletProfile,
     });
 
     // Try multi-account cache first (instant if in memory)
@@ -289,7 +323,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
         account_index: accountIndex,
       });
       if (hasLegacyPaymentAddress(multiCached)) {
-        return { addresses: multiCached, accountIndex };
+        return { addresses: multiCached, accountIndex, derivationMode, walletProfile };
       }
       startupDiagnostics.recordWarning('wallet_multi_account_cache_stale', {
         account_index: accountIndex,
@@ -322,7 +356,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
             error: error instanceof Error ? error.message : String(error),
           });
         });
-        return { addresses: cachedAddresses, accountIndex };
+        return { addresses: cachedAddresses, accountIndex, derivationMode, walletProfile };
       }
     }
     startupDiagnostics.recordCheckpoint('wallet_cached_addresses_miss', {
@@ -354,7 +388,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
         startupDiagnostics.recordWarning('wallet_mnemonic_missing', {
           account_index: accountIndex,
         });
-        return { addresses: null, accountIndex };
+        return { addresses: null, accountIndex, derivationMode, walletProfile };
       }
       if (msg.includes('Passkey wallet is locked')) {
         startupDiagnostics.recordWarning('wallet_passkey_session_locked', {
@@ -377,7 +411,7 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
       });
     }
 
-    return { addresses, accountIndex };
+    return { addresses, accountIndex, derivationMode, walletProfile };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     startupDiagnostics.recordFailure('wallet_storage_load_failed', {
@@ -393,18 +427,23 @@ export const loadWalletFromStorage = async (): Promise<LoadWalletResult> => {
  * @param accountIndex - New account index
  * @returns Promise with addresses
  */
-export const switchToAccount = async (accountIndex: number): Promise<SwitchAccountResult> => {
+export const switchToAccount = async (
+  accountIndex: number,
+  options?: SwitchAccountOptions
+): Promise<SwitchAccountResult> => {
   try {
     assertValidAccountIndex(accountIndex);
 
-    const derivationMode = await getWalletDerivationMode();
+    const derivationMode = await resolveSwitchDerivationMode(options);
+    const walletProfile = getWalletProfileForDerivationMode(derivationMode);
 
     // Try multi-account cache first (fast path - instant if in memory, ~5ms from storage)
     const cachedAddresses = await getMultiAccountCache(accountIndex, derivationMode);
     if (cachedAddresses && hasLegacyPaymentAddress(cachedAddresses)) {
       // Persist current account before returning so storage-backed consumers stay in sync.
       await saveCurrentAccountOrThrow(accountIndex);
-      return { addresses: cachedAddresses };
+      await setWalletDerivationMode(derivationMode);
+      return { addresses: cachedAddresses, derivationMode, walletProfile };
     }
 
     // Cache miss - derive addresses (slow path - ~200ms)
@@ -416,13 +455,14 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
     });
 
     // Save the new account index and cache the addresses for future fast switching
+    await saveCurrentAccountOrThrow(accountIndex);
+    await setWalletDerivationMode(derivationMode);
     await Promise.all([
-      saveCurrentAccountOrThrow(accountIndex),
       saveCachedAddresses(accountIndex, addresses, derivationMode),
       saveToMultiAccountCache(accountIndex, addresses, derivationMode),
     ]);
 
-    return { addresses };
+    return { addresses, derivationMode, walletProfile };
   } catch (error: unknown) {
     throw new Error('Failed to switch account: ' + (error as Error).message);
   }
@@ -447,7 +487,13 @@ const findAccountBySegwitOrTaprootAddress = async (
       if (cachedAddresses) {
         const matchedAddressType = getWalletAddressMatchType(cachedAddresses, normalizedAddress);
         if (matchedAddressType) {
-          return { accountIndex, derivationMode, addresses: cachedAddresses, matchedAddressType };
+          return {
+            accountIndex,
+            derivationMode,
+            walletProfile: getWalletProfileForDerivationMode(derivationMode),
+            addresses: cachedAddresses,
+            matchedAddressType,
+          };
         }
       }
     }
@@ -463,7 +509,13 @@ const findAccountBySegwitOrTaprootAddress = async (
         const matchedAddressType = getWalletAddressMatchType(addresses, normalizedAddress);
 
         if (matchedAddressType) {
-          return { accountIndex, derivationMode, addresses, matchedAddressType };
+          return {
+            accountIndex,
+            derivationMode,
+            walletProfile: getWalletProfileForDerivationMode(derivationMode),
+            addresses,
+            matchedAddressType,
+          };
         }
       }
     }
@@ -492,6 +544,7 @@ export const deriveWalletAccounts = async (
         accounts.push({
           accountIndex,
           derivationMode,
+          walletProfile: getWalletProfileForDerivationMode(derivationMode),
           addresses: deriveAddressesFromRoot(root, accountIndex, derivationMode),
         });
       });

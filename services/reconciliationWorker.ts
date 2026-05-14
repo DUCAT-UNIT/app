@@ -98,13 +98,13 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
   const tasks: Array<[string, () => Promise<void>]> = [
     ['balance', input.fetchBalance],
     ['vault', input.fetchVault],
-    ['vault-history', input.fetchVaultTransactions],
-    ['transaction-history', input.fetchTransactionHistory],
-    ['ecash', input.fetchEcashTokens],
   ];
 
   if (evmStateChanged || settlementStateChanged) {
     tasks.push(
+      ['vault-history', input.fetchVaultTransactions],
+      ['transaction-history', input.fetchTransactionHistory],
+      ['ecash', input.fetchEcashTokens],
       ['evm-balances', input.refreshEvmBalances],
       ['usdc-history', input.refreshUsdcHistory],
       ['eth-history', input.refreshEthHistory],

@@ -1,6 +1,5 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme';
 import { quantaLinkStyles as localStyles } from './quantaLinkStyles';
 import {
@@ -23,7 +22,6 @@ interface QuantaStatusBannerProps {
   isDiscoveringAccounts?: boolean;
   isSwitchingAccount: boolean;
   matchedAccountIndex: number | null;
-  onShowMismatchHelp: () => void;
   onSwitchToMatchedAccount: () => void;
   variant: QuantaStatusBannerVariant;
   visible: boolean;
@@ -40,7 +38,6 @@ export function QuantaStatusBanner({
   isDiscoveringAccounts = false,
   isSwitchingAccount,
   matchedAccountIndex,
-  onShowMismatchHelp,
   onSwitchToMatchedAccount,
   variant,
   visible,
@@ -128,14 +125,12 @@ export function QuantaStatusBanner({
         </Pressable>
       )}
       {!isDiscoveringAccounts && hasAddressMismatch && (
-        <Pressable
+        <View
           accessibilityLabel={
             isConnectedVariant
-              ? 'Learn how to fix mismatched connected Quanta and mobile wallet addresses'
-              : 'Learn how to fix mismatched Quanta and mobile wallet addresses'
+              ? 'Connected Quanta address does not match this wallet'
+              : 'Quanta address does not match this wallet'
           }
-          accessibilityRole="button"
-          onPress={onShowMismatchHelp}
           style={localStyles.mismatchHelpBanner}
           testID={
             isConnectedVariant
@@ -150,11 +145,10 @@ export function QuantaStatusBanner({
             <Text style={localStyles.errorText}>
               {isConnectedVariant
                 ? 'Connected Quanta address does not match this wallet.'
-                : (accountCheckError ?? 'Quanta address does not match the wallet address.')}
+                : 'Quanta address does not match the wallet on this phone.'}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.ERROR} />
           </View>
-        </Pressable>
+        </View>
       )}
     </View>
   );

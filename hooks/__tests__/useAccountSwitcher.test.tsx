@@ -80,6 +80,20 @@ describe('useAccountSwitcher', () => {
     expect(result.current!.switchingAccount).toBe(false);
   });
 
+  it('should pass wallet profile options when switching', async () => {
+    const { result } = renderHook(() =>
+      useAccountSwitcher({ switchAccountContext: mockSwitchAccountContext })
+    );
+
+    await act(async () => {
+      const switchPromise = result.current!.switchAccount(2, { walletProfile: 'unisat' });
+      jest.advanceTimersByTime(0);
+      await switchPromise;
+    });
+
+    expect(mockSwitchAccountContext).toHaveBeenCalledWith(1, { walletProfile: 'unisat' });
+  });
+
   it('should convert account number to index correctly', async () => {
     const { result } = renderHook(() =>
       useAccountSwitcher({ switchAccountContext: mockSwitchAccountContext })
@@ -106,9 +120,7 @@ describe('useAccountSwitcher', () => {
     mockSwitchAccountContext = jest.fn(
       () => new Promise((resolve) => (resolveSwitch = () => resolve(mockAddresses)))
     );
-    const mockFetchBalance = jest.fn(
-      () => new Promise((resolve) => (resolveBalance = resolve))
-    );
+    const mockFetchBalance = jest.fn(() => new Promise((resolve) => (resolveBalance = resolve)));
 
     const { result } = renderHook(() =>
       useAccountSwitcher({
@@ -197,10 +209,7 @@ describe('useAccountSwitcher', () => {
       await switchPromise;
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      DIALOGS.ERROR_TITLE,
-      ERRORS.ACCOUNT_SWITCH_FAILED
-    );
+    expect(Alert.alert).toHaveBeenCalledWith(DIALOGS.ERROR_TITLE, ERRORS.ACCOUNT_SWITCH_FAILED);
     expect(result.current!.switchingAccount).toBe(false);
   });
 
@@ -640,7 +649,9 @@ describe('useAccountSwitcher', () => {
     });
 
     it('should handle resetAndRefreshCashu failure gracefully', async () => {
-      const mockResetAndRefreshCashu = jest.fn().mockRejectedValue(new Error('Cashu refresh failed'));
+      const mockResetAndRefreshCashu = jest
+        .fn()
+        .mockRejectedValue(new Error('Cashu refresh failed'));
 
       const { result } = renderHook(() =>
         useAccountSwitcher({
@@ -665,7 +676,9 @@ describe('useAccountSwitcher', () => {
     });
 
     it('should handle fetchTransactionHistory failure gracefully', async () => {
-      const mockFetchTransactionHistory = jest.fn().mockRejectedValue(new Error('History fetch failed'));
+      const mockFetchTransactionHistory = jest
+        .fn()
+        .mockRejectedValue(new Error('History fetch failed'));
 
       const { result } = renderHook(() =>
         useAccountSwitcher({

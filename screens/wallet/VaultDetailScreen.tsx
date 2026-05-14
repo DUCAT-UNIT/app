@@ -101,7 +101,7 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
       fetchVault();
     }
     if (vaultTransactions.length === 0) {
-      fetchVaultTransactions();
+      fetchVaultTransactions(undefined, { vaultId: vaultData?.vaultId });
     }
   }, [fetchVault, fetchVaultTransactions, vaultData, vaultTransactions.length]);
 
@@ -135,12 +135,12 @@ function VaultDetailScreen({ navigation }: VaultDetailScreenProps): React.JSX.El
     setRefreshing(true);
     const [_, __, settlementHistory] = await Promise.all([
       fetchVault(),
-      fetchVaultTransactions(),
+      fetchVaultTransactions(undefined, { vaultId: vaultData?.vaultId }),
       loadVaultSettlementHistory(wallet?.taprootPubkey),
     ]);
     setSettlementTransactions(settlementHistory);
     setRefreshing(false);
-  }, [fetchVault, fetchVaultTransactions, wallet?.taprootPubkey]);
+  }, [fetchVault, fetchVaultTransactions, vaultData?.vaultId, wallet?.taprootPubkey]);
 
   // Memoized callbacks
   const handleBackPress = useCallback(() => {

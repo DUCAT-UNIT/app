@@ -5,7 +5,13 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { fetchVaultData, fetchVaultHistory, VaultData, VaultHistoryTransaction } from '../services/vaultService';
+import {
+  fetchVaultData,
+  fetchVaultHistory,
+  VaultData,
+  VaultHistoryTransaction,
+  type FetchVaultHistoryOptions,
+} from '../services/vaultService';
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
@@ -27,10 +33,15 @@ export interface UseVaultDataFetchReturn {
   vaultTransactionsIsRefreshing: boolean;
   vaultTransactionsLastUpdated: number | null;
   vaultTransactionsIsStale: boolean;
-  fetchVaultTransactions: (vaultPubkeyOverride?: string) => Promise<void>;
+  fetchVaultTransactions: (
+    vaultPubkeyOverride?: string,
+    options?: FetchVaultHistoryOptions
+  ) => Promise<void>;
 }
 
 const VAULT_STALE_AFTER_MS = 60_000;
+const INITIAL_VAULT_HISTORY_LIMIT = 50;
+const INITIAL_VAULT_HISTORY_LOOKBACK_DAYS = 120;
 
 /**
  * Deep equality check for vault data
@@ -190,7 +201,8 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
    * Cached in context to avoid refetching on every screen visit
    */
   const fetchVaultTransactions = useCallback(async (
-    vaultPubkeyOverride?: string
+    vaultPubkeyOverride?: string,
+    options: FetchVaultHistoryOptions = {}
   ): Promise<void> => {
     const vaultPubkey = vaultPubkeyOverride ?? wallet?.taprootPubkey;
 
@@ -207,7 +219,13 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         setVaultTransactionsIsRefreshing(true);
       }
 
-      const transactions = await fetchVaultHistory(vaultPubkey);
+      const vaultId = options.vaultId ?? prevVaultDataRef.current?.vaultId;
+      const transactions = await fetchVaultHistory(vaultPubkey, {
+        vaultId,
+        limit: options.limit ?? INITIAL_VAULT_HISTORY_LIMIT,
+        maxPages: options.maxPages ?? 1,
+        lookbackDays: options.lookbackDays ?? INITIAL_VAULT_HISTORY_LOOKBACK_DAYS,
+      });
 
       // Only update state if transactions have actually changed
       // Compare by checking first and last transaction timestamps and length

@@ -6,9 +6,11 @@ import type {
 import type { WalletAccountAddresses, WalletAddressMatchType } from '../../services/walletService';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletProfileForDerivationMode,
   getWalletProfileLabelForDerivationMode,
   XVERSE_WALLET_DERIVATION_MODE,
   type WalletDerivationMode,
+  type WalletImportProfile,
 } from '../../constants/bitcoin';
 import type { DerivedAddresses } from '../../utils/bitcoin';
 
@@ -21,8 +23,14 @@ export const ACCOUNT_CHECK_FAILURE_MESSAGE = 'Could not check wallet accounts. T
 export const CONNECT_QUANTA_ERROR_MESSAGE = 'Could not connect Quanta. Try again.';
 export const QUANTA_ACCOUNT_MATCH_SEARCH_LIMIT = 100;
 export const QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT = 20;
-export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 6;
-export const QUANTA_ACCOUNT_PICKER_OPEN_DELAY_MS = 80;
+export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 3;
+export const QUANTA_DISCOVERY_STATUS_CACHE_TTL_MS = 60_000;
+export const QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY = 'quanta-mobile-reward-discovery';
+export const QUANTA_DISCOVERY_STATUS_TIMEOUT_MS = 3000;
+export const QUANTA_DIFFERENT_WALLET_STATUS_CIRCUIT_KEY = 'quanta-mobile-reward-different-wallet';
+export const QUANTA_DIFFERENT_WALLET_STATUS_TIMEOUT_MS = 1200;
+export const QUANTA_SEARCH_START_DELAY_MS = 32;
+export const QUANTA_WALLET_SEARCH_TIMEOUT_MS = 3500;
 
 export interface QuantaMobileWalletPayload {
   mobileWalletAddress: string | null;
@@ -35,6 +43,7 @@ export interface QuantaMobileWalletPayload {
 export interface QuantaAccountCandidate {
   accountIndex: number;
   derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
   addressType: WalletAddressMatchType;
   quantaAddress: string;
   status: QuantaRewardStatusResult;
@@ -44,6 +53,7 @@ export interface QuantaAccountCandidate {
 export interface AccountAddressEntry {
   accountIndex: number;
   derivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
   addressType: WalletAddressMatchType;
   address: string;
   addresses: DerivedAddresses;
@@ -154,11 +164,13 @@ export function sortAccountCandidates(
 export function getAccountAddressEntries(account: WalletAccountAddresses): AccountAddressEntry[] {
   const entries: AccountAddressEntry[] = [];
   const derivationMode = account.derivationMode ?? DEFAULT_WALLET_DERIVATION_MODE;
+  const walletProfile = account.walletProfile ?? getWalletProfileForDerivationMode(derivationMode);
 
   if (account.addresses.legacyAddress) {
     entries.push({
       accountIndex: account.accountIndex,
       derivationMode,
+      walletProfile,
       addressType: 'legacy',
       address: account.addresses.legacyAddress,
       addresses: account.addresses,
@@ -169,6 +181,7 @@ export function getAccountAddressEntries(account: WalletAccountAddresses): Accou
     {
       accountIndex: account.accountIndex,
       derivationMode,
+      walletProfile,
       addressType: 'taproot',
       address: account.addresses.taprootAddress,
       addresses: account.addresses,
@@ -176,6 +189,7 @@ export function getAccountAddressEntries(account: WalletAccountAddresses): Accou
     {
       accountIndex: account.accountIndex,
       derivationMode,
+      walletProfile,
       addressType: 'segwit',
       address: account.addresses.segwitAddress,
       addresses: account.addresses,

@@ -1,6 +1,9 @@
 import type { QuantaRewardClaimResult } from '../../../services/quantaRewardService';
 import { makeDerivedAddresses } from '../../../services/__tests__/testUtils';
-import { XVERSE_WALLET_DERIVATION_MODE } from '../../../constants/bitcoin';
+import {
+  XVERSE_WALLET_DERIVATION_MODE,
+  getWalletProfileForDerivationMode,
+} from '../../../constants/bitcoin';
 import {
   formatAddressPreview,
   getAccountAddressEntries,
@@ -26,6 +29,7 @@ function makeCandidate(
   return {
     accountIndex,
     derivationMode: XVERSE_WALLET_DERIVATION_MODE,
+    walletProfile: getWalletProfileForDerivationMode(XVERSE_WALLET_DERIVATION_MODE),
     addressType,
     quantaAddress,
     addresses,
@@ -65,6 +69,7 @@ describe('quantaLinkUtils', () => {
       .map((addresses, index) => ({
         accountIndex: index === 0 ? 2 : 1,
         derivationMode: XVERSE_WALLET_DERIVATION_MODE,
+        walletProfile: getWalletProfileForDerivationMode(XVERSE_WALLET_DERIVATION_MODE),
         addresses,
       }))
       .flatMap(getAccountAddressEntries)

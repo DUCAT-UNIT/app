@@ -12,6 +12,9 @@ import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore'
 import { logger } from '../utils/logger';
 
 const HISTORY_FETCH_STALE_MS = 30_000;
+const INITIAL_ADDRESS_HISTORY_PAGES = 4;
+const INITIAL_VAULT_HISTORY_LIMIT = 50;
+const INITIAL_VAULT_HISTORY_LOOKBACK_DAYS = 120;
 
 function reconcileConfirmedPendingTransactions(history: Transaction[]): void {
   const confirmedTxids = new Set(history.filter((tx) => tx.status?.confirmed).map((tx) => tx.txid));
@@ -95,7 +98,14 @@ export function useTransactionHistoryFetch(
       }
       // Clear any previous error on new attempt
       setHistoryError(null);
-      const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
+      const history = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey, {
+        addressMaxPages: INITIAL_ADDRESS_HISTORY_PAGES,
+        vaultHistoryOptions: {
+          limit: INITIAL_VAULT_HISTORY_LIMIT,
+          maxPages: 1,
+          lookbackDays: INITIAL_VAULT_HISTORY_LOOKBACK_DAYS,
+        },
+      });
       if (!isCurrentFetch()) return;
 
       reconcileConfirmedPendingTransactions(history);

@@ -63,13 +63,14 @@ export function useQuantaRewardStatus({
             setRewardStatus(status);
           } else {
             setRewardStatus(null);
+            onDisplayAddress('');
             clearStoredQuantaAddress().catch((error: unknown) => {
               logger.warn('[QuantaLinkScreen] Failed to clear stale Quanta link', {
                 error: error instanceof Error ? error.message : String(error),
               });
             });
           }
-          if (displayAddress) {
+          if (displayAddress && status.connected) {
             onDisplayAddress(displayAddress);
           }
         })

@@ -3,6 +3,12 @@ import { InteractionManager } from 'react-native';
 import * as WalletService from '../services/walletService';
 import { saveCachedAddresses, saveToMultiAccountCache } from '../services/secureStorageService';
 import { getWalletDerivationMode } from '../services/walletDerivationService';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletProfileForDerivationMode,
+  type WalletDerivationMode,
+  type WalletImportProfile,
+} from '../constants/bitcoin';
 import { logger } from '../utils/logger';
 import { clearP2PKCache } from '../services/cashu/cashuWalletService';
 import { resetE2eVaultState } from '../utils/e2eVaultState';
@@ -17,12 +23,24 @@ export interface WalletAddresses {
   taprootPubkey: string;
 }
 
+export type WalletAccountSwitchOptions = WalletService.SwitchAccountOptions;
+
 interface WalletContextValue {
   wallet: WalletAddresses | null;
   currentAccount: number;
-  loadWallet: () => Promise<{ exists: boolean; addresses?: WalletAddresses }>;
+  walletDerivationMode: WalletDerivationMode;
+  walletProfile: WalletImportProfile;
+  loadWallet: () => Promise<{
+    exists: boolean;
+    addresses?: WalletAddresses;
+    walletProfile?: WalletImportProfile;
+    walletDerivationMode?: WalletDerivationMode;
+  }>;
   setWalletAddresses: (addresses: WalletAddresses, accountIndex?: number) => void;
-  switchAccount: (accountIndex: number) => Promise<WalletAddresses>;
+  switchAccount: (
+    accountIndex: number,
+    options?: WalletAccountSwitchOptions
+  ) => Promise<WalletAddresses>;
   resetWallet: () => Promise<void>;
 }
 
@@ -44,6 +62,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   // Wallet state
   const [wallet, setWallet] = useState<WalletAddresses | null>(null);
   const [currentAccount, setCurrentAccount] = useState(0);
+  const [walletDerivationMode, setWalletDerivationModeState] = useState<WalletDerivationMode>(
+    DEFAULT_WALLET_DERIVATION_MODE
+  );
+  const [walletProfile, setWalletProfileState] = useState<WalletImportProfile>(
+    getWalletProfileForDerivationMode(DEFAULT_WALLET_DERIVATION_MODE)
+  );
 
   const scheduleAnalyticsIdentify = useCallback((address: string) => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -59,9 +83,21 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const loadWallet = useCallback(async (): Promise<{
     exists: boolean;
     addresses?: WalletAddresses;
+    walletProfile?: WalletImportProfile;
+    walletDerivationMode?: WalletDerivationMode;
   }> => {
     try {
-      const { addresses, accountIndex } = await WalletService.loadWalletFromStorage();
+      const {
+        addresses,
+        accountIndex,
+        derivationMode: loadedDerivationMode,
+        walletProfile: loadedWalletProfile,
+      } = await WalletService.loadWalletFromStorage();
+      const derivationMode = loadedDerivationMode ?? DEFAULT_WALLET_DERIVATION_MODE;
+      const walletProfile =
+        loadedWalletProfile ?? getWalletProfileForDerivationMode(derivationMode);
+      setWalletDerivationModeState(derivationMode);
+      setWalletProfileState(walletProfile);
 
       if (addresses) {
         setWallet({
@@ -75,7 +111,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setCurrentAccount(accountIndex);
         scheduleAnalyticsIdentify(addresses.segwitAddress);
 
-        return { exists: true, addresses };
+        return {
+          exists: true,
+          addresses,
+          walletDerivationMode: derivationMode,
+          walletProfile,
+        };
       }
 
       return { exists: false };
@@ -104,12 +145,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       scheduleAnalyticsIdentify(addresses.segwitAddress);
 
       getWalletDerivationMode()
-        .then((derivationMode) =>
-          Promise.all([
+        .then((derivationMode) => {
+          setWalletDerivationModeState(derivationMode);
+          setWalletProfileState(getWalletProfileForDerivationMode(derivationMode));
+
+          return Promise.all([
             saveCachedAddresses(accountIndex, addresses, derivationMode),
             saveToMultiAccountCache(accountIndex, addresses, derivationMode),
-          ])
-        )
+          ]);
+        })
         .catch((error: unknown) => {
           logger.warn('[WalletContext] Failed to cache wallet addresses', {
             accountIndex,
@@ -125,6 +169,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     analytics.reset();
     setWallet(null);
     setCurrentAccount(0);
+    setWalletDerivationModeState(DEFAULT_WALLET_DERIVATION_MODE);
+    setWalletProfileState(getWalletProfileForDerivationMode(DEFAULT_WALLET_DERIVATION_MODE));
     resetE2eVaultState();
 
     // Clear P2PK cache on wallet reset
@@ -140,35 +186,50 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   // Switch account
-  const switchAccount = useCallback(async (accountIndex: number): Promise<WalletAddresses> => {
-    const { addresses } = await WalletService.switchToAccount(accountIndex);
-    if (!addresses) {
-      throw new Error('No wallet found');
-    }
-
-    // Update state immediately (this is what triggers UI update)
-    setWallet({
-      legacyAddress: addresses.legacyAddress,
-      segwitAddress: addresses.segwitAddress,
-      taprootAddress: addresses.taprootAddress,
-      legacyPubkey: addresses.legacyPubkey,
-      segwitPubkey: addresses.segwitPubkey,
-      taprootPubkey: addresses.taprootPubkey,
-    });
-    setCurrentAccount(accountIndex);
-
-    // Note: Toast notification moved to useAccountSwitcher (shown after data loads)
-
-    // Clear P2PK cache in background (fire and forget - non-critical)
-    // Note: Account index is already saved in WalletService.switchToAccount
-    clearP2PKCache().catch((err) => {
-      if (err instanceof Error) {
-        logger.warn('[WalletContext] Failed to clear P2PK cache:', { error: err.message });
+  const switchAccount = useCallback(
+    async (
+      accountIndex: number,
+      options?: WalletAccountSwitchOptions
+    ): Promise<WalletAddresses> => {
+      const {
+        addresses,
+        derivationMode: nextDerivationMode,
+        walletProfile: returnedWalletProfile,
+      } = await WalletService.switchToAccount(accountIndex, options);
+      if (!addresses) {
+        throw new Error('No wallet found');
       }
-    });
+      const derivationMode = nextDerivationMode ?? DEFAULT_WALLET_DERIVATION_MODE;
+      const nextWalletProfile =
+        returnedWalletProfile ?? getWalletProfileForDerivationMode(derivationMode);
 
-    return addresses;
-  }, []);
+      // Update state immediately (this is what triggers UI update)
+      setWallet({
+        legacyAddress: addresses.legacyAddress,
+        segwitAddress: addresses.segwitAddress,
+        taprootAddress: addresses.taprootAddress,
+        legacyPubkey: addresses.legacyPubkey,
+        segwitPubkey: addresses.segwitPubkey,
+        taprootPubkey: addresses.taprootPubkey,
+      });
+      setCurrentAccount(accountIndex);
+      setWalletDerivationModeState(derivationMode);
+      setWalletProfileState(nextWalletProfile);
+
+      // Note: Toast notification moved to useAccountSwitcher (shown after data loads)
+
+      // Clear P2PK cache in background (fire and forget - non-critical)
+      // Note: Account index is already saved in WalletService.switchToAccount
+      clearP2PKCache().catch((err) => {
+        if (err instanceof Error) {
+          logger.warn('[WalletContext] Failed to clear P2PK cache:', { error: err.message });
+        }
+      });
+
+      return addresses;
+    },
+    []
+  );
 
   // Memoize the value object to prevent unnecessary re-renders
   const value = useMemo(
@@ -176,6 +237,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       // Wallet state
       wallet,
       currentAccount,
+      walletDerivationMode,
+      walletProfile,
 
       // Functions
       loadWallet,
@@ -183,7 +246,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       switchAccount,
       resetWallet,
     }),
-    [wallet, currentAccount, loadWallet, setWalletAddresses, switchAccount, resetWallet]
+    [
+      wallet,
+      currentAccount,
+      walletDerivationMode,
+      walletProfile,
+      loadWallet,
+      setWalletAddresses,
+      switchAccount,
+      resetWallet,
+    ]
   );
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

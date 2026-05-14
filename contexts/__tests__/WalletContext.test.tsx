@@ -4,10 +4,13 @@
 
 import React from 'react';
 import { create, act } from 'react-test-renderer';
-import { WalletProvider, useWallet} from '../WalletContext';
+import { WalletProvider, useWallet } from '../WalletContext';
 
 // Helper to render hooks with react-test-renderer
-function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}) {
+function renderHook<T>(
+  hook: () => T,
+  { wrapper: Wrapper }: { wrapper?: React.ComponentType<{ children: React.ReactNode }> } = {}
+) {
   const result: { current: T | null } = { current: null };
 
   function TestComponent() {
@@ -18,7 +21,11 @@ function renderHook<T>(hook: () => T, { wrapper: Wrapper }: { wrapper?: React.Co
   let component: ReturnType<typeof create> | undefined;
   act(() => {
     component = Wrapper
-      ? create(<Wrapper><TestComponent /></Wrapper>)
+      ? create(
+          <Wrapper>
+            <TestComponent />
+          </Wrapper>
+        )
       : create(<TestComponent />);
   });
 
@@ -39,7 +46,9 @@ jest.mock('../../stores/notificationStore', () => ({
 }));
 
 describe('WalletContext', () => {
-  const wrapper = ({ children }: { children: React.ReactNode }) => <WalletProvider>{children}</WalletProvider>;
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <WalletProvider>{children}</WalletProvider>
+  );
 
   const mockAddresses = {
     segwitAddress: 'tb1qtest',
@@ -69,6 +78,8 @@ describe('WalletContext', () => {
 
     expect(result.current!.wallet).toBeNull();
     expect(result.current!.currentAccount).toBe(0);
+    expect(result.current!.walletProfile).toBe('xverse');
+    expect(result.current!.walletDerivationMode).toBe('legacy_address_index');
   });
 
   it('should load wallet from storage successfully', async () => {
@@ -87,9 +98,13 @@ describe('WalletContext', () => {
     expect(loadResult).toEqual({
       exists: true,
       addresses: mockAddresses,
+      walletProfile: 'xverse',
+      walletDerivationMode: 'legacy_address_index',
     });
     expect(result.current!.wallet).toEqual(mockAddresses);
     expect(result.current!.currentAccount).toBe(0);
+    expect(result.current!.walletProfile).toBe('xverse');
+    expect(result.current!.walletDerivationMode).toBe('legacy_address_index');
   });
 
   it('should handle wallet not existing in storage', async () => {
@@ -107,10 +122,14 @@ describe('WalletContext', () => {
 
     expect(loadResult).toEqual({ exists: false });
     expect(result.current!.wallet).toBeNull();
+    expect(result.current!.walletProfile).toBe('xverse');
+    expect(result.current!.walletDerivationMode).toBe('legacy_address_index');
   });
 
   it('should handle load wallet error', async () => {
-    (WalletService.loadWalletFromStorage as jest.Mock).mockRejectedValueOnce(new Error('Load error'));
+    (WalletService.loadWalletFromStorage as jest.Mock).mockRejectedValueOnce(
+      new Error('Load error')
+    );
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 
@@ -171,6 +190,8 @@ describe('WalletContext', () => {
 
     (WalletService.switchToAccount as jest.Mock).mockResolvedValueOnce({
       addresses: newAddresses,
+      derivationMode: 'bip44_account',
+      walletProfile: 'unisat',
     });
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValueOnce(undefined);
 
@@ -184,7 +205,33 @@ describe('WalletContext', () => {
     expect(switchResult).toEqual(newAddresses);
     expect(result.current!.wallet).toEqual(newAddresses);
     expect(result.current!.currentAccount).toBe(1);
+    expect(result.current!.walletProfile).toBe('unisat');
+    expect(result.current!.walletDerivationMode).toBe('bip44_account');
     // Note: SecureStore.setItemAsync is now called in WalletService.switchToAccount, not in WalletContext
+  });
+
+  it('should forward wallet profile options when switching account', async () => {
+    const newAddresses = {
+      segwitAddress: 'tb1qunisat',
+      taprootAddress: 'tb1punisat',
+      segwitPubkey: 'unisatsegwitpubkey',
+      taprootPubkey: 'unisattaprootpubkey',
+    };
+
+    (WalletService.switchToAccount as jest.Mock).mockResolvedValueOnce({
+      addresses: newAddresses,
+      derivationMode: 'bip44_account',
+      walletProfile: 'unisat',
+    });
+
+    const { result } = renderHook(() => useWallet(), { wrapper });
+
+    await act(async () => {
+      await result.current!.switchAccount(2, { walletProfile: 'unisat' });
+    });
+
+    expect(WalletService.switchToAccount).toHaveBeenCalledWith(2, { walletProfile: 'unisat' });
+    expect(result.current!.walletProfile).toBe('unisat');
   });
 
   it('should throw error when switching to account with no addresses', async () => {
@@ -230,7 +277,9 @@ describe('WalletContext', () => {
 
   it('should handle P2PK cache clear error in resetWallet', async () => {
     // Mock clearP2PKCache to throw error
-    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(
+      new Error('Cache clear failed')
+    );
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 
@@ -256,7 +305,9 @@ describe('WalletContext', () => {
     });
 
     // Mock clearP2PKCache to throw error after switch
-    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(new Error('Cache clear failed'));
+    (cashuWalletService.clearP2PKCache as jest.Mock).mockRejectedValueOnce(
+      new Error('Cache clear failed')
+    );
 
     const { result } = renderHook(() => useWallet(), { wrapper });
 
@@ -265,7 +316,7 @@ describe('WalletContext', () => {
     await act(async () => {
       switchResult = await result.current!.switchAccount(1);
       // Wait for the fire-and-forget clearP2PKCache call
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
     expect(switchResult).toEqual(newAddresses);

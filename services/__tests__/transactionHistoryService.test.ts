@@ -108,6 +108,24 @@ describe('transactionHistoryService', () => {
       expect(result).toHaveLength(1000); // 40 pages * 25 txs
     });
 
+    it('should stop at the provided max pages', async () => {
+      const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
+
+      getMockFetch().mockImplementation(() =>
+        Promise.resolve(createMockResponse(
+          Array.from({ length: 25 }, (_, i) => ({
+            txid: `tx${i}`,
+            status: { block_time: 1000 },
+          }))
+        ))
+      );
+
+      const result = await fetchAddressTransactions(address, { maxPages: 4 });
+
+      expect(getMockFetch()).toHaveBeenCalledTimes(4);
+      expect(result).toHaveLength(100);
+    });
+
     it('should return empty array on error', async () => {
       const address = 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx';
 
@@ -606,6 +624,29 @@ describe('transactionHistoryService', () => {
       expect(result[0].txid).toBe('tx1'); // Most recent first
       expect(result[1].txid).toBe('tx2');
       expect(result[2].vaultTransaction).toBe(true);
+    });
+
+    it('should pass lazy-load limits to address and vault history sources', async () => {
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse([]))
+        .mockResolvedValueOnce(createMockResponse([]));
+      mockFetchVaultHistory.mockResolvedValueOnce([]);
+
+      await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey, {
+        addressMaxPages: 4,
+        vaultHistoryOptions: {
+          limit: 50,
+          maxPages: 1,
+          lookbackDays: 120,
+        },
+      });
+
+      expect(getMockFetch()).toHaveBeenCalledTimes(2);
+      expect(mockFetchVaultHistory).toHaveBeenCalledWith(vaultPubkey, {
+        limit: 50,
+        maxPages: 1,
+        lookbackDays: 120,
+      });
     });
 
     it('should deduplicate transactions by txid', async () => {

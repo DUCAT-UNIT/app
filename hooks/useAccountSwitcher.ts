@@ -3,14 +3,23 @@
  * Manages account switching functionality with coordinated data refresh
  */
 
-import { useState, Dispatch, SetStateAction } from 'react';
+import { useEffect, useState, Dispatch, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { ERRORS, DIALOGS } from '../utils/messages';
 import { logger } from '../utils/logger';
-import type { WalletAddresses } from '../contexts/WalletContext';
+import {
+  getWalletProfileForDerivationMode,
+  getWalletProfileLabel,
+  type WalletImportProfile,
+} from '../constants/bitcoin';
+import type { WalletAccountSwitchOptions, WalletAddresses } from '../contexts/WalletContext';
 
 interface UseAccountSwitcherParams {
-  switchAccountContext: (accountIndex: number) => Promise<WalletAddresses>;
+  switchAccountContext: (
+    accountIndex: number,
+    options?: WalletAccountSwitchOptions
+  ) => Promise<WalletAddresses>;
+  currentWalletProfile?: WalletImportProfile;
   resetBalances?: () => void;
   fetchBalance?: (segwitAddr?: string, taprootAddr?: string) => void | Promise<void>;
   resetTransactionHistory?: () => void;
@@ -34,12 +43,15 @@ interface UseAccountSwitcherReturn {
   setShowAccountPicker: Dispatch<SetStateAction<boolean>>;
   newAccountIndex: string;
   setNewAccountIndex: Dispatch<SetStateAction<string>>;
+  newWalletProfile: WalletImportProfile;
+  setNewWalletProfile: Dispatch<SetStateAction<WalletImportProfile>>;
   switchingAccount: boolean;
-  switchAccount: (accountNum: number) => Promise<void>;
+  switchAccount: (accountNum: number, options?: WalletAccountSwitchOptions) => Promise<void>;
 }
 
 export function useAccountSwitcher({
   switchAccountContext,
+  currentWalletProfile = 'xverse',
   resetBalances,
   fetchBalance,
   resetTransactionHistory,
@@ -59,18 +71,32 @@ export function useAccountSwitcher({
 }: UseAccountSwitcherParams): UseAccountSwitcherReturn {
   const [showAccountPicker, setShowAccountPicker] = useState(false);
   const [newAccountIndex, setNewAccountIndex] = useState('');
+  const [newWalletProfile, setNewWalletProfile] =
+    useState<WalletImportProfile>(currentWalletProfile);
   const [switchingAccount, setSwitchingAccount] = useState(false);
 
-  const switchAccount = async (accountNum: number): Promise<void> => {
+  useEffect(() => {
+    if (!showAccountPicker && !switchingAccount) {
+      setNewWalletProfile(currentWalletProfile);
+    }
+  }, [currentWalletProfile, showAccountPicker, switchingAccount]);
+
+  const switchAccount = async (
+    accountNum: number,
+    options?: WalletAccountSwitchOptions
+  ): Promise<void> => {
     // Convert account number to index (Account 1 = index 0)
     const accountIndex = accountNum - 1;
+    const switchOptions = options;
 
     try {
       setSwitchingAccount(true);
 
       // STEP 1: Switch account context FIRST (updates wallet addresses)
       // This is fast now with multi-account cache (~5ms vs ~200ms)
-      const newAddresses = await switchAccountContext(accountIndex);
+      const newAddresses = switchOptions
+        ? await switchAccountContext(accountIndex, switchOptions)
+        : await switchAccountContext(accountIndex);
       const newSegwitAddress = newAddresses?.segwitAddress;
       const newTaprootAddress = newAddresses?.taprootAddress;
       const newVaultPubkey = newAddresses?.taprootPubkey;
@@ -97,16 +123,22 @@ export function useAccountSwitcher({
 
       if (fetchBalance && newSegwitAddress && newTaprootAddress) {
         fetchPromises.push(
-          Promise.resolve(fetchBalance(newSegwitAddress, newTaprootAddress)).catch((err: unknown) => {
-            logger.warn('[useAccountSwitcher] fetchBalance failed', { error: err instanceof Error ? err.message : String(err) });
-          })
+          Promise.resolve(fetchBalance(newSegwitAddress, newTaprootAddress)).catch(
+            (err: unknown) => {
+              logger.warn('[useAccountSwitcher] fetchBalance failed', {
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          )
         );
       }
 
       if (fetchVault && newVaultPubkey) {
         fetchPromises.push(
           Promise.resolve(fetchVault(newVaultPubkey)).catch((err: unknown) => {
-            logger.warn('[useAccountSwitcher] fetchVault failed', { error: err instanceof Error ? err.message : String(err) });
+            logger.warn('[useAccountSwitcher] fetchVault failed', {
+              error: err instanceof Error ? err.message : String(err),
+            });
           })
         );
       }
@@ -118,7 +150,9 @@ export function useAccountSwitcher({
       if (refreshEvmBalances) {
         fetchPromises.push(
           Promise.resolve(refreshEvmBalances(accountIndex)).catch((err: unknown) => {
-            logger.warn('[useAccountSwitcher] refreshEvmBalances failed', { error: err instanceof Error ? err.message : String(err) });
+            logger.warn('[useAccountSwitcher] refreshEvmBalances failed', {
+              error: err instanceof Error ? err.message : String(err),
+            });
           })
         );
       }
@@ -131,37 +165,55 @@ export function useAccountSwitcher({
 
       // STEP 6: Show success toast after data is loaded and overlay is hidden
       if (showToast) {
-        showToast(`Switched to Account ${accountIndex + 1}`, 'success');
+        const switchedProfile =
+          switchOptions?.walletProfile ??
+          (switchOptions?.derivationMode
+            ? getWalletProfileForDerivationMode(switchOptions.derivationMode)
+            : null);
+        const profileLabel = switchedProfile ? `${getWalletProfileLabel(switchedProfile)} · ` : '';
+        showToast(`Switched to ${profileLabel}Account ${accountIndex + 1}`, 'success');
       }
 
       // STEP 7: Fetch remaining data in background (non-blocking)
       if (fetchTransactionHistory) {
         Promise.resolve(fetchTransactionHistory(newAddresses)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] fetchTransactionHistory failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[useAccountSwitcher] fetchTransactionHistory failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
       }
       if (fetchVaultTransactions && newVaultPubkey) {
         Promise.resolve(fetchVaultTransactions(newVaultPubkey)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] fetchVaultTransactions failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[useAccountSwitcher] fetchVaultTransactions failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
       }
       if (fetchEcashTokens && newTaprootAddress) {
         Promise.resolve(fetchEcashTokens(newTaprootAddress)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] fetchEcashTokens failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[useAccountSwitcher] fetchEcashTokens failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
       }
       if (refreshUsdcHistory) {
         Promise.resolve(refreshUsdcHistory(accountIndex)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] refreshUsdcHistory failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[useAccountSwitcher] refreshUsdcHistory failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
       }
       if (refreshEthHistory) {
         Promise.resolve(refreshEthHistory(accountIndex)).catch((err: unknown) => {
-          logger.warn('[useAccountSwitcher] refreshEthHistory failed', { error: err instanceof Error ? err.message : String(err) });
+          logger.warn('[useAccountSwitcher] refreshEthHistory failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
       }
     } catch (error: unknown) {
-      logger.error('[useAccountSwitcher] Account switch failed', { error: error instanceof Error ? error.message : String(error) });
+      logger.error('[useAccountSwitcher] Account switch failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       Alert.alert(DIALOGS.ERROR_TITLE, ERRORS.ACCOUNT_SWITCH_FAILED);
       setSwitchingAccount(false);
     }
@@ -172,6 +224,8 @@ export function useAccountSwitcher({
     setShowAccountPicker,
     newAccountIndex,
     setNewAccountIndex,
+    newWalletProfile,
+    setNewWalletProfile,
     switchingAccount,
     switchAccount,
   };

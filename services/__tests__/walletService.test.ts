@@ -46,6 +46,9 @@ const mockSecureStorage = SecureStorageService as jest.Mocked<typeof SecureStora
 const mockWalletDerivation = WalletDerivationService as jest.Mocked<typeof WalletDerivationService>;
 const NEW_MODE = 'legacy_address_index';
 const LEGACY_MODE = 'legacy_address_index';
+const LEGACY_PROFILE = 'xverse';
+const UNISAT_MODE = 'bip44_account';
+const UNISAT_PROFILE = 'unisat';
 
 describe('walletService', () => {
   const mockAddresses = {
@@ -196,6 +199,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: mockAddresses,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
 
       expect(mockSecureStorage.getCurrentAccount).toHaveBeenCalled();
@@ -214,6 +219,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: mockAddresses,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
 
       expect(mockSecureStorage.getCachedAddresses).toHaveBeenCalledWith(0, LEGACY_MODE);
@@ -234,6 +241,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: mockAddresses,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
     });
 
@@ -256,6 +265,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: mockAddresses,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
 
       expect(mockSecureStorage.withMnemonic).toHaveBeenCalled();
@@ -282,6 +293,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: mockAddresses,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
     });
 
@@ -298,6 +311,8 @@ describe('walletService', () => {
       expect(result).toEqual({
         addresses: null,
         accountIndex: 0,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
     });
 
@@ -329,12 +344,29 @@ describe('walletService', () => {
 
       expect(result).toEqual({
         addresses: mockAddresses,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
 
       expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(2, LEGACY_MODE);
       expect(mockSecureStorage.saveCurrentAccount).toHaveBeenCalledWith(2);
       // Should NOT derive addresses when cache hit
       expect(mockSecureStorage.withMnemonic).not.toHaveBeenCalled();
+    });
+
+    it('should switch wallet profile when requested', async () => {
+      mockSecureStorage.getMultiAccountCache.mockResolvedValueOnce(mockAddresses);
+      mockSecureStorage.saveCurrentAccount.mockResolvedValueOnce(true);
+
+      const result = await switchToAccount(2, { walletProfile: UNISAT_PROFILE });
+
+      expect(result).toEqual({
+        addresses: mockAddresses,
+        derivationMode: UNISAT_MODE,
+        walletProfile: UNISAT_PROFILE,
+      });
+      expect(mockSecureStorage.getMultiAccountCache).toHaveBeenCalledWith(2, UNISAT_MODE);
+      expect(mockWalletDerivation.setWalletDerivationMode).toHaveBeenCalledWith(UNISAT_MODE);
     });
 
     it('should throw if saveCurrentAccount fails when using cache', async () => {
@@ -372,6 +404,8 @@ describe('walletService', () => {
 
       expect(result).toEqual({
         addresses: mockAddresses,
+        derivationMode: LEGACY_MODE,
+        walletProfile: LEGACY_PROFILE,
       });
 
       expect(mockBitcoin.deriveAddressesFromMnemonic).toHaveBeenCalledWith(

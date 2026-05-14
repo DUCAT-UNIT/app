@@ -1,6 +1,9 @@
 import type { WalletAccountAddresses } from '../../../services/walletService';
 import type { DerivedAddresses } from '../../../utils/bitcoin';
-import { DEFAULT_WALLET_DERIVATION_MODE } from '../../../constants/bitcoin';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletProfileForDerivationMode,
+} from '../../../constants/bitcoin';
 
 export function makeDerivedAddresses(
   accountIndex = 0,
@@ -23,6 +26,7 @@ export function makeWalletAccountAddresses(
   return {
     accountIndex,
     derivationMode: DEFAULT_WALLET_DERIVATION_MODE,
+    walletProfile: getWalletProfileForDerivationMode(DEFAULT_WALLET_DERIVATION_MODE),
     addresses: makeDerivedAddresses(accountIndex, overrides),
   };
 }

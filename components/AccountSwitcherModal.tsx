@@ -4,19 +4,32 @@
  */
 
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ERRORS, DIALOGS } from '../utils/messages';
 import { COLORS } from '../theme';
 import { NETWORK_EDITION_LABEL } from '../utils/constants';
+import { WALLET_IMPORT_PROFILE_OPTIONS, type WalletImportProfile } from '../constants/bitcoin';
+import type { WalletAccountSwitchOptions } from '../contexts/WalletContext';
 
 interface AccountSwitcherModalProps {
   visible: boolean;
   accountIndex: string;
+  walletProfile: WalletImportProfile;
   switchingAccount: boolean;
   onClose: () => void;
   onAccountIndexChange: (value: string) => void;
-  onSwitch: (accountNum: number) => void;
+  onWalletProfileChange: (profile: WalletImportProfile) => void;
+  onSwitch: (accountNum: number, options?: WalletAccountSwitchOptions) => void;
   styles: {
     mutinynetBanner: ViewStyle;
     mutinynetBannerText: TextStyle;
@@ -37,11 +50,13 @@ export default function AccountSwitcherModal({
   // State
   visible,
   accountIndex,
+  walletProfile,
   switchingAccount,
 
   // Callbacks
   onClose,
   onAccountIndexChange,
+  onWalletProfileChange,
   onSwitch,
 
   // Styles
@@ -55,7 +70,7 @@ export default function AccountSwitcherModal({
       Alert.alert(DIALOGS.INVALID_ACCOUNT_TITLE, ERRORS.INVALID_ACCOUNT_NUMBER);
       return;
     }
-    onSwitch(accountNum);
+    onSwitch(accountNum, { walletProfile });
   };
 
   return (
@@ -66,6 +81,33 @@ export default function AccountSwitcherModal({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Switch Account</Text>
+          <Text style={styles.modalLabel}>Wallet source:</Text>
+          <View style={localStyles.profileRow}>
+            {WALLET_IMPORT_PROFILE_OPTIONS.map((profile) => {
+              const isSelected = profile.id === walletProfile;
+              return (
+                <TouchableOpacity
+                  key={profile.id}
+                  style={[
+                    localStyles.profileOption,
+                    isSelected && localStyles.profileOptionSelected,
+                  ]}
+                  onPress={() => onWalletProfileChange(profile.id)}
+                  disabled={switchingAccount}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      localStyles.profileOptionText,
+                      isSelected && localStyles.profileOptionTextSelected,
+                    ]}
+                  >
+                    {profile.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <Text style={styles.modalLabel}>Enter account number:</Text>
           <TextInput
             style={styles.accountInput}
@@ -113,5 +155,32 @@ const localStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: COLORS.DARK_BG,
     zIndex: 1000,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  profileOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  profileOptionSelected: {
+    borderColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: 'rgba(21,101,247,0.16)',
+  },
+  profileOptionText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  profileOptionTextSelected: {
+    color: COLORS.TEXT_PRIMARY,
   },
 });

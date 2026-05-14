@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme';
-import { CheckCircleIcon, ErrorXIcon, WarningTriangleIcon } from './quantaLinkVisuals';
+import { CheckCircleIcon, ErrorXIcon } from './quantaLinkVisuals';
 
 interface QuantaMismatchWarningModalProps {
   isClaimingReward: boolean;
@@ -64,14 +64,6 @@ export function QuantaMismatchWarningModal({
                 </Text>
               </View>
             </View>
-          </View>
-          <View style={styles.irreversibleNotice}>
-            <View style={styles.irreversibleIconFrame}>
-              <WarningTriangleIcon />
-            </View>
-            <Text style={styles.irreversibleNoticeText}>
-              This choice cannot be reversed for this connection.
-            </Text>
           </View>
           <Pressable
             accessibilityLabel="Proceed with non-matching Quanta wallet"
@@ -219,29 +211,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'CabinetGrotesk-Regular',
     textAlign: 'left',
-  },
-  irreversibleNotice: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingHorizontal: 8,
-  },
-  irreversibleIconFrame: {
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  irreversibleNoticeText: {
-    flex: 1,
-    color: COLORS.YELLOW,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'CabinetGrotesk-Medium',
-    textAlign: 'center',
   },
   irreversibleButton: {
     width: '100%',

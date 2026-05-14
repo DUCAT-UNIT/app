@@ -27,32 +27,57 @@ export const MAX_FEE_RATE = 1000 as const;
 const COIN_TYPE = APP_NETWORK_CONFIG.coinType;
 
 export type WalletDerivationMode = 'legacy_address_index' | 'bip44_account';
-export type WalletImportProfile = 'xverse' | 'unisat';
+export type WalletProfile = 'xverse' | 'unisat' | 'private_key';
+export type WalletImportProfile = Exclude<WalletProfile, 'private_key'>;
 
 // Match Xverse/Quanta account discovery: fixed BIP account 0, increment external address index.
 export const XVERSE_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
 export const UNISAT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
 export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = XVERSE_WALLET_DERIVATION_MODE;
 
-export const WALLET_IMPORT_PROFILES = {
+export const WALLET_PROFILES = {
   xverse: {
     id: 'xverse',
     label: 'Xverse',
     description: 'Use this for Xverse seed phrases.',
+    kind: 'mnemonic',
     derivationMode: XVERSE_WALLET_DERIVATION_MODE,
   },
   unisat: {
     id: 'unisat',
     label: 'UniSat',
     description: 'Use this for UniSat HD wallet seed phrases.',
+    kind: 'mnemonic',
     derivationMode: UNISAT_WALLET_DERIVATION_MODE,
   },
+  private_key: {
+    id: 'private_key',
+    label: 'Private key',
+    description: 'Single-address fallback for exported UniSat private keys.',
+    kind: 'private_key',
+    derivationMode: null,
+  },
+} as const satisfies Record<
+  WalletProfile,
+  {
+    id: WalletProfile;
+    label: string;
+    description: string;
+    kind: 'mnemonic' | 'private_key';
+    derivationMode: WalletDerivationMode | null;
+  }
+>;
+
+export const WALLET_IMPORT_PROFILES = {
+  xverse: WALLET_PROFILES.xverse,
+  unisat: WALLET_PROFILES.unisat,
 } as const satisfies Record<
   WalletImportProfile,
   {
     id: WalletImportProfile;
     label: string;
     description: string;
+    kind: 'mnemonic';
     derivationMode: WalletDerivationMode;
   }
 >;
@@ -72,8 +97,12 @@ export function getWalletProfileForDerivationMode(mode: WalletDerivationMode): W
   return mode === UNISAT_WALLET_DERIVATION_MODE ? 'unisat' : 'xverse';
 }
 
+export function getWalletProfileLabel(profile: WalletProfile): string {
+  return WALLET_PROFILES[profile].label;
+}
+
 export function getWalletProfileLabelForDerivationMode(mode: WalletDerivationMode): string {
-  return WALLET_IMPORT_PROFILES[getWalletProfileForDerivationMode(mode)].label;
+  return getWalletProfileLabel(getWalletProfileForDerivationMode(mode));
 }
 
 export const LEGACY_DERIVATION_PATHS = {

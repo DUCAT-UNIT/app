@@ -18,12 +18,18 @@ import EcashThresholdSheet from '../components/settings/EcashThresholdSheet';
 import SplashScreen from '../screens/SplashScreen';
 
 // Stores
-import { getThresholdSheetOnSelect,useEcashThresholdSheetStore } from '../stores/ecashThresholdSheetStore';
+import {
+  getThresholdSheetOnSelect,
+  useEcashThresholdSheetStore,
+} from '../stores/ecashThresholdSheetStore';
 
 // Contexts
 import { useAirdrop } from '../contexts/AirdropContext';
 import { useAuthSession } from '../contexts/AuthContext';
-import { useAccountSwitcherContext,useSettingsHandlers } from '../contexts/NavigationHandlersContext';
+import {
+  useAccountSwitcherContext,
+  useSettingsHandlers,
+} from '../contexts/NavigationHandlersContext';
 import { useSeedPhrase } from '../contexts/SeedPhraseContext';
 import { useNotifications } from '../stores/notificationStore';
 
@@ -93,6 +99,8 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
     setShowAccountPicker,
     newAccountIndex,
     setNewAccountIndex,
+    newWalletProfile,
+    setNewWalletProfile,
     switchingAccount,
     switchAccount,
   } = useAccountSwitcherContext();
@@ -157,9 +165,11 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
       <AccountSwitcherModal
         visible={showAccountPicker}
         accountIndex={newAccountIndex}
+        walletProfile={newWalletProfile}
         switchingAccount={switchingAccount}
         onClose={() => setShowAccountPicker(false)}
         onAccountIndexChange={setNewAccountIndex}
+        onWalletProfileChange={setNewWalletProfile}
         onSwitch={switchAccount}
         styles={styles}
       />
@@ -176,11 +186,7 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
 
       {/* Global Snackbar - rendered at app level for all screens */}
       {snackbar && (
-        <Snackbar
-          key={snackbar.key || 'snackbar'}
-          params={snackbar}
-          onClose={dismissSnackbar}
-        />
+        <Snackbar key={snackbar.key || 'snackbar'} params={snackbar} onClose={dismissSnackbar} />
       )}
     </>
   );

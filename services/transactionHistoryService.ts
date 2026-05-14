@@ -10,6 +10,7 @@ import { getAddressTxsUrl } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { getWithRetry } from '../utils/apiClient';
 import { withTimeout } from '../utils/withTimeout';
+import type { FetchVaultHistoryOptions } from './vaultService';
 
 // UNIT•RUNE identifier
 const UNIT_RUNE_BLOCK = 1527352n;
@@ -182,13 +183,26 @@ interface Runestone {
   edicts?: RuneEdict[];
 }
 
+export interface FetchAddressTransactionsOptions {
+  /** Esplora returns 25 txs per page. Defaults to the historical full scan cap. */
+  maxPages?: number;
+}
+
+export interface FetchAllTransactionHistoryOptions {
+  addressMaxPages?: number;
+  vaultHistoryOptions?: FetchVaultHistoryOptions;
+}
+
 /**
  * Fetch all transactions for a specific address with pagination
  * Esplora API returns 25 txs per page, we need to paginate to get all
  * @param address - Bitcoin address
  * @returns Array of all transactions
  */
-export const fetchAddressTransactions = async (address: string): Promise<Transaction[]> => {
+export const fetchAddressTransactions = async (
+  address: string,
+  options: FetchAddressTransactionsOptions = {}
+): Promise<Transaction[]> => {
   try {
     const allTxs: Transaction[] = [];
     let lastSeenTxid: string | null = null;
@@ -196,7 +210,7 @@ export const fetchAddressTransactions = async (address: string): Promise<Transac
 
     // Fetch up to 1000 transactions (40 pages of 25)
     // This prevents infinite loops while being generous for power users
-    const maxPages = 40;
+    const maxPages = options.maxPages ?? 40;
     let pageCount = 0;
 
     while (hasMore && pageCount < maxPages) {
@@ -405,26 +419,27 @@ export const calculateTransactionAmount = (
 export const fetchAllTransactionHistory = async (
   segwitAddress: string,
   taprootAddress: string,
-  vaultPubkey: string
+  vaultPubkey: string,
+  options: FetchAllTransactionHistoryOptions = {}
 ): Promise<Transaction[]> => {
   logger.debug('[TransactionHistory] Fetching from blockchain explorer and vault...');
   // Fetch transactions for both addresses and vault history — use allSettled so
   // a single source failure (e.g. vault API) doesn't lose on-chain history
   const results = await Promise.allSettled([
     withTimeout(
-      fetchAddressTransactions(segwitAddress),
+      fetchAddressTransactions(segwitAddress, { maxPages: options.addressMaxPages }),
       HISTORY_SOURCE_TIMEOUT_MS,
       [],
       'segwit_transaction_history',
     ),
     withTimeout(
-      fetchAddressTransactions(taprootAddress),
+      fetchAddressTransactions(taprootAddress, { maxPages: options.addressMaxPages }),
       HISTORY_SOURCE_TIMEOUT_MS,
       [],
       'taproot_transaction_history',
     ),
     withTimeout(
-      fetchVaultHistory(vaultPubkey) as Promise<VaultTransaction[]>,
+      fetchVaultHistory(vaultPubkey, options.vaultHistoryOptions) as Promise<VaultTransaction[]>,
       HISTORY_SOURCE_TIMEOUT_MS,
       [],
       'vault_transaction_history',
