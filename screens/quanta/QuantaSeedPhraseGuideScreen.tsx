@@ -20,6 +20,7 @@ import {
   UNISAT_WALLET_DERIVATION_MODE,
   XVERSE_WALLET_DERIVATION_MODE,
   type WalletDerivationMode,
+  type WalletImportProfile,
 } from '../../constants/bitcoin';
 import { useAuthSession, useOnboardingFlow, useWallet } from '../../contexts';
 import type { RootNavigatorParamList } from '../../navigation/types';
@@ -35,16 +36,20 @@ interface GuideStep {
   image: ImageSourcePropType;
 }
 
-type GuideProfile = 'xverse' | 'unisat';
+type GuideProfile = 'xverse' | 'unisat' | 'unisat_private_key';
+type GuideRestoreKind = 'seed' | 'privateKey';
 
 interface GuideProfileConfig {
   id: GuideProfile;
   label: string;
   title: string;
   subtitle: string;
+  warningText: string;
+  restoreKind: GuideRestoreKind;
   restoreTitle: string;
   restoreSubtitle: string;
-  derivationMode: WalletDerivationMode;
+  importProfile?: WalletImportProfile;
+  derivationMode?: WalletDerivationMode;
   steps: GuideStep[];
 }
 
@@ -55,8 +60,12 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
     title: 'Export your Xverse seed phrase',
     subtitle:
       'Ducat needs the seed phrase for the wallet that owns your Quanta address. Follow the Xverse steps, then restore that wallet here.',
+    warningText:
+      'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
+    restoreKind: 'seed',
     restoreTitle: 'Restore Xverse Wallet',
     restoreSubtitle: 'Enter the 12 words exported from Xverse.',
+    importProfile: 'xverse',
     derivationMode: XVERSE_WALLET_DERIVATION_MODE,
     steps: [
       {
@@ -97,8 +106,12 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
     title: 'Export your UniSat seed phrase',
     subtitle:
       'Use this for UniSat HD wallets. Ducat will restore the seed with UniSat account derivation so Quanta can find the same addresses.',
+    warningText:
+      'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
+    restoreKind: 'seed',
     restoreTitle: 'Restore UniSat Wallet',
     restoreSubtitle: 'Enter the 12 words exported from UniSat.',
+    importProfile: 'unisat',
     derivationMode: UNISAT_WALLET_DERIVATION_MODE,
     steps: [
       {
@@ -128,9 +141,48 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       },
     ],
   },
+  unisat_private_key: {
+    id: 'unisat_private_key',
+    label: 'UniSat Key',
+    title: 'Export your UniSat private key',
+    subtitle:
+      'Use this only for UniSat single-account fallback. The private key controls one address, not the full HD wallet.',
+    warningText:
+      'Never share your private key. Anyone with this key can move the assets for that address.',
+    restoreKind: 'privateKey',
+    restoreTitle: 'Import UniSat Private Key',
+    restoreSubtitle: 'Enter the WIF private key exported from UniSat.',
+    steps: [
+      {
+        title: 'Open the account card',
+        body: 'On the UniSat home screen, tap the account card for the address you use with Quanta.',
+        image: require('../../assets/quanta-guide/unisat-private-key-open-account.png'),
+      },
+      {
+        title: 'Open account options',
+        body: 'On Switch Account, tap the three-dot menu for the exact account address.',
+        image: require('../../assets/quanta-guide/unisat-private-key-open-account-menu.png'),
+      },
+      {
+        title: 'Choose Export Private Key',
+        body: 'Select Export Private Key from the account menu.',
+        image: require('../../assets/quanta-guide/unisat-private-key-select-export.png'),
+      },
+      {
+        title: 'Enter your password',
+        body: 'Read the warning, enter your UniSat password, then tap Show Private Key.',
+        image: require('../../assets/quanta-guide/unisat-private-key-enter-password.png'),
+      },
+      {
+        title: 'Copy the WIF private key',
+        body: 'Use the WIF private key value. Keep it secret and do not share the hex key.',
+        image: require('../../assets/quanta-guide/unisat-private-key-copy-key.png'),
+      },
+    ],
+  },
 };
 
-const GUIDE_PROFILE_OPTIONS: GuideProfile[] = ['xverse', 'unisat'];
+const GUIDE_PROFILE_OPTIONS: GuideProfile[] = ['xverse', 'unisat', 'unisat_private_key'];
 
 export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const navigation = useNavigation<NavigationProp<RootNavigatorParamList>>();
@@ -174,6 +226,10 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
     setIsRestoring(true);
 
     try {
+      if (activeGuide.restoreKind !== 'seed' || !activeGuide.derivationMode) {
+        throw new Error('Private key import is not available yet');
+      }
+
       await WalletService.importWallet(mnemonic, 0, activeGuide.derivationMode);
       await performFullWalletReset({
         preservePinAuth: true,
@@ -233,7 +289,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
           }}
           title={activeGuide.restoreTitle}
           subtitle={activeGuide.restoreSubtitle}
-          importWalletProfile={selectedGuideProfile}
+          importWalletProfile={activeGuide.importProfile}
           setImportWalletProfile={setSelectedGuideProfile}
           importButtonLabel="Replace Wallet"
           cancelButtonLabel="Back to Guide"
@@ -286,8 +342,8 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
             const isSelected = selectedGuideProfile === profile;
 
             return (
-              <Pressable
-                accessibilityLabel={`Show ${guide.label} seed phrase guide`}
+            <Pressable
+                accessibilityLabel={`Show ${guide.label} guide`}
                 accessibilityRole="button"
                 key={guide.id}
                 onPress={() => setSelectedGuideProfile(profile)}
@@ -304,9 +360,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
 
         <View style={styles.warningRow}>
           <Ionicons name="warning-outline" size={18} color={COLORS.YELLOW} />
-          <Text style={styles.warningText}>
-            Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.
-          </Text>
+          <Text style={styles.warningText}>{activeGuide.warningText}</Text>
         </View>
 
         <View style={styles.steps}>
@@ -338,16 +392,25 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
         </View>
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
-        <Pressable
-          accessibilityLabel="Restore wallet from seed phrase"
-          accessibilityRole="button"
-          onPress={handleStartRestore}
-          style={styles.restoreButton}
-          testID="quanta-restore-from-seed-button"
-        >
-          <Ionicons name="key-outline" size={18} color={COLORS.WHITE} />
-          <Text style={styles.restoreButtonText}>Restore {activeGuide.label} seed phrase</Text>
-        </Pressable>
+        {activeGuide.restoreKind === 'seed' ? (
+          <Pressable
+            accessibilityLabel="Restore wallet from seed phrase"
+            accessibilityRole="button"
+            onPress={handleStartRestore}
+            style={styles.restoreButton}
+            testID="quanta-restore-from-seed-button"
+          >
+            <Ionicons name="key-outline" size={18} color={COLORS.WHITE} />
+            <Text style={styles.restoreButtonText}>Restore {activeGuide.label} seed phrase</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.privateKeyFooterNotice}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.TEXT_SECONDARY} />
+            <Text style={styles.privateKeyFooterText}>
+              Private key import is a single-address wallet path and is not enabled yet.
+            </Text>
+          </View>
+        )}
       </View>
       <Modal
         animationType="fade"
