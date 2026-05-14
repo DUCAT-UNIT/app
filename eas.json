@@ -36,7 +36,8 @@
         "EXPO_PUBLIC_UNIT_USDC_STABLE_POOL_ADDRESS": "0x463A9C573f8843540045E077170ee920A091d017",
         "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
-        "EXPO_PUBLIC_APP_NETWORK": "mutinynet"
+        "EXPO_PUBLIC_APP_NETWORK": "mutinynet",
+        "EXPO_PUBLIC_ENABLE_QUANTA_REWARDS": "true"
       }
     },
     "production": {
@@ -59,7 +60,8 @@
         "EXPO_PUBLIC_UNIT_USDC_STABLE_POOL_ADDRESS": "0x463A9C573f8843540045E077170ee920A091d017",
         "EXPO_PUBLIC_UNIT_BRIDGE_API_URL": "https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
-        "EXPO_PUBLIC_APP_NETWORK": "mutinynet"
+        "EXPO_PUBLIC_APP_NETWORK": "mutinynet",
+        "EXPO_PUBLIC_ENABLE_QUANTA_REWARDS": "true"
       }
     }
   },
