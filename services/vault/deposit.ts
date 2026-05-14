@@ -42,7 +42,7 @@ function isInsufficientSatsError(error: unknown): boolean {
 }
 
 function getDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): number {
-  return VaultAPI.deposit.get_change(vaultCtx as never, utxos as never);
+  return VaultAPI.deposit.get_change(vaultCtx, utxos);
 }
 
 function createDepositCtx(

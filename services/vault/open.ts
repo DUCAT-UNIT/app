@@ -48,7 +48,7 @@ function createOpenCtx(
 }
 
 function getOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): number {
-  return VaultAPI.open.get_change(vaultCtx as never, utxos as never);
+  return VaultAPI.open.get_change(vaultCtx, utxos);
 }
 
 function assertOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): void {
