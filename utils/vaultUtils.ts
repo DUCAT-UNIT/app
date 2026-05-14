@@ -4,7 +4,13 @@
  */
 
 import { VaultAPI } from '@ducat-unit/client-sdk';
-import type { VaultOpenConfig } from '@ducat-unit/client-sdk/vault';
+import type {
+  VaultBorrowConfig,
+  VaultDepositConfig,
+  VaultOpenConfig,
+  VaultRepayConfig,
+  VaultWithdrawConfig,
+} from '@ducat-unit/client-sdk/vault';
 import * as Crypto from 'expo-crypto';
 import { BITCOIN_TX, VAULT_CONFIG } from './constants';
 
@@ -54,7 +60,7 @@ export function getOpCostBorrow(feeRate: number, utxos?: Utxo[]): number {
     deposit_amount: 0,
     tx_feerate: feeRate,
     unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
-  } as never);
+  } as VaultBorrowConfig);
 
   return Math.max(0, Math.ceil(txQuote.total_cost + vinAllowanceSats));
 }
@@ -73,7 +79,7 @@ export function getOpCostRepay(feeRate: number, utxos?: Utxo[]): number {
     repay_amount: 0,
     tx_feerate: feeRate,
     unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
-  } as never);
+  } as VaultRepayConfig);
 
   return txQuote.total_cost + vinAllowanceSats;
 }
@@ -101,7 +107,7 @@ export function getOpCostDeposit(feeRate: number, utxos?: Utxo[]): number {
   const txQuote = VaultAPI.deposit.get_quote({
     deposit_amount: 0,
     tx_feerate: feeRate,
-  } as never);
+  } as VaultDepositConfig);
 
   return txQuote.total_cost + vinAllowanceSats;
 }
@@ -114,7 +120,7 @@ export function getOpCostWithdraw(feeRate: number): number {
   const txQuote = VaultAPI.withdraw.get_quote({
     change_amount: 0,
     tx_feerate: feeRate,
-  } as never);
+  } as VaultWithdrawConfig);
 
   return txQuote.tx_cost ?? txQuote.total_cost;
 }
