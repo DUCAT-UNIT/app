@@ -13,6 +13,7 @@ import {
   RestoreChoiceScreen,
   ImportWalletScreen,
 } from '../../components/onboarding';
+import type { WalletImportProfile } from '../../constants/bitcoin';
 
 /**
  * Seed input refs for managing focus in import flow
@@ -27,6 +28,8 @@ interface WelcomeScreenProps {
   importingWallet: boolean;
   /** Import seed phrase array being filled by user during import */
   importSeedPhrase: string[];
+  /** Selected wallet source for seed import */
+  importWalletProfile: WalletImportProfile;
   /** Refs for seed input fields during import flow */
   seedInputRefs: SeedInputRefs;
   /** Whether wallet import is in progress */
@@ -37,6 +40,8 @@ interface WelcomeScreenProps {
   setImportingWallet: (value: boolean) => void;
   /** Setter for importSeedPhrase state */
   setImportSeedPhrase: (value: string[]) => void;
+  /** Setter for selected wallet source */
+  setImportWalletProfile: (value: WalletImportProfile) => void;
   /** Setter for restoringWithPasskey state */
   setRestoringWithPasskey?: (value: boolean) => void;
   /** Function to create a new wallet with passkey support */
@@ -53,6 +58,7 @@ export default function WelcomeScreen({
   // State
   importingWallet,
   importSeedPhrase,
+  importWalletProfile,
   seedInputRefs,
   isImporting,
   restoringWithPasskey,
@@ -60,6 +66,7 @@ export default function WelcomeScreen({
   // State setters
   setImportingWallet,
   setImportSeedPhrase,
+  setImportWalletProfile,
   setRestoringWithPasskey,
 
   // Functions
@@ -100,7 +107,9 @@ export default function WelcomeScreen({
     return (
       <ImportWalletScreen
         importSeedPhrase={importSeedPhrase}
+        importWalletProfile={importWalletProfile}
         setImportSeedPhrase={setImportSeedPhrase}
+        setImportWalletProfile={setImportWalletProfile}
         seedInputRefs={seedInputRefs}
         isImporting={isImporting ?? false}
         keyboardHeight={keyboardHeight ?? 0}

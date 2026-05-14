@@ -15,6 +15,8 @@ import {
 } from '../utils/bitcoin';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  UNISAT_WALLET_DERIVATION_MODE,
+  XVERSE_WALLET_DERIVATION_MODE,
   getDerivationPathForType,
   type WalletDerivationMode,
 } from '../constants/bitcoin';
@@ -83,14 +85,21 @@ export type WalletAddressMatchType = 'legacy' | 'segwit' | 'taproot';
 
 export interface FindWalletAccountResult {
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
   addresses: DerivedAddresses;
   matchedAddressType: WalletAddressMatchType;
 }
 
 export interface WalletAccountAddresses {
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
   addresses: DerivedAddresses;
 }
+
+export const QUANTA_DISCOVERY_DERIVATION_MODES: readonly WalletDerivationMode[] = [
+  XVERSE_WALLET_DERIVATION_MODE,
+  UNISAT_WALLET_DERIVATION_MODE,
+];
 
 const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> => {
   const saved = await saveCurrentAccount(accountIndex);
@@ -421,7 +430,8 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
 
 const findAccountBySegwitOrTaprootAddress = async (
   walletAddress: string,
-  searchLimit = 100
+  searchLimit = 100,
+  derivationModes: readonly WalletDerivationMode[] = QUANTA_DISCOVERY_DERIVATION_MODES
 ): Promise<FindWalletAccountResult | null> => {
   const normalizedAddress = walletAddress.trim().toLowerCase();
   if (!normalizedAddress) {
@@ -431,14 +441,14 @@ const findAccountBySegwitOrTaprootAddress = async (
     throw new Error(`Invalid account search limit: ${searchLimit}`);
   }
 
-  const derivationMode = DEFAULT_WALLET_DERIVATION_MODE;
-
-  for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
-    const cachedAddresses = await getMultiAccountCache(accountIndex, derivationMode);
-    if (cachedAddresses) {
-      const matchedAddressType = getWalletAddressMatchType(cachedAddresses, normalizedAddress);
-      if (matchedAddressType) {
-        return { accountIndex, addresses: cachedAddresses, matchedAddressType };
+  for (const derivationMode of derivationModes) {
+    for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
+      const cachedAddresses = await getMultiAccountCache(accountIndex, derivationMode);
+      if (cachedAddresses) {
+        const matchedAddressType = getWalletAddressMatchType(cachedAddresses, normalizedAddress);
+        if (matchedAddressType) {
+          return { accountIndex, derivationMode, addresses: cachedAddresses, matchedAddressType };
+        }
       }
     }
   }
@@ -447,12 +457,14 @@ const findAccountBySegwitOrTaprootAddress = async (
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
 
-    for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
-      const addresses = deriveAddressesFromRoot(root, accountIndex, derivationMode);
-      const matchedAddressType = getWalletAddressMatchType(addresses, normalizedAddress);
+    for (const derivationMode of derivationModes) {
+      for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
+        const addresses = deriveAddressesFromRoot(root, accountIndex, derivationMode);
+        const matchedAddressType = getWalletAddressMatchType(addresses, normalizedAddress);
 
-      if (matchedAddressType) {
-        return { accountIndex, addresses, matchedAddressType };
+        if (matchedAddressType) {
+          return { accountIndex, derivationMode, addresses, matchedAddressType };
+        }
       }
     }
 
@@ -463,13 +475,12 @@ const findAccountBySegwitOrTaprootAddress = async (
 export const findAccountByWalletAddress = findAccountBySegwitOrTaprootAddress;
 
 export const deriveWalletAccounts = async (
-  searchLimit = 100
+  searchLimit = 100,
+  derivationModes: readonly WalletDerivationMode[] = QUANTA_DISCOVERY_DERIVATION_MODES
 ): Promise<WalletAccountAddresses[]> => {
   if (!Number.isSafeInteger(searchLimit) || searchLimit <= 0) {
     throw new Error(`Invalid account search limit: ${searchLimit}`);
   }
-
-  const derivationMode = DEFAULT_WALLET_DERIVATION_MODE;
 
   return withMnemonic(async (mnemonic: string) => {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
@@ -477,9 +488,12 @@ export const deriveWalletAccounts = async (
     const accounts: WalletAccountAddresses[] = [];
 
     for (let accountIndex = 0; accountIndex < searchLimit; accountIndex += 1) {
-      accounts.push({
-        accountIndex,
-        addresses: deriveAddressesFromRoot(root, accountIndex, derivationMode),
+      derivationModes.forEach((derivationMode) => {
+        accounts.push({
+          accountIndex,
+          derivationMode,
+          addresses: deriveAddressesFromRoot(root, accountIndex, derivationMode),
+        });
       });
     }
 

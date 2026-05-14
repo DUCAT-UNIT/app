@@ -10,6 +10,7 @@ import {
   getAddressTypeLabel,
   getCandidateKey,
   getCandidatePoints,
+  getWalletProfileLabel,
   type QuantaAccountCandidate,
 } from './quantaLinkUtils';
 
@@ -73,7 +74,8 @@ export function QuantaAddressForm({
               >
                 <View style={localStyles.candidateCopy}>
                   <Text style={localStyles.candidateTitle}>
-                    Account {candidate.accountIndex + 1}
+                    {getWalletProfileLabel(candidate.derivationMode)} · Account{' '}
+                    {candidate.accountIndex + 1}
                   </Text>
                   <Text style={localStyles.candidateAddress} numberOfLines={1}>
                     {getAddressTypeLabel(candidate.addressType)} ·{' '}

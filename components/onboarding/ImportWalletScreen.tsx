@@ -20,10 +20,13 @@ import Icon from '../icons';
 import { logger } from '../../utils/logger';
 import { notify } from '../../utils/notify';
 import { isE2E } from '../../utils/e2e';
+import { WALLET_IMPORT_PROFILE_OPTIONS, type WalletImportProfile } from '../../constants/bitcoin';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
+  importWalletProfile?: WalletImportProfile;
   setImportSeedPhrase: (phrase: string[]) => void;
+  setImportWalletProfile?: (profile: WalletImportProfile) => void;
   seedInputRefs: React.MutableRefObject<(TextInput | null)[]>;
   isImporting: boolean;
   keyboardHeight: number;
@@ -41,7 +44,9 @@ const isSmallScreen = layout.screen.width <= 375;
 
 export default function ImportWalletScreen({
   importSeedPhrase,
+  importWalletProfile = 'xverse',
   setImportSeedPhrase,
+  setImportWalletProfile,
   seedInputRefs,
   isImporting,
   onImport,
@@ -88,7 +93,9 @@ export default function ImportWalletScreen({
       }
     } catch (error: unknown) {
       // Clipboard access may be denied by user or system
-      logger.debug('[ImportWalletScreen] Clipboard access failed', { error: error instanceof Error ? error.message : String(error) });
+      logger.debug('[ImportWalletScreen] Clipboard access failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }, [setImportSeedPhrase]);
 
@@ -243,6 +250,41 @@ export default function ImportWalletScreen({
           {warningText ? <Text style={styles.warningText}>{warningText}</Text> : null}
         </View>
 
+        {setImportWalletProfile ? (
+          <View style={styles.profileBlock}>
+            <Text style={styles.profileLabel}>Wallet source</Text>
+            <View style={styles.profileSelector}>
+              {WALLET_IMPORT_PROFILE_OPTIONS.map((profile) => {
+                const isSelected = importWalletProfile === profile.id;
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    accessibilityLabel={`Import ${profile.label} seed phrase`}
+                    accessibilityRole="button"
+                    key={profile.id}
+                    onPress={() => setImportWalletProfile(profile.id)}
+                    style={[styles.profileOption, isSelected && styles.profileOptionSelected]}
+                    testID={`import-wallet-profile-${profile.id}`}
+                  >
+                    <Text
+                      style={[
+                        styles.profileOptionText,
+                        isSelected && styles.profileOptionTextSelected,
+                      ]}
+                    >
+                      {profile.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.profileDescription}>
+              {WALLET_IMPORT_PROFILE_OPTIONS.find((profile) => profile.id === importWalletProfile)
+                ?.description ?? 'Choose the wallet app this seed phrase came from.'}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Progress row with paste/clear button */}
         <View style={styles.progressRow}>
           <View style={styles.progressBarContainer}>
@@ -251,11 +293,18 @@ export default function ImportWalletScreen({
                 style={[styles.progressFill, { width: `${(filledCount / WORD_COUNT) * 100}%` }]}
               />
             </View>
-            <Text style={styles.progressText}>{filledCount}/{WORD_COUNT}</Text>
+            <Text style={styles.progressText}>
+              {filledCount}/{WORD_COUNT}
+            </Text>
           </View>
 
           {filledCount === 0 ? (
-            <TouchableOpacity style={styles.actionButton} onPress={handlePaste} activeOpacity={0.7} testID="import-paste-btn">
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handlePaste}
+              activeOpacity={0.7}
+              testID="import-paste-btn"
+            >
               <Icon name="copy" size={14} color={colors.brand.primary} />
               <Text style={styles.actionButtonText}>Paste</Text>
             </TouchableOpacity>
@@ -280,16 +329,18 @@ export default function ImportWalletScreen({
       {/* Buttons pinned to bottom */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[
-            styles.importButton,
-            (!isComplete || isImporting) && styles.buttonDisabled,
-          ]}
+          style={[styles.importButton, (!isComplete || isImporting) && styles.buttonDisabled]}
           onPress={onImport}
           disabled={(!isComplete && !isE2E()) || isImporting}
           activeOpacity={0.8}
           testID="import-wallet-btn"
         >
-          <Text style={[styles.importButtonText, (!isComplete || isImporting) && styles.buttonTextDisabled]}>
+          <Text
+            style={[
+              styles.importButtonText,
+              (!isComplete || isImporting) && styles.buttonTextDisabled,
+            ]}
+          >
             {isImporting ? 'Importing...' : importButtonLabel}
           </Text>
         </TouchableOpacity>
@@ -339,6 +390,48 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: 18,
     textAlign: 'center',
+  },
+  profileBlock: {
+    gap: 8,
+    marginBottom: isSmallScreen ? 14 : 18,
+  },
+  profileLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+  },
+  profileSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  profileOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: radii.md,
+    backgroundColor: colors.bg.secondary,
+  },
+  profileOptionSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.bg.tertiary,
+  },
+  profileOptionText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+    color: colors.text.secondary,
+  },
+  profileOptionTextSelected: {
+    color: colors.text.primary,
+  },
+  profileDescription: {
+    fontFamily: fonts.regular,
+    fontSize: fontSizes.sm,
+    lineHeight: 18,
+    color: colors.text.secondary,
   },
   progressRow: {
     flexDirection: 'row',

@@ -4,6 +4,12 @@ import type {
   QuantaRewardStatusResult,
 } from '../../services/quantaRewardService';
 import type { WalletAccountAddresses, WalletAddressMatchType } from '../../services/walletService';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletProfileLabelForDerivationMode,
+  XVERSE_WALLET_DERIVATION_MODE,
+  type WalletDerivationMode,
+} from '../../constants/bitcoin';
 import type { DerivedAddresses } from '../../utils/bitcoin';
 
 export const ACCOUNT_COMPATIBILITY_TIMEOUT_MS = 5000;
@@ -28,6 +34,7 @@ export interface QuantaMobileWalletPayload {
 
 export interface QuantaAccountCandidate {
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
   addressType: WalletAddressMatchType;
   quantaAddress: string;
   status: QuantaRewardStatusResult;
@@ -36,6 +43,7 @@ export interface QuantaAccountCandidate {
 
 export interface AccountAddressEntry {
   accountIndex: number;
+  derivationMode: WalletDerivationMode;
   addressType: WalletAddressMatchType;
   address: string;
   addresses: DerivedAddresses;
@@ -73,6 +81,10 @@ export function getAddressTypeLabel(addressType: WalletAddressMatchType): string
   return 'Taproot';
 }
 
+export function getWalletProfileLabel(derivationMode: WalletDerivationMode): string {
+  return getWalletProfileLabelForDerivationMode(derivationMode);
+}
+
 function getAddressTypeSortRank(addressType: WalletAddressMatchType): number {
   if (addressType === 'legacy') {
     return 0;
@@ -85,8 +97,12 @@ function getAddressTypeSortRank(addressType: WalletAddressMatchType): number {
   return 2;
 }
 
+function getDerivationModeSortRank(derivationMode: WalletDerivationMode): number {
+  return derivationMode === XVERSE_WALLET_DERIVATION_MODE ? 0 : 1;
+}
+
 export function getCandidateKey(candidate: QuantaAccountCandidate): string {
-  return `${candidate.accountIndex}:${candidate.addressType}:${candidate.quantaAddress.toLowerCase()}`;
+  return `${candidate.derivationMode}:${candidate.accountIndex}:${candidate.addressType}:${candidate.quantaAddress.toLowerCase()}`;
 }
 
 export function getCandidatePoints(candidate: QuantaAccountCandidate): number {
@@ -98,6 +114,12 @@ export function sortAccountAddressEntries(a: AccountAddressEntry, b: AccountAddr
     return a.accountIndex - b.accountIndex;
   }
 
+  const derivationModeDiff =
+    getDerivationModeSortRank(a.derivationMode) - getDerivationModeSortRank(b.derivationMode);
+  if (derivationModeDiff !== 0) {
+    return derivationModeDiff;
+  }
+
   return getAddressTypeSortRank(a.addressType) - getAddressTypeSortRank(b.addressType);
 }
 
@@ -107,6 +129,12 @@ export function sortAccountCandidates(
 ): number {
   if (a.accountIndex !== b.accountIndex) {
     return a.accountIndex - b.accountIndex;
+  }
+
+  const derivationModeDiff =
+    getDerivationModeSortRank(a.derivationMode) - getDerivationModeSortRank(b.derivationMode);
+  if (derivationModeDiff !== 0) {
+    return derivationModeDiff;
   }
 
   const pointDiff = getCandidatePoints(b) - getCandidatePoints(a);
@@ -125,10 +153,12 @@ export function sortAccountCandidates(
 
 export function getAccountAddressEntries(account: WalletAccountAddresses): AccountAddressEntry[] {
   const entries: AccountAddressEntry[] = [];
+  const derivationMode = account.derivationMode ?? DEFAULT_WALLET_DERIVATION_MODE;
 
   if (account.addresses.legacyAddress) {
     entries.push({
       accountIndex: account.accountIndex,
+      derivationMode,
       addressType: 'legacy',
       address: account.addresses.legacyAddress,
       addresses: account.addresses,
@@ -138,12 +168,14 @@ export function getAccountAddressEntries(account: WalletAccountAddresses): Accou
   entries.push(
     {
       accountIndex: account.accountIndex,
+      derivationMode,
       addressType: 'taproot',
       address: account.addresses.taprootAddress,
       addresses: account.addresses,
     },
     {
       accountIndex: account.accountIndex,
+      derivationMode,
       addressType: 'segwit',
       address: account.addresses.segwitAddress,
       addresses: account.addresses,

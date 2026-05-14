@@ -16,7 +16,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ImportWalletScreen from '../../components/onboarding/ImportWalletScreen';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
-import { DEFAULT_WALLET_DERIVATION_MODE } from '../../constants/bitcoin';
+import {
+  UNISAT_WALLET_DERIVATION_MODE,
+  XVERSE_WALLET_DERIVATION_MODE,
+  type WalletDerivationMode,
+} from '../../constants/bitcoin';
 import { useAuthSession, useOnboardingFlow, useWallet } from '../../contexts';
 import type { RootNavigatorParamList } from '../../navigation/types';
 import { performFullWalletReset } from '../../services/walletResetService';
@@ -31,38 +35,102 @@ interface GuideStep {
   image: ImageSourcePropType;
 }
 
-const GUIDE_STEPS: GuideStep[] = [
-  {
-    title: 'Open the account menu',
-    body: 'From the Quanta wallet home screen, tap the menu icon in the top-right corner.',
-    image: require('../../assets/quanta-guide/open-menu.png'),
+type GuideProfile = 'xverse' | 'unisat';
+
+interface GuideProfileConfig {
+  id: GuideProfile;
+  label: string;
+  title: string;
+  subtitle: string;
+  restoreTitle: string;
+  restoreSubtitle: string;
+  derivationMode: WalletDerivationMode;
+  steps: GuideStep[];
+}
+
+const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
+  xverse: {
+    id: 'xverse',
+    label: 'Xverse',
+    title: 'Export your Xverse seed phrase',
+    subtitle:
+      'Ducat needs the seed phrase for the wallet that owns your Quanta address. Follow the Xverse steps, then restore that wallet here.',
+    restoreTitle: 'Restore Xverse Wallet',
+    restoreSubtitle: 'Enter the 12 words exported from Xverse.',
+    derivationMode: XVERSE_WALLET_DERIVATION_MODE,
+    steps: [
+      {
+        title: 'Open the account menu',
+        body: 'From the wallet home screen, tap the menu icon in the top-right corner.',
+        image: require('../../assets/quanta-guide/open-menu.png'),
+      },
+      {
+        title: 'Go to Settings',
+        body: 'Select Settings from the account menu.',
+        image: require('../../assets/quanta-guide/select-settings.png'),
+      },
+      {
+        title: 'Open Security',
+        body: 'In Settings, choose Security.',
+        image: require('../../assets/quanta-guide/open-security.png'),
+      },
+      {
+        title: 'Choose Show seed phrase',
+        body: 'Tap Show seed phrase. This is the private key backup for that wallet.',
+        image: require('../../assets/quanta-guide/show-seed.png'),
+      },
+      {
+        title: 'Enter your password',
+        body: 'Confirm your password to unlock the seed phrase screen.',
+        image: require('../../assets/quanta-guide/enter-password.png'),
+      },
+      {
+        title: 'Reveal and copy the words',
+        body: 'Tap Reveal, then write the 12 words down in the exact order shown.',
+        image: require('../../assets/quanta-guide/reveal-seed.png'),
+      },
+    ],
   },
-  {
-    title: 'Go to Settings',
-    body: 'Select Settings from the account menu.',
-    image: require('../../assets/quanta-guide/select-settings.png'),
+  unisat: {
+    id: 'unisat',
+    label: 'UniSat',
+    title: 'Export your UniSat seed phrase',
+    subtitle:
+      'Use this for UniSat HD wallets. Ducat will restore the seed with UniSat account derivation so Quanta can find the same addresses.',
+    restoreTitle: 'Restore UniSat Wallet',
+    restoreSubtitle: 'Enter the 12 words exported from UniSat.',
+    derivationMode: UNISAT_WALLET_DERIVATION_MODE,
+    steps: [
+      {
+        title: 'Open the wallet switcher',
+        body: 'On the UniSat home screen, tap the wallet name, such as HD Wallet #1.',
+        image: require('../../assets/quanta-guide/unisat-open-wallet-list.png'),
+      },
+      {
+        title: 'Open wallet settings',
+        body: 'On Switch Wallet, tap the gear icon for the HD wallet you use with Quanta.',
+        image: require('../../assets/quanta-guide/unisat-open-wallet-settings.png'),
+      },
+      {
+        title: 'Choose recovery phrase',
+        body: 'Tap Show Secret Recovery Phrase from the wallet settings menu.',
+        image: require('../../assets/quanta-guide/unisat-show-recovery-phrase.png'),
+      },
+      {
+        title: 'Enter your password',
+        body: 'Read the warning, enter your UniSat password, then tap Show Secret Recovery Phrase.',
+        image: require('../../assets/quanta-guide/unisat-enter-password.png'),
+      },
+      {
+        title: 'Write down the words',
+        body: 'Copy the 12 words in order. The advanced derivation path shown by UniSat is expected.',
+        image: require('../../assets/quanta-guide/unisat-reveal-seed.png'),
+      },
+    ],
   },
-  {
-    title: 'Open Security',
-    body: 'In Settings, choose Security.',
-    image: require('../../assets/quanta-guide/open-security.png'),
-  },
-  {
-    title: 'Choose Show seed phrase',
-    body: 'Tap Show seed phrase. Quanta uses this seed phrase as the wallet private key backup.',
-    image: require('../../assets/quanta-guide/show-seed.png'),
-  },
-  {
-    title: 'Enter your password',
-    body: 'Confirm your Quanta password to unlock the seed phrase screen.',
-    image: require('../../assets/quanta-guide/enter-password.png'),
-  },
-  {
-    title: 'Reveal and copy the words',
-    body: 'Tap Reveal, then write the 12 words down in the exact order shown.',
-    image: require('../../assets/quanta-guide/reveal-seed.png'),
-  },
-];
+};
+
+const GUIDE_PROFILE_OPTIONS: GuideProfile[] = ['xverse', 'unisat'];
 
 export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const navigation = useNavigation<NavigationProp<RootNavigatorParamList>>();
@@ -71,10 +139,12 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const { setSeedConfirmed } = useOnboardingFlow();
   const { setIsAuthenticated, setPasskeyEnabled } = useAuthSession();
   const [restoreMode, setRestoreMode] = React.useState(false);
+  const [selectedGuideProfile, setSelectedGuideProfile] = React.useState<GuideProfile>('xverse');
   const [importSeedPhrase, setImportSeedPhrase] = React.useState<string[]>(Array(12).fill(''));
   const [isRestoring, setIsRestoring] = React.useState(false);
   const [selectedGuideStep, setSelectedGuideStep] = React.useState<GuideStep | null>(null);
   const seedInputRefs = React.useRef<(TextInput | null)[]>([]);
+  const activeGuide = GUIDE_PROFILES[selectedGuideProfile];
 
   const handleStartRestore = React.useCallback(() => {
     Alert.alert(
@@ -104,13 +174,13 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
     setIsRestoring(true);
 
     try {
-      await WalletService.importWallet(mnemonic, 0, DEFAULT_WALLET_DERIVATION_MODE);
+      await WalletService.importWallet(mnemonic, 0, activeGuide.derivationMode);
       await performFullWalletReset({
         preservePinAuth: true,
         resetWallet,
         setSeedConfirmed,
       });
-      await WalletService.saveWalletToStorage(mnemonic, 0, DEFAULT_WALLET_DERIVATION_MODE);
+      await WalletService.saveWalletToStorage(mnemonic, 0, activeGuide.derivationMode);
       const loadResult = await loadWallet();
 
       if (!loadResult.exists || !loadResult.addresses) {
@@ -137,6 +207,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
     }
   }, [
     importSeedPhrase,
+    activeGuide.derivationMode,
     isRestoring,
     loadWallet,
     navigation,
@@ -160,8 +231,10 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
             setRestoreMode(false);
             setImportSeedPhrase(Array(12).fill(''));
           }}
-          title="Restore Quanta Wallet"
-          subtitle="Enter the 12 words exported from Quanta."
+          title={activeGuide.restoreTitle}
+          subtitle={activeGuide.restoreSubtitle}
+          importWalletProfile={selectedGuideProfile}
+          setImportWalletProfile={setSelectedGuideProfile}
           importButtonLabel="Replace Wallet"
           cancelButtonLabel="Back to Guide"
           warningText="Destructive action: importing here replaces the current Ducat wallet on this device."
@@ -202,12 +275,31 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
           </View>
           <View style={styles.titleBlock}>
             <Text style={styles.eyebrow}>Account mismatch</Text>
-            <Text style={styles.title}>Export your Quanta seed phrase</Text>
-            <Text style={styles.subtitle}>
-              Ducat needs the private key for the Quanta address you pasted. In Quanta, this is the
-              12-word seed phrase. Follow the screenshots below, then restore that wallet here.
-            </Text>
+            <Text style={styles.title}>{activeGuide.title}</Text>
+            <Text style={styles.subtitle}>{activeGuide.subtitle}</Text>
           </View>
+        </View>
+
+        <View style={styles.guideSelector}>
+          {GUIDE_PROFILE_OPTIONS.map((profile) => {
+            const guide = GUIDE_PROFILES[profile];
+            const isSelected = selectedGuideProfile === profile;
+
+            return (
+              <Pressable
+                accessibilityLabel={`Show ${guide.label} seed phrase guide`}
+                accessibilityRole="button"
+                key={guide.id}
+                onPress={() => setSelectedGuideProfile(profile)}
+                style={[styles.guideOption, isSelected && styles.guideOptionSelected]}
+                testID={`quanta-guide-profile-${guide.id}`}
+              >
+                <Text style={[styles.guideOptionText, isSelected && styles.guideOptionTextActive]}>
+                  {guide.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.warningRow}>
@@ -218,7 +310,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
         </View>
 
         <View style={styles.steps}>
-          {GUIDE_STEPS.map((step, index) => (
+          {activeGuide.steps.map((step, index) => (
             <View key={step.title} style={styles.stepCard}>
               <View style={styles.stepCopy}>
                 <View style={styles.stepHeadingRow}>
@@ -254,7 +346,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
           testID="quanta-restore-from-seed-button"
         >
           <Ionicons name="key-outline" size={18} color={COLORS.WHITE} />
-          <Text style={styles.restoreButtonText}>Restore from seed phrase</Text>
+          <Text style={styles.restoreButtonText}>Restore {activeGuide.label} seed phrase</Text>
         </Pressable>
       </View>
       <Modal
@@ -391,6 +483,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245, 228, 162, 0.1)',
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  guideSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  guideOption: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.045)',
+  },
+  guideOptionSelected: {
+    borderColor: COLORS.PRIMARY_BLUE,
+    backgroundColor: 'rgba(24, 88, 228, 0.18)',
+  },
+  guideOptionText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'CabinetGrotesk-Bold',
+    textAlign: 'center',
+  },
+  guideOptionTextActive: {
+    color: COLORS.TEXT_PRIMARY,
   },
   warningText: {
     flex: 1,

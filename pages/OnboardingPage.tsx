@@ -119,11 +119,13 @@ function renderScreen(
         <WelcomeScreen
           importingWallet={state.importingWallet}
           importSeedPhrase={state.importSeedPhrase}
+          importWalletProfile={state.importWalletProfile}
           seedInputRefs={state.seedInputRefs}
           isImporting={state.isImporting}
           restoringWithPasskey={state.restoringWithPasskey}
           setImportingWallet={state.setImportingWallet}
           setImportSeedPhrase={state.setImportSeedPhrase}
+          setImportWalletProfile={state.setImportWalletProfile}
           setRestoringWithPasskey={state.setRestoringWithPasskey}
           createWalletWithPasskey={state.startPasskeyCreation}
           importWallet={state.importWallet}

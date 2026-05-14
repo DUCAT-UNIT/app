@@ -1,6 +1,7 @@
 import React from 'react';
 import { getQuantaMobileRewardStatus } from '../../services/quantaRewardService';
 import * as WalletService from '../../services/walletService';
+import { DEFAULT_WALLET_DERIVATION_MODE, type WalletDerivationMode } from '../../constants/bitcoin';
 import type { DerivedAddresses } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
 import { withTimeout } from '../../utils/withTimeout';
@@ -27,6 +28,7 @@ interface UseQuantaAccountDiscoveryParams {
   canCheckAddress: boolean;
   currentAccount: number;
   currentAddressMatches: boolean;
+  currentDerivationMode: WalletDerivationMode;
   getQuantaWalletPayloadFromAddresses: (
     address: string,
     addresses: DerivedAddresses
@@ -44,6 +46,7 @@ interface UseQuantaAccountDiscoveryResult {
   isDiscoveringAccounts: boolean;
   markCandidateMatched: (candidate: QuantaAccountCandidate) => void;
   matchedAccountAddresses: DerivedAddresses | null;
+  matchedAccountDerivationMode: WalletDerivationMode | null;
   matchedAccountIndex: number | null;
   resetAccountDiscovery: () => void;
   selectedCandidate: QuantaAccountCandidate | undefined;
@@ -57,6 +60,7 @@ export function useQuantaAccountDiscovery({
   canCheckAddress,
   currentAccount,
   currentAddressMatches,
+  currentDerivationMode,
   getQuantaWalletPayloadFromAddresses,
   normalizedQuantaAddress,
   wallet,
@@ -64,6 +68,8 @@ export function useQuantaAccountDiscovery({
   const [matchedAccountIndex, setMatchedAccountIndex] = React.useState<number | null>(null);
   const [matchedAccountAddresses, setMatchedAccountAddresses] =
     React.useState<DerivedAddresses | null>(null);
+  const [matchedAccountDerivationMode, setMatchedAccountDerivationMode] =
+    React.useState<WalletDerivationMode | null>(null);
   const [hasCheckedAddress, setHasCheckedAddress] = React.useState(false);
   const [accountCheckError, setAccountCheckError] = React.useState<string | null>(null);
   const [accountCandidates, setAccountCandidates] = React.useState<QuantaAccountCandidate[]>([]);
@@ -80,6 +86,7 @@ export function useQuantaAccountDiscovery({
     if (!canCheckAddress) {
       setMatchedAccountIndex(null);
       setMatchedAccountAddresses(null);
+      setMatchedAccountDerivationMode(null);
       setHasCheckedAddress(false);
       setAccountCheckError(null);
       setAccountCandidates([]);
@@ -90,6 +97,7 @@ export function useQuantaAccountDiscovery({
     if (currentAddressMatches) {
       setMatchedAccountIndex(currentAccount);
       setMatchedAccountAddresses(null);
+      setMatchedAccountDerivationMode(currentDerivationMode);
       setHasCheckedAddress(true);
       setAccountCheckError(null);
       setAccountCandidates([]);
@@ -120,6 +128,7 @@ export function useQuantaAccountDiscovery({
           if (match && 'timedOut' in match) {
             setMatchedAccountIndex(null);
             setMatchedAccountAddresses(null);
+            setMatchedAccountDerivationMode(null);
             setAccountCheckError(ACCOUNT_CHECK_TIMEOUT_MESSAGE);
             setHasCheckedAddress(true);
             return;
@@ -127,6 +136,7 @@ export function useQuantaAccountDiscovery({
 
           setMatchedAccountIndex(match?.accountIndex ?? null);
           setMatchedAccountAddresses(match?.addresses ?? null);
+          setMatchedAccountDerivationMode(match?.derivationMode ?? null);
           setAccountCheckError(match ? null : NO_MATCH_ACCOUNT_MESSAGE);
           setHasCheckedAddress(true);
         })
@@ -139,6 +149,7 @@ export function useQuantaAccountDiscovery({
           });
           setMatchedAccountIndex(null);
           setMatchedAccountAddresses(null);
+          setMatchedAccountDerivationMode(null);
           setAccountCheckError(ACCOUNT_CHECK_FAILURE_MESSAGE);
           setHasCheckedAddress(true);
         });
@@ -148,7 +159,13 @@ export function useQuantaAccountDiscovery({
       isCancelled = true;
       clearTimeout(timeout);
     };
-  }, [canCheckAddress, currentAccount, currentAddressMatches, normalizedQuantaAddress]);
+  }, [
+    canCheckAddress,
+    currentAccount,
+    currentAddressMatches,
+    currentDerivationMode,
+    normalizedQuantaAddress,
+  ]);
 
   const getEnteredAddressAccount =
     React.useCallback(async (): Promise<WalletService.WalletAccountAddresses | null> => {
@@ -163,6 +180,7 @@ export function useQuantaAccountDiscovery({
         if (addresses) {
           return {
             accountIndex: matchedAccountIndex,
+            derivationMode: matchedAccountDerivationMode ?? DEFAULT_WALLET_DERIVATION_MODE,
             addresses,
           };
         }
@@ -176,12 +194,14 @@ export function useQuantaAccountDiscovery({
       return match
         ? {
             accountIndex: match.accountIndex,
+            derivationMode: match.derivationMode,
             addresses: match.addresses,
           }
         : null;
     }, [
       currentAccount,
       matchedAccountAddresses,
+      matchedAccountDerivationMode,
       matchedAccountIndex,
       normalizedQuantaAddress,
       wallet,
@@ -232,6 +252,7 @@ export function useQuantaAccountDiscovery({
 
           return {
             accountIndex: entry.accountIndex,
+            derivationMode: entry.derivationMode,
             addressType: entry.addressType,
             quantaAddress: entry.address,
             status,
@@ -304,6 +325,7 @@ export function useQuantaAccountDiscovery({
   const markCandidateMatched = React.useCallback((candidate: QuantaAccountCandidate) => {
     setMatchedAccountIndex(candidate.accountIndex);
     setMatchedAccountAddresses(candidate.addresses);
+    setMatchedAccountDerivationMode(candidate.derivationMode);
     setHasCheckedAddress(true);
     setAccountCheckError(null);
   }, []);
@@ -326,6 +348,7 @@ export function useQuantaAccountDiscovery({
     isDiscoveringAccounts,
     markCandidateMatched,
     matchedAccountAddresses,
+    matchedAccountDerivationMode,
     matchedAccountIndex,
     resetAccountDiscovery,
     selectedCandidate,

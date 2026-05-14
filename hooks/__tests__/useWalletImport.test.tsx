@@ -8,6 +8,10 @@ import { create, act } from 'react-test-renderer';
 import { useWalletImport } from '../useWalletImport';
 import * as WalletService from '../../services/walletService';
 import { notify } from '../../utils/notify';
+import {
+  UNISAT_WALLET_DERIVATION_MODE,
+  XVERSE_WALLET_DERIVATION_MODE,
+} from '../../constants/bitcoin';
 
 // Mock wallet service
 jest.mock('../../services/walletService');
@@ -38,7 +42,10 @@ jest.mock('../../utils/messages', () => ({
 }));
 
 // Helper to render hooks with props
-function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initialProps?: unknown } = {}) {
+function renderHook<T>(
+  hook: (props?: unknown) => T,
+  { initialProps }: { initialProps?: unknown } = {}
+) {
   const result: { current: T | null } = { current: null };
   function TestComponent({ hookProps }: { hookProps?: unknown }) {
     result.current = hook(hookProps);
@@ -60,7 +67,12 @@ function renderHook<T>(hook: (props?: unknown) => T, { initialProps }: { initial
 }
 
 describe('useWalletImport', () => {
-  let mockProps: { currentAccount: number; setSettingUpPin: jest.Mock; loadWallet?: null | jest.Mock; [key: string]: unknown };
+  let mockProps: {
+    currentAccount: number;
+    setSettingUpPin: jest.Mock;
+    loadWallet?: null | jest.Mock;
+    [key: string]: unknown;
+  };
   const mockAddresses = {
     address: 'tb1qtest',
     segwitAddress: 'tb1qsegwit',
@@ -185,7 +197,8 @@ describe('useWalletImport', () => {
       expect(notify.error).not.toHaveBeenCalled();
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         seedPhrase.join(' '),
-        mockProps.currentAccount
+        mockProps.currentAccount,
+        XVERSE_WALLET_DERIVATION_MODE
       );
       expect(WalletService.saveWalletToStorage).not.toHaveBeenCalled();
       // loadWallet is intentionally not called during import - it's called after PIN setup
@@ -222,7 +235,8 @@ describe('useWalletImport', () => {
 
       expect(WalletService.importWallet).toHaveBeenCalledWith(
         'abandon ability able about above absent absorb abstract absurd abuse access accident',
-        mockProps.currentAccount
+        mockProps.currentAccount,
+        XVERSE_WALLET_DERIVATION_MODE
       );
     });
 
@@ -242,6 +256,29 @@ describe('useWalletImport', () => {
       });
 
       expect(result.current!.isImportedWallet).toBe(true);
+    });
+
+    it('should import UniSat seed phrases with account-index derivation', async () => {
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      const seedPhrase = Array(12).fill('abandon');
+
+      act(() => {
+        result.current!.setImportWalletProfile('unisat');
+        result.current!.setImportSeedPhrase(seedPhrase);
+      });
+
+      await act(async () => {
+        await result.current!.importWallet();
+      });
+
+      expect(WalletService.importWallet).toHaveBeenCalledWith(
+        seedPhrase.join(' '),
+        mockProps.currentAccount,
+        UNISAT_WALLET_DERIVATION_MODE
+      );
     });
 
     it('should clear import form on success', async () => {
@@ -485,7 +522,8 @@ describe('useWalletImport', () => {
 
       expect(WalletService.saveWalletToStorage).toHaveBeenCalledWith(
         seedPhrase.join(' '),
-        mockProps.currentAccount
+        mockProps.currentAccount,
+        XVERSE_WALLET_DERIVATION_MODE
       );
     });
 

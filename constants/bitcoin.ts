@@ -27,9 +27,54 @@ export const MAX_FEE_RATE = 1000 as const;
 const COIN_TYPE = APP_NETWORK_CONFIG.coinType;
 
 export type WalletDerivationMode = 'legacy_address_index' | 'bip44_account';
+export type WalletImportProfile = 'xverse' | 'unisat';
 
 // Match Xverse/Quanta account discovery: fixed BIP account 0, increment external address index.
-export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
+export const XVERSE_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
+export const UNISAT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
+export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = XVERSE_WALLET_DERIVATION_MODE;
+
+export const WALLET_IMPORT_PROFILES = {
+  xverse: {
+    id: 'xverse',
+    label: 'Xverse',
+    description: 'Use this for Xverse seed phrases.',
+    derivationMode: XVERSE_WALLET_DERIVATION_MODE,
+  },
+  unisat: {
+    id: 'unisat',
+    label: 'UniSat',
+    description: 'Use this for UniSat HD wallet seed phrases.',
+    derivationMode: UNISAT_WALLET_DERIVATION_MODE,
+  },
+} as const satisfies Record<
+  WalletImportProfile,
+  {
+    id: WalletImportProfile;
+    label: string;
+    description: string;
+    derivationMode: WalletDerivationMode;
+  }
+>;
+
+export const WALLET_IMPORT_PROFILE_OPTIONS = [
+  WALLET_IMPORT_PROFILES.xverse,
+  WALLET_IMPORT_PROFILES.unisat,
+] as const;
+
+export function getWalletDerivationModeForProfile(
+  profile: WalletImportProfile
+): WalletDerivationMode {
+  return WALLET_IMPORT_PROFILES[profile].derivationMode;
+}
+
+export function getWalletProfileForDerivationMode(mode: WalletDerivationMode): WalletImportProfile {
+  return mode === UNISAT_WALLET_DERIVATION_MODE ? 'unisat' : 'xverse';
+}
+
+export function getWalletProfileLabelForDerivationMode(mode: WalletDerivationMode): string {
+  return WALLET_IMPORT_PROFILES[getWalletProfileForDerivationMode(mode)].label;
+}
 
 export const LEGACY_DERIVATION_PATHS = {
   // BIP49: Nested SegWit P2SH-P2WPKH used by Xverse payment addresses

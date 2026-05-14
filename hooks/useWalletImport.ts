@@ -16,6 +16,12 @@ import { isE2E } from '../utils/e2e';
 import { consumeSeedRestoreRequest } from '../utils/onboardingHelpers';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  getWalletDerivationModeForProfile,
+  type WalletDerivationMode,
+  type WalletImportProfile,
+} from '../constants/bitcoin';
 
 interface UseWalletImportParams {
   currentAccount: number;
@@ -25,12 +31,14 @@ interface UseWalletImportParams {
 interface UseWalletImportReturn {
   importingWallet: boolean;
   importSeedPhrase: string[];
+  importWalletProfile: WalletImportProfile;
   isImportedWallet: boolean;
   isImporting: boolean;
   seedInputRefs: MutableRefObject<TextInput[]>;
   importedMnemonic: string | null;
   setImportingWallet: (value: boolean) => void;
   setImportSeedPhrase: (value: string[]) => void;
+  setImportWalletProfile: (value: WalletImportProfile) => void;
   setIsImportedWallet: (value: boolean) => void;
   setImportedMnemonic: (value: string | null) => void;
   importWallet: () => Promise<void>;
@@ -38,9 +46,13 @@ interface UseWalletImportReturn {
   resetImportState: () => Promise<void>;
 }
 
-export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletImportParams): UseWalletImportReturn {
+export function useWalletImport({
+  currentAccount,
+  setSettingUpPin,
+}: UseWalletImportParams): UseWalletImportReturn {
   const [importingWallet, setImportingWallet] = useState(false);
   const [importSeedPhrase, setImportSeedPhrase] = useState<string[]>(Array(12).fill(''));
+  const [importWalletProfile, setImportWalletProfile] = useState<WalletImportProfile>('xverse');
   const [isImportedWallet, setIsImportedWallet] = useState(false);
 
   // Non-persisted state
@@ -52,6 +64,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
   // SECURITY: Only expose a boolean flag via React state to avoid holding the mnemonic
   // in the component tree / React DevTools. The actual value lives only in the ref.
   const importedMnemonicRef = useRef<string | null>(null);
+  const importedDerivationModeRef = useRef<WalletDerivationMode | null>(null);
   const [_hasImportedMnemonic, setHasImportedMnemonic] = useState(false);
 
   useEffect(() => {
@@ -76,6 +89,9 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
 
   const setImportedMnemonic = (value: string | null) => {
     importedMnemonicRef.current = value;
+    if (!value) {
+      importedDerivationModeRef.current = null;
+    }
     setHasImportedMnemonic(!!value);
   };
 
@@ -95,9 +111,10 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     try {
       // E2E bypass: use test seed phrase in dev builds with explicit env var
       const e2eSeed = __DEV__ ? process.env.EXPO_PUBLIC_E2E_TEST_SEED : undefined;
-      const seedWords = isE2E() && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
-        ? e2eSeed.split(' ')
-        : importSeedPhrase;
+      const seedWords =
+        isE2E() && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
+          ? e2eSeed.split(' ')
+          : importSeedPhrase;
 
       // Join the array of words and trim/normalize
       const mnemonic = seedWords
@@ -105,9 +122,11 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
         .join(' ')
         .trim();
 
+      const derivationMode = getWalletDerivationModeForProfile(importWalletProfile);
+
       // Import wallet using WalletService (validates and derives addresses)
       // This is CPU-intensive (BIP32 key derivation) - may take 1-2 seconds
-      await WalletService.importWallet(mnemonic, currentAccount);
+      await WalletService.importWallet(mnemonic, currentAccount, derivationMode);
 
       // CRITICAL: Don't load the wallet yet - wait until after PIN setup and passkey migration
       // The wallet will be loaded in OnboardingPage after the passkey migration modal closes
@@ -124,6 +143,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
 
       // Store mnemonic for potential passkey migration
       setImportedMnemonic(mnemonic);
+      importedDerivationModeRef.current = derivationMode;
 
       // Clear import form but KEEP isImportedWallet flag
       // The flag is needed by OnboardingPage to know this is an imported wallet
@@ -133,7 +153,9 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
       // Set imported wallet flag AFTER clearing form data
       // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
       setIsImportedWallet(true);
-      analytics.track(ONBOARDING_EVENTS.WALLET_IMPORTED);
+      analytics.track(ONBOARDING_EVENTS.WALLET_IMPORTED, {
+        wallet_profile: importWalletProfile,
+      });
 
       // Don't show passkey migration prompt yet - wait until PIN is set
       // The parent component (OnboardingPage) will show it after PIN setup
@@ -141,7 +163,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
       logger.error('Wallet import failed', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        errorType: error instanceof Error ? error.constructor.name : 'Unknown'
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
       });
       notify.error(ERRORS.WALLET_IMPORT_FAILED);
       // Don't clear the form on error - let user fix their seed phrase
@@ -156,7 +178,11 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     if (!mnemonic) {
       throw new Error('Imported mnemonic not available');
     }
-    await WalletService.saveWalletToStorage(mnemonic, currentAccount);
+    await WalletService.saveWalletToStorage(
+      mnemonic,
+      currentAccount,
+      importedDerivationModeRef.current ?? DEFAULT_WALLET_DERIVATION_MODE
+    );
   };
 
   /**
@@ -165,14 +191,17 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
   const resetImportState = async () => {
     setImportingWallet(false);
     setImportSeedPhrase(Array(12).fill(''));
+    setImportWalletProfile('xverse');
     setIsImportedWallet(false);
     setImportedMnemonic(null);
+    importedDerivationModeRef.current = null;
   };
 
   return {
     // State
     importingWallet,
     importSeedPhrase,
+    importWalletProfile,
     isImportedWallet,
     isImporting, // Loading state
     seedInputRefs,
@@ -181,6 +210,7 @@ export function useWalletImport({ currentAccount, setSettingUpPin }: UseWalletIm
     // Setters
     setImportingWallet,
     setImportSeedPhrase,
+    setImportWalletProfile,
     setIsImportedWallet,
     setImportedMnemonic,
 

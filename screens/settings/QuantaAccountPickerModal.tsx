@@ -19,6 +19,7 @@ import {
   getAddressTypeLabel,
   getCandidateKey,
   getCandidatePoints,
+  getWalletProfileLabel,
   type QuantaAccountCandidate,
 } from './quantaLinkUtils';
 
@@ -124,8 +125,8 @@ export function QuantaAccountPickerModal({
                   >
                     <View style={styles.accountPickerRowCopy}>
                       <Text style={styles.accountPickerRowTitle}>
-                        Account {candidate.accountIndex + 1} ·{' '}
-                        {getAddressTypeLabel(candidate.addressType)}
+                        {getWalletProfileLabel(candidate.derivationMode)} · Account{' '}
+                        {candidate.accountIndex + 1} · {getAddressTypeLabel(candidate.addressType)}
                       </Text>
                       <Text style={styles.accountPickerAddress} numberOfLines={1} selectable>
                         {formatAddressPreview(candidate.quantaAddress, addressMaxLength + 8)}
@@ -158,6 +159,7 @@ export function QuantaAccountPickerModal({
               <Text style={styles.accountPickerSelectedEyebrow}>Selected wallet</Text>
               <Text style={styles.accountPickerSelectedTitle}>
                 Account {selectedCandidate.accountIndex + 1} ·{' '}
+                {getWalletProfileLabel(selectedCandidate.derivationMode)} ·{' '}
                 {getAddressTypeLabel(selectedCandidate.addressType)}
               </Text>
               <Text style={styles.accountPickerSelectedAddress} numberOfLines={1} selectable>
