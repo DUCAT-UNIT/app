@@ -671,6 +671,19 @@ describe('useLiquidationExecution', () => {
       // resetAfterSuccess calls store.reset() which resets all state including step
       expect(useLiquidationFlowStore.getState().currentStep).toBe('input');
     });
+
+    it('should preserve claimed vault suppression after closing a successful liquidation', async () => {
+      useLiquidationFlowStore.getState().markVaultsClaimed(['claimed-vault']);
+      useLiquidationFlowStore.getState().setCurrentStep('success');
+
+      const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+      act(() => {
+        result.current!.resetAfterSuccess();
+      });
+
+      expect(useLiquidationFlowStore.getState().suppressedVaultIds).toContain('claimed-vault');
+    });
   });
 
   describe('resetAfterError', () => {

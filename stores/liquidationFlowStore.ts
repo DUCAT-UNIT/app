@@ -170,7 +170,11 @@ export const useLiquidationFlowStore = create<LiquidationFlowStore>((set) => ({
         swapRate,
       };
     }),
-  reset: () => set(initialState),
+  reset: () =>
+    set((state) => ({
+      ...initialState,
+      suppressedVaultIds: state.suppressedVaultIds,
+    })),
 }));
 
 // ============================================================

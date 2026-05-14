@@ -130,6 +130,17 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     currentAccount,
   });
 
+  // ── Derived state for empty/loading ──────────────────────────────
+  const isLoaded = fetchStatus === 'loaded' || fetchStatus === 'error';
+  const isProcessingOrResult =
+    currentStep === 'processing' || currentStep === 'success' || currentStep === 'error';
+  const isReview = currentStep === 'review';
+  const isInput = currentStep === 'input';
+  const hasStaleVaultData = fetchStatus === 'error' && vaults.length > 0;
+  const hasClaimableLiquidations = hasVault && isLoaded && vaults.length > 0 && maxInvestable > 0;
+  const shouldShowBottomButton =
+    currentStep !== 'processing' && (!isInput || hasClaimableLiquidations);
+
   // ── Callbacks ────────────────────────────────────────────────────
   const handleToggleBTC = useCallback(() => {
     setShowBTC(!showBTC);
@@ -147,26 +158,42 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   );
 
   const handleBack = useCallback(() => {
+    if (isExecuting) {
+      return;
+    }
+
     if (currentStep === 'review') {
       setCurrentStep('input');
       onBackToInput?.();
     }
-  }, [currentStep, onBackToInput, setCurrentStep]);
+  }, [currentStep, isExecuting, onBackToInput, setCurrentStep]);
 
   const handleButtonPress = useCallback(async () => {
-    if (currentStep === 'input') {
+    const latestState = useLiquidationFlowStore.getState();
+    const isLocked = latestState.isExecuting;
+    const latestStep = latestState.currentStep;
+
+    if (isLocked || latestStep === 'processing') {
+      return;
+    }
+
+    if (latestStep === 'input') {
+      if (latestState.investAmount <= 0 || !hasClaimableLiquidations) {
+        return;
+      }
+
       setCurrentStep('review');
       onReviewStart?.();
-    } else if (currentStep === 'review') {
+    } else if (latestStep === 'review') {
       await execute();
-    } else if (currentStep === 'success') {
+    } else if (latestStep === 'success') {
       resetAfterSuccess();
       onClose();
-    } else if (currentStep === 'error') {
+    } else if (latestStep === 'error') {
       resetAfterError();
     }
   }, [
-    currentStep,
+    hasClaimableLiquidations,
     setCurrentStep,
     onReviewStart,
     execute,
@@ -174,17 +201,6 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     onClose,
     resetAfterError,
   ]);
-
-  // ── Derived state for empty/loading ──────────────────────────────
-  const isLoaded = fetchStatus === 'loaded' || fetchStatus === 'error';
-  const isProcessingOrResult =
-    currentStep === 'processing' || currentStep === 'success' || currentStep === 'error';
-  const isReview = currentStep === 'review';
-  const isInput = currentStep === 'input';
-  const hasStaleVaultData = fetchStatus === 'error' && vaults.length > 0;
-  const hasClaimableLiquidations = hasVault && isLoaded && vaults.length > 0 && maxInvestable > 0;
-  const shouldShowBottomButton =
-    currentStep !== 'processing' && (!isInput || hasClaimableLiquidations);
 
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
@@ -217,7 +233,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const bottomAction = shouldShowBottomButton ? (
     <View style={actionWrapStyle}>
       <TouchableOpacity
-        style={[styles.continueBtn, isInput && investAmount <= 0 && { opacity: 0.5 }]}
+        style={[styles.continueBtn, buttonDisabled && styles.continueBtnDisabled]}
         onPress={handleButtonPress}
         testID="liquidation-continue-btn"
         disabled={buttonDisabled}
@@ -422,6 +438,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
+  },
+  continueBtnDisabled: {
+    opacity: 0.5,
   },
   continueBtnText: {
     fontSize: fontSizes.md,
