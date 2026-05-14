@@ -31,6 +31,9 @@ interface LiquidationFlowState {
   error: string | null;
   vaults: LiqVaultDisplay[];
   vaultsFull: LiquidVaultProfileWithMeta[];
+  isExecuting: boolean;
+  executingVaultIds: string[];
+  suppressedVaultIds: string[];
   profitRate: number;
   depositRate: number;
   swapRate: number;
@@ -47,6 +50,11 @@ interface LiquidationFlowActions {
   setResultTxid: (txid: string | null) => void;
   setResultSwapTxid: (txid: string | null) => void;
   setError: (error: string | null) => void;
+  beginExecution: (vaultIds: string[]) => boolean;
+  completeExecution: () => void;
+  markVaultsClaimed: (vaultIds: string[]) => void;
+  releaseVaults: (vaultIds: string[]) => void;
+  removeVaultsByIds: (vaultIds: string[]) => void;
   setVaultData: (
     display: LiqVaultDisplay[],
     full: LiquidVaultProfileWithMeta[],
@@ -76,6 +84,9 @@ const initialState: LiquidationFlowState = {
   error: null,
   vaults: [],
   vaultsFull: [],
+  isExecuting: false,
+  executingVaultIds: [],
+  suppressedVaultIds: [],
   profitRate: 0,
   depositRate: 0,
   swapRate: 0,
@@ -98,8 +109,67 @@ export const useLiquidationFlowStore = create<LiquidationFlowStore>((set) => ({
   setResultTxid: (txid) => set({ resultTxid: txid }),
   setResultSwapTxid: (txid) => set({ resultSwapTxid: txid }),
   setError: (error) => set({ error: error }),
+  beginExecution: (vaultIds) => {
+    let acquired = false;
+    set((state) => {
+      if (state.isExecuting) {
+        return state;
+      }
+      acquired = true;
+      const uniqueIds = Array.from(new Set(vaultIds.filter(Boolean)));
+      return {
+        isExecuting: true,
+        executingVaultIds: uniqueIds,
+      };
+    });
+    return acquired;
+  },
+  completeExecution: () => set({ isExecuting: false, executingVaultIds: [] }),
+  markVaultsClaimed: (vaultIds) =>
+    set((state) => {
+      const claimed = new Set(vaultIds.filter(Boolean));
+      const suppressed = new Set([...state.suppressedVaultIds, ...claimed]);
+      return {
+        isExecuting: false,
+        executingVaultIds: [],
+        suppressedVaultIds: [...suppressed],
+        vaults: state.vaults.filter((vault) => !claimed.has(vault.vaultId)),
+        vaultsFull: state.vaultsFull.filter((vault) => !claimed.has(vault.vaultId)),
+      };
+    }),
+  releaseVaults: (vaultIds) =>
+    set((state) => {
+      const released = new Set(vaultIds.filter(Boolean));
+      return {
+        isExecuting: false,
+        executingVaultIds: state.executingVaultIds.filter((id) => !released.has(id)),
+        suppressedVaultIds: state.suppressedVaultIds.filter((id) => !released.has(id)),
+      };
+    }),
+  removeVaultsByIds: (vaultIds) =>
+    set((state) => {
+      const removed = new Set(vaultIds.filter(Boolean));
+      if (removed.size === 0) {
+        return state;
+      }
+      return {
+        vaults: state.vaults.filter((vault) => !removed.has(vault.vaultId)),
+        vaultsFull: state.vaultsFull.filter((vault) => !removed.has(vault.vaultId)),
+        executingVaultIds: state.executingVaultIds.filter((id) => !removed.has(id)),
+        suppressedVaultIds: state.suppressedVaultIds.filter((id) => !removed.has(id)),
+      };
+    }),
   setVaultData: (display, full, profitRate, depositRate, swapRate) =>
-    set({ vaults: display, vaultsFull: full, profitRate, depositRate, swapRate }),
+    set((state) => {
+      const suppressed = new Set([...state.suppressedVaultIds, ...state.executingVaultIds]);
+      return {
+        vaults: display.filter((vault) => !suppressed.has(vault.vaultId)),
+        vaultsFull: full.filter((vault) => !suppressed.has(vault.vaultId)),
+        profitRate,
+        depositRate,
+        swapRate,
+      };
+    }),
   reset: () => set(initialState),
 }));
 
@@ -119,6 +189,7 @@ export const useLiqResultSwapTxid = () => useLiquidationFlowStore((s) => s.resul
 export const useLiqError = () => useLiquidationFlowStore((s) => s.error);
 export const useLiqVaults = () => useLiquidationFlowStore((s) => s.vaults);
 export const useLiqVaultsFull = () => useLiquidationFlowStore((s) => s.vaultsFull);
+export const useLiqIsExecuting = () => useLiquidationFlowStore((s) => s.isExecuting);
 export const useLiqProfitRate = () => useLiquidationFlowStore((s) => s.profitRate);
 export const useLiqDepositRate = () => useLiquidationFlowStore((s) => s.depositRate);
 export const useLiqSwapRate = () => useLiquidationFlowStore((s) => s.swapRate);

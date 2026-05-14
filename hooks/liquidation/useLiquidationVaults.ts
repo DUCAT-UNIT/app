@@ -12,7 +12,11 @@ import {
   getMaxInvest,
   getAvailableCollateralBtc,
 } from '../../services/liquidation/calculations';
-import { LIQ_MAX_CLAIM_AMOUNT_BTC, LIQ_DEFAULT_FEE_RATE } from '../../services/liquidation/constants';
+import {
+  LIQ_MAX_CLAIM_AMOUNT_BTC,
+  LIQ_DEFAULT_FEE_RATE,
+  LIQ_VALIDATOR_WS,
+} from '../../services/liquidation/constants';
 import type { LiqVaultDisplay, ValidatorLiquidatedVault } from '../../services/liquidation/types';
 import { fetchProtocolContract, prefetchProtocolContract } from '../../services/vaultWallet';
 import { fetchBtcPrice } from '../../services/balanceService';
@@ -28,6 +32,7 @@ const POLL_INTERVAL_ACTIVE_MS = 30_000;  // 30s when screen is open
 const POLL_INTERVAL_BG_MS = 120_000;    // 2 min background prefetch
 const LIQ_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hour throttle
 const LIQ_CONTRACT_FETCH_TIMEOUT_MS = 12_000;
+const LIQ_WS_RECONNECT_MS = 5_000;
 
 interface UseLiquidationVaultsParams {
   btcPrice: number | null;
@@ -43,6 +48,10 @@ interface UseLiquidationVaultsReturn {
   maxInvestable: number;
   refreshLiqVaults: () => Promise<void>;
 }
+
+type LiquidationRefreshOptions = {
+  force?: boolean;
+};
 
 function deriveBtcPrice(rawVaults: ValidatorLiquidatedVault[]): number | null {
   for (const vault of rawVaults) {
@@ -80,6 +89,61 @@ async function fetchProtocolContractWithTimeout(): Promise<ProtocolProfile> {
   }
 }
 
+function extractEventType(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+  const event = payload as Record<string, unknown>;
+  const rawType = event.type ?? event.event ?? event.kind ?? event.action;
+  if (typeof rawType === 'string') {
+    return rawType.toLowerCase();
+  }
+
+  return Object.keys(event).find((key) => {
+    const normalized = key.toLowerCase();
+    return normalized.includes('liquidation')
+      || normalized.includes('liquidated')
+      || normalized.includes('repossess')
+      || normalized.includes('repo');
+  })?.toLowerCase() ?? '';
+}
+
+function collectVaultIds(value: unknown, ids: Set<string>): void {
+  if (!value) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectVaultIds(item, ids));
+    return;
+  }
+  if (typeof value !== 'object') {
+    return;
+  }
+
+  const record = value as Record<string, unknown>;
+  [
+    record.vault_id,
+    record.vaultId,
+    record.id,
+    record.vault_pubkey,
+    record.vaultPubkey,
+  ].forEach((candidate) => {
+    if (typeof candidate === 'string' && candidate.length > 0) {
+      ids.add(candidate);
+    }
+  });
+
+  ['vaults', 'entries', 'items', 'data', 'repossessed', 'liquidated'].forEach((key) => {
+    collectVaultIds(record[key], ids);
+  });
+}
+
+function extractVaultIds(payload: unknown): string[] {
+  const ids = new Set<string>();
+  collectVaultIds(payload, ids);
+  return [...ids];
+}
+
 export function useLiquidationVaults({
   btcPrice,
   segwitBalance,
@@ -93,14 +157,17 @@ export function useLiquidationVaults({
   const fetchStatus = store((s) => s.fetchStatus);
   const currentStep = store((s) => s.currentStep);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const diagnosticsPollIdRef = useRef<string | null>(null);
   const fetchInFlightRef = useRef(false);
+  const pendingWsRefreshRef = useRef(false);
   const prevVaultCountRef = useRef<number>(-1);
   const lastLiqAlertRef = useRef<number>(0);
   const [fallbackBtcPrice, setFallbackBtcPrice] = useState<number | null>(null);
   const effectiveBtcPrice = btcPrice ?? fallbackBtcPrice;
 
-  const refreshLiqVaults = useCallback(async () => {
+  const refreshLiqVaults = useCallback(async (options: LiquidationRefreshOptions = {}) => {
     const pollId = diagnosticsPollIdRef.current;
     if (fetchInFlightRef.current) {
       if (pollId) {
@@ -113,7 +180,7 @@ export function useLiquidationVaults({
     }
     // Don't update vault data while user is reviewing or executing
     const step = store.getState().currentStep;
-    if (step === 'review' || step === 'processing') {
+    if (!options.force && (step === 'review' || step === 'processing')) {
       if (pollId) {
         useSwapDiagnosticsStore.getState().recordAttempt(pollId, {
           lastStatus: 'paused',
@@ -123,6 +190,7 @@ export function useLiquidationVaults({
           },
         });
       }
+      pendingWsRefreshRef.current = true;
       return;
     }
 
@@ -179,7 +247,13 @@ export function useLiquidationVaults({
       logger.debug('[Liquidation] Fetch result', { rawCount: raw.length, price: currentPrice });
 
       // Use computeLiquidVaultProfiles from calculations.ts (no duplication)
-      const fullProfiles = computeLiquidVaultProfiles(raw, currentPrice, contract);
+      const suppressedVaultIds = new Set([
+        ...store.getState().suppressedVaultIds,
+        ...store.getState().executingVaultIds,
+      ]);
+      const fullProfiles = computeLiquidVaultProfiles(raw, currentPrice, contract).filter(
+        (vault) => !suppressedVaultIds.has(vault.vaultId),
+      );
 
       // Derive display projections
       const displayProfiles: LiqVaultDisplay[] = fullProfiles.map((p) => ({
@@ -213,14 +287,8 @@ export function useLiquidationVaults({
         || displayProfiles.some((v, i) => prev.vaults[i]?.vaultId !== v.vaultId);
 
       if (vaultsChanged || prev.fetchStatus !== 'loaded') {
-        store.setState({
-          vaults: displayProfiles,
-          vaultsFull: fullProfiles,
-          profitRate,
-          depositRate,
-          swapRate,
-          fetchStatus: 'loaded',
-        });
+        store.getState().setVaultData(displayProfiles, fullProfiles, profitRate, depositRate, swapRate);
+        store.getState().setFetchStatus('loaded');
       }
 
       logger.debug('[Liquidation] Vaults ready', {
@@ -287,9 +355,96 @@ export function useLiquidationVaults({
     }
   }, [btcPrice, visible]);
 
+  const handleWsMessage = useCallback((rawMessage: string) => {
+    let payload: unknown;
+    try {
+      payload = JSON.parse(rawMessage);
+    } catch {
+      payload = rawMessage;
+    }
+
+    const eventType = extractEventType(payload);
+    const vaultIds = extractVaultIds(payload);
+    const isRepossessEvent = eventType.includes('repossess') || eventType.includes('repo');
+    const isLiquidationEvent = eventType.includes('liquidation') || eventType.includes('liquidated');
+
+    if (isRepossessEvent && vaultIds.length > 0) {
+      store.getState().removeVaultsByIds(vaultIds);
+    }
+
+    if (isRepossessEvent || isLiquidationEvent) {
+      pendingWsRefreshRef.current = false;
+      void refreshLiqVaults({ force: true });
+    }
+  }, [refreshLiqVaults]);
+
   useEffect(() => {
     prefetchProtocolContract();
   }, []);
+
+  useEffect(() => {
+    if (!visible || typeof WebSocket === 'undefined') {
+      return undefined;
+    }
+
+    let closedByEffect = false;
+
+    const connect = () => {
+      if (closedByEffect) {
+        return;
+      }
+
+      try {
+        const socket = new WebSocket(LIQ_VALIDATOR_WS);
+        wsRef.current = socket;
+
+        socket.onmessage = (event) => {
+          handleWsMessage(String(event.data));
+        };
+        socket.onerror = () => {
+          logger.warn('[Liquidation] WebSocket error');
+        };
+        socket.onclose = () => {
+          if (wsRef.current === socket) {
+            wsRef.current = null;
+          }
+          if (!closedByEffect) {
+            wsReconnectRef.current = setTimeout(connect, LIQ_WS_RECONNECT_MS);
+            (wsReconnectRef.current as { unref?: () => void }).unref?.();
+          }
+        };
+      } catch (error) {
+        logger.warn('[Liquidation] WebSocket connection failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        wsReconnectRef.current = setTimeout(connect, LIQ_WS_RECONNECT_MS);
+        (wsReconnectRef.current as { unref?: () => void }).unref?.();
+      }
+    };
+
+    connect();
+
+    return () => {
+      closedByEffect = true;
+      if (wsReconnectRef.current) {
+        clearTimeout(wsReconnectRef.current);
+        wsReconnectRef.current = null;
+      }
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, [handleWsMessage, visible]);
+
+  useEffect(() => {
+    if (
+      pendingWsRefreshRef.current
+      && currentStep !== 'review'
+      && currentStep !== 'processing'
+    ) {
+      pendingWsRefreshRef.current = false;
+      void refreshLiqVaults({ force: true });
+    }
+  }, [currentStep, refreshLiqVaults]);
 
   // Background prefetch — start fetching immediately on mount, poll every 2 min
   // so data is ready when user opens the liquidation screen

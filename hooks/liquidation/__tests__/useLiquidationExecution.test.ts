@@ -58,13 +58,17 @@ import {
 } from '../../../services/liquidation/calculations';
 import { executeLiquidation } from '../../../services/liquidation/execution';
 import { waitForMempool } from '../../../services/liquidation/swapService';
-import { savePendingLiquidationSwapBroadcast } from '../../../services/liquidation/liquidationSwapBroadcastRecovery';
+import {
+  clearPendingLiquidationSwapBroadcast,
+  savePendingLiquidationSwapBroadcast,
+} from '../../../services/liquidation/liquidationSwapBroadcastRecovery';
 
 const mockSelectItems = selectItemsForAmount as jest.Mock;
 const mockRecomputePartial = recomputePartialVaultProfile as jest.Mock;
 const mockExecuteLiquidation = executeLiquidation as jest.Mock;
 const mockWaitForMempool = waitForMempool as jest.Mock;
 const mockSavePendingLiquidationSwapBroadcast = savePendingLiquidationSwapBroadcast as jest.Mock;
+const mockClearPendingLiquidationSwapBroadcast = clearPendingLiquidationSwapBroadcast as jest.Mock;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -208,6 +212,63 @@ describe('useLiquidationExecution', () => {
         expect(useLiquidationFlowStore.getState().resultTxid).toBe('mytxid123');
       });
 
+      it('should ignore a second liquidation while the first one is still running', async () => {
+        let resolveExecution!: (value: { success: boolean; txid: string }) => void;
+        mockExecuteLiquidation.mockImplementation(
+          () => new Promise((resolve) => {
+            resolveExecution = resolve;
+          }),
+        );
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        const first = act(async () => {
+          await result.current!.execute();
+        });
+        await Promise.resolve();
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        expect(mockExecuteLiquidation).toHaveBeenCalledTimes(1);
+
+        resolveExecution({ success: true, txid: 'first-liquidation' });
+        await first;
+      });
+
+      it('should suppress claimed vaults from the available liquidation list after success', async () => {
+        const vault = makeFullVault({ vaultId: 'claimed-vault' });
+        mockSelectItems.mockReturnValue([vault]);
+        useLiquidationFlowStore.getState().setVaultData(
+          [{
+            vaultId: 'claimed-vault',
+            unit: vault.unit,
+            btcInVault: vault.btcInVault,
+            claimAmountBtc: vault.claimAmountBtc,
+            profitBtc: vault.profitBtc,
+            profitPercent: vault.profitPercent,
+            postTaxBtcInVault: vault.postTaxBtcInVault,
+            unitSwapBtc: vault.unitSwapBtc,
+          }],
+          [vault],
+          0,
+          0,
+          0,
+        );
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const state = useLiquidationFlowStore.getState();
+        expect(state.suppressedVaultIds).toContain('claimed-vault');
+        expect(state.vaultsFull).toHaveLength(0);
+        expect(state.isExecuting).toBe(false);
+      });
+
       it('should call executeLiquidation with wallet info and selected vaults', async () => {
         const vault = makeFullVault();
         mockSelectItems.mockReturnValue([vault]);
@@ -251,7 +312,7 @@ describe('useLiquidationExecution', () => {
         expect(pending!.vaultPubkey).toBe(MOCK_WALLET.taprootPubkey);
       });
 
-      it('registers the repo pending lock from the pre-submit request callback', async () => {
+      it('clears the repo pending lock if execution fails after pre-submit request creation', async () => {
         mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
           await onRequestCreated({
             txid: 'pre-submit-repo-txid',
@@ -268,9 +329,7 @@ describe('useLiquidationExecution', () => {
         });
 
         const pending = usePendingVaultTransactionStore.getState().pendingTransaction;
-        expect(pending).not.toBeNull();
-        expect(pending!.txid).toBe('pre-submit-repo-txid');
-        expect(pending!.action).toBe('repo');
+        expect(pending).toBeNull();
       });
 
       it('saves liquidation swap recovery from the pre-submit request callback', async () => {
@@ -298,6 +357,7 @@ describe('useLiquidationExecution', () => {
           unitAmount: 77,
           createdAt: expect.any(Number),
         });
+        expect(mockClearPendingLiquidationSwapBroadcast).toHaveBeenCalledWith('pre-submit-repo-txid');
       });
 
       it('durably saves a liquidation swap broadcast before waiting for repo mempool', async () => {

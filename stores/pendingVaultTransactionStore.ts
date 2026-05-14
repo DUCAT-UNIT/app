@@ -42,6 +42,11 @@ interface PendingVaultTransactionActions {
   ) => Promise<void>;
   clearPendingTransaction: () => Promise<void>;
   clearPendingTransactionForAccount: (accountIndex: number) => Promise<void>;
+  discardPendingTransactionForAccount: (
+    accountIndex: number,
+    txid?: string,
+    reason?: unknown
+  ) => Promise<void>;
   hasPendingTransaction: () => boolean;
   getPendingAsHistoryTransaction: () => VaultHistoryTransaction | null;
   loadFromStorage: (accountIndex: number) => Promise<void>;
@@ -289,6 +294,50 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
       await SecureStore.deleteItemAsync(getStorageKey(accountIndex));
     } catch (error) {
       logger.error('[PendingVaultTx] Error clearing from storage:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+
+  discardPendingTransactionForAccount: async (
+    accountIndex: number,
+    txid?: string,
+    reason?: unknown
+  ) => {
+    await ensureAccountHydratedForVaultMutation(get, accountIndex);
+    const { currentAccount, pendingTransaction } = get();
+
+    if (currentAccount !== accountIndex) {
+      throw new Error(
+        `Pending vault transaction store switched to account ${currentAccount} while discarding account ${accountIndex}; refusing to clear pending vault state.`
+      );
+    }
+
+    if (!pendingTransaction) {
+      return;
+    }
+
+    const pendingTxid = vaultJournalTxid(pendingTransaction);
+    if (txid && pendingTransaction.txid !== txid && pendingTxid !== txid) {
+      return;
+    }
+
+    logger.info('[PendingVaultTx] Discarding failed pending vault transaction', {
+      txid: pendingTransaction.txid.slice(0, 16) + '...',
+      action: pendingTransaction.action,
+    });
+
+    set({ pendingTransaction: null });
+    useOperationJournalStore.getState().markFailed(
+      operationJournalId('vault', accountIndex, pendingTxid),
+      reason ?? 'Vault transaction failed before confirmation',
+      'safe_to_retry',
+    );
+
+    try {
+      await SecureStore.deleteItemAsync(getStorageKey(accountIndex));
+    } catch (error) {
+      logger.error('[PendingVaultTx] Error discarding from storage:', {
         error: error instanceof Error ? error.message : String(error),
       });
     }

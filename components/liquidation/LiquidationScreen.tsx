@@ -32,6 +32,7 @@ import {
   useLiqError,
   useLiqVaults,
   useLiqVaultsFull,
+  useLiqIsExecuting,
   useLiqProfitRate,
   useLiqDepositRate,
   useLiqSwapRate,
@@ -94,6 +95,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const error = useLiqError();
   const vaults = useLiqVaults();
   const vaultsFull = useLiqVaultsFull();
+  const isExecuting = useLiqIsExecuting();
   const profitRate = useLiqProfitRate();
   const _depositRate = useLiqDepositRate();
   const _swapRate = useLiqSwapRate();
@@ -186,7 +188,9 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
 
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
-    (isInput && (investAmount <= 0 || !hasClaimableLiquidations)) || currentStep === 'processing';
+    isExecuting
+    || (isInput && (investAmount <= 0 || !hasClaimableLiquidations))
+    || currentStep === 'processing';
   const buttonLabel =
     currentStep === 'processing'
       ? 'Processing...'

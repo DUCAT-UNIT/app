@@ -239,6 +239,23 @@ describe('useLiquidationVaults', () => {
         expect(storeVaults[0].profitPercent).toBe(5);
       });
 
+      it('should not re-add vaults suppressed by an in-flight or completed claim', async () => {
+        const suppressed = makeFullProfile({ vaultId: 'suppressed-vault' });
+        const available = makeFullProfile({ vaultId: 'available-vault' });
+        mockComputeProfiles.mockReturnValue([suppressed, available]);
+        useLiquidationFlowStore.getState().markVaultsClaimed(['suppressed-vault']);
+
+        const { result } = renderLiquidationHook(() => useLiquidationVaults(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.refreshLiqVaults();
+        });
+
+        expect(useLiquidationFlowStore.getState().vaultsFull.map((vault) => vault.vaultId)).toEqual([
+          'available-vault',
+        ]);
+      });
+
       it('should compute profitRate, depositRate, swapRate from the first vault', async () => {
         const profile = makeFullProfile({
           claimAmountBtc: 0.006,

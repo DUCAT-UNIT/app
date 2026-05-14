@@ -72,9 +72,30 @@ export function useLiquidationExecution({
       firstVaultClaim: vaultsFull[0]?.claimAmountBtc,
     });
 
-    store.getState().setCurrentStep('processing');
-    store.getState().setProcessingMessage('Connecting to oracle...');
-    analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_CLAIMED, { vault_count: vaultsFull.length, invest_amount: investAmount });
+    let preSubmitSwapRecoveryRepoTxid: string | null = null;
+    let preSubmitPendingRepoTxid: string | null = null;
+
+    const discardPreSubmitPendingTransaction = async (reason: unknown): Promise<void> => {
+      if (!preSubmitPendingRepoTxid) {
+        return;
+      }
+
+      try {
+        await usePendingVaultTransactionStore.getState().discardPendingTransactionForAccount(
+          currentAccount,
+          preSubmitPendingRepoTxid,
+          reason,
+        );
+        if (preSubmitSwapRecoveryRepoTxid) {
+          await clearPendingLiquidationSwapBroadcast(preSubmitSwapRecoveryRepoTxid);
+        }
+      } catch (clearError) {
+        logger.error('[Liquidation] Failed to clear failed repo pending transaction', {
+          txid: preSubmitPendingRepoTxid,
+          error: clearError instanceof Error ? clearError.message : String(clearError),
+        });
+      }
+    };
 
     try {
       // Select vaults (uses selectItemsForAmount — no duplicate greedy loop)
@@ -89,6 +110,16 @@ export function useLiquidationExecution({
         store.getState().setCurrentStep('error');
         return;
       }
+
+      const claimedVaultIds = claimed.map((vault) => vault.vaultId).filter(Boolean);
+      if (!store.getState().beginExecution(claimedVaultIds)) {
+        logger.warn('[Liquidation] Ignoring duplicate execution request while one is in progress');
+        return;
+      }
+
+      store.getState().setCurrentStep('processing');
+      store.getState().setProcessingMessage('Connecting to oracle...');
+      analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_CLAIMED, { vault_count: vaultsFull.length, invest_amount: investAmount });
 
       // Separate full and partial vaults
       const claimedFull = claimed.filter((v) => !v.claimAmountPartial);
@@ -118,7 +149,6 @@ export function useLiquidationExecution({
       );
       const unitAmt = Math.round(selectedVaults.reduce((acc, v) => acc + v.unit, 0) * 100);
       const swapUnitAmount = selectedVaults.reduce((acc, v) => acc + v.unit, 0);
-      let preSubmitSwapRecoveryRepoTxid: string | null = null;
 
       const persistRepoPendingTransaction = async (txid: string, vaultTxid?: string) => {
         await usePendingVaultTransactionStore.getState().setPendingTransactionForAccount({
@@ -165,6 +195,7 @@ export function useLiquidationExecution({
         onProgress: (msg) => store.getState().setProcessingMessage(msg),
         onRequestCreated: async ({ txid, vaultTxid, swapPsbtHex }) => {
           await persistRepoPendingTransaction(txid, vaultTxid);
+          preSubmitPendingRepoTxid = vaultTxid || txid;
           if (swapPsbtHex) {
             await persistSwapBroadcastRecovery(txid, swapPsbtHex);
             preSubmitSwapRecoveryRepoTxid = txid;
@@ -173,6 +204,7 @@ export function useLiquidationExecution({
       });
 
       if (result.success) {
+        store.getState().markVaultsClaimed(claimedVaultIds);
         store.getState().setResultTxid(result.txid || null);
         if (result.txid) analytics.trackTransaction(LIQUIDATION_EVENTS.LIQUIDATION_COMPLETED, result.txid);
 
@@ -275,10 +307,14 @@ export function useLiquidationExecution({
         }
         store.getState().setCurrentStep('success');
       } else {
+        await discardPreSubmitPendingTransaction(result.error || 'Liquidation failed');
+        store.getState().releaseVaults(claimedVaultIds);
         store.getState().setError(result.error || 'Liquidation failed');
         store.getState().setCurrentStep('error');
       }
     } catch (err: unknown) {
+      await discardPreSubmitPendingTransaction(err);
+      store.getState().releaseVaults(store.getState().executingVaultIds);
       logger.warn('[Liquidation] Execution error', {
         error: err instanceof Error ? err.message : String(err),
       });

@@ -26,6 +26,7 @@ jest.mock('../operationJournalStore', () => ({
     getState: jest.fn(() => ({
       recordOperation: jest.fn(),
       markConfirmed: jest.fn(),
+      markFailed: jest.fn(),
     })),
   },
 }));
@@ -86,5 +87,43 @@ describe('pendingVaultTransactionStore', () => {
       '{bad json',
       expect.any(Object),
     );
+  });
+
+  it('discards a matching failed pending vault transaction without marking it confirmed', async () => {
+    const journal = {
+      recordOperation: jest.fn(),
+      markConfirmed: jest.fn(),
+      markFailed: jest.fn(),
+    };
+    const { useOperationJournalStore } = require('../operationJournalStore');
+    useOperationJournalStore.getState.mockReturnValue(journal);
+
+    await usePendingVaultTransactionStore.getState().setPendingTransaction(tx);
+    await usePendingVaultTransactionStore.getState().discardPendingTransactionForAccount(
+      0,
+      tx.vaultTxid,
+      new Error('guardian rejected repo'),
+    );
+
+    expect(usePendingVaultTransactionStore.getState().pendingTransaction).toBeNull();
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pending_vault_tx_0');
+    expect(journal.markConfirmed).not.toHaveBeenCalled();
+    expect(journal.markFailed).toHaveBeenCalledWith(
+      'vault:0:vaulttxid123',
+      expect.any(Error),
+      'safe_to_retry',
+    );
+  });
+
+  it('does not discard a different pending vault transaction', async () => {
+    await usePendingVaultTransactionStore.getState().setPendingTransaction(tx);
+    await usePendingVaultTransactionStore.getState().discardPendingTransactionForAccount(
+      0,
+      'different-txid',
+      new Error('wrong tx'),
+    );
+
+    expect(usePendingVaultTransactionStore.getState().pendingTransaction).toEqual(tx);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
   });
 });

@@ -47,3 +47,15 @@ function resolveLiquidationValidatorUrl(): string {
 
 /** Liquidation validator base URL */
 export const LIQ_VALIDATOR_URL = resolveLiquidationValidatorUrl();
+
+function resolveLiquidationValidatorWs(): string {
+  const configured = process.env.EXPO_PUBLIC_LIQ_VALIDATOR_WS?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, '');
+  }
+
+  return LIQ_VALIDATOR_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://') + '/ws';
+}
+
+/** Liquidation validator WebSocket URL */
+export const LIQ_VALIDATOR_WS = resolveLiquidationValidatorWs();
