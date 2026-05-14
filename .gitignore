@@ -12,9 +12,13 @@ dist/
 !vendor/**/dist/**
 web-build/
 expo-env.d.ts
+.eas/local-builds/
+eas-build-*.tar.gz
 
 # Native
 .kotlin/
+DerivedData/
+*.xcresult/
 *.orig.*
 *.jks
 *.p8
@@ -37,6 +41,8 @@ yarn-error.*
 # local env files
 .env*.local
 .env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -51,7 +57,9 @@ storybook-static
 
 # Test coverage
 coverage/
-coverage/
+junit*.xml
+test-results/
+playwright-report/
 bridge-service/data/
 
 # Local verification artifacts
