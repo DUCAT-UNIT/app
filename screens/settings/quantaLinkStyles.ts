@@ -181,7 +181,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   statusSlot: {
     width: '100%',
-    height: 44,
+    height: 52,
     justifyContent: 'center',
   },
   title: {
@@ -322,6 +322,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
+    flexShrink: 1,
     color: COLORS.ERROR,
     fontSize: 12,
     lineHeight: 15,
@@ -330,6 +331,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   checkingText: {
     flex: 1,
+    flexShrink: 1,
     color: COLORS.TEXT_SECONDARY,
     fontSize: 12,
     lineHeight: 15,
@@ -344,6 +346,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   successText: {
     flex: 1,
+    flexShrink: 1,
     color: COLORS.SUCCESS_GREEN,
     fontSize: 12,
     lineHeight: 15,
@@ -363,7 +366,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   mismatchHelpBanner: {
     width: '100%',
-    minHeight: 38,
+    minHeight: 44,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 69, 58, 0.34)',
@@ -374,6 +377,7 @@ export const quantaLinkStyles = StyleSheet.create({
   },
   accountSwitchText: {
     flex: 1,
+    flexShrink: 1,
     color: COLORS.YELLOW,
     fontSize: 12,
     lineHeight: 15,

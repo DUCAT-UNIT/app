@@ -254,6 +254,9 @@ export default function QuantaLinkScreen({
     normalizedQuantaAddress.length > 0 && addressValidationMessage !== null;
   const canConnectQuanta =
     !hasInvalidEnteredAddress &&
+    !isCheckingAddress &&
+    !hasAddressMismatch &&
+    !hasMatchedDifferentAccount &&
     !isDiscoveringAccounts &&
     !isSwitchingAccount &&
     !isClaimingReward &&

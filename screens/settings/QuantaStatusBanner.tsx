@@ -147,7 +147,7 @@ export function QuantaStatusBanner({
             <StatusIconFrame>
               <ErrorXIcon />
             </StatusIconFrame>
-            <Text style={localStyles.errorText} numberOfLines={2}>
+            <Text style={localStyles.errorText}>
               {isConnectedVariant
                 ? 'Connected Quanta address does not match this wallet.'
                 : (accountCheckError ?? 'Quanta address does not match the wallet address.')}
