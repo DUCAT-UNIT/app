@@ -48,31 +48,34 @@ describe('QRScanner permission fallback', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockPermission = { granted: false, canAskAgain: true };
+    mockRequestPermission.mockResolvedValue({ granted: false, canAskAgain: true });
     mockOpenSettings.mockResolvedValue(undefined);
     (Linking as unknown as { openSettings: jest.Mock }).openSettings = mockOpenSettings;
   });
 
-  it('renders close and cancel controls when camera permission is missing', () => {
-    const { getByTestId, getByText } = render(
-      <QRScanner visible onClose={onClose} onScan={onScan} />
-    );
+  it('requests camera permission immediately when camera permission is missing', async () => {
+    const { getByText, queryByTestId } = render(<QRScanner visible onClose={onClose} onScan={onScan} />);
 
     expect(getByText('Camera Access')).toBeTruthy();
+    expect(queryByTestId('qr-scanner-permission-close')).toBeNull();
+    expect(queryByTestId('qr-scanner-permission-close-secondary')).toBeNull();
 
-    fireEvent.press(getByTestId('qr-scanner-permission-close'));
-    fireEvent.press(getByTestId('qr-scanner-permission-cancel'));
+    await act(async () => undefined);
 
-    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('requests camera permission from the continue button', async () => {
+  it('allows retrying permission after the first system prompt has completed', async () => {
     const { getByTestId } = render(<QRScanner visible onClose={onClose} onScan={onScan} />);
+
+    await act(async () => undefined);
 
     await act(async () => {
       fireEvent.press(getByTestId('qr-scanner-permission-continue'));
     });
 
-    expect(mockRequestPermission).toHaveBeenCalledTimes(1);
+    expect(mockRequestPermission).toHaveBeenCalledTimes(2);
   });
 
   it('opens Settings instead of trapping the user when permission is blocked', async () => {
@@ -83,6 +86,8 @@ describe('QRScanner permission fallback', () => {
     );
 
     expect(getByText('Open Settings')).toBeTruthy();
+    expect(getByTestId('qr-scanner-permission-close')).toBeTruthy();
+    expect(getByTestId('qr-scanner-permission-close-secondary')).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(getByTestId('qr-scanner-permission-continue'));

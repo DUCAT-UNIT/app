@@ -3,7 +3,7 @@
  * Full-screen QR code scanner supporting static and animated QR codes (NUT-16)
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Icon from '../icons';
@@ -20,6 +20,7 @@ interface QRScannerProps {
 export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [requestedDuringOpen, setRequestedDuringOpen] = useState(false);
   const { handleBarCodeScanned, progress, isScanning, totalChunks, scannedChunks, bcurProgress } =
     useQRScanner({ visible, onScan });
 
@@ -34,10 +35,38 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
     setIsRequestingPermission(true);
     try {
       await requestPermission();
+      setRequestedDuringOpen(true);
     } finally {
       setIsRequestingPermission(false);
     }
   }, [isRequestingPermission, permission?.canAskAgain, requestPermission]);
+
+  useEffect(() => {
+    if (!visible) {
+      setRequestedDuringOpen(false);
+      setIsRequestingPermission(false);
+      return;
+    }
+
+    if (
+      !permission ||
+      permission.granted ||
+      permission.canAskAgain === false ||
+      requestedDuringOpen ||
+      isRequestingPermission
+    ) {
+      return;
+    }
+
+    setIsRequestingPermission(true);
+    void requestPermission()
+      .then(() => {
+        setRequestedDuringOpen(true);
+      })
+      .finally(() => {
+        setIsRequestingPermission(false);
+      });
+  }, [isRequestingPermission, permission, requestPermission, requestedDuringOpen, visible]);
 
   // Don't render anything if not visible - this ensures camera is fully unmounted
   if (!visible) return null;
@@ -46,50 +75,57 @@ export default function QRScanner({ visible, onClose, onScan }: QRScannerProps) 
 
   if (!permission.granted) {
     const permissionBlocked = permission.canAskAgain === false;
+    const awaitingSystemPrompt = !permissionBlocked && !requestedDuringOpen;
 
     return (
-      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Modal visible={visible} animationType="slide" onRequestClose={permissionBlocked ? onClose : undefined}>
         <View style={styles.permissionContainer}>
-          <TouchableOpacity
-            style={styles.permissionCloseButton}
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close scanner"
-            testID="qr-scanner-permission-close"
-          >
-            <Icon name="close" size={24} color={COLORS.WHITE} />
-          </TouchableOpacity>
+          {(permissionBlocked || requestedDuringOpen) && (
+            <TouchableOpacity
+              style={styles.permissionCloseButton}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close scanner"
+              testID="qr-scanner-permission-close"
+            >
+              <Icon name="close" size={24} color={COLORS.WHITE} />
+            </TouchableOpacity>
+          )}
           <Icon name="qr_scan" size={64} color={COLORS.VERY_LIGHT_GRAY} />
           <Text style={styles.permissionTitle}>Camera Access</Text>
           <Text style={styles.permissionText}>
             {permissionBlocked
               ? 'Camera access is blocked. Enable it in Settings to scan QR codes.'
-              : 'DUCAT needs camera access to scan QR codes for sending Bitcoin.'}
+              : requestedDuringOpen
+                ? 'Camera access was not granted. Allow camera access to scan wallet addresses, payment requests, and e-cash tokens.'
+                : 'DUCAT uses the camera to scan wallet addresses, payment requests, and e-cash tokens.'}
           </Text>
           <View style={styles.permissionActions}>
             <TouchableOpacity
               style={styles.permissionButton}
-              onPress={handlePermissionPress}
-              disabled={isRequestingPermission}
+              onPress={awaitingSystemPrompt ? undefined : handlePermissionPress}
+              disabled={isRequestingPermission || awaitingSystemPrompt}
               accessibilityRole="button"
               testID="qr-scanner-permission-continue"
             >
-              {isRequestingPermission ? (
+              {isRequestingPermission || awaitingSystemPrompt ? (
                 <ActivityIndicator color={COLORS.WHITE} />
               ) : (
                 <Text style={styles.permissionButtonText}>
-                  {permissionBlocked ? 'Open Settings' : 'Continue'}
+                  {permissionBlocked ? 'Open Settings' : 'Try Again'}
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.permissionSecondaryButton}
-              onPress={onClose}
-              accessibilityRole="button"
-              testID="qr-scanner-permission-cancel"
-            >
-              <Text style={styles.permissionSecondaryButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            {(permissionBlocked || requestedDuringOpen) && (
+              <TouchableOpacity
+                style={styles.permissionSecondaryButton}
+                onPress={onClose}
+                accessibilityRole="button"
+                testID="qr-scanner-permission-close-secondary"
+              >
+                <Text style={styles.permissionSecondaryButtonText}>Close</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
