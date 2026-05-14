@@ -6,7 +6,7 @@ import { getJSON, postJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
 import type { SerializedDLEQ } from '@cashu/cashu-ts';
-import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 import { MINT_URL, RUNE_ID } from './mintConfig';
 import { assertOnchainCashuMintSupport } from './mintInfo';
 
@@ -101,7 +101,7 @@ export const createMintQuote = async (
       unit,
       pubkey,
       ...(amount !== undefined ? { amount } : {}),
-      ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
+      ...(unit === DEFAULT_CASHU_UNIT ? { rune_id: RUNE_ID } : {}),
     };
 
     const quote = normalizeMintQuote(

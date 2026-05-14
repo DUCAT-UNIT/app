@@ -24,10 +24,8 @@ interface AmountObject {
 const isAmountObject = (value: unknown): value is AmountObject =>
   typeof value === 'object' &&
   value !== null &&
-  (
-    typeof (value as AmountObject).toBigInt === 'function' ||
-    typeof (value as AmountObject).toNumber === 'function'
-  );
+  (typeof (value as AmountObject).toBigInt === 'function' ||
+    typeof (value as AmountObject).toNumber === 'function');
 
 const bigintToSafeNumber = (value: bigint, context: string): number => {
   if (value < 0n) {
@@ -156,19 +154,6 @@ export interface CashuTokenMetadata {
   unit?: string;
   proofs: Array<Partial<CashuProof> & Pick<CashuProof, 'amount' | 'secret' | 'C'>>;
 }
-
-export const assertDucatUnitToken = (unit: string | undefined): void => {
-  if (unit === DEFAULT_CASHU_UNIT) {
-    return;
-  }
-  if (unit === undefined) {
-    throw new Error('Cashu token unit is required for Ducat UNIT');
-  }
-  if (unit === 'sat') {
-    throw new Error('Cashu sat tokens are BTC/Lightning only and cannot be redeemed as Ducat UNIT');
-  }
-  throw new Error(`Unsupported Cashu token unit: ${unit}`);
-};
 
 export const assertSupportedCashuTokenUnit = (unit: string | undefined): CashuUnit => {
   if (unit === undefined) {

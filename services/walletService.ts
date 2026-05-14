@@ -87,8 +87,6 @@ export interface FindWalletAccountResult {
   matchedAddressType: WalletAddressMatchType;
 }
 
-export type FindTaprootAccountResult = FindWalletAccountResult;
-
 export interface WalletAccountAddresses {
   accountIndex: number;
   addresses: DerivedAddresses;
@@ -421,7 +419,7 @@ export const switchToAccount = async (accountIndex: number): Promise<SwitchAccou
   }
 };
 
-export const findAccountBySegwitOrTaprootAddress = async (
+const findAccountBySegwitOrTaprootAddress = async (
   walletAddress: string,
   searchLimit = 100
 ): Promise<FindWalletAccountResult | null> => {
@@ -488,8 +486,6 @@ export const deriveWalletAccounts = async (
     return accounts;
   });
 };
-
-export const findTaprootAccountByAddress = findAccountBySegwitOrTaprootAddress;
 
 /**
  * Save wallet to secure storage

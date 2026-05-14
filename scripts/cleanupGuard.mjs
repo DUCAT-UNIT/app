@@ -19,6 +19,8 @@ const SOURCE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
 const IGNORED_PATH_PARTS = new Set(['__tests__', '__mocks__']);
 const IGNORED_FILE_PATTERNS = [/\.test\.[jt]sx?$/, /\.spec\.[jt]sx?$/];
 const CONSOLE_ALLOWLIST = new Set(['utils/logger.ts']);
+const FORBIDDEN_WORKSPACE_IMPORT_PATTERN =
+  /(?:from\s+|import\s*\(\s*)['"](?:\.\.\/)+(?:bridge-service|evm|web)(?:\/|['"])/;
 
 function toPosix(filePath) {
   return path.relative(ROOT, filePath).split(path.sep).join('/');
@@ -82,6 +84,15 @@ for (const sourceDir of SOURCE_DIRS) {
           file: relative,
           line: index + 1,
           reason: 'Use utils/logger instead of raw console calls in production code.',
+        });
+      }
+
+      if (FORBIDDEN_WORKSPACE_IMPORT_PATTERN.test(line)) {
+        violations.push({
+          file: relative,
+          line: index + 1,
+          reason:
+            'Do not import bridge-service, evm, or web into the mobile app runtime; use API/shared contracts instead.',
         });
       }
     });

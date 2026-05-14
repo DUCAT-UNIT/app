@@ -1,13 +1,7 @@
 import type { MintKeyset, MintKeys } from './cashuMintClient';
 import { CashuProof, selectProofsForAmount } from './crypto';
-import {
-  keysetIdsMatch,
-  normalizeCashuAmount,
-  normalizeCashuProofs,
-} from './cashuTsCompat';
-import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from './cashuUnits';
-
-export const CASHU_DUCAT_UNIT = CASHU_UNIT_UNIT;
+import { keysetIdsMatch, normalizeCashuAmount, normalizeCashuProofs } from './cashuTsCompat';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from './cashuUnits';
 
 export interface SelectedProofsWithFees {
   selectedProofs: CashuProof[];
@@ -24,9 +18,7 @@ export const selectActiveCashuKeyset = (
   unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): MintKeyset => {
   const keysets = keyData.keysets ?? [];
-  const keyset = keysets.find(
-    (ks) => ks.unit === unit && ks.active !== false && ks.keys
-  );
+  const keyset = keysets.find((ks) => ks.unit === unit && ks.active !== false && ks.keys);
 
   if (!keyset?.keys) {
     throw new Error(`No active ${unit} keyset available from mint`);
@@ -34,9 +26,6 @@ export const selectActiveCashuKeyset = (
 
   return keyset;
 };
-
-export const selectActiveUnitKeyset = (keyData: MintKeys): MintKeyset =>
-  selectActiveCashuKeyset(keyData, CASHU_UNIT_UNIT);
 
 export const findKeysetById = (keyData: MintKeys, keysetId: string): MintKeyset | undefined => {
   const keysets = keyData.keysets ?? [];
@@ -102,10 +91,7 @@ export const resolveResponseSignatureKeysetForUnit = (
   }
 
   if (!signedKeysetId || keysetIdsMatch(signedKeysetId, expectedKeyset.id)) {
-    if (
-      !signedKeysetId ||
-      signedKeysetId.toLowerCase() === expectedKeyset.id.toLowerCase()
-    ) {
+    if (!signedKeysetId || signedKeysetId.toLowerCase() === expectedKeyset.id.toLowerCase()) {
       return {
         keysetId: signedKeysetId ?? expectedKeyset.id,
         keys: expectedKeyset.keys,

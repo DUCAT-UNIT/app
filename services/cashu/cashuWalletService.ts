@@ -52,7 +52,7 @@ import {
 import { sendP2PKToken } from './operations/cashuSendP2PK';
 import { receiveP2PKToken } from './operations/cashuReceiveP2PK';
 import { recoverLockedChange } from './operations/cashuRecoverLockedChange';
-import { CASHU_UNIT_SAT, CASHU_UNIT_UNIT } from './cashuUnits';
+import { CASHU_UNIT_SAT, DEFAULT_CASHU_UNIT } from './cashuUnits';
 
 export type { MintQuoteResult, MintStatusResult } from './operations/cashuMintOperations';
 export type { MeltQuoteResult, MeltResult } from './operations/cashuMeltOperations';
@@ -64,7 +64,6 @@ export type { CashuProof } from './crypto';
 export type { AccountMatch } from './p2pk';
 export type { CashuUnit } from './cashuUnits';
 export type { MeltQuote } from './cashuMintClient';
-export { CASHU_UNIT_SAT, CASHU_UNIT_UNIT, cashuUnitDisplayName } from './cashuUnits';
 
 export {
   checkMeltQuote,
@@ -116,7 +115,7 @@ const KEYSETS_KEY = 'cashu_keysets';
  * WARNING: This will delete all Cashu tokens - use with caution!
  */
 export const clearWallet = async (): Promise<void> => {
-  const unitStorageKey = getStorageKey(CASHU_UNIT_UNIT);
+  const unitStorageKey = getStorageKey(DEFAULT_CASHU_UNIT);
   const satStorageKey = getStorageKey(CASHU_UNIT_SAT);
   await SecureStore.deleteItemAsync(unitStorageKey);
   await SecureStore.deleteItemAsync(satStorageKey);

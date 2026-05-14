@@ -24,10 +24,6 @@ export const resetOnboardingState = async (): Promise<void> => {
   }
 };
 
-export const requestSeedRestoreOnNextLaunch = async (): Promise<void> => {
-  await AsyncStorage.setItem(SEED_RESTORE_REQUEST_KEY, 'true');
-};
-
 export const clearSeedRestoreRequest = async (): Promise<void> => {
   await AsyncStorage.removeItem(SEED_RESTORE_REQUEST_KEY);
 };

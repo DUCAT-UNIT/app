@@ -3,13 +3,12 @@
  * Communicates with the advertised Ducat Cashu mint for UNIT e-cash operations
  */
 
-export { MINT_URL, CASHU_UNIT, CASHU_BTC_UNIT, RUNE_ID } from './mintConfig';
+export { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
 export {
   getMintInfo,
   getKeysets,
   getKeys,
   assertOnchainCashuMintSupport,
-  assertOnchainUnitMintSupport,
   mintRequiresDleqProofs,
   mintSupportsNut12Dleq,
   mintSupportsOnchainCashuUnit,

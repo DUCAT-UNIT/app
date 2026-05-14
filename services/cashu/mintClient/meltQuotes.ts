@@ -10,7 +10,7 @@ import {
   normalizeOptionalCashuAmount,
   type CashuAmountLike,
 } from '../cashuTsCompat';
-import { CASHU_UNIT_UNIT, DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 
 export interface MeltQuote {
   quote: string;
@@ -86,7 +86,7 @@ export const createMeltQuote = async (
       request: address,
       amount,
       unit,
-      ...(unit === CASHU_UNIT_UNIT ? { rune_id: RUNE_ID } : {}),
+      ...(unit === DEFAULT_CASHU_UNIT ? { rune_id: RUNE_ID } : {}),
     };
 
     const response = await postJSON<MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain`, body, {

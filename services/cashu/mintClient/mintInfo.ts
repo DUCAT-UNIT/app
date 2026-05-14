@@ -5,7 +5,7 @@
 import { getJSON } from '../../../utils/apiClient';
 import { logger } from '../../../utils/logger';
 import type { CashuAmountLike } from '../cashuTsCompat';
-import { CASHU_UNIT_UNIT, type CashuUnit } from '../cashuUnits';
+import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 import { MINT_URL } from './mintConfig';
 
 export interface MintInfo {
@@ -51,7 +51,7 @@ export interface MintKeys {
 }
 
 export const mintSupportsOnchainUnit = (info: MintInfo): boolean =>
-  mintSupportsOnchainCashuUnit(info, CASHU_UNIT_UNIT);
+  mintSupportsOnchainCashuUnit(info, DEFAULT_CASHU_UNIT);
 
 export const mintSupportsOnchainCashuUnit = (info: MintInfo, unit: CashuUnit): boolean =>
   !!info.nuts?.['4']?.methods?.some(
@@ -71,10 +71,6 @@ export const mintRequiresDleqProofs = async (): Promise<boolean> => {
   const info = await getMintInfo();
   cachedDleqSupport = mintSupportsNut12Dleq(info);
   return cachedDleqSupport;
-};
-
-export const assertOnchainUnitMintSupport = async (): Promise<void> => {
-  await assertOnchainCashuMintSupport(CASHU_UNIT_UNIT);
 };
 
 export const assertOnchainCashuMintSupport = async (unit: CashuUnit): Promise<void> => {

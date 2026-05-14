@@ -43,6 +43,21 @@ import {
 } from '../../utils/evmCheckpointRecovery';
 import { formatFiat } from '../../utils/formatters';
 import { getEvmCheckpointActionCopy } from '../../utils/operationLifecycle';
+import {
+  formatAmountInputValue,
+  formatEthAmount,
+  formatReviewAddress,
+  formatSelectableAmount,
+  formatTokenAmount,
+  getAmountPlaceholder,
+  getAssetIconName,
+  getSepoliaAssetDecimals,
+  getSepoliaAssetLabel,
+  getSepoliaAssetUnit,
+  getSepoliaSendTitle,
+  normalizeScannedAddress,
+  sanitizeAmountInput,
+} from './sepoliaSendUtils';
 
 interface SepoliaSendScreenProps {
   route?: {
@@ -58,104 +73,6 @@ interface SepoliaSendScreenProps {
 
 const SLIDER_HORIZONTAL_INSET = 12;
 const SLIDER_THUMB_SIZE = 24;
-
-function formatTokenAmount(value: string): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return '0';
-  }
-
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  }).format(numeric);
-}
-
-function formatEthAmount(value: string): string {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return '0 ETH';
-  }
-
-  return `${numeric.toFixed(numeric < 0.001 ? 6 : 4)} ETH`;
-}
-
-function formatAmountInputValue(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '';
-  }
-
-  const formatted = value.toFixed(6).replace(/\.?0+$/, '');
-  return formatted === '0' ? '' : formatted;
-}
-
-function formatSelectableAmount(value: number, asset: SepoliaTransferAsset): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '';
-  }
-
-  const decimals = asset === 'ETH' ? 6 : 6;
-  const formatted = value.toFixed(decimals).replace(/\.?0+$/, '');
-  return formatted === '0' ? '' : formatted;
-}
-
-function getSepoliaAssetLabel(asset: SepoliaTransferAsset): string {
-  if (asset === 'USDC') return 'Sepolia USDC';
-  if (asset === 'ETH') return 'Sepolia ETH';
-  return asset;
-}
-
-function getSepoliaAssetUnit(asset: SepoliaTransferAsset): string {
-  return asset === 'USDC' ? 'USDC' : asset;
-}
-
-function getSepoliaAssetDecimals(asset: SepoliaTransferAsset): number {
-  return asset === 'ETH' ? 18 : 6;
-}
-
-function getAmountPlaceholder(asset: SepoliaTransferAsset): string {
-  return asset === 'ETH' ? '0.0000' : '0.00';
-}
-
-function getAssetIconName(asset: SepoliaTransferAsset): string {
-  if (asset === 'USDC') return 'usdc_logo';
-  if (asset === 'ETH') return 'eth_logo';
-  return 'unit_symbol';
-}
-
-function sanitizeAmountInput(value: string, decimals: number): string {
-  const normalized = value.replace(/,/g, '.').replace(/[^\d.]/g, '');
-  const firstDotIndex = normalized.indexOf('.');
-  const wholeRaw = firstDotIndex === -1 ? normalized : normalized.slice(0, firstDotIndex);
-  const decimalRaw = firstDotIndex === -1 ? '' : normalized.slice(firstDotIndex + 1).replace(/\./g, '');
-  const whole = wholeRaw.replace(/^0+(?=\d)/, '');
-
-  if (firstDotIndex !== -1) {
-    return `${whole || '0'}.${decimalRaw.slice(0, decimals)}`;
-  }
-
-  return whole;
-}
-
-function getSepoliaSendTitle(asset: SepoliaTransferAsset): string {
-  if (asset === 'ETH') return 'Send ETH';
-  if (asset === 'USDC') return 'Send Sepolia USDC';
-  return 'Send wUNIT';
-}
-
-function formatReviewAddress(address: string): string {
-  const trimmed = address.trim();
-  if (trimmed.length <= 18) {
-    return trimmed;
-  }
-  return `${trimmed.slice(0, 10)}...${trimmed.slice(-8)}`;
-}
-
-function normalizeScannedAddress(data: string): string {
-  const trimmed = data.trim();
-  const ethereumMatch = trimmed.match(/^(?:ethereum:)?(0x[a-fA-F0-9]{40})/);
-  return ethereumMatch?.[1] ?? trimmed;
-}
 
 export default function SepoliaSendScreen({
   route,
@@ -173,12 +90,17 @@ export default function SepoliaSendScreen({
   const amountPlaceholder = getAmountPlaceholder(asset);
   const sendTitle = getSepoliaSendTitle(asset);
   const rpcReady = isSepoliaRpcConfigured();
-  const tokenReady = asset === 'ETH'
-    || (asset === 'USDC' ? isValidEvmAddress(EVM_CONFIG.usdcAddress) : isValidEvmAddress(EVM_CONFIG.wunitAddress));
+  const tokenReady =
+    asset === 'ETH' ||
+    (asset === 'USDC'
+      ? isValidEvmAddress(EVM_CONFIG.usdcAddress)
+      : isValidEvmAddress(EVM_CONFIG.wunitAddress));
   const sendConfigReady = rpcReady && tokenReady;
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
-  const [balances, setBalances] = useState<{ usdc: string; wunit: string; eth: string } | null>(null);
+  const [balances, setBalances] = useState<{ usdc: string; wunit: string; eth: string } | null>(
+    null
+  );
   const [estimate, setEstimate] = useState<SepoliaTokenTransferEstimate | null>(null);
   const [loadingBalances, setLoadingBalances] = useState(true);
   const [estimating, setEstimating] = useState(false);
@@ -263,57 +185,62 @@ export default function SepoliaSendScreen({
   }, [amount, asset, currentAccount, recipient, sendConfigReady]);
 
   const enteredAmount = Number(amount);
-  const balanceValue = asset === 'ETH' ? balances?.eth : asset === 'USDC' ? balances?.usdc : balances?.wunit;
+  const balanceValue =
+    asset === 'ETH' ? balances?.eth : asset === 'USDC' ? balances?.usdc : balances?.wunit;
   const parsedMaxAmount = Number(String(balanceValue || '0').replace(/,/g, ''));
   const maxAmountValue = Number.isFinite(parsedMaxAmount) ? parsedMaxAmount : 0;
-  const formattedBalance = asset === 'ETH'
-    ? formatEthAmount(balanceValue || '0')
-    : `${formatTokenAmount(balanceValue || '0')} ${assetUnit}`;
-  const amountSubvalue = asset === 'ETH'
-    ? `${formattedBalance} available`
-    : `$${formatFiat(Number.isFinite(enteredAmount) ? enteredAmount : 0)}`;
-  const hasValidAmount = /^\d+(\.\d+)?$/.test(amount.trim()) && Number.isFinite(enteredAmount) && enteredAmount > 0;
-  const amountRatio = maxAmountValue > 0 && hasValidAmount
-    ? Math.max(0, Math.min(100, (enteredAmount / maxAmountValue) * 100))
-    : 0;
+  const formattedBalance =
+    asset === 'ETH'
+      ? formatEthAmount(balanceValue || '0')
+      : `${formatTokenAmount(balanceValue || '0')} ${assetUnit}`;
+  const amountSubvalue =
+    asset === 'ETH'
+      ? `${formattedBalance} available`
+      : `$${formatFiat(Number.isFinite(enteredAmount) ? enteredAmount : 0)}`;
+  const hasValidAmount =
+    /^\d+(\.\d+)?$/.test(amount.trim()) && Number.isFinite(enteredAmount) && enteredAmount > 0;
+  const amountRatio =
+    maxAmountValue > 0 && hasValidAmount
+      ? Math.max(0, Math.min(100, (enteredAmount / maxAmountValue) * 100))
+      : 0;
   const recipientIsValid = recipient.trim().length > 0 && isAddress(recipient.trim());
-  const recipientError = recipient.trim().length > 0 && !recipientIsValid
-    ? 'Enter a valid Ethereum address.'
-    : null;
-  const amountError = amount.trim().length > 0 && !hasValidAmount
-    ? `Enter a valid ${assetUnit} amount.`
-    : null;
+  const recipientError =
+    recipient.trim().length > 0 && !recipientIsValid ? 'Enter a valid Ethereum address.' : null;
+  const amountError =
+    amount.trim().length > 0 && !hasValidAmount ? `Enter a valid ${assetUnit} amount.` : null;
   const blockingReasons = estimate?.blockingReasons ?? [];
   const insufficientAsset = estimate?.hasEnoughAsset === false;
   const insufficientEth = estimate?.hasEnoughEth === false;
   const preflightBlocked = estimate !== null && !estimate.canExecute;
   const sendRecoveryCheckpoint = useMemo(
     () => selectSendRecoveryCheckpoint(evmCheckpoints, currentAccount, asset, recipient, amount),
-    [amount, asset, currentAccount, evmCheckpoints, recipient],
+    [amount, asset, currentAccount, evmCheckpoints, recipient]
   );
   const sendRecoveryCopy = useMemo(
     () => (sendRecoveryCheckpoint ? getEvmCheckpointActionCopy(sendRecoveryCheckpoint) : null),
-    [sendRecoveryCheckpoint],
+    [sendRecoveryCheckpoint]
   );
   const hasPendingSendCheckpoint = sendRecoveryCheckpoint?.status === 'submitted';
   const canSubmit = Boolean(
-    recipient
-    && hasValidAmount
-    && !recipientError
-    && sendConfigReady
-    && Boolean(balances)
-    && Boolean(estimate)
-    && !loadingBalances
-    && !estimating
-    && !sending
-    && !insufficientAsset
-    && !insufficientEth
-    && !preflightBlocked
-    && !hasPendingSendCheckpoint,
+    recipient &&
+      hasValidAmount &&
+      !recipientError &&
+      sendConfigReady &&
+      Boolean(balances) &&
+      Boolean(estimate) &&
+      !loadingBalances &&
+      !estimating &&
+      !sending &&
+      !insufficientAsset &&
+      !insufficientEth &&
+      !preflightBlocked &&
+      !hasPendingSendCheckpoint
   );
   const footerButtonDisabled = hasPendingSendCheckpoint ? checkpointReconciling : !canSubmit;
   const footerButtonBusy = sending || (hasPendingSendCheckpoint && checkpointReconciling);
-  const footerButtonLabel = hasPendingSendCheckpoint ? 'Check pending Sepolia transfer' : 'Review send';
+  const footerButtonLabel = hasPendingSendCheckpoint
+    ? 'Check pending Sepolia transfer'
+    : 'Review send';
 
   useEffect(() => {
     setCheckpointRecoveryMessage(null);
@@ -345,7 +272,7 @@ export default function SepoliaSendScreen({
     } catch (error) {
       Alert.alert(
         'Status check failed',
-        error instanceof Error ? error.message : 'Unable to check Sepolia transactions.',
+        error instanceof Error ? error.message : 'Unable to check Sepolia transactions.'
       );
     } finally {
       setCheckpointReconciling(false);
@@ -390,31 +317,35 @@ export default function SepoliaSendScreen({
     setSliderWidth(event.nativeEvent.layout.width);
   }, []);
 
-  const setAmountFromSlider = useCallback((locationX: number): void => {
-    const trackWidth = sliderWidth - SLIDER_HORIZONTAL_INSET * 2;
-    if (maxAmountValue <= 0 || trackWidth <= 0) {
-      return;
-    }
+  const setAmountFromSlider = useCallback(
+    (locationX: number): void => {
+      const trackWidth = sliderWidth - SLIDER_HORIZONTAL_INSET * 2;
+      if (maxAmountValue <= 0 || trackWidth <= 0) {
+        return;
+      }
 
-    const trackX = Math.max(0, Math.min(trackWidth, locationX - SLIDER_HORIZONTAL_INSET));
-    const ratio = trackX / trackWidth;
-    setAmount(formatSelectableAmount(maxAmountValue * ratio, asset));
-  }, [asset, maxAmountValue, sliderWidth]);
+      const trackX = Math.max(0, Math.min(trackWidth, locationX - SLIDER_HORIZONTAL_INSET));
+      const ratio = trackX / trackWidth;
+      setAmount(formatSelectableAmount(maxAmountValue * ratio, asset));
+    },
+    [asset, maxAmountValue, sliderWidth]
+  );
 
   const sliderGesture = useMemo(
-    () => Gesture.Pan()
-      .enabled(maxAmountValue > 0)
-      .minDistance(0)
-      .hitSlop({ top: 18, bottom: 18, left: 0, right: 0 })
-      .onBegin((event) => {
-        'worklet';
-        runOnJS(setAmountFromSlider)(event.x);
-      })
-      .onUpdate((event) => {
-        'worklet';
-        runOnJS(setAmountFromSlider)(event.x);
-      }),
-    [maxAmountValue, setAmountFromSlider],
+    () =>
+      Gesture.Pan()
+        .enabled(maxAmountValue > 0)
+        .minDistance(0)
+        .hitSlop({ top: 18, bottom: 18, left: 0, right: 0 })
+        .onBegin((event) => {
+          'worklet';
+          runOnJS(setAmountFromSlider)(event.x);
+        })
+        .onUpdate((event) => {
+          'worklet';
+          runOnJS(setAmountFromSlider)(event.x);
+        }),
+    [maxAmountValue, setAmountFromSlider]
   );
 
   const handleUseMaxAmount = (): void => {
@@ -429,7 +360,7 @@ export default function SepoliaSendScreen({
     if (hasPendingSendCheckpoint) {
       Alert.alert(
         'Transfer already pending',
-        'This transfer is already submitted on Sepolia. Check its pending status before sending again.',
+        'This transfer is already submitted on Sepolia. Check its pending status before sending again.'
       );
       return;
     }
@@ -449,7 +380,7 @@ export default function SepoliaSendScreen({
     if (hasPendingSendCheckpoint) {
       Alert.alert(
         'Transfer already pending',
-        'This transfer is already submitted on Sepolia. Check its pending status before sending again.',
+        'This transfer is already submitted on Sepolia. Check its pending status before sending again.'
       );
       return;
     }
@@ -468,7 +399,7 @@ export default function SepoliaSendScreen({
         'Transfer preflight failed',
         blockingReasons.length > 0
           ? blockingReasons.join('\n')
-          : 'Refresh balances and fee estimates before sending.',
+          : 'Refresh balances and fee estimates before sending.'
       );
       return;
     }
@@ -479,7 +410,7 @@ export default function SepoliaSendScreen({
     try {
       const biometricResult = await authenticateWithBiometrics(
         `Authenticate to send ${assetLabel}`,
-        'Use PIN',
+        'Use PIN'
       );
 
       if (!biometricResult.success) {
@@ -549,7 +480,9 @@ export default function SepoliaSendScreen({
                   color={colors.text.white}
                 />
               </View>
-              <Text style={styles.reviewAmount}>{formatTokenAmount(amount)} {assetUnit}</Text>
+              <Text style={styles.reviewAmount}>
+                {formatTokenAmount(amount)} {assetUnit}
+              </Text>
               <Text style={styles.reviewAssetLabel}>{assetLabel}</Text>
             </View>
 
@@ -560,7 +493,9 @@ export default function SepoliaSendScreen({
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewRowLabel}>Amount</Text>
-                <Text style={styles.reviewRowValue}>{formatTokenAmount(amount)} {assetUnit}</Text>
+                <Text style={styles.reviewRowValue}>
+                  {formatTokenAmount(amount)} {assetUnit}
+                </Text>
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewRowLabel}>Network</Text>
@@ -596,7 +531,12 @@ export default function SepoliaSendScreen({
               {sending ? (
                 <OperationBusyIndicator label="Submitting" compact />
               ) : (
-                <Text style={[styles.reviewBtnText, (!canSubmit || sending) && styles.reviewBtnTextDisabled]}>
+                <Text
+                  style={[
+                    styles.reviewBtnText,
+                    (!canSubmit || sending) && styles.reviewBtnTextDisabled,
+                  ]}
+                >
                   Confirm and send
                 </Text>
               )}
@@ -663,10 +603,14 @@ export default function SepoliaSendScreen({
               testID="sepolia-send-recovery-card"
             >
               {sendRecoveryCheckpoint.amount && (
-                <Text style={styles.recoveryBody}>Amount: {sendRecoveryCheckpoint.amount} {assetUnit}</Text>
+                <Text style={styles.recoveryBody}>
+                  Amount: {sendRecoveryCheckpoint.amount} {assetUnit}
+                </Text>
               )}
               {sendRecoveryCheckpoint.recipient && (
-                <Text style={styles.recoveryBody}>Recipient {sendRecoveryCheckpoint.recipient}</Text>
+                <Text style={styles.recoveryBody}>
+                  Recipient {sendRecoveryCheckpoint.recipient}
+                </Text>
               )}
               {checkpointRecoveryMessage && (
                 <Text style={styles.recoveryBody} testID="sepolia-send-recovery-message">
@@ -693,7 +637,9 @@ export default function SepoliaSendScreen({
             </View>
 
             {recipientError && (
-              <Text style={styles.errorText} testID="sepolia-send-recipient-error">{recipientError}</Text>
+              <Text style={styles.errorText} testID="sepolia-send-recipient-error">
+                {recipientError}
+              </Text>
             )}
 
             <View style={styles.addressContainer}>
@@ -747,7 +693,9 @@ export default function SepoliaSendScreen({
                 accessibilityLabel="Set maximum amount"
                 accessibilityState={{ disabled: maxAmountValue <= 0 }}
               >
-                <Text style={[styles.maxBtn, maxAmountValue <= 0 && styles.maxBtnDisabled]}>MAX</Text>
+                <Text style={[styles.maxBtn, maxAmountValue <= 0 && styles.maxBtnDisabled]}>
+                  MAX
+                </Text>
               </TouchableScale>
             </View>
 
@@ -798,7 +746,11 @@ export default function SepoliaSendScreen({
                 testID="sepolia-send-amount-slider"
                 accessibilityRole="adjustable"
                 accessibilityLabel={`${assetUnit} amount slider`}
-                accessibilityValue={{ min: 0, max: maxAmountValue, now: hasValidAmount ? enteredAmount : 0 }}
+                accessibilityValue={{
+                  min: 0,
+                  max: maxAmountValue,
+                  now: hasValidAmount ? enteredAmount : 0,
+                }}
               >
                 <View style={styles.track}>
                   <View style={[styles.trackFill, { width: `${amountRatio}%` }]} />
@@ -827,7 +779,8 @@ export default function SepoliaSendScreen({
               </View>
               {estimate && (
                 <Text style={styles.feeFooterDescription}>
-                  Required ETH: {formatEthAmount(estimate.requiredEth)} at {estimate.gasPriceGwei} gwei
+                  Required ETH: {formatEthAmount(estimate.requiredEth)} at {estimate.gasPriceGwei}{' '}
+                  gwei
                 </Text>
               )}
             </View>
@@ -855,7 +808,9 @@ export default function SepoliaSendScreen({
                   </Text>
                 )}
                 {blockingReasons.map((reason) => (
-                  <Text key={reason} style={styles.warningText}>{reason}</Text>
+                  <Text key={reason} style={styles.warningText}>
+                    {reason}
+                  </Text>
                 ))}
               </View>
             </View>
@@ -875,9 +830,14 @@ export default function SepoliaSendScreen({
             pressLockMs={700}
           >
             {footerButtonBusy ? (
-              <OperationBusyIndicator label={hasPendingSendCheckpoint ? 'Checking status' : 'Submitting'} compact />
+              <OperationBusyIndicator
+                label={hasPendingSendCheckpoint ? 'Checking status' : 'Submitting'}
+                compact
+              />
             ) : (
-              <Text style={[styles.reviewBtnText, footerButtonDisabled && styles.reviewBtnTextDisabled]}>
+              <Text
+                style={[styles.reviewBtnText, footerButtonDisabled && styles.reviewBtnTextDisabled]}
+              >
                 {footerButtonLabel}
               </Text>
             )}

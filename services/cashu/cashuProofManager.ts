@@ -6,12 +6,7 @@ import { checkProofsSpent, CheckStateResponse } from './cashuMintClient';
 import { CashuProof } from './crypto';
 import { normalizeCashuProofs } from './cashuTsCompat';
 import { DEVICE_ONLY } from '../storagePolicy';
-import {
-  CASHU_UNIT_UNIT,
-  DEFAULT_CASHU_UNIT,
-  normalizeCashuUnit,
-  type CashuUnit,
-} from './cashuUnits';
+import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from './cashuUnits';
 
 /**
  * Cashu Proof Manager
@@ -35,9 +30,11 @@ const getStorageKeyForAccount = (
 ): string => {
   const normalizedUnit = normalizeCashuUnit(unit);
   if (!account) {
-    return normalizedUnit === CASHU_UNIT_UNIT ? 'cashu_proofs' : `cashu_proofs_${normalizedUnit}`;
+    return normalizedUnit === DEFAULT_CASHU_UNIT
+      ? 'cashu_proofs'
+      : `cashu_proofs_${normalizedUnit}`;
   }
-  return normalizedUnit === CASHU_UNIT_UNIT
+  return normalizedUnit === DEFAULT_CASHU_UNIT
     ? `cashu_proofs_${account}`
     : `cashu_proofs_${account}_${normalizedUnit}`;
 };
@@ -172,7 +169,7 @@ const migrateGlobalProofsForUnit = async (
 };
 
 const migrateGlobalProofs = async (taprootAddress: string): Promise<void> => {
-  await migrateGlobalProofsForUnit(taprootAddress, CASHU_UNIT_UNIT);
+  await migrateGlobalProofsForUnit(taprootAddress, DEFAULT_CASHU_UNIT);
   await migrateGlobalProofsForUnit(taprootAddress, 'sat');
 };
 
@@ -185,7 +182,7 @@ export const setCurrentAccount = async (taprootAddress: string): Promise<void> =
 
   // Migrate old global proofs if this is the first time
   await migrateGlobalProofs(taprootAddress);
-  await registerProofStorageKey(getStorageKey(CASHU_UNIT_UNIT));
+  await registerProofStorageKey(getStorageKey(DEFAULT_CASHU_UNIT));
   await registerProofStorageKey(getStorageKey('sat'));
 };
 

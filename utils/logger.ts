@@ -3,8 +3,8 @@
  * Logs to console in development; error/security methods also log in production
  */
 
-// Determine if we're in development mode
 const isDev = __DEV__;
+const isVerboseDebugEnabled = process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS === 'true';
 
 // Keys and payload shapes that should never appear in log output.
 const SENSITIVE_KEY_PATTERNS = [
@@ -24,12 +24,7 @@ const SENSITIVE_KEY_PATTERNS = [
   /rawtx/i,
   /txhex/i,
 ];
-const SENSITIVE_STRING_PATTERNS = [
-  /^cashu[AB]/i,
-  /^ducat:\/\//i,
-  /^cHNidP/i,
-  /^[0-9a-f]{120,}$/i,
-];
+const SENSITIVE_STRING_PATTERNS = [/^cashu[AB]/i, /^ducat:\/\//i, /^cHNidP/i, /^[0-9a-f]{120,}$/i];
 const MAX_LOG_STRING_LENGTH = 500;
 const MAX_SANITIZE_DEPTH = 4;
 
@@ -38,7 +33,10 @@ function isSensitiveKey(key: string): boolean {
 }
 
 function sanitizeString(value: string, key?: string): string {
-  if ((key && isSensitiveKey(key)) || SENSITIVE_STRING_PATTERNS.some((pattern) => pattern.test(value))) {
+  if (
+    (key && isSensitiveKey(key)) ||
+    SENSITIVE_STRING_PATTERNS.some((pattern) => pattern.test(value))
+  ) {
     return '[REDACTED]';
   }
 
@@ -100,17 +98,18 @@ export interface PerformanceTransaction {
 
 /**
  * Logger service - abstracts logging for the app
- * In development: logs to console
+ * In development: logs info/warn to console
+ * Verbose debug logs require EXPO_PUBLIC_VERBOSE_DEBUG_LOGS=true
  * In production: error and security methods log to console; all others are silent
  */
 export const logger = {
   /**
-   * Debug-level logs (only in development)
+   * Debug-level logs (development only, opt-in)
    * @param message - Log message
    * @param args - Additional arguments
    */
   debug: (message: string, ...args: unknown[]): void => {
-    if (isDev) {
+    if (isDev && isVerboseDebugEnabled) {
       console.log(`[DEBUG] ${message}`, ...sanitizeArgs(args));
     }
   },
@@ -328,5 +327,4 @@ export const logger = {
       },
     };
   },
-
 };

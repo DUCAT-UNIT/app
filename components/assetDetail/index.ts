@@ -11,7 +11,6 @@ export { AssetPriceChart } from './AssetPriceChart';
 export { AssetTabs } from './AssetTabs';
 export { AssetAbout } from './AssetAbout';
 export { AssetActivityList } from './AssetActivityList';
-export { AssetTurboList } from './AssetTurboList';
 export { VaultHealthGauge } from './VaultHealthGauge';
 export {
   AssetInfoSkeleton,
