@@ -41,6 +41,13 @@ const WalletActions = React.memo(function WalletActions({
           marginLeft: s(24),
           gap: s(12),
         },
+        stateSentinel: {
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: 1,
+          height: 1,
+        },
         action: {
           alignItems: 'center',
           minWidth: s(58),
@@ -126,12 +133,17 @@ const WalletActions = React.memo(function WalletActions({
       accessibilityRole="toolbar"
       accessibilityLabel="Wallet actions"
     >
+      <View
+        pointerEvents="none"
+        style={styles.stateSentinel}
+        testID={isPendingVaultTx ? 'wallet-vault-actions-pending' : 'wallet-vault-actions-ready'}
+      />
       <TouchableOpacity
         style={[styles.action, repayDisabled && styles.actionDisabled]}
         onPress={
           isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress
         }
-        testID="wallet-repay-btn"
+        testID={repayDisabled ? 'wallet-repay-btn-disabled' : 'wallet-repay-btn'}
         accessibilityRole="button"
         accessibilityLabel="Repay vault debt"
         accessibilityHint={
@@ -169,7 +181,7 @@ const WalletActions = React.memo(function WalletActions({
                 ? handleLowHealthPress
                 : onBorrowPress
         }
-        testID="wallet-borrow-btn"
+        testID={borrowDisabled ? 'wallet-borrow-btn-disabled' : 'wallet-borrow-btn'}
         accessibilityRole="button"
         accessibilityLabel="Borrow against vault"
         accessibilityHint={

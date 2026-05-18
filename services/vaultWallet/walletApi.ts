@@ -3,10 +3,11 @@
  * Creates the WalletConnectAPI interface for VaultWallet
  */
 
-import type { VaultWallet, WalletConnectAPI } from '@ducat-unit/client-sdk';
+import type { RuneUtxo, VaultWallet, WalletConnectAPI } from '@ducat-unit/client-sdk';
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
-import { API } from '../../utils/constants';
+import { API, getAddressUtxoUrl, getOrdAddressUrl, getOrdOutputUrl } from '../../utils/constants';
+import { getJsonWithNativeTimeout } from '../../utils/nativeHttp';
 import { logger } from '../../utils/logger';
 import { withVaultBuildTimeout } from '../vault/operationTimeout';
 import {
@@ -18,6 +19,178 @@ import {
   psbtPostProcess,
 } from '../signing';
 import { getExpectedVaultPsbtTemplates } from './signingContext';
+
+const RUNE_ADDRESS_FETCH_TIMEOUT_MS = 8_000;
+const RUNE_OUTPUT_FETCH_TIMEOUT_MS = 8_000;
+const RUNE_OUTPUT_BATCH_SIZE = 4;
+const SATS_UTXO_FETCH_TIMEOUT_MS = 8_000;
+
+interface OrdAddressResponse {
+  outputs?: string[];
+}
+
+interface OrdRuneRecord {
+  amount: number | string;
+  divisibility: number;
+  symbol: string;
+}
+
+interface OrdOutputResponse {
+  inscriptions?: string[];
+  runes?: Record<string, OrdRuneRecord> | null;
+  script_pubkey?: string;
+  spent?: boolean;
+  transaction?: string;
+  value?: number;
+}
+
+interface EsploraUtxoResponse {
+  txid: string;
+  vout: number;
+  value: number;
+}
+
+function parseOutpoint(output: string): { txid: string; vout: number } {
+  const [txid, voutRaw] = output.split(':');
+  const vout = Number(voutRaw);
+  if (!txid || !Number.isInteger(vout)) {
+    throw new Error(`Invalid ord outpoint: ${output}`);
+  }
+  return { txid, vout };
+}
+
+function getHttpStatusFromError(error: unknown): number | null {
+  if (!(error instanceof Error)) return null;
+  const match = /^HTTP\s+(\d+)/.exec(error.message);
+  return match ? Number(match[1]) : null;
+}
+
+async function fetchRuneOutput(output: string): Promise<RuneUtxo | null> {
+  const { txid, vout } = parseOutpoint(output);
+  let data: OrdOutputResponse;
+  try {
+    data = await getJsonWithNativeTimeout<OrdOutputResponse>(getOrdOutputUrl(output), {
+      timeout: RUNE_OUTPUT_FETCH_TIMEOUT_MS,
+      headers: { Accept: 'application/json' },
+    });
+  } catch (error) {
+    logger.debug('[VaultWalletService] Skipping UNIT output with failed ord response', {
+      outpoint: output,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+
+  if (data.spent || data.runes === null || data.runes === undefined) {
+    return null;
+  }
+
+  const script = data.script_pubkey;
+  const value = data.value;
+  if (!script || typeof value !== 'number') {
+    logger.debug('[VaultWalletService] Skipping UNIT output with incomplete ord data', {
+      outpoint: output,
+      hasScript: !!script,
+      hasValue: typeof value === 'number',
+    });
+    return null;
+  }
+
+  const runes = new Map(
+    Object.entries(data.runes).map(([rune, record]) => [
+      rune,
+      {
+        amount: Number(record.amount),
+        divisibility: record.divisibility,
+        symbol: record.symbol,
+      },
+    ])
+  );
+
+  return {
+    records: data.inscriptions ?? [],
+    runes,
+    script,
+    txid: data.transaction ?? txid,
+    value,
+    vout,
+  };
+}
+
+async function fetchRuneUtxoMap(address: string): Promise<Map<string, RuneUtxo>> {
+  const startedAt = Date.now();
+  let addressData: OrdAddressResponse;
+  try {
+    addressData = await getJsonWithNativeTimeout<OrdAddressResponse>(getOrdAddressUrl(address), {
+      timeout: RUNE_ADDRESS_FETCH_TIMEOUT_MS,
+      headers: { Accept: 'application/json' },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Timed out fetching UNIT UTXOs. Please try again.');
+    }
+
+    const status = getHttpStatusFromError(error);
+    if (status !== null) {
+      throw new Error(`Failed to fetch UNIT UTXOs (${status})`);
+    }
+
+    throw error;
+  }
+
+  const outputs = addressData.outputs ?? [];
+  const utxos = new Map<string, RuneUtxo>();
+
+  for (let startIndex = 0; startIndex < outputs.length; startIndex += RUNE_OUTPUT_BATCH_SIZE) {
+    const batch = outputs.slice(startIndex, startIndex + RUNE_OUTPUT_BATCH_SIZE);
+    const results = await Promise.all(batch.map(fetchRuneOutput));
+
+    for (let idx = 0; idx < results.length; idx++) {
+      const utxo = results[idx];
+      if (utxo === null) continue;
+      const outpoint = batch[idx];
+      if (outpoint === undefined) continue;
+      utxos.set(outpoint, utxo);
+    }
+  }
+
+  logger.info('[VaultWalletService] UNIT UTXO map fetched', {
+    durationMs: Date.now() - startedAt,
+    outputCount: outputs.length,
+    runeUtxoCount: utxos.size,
+  });
+
+  return utxos;
+}
+
+async function fetchSatsUtxos(
+  address: string
+): Promise<Array<{ txid: string; vout: number; value: number; script: string }>> {
+  const startedAt = Date.now();
+  const data = await getJsonWithNativeTimeout<EsploraUtxoResponse[]>(getAddressUtxoUrl(address), {
+    timeout: SATS_UTXO_FETCH_TIMEOUT_MS,
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!Array.isArray(data)) {
+    throw new Error('Invalid BTC UTXO response');
+  }
+
+  const script = TX.parse_address(address).hex;
+  const utxos = data.map((utxo) => ({
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.value,
+    script,
+  }));
+
+  logger.info('[VaultWalletService] BTC UTXOs fetched', {
+    durationMs: Date.now() - startedAt,
+    count: utxos.length,
+  });
+
+  return utxos;
+}
 
 /**
  * Creates a WalletConnectAPI for the mobile wallet
@@ -36,30 +209,25 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
       sats_utxos: (client: VaultWallet) => async () => {
         const addr = client.acct.sats.address;
-        const res = await withVaultBuildTimeout(
-          OracleAPI.esplora.esplora_get_utxos(API.ESPLORA_URL, addr),
+        return withVaultBuildTimeout(
+          fetchSatsUtxos(addr),
           'Timed out fetching BTC UTXOs. Please try again.'
         );
-        if (!res.ok) throw new Error(res.error);
-
-        // Parse address to get the locking script
-        const script = TX.parse_address(addr).hex;
-        return res.data.map((e: { txid: string; vout: number; value: number }) => ({
-          txid: e.txid,
-          vout: e.vout,
-          value: e.value,
-          script,
-        }));
       },
 
-      rune_utxos: (client: VaultWallet) => async () => {
+      rune_utxos: (client: VaultWallet) => async (cache?: Map<string, RuneUtxo>) => {
         const addr = client.acct.runes.address;
-        const res = await withVaultBuildTimeout(
-          OracleAPI.wallet.fetch_rune_utxos(API.ORD_URL, addr),
+        const utxos = await withVaultBuildTimeout(
+          fetchRuneUtxoMap(addr),
           'Timed out fetching UNIT UTXOs. Please try again.'
         );
-        if (!res.ok) throw new Error(res.error);
-        return res.data;
+        if (cache) {
+          for (const [outpoint, utxo] of utxos.entries()) {
+            cache.set(outpoint, utxo);
+          }
+          return cache;
+        }
+        return utxos;
       },
 
       vault_tokens: (client: VaultWallet) => async () => {
@@ -76,11 +244,21 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
     sign: {
       psbt: (client: VaultWallet) => async (psbt: string, manifest: Record<string, number[]>) => {
+        const startedAt = Date.now();
+        logger.info('[VaultWalletService] Signing PSBT', {
+          manifestAddresses: Object.keys(manifest).length,
+          inputCount: Object.values(manifest).reduce((sum, inputs) => sum + inputs.length, 0),
+        });
         logger.debug('[VaultWalletService] Signing PSBT with pre/post processing...');
         logger.debug('[VaultWalletService] Manifest:', JSON.stringify(manifest));
 
         // Pre-process the PSBT (same as frontend sign_psbt_api)
+        const decodeStartedAt = Date.now();
         const pre_pdata = PSBT.decode(psbt);
+        logger.info('[VaultWalletService] PSBT decoded for signing', {
+          durationMs: Date.now() - decodeStartedAt,
+          inputs: pre_pdata.inputsLength,
+        });
         logger.debug('[VaultWalletService] PSBT decoded, inputs:', pre_pdata.inputsLength);
 
         // Log input details
@@ -98,7 +276,11 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           }
         }
 
+        const preprocessStartedAt = Date.now();
         psbtPreProcess(client, pre_pdata, manifest);
+        logger.info('[VaultWalletService] PSBT preprocessed for signing', {
+          durationMs: Date.now() - preprocessStartedAt,
+        });
 
         const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
         // Sign with the mobile wallet
@@ -110,13 +292,23 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           allowOpReturn: true,
           expectedPsbtTemplates,
         };
+        const rawSignStartedAt = Date.now();
         const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
+        logger.info('[VaultWalletService] PSBT raw signing complete', {
+          durationMs: Date.now() - rawSignStartedAt,
+        });
 
         // Post-process the signed PSBT (same as frontend sign_psbt_api)
+        const postprocessStartedAt = Date.now();
         const post_pdata = PSBT.decode(signedPsbt);
         psbtPostProcess(client, post_pdata, manifest);
+        logger.info('[VaultWalletService] PSBT postprocessed after signing', {
+          durationMs: Date.now() - postprocessStartedAt,
+        });
 
-        logger.debug('[VaultWalletService] PSBT signed and post-processed');
+        logger.info('[VaultWalletService] PSBT signed and post-processed', {
+          durationMs: Date.now() - startedAt,
+        });
         return PSBT.encode(post_pdata);
       },
 
@@ -181,6 +373,10 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
       },
 
       batch: (client: VaultWallet) => async (psbts: [string, Record<string, number[]>][]) => {
+        const startedAt = Date.now();
+        logger.info('[VaultWalletService] Batch signing PSBTs', {
+          count: psbts.length,
+        });
         logger.debug(`[VaultWalletService] Batch signing ${psbts.length} PSBTs...`);
 
         // Process each PSBT using binary patching to preserve OP_RETURN outputs
@@ -189,6 +385,11 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
         for (let psbtIndex = 0; psbtIndex < psbts.length; psbtIndex++) {
           const [originalPsbt, signInputs] = psbts[psbtIndex];
+          const psbtStartedAt = Date.now();
+          logger.info('[VaultWalletService] Batch signing PSBT item', {
+            index: psbtIndex + 1,
+            total: psbts.length,
+          });
           logger.debug(`[VaultWalletService] Processing PSBT ${psbtIndex + 1}/${psbts.length}`);
           logger.debug(`[VaultWalletService] Manifest: ${JSON.stringify(signInputs)}`);
 
@@ -219,9 +420,16 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           }
 
           signedPsbts.push(finalPsbt);
+          logger.info('[VaultWalletService] Batch PSBT item signed', {
+            index: psbtIndex + 1,
+            total: psbts.length,
+            durationMs: Date.now() - psbtStartedAt,
+          });
         }
 
-        logger.debug('[VaultWalletService] Batch signing complete');
+        logger.info('[VaultWalletService] Batch signing complete', {
+          durationMs: Date.now() - startedAt,
+        });
         return signedPsbts;
       },
     },

@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Unlock PIN lock screen if it appears
-# Uses PIN: 123456 (same as setup)
+# Uses PIN: 111111 (same as setup)
 - runFlow:
     when:
       visible:

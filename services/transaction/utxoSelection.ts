@@ -91,11 +91,30 @@ export function selectUtxosForTransaction(
   calculateFee: FeeCalculator,
   dustLimit = BITCOIN_TX.DUST_LIMIT
 ): UtxoSelectionResult {
+  const candidateUtxos: UTXO[] = [];
+  const candidateUtxoKeys = new Set<string>();
+
+  for (const utxo of availableUtxos) {
+    const key = `${utxo.txid}:${utxo.vout}`;
+    if (utxo.status.confirmed && !candidateUtxoKeys.has(key)) {
+      candidateUtxoKeys.add(key);
+      candidateUtxos.push(utxo);
+    }
+  }
+
+  for (const utxo of availableUtxos) {
+    const key = `${utxo.txid}:${utxo.vout}`;
+    if (!candidateUtxoKeys.has(key)) {
+      candidateUtxoKeys.add(key);
+      candidateUtxos.push(utxo);
+    }
+  }
+
   const selectedUtxos: UTXO[] = [];
-  const selectedUtxoKeys = new Set<string>();
   let totalInput = 0;
   let estimatedFee = 0;
   let previousFee = 0;
+  let candidateIndex = 0;
 
   // Iteratively select UTXOs and recalculate fee. Stop as soon as the
   // current selection covers the recalculated fee so we do not pull in stale
@@ -105,29 +124,11 @@ export function selectUtxosForTransaction(
     const numOutputs = 2; // recipient + change (adjust if no change needed)
 
     // Add more UTXOs if needed
-    while (
-      selectedUtxos.length < availableUtxos.length &&
-      totalInput < amountInSats + estimatedFee
-    ) {
-      // Find next available UTXO (prefer confirmed)
-      let nextUtxo = availableUtxos.find((utxo) => {
-        const key = `${utxo.txid}:${utxo.vout}`;
-        return utxo.status.confirmed && !selectedUtxoKeys.has(key);
-      });
-
-      // If no confirmed UTXOs available, use unconfirmed
-      if (!nextUtxo) {
-        nextUtxo = availableUtxos.find((utxo) => {
-          const key = `${utxo.txid}:${utxo.vout}`;
-          return !selectedUtxoKeys.has(key);
-        });
-      }
-
-      if (!nextUtxo) break;
+    while (candidateIndex < candidateUtxos.length && totalInput < amountInSats + estimatedFee) {
+      const nextUtxo = candidateUtxos[candidateIndex];
+      candidateIndex += 1;
 
       // Add UTXO to selection
-      const key = `${nextUtxo.txid}:${nextUtxo.vout}`;
-      selectedUtxoKeys.add(key);
       selectedUtxos.push(nextUtxo);
       totalInput += nextUtxo.value;
 
@@ -146,7 +147,7 @@ export function selectUtxosForTransaction(
   } while (
     estimatedFee !== previousFee &&
     totalInput < amountInSats + estimatedFee &&
-    selectedUtxos.length < availableUtxos.length
+    candidateIndex < candidateUtxos.length
   );
 
   // Calculate preliminary change

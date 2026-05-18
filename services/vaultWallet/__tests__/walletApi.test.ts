@@ -7,6 +7,7 @@ import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
 import * as signing from '../../signing';
 import { Buffer } from 'buffer';
+import { fetchWithTimeout } from '../../../utils/api';
 
 // Mock dependencies
 jest.mock('@ducat-unit/client-sdk', () => ({
@@ -72,6 +73,13 @@ jest.mock('../../../utils/constants', () => ({
     ESPLORA_URL: 'https://test-esplora',
     ORD_URL: 'https://test-ord',
   },
+  getAddressUtxoUrl: (address: string) => `https://test-esplora/address/${address}/utxo`,
+  getOrdAddressUrl: (address: string) => `https://test-ord/address/${address}`,
+  getOrdOutputUrl: (outpoint: string) => `https://test-ord/output/${outpoint}`,
+}));
+
+jest.mock('../../../utils/api', () => ({
+  fetchWithTimeout: jest.fn(),
 }));
 
 describe('walletApi', () => {
@@ -153,17 +161,18 @@ describe('walletApi', () => {
           { txid: 'abc123', vout: 0, value: 50000 },
           { txid: 'def456', vout: 1, value: 25000 },
         ];
-        (OracleAPI.esplora.esplora_get_utxos as jest.Mock).mockResolvedValue({
+        (fetchWithTimeout as jest.Mock).mockResolvedValue({
           ok: true,
-          data: mockUtxos,
+          json: jest.fn().mockResolvedValue(mockUtxos),
         });
 
         const api = createMobileWalletAPI('tb1qtest');
         const utxos = await api.fetch.sats_utxos(mockClient)();
 
-        expect(OracleAPI.esplora.esplora_get_utxos).toHaveBeenCalledWith(
-          'https://test-esplora',
-          'tb1qtest123'
+        expect(fetchWithTimeout).toHaveBeenCalledWith(
+          'https://test-esplora/address/tb1qtest123/utxo',
+          { method: 'GET', headers: { Accept: 'application/json' } },
+          8000
         );
         expect(utxos).toEqual([
           { txid: 'abc123', vout: 0, value: 50000, script: '001400112233' },
@@ -172,9 +181,10 @@ describe('walletApi', () => {
       });
 
       it('should throw error on failed utxos fetch', async () => {
-        (OracleAPI.esplora.esplora_get_utxos as jest.Mock).mockResolvedValue({
+        (fetchWithTimeout as jest.Mock).mockResolvedValue({
           ok: false,
-          error: 'UTXO fetch failed',
+          status: 500,
+          statusText: 'UTXO fetch failed',
         });
 
         const api = createMobileWalletAPI('tb1qtest');
@@ -185,31 +195,74 @@ describe('walletApi', () => {
 
     describe('fetch.rune_utxos', () => {
       it('should fetch rune UTXOs successfully', async () => {
-        const mockRuneUtxos = [{ txid: 'rune123', vout: 0, value: 10000 }];
-        (OracleAPI.wallet.fetch_rune_utxos as jest.Mock).mockResolvedValue({
-          ok: true,
-          data: mockRuneUtxos,
-        });
+        (fetchWithTimeout as jest.Mock)
+          .mockResolvedValueOnce({
+            ok: true,
+            json: jest.fn().mockResolvedValue({ outputs: ['rune123:0'] }),
+          })
+          .mockResolvedValueOnce({
+            ok: true,
+            json: jest.fn().mockResolvedValue({
+              inscriptions: [],
+              runes: {
+                'DUCAT•UNIT•RUNE': {
+                  amount: 10000,
+                  divisibility: 2,
+                  symbol: '$',
+                },
+              },
+              script_pubkey: '5120aabbcc',
+              spent: false,
+              transaction: 'rune123',
+              value: 10000,
+            }),
+          });
 
         const api = createMobileWalletAPI('tb1qtest');
         const utxos = await api.fetch.rune_utxos(mockClient)();
 
-        expect(OracleAPI.wallet.fetch_rune_utxos).toHaveBeenCalledWith(
-          'https://test-ord',
-          'tb1ptest456'
+        expect(fetchWithTimeout).toHaveBeenCalledWith(
+          'https://test-ord/address/tb1ptest456',
+          { method: 'GET', headers: { Accept: 'application/json' } },
+          8000
         );
-        expect(utxos).toEqual(mockRuneUtxos);
+        expect(fetchWithTimeout).toHaveBeenCalledWith(
+          'https://test-ord/output/rune123:0',
+          { method: 'GET', headers: { Accept: 'application/json' } },
+          8000
+        );
+        expect([...utxos.values()]).toEqual([
+          {
+            records: [],
+            runes: new Map([
+              [
+                'DUCAT•UNIT•RUNE',
+                {
+                  amount: 10000,
+                  divisibility: 2,
+                  symbol: '$',
+                },
+              ],
+            ]),
+            script: '5120aabbcc',
+            txid: 'rune123',
+            value: 10000,
+            vout: 0,
+          },
+        ]);
       });
 
       it('should throw error on failed rune utxos fetch', async () => {
-        (OracleAPI.wallet.fetch_rune_utxos as jest.Mock).mockResolvedValue({
+        (fetchWithTimeout as jest.Mock).mockResolvedValue({
           ok: false,
-          error: 'Rune fetch failed',
+          status: 502,
         });
 
         const api = createMobileWalletAPI('tb1qtest');
 
-        await expect(api.fetch.rune_utxos(mockClient)()).rejects.toThrow('Rune fetch failed');
+        await expect(api.fetch.rune_utxos(mockClient)()).rejects.toThrow(
+          'Failed to fetch UNIT UTXOs (502)'
+        );
       });
     });
 

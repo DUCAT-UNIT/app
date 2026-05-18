@@ -27,7 +27,7 @@ import type {
   VaultWallet,
   WalletVaultRepoRequest,
 } from '@ducat-unit/client-sdk';
-import { PSBT } from '@ducat-unit/client-sdk/util';
+import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
@@ -113,6 +113,27 @@ function extractRepoRequestTxid(request: WalletVaultRepoRequest): string {
   };
 
   return txRequest.vault_txid || txRequest.repo_txid || txRequest.liquid_txid || '';
+}
+
+function assertRepoRequestTxidsConsistent(request: WalletVaultRepoRequest): void {
+  const txRequest = request as WalletVaultRepoRequest & {
+    liquid_txhex?: string;
+    vault_txhex?: string;
+  };
+
+  if (txRequest.liquid_txhex) {
+    const computedLiquidTxid = TX.get_txid(txRequest.liquid_txhex);
+    if (computedLiquidTxid !== txRequest.liquid_txid) {
+      throw new Error('Repo liquidation request Tx1 ID does not match its signed transaction');
+    }
+  }
+
+  if (txRequest.vault_txhex) {
+    const computedVaultTxid = TX.get_txid(txRequest.vault_txhex);
+    if (computedVaultTxid !== txRequest.vault_txid) {
+      throw new Error('Repo liquidation request vault Tx ID does not match its signed transaction');
+    }
+  }
 }
 
 // ============================================================
@@ -393,6 +414,7 @@ export async function executeLiquidation(
       contract_id: wallet.contract_id,
       network: wallet.network,
     };
+    assertRepoRequestTxidsConsistent(request);
 
     const requestTxid = extractRepoRequestTxid(request);
     if (requestTxid && onRequestCreated) {

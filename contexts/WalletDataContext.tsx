@@ -18,6 +18,12 @@ import { useEvmAssets } from './EvmAssetsContext';
 import { TransactionHistoryProvider, useTransactionHistory } from './TransactionHistoryContext';
 import { VaultProvider, useVaultData } from './VaultContext';
 import { useWallet } from './WalletContext';
+import { useBorrowStore } from '../stores/borrowStore';
+import { useDepositStore } from '../stores/depositStore';
+import { useRepayStore } from '../stores/repayStore';
+import { useTurboProcessingStore } from '../stores/turboProcessingStore';
+import { useVaultCreationStore } from '../stores/vaultCreationStore';
+import { useWithdrawStore } from '../stores/withdrawStore';
 
 // Re-export hooks and types so existing imports from WalletDataContext keep working
 export { useBalance, type BalanceDataValue } from './BalanceContext';
@@ -43,6 +49,29 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
   const { wallet } = useWallet();
   const { isAuthenticated } = useAuthSession();
   const activeWallet = isAuthenticated ? wallet : null;
+  const turboIsProcessing = useTurboProcessingStore((state) => state.isProcessing);
+  const borrowIsProcessing = useBorrowStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const depositIsProcessing = useDepositStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const repayIsProcessing = useRepayStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const vaultCreationIsProcessing = useVaultCreationStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const withdrawIsProcessing = useWithdrawStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const walletOperationIsProcessing =
+    turboIsProcessing ||
+    borrowIsProcessing ||
+    depositIsProcessing ||
+    repayIsProcessing ||
+    vaultCreationIsProcessing ||
+    withdrawIsProcessing;
   const { isLoading: loadingCashu, balance: cashuBalance } = useCashuBalanceState();
 
   const balance = useBalance();
@@ -91,13 +120,21 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
 
   const pollBalancesAndVault = useCallback(() => {
     if (!activeWallet) return;
+    if (walletOperationIsProcessing) {
+      logger.debug('[WalletDataContext] Skipping balance/vault poll during active wallet operation');
+      return;
+    }
 
     fetchBalance();
     fetchVault();
-  }, [activeWallet, fetchBalance, fetchVault]);
+  }, [activeWallet, fetchBalance, fetchVault, walletOperationIsProcessing]);
 
   const pollSecondaryData = useCallback(() => {
     if (!activeWallet) return;
+    if (walletOperationIsProcessing) {
+      logger.debug('[WalletDataContext] Skipping secondary poll during active wallet operation');
+      return;
+    }
 
     if (fetchStateRef.current.initialBalancesLoaded) {
       fetchTransactionHistory();
@@ -111,10 +148,16 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
         loadingCashu,
       });
     }
-  }, [activeWallet, fetchVaultTransactions, fetchTransactionHistory, fetchEcashTokens, hasRunesData, hasCashuData, loadingBalance, loadingCashu]);
+  }, [activeWallet, fetchVaultTransactions, fetchTransactionHistory, fetchEcashTokens, hasRunesData, hasCashuData, loadingBalance, loadingCashu, walletOperationIsProcessing]);
 
   const pollReconciliation = useCallback(() => {
-    if (!activeWallet || !fetchStateRef.current.initialBalancesLoaded) return;
+    if (
+      !activeWallet ||
+      walletOperationIsProcessing ||
+      !fetchStateRef.current.initialBalancesLoaded
+    ) {
+      return;
+    }
 
     runWalletReconciliationCycle({
       enabled: true,
@@ -141,6 +184,7 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
     refreshEvmBalances,
     refreshUsdcHistory,
     refreshEthHistory,
+    walletOperationIsProcessing,
   ]);
 
   // Handle wallet changes - reset on removal, fetch on first load
@@ -157,18 +201,25 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
       resetEcashTokens();
       fetchStateRef.current.initialBalancesLoaded = false;
       fetchStateRef.current.initialHistoryFetched = false;
-    } else if (!prevWallet && activeWallet) {
+    } else if (!prevWallet && activeWallet && !walletOperationIsProcessing) {
       fetchBalance();
       fetchVault();
     }
-  }, [activeWallet, resetBalances, fetchBalance, resetTransactionHistory, resetVaultData, fetchVault, resetEcashTokens]);
+  }, [activeWallet, resetBalances, fetchBalance, resetTransactionHistory, resetVaultData, fetchVault, resetEcashTokens, walletOperationIsProcessing]);
 
   // Trigger initial history/vault-tx/ecash load ONCE after both balances first load
   useEffect(() => {
+    if (walletOperationIsProcessing) {
+      initialSecondaryTaskRef.current?.cancel();
+      initialSecondaryTaskRef.current = null;
+      return;
+    }
+
     if (bothBalancesLoaded && fetchStateRef.current.initialBalancesLoaded && !fetchStateRef.current.initialHistoryFetched) {
       fetchStateRef.current.initialHistoryFetched = true;
       initialSecondaryTaskRef.current?.cancel();
       initialSecondaryTaskRef.current = InteractionManager.runAfterInteractions(() => {
+        if (walletOperationIsProcessing) return;
         logger.debug('[WalletDataContext] Both balances ready - fetching secondary wallet data after interactions');
         fetchTransactionHistory();
         fetchVaultTransactions();
@@ -179,27 +230,27 @@ const WalletDataCoordinator: React.FC<WalletDataProviderProps> = ({ children }) 
       initialSecondaryTaskRef.current?.cancel();
       initialSecondaryTaskRef.current = null;
     };
-  }, [bothBalancesLoaded, fetchTransactionHistory, fetchVaultTransactions, fetchEcashTokens]);
+  }, [bothBalancesLoaded, fetchTransactionHistory, fetchVaultTransactions, fetchEcashTokens, walletOperationIsProcessing]);
 
   // Single unified polling mechanism — NOT immediate (wallet change effect handles first fetch)
   usePolling({
     onPoll: pollBalancesAndVault,
     interval: BALANCE_POLL_INTERVAL,
-    enabled: !!activeWallet,
+    enabled: !!activeWallet && !walletOperationIsProcessing,
     immediate: false,
   });
 
   usePolling({
     onPoll: pollSecondaryData,
     interval: SECONDARY_POLL_INTERVAL,
-    enabled: !!activeWallet,
+    enabled: !!activeWallet && !walletOperationIsProcessing,
     immediate: false,
   });
 
   usePolling({
     onPoll: pollReconciliation,
     interval: RECONCILIATION_POLL_INTERVAL,
-    enabled: !!activeWallet,
+    enabled: !!activeWallet && !walletOperationIsProcessing,
     immediate: false,
   });
 

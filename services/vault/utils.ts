@@ -9,9 +9,13 @@ import type {
   VaultReturnData,
   VaultWallet,
 } from '@ducat-unit/client-sdk';
+import { OracleAPI } from '@ducat-unit/client-sdk';
 import { Buffer } from 'buffer';
 import { SEGWIT_ADDRESS_PREFIX } from '../../utils/bitcoin';
+import { API, getTxOutspendUrl } from '../../utils/constants';
+import { getErrorMessage } from '../../utils/errorUtils';
 import { logger } from '../../utils/logger';
+import { getJsonWithNativeTimeout } from '../../utils/nativeHttp';
 
 /**
  * Vault operation mutex — serializes vault operations to prevent concurrent
@@ -25,6 +29,30 @@ import { logger } from '../../utils/logger';
 const _vaultOpLocks: Map<string, Promise<void>> = new Map();
 
 export const VAULT_OPERATION_LOCK_WAIT_TIMEOUT_MS = 30_000;
+
+const VAULT_PREVOUT_OUTSPEND_TIMEOUT_MS = 8_000;
+const VAULT_PREVOUT_MAX_SPEND_HOPS = 64;
+
+interface TxOutspendResponse {
+  spent: boolean;
+  txid?: string;
+  vin?: number;
+}
+
+interface VaultPrevoutResolveResponse {
+  ok: boolean;
+  status?: number;
+  data?: VaultPrevout;
+  error?: unknown;
+  message?: unknown;
+}
+
+export interface ResolvedVaultPrevout {
+  prevout: VaultPrevout;
+  replaced: boolean;
+  hopCount: number;
+  sourceTxids: string[];
+}
 
 async function waitForPreviousVaultOperation(
   previous: Promise<void>,
@@ -283,6 +311,100 @@ export function computeVaultPrevoutFromTx(tx: {
   };
 
   return { rdata, utxo };
+}
+
+function getVaultPrevoutResolveError(response: VaultPrevoutResolveResponse): string {
+  return getErrorMessage(
+    response.error ?? response.message,
+    `Could not parse latest vault transaction from ord response (${response.status ?? 'unknown'})`
+  );
+}
+
+async function fetchNextVaultPrevoutFromSpend(txid: string): Promise<VaultPrevout> {
+  const response = (await OracleAPI.vault.fetch_vault_prevout(
+    API.ORD_BASE,
+    txid
+  )) as VaultPrevoutResolveResponse;
+
+  if (!response.ok || !response.data) {
+    throw new Error(getVaultPrevoutResolveError(response));
+  }
+
+  return response.data;
+}
+
+/**
+ * Validator history can lag the chain or omit a recently confirmed vault action.
+ * Before signing a vault operation, follow the current vault outpoint on-chain so
+ * Guardian never receives a request spending an already-spent vault UTXO.
+ */
+export async function resolveLatestUnspentVaultPrevout(
+  initialPrevout: VaultPrevout,
+  maxHops = VAULT_PREVOUT_MAX_SPEND_HOPS
+): Promise<ResolvedVaultPrevout> {
+  let current = initialPrevout;
+  const sourceTxids = [initialPrevout.utxo.txid];
+  const visitedSpendTxids = new Set<string>();
+
+  for (let hop = 0; hop <= maxHops; hop += 1) {
+    const outspend = await getJsonWithNativeTimeout<TxOutspendResponse>(
+      getTxOutspendUrl(current.utxo.txid, current.utxo.vout),
+      {
+        timeout: VAULT_PREVOUT_OUTSPEND_TIMEOUT_MS,
+        headers: { Accept: 'application/json' },
+      }
+    );
+
+    if (!outspend.spent) {
+      return {
+        prevout: current,
+        replaced: sourceTxids.length > 1,
+        hopCount: sourceTxids.length - 1,
+        sourceTxids,
+      };
+    }
+
+    if (!outspend.txid) {
+      throw new Error(
+        'The vault UTXO is spent, but the explorer did not return the spending transaction.'
+      );
+    }
+
+    if (visitedSpendTxids.has(outspend.txid)) {
+      throw new Error('Detected a cycle while resolving the latest vault UTXO.');
+    }
+
+    if (hop === maxHops) {
+      throw new Error('Could not resolve the latest vault UTXO before the safety hop limit.');
+    }
+
+    visitedSpendTxids.add(outspend.txid);
+    logger.warn('[VaultOps] Validator vault prevout is spent; following on-chain vault state', {
+      previousTxid: current.utxo.txid,
+      previousVout: current.utxo.vout,
+      spendingTxid: outspend.txid,
+      spendingVin: outspend.vin,
+    });
+
+    try {
+      current = await fetchNextVaultPrevoutFromSpend(outspend.txid);
+      sourceTxids.push(current.utxo.txid);
+    } catch (error) {
+      throw new Error(
+        `The vault state is ahead of the validator, but the latest vault transaction could not be parsed: ${getErrorMessage(
+          error,
+          'unknown parser error'
+        )}`
+      );
+    }
+  }
+
+  return {
+    prevout: current,
+    replaced: sourceTxids.length > 1,
+    hopCount: sourceTxids.length - 1,
+    sourceTxids,
+  };
 }
 
 /**

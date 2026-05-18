@@ -76,7 +76,7 @@ describe('logger', () => {
     it('should log warning messages', () => {
       logger.warn('Warning message', { code: 'WARN01' });
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect(consoleLogSpy).toHaveBeenCalledWith(
         '[WARN] Warning message',
         { code: 'WARN01' }
       );
@@ -88,8 +88,8 @@ describe('logger', () => {
       const error = new Error('Test error');
       logger.error(error, { context: 'test' });
 
-      // In dev mode, logger.error uses console.warn to avoid red error overlay
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // In dev mode, logger.error uses console.log to avoid LogBox overlays.
+      expect(consoleLogSpy).toHaveBeenCalledWith(
         '[ERROR]',
         { name: 'Error', message: 'Test error' },
         { context: 'test' }
@@ -99,8 +99,8 @@ describe('logger', () => {
     it('should handle string errors', () => {
       logger.error('String error', { code: 'ERR01' });
 
-      // In dev mode, logger.error uses console.warn to avoid red error overlay
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // In dev mode, logger.error uses console.log to avoid LogBox overlays.
+      expect(consoleLogSpy).toHaveBeenCalledWith(
         '[ERROR]',
         'String error',
         { code: 'ERR01' }
@@ -127,7 +127,7 @@ describe('logger', () => {
     it('should track security events', () => {
       logger.security('pin_failed', { attempts: 3 });
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect(consoleLogSpy).toHaveBeenCalledWith(
         '[SECURITY] pin_failed',
         expect.objectContaining({
           event: 'pin_failed',

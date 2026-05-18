@@ -6,20 +6,23 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - extendedWaitUntil:
     visible:
-      id: "liquidations-fab"
+      id: "wallet-screen"
     timeout: 10000
 
-- tapOn:
-    id: "liquidations-fab"
+- openLink: "ducat://liquidations"
 - waitForAnimationToEnd
 
+- extendedWaitUntil:
+    visible:
+      id: "liquidations-tab-screen"
+    timeout: 10000
 - assertVisible:
     text: "Liquidations"
 - assertVisible:
-    id: "liquidation-continue-btn"
+    text: "No Vault Found"
 
 - tapOn:
-    id: "liquidations-fab"
+    id: "liquidation-empty-back-btn"
 - waitForAnimationToEnd
 
 - assertVisible:

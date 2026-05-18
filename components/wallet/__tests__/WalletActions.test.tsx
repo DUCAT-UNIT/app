@@ -42,7 +42,7 @@ describe('WalletActions', () => {
   it('keeps borrowing disabled when there is no vault collateral', () => {
     const { getByTestId } = render(<WalletActions {...baseProps} hasVaultCollateral={false} />);
 
-    expect(getByTestId('wallet-borrow-btn').props.accessibilityState).toEqual({
+    expect(getByTestId('wallet-borrow-btn-disabled').props.accessibilityState).toEqual({
       disabled: true,
     });
   });

@@ -4,7 +4,14 @@
  */
 
 import React, { memo, useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../icons';
 import { VaultActivityListSkeleton } from './VaultSkeleton';
@@ -27,7 +34,10 @@ interface VaultActivityListProps {
   transactions: VaultHistoryTransaction[];
   isLoading: boolean;
   highlightedEventDate?: number | null;
-  onTransactionPress?: (transaction: VaultHistoryTransaction, previousTransaction: VaultHistoryTransaction | null) => void;
+  onTransactionPress?: (
+    transaction: VaultHistoryTransaction,
+    previousTransaction: VaultHistoryTransaction | null
+  ) => void;
   pendingTransaction?: PendingVaultTransaction | null;
 }
 
@@ -69,8 +79,22 @@ const PendingVaultTransactionItem = memo(function PendingVaultTransactionItem({
           <View style={styles.rightGroup}>
             {/* Column 2: Pending chip with spinner */}
             <View style={styles.column2}>
-              <View style={[styles.pendingChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
-                <ActivityIndicator size={sf(8)} color={COLORS.PRIMARY_BLUE} style={{ marginRight: s(3), transform: [{ scale: 0.6 }] }} />
+              <View
+                style={[
+                  styles.pendingChip,
+                  {
+                    paddingHorizontal: s(6),
+                    paddingVertical: s(4),
+                    borderRadius: s(4),
+                    marginLeft: s(4),
+                  },
+                ]}
+              >
+                <ActivityIndicator
+                  size={sf(8)}
+                  color={COLORS.PRIMARY_BLUE}
+                  style={{ marginRight: s(3), transform: [{ scale: 0.6 }] }}
+                />
                 <Text style={[styles.pendingChipText, { fontSize: sf(10) }]}>Pending</Text>
               </View>
             </View>
@@ -85,7 +109,12 @@ const PendingVaultTransactionItem = memo(function PendingVaultTransactionItem({
               )}
               {transaction.btcAmt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="btc_symbol" size={s(10)} color={btcColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Icon
+                    name="btc_symbol"
+                    size={s(10)}
+                    color={btcColor}
+                    style={[styles.amountIcon, { marginRight: s(3) }]}
+                  />
                   <Text style={[styles.transactionAmount, { color: btcColor, fontSize: sf(12) }]}>
                     {formatBalance(Math.abs(transaction.btcAmt) / 100_000_000)}
                   </Text>
@@ -122,7 +151,9 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
   const effectiveUnitAmt = useMemo(() => {
     if (transaction.unit_amt !== 0) return transaction.unit_amt;
     if (previousTransaction) {
-      const debtChange = Math.abs(transaction.amount_borrowed - previousTransaction.amount_borrowed);
+      const debtChange = Math.abs(
+        transaction.amount_borrowed - previousTransaction.amount_borrowed
+      );
       if (debtChange > 0) return debtChange;
     }
     return 0;
@@ -136,7 +167,7 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
       style={[
         styles.transactionItem,
         { paddingTop: s(8), paddingBottom: s(16), paddingLeft: s(12) },
-        isHighlighted && styles.transactionItemHighlighted
+        isHighlighted && styles.transactionItemHighlighted,
       ]}
       activeOpacity={0.7}
       onPress={onPress}
@@ -160,7 +191,17 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
           <View style={styles.rightGroup}>
             {/* Column 2: Confirmed chip */}
             <View style={styles.column2}>
-              <View style={[styles.confirmedChip, { paddingHorizontal: s(6), paddingVertical: s(4), borderRadius: s(4), marginLeft: s(4) }]}>
+              <View
+                style={[
+                  styles.confirmedChip,
+                  {
+                    paddingHorizontal: s(6),
+                    paddingVertical: s(4),
+                    borderRadius: s(4),
+                    marginLeft: s(4),
+                  },
+                ]}
+              >
                 <Text style={[styles.confirmedChipText, { fontSize: sf(10) }]}>Confirmed</Text>
               </View>
             </View>
@@ -175,7 +216,12 @@ const VaultTransactionItem = memo(function VaultTransactionItem({
               )}
               {transaction.btc_amt !== 0 && (
                 <View style={styles.amountRow}>
-                  <Icon name="btc_symbol" size={s(10)} color={btcColor} style={[styles.amountIcon, { marginRight: s(3) }]} />
+                  <Icon
+                    name="btc_symbol"
+                    size={s(10)}
+                    color={btcColor}
+                    style={[styles.amountIcon, { marginRight: s(3) }]}
+                  />
                   <Text style={[styles.transactionAmount, { color: btcColor, fontSize: sf(12) }]}>
                     {formatBalance(Math.abs(transaction.btc_amt) / 100_000_000)}
                   </Text>
@@ -204,20 +250,28 @@ export const VaultActivityList = memo(function VaultActivityList({
   const { s, sf } = useResponsive();
   const [displayCount, setDisplayCount] = useState(INITIAL_LOAD_COUNT);
 
-  // Pre-compute a map of transaction timestamps to indices for O(1) lookup
-  // This fixes the O(n²) issue of calling findIndex inside renderItem
-  const transactionIndexMap = useMemo(() => {
-    const map = new Map<number, number>();
-    transactions.forEach((tx, idx) => {
-      map.set(tx.timestamp, idx);
-    });
+  const previousTransactionByItem = useMemo(() => {
+    const map = new Map<VaultHistoryTransaction, VaultHistoryTransaction | null>();
+    let nextRawTransaction: VaultHistoryTransaction | null = null;
+
+    for (let index = transactions.length - 1; index >= 0; index -= 1) {
+      const transaction = transactions[index];
+      map.set(transaction, transaction.compositeSettlement ? null : nextRawTransaction);
+
+      if (!transaction.compositeSettlement) {
+        nextRawTransaction = transaction;
+      }
+    }
+
     return map;
   }, [transactions]);
 
   // When filter is active, only show the matching transaction(s)
   const filteredTransactions = useMemo(() => {
     if (highlightedEventDate) {
-      return transactions.filter(tx => isTransactionHighlighted(tx.timestamp, highlightedEventDate));
+      return transactions.filter((tx) =>
+        isTransactionHighlighted(tx.timestamp, highlightedEventDate)
+      );
     }
     return transactions;
   }, [transactions, highlightedEventDate]);
@@ -231,53 +285,49 @@ export const VaultActivityList = memo(function VaultActivityList({
 
   const handleLoadMore = useCallback(() => {
     if (hasMore) {
-      setDisplayCount(prev => prev + LOAD_MORE_COUNT);
+      setDisplayCount((prev) => prev + LOAD_MORE_COUNT);
     }
   }, [hasMore]);
 
-  const renderItem = useCallback(({ item, index }: { item: VaultHistoryTransaction; index: number }) => {
-    // Find previous raw vault transaction while skipping synthetic settlement entries.
-    const originalIndex = transactionIndexMap.get(item.timestamp) ?? index;
-    let previousTransaction: VaultHistoryTransaction | null = null;
+  const renderItem = useCallback(
+    ({ item }: { item: VaultHistoryTransaction; index: number }) => {
+      const previousTransaction = previousTransactionByItem.get(item) ?? null;
 
-    if (!item.compositeSettlement) {
-      for (let cursor = originalIndex + 1; cursor < transactions.length; cursor += 1) {
-        const candidate = transactions[cursor];
-        if (!candidate?.compositeSettlement) {
-          previousTransaction = candidate;
-          break;
-        }
-      }
-    }
+      return (
+        <VaultTransactionItem
+          transaction={item}
+          previousTransaction={previousTransaction}
+          isHighlighted={isTransactionHighlighted(item.timestamp, highlightedEventDate)}
+          onPress={
+            onTransactionPress && !item.compositeSettlement
+              ? () => onTransactionPress(item, previousTransaction)
+              : undefined
+          }
+        />
+      );
+    },
+    [highlightedEventDate, onTransactionPress, previousTransactionByItem]
+  );
 
-    return (
-      <VaultTransactionItem
-        transaction={item}
-        previousTransaction={previousTransaction}
-        isHighlighted={isTransactionHighlighted(item.timestamp, highlightedEventDate)}
-        onPress={
-          onTransactionPress && !item.compositeSettlement
-            ? () => onTransactionPress(item, previousTransaction)
-            : undefined
-        }
-      />
-    );
-  }, [highlightedEventDate, onTransactionPress, transactions, transactionIndexMap]);
-
-  const keyExtractor = useCallback((item: VaultHistoryTransaction, index: number) =>
-    `${item.timestamp}-${index}`, []);
+  const keyExtractor = useCallback(
+    (item: VaultHistoryTransaction, index: number) => `${item.timestamp}-${index}`,
+    []
+  );
 
   const renderFooter = useCallback(() => {
     if (!hasMore) return null;
     return (
       <TouchableOpacity
-        style={[styles.loadMoreButton, {
-          borderRadius: s(10),
-          paddingVertical: s(14),
-          paddingHorizontal: s(20),
-          marginTop: s(12),
-          marginBottom: s(8)
-        }]}
+        style={[
+          styles.loadMoreButton,
+          {
+            borderRadius: s(10),
+            paddingVertical: s(14),
+            paddingHorizontal: s(20),
+            marginTop: s(12),
+            marginBottom: s(8),
+          },
+        ]}
         onPress={handleLoadMore}
       >
         <Text style={[styles.loadMoreText, { fontSize: sf(14) }]}>
@@ -299,7 +349,9 @@ export const VaultActivityList = memo(function VaultActivityList({
   if (transactions.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingVertical: s(40) }]}>
-        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>No vault activity yet</Text>
+        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>
+          No vault activity yet
+        </Text>
         <Text style={[styles.emptySubtext, { fontSize: sf(14) }]}>
           Your vault transactions will appear here
         </Text>
@@ -311,7 +363,9 @@ export const VaultActivityList = memo(function VaultActivityList({
   if (highlightedEventDate && filteredTransactions.length === 0) {
     return (
       <View style={[styles.emptyContainer, { paddingVertical: s(40) }]}>
-        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>No matching activity</Text>
+        <Text style={[styles.emptyText, { fontSize: sf(16), marginBottom: s(8) }]}>
+          No matching activity
+        </Text>
         <Text style={[styles.emptySubtext, { fontSize: sf(14) }]}>
           Clear the filter to see all transactions
         </Text>

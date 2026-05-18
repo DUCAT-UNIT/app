@@ -3,14 +3,30 @@ import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { dirname, resolve } from 'node:path';
+import { loadProjectEnvironment } from './loadEnv.mjs';
+
+loadProjectEnvironment();
 
 const APP_ID = 'com.ducatprotocol.DucatProtocolWallet';
 const DEFAULT_FLOWS = ['e2e/maestro/flows/test/'];
 const DEFAULT_EXPO_PORT = 8082;
 const DEFAULT_REPORT_PATH = 'artifacts/live-maestro/last-run.json';
-const explicitPort = process.env.MAESTRO_LIVE_EXPO_PORT || process.env.MAESTRO_EXPO_PORT || process.env.EXPO_DEV_SERVER_PORT;
-const candidatePorts = [explicitPort ? Number(explicitPort) : DEFAULT_EXPO_PORT]
-  .filter((port) => Number.isInteger(port) && port > 0);
+const MAESTRO_FORWARD_ENV_KEYS = [
+  'DUCAT_LIVE_CASHU_TOKEN_URL',
+  'DUCAT_LIVE_TURBOUNIT_TOKEN_URL',
+  'DUCAT_LIVE_LIQUIDATION_INVEST_BTC',
+  'DUCAT_LIVE_SEPOLIA_RECIPIENT',
+  'DUCAT_LIVE_SEPOLIA_SEND_AMOUNT',
+  'DUCAT_LIVE_SEPOLIA_SWAP_AMOUNT',
+  'DUCAT_LIVE_SEPOLIA_REDEEM_AMOUNT',
+];
+const explicitPort =
+  process.env.MAESTRO_LIVE_EXPO_PORT ||
+  process.env.MAESTRO_EXPO_PORT ||
+  process.env.EXPO_DEV_SERVER_PORT;
+const candidatePorts = [explicitPort ? Number(explicitPort) : DEFAULT_EXPO_PORT].filter(
+  (port) => Number.isInteger(port) && port > 0
+);
 
 let metroProcess = null;
 let metroStartedByScript = false;
@@ -23,13 +39,12 @@ const liveReport = {
   finishedAt: null,
   durationMs: null,
   result: 'running',
-  e2eBypass: 'false',
   cashuMintUrl: readCashuMintUrl(),
   flows: [],
-  environmentAssertions: {
-    fundedMutinynet: process.env.DUCAT_LIVE_E2E_FUNDED_MUTINYNET === '1',
-    fundedSepolia: process.env.DUCAT_LIVE_E2E_FUNDED_SEPOLIA === '1',
-    bridgeFunded: process.env.DUCAT_LIVE_E2E_BRIDGE_FUNDED === '1',
+  environment: {
+    easProfile: process.env.DUCAT_EAS_PROFILE || process.env.EAS_BUILD_PROFILE || 'production',
+    expoPublicEnv: process.env.EXPO_PUBLIC_ENV || null,
+    appNetwork: process.env.EXPO_PUBLIC_APP_NETWORK || null,
   },
   metro: {
     startedByScript: false,
@@ -39,6 +54,20 @@ const liveReport = {
   error: null,
 };
 const liveReportStartedAt = Date.now();
+
+function maestroEnvArgs(extra = {}) {
+  const entries = {
+    ...Object.fromEntries(
+      MAESTRO_FORWARD_ENV_KEYS.filter((key) => process.env[key]).map((key) => [
+        key,
+        process.env[key],
+      ])
+    ),
+    ...extra,
+  };
+
+  return Object.entries(entries).flatMap(([key, value]) => ['-e', `${key}=${value}`]);
+}
 
 function readCashuMintUrl() {
   try {
@@ -68,8 +97,9 @@ function writeLiveReport() {
 function liveEnvironment(extra = {}) {
   return {
     ...process.env,
-    EXPO_PUBLIC_E2E_BYPASS: 'false',
     EXPO_NO_TELEMETRY: '1',
+    EXPO_PUBLIC_DUCAT_LIVE_REGRESSION: 'true',
+    EXPO_PUBLIC_VERBOSE_DEBUG_LOGS: 'true',
     ...extra,
   };
 }
@@ -120,16 +150,14 @@ async function ensureLiveMetro(port) {
   if (await statusForPort(port)) {
     liveReport.metro.port = port;
     if (process.env.MAESTRO_LIVE_REUSE_METRO === 'true') {
-      console.warn(
-        `Reusing existing Metro on port ${port}; ensure it was started with EXPO_PUBLIC_E2E_BYPASS=false.`
-      );
+      console.warn(`Reusing existing Metro on port ${port}; ensure it was started for live E2E.`);
       liveReport.metro.reusedExisting = true;
       return true;
     }
 
     throw new Error(
       `Metro is already running on live port ${port}. Stop it, choose MAESTRO_LIVE_EXPO_PORT, ` +
-      'or set MAESTRO_LIVE_REUSE_METRO=true only if that Metro was started without E2E bypass.'
+        'or set MAESTRO_LIVE_REUSE_METRO=true only after verifying that Metro points at this app.'
     );
   }
 
@@ -141,20 +169,25 @@ async function ensureLiveMetro(port) {
   metroStartedByScript = true;
   liveReport.metro.startedByScript = true;
   liveReport.metro.port = port;
-  metroProcess = spawn(process.execPath, [
-    'scripts/run-node22.mjs',
-    'expo',
-    'start',
-    '--port',
-    String(port),
-    '--host',
-    'localhost',
-    '--clear',
-  ], {
-    cwd: process.cwd(),
-    env: liveEnvironment({ CI: '1' }),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  metroProcess = spawn(
+    process.execPath,
+    [
+      'scripts/run-node22.mjs',
+      'expo',
+      'start',
+      '--port',
+      String(port),
+      '--host',
+      'localhost',
+      '--clear',
+    ],
+    {
+      cwd: process.cwd(),
+      env: liveEnvironment({ CI: '1' }),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    }
+  );
 
   metroProcess.stdout?.on('data', (chunk) => process.stderr.write(`[live metro] ${chunk}`));
   metroProcess.stderr?.on('data', (chunk) => process.stderr.write(`[live metro] ${chunk}`));
@@ -164,15 +197,6 @@ async function ensureLiveMetro(port) {
 
 async function resolveDevClientUrl() {
   if (process.env.MAESTRO_EXPO_DEV_CLIENT_URL) {
-    if (
-      process.env.EXPO_PUBLIC_E2E_BYPASS === 'true' &&
-      process.env.MAESTRO_LIVE_ALLOW_EXTERNAL_URL !== 'true'
-    ) {
-      throw new Error(
-        'Refusing live Maestro run with EXPO_PUBLIC_E2E_BYPASS=true and an external dev-client URL. ' +
-        'Unset the bypass or set MAESTRO_LIVE_ALLOW_EXTERNAL_URL=true after verifying Metro is live-mode.'
-      );
-    }
     return process.env.MAESTRO_EXPO_DEV_CLIENT_URL;
   }
 
@@ -185,25 +209,54 @@ async function resolveDevClientUrl() {
 
   throw new Error(
     `No live Expo Metro server was found on ports ${candidatePorts.join(', ')}. ` +
-    'Start Expo without E2E bypass first, or allow this script to autostart it.'
+      'Start Expo first, or allow this script to autostart it.'
   );
 }
 
 function stopMetroIfStarted() {
   if (!metroProcess || metroProcess.killed) return;
-  metroProcess.kill('SIGTERM');
+
+  const signalMetro = (signal) => {
+    try {
+      if (process.platform !== 'win32' && metroProcess.pid) {
+        process.kill(-metroProcess.pid, signal);
+      } else {
+        metroProcess.kill(signal);
+      }
+    } catch {
+      metroProcess.kill(signal);
+    }
+  };
+
+  signalMetro('SIGTERM');
+
+  const waitBuffer = new SharedArrayBuffer(4);
+  const waitView = new Int32Array(waitBuffer);
+  Atomics.wait(waitView, 0, 0, 750);
+
+  try {
+    if (metroProcess.pid) {
+      process.kill(metroProcess.pid, 0);
+      signalMetro('SIGKILL');
+    }
+  } catch {
+    // Already exited.
+  }
 }
 
 const flows = process.argv.slice(2);
 if (flows.includes('-h') || flows.includes('--help')) {
   console.log(`Usage: node scripts/runMaestroLive.mjs [flow ...]
 
-Runs live Maestro flows with Expo Metro started as EXPO_PUBLIC_E2E_BYPASS=false.
+Runs live Maestro flows against the normal dev-client app bundle.
 Defaults to e2e/maestro/flows/test/. Override with:
   MAESTRO_LIVE_EXPO_PORT=<port>
   MAESTRO_EXPO_DEV_CLIENT_URL=<url>
   MAESTRO_LIVE_REUSE_METRO=true
-  MAESTRO_LIVE_REPORT_PATH=<path|off>`);
+  MAESTRO_LIVE_REPORT_PATH=<path|off>
+
+Forwarded to Maestro when present:
+  ${MAESTRO_FORWARD_ENV_KEYS.join('\n  ')}`);
   process.exit(0);
 }
 
@@ -216,18 +269,15 @@ try {
   for (const flow of targetFlows) {
     console.log(`\nRunning live Maestro flow: ${flow}`);
     const flowStartedAt = Date.now();
-    const result = spawnSync('maestro', [
-      'test',
-      '-e',
-      `MAESTRO_EXPO_DEV_CLIENT_URL=${devClientUrl}`,
-      '-e',
-      'EXPO_PUBLIC_E2E_BYPASS=false',
-      flow,
-    ], {
-      cwd: process.cwd(),
-      env: liveEnvironment({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }),
-      stdio: 'inherit',
-    });
+    const result = spawnSync(
+      'maestro',
+      ['test', ...maestroEnvArgs({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }), flow],
+      {
+        cwd: process.cwd(),
+        env: liveEnvironment({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }),
+        stdio: 'inherit',
+      }
+    );
 
     if (result.error) {
       throw result.error;

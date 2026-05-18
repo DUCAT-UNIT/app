@@ -52,7 +52,8 @@ export function QuantaAccountPickerModal({
   selectedCandidateKey,
   visible,
 }: QuantaAccountPickerModalProps): React.ReactElement {
-  const isConnectDisabled = !selectedCandidate || isClaimingReward || isDiscoveringAccounts;
+  const hasCandidates = accountCandidates.length > 0;
+  const isConnectDisabled = !selectedCandidate || isClaimingReward;
 
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
@@ -88,7 +89,7 @@ export function QuantaAccountPickerModal({
             </Pressable>
           </View>
 
-          {isDiscoveringAccounts ? (
+          {isDiscoveringAccounts && !hasCandidates ? (
             <View style={styles.accountPickerState}>
               <ActivityIndicator color={COLORS.TEXT_PRIMARY} size="small" />
               <Text style={styles.accountPickerStateText}>{accountPickerStatusText}</Text>
@@ -101,57 +102,71 @@ export function QuantaAccountPickerModal({
               <Text style={styles.accountPickerStateText}>{accountPickerError}</Text>
             </View>
           ) : (
-            <ScrollView
-              contentContainerStyle={styles.accountPickerListContent}
-              keyboardShouldPersistTaps="handled"
-              style={styles.accountPickerList}
-            >
-              {accountCandidates.map((candidate) => {
-                const candidateKey = getCandidateKey(candidate);
-                const isSelected = selectedCandidateKey === candidateKey;
-                const candidateTasks = candidate.status.stats?.tasks_completed ?? 0;
-                const isTaskCompleted = candidate.status.task?.completed === true;
+            <React.Fragment>
+              {isDiscoveringAccounts && (
+                <View style={styles.accountPickerInlineState}>
+                  <ActivityIndicator color={COLORS.TEXT_SECONDARY} size="small" />
+                  <Text style={styles.accountPickerInlineStateText}>
+                    Still checking wallet accounts...
+                  </Text>
+                </View>
+              )}
+              <ScrollView
+                contentContainerStyle={styles.accountPickerListContent}
+                keyboardShouldPersistTaps="handled"
+                style={styles.accountPickerList}
+              >
+                {accountCandidates.map((candidate) => {
+                  const candidateKey = getCandidateKey(candidate);
+                  const isSelected = selectedCandidateKey === candidateKey;
+                  const candidateTasks = candidate.status.stats?.tasks_completed ?? 0;
+                  const isTaskCompleted = candidate.status.task?.completed === true;
 
-                return (
-                  <Pressable
-                    accessibilityLabel={`Choose ${getAddressTypeLabel(
-                      candidate.addressType
-                    )} address from account ${candidate.accountIndex + 1}`}
-                    accessibilityRole="button"
-                    key={candidateKey}
-                    onPress={() => onSelectCandidate(candidate)}
-                    style={[styles.accountPickerRow, isSelected && styles.accountPickerRowSelected]}
-                    testID={`quanta-picker-account-${candidate.accountIndex + 1}-${candidate.addressType}`}
-                  >
-                    <View style={styles.accountPickerRowCopy}>
-                      <Text style={styles.accountPickerRowTitle}>
-                        {getWalletProfileLabel(candidate.derivationMode)} · Account{' '}
-                        {candidate.accountIndex + 1} · {getAddressTypeLabel(candidate.addressType)}
-                      </Text>
-                      <Text style={styles.accountPickerAddress} numberOfLines={1} selectable>
-                        {formatAddressPreview(candidate.quantaAddress, addressMaxLength + 8)}
-                      </Text>
-                      <Text style={styles.accountPickerMeta} numberOfLines={1}>
-                        {formatPoints(getCandidatePoints(candidate))} points ·{' '}
-                        {formatPoints(candidateTasks)} tasks
-                        {isTaskCompleted ? ' · mobile reward complete' : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.accountPickerSelectIcon}>
-                      {isSelected ? (
-                        <Ionicons name="checkmark-circle" size={22} color={COLORS.PRIMARY_BLUE} />
-                      ) : (
-                        <Ionicons
-                          name="ellipse-outline"
-                          size={22}
-                          color="rgba(255, 255, 255, 0.34)"
-                        />
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+                  return (
+                    <Pressable
+                      accessibilityLabel={`Choose ${getAddressTypeLabel(
+                        candidate.addressType
+                      )} address from account ${candidate.accountIndex + 1}`}
+                      accessibilityRole="button"
+                      key={candidateKey}
+                      onPress={() => onSelectCandidate(candidate)}
+                      style={[
+                        styles.accountPickerRow,
+                        isSelected && styles.accountPickerRowSelected,
+                      ]}
+                      testID={`quanta-picker-account-${candidate.accountIndex + 1}-${candidate.addressType}`}
+                    >
+                      <View style={styles.accountPickerRowCopy}>
+                        <Text style={styles.accountPickerRowTitle}>
+                          {getWalletProfileLabel(candidate.derivationMode)} · Account{' '}
+                          {candidate.accountIndex + 1} ·{' '}
+                          {getAddressTypeLabel(candidate.addressType)}
+                        </Text>
+                        <Text style={styles.accountPickerAddress} numberOfLines={1} selectable>
+                          {formatAddressPreview(candidate.quantaAddress, addressMaxLength + 8)}
+                        </Text>
+                        <Text style={styles.accountPickerMeta} numberOfLines={1}>
+                          {formatPoints(getCandidatePoints(candidate))} points ·{' '}
+                          {formatPoints(candidateTasks)} tasks
+                          {isTaskCompleted ? ' · mobile reward complete' : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.accountPickerSelectIcon}>
+                        {isSelected ? (
+                          <Ionicons name="checkmark-circle" size={22} color={COLORS.PRIMARY_BLUE} />
+                        ) : (
+                          <Ionicons
+                            name="ellipse-outline"
+                            size={22}
+                            color="rgba(255, 255, 255, 0.34)"
+                          />
+                        )}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </React.Fragment>
           )}
 
           {selectedCandidate && !isDiscoveringAccounts && !accountPickerError && (
@@ -284,6 +299,26 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'CabinetGrotesk-Medium',
     textAlign: 'left',
+  },
+  accountPickerInlineState: {
+    width: '100%',
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    paddingHorizontal: 12,
+  },
+  accountPickerInlineStateText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 15,
+    fontFamily: 'CabinetGrotesk-Medium',
+    textAlign: 'center',
   },
   accountPickerList: {
     width: '100%',

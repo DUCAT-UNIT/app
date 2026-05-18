@@ -1,0 +1,23 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- tapOn:
+    id: "asset-detail-receive-btn"
+- waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Receive"
+    commands:
+      - tapOn:
+          text: "Receive"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        id: "asset-detail-screen"
+    commands:
+      - tapOn:
+          point: "50%,43%"
+      - waitForAnimationToEnd

@@ -2,7 +2,7 @@
  * Mint Swap API - Token swapping and state checking
  */
 
-import { postJSON } from '../../../utils/apiClient';
+import { postJsonWithNativeTimeout } from '../../../utils/nativeHttp';
 import { logger } from '../../../utils/logger';
 import { MINT_URL } from './mintConfig';
 import { CashuProof } from '../p2pk';
@@ -32,20 +32,27 @@ interface RestoreResponse {
  * @param outputs - Blinded messages for new amounts
  * @returns New blind signatures
  */
-export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[]): Promise<MintResponse> => {
+export const swapTokens = async (
+  inputs: CashuProof[],
+  outputs: BlindedOutput[]
+): Promise<MintResponse> => {
   try {
     logger.info('Swapping tokens', {
       inputCount: inputs.length,
-      outputCount: outputs.length
+      outputCount: outputs.length,
     });
 
-    const response = await postJSON<MintResponse>(`${MINT_URL}/v1/swap`, {
-      inputs,
-      outputs,
-    }, {
-      timeout: 10000,
-      description: 'Swap tokens',
-    });
+    const response = await postJsonWithNativeTimeout<MintResponse>(
+      `${MINT_URL}/v1/swap`,
+      {
+        inputs,
+        outputs,
+      },
+      {
+        timeout: 10000,
+        headers: { Accept: 'application/json' },
+      }
+    );
 
     // Check if response contains an error
     if (response.error) {
@@ -59,7 +66,9 @@ export const swapTokens = async (inputs: CashuProof[], outputs: BlindedOutput[])
 
     // Validate signature count matches expected output count
     if (response.signatures.length !== outputs.length) {
-      throw new Error(`Signature count mismatch: expected ${outputs.length} signatures but got ${response.signatures.length}`);
+      throw new Error(
+        `Signature count mismatch: expected ${outputs.length} signatures but got ${response.signatures.length}`
+      );
     }
 
     logger.info('Tokens swapped', { signatureCount: response.signatures.length });
@@ -79,12 +88,16 @@ export const restoreSignatures = async (outputs: BlindedOutput[]): Promise<MintR
   try {
     logger.info('Restoring Cashu signatures', { outputCount: outputs.length });
 
-    const response = await postJSON<RestoreResponse>(`${MINT_URL}/v1/restore`, {
-      outputs,
-    }, {
-      timeout: 10000,
-      description: 'Restore signatures',
-    });
+    const response = await postJsonWithNativeTimeout<RestoreResponse>(
+      `${MINT_URL}/v1/restore`,
+      {
+        outputs,
+      },
+      {
+        timeout: 10000,
+        headers: { Accept: 'application/json' },
+      }
+    );
 
     if (response.error) {
       throw new Error(`Restore failed: ${response.error}`);
@@ -134,19 +147,23 @@ export const restoreSignatures = async (outputs: BlindedOutput[]): Promise<MintR
  * @param proofs - Proofs to check
  * @returns States of proofs
  */
-export const checkProofsSpent = async (proofs: Array<CashuProof | { secret: string }>): Promise<CheckStateResponse> => {
+export const checkProofsSpent = async (
+  proofs: Array<CashuProof | { secret: string }>
+): Promise<CheckStateResponse> => {
   try {
     // Hash secrets to Y values (curve points) as required by NUT-07
-    const Ys = await Promise.all(
-      proofs.map(async (p) => await hashToCurve(p.secret))
-    );
+    const Ys = await Promise.all(proofs.map(async (p) => await hashToCurve(p.secret)));
 
-    const response = await postJSON<CheckStateResponse>(`${MINT_URL}/v1/checkstate`, {
-      Ys,
-    }, {
-      timeout: 5000,
-      description: 'Check proof state',
-    });
+    const response = await postJsonWithNativeTimeout<CheckStateResponse>(
+      `${MINT_URL}/v1/checkstate`,
+      {
+        Ys,
+      },
+      {
+        timeout: 5000,
+        headers: { Accept: 'application/json' },
+      }
+    );
 
     return response;
   } catch (error: unknown) {

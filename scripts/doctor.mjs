@@ -162,10 +162,7 @@ function checkMutinynetInvariant() {
     return /\b(remoteConfig|RemoteConfig)\b/.test(content);
   });
 
-  check(
-    appConfig.includes('EXPO_PUBLIC_E2E_BYPASS') && appConfig.includes('NODE_ENV === \'production\''),
-    'app.config.ts must block EXPO_PUBLIC_E2E_BYPASS in production'
-  );
+  check(!/\bE2E\b.*\bbypass\b/i.test(appConfig), 'app.config.ts must not expose test shortcuts');
   check(
     appConfig.includes('EXPO_PUBLIC_APP_NETWORK') && appConfig.includes('mutinynet'),
     'app.config.ts must reject non-mutinynet EXPO_PUBLIC_APP_NETWORK values'

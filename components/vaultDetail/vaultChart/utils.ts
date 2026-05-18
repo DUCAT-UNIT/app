@@ -13,7 +13,7 @@ import { INTERVAL_CONFIG } from './types';
 export function transformToEvents(transactions: VaultHistoryTransaction[]): VaultEvent[] {
   const sorted = [...transactions].sort((a, b) => a.timestamp - b.timestamp);
 
-  return sorted.map(tx => ({
+  return sorted.map((tx) => ({
     amount: tx.amount_borrowed / 100,
     type: tx.action.toLowerCase() === 'open' ? 'create' : tx.action.toLowerCase(),
     date: new Date(tx.timestamp * 1000).toISOString(),
@@ -63,37 +63,26 @@ function getBitcoinPriceByTimestamp(bitcoinData: BitcoinData[], targetTimestamp:
 /**
  * Get closest transaction before a timestamp (transactions sorted descending by timestamp)
  */
-function getClosestTransactionBefore(
+function getClosestTransactionBeforeSortedDesc(
   transactions: VaultHistoryTransaction[],
   timestamp: number
 ): VaultHistoryTransaction | undefined {
-  for (const tx of transactions) {
-    if (tx.timestamp <= timestamp) {
-      return tx;
-    }
-  }
-  return undefined;
-}
+  let left = 0;
+  let right = transactions.length - 1;
+  let resultIndex = transactions.length;
 
-/**
- * Get transactions between two timestamps (transactions sorted descending by timestamp)
- */
-function getTransactionsBetween(
-  transactions: VaultHistoryTransaction[],
-  timestampStart: number,
-  timestampEnd: number
-): VaultHistoryTransaction[] {
-  const result: VaultHistoryTransaction[] = [];
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
 
-  for (const tx of transactions) {
-    if (tx.timestamp >= timestampStart && tx.timestamp <= timestampEnd) {
-      result.push(tx);
-    } else if (tx.timestamp < timestampStart) {
-      break; // Since sorted descending, we can stop early
+    if (transactions[mid].timestamp <= timestamp) {
+      resultIndex = mid;
+      right = mid - 1;
+    } else {
+      left = mid + 1;
     }
   }
 
-  return result;
+  return resultIndex < transactions.length ? transactions[resultIndex] : undefined;
 }
 
 /**
@@ -101,7 +90,9 @@ function getTransactionsBetween(
  */
 function computeHealthPercent(tx: VaultHistoryTransaction, btcPrice: number): number {
   const { vault_amount, amount_borrowed } = tx;
-  const value = Math.floor((((vault_amount / 100_000_000) * btcPrice) / (amount_borrowed / 100)) * 100);
+  const value = Math.floor(
+    (((vault_amount / 100_000_000) * btcPrice) / (amount_borrowed / 100)) * 100
+  );
   return Math.min(value, 500);
 }
 
@@ -129,6 +120,17 @@ export function createEventSeries(
   const endTimestamp = Math.floor(Date.now() / 1000);
   const startTimestamp = endTimestamp - unitLength * numberOfUnits;
 
+  const transactionsByBucket: VaultHistoryTransaction[][] = Array.from(
+    { length: numberOfUnits },
+    () => []
+  );
+  for (const tx of sortedTxsDesc) {
+    const bucketIndex = Math.floor((tx.timestamp - startTimestamp) / unitLength);
+    if (bucketIndex >= 0 && bucketIndex < numberOfUnits) {
+      transactionsByBucket[bucketIndex].push(tx);
+    }
+  }
+
   const series: SeriesItem[] = [];
 
   for (let i = 0; i < numberOfUnits; i++) {
@@ -137,15 +139,16 @@ export function createEventSeries(
     const bucketEnd = bucketStart + unitLength - 1;
 
     const btcPrice = getBitcoinPriceByTimestamp(sortedBtcData, bucketEnd);
-    const txBefore = getClosestTransactionBefore(sortedTxsDesc, bucketStart);
-    const txsBetween = getTransactionsBetween(sortedTxsDesc, bucketStart, bucketEnd);
+    const txBefore = getClosestTransactionBeforeSortedDesc(sortedTxsDesc, bucketStart);
+    const txsBetween = transactionsByBucket[i];
 
     // Calculate health values
     const healthBefore = txBefore ? computeHealthPercent(txBefore, btcPrice) : null;
     // If there are transactions in this bucket, use the oldest one (last in the array since sorted desc)
-    const healthAfter = txsBetween.length > 0
-      ? computeHealthPercent(txsBetween[txsBetween.length - 1], btcPrice)
-      : healthBefore;
+    const healthAfter =
+      txsBetween.length > 0
+        ? computeHealthPercent(txsBetween[txsBetween.length - 1], btcPrice)
+        : healthBefore;
 
     // Add reference line if there's an event in this bucket
     if (txsBetween.length > 0) {
@@ -155,7 +158,8 @@ export function createEventSeries(
         txTimestamp: eventTx.timestamp * 1000, // Actual tx timestamp for filtering
         prevValue: Math.max(healthBefore || 125, 125),
         newValue: Math.max(healthAfter || 125, 125),
-        eventType: eventTx.action.toLowerCase() === 'open' ? 'create' : eventTx.action.toLowerCase(),
+        eventType:
+          eventTx.action.toLowerCase() === 'open' ? 'create' : eventTx.action.toLowerCase(),
         btcWallet: eventTx.vault_amount / 100_000_000,
         amount: eventTx.amount_borrowed / 100,
       });
@@ -164,9 +168,12 @@ export function createEventSeries(
     series.push({
       date: bucketEnd * 1000,
       healthValue: healthAfter,
-      eventType: txsBetween.length > 0
-        ? (txsBetween[0].action.toLowerCase() === 'open' ? 'create' : txsBetween[0].action.toLowerCase())
-        : undefined,
+      eventType:
+        txsBetween.length > 0
+          ? txsBetween[0].action.toLowerCase() === 'open'
+            ? 'create'
+            : txsBetween[0].action.toLowerCase()
+          : undefined,
       isEventPoint: txsBetween.length > 0,
     });
   }

@@ -140,15 +140,8 @@ jest.mock('../../../utils/wallet/cryptoHelpers', () => ({
   }),
 }));
 
-import {
-  readVarInt,
-  createPsbtKv,
-  encodeWitnessStack,
-} from '../psbtBinaryUtils';
-import {
-  MASTER_CONTRACT_ID,
-  WALLET_CFG,
-} from '../types';
+import { readVarInt, createPsbtKv, encodeWitnessStack } from '../psbtBinaryUtils';
+import { MASTER_CONTRACT_ID, WALLET_CFG } from '../types';
 
 describe('VaultWallet Types', () => {
   describe('MASTER_CONTRACT_ID', () => {
@@ -370,6 +363,46 @@ describe('VaultWallet Index Re-exports', () => {
     expect(index.createMobileWalletAPI).toBeDefined();
     expect(index.fetchProtocolContract).toBeDefined();
     expect(index.createVaultWallet).toBeDefined();
+  });
+});
+
+describe('Protocol contract loading', () => {
+  const walletInfo = {
+    segwitAddress: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx',
+    segwitPubkey: '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798',
+    taprootAddress: 'tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv',
+    taprootPubkey: 'a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c',
+  };
+
+  beforeEach(() => {
+    jest.resetModules();
+    const { OracleAPI } = require('@ducat-unit/client-sdk');
+    OracleAPI.proto.fetch_master_ctx.mockReset();
+  });
+
+  it('uses the bundled protocol contract without fetching from the network', async () => {
+    const { OracleAPI } = require('@ducat-unit/client-sdk');
+    const index = require('../index');
+
+    const contract = await index.fetchProtocolContract();
+
+    expect(contract.master_id).toBe(index.MASTER_CONTRACT_ID);
+    expect(OracleAPI.proto.fetch_master_ctx).not.toHaveBeenCalled();
+  });
+
+  it('creates a VaultWallet from the bundled protocol contract', async () => {
+    const { OracleAPI, VaultWallet } = require('@ducat-unit/client-sdk');
+    const index = require('../index');
+
+    await index.createVaultWallet(walletInfo);
+
+    expect(OracleAPI.proto.fetch_master_ctx).not.toHaveBeenCalled();
+    expect(VaultWallet).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ master_id: index.MASTER_CONTRACT_ID }),
+      expect.any(Object),
+      index.WALLET_CFG
+    );
   });
 });
 

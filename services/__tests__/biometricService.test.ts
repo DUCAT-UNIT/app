@@ -10,6 +10,10 @@ import {
   isBiometricEnabled,
   setBiometricEnabled,
 } from '../biometricService';
+import {
+  _resetPrivacySplashSuppressionForTests,
+  isPrivacySplashSuppressed,
+} from '../privacySplashSuppression';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -48,10 +52,12 @@ const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DE
 describe('BiometricService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    _resetPrivacySplashSuppressionForTests();
     jest.spyOn(Date, 'now').mockReturnValue(1000000);
   });
 
   afterEach(() => {
+    _resetPrivacySplashSuppressionForTests();
     jest.restoreAllMocks();
   });
 
@@ -291,6 +297,20 @@ describe('BiometricService', () => {
         fallbackLabel: 'Use PIN',
         disableDeviceFallback: true,
       });
+    });
+
+    it('should suppress the privacy splash only while native auth is pending', async () => {
+      mockGetItemAsync.mockResolvedValue(null);
+      mockDeleteItemAsync.mockResolvedValue();
+      mockAuthenticateAsync.mockImplementation(async () => {
+        expect(isPrivacySplashSuppressed()).toBe(true);
+        return { success: true };
+      });
+
+      const result = await authenticateWithBiometrics();
+
+      expect(result.success).toBe(true);
+      expect(isPrivacySplashSuppressed()).toBe(false);
     });
 
     it('should handle lockout error from checkBiometricLockout', async () => {

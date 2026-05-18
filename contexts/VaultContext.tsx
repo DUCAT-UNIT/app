@@ -93,6 +93,9 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
           action: confirmedAction,
           txid: confirmedTxid,
         });
+        logger.info(
+          `[E2E_TX] vault_state_applied operation=${confirmedAction} txid=${pendingVaultTx.txid ?? ''} vaultTxid=${confirmedTxid}`
+        );
         void usePendingVaultTransactionStore
           .getState()
           .clearPendingTransactionForAccount(currentAccount);

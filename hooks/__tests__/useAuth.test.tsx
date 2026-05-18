@@ -9,6 +9,7 @@ import { useAuth } from '../useAuth';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import * as PasskeyService from '../../services/passkey';
+import { hasAccessibleMnemonic } from '../../services/secureStorageService';
 
 // Mock expo-local-authentication
 jest.mock('expo-local-authentication', () => ({
@@ -40,6 +41,10 @@ const mockIsBiometricEnabled = jest.fn();
 jest.mock('../../services/biometricService', () => ({
   authenticateWithBiometrics: (...args: any[]) => mockAuthenticateWithBiometrics(...args),
   isBiometricEnabled: () => mockIsBiometricEnabled(),
+}));
+
+jest.mock('../../services/secureStorageService', () => ({
+  hasAccessibleMnemonic: jest.fn(),
 }));
 
 // Helper to render hooks with props
@@ -79,6 +84,7 @@ describe('useAuth', () => {
     (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(false);
     (PasskeyService.unlockWithPasskey as jest.Mock).mockResolvedValue({ mnemonic: null, addresses: null });
     (PasskeyService.isPasskeySupported as jest.Mock).mockResolvedValue(false);
+    (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
 
     mockProps = {
       onSeedConfirmed: jest.fn(),
@@ -201,7 +207,28 @@ describe('useAuth', () => {
         'Authenticate to access your wallet',
         'Use PIN'
       );
+      expect(hasAccessibleMnemonic).toHaveBeenCalled();
       expect(result.current!.isAuthenticated).toBe(true);
+    });
+
+    it('should require mnemonic availability before biometric auth unlocks the app', async () => {
+      (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(false);
+      const { result } = renderHook(() => useAuth(mockProps), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        result.current!.setBiometricEnabled(true);
+      });
+
+      await act(async () => {
+        await result.current!.authenticateUser();
+      });
+
+      expect(result.current!.isAuthenticated).toBe(false);
+      expect(result.current!.showPinEntry).toBe(true);
+      expect(result.current!.showFaceIdButton).toBe(false);
+      expect(result.current!.pinError).toBe('Enter your PIN to unlock wallet signing.');
     });
 
     it('should show biometric prompt if not enabled', async () => {
@@ -542,7 +569,7 @@ describe('useAuth', () => {
 
       expect(result.current!.isAuthenticated).toBe(false);
       expect(result.current!.biometricEnabled).toBe(false);
-      expect(result.current!.showFaceIdButton).toBe(true);
+      expect(result.current!.showFaceIdButton).toBe(false);
       expect(result.current!.showBiometricPrompt).toBe(false);
       expect(result.current!.settingUpPin).toBe(false);
       expect(result.current!.changingPin).toBe(false);

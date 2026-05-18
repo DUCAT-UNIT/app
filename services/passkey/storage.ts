@@ -112,16 +112,20 @@ export const removePasskey = async (): Promise<void> => {
  */
 export const clearPasskeyData = async (clearICloudBackup = false): Promise<void> => {
   try {
+    const localPasskeyKeys = [
+      PASSKEY_KEYS.ENABLED,
+      PASSKEY_KEYS.CREATION_METHOD,
+      PASSKEY_KEYS.CREDENTIAL_ID,
+      PASSKEY_KEYS.USER_HANDLE,
+      PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
+      PASSKEY_KEYS.ENCRYPTION_IV,
+      PASSKEY_KEYS.ENCRYPTION_TAG,
+      PASSKEY_KEYS.PRF_ENABLED,
+      PASSKEY_KEYS.DERIVATION_VERSION,
+    ];
+
     // Clear local secure storage
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENABLED);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.CREATION_METHOD);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.CREDENTIAL_ID);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.USER_HANDLE);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTED_MNEMONIC);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_IV);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.ENCRYPTION_TAG);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.PRF_ENABLED);
-    await SecureStore.deleteItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
+    await Promise.all(localPasskeyKeys.map((key) => SecureStore.deleteItemAsync(key)));
 
     logger.debug('Local passkey data cleared');
 

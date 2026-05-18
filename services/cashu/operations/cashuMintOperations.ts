@@ -112,9 +112,7 @@ export const requestMint = async (
     logger.info('Requesting mint', { amount, type: typeof amount, unit });
     requireCashuOperationAccount('Cashu mint quote request');
     const signingKey = await getMintQuoteSigningKey();
-    const quote: MintQuote = await (unit === DEFAULT_CASHU_UNIT
-      ? createMintQuote(signingKey.pubkey, unit)
-      : createMintQuote(signingKey.pubkey, unit, amount));
+    const quote: MintQuote = await createMintQuote(signingKey.pubkey, unit, amount);
 
     logger.info('Mint quote received from mint', {
       quoteId: quote.quote,

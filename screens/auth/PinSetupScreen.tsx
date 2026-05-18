@@ -58,7 +58,7 @@ const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontS
   return (
     <Pressable
       style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
-      onPressIn={handlePress}
+      onPress={handlePress}
       hitSlop={8}
       testID={`pin-keypad-${digit}`}
     >
@@ -311,7 +311,7 @@ export default function PinSetupScreen({
             <KeypadButton digit="0" onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
             <Pressable
               style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
-              onPressIn={handlePinDelete}
+              onPress={handlePinDelete}
               hitSlop={8}
               testID="pin-keypad-delete"
             >

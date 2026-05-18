@@ -1,0 +1,117 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live Sepolia/USDC coverage:
+# 1. Send Sepolia USDC to an external recipient.
+# 2. Swap Sepolia USDC to wUNIT/UNIT path.
+# 3. Redeem Sepolia USDC back to Mutinynet UNIT release.
+
+- runFlow: ../helpers/import-reviewer-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
+
+# Sepolia USDC send.
+- openLink: 'ducat://sepolia/send'
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
+- runFlow: ../helpers/unlock-if-locked.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'sepolia-send-screen'
+    timeout: 30000
+- tapOn:
+    id: 'sepolia-send-recipient-input'
+- inputText: '${DUCAT_LIVE_SEPOLIA_RECIPIENT}'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+- tapOn:
+    id: 'sepolia-send-amount-input'
+- eraseText
+- inputText: '${DUCAT_LIVE_SEPOLIA_SEND_AMOUNT}'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'sepolia-send-readiness-card'
+    timeout: 30000
+- tapOn:
+    id: 'sepolia-send-submit-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'sepolia-send-review-screen'
+    timeout: 30000
+- tapOn:
+    id: 'sepolia-send-review-submit-btn'
+- runFlow: ../helpers/dismiss-system-alerts.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'asset-detail-screen'
+    timeout: 120000
+
+# Sepolia USDC swap.
+- openLink: 'ducat://sepolia/swap?sourceAsset=USDC'
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
+- runFlow: ../helpers/unlock-if-locked.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'sepolia-swap-screen'
+    timeout: 30000
+- tapOn:
+    id: 'cross-chain-swap-amount-input'
+- eraseText
+- inputText: '${DUCAT_LIVE_SEPOLIA_SWAP_AMOUNT}'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'sepolia-swap-error-card'
+    timeout: 30000
+- tapOn:
+    id: 'cross-chain-swap-submit-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'cross-chain-swap-summary-screen'
+    timeout: 60000
+- extendedWaitUntil:
+    notVisible:
+      id: 'cross-chain-swap-readiness-card'
+    timeout: 30000
+- tapOn:
+    id: 'cross-chain-swap-summary-confirm-btn'
+- runFlow:
+    when:
+      visible:
+        id: 'pin-fallback-modal'
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
+- runFlow: ../helpers/dismiss-system-alerts.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'asset-detail-screen'
+    timeout: 180000
+
+# Redeem Sepolia USDC back to Mutinynet.
+- openLink: 'ducat://sepolia/redeem?sourceAsset=USDC'
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
+- runFlow: ../helpers/unlock-if-locked.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'sepolia-redeem-screen'
+    timeout: 30000
+- tapOn:
+    id: 'sepolia-redeem-usdc-btn'
+- tapOn:
+    id: 'sepolia-redeem-destination-input'
+- eraseText
+- inputText: 'tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+- tapOn:
+    id: 'sepolia-redeem-amount-input'
+- eraseText
+- inputText: '${DUCAT_LIVE_SEPOLIA_REDEEM_AMOUNT}'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+- extendedWaitUntil:
+    notVisible:
+      id: 'sepolia-redeem-readiness-card'
+    timeout: 30000
+- tapOn:
+    id: 'sepolia-redeem-submit-btn'
+- runFlow: ../helpers/dismiss-system-alerts.yaml
+- extendedWaitUntil:
+    visible:
+      text: 'Release status'
+    timeout: 240000

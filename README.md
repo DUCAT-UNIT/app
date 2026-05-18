@@ -8,10 +8,10 @@
 
 **UNIT** is a Bitcoin Runes token (`DUCAT*UNIT*RUNE`) that exists in two forms:
 
-| Form | Where it lives | Speed | Fees |
-|------|----------------|-------|------|
-| **On-chain UNIT** | Bitcoin blockchain (Taproot address) | ~10 min confirmation | Network fees |
-| **Turbo UNIT (tUNIT)** | Cashu mint (off-chain e-cash) | Instant | Free |
+| Form                   | Where it lives                       | Speed                | Fees         |
+| ---------------------- | ------------------------------------ | -------------------- | ------------ |
+| **On-chain UNIT**      | Bitcoin blockchain (Taproot address) | ~10 min confirmation | Network fees |
+| **Turbo UNIT (tUNIT)** | Cashu mint (off-chain e-cash)        | Instant              | Free         |
 
 Both forms represent the same asset. Convert between them freely inside the wallet.
 
@@ -47,7 +47,7 @@ The mobile app is hard-locked to Mutinynet. Remote network config, server-driven
 
 ### Analytics
 
-PostHog event tracking (55+ events) with privacy guards -- addresses SHA-256 hashed, txids truncated, E2E bypass in test mode. Covers onboarding, auth, send flow, vault operations, liquidation, cashu, settings, navigation, and errors.
+PostHog event tracking (55+ events) with privacy guards -- addresses SHA-256 hashed, txids truncated, and test-mode suppression isolated from production analytics. Covers onboarding, auth, send flow, vault operations, liquidation, cashu, settings, navigation, and errors.
 
 ## Architecture
 
@@ -112,19 +112,19 @@ app/
 
 ### Technical Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | React Native 0.76 (New Architecture), Expo SDK 54 |
-| Navigation | React Navigation 7 (stacks + bottom tabs) |
-| Bitcoin | `bitcoinjs-lib` v7, `@bitcoinerlab/secp256k1`, BIP32/39/84/86 |
-| Runes | Custom LEB128 encoder, runestone serialization |
-| E-cash | `@cashu/cashu-ts` v4 token handling plus Ducat `onchain/unit` mint adapter and NUT-11 P2PK flows |
-| Security | `expo-secure-store`, `expo-local-authentication`, `react-native-passkey` |
-| Crypto | `react-native-quick-crypto` (PBKDF2, HKDF, AES-256-GCM) |
-| Analytics | PostHog (`posthog-react-native`), 55+ events, EU cloud |
-| Push | `expo-notifications`, Expo Push API, EC2 backend |
-| State | React Context + Zustand stores |
-| Testing | Jest (220 suites), Maestro E2E (65 product flows) |
+| Layer      | Technology                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| Framework  | React Native 0.76 (New Architecture), Expo SDK 54                                                |
+| Navigation | React Navigation 7 (stacks + bottom tabs)                                                        |
+| Bitcoin    | `bitcoinjs-lib` v7, `@bitcoinerlab/secp256k1`, BIP32/39/84/86                                    |
+| Runes      | Custom LEB128 encoder, runestone serialization                                                   |
+| E-cash     | `@cashu/cashu-ts` v4 token handling plus Ducat `onchain/unit` mint adapter and NUT-11 P2PK flows |
+| Security   | `expo-secure-store`, `expo-local-authentication`, `react-native-passkey`                         |
+| Crypto     | `react-native-quick-crypto` (PBKDF2, HKDF, AES-256-GCM)                                          |
+| Analytics  | PostHog (`posthog-react-native`), 55+ events, EU cloud                                           |
+| Push       | `expo-notifications`, Expo Push API, EC2 backend                                                 |
+| State      | React Context + Zustand stores                                                                   |
+| Testing    | Jest (220 suites), Maestro E2E (65 product flows)                                                |
 
 ## Security
 
@@ -154,22 +154,23 @@ Mnemonic -> HKDF(passkey_id + PIN) -> AES-256-GCM -> iCloud Keychain
 
 ### Backend Services (EC2)
 
-| Service | Domain | Purpose |
-|---------|--------|---------|
-| Cashu Mint | `dev-cashu-mint.ducatprotocol.com` | UNIT e-cash mint/melt operations |
-| Push Server | `notifications.ducatprotocol.com` | Push token registry + event watchers |
-| Faucet | `faucet.ducatprotocol.com` | Testnet BTC/UNIT faucet + swap API |
-| URL Shortener | `go.ducatprotocol.com` | Cashu token deep links |
-| Validator | `validator.ducatprotocol.com` | Vault state + liquidation API |
-| Oracle | `price.ducatprotocol.com` | BTC price feed |
-| Ord Indexer | `ord-mutinynet.ducatprotocol.com` | Runes balance + UTXO data |
-| Explorer | `mutinynet.com` | Block explorer (Esplora API) |
+| Service       | Domain                             | Purpose                              |
+| ------------- | ---------------------------------- | ------------------------------------ |
+| Cashu Mint    | `dev-cashu-mint.ducatprotocol.com` | UNIT e-cash mint/melt operations     |
+| Push Server   | `notifications.ducatprotocol.com`  | Push token registry + event watchers |
+| Faucet        | `faucet.ducatprotocol.com`         | Testnet BTC/UNIT faucet + swap API   |
+| URL Shortener | `go.ducatprotocol.com`             | Cashu token deep links               |
+| Validator     | `validator.ducatprotocol.com`      | Vault state + liquidation API        |
+| Oracle        | `price.ducatprotocol.com`          | BTC price feed                       |
+| Ord Indexer   | `ord-mutinynet.ducatprotocol.com`  | Runes balance + UTXO data            |
+| Explorer      | `mutinynet.com`                    | Block explorer (Esplora API)         |
 
 ### Push Server
 
 Express.js on port 3020 (PM2 managed, nginx proxied via Cloudflare).
 
 **Endpoints:**
+
 - `POST /api/register` -- register Expo push token
 - `DELETE /api/unregister` -- remove token
 - `POST /api/broadcast` -- send notification to all devices
@@ -178,6 +179,7 @@ Express.js on port 3020 (PM2 managed, nginx proxied via Cloudflare).
 - `GET /api/tokens` -- admin-only token registry inspection; must not be publicly exposed
 
 **Background Watchers (cron):**
+
 - TX Watcher (30s) -- polls Esplora for watched TX confirmations
 - Vault Health Watcher (60s) -- alerts when health <200% or <170%
 - Liquidation Watcher (120s) -- alerts when vaults available for liquidation
@@ -244,6 +246,7 @@ CASHU_MINT:   https://dev-cashu-mint.ducatprotocol.com
 **Coverage Gate**: `npm run verify` enforces Jest coverage thresholds after unit tests.
 
 **E2E Tests**: 67 maintained Maestro product flows across 6 suites, plus separate live/ad-hoc flows under `e2e/maestro/flows/test`:
+
 - Auth (8): wallet create/import, PIN setup/unlock, lockout, auto-lock
 - Settings (17): preferences, security, advanced, diagnostics, wallet deletion
 - Wallet (19): balances, receive, asset detail, transaction history, Sepolia surfaces, liquidation dashboard
@@ -256,7 +259,7 @@ npm run e2e:auth       # Auth suite
 npm run e2e:settings   # Settings suite
 npm run e2e:wallet     # Wallet suite
 npm run e2e            # All maintained product suites
-npm run doctor:live    # Validate funded Mutinynet/Sepolia live-run prerequisites
+npm run doctor:live    # Validate live-run endpoints and local tooling
 npm run e2e:live:turbo # Live TurboUNIT smoke flow after doctor:live
 npm run e2e:live       # doctor:live, then long-running live/ad-hoc flows
 npm run e2e:validate   # Validate maintained Maestro suite references and docs count

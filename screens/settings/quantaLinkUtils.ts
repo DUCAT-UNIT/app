@@ -22,13 +22,14 @@ export const ACCOUNT_CHECK_FAILURE_MESSAGE = 'Could not check wallet accounts. T
 export const CONNECT_QUANTA_ERROR_MESSAGE = 'Could not connect Quanta. Try again.';
 export const QUANTA_ACCOUNT_MATCH_SEARCH_LIMIT = 100;
 export const QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT = 20;
-export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 3;
+export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 12;
+export const QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE = 36;
 export const QUANTA_DISCOVERY_STATUS_CACHE_TTL_MS = 60_000;
 export const QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY = 'quanta-mobile-reward-discovery';
-export const QUANTA_DISCOVERY_STATUS_TIMEOUT_MS = 3000;
+export const QUANTA_DISCOVERY_STATUS_TIMEOUT_MS = 5000;
 export const QUANTA_DIFFERENT_WALLET_STATUS_TIMEOUT_MS = 1200;
 export const QUANTA_SEARCH_START_DELAY_MS = 32;
-export const QUANTA_WALLET_SEARCH_TIMEOUT_MS = 3500;
+export const QUANTA_WALLET_SEARCH_TIMEOUT_MS = 20000;
 
 export interface QuantaMobileWalletPayload {
   mobileWalletAddress: string | null;

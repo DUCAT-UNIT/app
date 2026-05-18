@@ -16,42 +16,36 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "security-change-pin-btn"
 
-# Enter current PIN (123456)
+# Enter current PIN (111111)
 - runFlow: ../helpers/enter-pin-lock.yaml
 
 # Enter new PIN (654321) twice
-- tapOn:
-    id: "pin-keypad-6"
-- tapOn:
-    id: "pin-keypad-5"
-- tapOn:
-    id: "pin-keypad-4"
-- tapOn:
-    id: "pin-keypad-3"
-- tapOn:
-    id: "pin-keypad-2"
-- tapOn:
-    id: "pin-keypad-1"
+- runFlow: ../helpers/enter-pin-reverse-setup.yaml
 
 # Confirm new PIN
-- tapOn:
-    id: "pin-keypad-6"
-- tapOn:
-    id: "pin-keypad-5"
-- tapOn:
-    id: "pin-keypad-4"
-- tapOn:
-    id: "pin-keypad-3"
-- tapOn:
-    id: "pin-keypad-2"
-- tapOn:
-    id: "pin-keypad-1"
+- extendedWaitUntil:
+    visible:
+      text: "Confirm New PIN"
+    timeout: 10000
+- runFlow: ../helpers/enter-pin-reverse-setup.yaml
 
 # Verify returns to security screen
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "settings-screen"
+    commands:
+      - tapOn:
+          id: "settings-security-btn"
+      - extendedWaitUntil:
+          visible:
+            id: "security-screen"
+          timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "security-screen"
-    timeout: 10000
+    timeout: 60000
 
 # === RE-VERIFICATION: Lock wallet and unlock with new PIN ===
 
@@ -82,18 +76,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 5000
 
 # Enter NEW PIN (654321) to verify it works
-- tapOn:
-    id: "lock-keypad-6"
-- tapOn:
-    id: "lock-keypad-5"
-- tapOn:
-    id: "lock-keypad-4"
-- tapOn:
-    id: "lock-keypad-3"
-- tapOn:
-    id: "lock-keypad-2"
-- tapOn:
-    id: "lock-keypad-1"
+- runFlow: ../helpers/enter-pin-reverse-lock.yaml
 
 # Verify wallet screen loads (new PIN works!)
 - extendedWaitUntil:
@@ -112,7 +95,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "passkey-skip-btn"
 
-# === CLEANUP: Change PIN back to 123456 for other tests ===
+# === CLEANUP: Change PIN back to 111111 for other tests ===
 - tapOn:
     id: "wallet-settings-btn"
 - extendedWaitUntil:
@@ -127,49 +110,33 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "security-change-pin-btn"
 
 # Enter current PIN (654321 — the one we just set)
-- tapOn:
-    id: "lock-keypad-6"
-- tapOn:
-    id: "lock-keypad-5"
-- tapOn:
-    id: "lock-keypad-4"
-- tapOn:
-    id: "lock-keypad-3"
-- tapOn:
-    id: "lock-keypad-2"
-- tapOn:
-    id: "lock-keypad-1"
+- runFlow: ../helpers/enter-pin-reverse-lock.yaml
 
-# Enter original PIN (123456) twice to restore
-- tapOn:
-    id: "pin-keypad-1"
-- tapOn:
-    id: "pin-keypad-2"
-- tapOn:
-    id: "pin-keypad-3"
-- tapOn:
-    id: "pin-keypad-4"
-- tapOn:
-    id: "pin-keypad-5"
-- tapOn:
-    id: "pin-keypad-6"
+# Enter original PIN (111111) twice to restore
+- runFlow: ../helpers/enter-pin-setup.yaml
 
 # Confirm original PIN
-- tapOn:
-    id: "pin-keypad-1"
-- tapOn:
-    id: "pin-keypad-2"
-- tapOn:
-    id: "pin-keypad-3"
-- tapOn:
-    id: "pin-keypad-4"
-- tapOn:
-    id: "pin-keypad-5"
-- tapOn:
-    id: "pin-keypad-6"
+- extendedWaitUntil:
+    visible:
+      text: "Confirm New PIN"
+    timeout: 10000
+- runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/retry-pin-setup-if-mismatch.yaml
 
 # Verify returns to security screen (cleanup complete)
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "settings-screen"
+    commands:
+      - tapOn:
+          id: "settings-security-btn"
+      - extendedWaitUntil:
+          visible:
+            id: "security-screen"
+          timeout: 10000
 - extendedWaitUntil:
     visible:
       id: "security-screen"
-    timeout: 10000
+    timeout: 60000

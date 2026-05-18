@@ -111,7 +111,7 @@ export default function BottomSheet({
     })
   ).current;
 
-  // E2E bypass: render as View overlay instead of Modal so elements are
+  // E2E fixture mode: render as View overlay instead of Modal so elements are
   // accessible to Maestro (React Native Modal creates a separate UIWindow
   // on iOS that Maestro's XCUITest queries cannot reach)
   if (isE2E()) {

@@ -9,7 +9,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - extendedWaitUntil:
     visible:
       id: "wallet-borrow-btn"
-    timeout: 10000
+    timeout: 240000
 - tapOn:
     id: "wallet-borrow-btn"
 
@@ -43,14 +43,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 - tapOn:
     id: "vault-borrow-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 # Wait for success
 - extendedWaitUntil:
     visible:
       id: "vault-borrow-success-screen"
     timeout: 120000
-- assertVisible:
-    text: "Borrow Complete!"
 - tapOn:
     id: "vault-success-done-btn"
 

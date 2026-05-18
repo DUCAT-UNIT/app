@@ -1,0 +1,183 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Fresh reviewer wallet -> real vault -> mint TurboUNIT -> repay a tiny amount with TurboUNIT.
+# This is a live regression flow. Run through scripts/runLiveRegression.mjs so the
+# log watchdog fails if the app stays in preparing/building/submitting too long.
+
+- runFlow: setup-reviewer-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-actions'
+    timeout: 30000
+
+# Mint live TurboUNIT by sending a small on-chain UNIT amount to the Cashu mint.
+- tapOn:
+    id: 'wallet-withdraw-btn'
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- assertVisible:
+    id: 'withdraw-unit'
+- tapOn:
+    id: 'withdraw-unit'
+
+- extendedWaitUntil:
+    visible:
+      id: 'send-input-screen'
+    timeout: 10000
+
+# Recipient must be taproot so the app can extract the x-only pubkey for P2PK locking.
+- tapOn:
+    id: 'send-address-input'
+- inputText: 'tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c'
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: 'Valid'
+    timeout: 10000
+
+- tapOn:
+    id: 'unit-send-amount-display'
+- extendedWaitUntil:
+    visible:
+      id: 'unit-send-amount-input'
+    timeout: 5000
+- eraseText
+- inputText: '1'
+- tapOn:
+    id: 'unit-send-amount-done-btn'
+- waitForAnimationToEnd
+
+- tapOn:
+    id: 'send-review-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'turbo-use-turbo-btn'
+    timeout: 30000
+- tapOn:
+    id: 'turbo-use-turbo-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'review-screen'
+    timeout: 120000
+- assertVisible:
+    text: 'You will send'
+- tapOn:
+    id: 'review-confirm-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'confirmation-screen'
+    timeout: 420000
+- extendedWaitUntil:
+    visible:
+      text: 'Turbo Token Ready'
+    timeout: 420000
+
+- tapOn:
+    id: 'confirmation-done-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 10000
+
+# Repay through the TurboUNIT funding card. Use an exact tiny amount so the
+# TurboUNIT card is funded even when direct on-chain UNIT also exists.
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-repay-btn'
+    timeout: 240000
+
+- tapOn:
+    id: 'wallet-repay-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-input-screen'
+    timeout: 20000
+
+- tapOn:
+    id: 'vault-repay-amount-display'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-amount-input'
+    timeout: 5000
+
+- eraseText
+- inputText: '0.01'
+
+- tapOn:
+    id: 'vault-repay-amount-done-btn'
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- tapOn:
+    id: 'vault-repay-continue-btn'
+
+- runFlow:
+    when:
+      visible:
+        id: 'vault-repay-input-screen'
+    commands:
+      - tapOn:
+          id: 'vault-repay-continue-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-funding-continue-btn'
+    timeout: 20000
+
+- scrollUntilVisible:
+    element:
+      id: 'vault-repay-funding-turbounit-card'
+    direction: DOWN
+    timeout: 5000
+- tapOn:
+    id: 'vault-repay-funding-turbounit-card'
+
+- tapOn:
+    id: 'vault-repay-funding-continue-btn'
+
+- runFlow:
+    when:
+      visible:
+        id: 'vault-repay-funding-continue-btn'
+    commands:
+      - tapOn:
+          id: 'vault-repay-funding-continue-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-confirm-screen'
+    timeout: 30000
+
+- scrollUntilVisible:
+    element:
+      id: 'vault-repay-confirm-btn'
+    direction: DOWN
+    timeout: 5000
+
+- tapOn:
+    id: 'vault-repay-confirm-btn'
+
+- runFlow:
+    when:
+      visible:
+        id: 'vault-repay-confirm-screen'
+    commands:
+      - tapOn:
+          id: 'vault-repay-confirm-btn'
+- runFlow:
+    when:
+      visible:
+        id: 'pin-fallback-modal'
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-success-screen'
+    timeout: 420000

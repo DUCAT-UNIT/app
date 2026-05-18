@@ -1,6 +1,6 @@
 /**
  * Analytics Service
- * Centralized PostHog analytics with privacy guards and E2E bypass.
+ * Centralized PostHog analytics with privacy guards.
  * All methods are fire-and-forget — never block UI or throw.
  */
 

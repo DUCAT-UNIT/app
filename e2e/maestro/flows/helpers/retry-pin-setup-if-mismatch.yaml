@@ -1,0 +1,26 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- runFlow:
+    when:
+      visible:
+        id: "pin-setup-error"
+    commands:
+      - tapOn:
+          id: "pin-keypad-delete"
+      - tapOn:
+          id: "pin-keypad-delete"
+      - tapOn:
+          id: "pin-keypad-delete"
+      - tapOn:
+          id: "pin-keypad-delete"
+      - tapOn:
+          id: "pin-keypad-delete"
+      - tapOn:
+          id: "pin-keypad-delete"
+      - waitForAnimationToEnd
+      - runFlow: enter-pin-setup.yaml
+      - extendedWaitUntil:
+          visible:
+            text: "Confirm Your PIN"
+          timeout: 10000
+      - runFlow: enter-pin-setup.yaml

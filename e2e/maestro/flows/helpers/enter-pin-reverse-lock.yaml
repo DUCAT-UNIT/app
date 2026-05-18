@@ -1,0 +1,24 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- extendedWaitUntil:
+    visible:
+      id: "lock-keypad-6"
+    timeout: 10000
+- tapOn:
+    id: "lock-keypad-6"
+- waitForAnimationToEnd
+- tapOn:
+    id: "lock-keypad-5"
+- waitForAnimationToEnd
+- tapOn:
+    id: "lock-keypad-4"
+- waitForAnimationToEnd
+- tapOn:
+    id: "lock-keypad-3"
+- waitForAnimationToEnd
+- tapOn:
+    id: "lock-keypad-2"
+- waitForAnimationToEnd
+- tapOn:
+    id: "lock-keypad-1"
+- waitForAnimationToEnd

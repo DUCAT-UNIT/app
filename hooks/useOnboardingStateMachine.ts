@@ -3,14 +3,16 @@
  * Derives the current onboarding screen from state and composes all onboarding hooks.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import {
   authenticateWithBiometrics,
   setBiometricEnabled as persistBiometricEnabled,
 } from '../services/biometricService';
-import * as PasskeyService from '../services/passkey';
-import { hasAccessibleMnemonic } from '../services/secureStorageService';
+import {
+  canUseBiometricUnlockForMnemonic,
+  hasAccessibleMnemonic,
+} from '../services/secureStorageService';
 import { logger } from '../utils/logger';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -89,12 +91,14 @@ export function useOnboardingStateMachine({
     isAuthenticated,
     isBiometricSupported,
     biometricEnabled,
+    showFaceIdButton,
     settingUpPin,
     changingPin,
     showPinEntry,
     setIsAuthenticated,
     setSettingUpPin,
     setBiometricEnabled,
+    setShowFaceIdButton,
   } = useAuth();
 
   const { wallet, currentAccount, loadWallet, setWalletAddresses } = useWallet();
@@ -176,6 +180,11 @@ export function useOnboardingStateMachine({
     try {
       const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
       if (!result.success) return;
+      if (!(await hasAccessibleMnemonic())) {
+        setShowFaceIdButton(false);
+        Alert.alert('Use PIN', 'Enter your PIN once to unlock wallet signing on this device.');
+        return;
+      }
       if (!(await persistBiometricEnabled(true))) {
         throw new Error('Failed to persist biometric preference');
       }
@@ -187,7 +196,12 @@ export function useOnboardingStateMachine({
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [setBiometricEnabled, setIsAuthenticated, handleLockScreenAuthenticatedWrapper]);
+  }, [
+    setBiometricEnabled,
+    setIsAuthenticated,
+    setShowFaceIdButton,
+    handleLockScreenAuthenticatedWrapper,
+  ]);
 
   const handleBiometricAuth = useCallback(async () => {
     logger.debug('[OnboardingPage] handleBiometricAuth called', {
@@ -198,12 +212,9 @@ export function useOnboardingStateMachine({
       if (biometricEnabled) {
         const result = await authenticateWithBiometrics('Authenticate to unlock wallet', 'Use PIN');
         if (result.success) {
-          const passkeyEnabled = await PasskeyService.isPasskeyEnabled();
-          if (passkeyEnabled && !(await hasAccessibleMnemonic())) {
-            Alert.alert(
-              'Use PIN To Unlock',
-              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'
-            );
+          if (!(await hasAccessibleMnemonic())) {
+            logger.warn('[OnboardingPage] Face ID succeeded but wallet secret is unavailable; requiring PIN');
+            setShowFaceIdButton(false);
             return;
           }
           setIsAuthenticated(true);
@@ -228,6 +239,7 @@ export function useOnboardingStateMachine({
     biometricEnabled,
     isBiometricSupported,
     setIsAuthenticated,
+    setShowFaceIdButton,
     enableBiometricFromPrompt,
     handleLockScreenAuthenticatedWrapper,
   ]);
@@ -245,6 +257,32 @@ export function useOnboardingStateMachine({
     importingWallet,
     restoringWithPasskey,
   });
+
+  useEffect(() => {
+    if (screen !== 'locked' || !isBiometricSupported) {
+      return;
+    }
+
+    let cancelled = false;
+    canUseBiometricUnlockForMnemonic()
+      .then((canUseBiometricUnlock) => {
+        if (!cancelled) {
+          setShowFaceIdButton(canUseBiometricUnlock);
+        }
+      })
+      .catch((error: unknown) => {
+        logger.warn('[OnboardingPage] Failed to resolve Face ID unlock availability', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!cancelled) {
+          setShowFaceIdButton(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBiometricSupported, screen, setShowFaceIdButton, wallet]);
 
   return {
     screen,
@@ -271,6 +309,7 @@ export function useOnboardingStateMachine({
     // PIN setup
     changingPin,
     isBiometricSupported,
+    showFaceIdButton,
     handlePinSetupComplete,
     handlePinChangeComplete,
     handleCancelPinChange,

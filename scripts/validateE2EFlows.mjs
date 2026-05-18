@@ -68,10 +68,10 @@ if (!liveScript.includes('npm run doctor:live')) {
   fail('package.json e2e:live must run doctor:live before live/ad-hoc flows');
 }
 if (!liveScript.includes('scripts/runMaestroLive.mjs')) {
-  fail('package.json e2e:live must use scripts/runMaestroLive.mjs so live flows run without E2E bypass');
+  fail('package.json e2e:live must use scripts/runMaestroLive.mjs for live/ad-hoc flows');
 }
 if (liveScript.includes('scripts/runMaestroCritical.mjs')) {
-  fail('package.json e2e:live must not use the deterministic E2E bypass runner');
+  fail('package.json e2e:live must not use the critical-suite runner');
 }
 if (!liveScript.includes('e2e/maestro/flows/test/')) {
   fail('package.json e2e:live must target e2e/maestro/flows/test/');

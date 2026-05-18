@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { AppState, Animated, LayoutAnimation, Platform, AppStateStatus } from 'react-native';
+import { isPrivacySplashSuppressed } from '../services/privacySplashSuppression';
 
 interface UseBackgroundSplashReturn {
   opacityRef: Animated.Value;
@@ -29,27 +30,32 @@ export const useBackgroundSplash = (): UseBackgroundSplashReturn => {
         hideTimeoutRef.current = null;
       }
 
-      // Show splash when app is backgrounded OR inactive (app switcher)
-      // This protects sensitive info in app switcher preview
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
+      // Show splash when app is backgrounded OR inactive (app switcher).
+      // Native auth prompts can also emit `inactive`; those are suppressed so
+      // the splash does not cover signing flows after Face ID resolves.
+      if (
+        nextAppState === 'background' ||
+        (nextAppState === 'inactive' && !isPrivacySplashSuppressed())
+      ) {
         // Configure layout animation for immediate update
         if (Platform.OS === 'ios') {
-          LayoutAnimation.configureNext(LayoutAnimation.create(
-            1,
-            LayoutAnimation.Types.linear,
-            LayoutAnimation.Properties.opacity
-          ));
+          LayoutAnimation.configureNext(
+            LayoutAnimation.create(
+              1,
+              LayoutAnimation.Types.linear,
+              LayoutAnimation.Properties.opacity
+            )
+          );
         }
         // Set opacity to 1 IMMEDIATELY (synchronous, no React re-render needed)
         opacityRef.setValue(1);
-      } else if (nextAppState === 'active' && (prevState === 'background' || prevState === 'inactive')) {
-        // Only fade out if we were actually backgrounded (not just starting up)
-        // Fade out animation
-        Animated.timing(opacityRef, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: false, // Disable native driver for immediate updates
-        }).start();
+      } else if (
+        nextAppState === 'active' &&
+        (prevState === 'background' || prevState === 'inactive')
+      ) {
+        // Hide synchronously on foreground. A native auth promise can resume
+        // expensive signing work before an animation frame runs.
+        opacityRef.setValue(0);
       }
     });
 

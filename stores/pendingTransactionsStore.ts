@@ -94,10 +94,15 @@ interface PendingTransactionsActions {
 
   // Maintenance
   cleanupInvalidTransactions: () => Promise<void>;
+  cleanupExpiredTransactions: (now?: number) => Promise<void>;
   loadFromStorage: (accountIndex: number) => Promise<void>;
 }
 
 type PendingTransactionsStore = PendingTransactionsState & PendingTransactionsActions;
+
+const PENDING_TRANSACTION_AUTO_CLEAN_MS = 3 * 60 * 1000;
+const PENDING_TRANSACTION_EXPIRED_REASON =
+  'Pending transaction expired after 3 minutes and was removed locally.';
 
 const initialState: PendingTransactionsState = {
   pendingTransactions: {},
@@ -105,6 +110,8 @@ const initialState: PendingTransactionsState = {
   currentAccount: 0,
   hydratedAccount: null,
 };
+
+let pendingTransactionExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function sendJournalScope(
   transaction: Pick<PendingTransaction, 'assetType' | 'displayKind'>
@@ -295,6 +302,92 @@ const ensureAccountHydratedForMutation = async (
   }
 };
 
+function clearPendingTransactionExpiryTimer(): void {
+  if (pendingTransactionExpiryTimer) {
+    clearTimeout(pendingTransactionExpiryTimer);
+    pendingTransactionExpiryTimer = null;
+  }
+}
+
+function isExpiredPendingTransaction(
+  transaction: PendingTransaction,
+  now: number
+): boolean {
+  return (
+    transaction.status === 'pending' &&
+    Number.isFinite(transaction.timestamp) &&
+    now - transaction.timestamp > PENDING_TRANSACTION_AUTO_CLEAN_MS
+  );
+}
+
+function removeExpiredPendingTransactions(
+  pendingTransactions: Record<string, PendingTransaction>,
+  spentUtxos: Set<string>,
+  now: number
+): {
+  updated: Record<string, PendingTransaction>;
+  updatedSpentUtxos: Set<string>;
+  expired: PendingTransaction[];
+} {
+  const updated: Record<string, PendingTransaction> = { ...pendingTransactions };
+  const updatedSpentUtxos = new Set(spentUtxos);
+  const expired: PendingTransaction[] = [];
+
+  Object.entries(pendingTransactions).forEach(([txid, transaction]) => {
+    if (!isExpiredPendingTransaction(transaction, now)) {
+      return;
+    }
+
+    expired.push(transaction);
+    delete updated[txid];
+    transaction.inputUtxos?.forEach(({ txid: inputTxid, vout }) => {
+      updatedSpentUtxos.delete(`${inputTxid}:${vout}`);
+    });
+  });
+
+  return { updated, updatedSpentUtxos, expired };
+}
+
+function getNextPendingTransactionExpiryDelay(
+  pendingTransactions: Record<string, PendingTransaction>,
+  now: number
+): number | null {
+  let nextExpiryAt: number | null = null;
+
+  Object.values(pendingTransactions).forEach((transaction) => {
+    if (transaction.status !== 'pending' || !Number.isFinite(transaction.timestamp)) {
+      return;
+    }
+
+    const expiresAt = transaction.timestamp + PENDING_TRANSACTION_AUTO_CLEAN_MS + 1;
+    nextExpiryAt = nextExpiryAt === null ? expiresAt : Math.min(nextExpiryAt, expiresAt);
+  });
+
+  return nextExpiryAt === null ? null : Math.max(0, nextExpiryAt - now);
+}
+
+function schedulePendingTransactionExpiryCheck(getState: () => PendingTransactionsStore): void {
+  clearPendingTransactionExpiryTimer();
+
+  const delay = getNextPendingTransactionExpiryDelay(
+    getState().pendingTransactions,
+    Date.now()
+  );
+  if (delay === null) {
+    return;
+  }
+
+  pendingTransactionExpiryTimer = setTimeout(() => {
+    pendingTransactionExpiryTimer = null;
+    getState().cleanupExpiredTransactions().catch((error: unknown) => {
+      logger.error('[PendingTransactionsStore] Failed to auto-clean expired transactions', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, delay);
+  (pendingTransactionExpiryTimer as { unref?: () => void }).unref?.();
+}
+
 export const usePendingTransactionsStore = create<PendingTransactionsStore>((set, get) => ({
   // Initial state
   ...initialState,
@@ -361,6 +454,34 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
     getPendingInputUtxoKeys(pendingTransactions as Record<string, UtilsPendingTransaction>)
       .forEach((key) => spentUtxos.add(key));
 
+    const expiredCleanup = removeExpiredPendingTransactions(
+      pendingTransactions,
+      spentUtxos,
+      Date.now()
+    );
+    pendingTransactions = expiredCleanup.updated;
+    spentUtxos = expiredCleanup.updatedSpentUtxos;
+
+    if (expiredCleanup.expired.length > 0) {
+      logger.info('[PendingTransactionsStore] Auto-cleaned expired pending transactions', {
+        count: expiredCleanup.expired.length,
+        currentAccount: accountIndex,
+      });
+
+      try {
+        await saveSpentUtxos(spentUtxos, accountIndex);
+        await savePendingTransactions(pendingTransactions, accountIndex);
+      } catch (error: unknown) {
+        logger.error('[PendingTransactionsStore] Failed to persist expired pending cleanup', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      expiredCleanup.expired.forEach((transaction) => {
+        markPendingSendFailed(accountIndex, transaction, PENDING_TRANSACTION_EXPIRED_REASON);
+      });
+    }
+
     set({
       pendingTransactions,
       spentUtxos,
@@ -371,6 +492,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
         recordPendingSendJournal(accountIndex, transaction);
       }
     });
+    schedulePendingTransactionExpiryCheck(get);
   },
 
   // Add a new pending transaction
@@ -441,6 +563,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       await saveSpentUtxos(updatedSpentUtxos, currentAccount);
     }
     recordPendingSendJournal(currentAccount, newTx);
+    schedulePendingTransactionExpiryCheck(get);
 
     logger.info('[addPendingTransaction] Pending transactions after add:', {
       totalCount: Object.keys(updated).length,
@@ -488,6 +611,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
     if (confirmedTx) {
       markPendingSendConfirmed(currentAccount, confirmedTx);
     }
+    schedulePendingTransactionExpiryCheck(get);
   },
 
   // Invalidate transaction and all children
@@ -543,6 +667,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       });
     }
 
+    schedulePendingTransactionExpiryCheck(get);
     return invalidated;
   },
 
@@ -656,6 +781,42 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       set({ pendingTransactions: updated as Record<string, PendingTransaction> });
       await savePendingTransactions(updated as Record<string, PendingTransaction>, currentAccount);
     }
+    schedulePendingTransactionExpiryCheck(get);
+  },
+
+  cleanupExpiredTransactions: async (now = Date.now()) => {
+    let { pendingTransactions, spentUtxos, currentAccount } = get();
+    await ensureAccountHydratedForMutation(get, currentAccount);
+    ({ pendingTransactions, spentUtxos, currentAccount } = get());
+
+    const { updated, updatedSpentUtxos, expired } = removeExpiredPendingTransactions(
+      pendingTransactions,
+      spentUtxos,
+      now
+    );
+
+    if (expired.length === 0) {
+      schedulePendingTransactionExpiryCheck(get);
+      return;
+    }
+
+    logger.info('[PendingTransactionsStore] Auto-cleaning expired pending transactions', {
+      count: expired.length,
+      currentAccount,
+    });
+
+    set({
+      pendingTransactions: updated,
+      spentUtxos: updatedSpentUtxos,
+    });
+
+    await saveSpentUtxos(updatedSpentUtxos, currentAccount);
+    await savePendingTransactions(updated, currentAccount);
+
+    expired.forEach((transaction) => {
+      markPendingSendFailed(currentAccount, transaction, PENDING_TRANSACTION_EXPIRED_REASON);
+    });
+    schedulePendingTransactionExpiryCheck(get);
   },
 }));
 
@@ -669,5 +830,6 @@ export const usePendingTxs = () =>
  * Reset store to initial state (useful for testing)
  */
 export const resetPendingTransactionsStore = () => {
+  clearPendingTransactionExpiryTimer();
   usePendingTransactionsStore.setState(initialState);
 };

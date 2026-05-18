@@ -44,7 +44,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
-- hideKeyboard
 
 - extendedWaitUntil:
     visible:

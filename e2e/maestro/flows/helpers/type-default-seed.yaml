@@ -1,0 +1,36 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Type the default 12-word test seed through the visible import UI.
+- assertVisible:
+    id: "import-wallet-screen"
+- tapOn:
+    id: "seed-word-container-0"
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "abandon"
+- pressKey: Enter
+- inputText: "about"
+- extendedWaitUntil:
+    visible:
+      text: "12/12"
+    timeout: 5000
+- pressKey: Enter
+- waitForAnimationToEnd

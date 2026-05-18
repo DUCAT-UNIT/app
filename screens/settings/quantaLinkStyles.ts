@@ -66,6 +66,13 @@ export const quantaLinkStyles = StyleSheet.create({
     fontFamily: 'CabinetGrotesk-Bold',
     textAlign: 'center',
   },
+  connectedBadgeWarning: {
+    borderColor: 'rgba(245, 228, 162, 0.42)',
+    backgroundColor: 'rgba(245, 228, 162, 0.11)',
+  },
+  connectedBadgeWarningText: {
+    color: COLORS.YELLOW,
+  },
   connectedMetric: {
     width: '100%',
     alignItems: 'center',

@@ -29,6 +29,7 @@ export function TurboToggle({
   return (
     <View style={styles.turboSection}>
       <Pressable
+        testID="send-turbo-toggle"
         style={styles.turboRow}
         onPress={handlePress}
         accessibilityLabel={`Enable ${label}`}
@@ -45,7 +46,7 @@ export function TurboToggle({
           pointerEvents="none"
           trackColor={{ false: colors.bg.tertiary, true: colors.brand.primary }}
           thumbColor={colors.text.white}
-          testID="send-turbo-toggle"
+          testID="send-turbo-toggle-switch"
           accessibilityLabel={`Enable ${label}`}
           accessibilityRole="switch"
           accessibilityState={{ checked: enabled }}

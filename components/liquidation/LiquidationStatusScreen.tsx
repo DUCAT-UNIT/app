@@ -142,7 +142,10 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   // ── Processing ──
   if (isProcessing) {
     return (
-      <View style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}>
+      <View
+        style={[styles.container, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
+        testID="liquidation-processing-screen"
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Claiming Liquidation</Text>
           <Text style={styles.headerSubtitle}>Please wait while we process your claim</Text>
@@ -164,6 +167,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
     return (
       <ScrollView
         style={styles.container}
+        testID="liquidation-success-screen"
         contentContainerStyle={[
           styles.resultContent,
           { paddingTop: topPadding, paddingBottom: bottomPadding },
@@ -182,7 +186,12 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
         {txid && (
           <View style={styles.linksContainer}>
             <Text style={styles.txLabelText}>Repo TX</Text>
-            <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={handleCopyTxid}
+              style={styles.linkRow}
+              activeOpacity={0.7}
+              testID="liquidation-copy-txid-btn"
+            >
               <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
               <Text style={styles.txidText}>{truncatedTxid}</Text>
             </TouchableOpacity>
@@ -209,6 +218,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
                   onPress={handleCopySwapTxid}
                   style={styles.linkRow}
                   activeOpacity={0.7}
+                  testID="liquidation-copy-swap-txid-btn"
                 >
                   <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
                   <Text style={styles.txidText}>{truncatedSwapTxid}</Text>
@@ -246,6 +256,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   return (
     <ScrollView
       style={styles.container}
+      testID="liquidation-error-screen"
       contentContainerStyle={[
         styles.resultContent,
         { paddingTop: topPadding, paddingBottom: bottomPadding },

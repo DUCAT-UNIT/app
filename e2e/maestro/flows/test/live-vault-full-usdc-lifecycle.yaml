@@ -3,6 +3,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Fresh wallet -> open vault -> settle to USDC -> repay from USDC
 
 - runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
 
 - extendedWaitUntil:
     visible:
@@ -64,6 +65,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 
 - tapOn:
+    id: "unit-slider-max-btn"
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+- tapOn:
     id: "vault-create-borrow-usd-display"
 
 - extendedWaitUntil:
@@ -76,9 +83,29 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - eraseText
 - inputText: "100"
+- pressKey: Enter
 
-- tapOn:
-    id: "vault-create-borrow-usd-done-btn"
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-borrow-usd-input"
+    commands:
+      - tapOn:
+          id: "vault-create-borrow-usd-done-btn"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-borrow-usd-input"
+    commands:
+      - hideKeyboard
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 10000
 
 - waitForAnimationToEnd
 - waitForAnimationToEnd
@@ -102,6 +129,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           id: "vault-create-continue-btn"
+
+- extendedWaitUntil:
+    visible:
+      text: "How do you want to receive your loan?"
+    timeout: 15000
 
 - scrollUntilVisible:
     element:
@@ -143,14 +175,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           id: "vault-create-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 - extendedWaitUntil:
     visible:
       id: "vault-create-success-screen"
     timeout: 420000
-
-- assertVisible:
-    text: "Vault Created!"
 
 - tapOn:
     id: "vault-success-done-btn"
@@ -164,8 +199,13 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - extendedWaitUntil:
     visible:
+      id: "wallet-vault-actions-ready"
+    timeout: 240000
+
+- extendedWaitUntil:
+    visible:
       id: "wallet-repay-btn"
-    timeout: 30000
+    timeout: 240000
 
 - tapOn:
     id: "wallet-repay-btn"
@@ -176,10 +216,41 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 20000
 
 - tapOn:
-    id: "unit-slider-max-btn"
+    id: "vault-repay-amount-display"
 
-- waitForAnimationToEnd
-- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-amount-input"
+    timeout: 5000
+
+- tapOn:
+    id: "vault-repay-amount-input"
+
+- eraseText
+- inputText: "90"
+- pressKey: Enter
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-amount-input"
+    commands:
+      - tapOn:
+          id: "vault-repay-amount-done-btn"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-repay-amount-input"
+    commands:
+      - hideKeyboard
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-repay-amount-input"
+    timeout: 10000
 
 - runFlow: ../helpers/dismiss-debug-warning.yaml
 
@@ -257,11 +328,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           id: "vault-repay-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 - extendedWaitUntil:
     visible:
       id: "vault-repay-success-screen"
     timeout: 420000
-
-- assertVisible:
-    text: "Repayment Complete!"

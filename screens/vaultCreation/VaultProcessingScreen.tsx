@@ -121,6 +121,7 @@ export default function VaultProcessingScreen({ navigation }: VaultProcessingScr
             style={[styles.backButton, isRetryingSettlement && styles.disabledButton]}
             onPress={handleRetrySettlement}
             disabled={isRetryingSettlement}
+            testID="vault-create-retry-settlement-btn"
             accessibilityRole="button"
             accessibilityLabel="Retry settlement"
             accessibilityHint="Retries settlement without creating another vault"

@@ -38,6 +38,7 @@ import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
   cacheSessionMnemonic,
+  saveMnemonic,
   saveCachedAddresses,
   saveCurrentAccount,
   saveToMultiAccountCache,
@@ -61,6 +62,36 @@ interface UnlockResult {
   mnemonic: string;
   addresses: ReturnType<typeof deriveAddressesFromMnemonic>;
 }
+
+const persistMnemonicForAppUnlock = async (mnemonic: string): Promise<void> => {
+  try {
+    await saveMnemonic(mnemonic);
+  } catch (error: unknown) {
+    logger.warn('[PasskeyUnlock] Failed to backfill mnemonic for app unlock; using session cache', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    cacheSessionMnemonic(mnemonic);
+  }
+};
+
+const parseStoredCredentialId = (credentialIdBase64: string): Uint8Array =>
+  new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
+
+const credentialIdMatches = (expectedCredentialId: Uint8Array, actualCredentialId: string): boolean => {
+  const expectedBase64 = Buffer.from(expectedCredentialId).toString('base64');
+  const expectedBase64Url = toBase64Url(expectedCredentialId);
+
+  if (actualCredentialId === expectedBase64 || actualCredentialId === expectedBase64Url) {
+    return true;
+  }
+
+  try {
+    const actual = Buffer.from(actualCredentialId.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    return Buffer.from(expectedCredentialId).equals(actual);
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Authenticate with passkey and unlock wallet
@@ -87,6 +118,9 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       throw new Error('Passkey data not found in storage');
     }
 
+    const credentialId = parseStoredCredentialId(credentialIdBase64);
+    const credentialIdBase64Url = toBase64Url(credentialId);
+
     // Check if PRF was enabled for this wallet
     const prfEnabledFlag = await SecureStore.getItemAsync(PASSKEY_KEYS.PRF_ENABLED);
     const storedDerivationVersion = await SecureStore.getItemAsync(PASSKEY_KEYS.DERIVATION_VERSION);
@@ -106,7 +140,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       userVerification: PASSKEY.USER_VERIFICATION,
       allowCredentials: [
         {
-          id: credentialIdBase64,
+          id: credentialIdBase64Url,
           type: 'public-key',
         },
       ],
@@ -140,7 +174,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     logger.debug('Passkey authentication successful');
 
     // Verify the credential ID matches
-    if (authResult.id !== credentialIdBase64) {
+    if (!credentialIdMatches(credentialId, authResult.id)) {
       throw new Error('Credential ID mismatch');
     }
 
@@ -165,7 +199,6 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       }
     }
 
-    const credentialId = new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
     const userHandle = new Uint8Array(Buffer.from(userHandleBase64, 'base64'));
 
     // Validate PIN
@@ -203,9 +236,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       encryptionKey
     );
 
-    // Keep passkey-unlocked seed material session-only. Persisting it back to
-    // the generic mnemonic key would let later unlocks bypass passkey gating.
-    cacheSessionMnemonic(mnemonic);
+    await persistMnemonicForAppUnlock(mnemonic);
 
     // Get current account index
     const accountIndex = parseInt(
@@ -469,7 +500,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, DEVICE_ONLY);
     await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
 
-    cacheSessionMnemonic(mnemonic);
+    await saveMnemonic(mnemonic);
     const savedAccount = await saveCurrentAccount(0);
     if (!savedAccount) {
       throw new Error('Failed to save current account securely');

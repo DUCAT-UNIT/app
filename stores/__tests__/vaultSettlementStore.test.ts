@@ -6,6 +6,7 @@ import {
   persistVaultSettlementNow,
   resetVaultSettlementStore,
   shouldPreserveVaultSettlementRecovery,
+  VAULT_SETTLEMENT_ACTIVE_TTL_MS,
   useVaultSettlementStore,
   VAULT_SETTLEMENT_PERSIST_TTL_MS,
   VAULT_SETTLEMENT_STORAGE_KEY,
@@ -302,7 +303,7 @@ describe('vaultSettlementStore', () => {
     });
   });
 
-  it('preserves recoverable same-kind settlement even when the display amount changed', () => {
+  it('blocks a recoverable same-kind settlement when the display amount changed', () => {
     act(() => {
       const state = useVaultSettlementStore.getState();
       state.startOperation('repay', 25, 'TURBOUNIT', {
@@ -313,6 +314,34 @@ describe('vaultSettlementStore', () => {
       state.setPhase('needs_retry');
     });
 
+    expect(() =>
+      useVaultSettlementStore.getState().startOperation('repay', 24.99, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      })
+    ).toThrow('A vault settlement is still pending. Resume or reset it before starting another.');
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      kind: 'repay',
+      phase: 'needs_retry',
+      faceValueUsd: 25,
+      cashuMeltQuoteId: 'melt-quote-to-resume',
+    });
+  });
+
+  it('auto-clears active settlement state after three minutes', () => {
+    act(() => {
+      const state = useVaultSettlementStore.getState();
+      state.startOperation('repay', 25, 'TURBOUNIT', {
+        accountIndex: 0,
+        taprootAddress: 'tb1paccount',
+      });
+      state.setCashuMeltQuote('stale-melt-quote');
+      state.setPhase('waiting_turbo_release');
+    });
+
+    jest.setSystemTime(now + VAULT_SETTLEMENT_ACTIVE_TTL_MS + 1);
+
     act(() => {
       useVaultSettlementStore.getState().startOperation('repay', 24.99, 'TURBOUNIT', {
         accountIndex: 0,
@@ -322,9 +351,9 @@ describe('vaultSettlementStore', () => {
 
     expect(useVaultSettlementStore.getState()).toMatchObject({
       kind: 'repay',
-      phase: 'needs_retry',
-      faceValueUsd: 25,
-      cashuMeltQuoteId: 'melt-quote-to-resume',
+      phase: 'quoting',
+      faceValueUsd: 24.99,
+      cashuMeltQuoteId: null,
     });
   });
 
@@ -376,7 +405,7 @@ describe('vaultSettlementStore', () => {
       });
     });
 
-    it('keeps stale active recovery state but drops stale terminal state', () => {
+    it('drops stale active recovery state and stale terminal state', () => {
       expect(
         normalizeVaultSettlementPersistedState(
           {
@@ -387,11 +416,7 @@ describe('vaultSettlementStore', () => {
           },
           now
         )
-      ).toMatchObject({
-        kind: 'open',
-        phase: 'waiting_bridge_fulfillment',
-        bridgeIntentId: 'stale-intent',
-      });
+      ).toEqual(initialVaultSettlementState);
 
       expect(
         normalizeVaultSettlementPersistedState(

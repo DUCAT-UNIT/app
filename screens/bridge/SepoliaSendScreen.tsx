@@ -37,6 +37,7 @@ import { reconcileSubmittedEvmTransactionCheckpoints } from '../../services/evmT
 import { useEvmTransactionCheckpointStore } from '../../stores/evmTransactionCheckpointStore';
 import { useNotifications } from '../../stores/notificationStore';
 import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
+import { logger } from '../../utils/logger';
 import {
   formatEvmCheckpointReconciliationSummary,
   selectSendRecoveryCheckpoint,
@@ -421,6 +422,9 @@ export default function SepoliaSendScreen({
       }
 
       const result = await sendSepoliaToken(currentAccount, asset, recipient, amount);
+      logger.info(
+        `[E2E_TX] sepolia_send_submitted txHash=${result.txHash} asset=${asset} amount=${amount}`
+      );
       showToast(`${assetLabel} sent`, 'success');
       setRecipient('');
       setAmount('');

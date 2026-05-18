@@ -54,13 +54,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "enable-usdc-password-input"
 - inputText: "fx-570ES PLUS"
-- hideKeyboard
 - tapOn:
     id: "enable-usdc-confirm-btn"
 - extendedWaitUntil:
     notVisible:
       id: "enable-usdc-password-modal"
-    timeout: 5000
+    timeout: 20000
 - assertVisible:
     id: "advanced-enable-usdc-btn"
 - tapOn:

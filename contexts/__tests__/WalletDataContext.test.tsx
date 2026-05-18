@@ -97,6 +97,30 @@ jest.mock('../../stores/sendFlowStore', () => ({
   },
 }));
 
+jest.mock('../../stores/borrowStore', () => ({
+  useBorrowStore: jest.fn(),
+}));
+
+jest.mock('../../stores/depositStore', () => ({
+  useDepositStore: jest.fn(),
+}));
+
+jest.mock('../../stores/repayStore', () => ({
+  useRepayStore: jest.fn(),
+}));
+
+jest.mock('../../stores/turboProcessingStore', () => ({
+  useTurboProcessingStore: jest.fn(),
+}));
+
+jest.mock('../../stores/vaultCreationStore', () => ({
+  useVaultCreationStore: jest.fn(),
+}));
+
+jest.mock('../../stores/withdrawStore', () => ({
+  useWithdrawStore: jest.fn(),
+}));
+
 describe('WalletDataContext', () => {
   const mockWallet = {
     segwitAddress: 'bc1qtest',
@@ -159,6 +183,32 @@ describe('WalletDataContext', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const idleVaultOperationState = { loading: false, currentStep: 'input' };
+    const { useBorrowStore } = require('../../stores/borrowStore');
+    const { useDepositStore } = require('../../stores/depositStore');
+    const { useRepayStore } = require('../../stores/repayStore');
+    const { useTurboProcessingStore } = require('../../stores/turboProcessingStore');
+    const { useVaultCreationStore } = require('../../stores/vaultCreationStore');
+    const { useWithdrawStore } = require('../../stores/withdrawStore');
+
+    useBorrowStore.mockImplementation((selector: (state: typeof idleVaultOperationState) => unknown) =>
+      selector(idleVaultOperationState)
+    );
+    useDepositStore.mockImplementation((selector: (state: typeof idleVaultOperationState) => unknown) =>
+      selector(idleVaultOperationState)
+    );
+    useRepayStore.mockImplementation((selector: (state: typeof idleVaultOperationState) => unknown) =>
+      selector(idleVaultOperationState)
+    );
+    useTurboProcessingStore.mockImplementation((selector: (state: { isProcessing: boolean }) => unknown) =>
+      selector({ isProcessing: false })
+    );
+    useVaultCreationStore.mockImplementation((selector: (state: typeof idleVaultOperationState) => unknown) =>
+      selector(idleVaultOperationState)
+    );
+    useWithdrawStore.mockImplementation((selector: (state: typeof idleVaultOperationState) => unknown) =>
+      selector(idleVaultOperationState)
+    );
     (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet });
     (usePendingTransactionsStore as unknown as jest.Mock).mockReturnValue({ getUnconfirmedBalance: jest.fn(), getUnconfirmedUTXOs: jest.fn() });
     (useBalanceData as jest.Mock).mockReturnValue(mockBalance);
@@ -332,6 +382,40 @@ describe('WalletDataContext', () => {
         enabled: false,
         immediate: false,
       });
+    });
+
+    it('should disable wallet data polling during active repay operation', () => {
+      const { useRepayStore } = require('../../stores/repayStore');
+      useRepayStore.mockImplementation(
+        (selector: (state: { loading: boolean; currentStep: string }) => unknown) =>
+          selector({ loading: true, currentStep: 'processing' })
+      );
+
+      const pollCallbacks: Record<number, Array<() => void>> = {};
+      (usePolling as jest.Mock).mockImplementation(({ onPoll, interval }: { onPoll: () => void; interval: number }) => {
+        pollCallbacks[interval] = [...(pollCallbacks[interval] ?? []), onPoll];
+      });
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => <WalletDataProvider>{children}</WalletDataProvider>;
+      renderHook(() => useBalance(), { wrapper });
+
+      expect(usePolling).toHaveBeenCalledWith({
+        onPoll: expect.any(Function),
+        interval: 15000,
+        enabled: false,
+        immediate: false,
+      });
+
+      act(() => {
+        pollCallbacks[15000]?.forEach((callback) => callback());
+        pollCallbacks[45000]?.forEach((callback) => callback());
+        pollCallbacks[30000]?.forEach((callback) => callback());
+      });
+
+      expect(mockBalance.fetchBalance).not.toHaveBeenCalled();
+      expect(mockVault.fetchVault).not.toHaveBeenCalled();
+      expect(mockHistory.fetchTransactionHistory).not.toHaveBeenCalled();
+      expect(runWalletReconciliationCycle).not.toHaveBeenCalled();
     });
 
     it('should fetch balance and vault on poll', () => {

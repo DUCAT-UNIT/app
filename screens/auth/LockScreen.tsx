@@ -6,14 +6,13 @@
 
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import React,{ memo,useCallback,useRef,useState } from 'react';
-import { Animated,Pressable,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import React,{ memo,useCallback,useEffect,useRef,useState } from 'react';
+import { ActivityIndicator,Animated,Pressable,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import Icon from '../../components/icons';
 import { useResponsive } from '../../hooks/useResponsive';
-import * as PasskeyService from '../../services/passkey';
 import { verifyPin } from '../../services/pinService';
-import { hasSessionMnemonic } from '../../services/secureStorageService';
+import { unlockSessionMnemonicWithPin } from '../../services/secureStorageService';
 import { analytics } from '../../services/analyticsService';
 import { AUTH_EVENTS } from '../../constants/analyticsEvents';
 import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
@@ -40,13 +39,13 @@ interface KeypadButtonProps {
  */
 interface LockScreenProps {
   /** Callback invoked when the user successfully authenticates with their PIN */
-  onAuthenticated: () => void;
+  onAuthenticated: () => void | Promise<void>;
   /** Whether to show the Face ID/Touch ID button in the bottom-left of the keypad */
   showFaceIdButton?: boolean;
   /** Callback invoked when the Face ID/Touch ID button is pressed */
   onFaceIdPress?: () => void;
   /** Callback invoked when the user chooses to reset their wallet from the lock screen */
-  onResetWallet?: () => void;
+  onResetWallet?: () => void | Promise<void>;
 }
 
 // Memoized keypad button component
@@ -55,7 +54,7 @@ const KeypadButton = memo(function KeypadButton({ digit, onPress, keySize, fontS
   return (
     <Pressable
       style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
-      onPressIn={handlePress}
+      onPress={handlePress}
       hitSlop={8}
       testID={`lock-keypad-${digit}`}
     >
@@ -70,8 +69,15 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
   const [pinError, setPinError] = useState('');
   const [showResetWarning, setShowResetWarning] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isResettingWallet, setIsResettingWallet] = useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
   const pinRef = useRef('');
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   const shakeError = useCallback((): void => {
     Animated.sequence([
@@ -90,6 +96,7 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     }
 
     verifyingRef.current = true;
+    setIsUnlocking(true);
 
     try {
       const result = await verifyPin(candidatePin);
@@ -97,23 +104,12 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         logger.auth('pin_verified_success');
         analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'pin' });
         try {
-          if (!hasSessionMnemonic()) {
-            const { getMnemonic, cacheSessionMnemonic } = await import('../../services/secureStorageService');
-            const storedMnemonic = await getMnemonic();
-            if (storedMnemonic) {
-              cacheSessionMnemonic(storedMnemonic);
-            } else {
-              const isPasskeyEnabled = await PasskeyService.isPasskeyEnabled();
-              if (isPasskeyEnabled) {
-                await PasskeyService.unlockWithPasskey(candidatePin);
-              }
-            }
-          }
+          await unlockSessionMnemonicWithPin(candidatePin);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           pinRef.current = '';
           setPin('');
           setPinError('');
-          onAuthenticated();
+          await onAuthenticated();
         } catch (error: unknown) {
           logger.auth('session_unlock_failed', {
             error: error instanceof Error ? error.message : String(error),
@@ -142,12 +138,15 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
       }
     } finally {
       verifyingRef.current = false;
+      if (mountedRef.current) {
+        setIsUnlocking(false);
+      }
     }
   }, [onAuthenticated, shakeError]);
 
   const handlePinDigit = useCallback((digit: string): void => {
     const currentPin = pinRef.current;
-    if (currentPin.length >= 6 || verifyingRef.current) {
+    if (currentPin.length >= 6 || verifyingRef.current || isUnlocking) {
       return;
     }
 
@@ -161,13 +160,17 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         verifyEnteredPin(nextPin).catch(() => undefined);
       });
     }
-  }, [verifyEnteredPin]);
+  }, [isUnlocking, verifyEnteredPin]);
 
   const handlePinDelete = useCallback((): void => {
+    if (verifyingRef.current || isUnlocking) {
+      return;
+    }
+
     pinRef.current = pinRef.current.slice(0, -1);
     setPin(pinRef.current);
     setPinError('');
-  }, []);
+  }, [isUnlocking]);
 
   const handleResetPress = useCallback(() => {
     setShowResetWarning(true);
@@ -182,16 +185,29 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
     setShowResetWarning(false);
   }, []);
 
-  const handleResetConfirmConfirm = useCallback(() => {
-    setShowResetConfirm(false);
-    if (onResetWallet) {
-      onResetWallet();
+  const handleResetConfirmConfirm = useCallback(async () => {
+    if (isResettingWallet) {
+      return;
     }
-  }, [onResetWallet]);
+
+    setIsResettingWallet(true);
+    try {
+      if (onResetWallet) {
+        await onResetWallet();
+      }
+      setShowResetConfirm(false);
+    } finally {
+      setIsResettingWallet(false);
+    }
+  }, [onResetWallet, isResettingWallet]);
 
   const handleResetConfirmCancel = useCallback(() => {
+    if (isResettingWallet) {
+      return;
+    }
+
     setShowResetConfirm(false);
-  }, []);
+  }, [isResettingWallet]);
 
   const keySize = s(76);
   const keyTextSize = sf(32);
@@ -210,8 +226,13 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         Enter PIN
       </Text>
 
-      {/* PIN Error */}
-      {pinError ? (
+      {/* PIN Status */}
+      {isUnlocking ? (
+        <View style={styles.lockStatusRow} testID="lock-unlocking-status">
+          <ActivityIndicator size="small" color={COLORS.PRIMARY_BLUE} />
+          <Text style={[styles.lockStatusText, { fontSize: sf(fontSizes.sm) }]}>Unlocking...</Text>
+        </View>
+      ) : pinError ? (
         <Text style={[styles.lockPinError, { fontSize: sf(fontSizes.md), marginBottom: s(20), paddingHorizontal: s(spacing.lg) }]} testID="lock-error">
           {pinError}
         </Text>
@@ -239,7 +260,12 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         ))}
         <View style={[styles.lockKeypadRow, { gap: keypadGap }]}>
           {showFaceIdButton && onFaceIdPress ? (
-            <TouchableOpacity style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]} onPress={onFaceIdPress} testID="lock-faceid-btn">
+            <TouchableOpacity
+              style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }, isUnlocking && { opacity: 0.4 }]}
+              onPress={onFaceIdPress}
+              disabled={isUnlocking}
+              testID="lock-faceid-btn"
+            >
               <Icon name="face_id" size={s(32)} color={COLORS.PRIMARY_BLUE} />
             </TouchableOpacity>
           ) : (
@@ -248,7 +274,8 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
           <KeypadButton digit="0" onPress={handlePinDigit} keySize={keySize} fontSize={keyTextSize} />
           <Pressable
             style={[styles.lockKey, { width: keySize, height: keySize, borderRadius: keySize / 2 }]}
-            onPressIn={handlePinDelete}
+            onPress={handlePinDelete}
+            disabled={isUnlocking}
             hitSlop={8}
             testID="lock-keypad-delete"
           >
@@ -288,6 +315,8 @@ export default function LockScreen({ onAuthenticated, showFaceIdButton, onFaceId
         confirmText="Delete Wallet"
         cancelText="Go Back"
         confirmStyle="destructive"
+        isLoading={isResettingWallet}
+        loadingText="Deleting..."
         onConfirm={handleResetConfirmConfirm}
         onCancel={handleResetConfirmCancel}
         styles={confirmationModalStyles}
@@ -314,6 +343,21 @@ const styles = StyleSheet.create({
     color: colors.semantic.error,
     fontFamily: fonts.bold,
     fontWeight: 'bold' as const,
+    textAlign: 'center',
+  },
+  lockStatusRow: {
+    minHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  lockStatusText: {
+    color: colors.text.secondary,
+    fontFamily: fonts.medium,
+    fontWeight: '500' as const,
     textAlign: 'center',
   },
   lockPinDots: {

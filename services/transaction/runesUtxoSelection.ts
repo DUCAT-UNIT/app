@@ -15,6 +15,7 @@ import { fetchWithTimeout } from '../../utils/api';
 const MIN_FEE_SATS = 12000;
 const ORD_FETCH_TIMEOUT_MS = 8000;
 const ESPLORA_FETCH_TIMEOUT_MS = 8000;
+const RUNE_OUTPUT_BATCH_SIZE = 4;
 
 export interface RuneUtxo {
   transaction: string;
@@ -69,6 +70,30 @@ interface BlockchainUtxo {
   };
 }
 
+interface OrdOutputDetails {
+  data: OrdUtxoData;
+  vout: number;
+  key: string;
+}
+
+async function fetchOrdOutputDetails(output: string): Promise<OrdOutputDetails> {
+  const utxoResponse = await fetchWithTimeout(
+    getOrdOutputUrl(output),
+    {
+      headers: { Accept: 'application/json' },
+    },
+    ORD_FETCH_TIMEOUT_MS
+  );
+  const data = (await utxoResponse.json()) as OrdUtxoData;
+  const vout = parseInt(output.match(/:(.*)$/)?.[1] || '0', 10);
+
+  return {
+    data,
+    vout,
+    key: `${data.transaction}:${vout}`,
+  };
+}
+
 /**
  * Find rune UTXOs with sufficient balance (supports multiple UTXOs)
  * @param taprootAddress - Taproot address to search
@@ -107,86 +132,100 @@ export async function findRuneUtxo(
 
       // If we have enough, return early
       if (totalRuneAmount >= requiredRuneAmount) {
-        logger.debug('[findRuneUtxo] ✅ Found sufficient runes in unconfirmed UTXOs:', { count: selectedUtxos.length });
+        logger.debug('[findRuneUtxo] ✅ Found sufficient runes in unconfirmed UTXOs:', {
+          count: selectedUtxos.length,
+        });
         return selectedUtxos;
       }
     }
   }
 
   // Fetch confirmed rune UTXOs from ord API
-  const ordResponse = await fetchWithTimeout(getOrdAddressUrl(taprootAddress), {
-    headers: { Accept: 'application/json' },
-  }, ORD_FETCH_TIMEOUT_MS);
-  const ordData = await ordResponse.json() as OrdData;
+  const ordResponse = await fetchWithTimeout(
+    getOrdAddressUrl(taprootAddress),
+    {
+      headers: { Accept: 'application/json' },
+    },
+    ORD_FETCH_TIMEOUT_MS
+  );
+  const ordData = (await ordResponse.json()) as OrdData;
 
   logger.debug('[findRuneUtxo] Looking for rune amount:', { amountInRunes });
   logger.debug('[findRuneUtxo] Already have from unconfirmed:', { totalRuneAmount });
-  logger.debug('[findRuneUtxo] Found outputs from ord API:', { count: ordData.outputs?.length || 0 });
+  logger.debug('[findRuneUtxo] Found outputs from ord API:', {
+    count: ordData.outputs?.length || 0,
+  });
 
-  // Walk outputs incrementally and stop as soon as we have enough rune balance.
+  // Walk output batches incrementally and stop as soon as we have enough rune balance.
   const outputs = ordData.outputs || [];
-  for (const output of outputs) {
-    const utxoResponse = await fetchWithTimeout(getOrdOutputUrl(output), {
-      headers: { Accept: 'application/json' },
-    }, ORD_FETCH_TIMEOUT_MS);
-    const data = await utxoResponse.json() as OrdUtxoData;
-    if (!data.runes || !data.runes['DUCAT•UNIT•RUNE']) {
-      continue;
-    }
+  for (let startIndex = 0; startIndex < outputs.length; startIndex += RUNE_OUTPUT_BATCH_SIZE) {
+    const batch = outputs.slice(startIndex, startIndex + RUNE_OUTPUT_BATCH_SIZE);
+    const outputDetails = await Promise.all(batch.map(fetchOrdOutputDetails));
+    const runeOutputs = outputDetails.filter(({ data }) => data.runes?.['DUCAT•UNIT•RUNE']);
 
-    const vout = parseInt(output.match(/:(.*)$/)?.[1] || '0', 10);
-    const key = `${data.transaction}:${vout}`;
+    const spendChecks = await Promise.all(
+      runeOutputs.map(async (details) => {
+        const { data, vout, key } = details;
+        if (spentUtxos.has(key)) {
+          logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+          return { details, spent: true, logged: true };
+        }
 
-    if (spentUtxos.has(key)) {
-      logger.debug('⚠️ Skipping spent rune UTXO:', { key });
-      continue;
-    }
-
-    const spendResponse = await fetchWithTimeout(
-      getTxOutspendUrl(data.transaction, vout),
-      {},
-      ESPLORA_FETCH_TIMEOUT_MS,
+        const spendResponse = await fetchWithTimeout(
+          getTxOutspendUrl(data.transaction, vout),
+          {},
+          ESPLORA_FETCH_TIMEOUT_MS
+        );
+        const spendData = (await spendResponse.json()) as SpendData;
+        return { details, spent: spendData.spent, logged: false };
+      })
     );
-    const spendData = await spendResponse.json() as SpendData;
-    const spent = spendData.spent;
-    if (spent) {
-      logger.debug('⚠️ Skipping spent rune UTXO:', { key });
-      continue;
-    }
 
-    // Safe access with validation (already filtered but double-check for safety)
-    const runeData = data.runes?.['DUCAT•UNIT•RUNE'];
-    if (!runeData?.amount) {
-      logger.warn('[findRuneUtxo] Skipping UTXO with missing rune data:', { key });
-      continue;
-    }
-    const runeAmountBigInt = BigInt(runeData.amount);
-    if (runeAmountBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
-      throw new Error(`Rune amount exceeds supported range for UTXO ${key}`);
-    }
-    const runeAmount = Number(runeAmountBigInt);
-    logger.debug('[findRuneUtxo] Found UTXO with rune amount:', {
-      runeAmount,
-      totalSoFar: Number(totalRuneAmount + runeAmountBigInt),
-    });
+    for (const { details, spent, logged } of spendChecks) {
+      const { data, vout, key } = details;
+      if (spent) {
+        if (!logged) {
+          logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+        }
+        continue;
+      }
 
-    selectedUtxos.push({
-      transaction: data.transaction,
-      vout: vout,
-      value: data.value,
-      runeAmount: runeAmount,
-      status: { confirmed: true },
-    });
-    totalRuneAmount += runeAmountBigInt;
-
-    // If we have enough, return immediately instead of scanning the entire address.
-    if (totalRuneAmount >= requiredRuneAmount) {
-      logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', { count: selectedUtxos.length });
-      logger.debug('[findRuneUtxo] Total rune amount:', {
-        totalRuneAmount: Number(totalRuneAmount),
-        unit: Number(totalRuneAmount) / 100,
+      // Safe access with validation (already filtered but double-check for safety)
+      const runeData = data.runes?.['DUCAT•UNIT•RUNE'];
+      if (!runeData?.amount) {
+        logger.warn('[findRuneUtxo] Skipping UTXO with missing rune data:', { key });
+        continue;
+      }
+      const runeAmountBigInt = BigInt(runeData.amount);
+      if (runeAmountBigInt > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new Error(`Rune amount exceeds supported range for UTXO ${key}`);
+      }
+      const runeAmount = Number(runeAmountBigInt);
+      logger.debug('[findRuneUtxo] Found UTXO with rune amount:', {
+        runeAmount,
+        totalSoFar: Number(totalRuneAmount + runeAmountBigInt),
       });
-      return selectedUtxos;
+
+      selectedUtxos.push({
+        transaction: data.transaction,
+        vout: vout,
+        value: data.value,
+        runeAmount: runeAmount,
+        status: { confirmed: true },
+      });
+      totalRuneAmount += runeAmountBigInt;
+
+      // If we have enough, return after the current batch is processed in output order.
+      if (totalRuneAmount >= requiredRuneAmount) {
+        logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', {
+          count: selectedUtxos.length,
+        });
+        logger.debug('[findRuneUtxo] Total rune amount:', {
+          totalRuneAmount: Number(totalRuneAmount),
+          unit: Number(totalRuneAmount) / 100,
+        });
+        return selectedUtxos;
+      }
     }
   }
 
@@ -235,8 +274,12 @@ export async function findSatUtxo(
   }
 
   // Fetch confirmed UTXOs
-  const utxoResponse = await fetchWithTimeout(getAddressUtxoUrl(segwitAddress), {}, ESPLORA_FETCH_TIMEOUT_MS);
-  const utxos = await utxoResponse.json() as BlockchainUtxo[];
+  const utxoResponse = await fetchWithTimeout(
+    getAddressUtxoUrl(segwitAddress),
+    {},
+    ESPLORA_FETCH_TIMEOUT_MS
+  );
+  const utxos = (await utxoResponse.json()) as BlockchainUtxo[];
 
   // Find confirmed UTXO with sufficient sats
   for (const utxo of utxos) {

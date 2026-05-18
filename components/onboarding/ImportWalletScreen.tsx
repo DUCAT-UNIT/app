@@ -1,5 +1,5 @@
 /**
- * ImportWalletScreen - Enter 12-word seed phrase to import wallet
+ * ImportWalletScreen - Enter a seed phrase to import wallet
  * Compact, responsive design for all screen sizes
  */
 
@@ -19,8 +19,15 @@ import { colors, fonts, fontSizes, fontWeights, radii, layout } from '../../styl
 import Icon from '../icons';
 import { logger } from '../../utils/logger';
 import { notify } from '../../utils/notify';
-import { isE2E } from '../../utils/e2e';
 import { WALLET_IMPORT_PROFILE_OPTIONS, type WalletImportProfile } from '../../constants/bitcoin';
+import {
+  MAX_SEED_PHRASE_WORD_COUNT,
+  SUPPORTED_SEED_PHRASE_WORD_COUNTS,
+  createEmptySeedPhrase,
+  getSeedPhraseWordCountForPaste,
+  getSeedPhraseWordCountForWords,
+  type SeedPhraseWordCount,
+} from '../../constants/mnemonic';
 
 interface ImportWalletScreenProps {
   importSeedPhrase: string[];
@@ -39,7 +46,6 @@ interface ImportWalletScreenProps {
   warningText?: string;
 }
 
-const WORD_COUNT = 12;
 const isSmallScreen = layout.screen.width <= 375;
 
 export default function ImportWalletScreen({
@@ -52,18 +58,36 @@ export default function ImportWalletScreen({
   onImport,
   onCancel,
   title = 'Import Wallet',
-  subtitle = 'Enter your 12-word recovery phrase',
+  subtitle = 'Enter your 12 or 24-word recovery phrase',
   importButtonLabel = 'Import Wallet',
   cancelButtonLabel = 'Cancel',
   warningText,
 }: ImportWalletScreenProps) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const wordCount = useMemo(
+    () => getSeedPhraseWordCountForWords(importSeedPhrase),
+    [importSeedPhrase]
+  );
 
   const filledCount = useMemo(() => {
     return importSeedPhrase.filter((word) => word.trim().length > 0).length;
   }, [importSeedPhrase]);
 
-  const isComplete = filledCount === WORD_COUNT;
+  const isComplete = filledCount === wordCount;
+
+  const resizeSeedPhrase = useCallback(
+    (nextWordCount: SeedPhraseWordCount) => {
+      const nextPhrase = createEmptySeedPhrase(nextWordCount);
+      importSeedPhrase.slice(0, nextWordCount).forEach((word, index) => {
+        nextPhrase[index] = word;
+      });
+      setImportSeedPhrase(nextPhrase);
+      setFocusedIndex((currentIndex) =>
+        currentIndex !== null && currentIndex >= nextWordCount ? null : currentIndex
+      );
+    },
+    [importSeedPhrase, setImportSeedPhrase]
+  );
 
   const handlePaste = useCallback(async () => {
     try {
@@ -75,10 +99,11 @@ export default function ImportWalletScreen({
         .toLowerCase()
         .split(/\s+/)
         .filter((w) => w.length > 0)
-        .slice(0, WORD_COUNT);
+        .slice(0, MAX_SEED_PHRASE_WORD_COUNT);
 
       if (words.length > 0) {
-        const newPhrase = Array(WORD_COUNT).fill('');
+        const nextWordCount = getSeedPhraseWordCountForPaste(words.length);
+        const newPhrase = createEmptySeedPhrase(nextWordCount);
         words.forEach((word, i) => {
           newPhrase[i] = word;
         });
@@ -100,9 +125,9 @@ export default function ImportWalletScreen({
   }, [setImportSeedPhrase]);
 
   const handleClear = useCallback(() => {
-    setImportSeedPhrase(Array(WORD_COUNT).fill(''));
+    setImportSeedPhrase(createEmptySeedPhrase(wordCount));
     seedInputRefs.current[0]?.focus();
-  }, [setImportSeedPhrase, seedInputRefs]);
+  }, [setImportSeedPhrase, seedInputRefs, wordCount]);
 
   const handleTextChange = useCallback(
     (text: string, index: number) => {
@@ -112,16 +137,23 @@ export default function ImportWalletScreen({
           .toLowerCase()
           .split(/\s+/)
           .filter((w) => w.length > 0);
-        const newPhrase = [...importSeedPhrase];
+        const nextWordCount =
+          index + words.length > wordCount
+            ? getSeedPhraseWordCountForPaste(index + words.length)
+            : wordCount;
+        const newPhrase = createEmptySeedPhrase(nextWordCount);
+        importSeedPhrase.slice(0, nextWordCount).forEach((word, wordIndex) => {
+          newPhrase[wordIndex] = word;
+        });
 
         words.forEach((pastedWord: string, i: number) => {
-          if (index + i < WORD_COUNT) {
+          if (index + i < nextWordCount) {
             newPhrase[index + i] = pastedWord.trim();
           }
         });
 
         setImportSeedPhrase(newPhrase);
-        const nextIndex = Math.min(index + words.length, WORD_COUNT - 1);
+        const nextIndex = Math.min(index + words.length, nextWordCount - 1);
         setTimeout(() => seedInputRefs.current[nextIndex]?.focus(), 50);
       } else {
         const newPhrase = [...importSeedPhrase];
@@ -129,15 +161,15 @@ export default function ImportWalletScreen({
         setImportSeedPhrase(newPhrase);
       }
     },
-    [importSeedPhrase, setImportSeedPhrase, seedInputRefs]
+    [importSeedPhrase, setImportSeedPhrase, seedInputRefs, wordCount]
   );
 
   const handleSubmitEditing = useCallback(
     (index: number) => {
-      if (index < WORD_COUNT - 1) {
+      if (index < wordCount - 1) {
         seedInputRefs.current[index + 1]?.focus();
       } else if (isComplete && !isImporting) {
-        // On the 12th word, trigger import if form is complete
+        // On the final word, trigger import if form is complete
         onImport();
       } else if (!isComplete) {
         // Show error with missing word position and focus on first empty word
@@ -148,7 +180,7 @@ export default function ImportWalletScreen({
         }
       }
     },
-    [seedInputRefs, isComplete, isImporting, onImport, importSeedPhrase]
+    [seedInputRefs, isComplete, isImporting, onImport, importSeedPhrase, wordCount]
   );
 
   const handleFocus = useCallback((index: number) => {
@@ -201,7 +233,7 @@ export default function ImportWalletScreen({
               autoCorrect={false}
               autoComplete="off"
               spellCheck={false}
-              returnKeyType={index < WORD_COUNT - 1 ? 'next' : 'done'}
+              returnKeyType={index < wordCount - 1 ? 'next' : 'done'}
               onSubmitEditing={() => handleSubmitEditing(index)}
               blurOnSubmit={false}
               selectTextOnFocus
@@ -213,6 +245,7 @@ export default function ImportWalletScreen({
     [
       importSeedPhrase,
       focusedIndex,
+      wordCount,
       seedInputRefs,
       handleTextChange,
       handleFocus,
@@ -223,11 +256,11 @@ export default function ImportWalletScreen({
 
   const rows = useMemo(() => {
     const result: number[][] = [];
-    for (let i = 0; i < WORD_COUNT; i += 2) {
+    for (let i = 0; i < wordCount; i += 2) {
       result.push([i, i + 1]);
     }
     return result;
-  }, []);
+  }, [wordCount]);
 
   return (
     <KeyboardAvoidingView
@@ -285,16 +318,45 @@ export default function ImportWalletScreen({
           </View>
         ) : null}
 
+        <View style={styles.wordCountBlock}>
+          <Text style={styles.wordCountLabel}>Recovery phrase length</Text>
+          <View style={styles.wordCountSelector}>
+            {SUPPORTED_SEED_PHRASE_WORD_COUNTS.map((count) => {
+              const isSelected = wordCount === count;
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  accessibilityLabel={`Use ${count} recovery words`}
+                  accessibilityRole="button"
+                  key={count}
+                  onPress={() => resizeSeedPhrase(count)}
+                  style={[styles.wordCountOption, isSelected && styles.wordCountOptionSelected]}
+                  testID={`import-word-count-${count}`}
+                >
+                  <Text
+                    style={[
+                      styles.wordCountOptionText,
+                      isSelected && styles.wordCountOptionTextSelected,
+                    ]}
+                  >
+                    {count} words
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Progress row with paste/clear button */}
         <View style={styles.progressRow}>
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBar}>
               <View
-                style={[styles.progressFill, { width: `${(filledCount / WORD_COUNT) * 100}%` }]}
+                style={[styles.progressFill, { width: `${(filledCount / wordCount) * 100}%` }]}
               />
             </View>
             <Text style={styles.progressText}>
-              {filledCount}/{WORD_COUNT}
+              {filledCount}/{wordCount}
             </Text>
           </View>
 
@@ -331,7 +393,7 @@ export default function ImportWalletScreen({
         <TouchableOpacity
           style={[styles.importButton, (!isComplete || isImporting) && styles.buttonDisabled]}
           onPress={onImport}
-          disabled={(!isComplete && !isE2E()) || isImporting}
+          disabled={!isComplete || isImporting}
           activeOpacity={0.8}
           testID="import-wallet-btn"
         >
@@ -432,6 +494,42 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     lineHeight: 18,
     color: colors.text.secondary,
+  },
+  wordCountBlock: {
+    gap: 8,
+    marginBottom: isSmallScreen ? 14 : 18,
+  },
+  wordCountLabel: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+  },
+  wordCountSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  wordCountOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    borderRadius: radii.md,
+    backgroundColor: colors.bg.secondary,
+  },
+  wordCountOptionSelected: {
+    borderColor: colors.brand.primary,
+    backgroundColor: colors.bg.tertiary,
+  },
+  wordCountOptionText: {
+    fontFamily: fonts.medium,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+    color: colors.text.secondary,
+  },
+  wordCountOptionTextSelected: {
+    color: colors.text.primary,
   },
   progressRow: {
     flexDirection: 'row',

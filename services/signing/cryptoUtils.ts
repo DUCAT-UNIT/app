@@ -11,20 +11,11 @@ import * as bip39 from 'bip39';
 import { BIP32Interface } from 'bip32';
 import { ECPairInterface } from 'ecpair';
 
-import {
-  getDerivationPathForType,
-  type WalletDerivationMode,
-} from '../../constants/bitcoin';
+import { getDerivationPathForType, type WalletDerivationMode } from '../../constants/bitcoin';
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
 import { getCurrentAccount, withMnemonic } from '../secureStorageService';
 import { getWalletDerivationMode } from '../walletDerivationService';
-import {
-  bip32,
-  ecc,
-  getECPair,
-  varIntSize,
-  writeVarInt,
-} from '../../utils/wallet/cryptoHelpers';
+import { bip32, ecc, getECPair, varIntSize, writeVarInt } from '../../utils/wallet/cryptoHelpers';
 import { logger } from '../../utils/logger';
 import type { PsbtCache, WitnessData, AddressTypeInfo, SignatureData } from './types';
 
@@ -55,7 +46,7 @@ export function validateSighashType(
     if (!SAFE_TAPROOT_SIGHASH_TYPES.has(effective)) {
       throw new Error(
         `SECURITY: Unsafe sighash type 0x${effective.toString(16)} for Taproot input. ` +
-        'Only SIGHASH_DEFAULT (0x00) and SIGHASH_ALL (0x01) are allowed.'
+          'Only SIGHASH_DEFAULT (0x00) and SIGHASH_ALL (0x01) are allowed.'
       );
     }
   } else {
@@ -63,7 +54,7 @@ export function validateSighashType(
     if (!SAFE_SEGWIT_SIGHASH_TYPES.has(effective)) {
       throw new Error(
         `SECURITY: Unsafe sighash type 0x${effective.toString(16)} for SegWit input. ` +
-        'Only SIGHASH_ALL (0x01) and undefined (defaults to SIGHASH_ALL) are allowed.'
+          'Only SIGHASH_ALL (0x01) and undefined (defaults to SIGHASH_ALL) are allowed.'
       );
     }
   }
@@ -133,10 +124,7 @@ export function getAddressTypeInfo(
 /**
  * Derive a key pair from mnemonic for the given derivation path
  */
-export function deriveKeyPair(
-  mnemonic: string,
-  derivationPath: string
-): BIP32Interface {
+export function deriveKeyPair(mnemonic: string, derivationPath: string): BIP32Interface {
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   const root = bip32.fromSeed(seed, MUTINYNET_NETWORK);
   return root.derivePath(derivationPath);
@@ -188,13 +176,7 @@ export function getTaprootSighash(
 ): Buffer {
   // Access internal PSBT cache for low-level Taproot signing (required by bitcoinjs-lib)
   const psbtCache = (psbt as unknown as { __CACHE: PsbtCache }).__CACHE;
-  const hash = psbtCache.__TX.hashForWitnessV1(
-    inputIndex,
-    scripts,
-    values,
-    sighashType,
-    leafHash
-  );
+  const hash = psbtCache.__TX.hashForWitnessV1(inputIndex, scripts, values, sighashType, leafHash);
   return Buffer.from(hash);
 }
 
@@ -211,10 +193,7 @@ export function ensurePrivateKeyBuffer(privateKey: Uint8Array | Buffer | undefin
 /**
  * Negate private key if y-coordinate is odd (for Taproot key-path)
  */
-export function negatePrivateKeyIfNeeded(
-  privateKey: Buffer,
-  publicKey: Buffer
-): Buffer {
+export function negatePrivateKeyIfNeeded(privateKey: Buffer, publicKey: Buffer): Buffer {
   if (publicKey[0] === 0x03) {
     const privKeyHex = privateKey.toString('hex');
     const privKeyNum = BigInt('0x' + privKeyHex);
@@ -260,7 +239,8 @@ export function getXOnlyPubkey(publicKey: Buffer): Buffer {
 export function signTaprootScriptPath(
   psbt: bitcoin.Psbt,
   inputIndex: number,
-  keyPair: BIP32Interface
+  keyPair: BIP32Interface,
+  witnessData: WitnessData = extractWitnessData(psbt)
 ): SignatureData {
   const input = psbt.data.inputs[inputIndex];
 
@@ -272,7 +252,7 @@ export function signTaprootScriptPath(
   const scriptBuffer = Buffer.from(tapLeafScript.script);
   const tapleafHash = computeTapleafHash(scriptBuffer, tapLeafScript.leafVersion);
 
-  const { scripts, values } = extractWitnessData(psbt);
+  const { scripts, values } = witnessData;
   const sighash = input.sighashType || 0x00;
 
   validateSighashType(input.sighashType, 'taproot');
@@ -298,7 +278,8 @@ export function signTaprootScriptPath(
 export function signTaprootKeyPath(
   psbt: bitcoin.Psbt,
   inputIndex: number,
-  keyPair: BIP32Interface
+  keyPair: BIP32Interface,
+  witnessData: WitnessData = extractWitnessData(psbt)
 ): SignatureData {
   const input = psbt.data.inputs[inputIndex];
 
@@ -306,7 +287,7 @@ export function signTaprootKeyPath(
   const publicKeyBuffer = Buffer.from(keyPair.publicKey);
   privateKey = negatePrivateKeyIfNeeded(privateKey, publicKeyBuffer);
 
-  const { scripts, values } = extractWitnessData(psbt);
+  const { scripts, values } = witnessData;
   const sighash = input.sighashType || 0x00;
 
   validateSighashType(input.sighashType, 'taproot');

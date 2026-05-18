@@ -328,6 +328,30 @@ describe('vaultSettlementService', () => {
     });
   });
 
+  it('marks an unfunded TurboUNIT mint quote as needing retry after restart', async () => {
+    useVaultSettlementStore.getState().startOperation('borrow', 50, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMintQuote('cashu-quote-unfunded', 'tb1pmint', 5000);
+    (checkMintQuote as jest.Mock).mockResolvedValue({
+      quote: 'cashu-quote-unfunded',
+      state: 'UNPAID',
+      amount_paid: 0,
+      amount_issued: 0,
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'needs_retry',
+      message: 'TurboUNIT mint quote is ready to fund. Retry settlement to finish it.',
+      lastStatus: 'UNPAID',
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'needs_retry',
+      error: 'TurboUNIT mint quote is ready to fund. Retry settlement to finish it.',
+      cashuMintQuoteId: 'cashu-quote-unfunded',
+      cashuMintSendTxid: null,
+    });
+  });
+
   it('refreshes an accepted TurboUNIT repay melt quote and resumes waiting for release', async () => {
     useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
     useVaultSettlementStore.getState().setCashuMeltQuote('melt-quote-complete');

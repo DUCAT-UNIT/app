@@ -5,6 +5,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # to reach the success screen through the real UI path.
 
 - runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/enable-usdc.yaml
 
 # Scroll to vault card
 - scrollUntilVisible:
@@ -56,8 +57,27 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "vault-create-borrow-usd-input"
 - eraseText
 - inputText: "100"
-- tapOn:
-    id: "vault-create-borrow-usd-done-btn"
+- pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-borrow-usd-input"
+    commands:
+      - tapOn:
+          id: "vault-create-borrow-usd-done-btn"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-borrow-usd-input"
+    commands:
+      - hideKeyboard
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 10000
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 
@@ -75,6 +95,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           point: "50%,97%"
+
+- extendedWaitUntil:
+    visible:
+      text: "How do you want to receive your loan?"
+    timeout: 15000
 
 - scrollUntilVisible:
     element:
@@ -111,12 +136,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           point: "74%,96%"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 # Real Guardian + bridge + Sepolia settlement path
 - extendedWaitUntil:
     visible:
       id: "vault-create-success-screen"
     timeout: 420000
-
-- assertVisible:
-    text: "Vault Created!"

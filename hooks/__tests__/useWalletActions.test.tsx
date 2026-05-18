@@ -79,6 +79,7 @@ describe('useWalletActions', () => {
       expect(result.current).toHaveProperty('handleViewSeedPhrase');
       expect(result.current).toHaveProperty('showLogoutModal');
       expect(result.current).toHaveProperty('showDeleteModal');
+      expect(result.current).toHaveProperty('isDeletingWallet');
       expect(result.current).toHaveProperty('confirmLogout');
       expect(result.current).toHaveProperty('cancelLogout');
       expect(result.current).toHaveProperty('confirmDeleteWallet');
@@ -87,6 +88,7 @@ describe('useWalletActions', () => {
       expect(typeof result.current!.handleLogout).toBe('function');
       expect(typeof result.current!.handleDeleteWallet).toBe('function');
       expect(typeof result.current!.handleViewSeedPhrase).toBe('function');
+      expect(result.current!.isDeletingWallet).toBe(false);
       expect(typeof result.current!.confirmLogout).toBe('function');
       expect(typeof result.current!.cancelLogout).toBe('function');
       expect(typeof result.current!.confirmDeleteWallet).toBe('function');
@@ -171,6 +173,45 @@ describe('useWalletActions', () => {
   });
 
   describe('Delete Wallet Flow - Authentication Success', () => {
+    it('should show an in-flight state and ignore duplicate delete confirmations', async () => {
+      let resolveDelete: () => void = () => undefined;
+      const deletePromise = new Promise<void>((resolve) => {
+        resolveDelete = resolve;
+      });
+      (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
+      (secureStorageService.deleteWalletData as jest.Mock).mockReturnValue(deletePromise);
+
+      const { result } = renderHook(() => useWalletActions(mockProps));
+
+      act(() => {
+        result.current!.handleDeleteWallet();
+      });
+
+      let confirmPromise: Promise<void> = Promise.resolve();
+      await act(async () => {
+        confirmPromise = result.current!.confirmDeleteWallet();
+        await Promise.resolve();
+      });
+
+      expect(result.current!.showDeleteModal).toBe(true);
+      expect(result.current!.isDeletingWallet).toBe(true);
+
+      await act(async () => {
+        await result.current!.confirmDeleteWallet();
+      });
+
+      expect(biometricService.authenticateWithBiometrics).toHaveBeenCalledTimes(1);
+      expect(secureStorageService.deleteWalletData).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveDelete();
+        await confirmPromise;
+      });
+
+      expect(result.current!.showDeleteModal).toBe(false);
+      expect(result.current!.isDeletingWallet).toBe(false);
+    });
+
     it('should delete wallet when biometric auth succeeds', async () => {
       (biometricService.authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
       (secureStorageService.deleteWalletData as jest.Mock).mockResolvedValue(true);

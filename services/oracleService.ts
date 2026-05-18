@@ -7,30 +7,53 @@ import type { PriceQuote } from '@ducat-unit/client-sdk';
 import { API } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { getJSON } from '../utils/apiClient';
+import { getJsonWithNativeTimeout } from '../utils/nativeHttp';
 
 // Maximum age for oracle price quotes (5 minutes in seconds)
 export const MAX_QUOTE_AGE_SECONDS = 300;
+
+interface FetchPriceQuoteOptions {
+  timeout?: number;
+  dedupe?: boolean;
+  cache?: boolean;
+  transport?: 'fetch' | 'xhr';
+}
 
 /**
  * Fetches a price quote from the Oracle API
  * @param liquidationPrice - The liquidation threshold price
  * @returns Price quote with oracle signature
  */
-export async function fetchPriceQuote(liquidationPrice: number): Promise<PriceQuote> {
+export async function fetchPriceQuote(
+  liquidationPrice: number,
+  options: FetchPriceQuoteOptions = {}
+): Promise<PriceQuote> {
   const thresholdPrice = Math.floor(liquidationPrice);
   // Ensure minimum threshold of 1
   const safeThreshold = thresholdPrice === 0 ? 1 : thresholdPrice;
+  const useDedupe = options.dedupe !== false;
+  const useCache = options.cache !== false;
+  const quoteKey = `oracle-price-quote-${safeThreshold}`;
 
   logger.debug(`[OracleService] Fetching price quote for threshold: ${safeThreshold}`);
 
   try {
     const query = new URLSearchParams({ th: String(safeThreshold) });
-    const quote = await getJSON<PriceQuote>(`${API.QUOTE_SERVER}/api/quote?${query.toString()}`, {
-      timeout: 8000,
-      retryOptions: { maxRetries: 1 },
-      dedupeKey: `oracle-price-quote-${safeThreshold}`,
-      circuitKey: 'oracle-price-quote',
-    });
+    const url = `${API.QUOTE_SERVER}/api/quote?${query.toString()}`;
+    const quote =
+      options.transport === 'xhr'
+        ? await getJsonWithNativeTimeout<PriceQuote>(url, {
+            timeout: options.timeout ?? 8000,
+            headers: { Accept: 'application/json' },
+          })
+        : await getJSON<PriceQuote>(url, {
+            timeout: options.timeout ?? 8000,
+            retryOptions: { maxRetries: 1 },
+            dedupeKey: useDedupe ? quoteKey : undefined,
+            cacheKey: useCache ? quoteKey : undefined,
+            cacheTtlMs: MAX_QUOTE_AGE_SECONDS * 1000,
+            circuitKey: 'oracle-price-quote',
+          });
 
     if (typeof quote.latest_stamp !== 'number') {
       throw new Error('Oracle price quote is missing timestamp');

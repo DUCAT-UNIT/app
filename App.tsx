@@ -8,21 +8,11 @@ import './crypto-polyfill';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
-import { LogBox } from 'react-native';
-
-if (!__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
-  throw new Error('EXPO_PUBLIC_E2E_BYPASS must never be enabled outside development builds');
-}
-
-// Suppress all log notifications in E2E mode to prevent overlay interference
-if (__DEV__ && process.env.EXPO_PUBLIC_E2E_BYPASS === 'true') {
-  LogBox.ignoreAllLogs(true);
-}
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   InteractionManager,
   Linking,
+  LogBox,
   Platform,
   StyleSheet,
   Text,
@@ -43,7 +33,6 @@ import { ONBOARDING_EVENTS } from './constants/analyticsEvents';
 import { startupDiagnostics } from './services/startupDiagnostics';
 import {
   E2E_RESET_SETTINGS_URL_PREFIX,
-  hasConfiguredE2EBypass,
   resetNonSecretE2ESettings,
 } from './services/e2eSettingsResetService';
 
@@ -78,6 +67,10 @@ import { NETWORK_DISPLAY_NAME } from './utils/constants';
 import { logger } from './utils/logger';
 import { useWalletInitialization } from './hooks/useWalletInitialization';
 import { COLORS } from './theme';
+
+if (__DEV__) {
+  LogBox.ignoreAllLogs();
+}
 
 // Keep the native splash screen visible until we explicitly hide it.
 // If this races with Expo internals, log and continue rather than crashing startup.
@@ -266,7 +259,7 @@ export default function App() {
   // Timeout: if fonts don't load within 5s, proceed anyway
   const [fontTimedOut, setFontTimedOut] = useState(false);
   useEffect(() => {
-    if (!__DEV__ && !hasConfiguredE2EBypass()) return undefined;
+    if (!__DEV__) return undefined;
 
     if (typeof Linking.addEventListener !== 'function') return undefined;
 

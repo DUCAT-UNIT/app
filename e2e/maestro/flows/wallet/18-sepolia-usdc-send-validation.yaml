@@ -52,13 +52,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "sepolia-send-recipient-input"
 - inputText: "not-an-ethereum-address"
-- hideKeyboard
 - assertVisible:
     id: "sepolia-send-recipient-error"
 
 - tapOn:
     id: "sepolia-send-amount-focus-target"
 - inputText: "1"
-- hideKeyboard
 - assertVisible:
     text: "Enter a valid Ethereum address."

@@ -35,10 +35,14 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
 
     const response = await retrySilently(
       () =>
-        fetchWithTimeout(getBroadcastUrl(), {
-          method: 'POST',
-          body: signedTxHex,
-        }, 10000),
+        fetchWithTimeout(
+          getBroadcastUrl(),
+          {
+            method: 'POST',
+            body: signedTxHex,
+          },
+          10000
+        ),
       { maxRetries: 2 } // Fewer retries for broadcasts
     );
 
@@ -49,6 +53,7 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
         normalizedError.includes('already in mempool') ||
         normalizedError.includes('txn-already-known')
       ) {
+        logger.info(`[E2E_TX] bitcoin_broadcast txid=${expectedTxid} status=already_known`);
         logger.transaction('broadcast_already_known', {
           txid: expectedTxid.substring(0, 8) + '...',
           error: errorText?.substring(0, 100),
@@ -58,7 +63,7 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
       }
       logger.transaction('broadcast_failed', {
         status: response.status,
-        error: errorText?.substring(0, 100)
+        error: errorText?.substring(0, 100),
       });
       throw new Error(errorText || 'Failed to broadcast transaction');
     }
@@ -72,16 +77,17 @@ export const broadcastTransaction = async (signedTxHex: string): Promise<string>
     if (trimmedTxid !== expectedTxid) {
       logger.error('SECURITY: Txid mismatch detected', {
         expected: expectedTxid.substring(0, 8),
-        returned: trimmedTxid.substring(0, 8)
+        returned: trimmedTxid.substring(0, 8),
       });
       throw new Error(
         `SECURITY: Txid mismatch detected! ` +
-        `Expected ${expectedTxid} but API returned ${trimmedTxid}. ` +
-        `This could indicate a MITM attack or API error. Transaction not confirmed.`
+          `Expected ${expectedTxid} but API returned ${trimmedTxid}. ` +
+          `This could indicate a MITM attack or API error. Transaction not confirmed.`
       );
     }
 
     logger.transaction('broadcast_success', { txid: expectedTxid.substring(0, 8) + '...' });
+    logger.info(`[E2E_TX] bitcoin_broadcast txid=${expectedTxid} status=broadcasted`);
     txn.finish('ok');
 
     // Return our calculated txid (not the API's) for extra safety

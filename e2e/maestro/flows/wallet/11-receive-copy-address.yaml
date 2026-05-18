@@ -46,6 +46,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
     text: "Bitcoin address"
 
 
-# Verify Mutinynet banner
+# Verify receive actions are present
 - assertVisible:
-    text: "Mutinynet Edition"
+    text: ".*Tap to copy.*"

@@ -11,7 +11,7 @@ const quick = args.has('--quick');
 const runtimeE2E = args.has('--runtime-e2e');
 
 const failures = [];
-const EXPECTED_RELEASE_VERSION = '0.0.6';
+const EXPECTED_RELEASE_VERSION = '0.0.10';
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), 'utf8');

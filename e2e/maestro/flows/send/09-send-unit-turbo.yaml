@@ -7,10 +7,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 #   3. InsufficientTurboSheet appears on Review (ecash = 0)
 #   4. Verify both buttons are accessible, then tap "Send Normally"
 #   5. Complete on-chain UNIT send through ReviewScreen
-# NOTE: This deterministic suite intentionally verifies the sheet UX and Send
-# Normally fallback with EXPO_PUBLIC_E2E_BYPASS=true. The real onchain Cashu
-# mint -> P2PK TurboUNIT path lives in test/live-turbounit-smoke.yaml and must
-# run through scripts/runMaestroLive.mjs without E2E bypass.
+# NOTE: This suite intentionally verifies the sheet UX and Send Normally
+# fallback. The real onchain Cashu mint -> P2PK TurboUNIT path lives in
+# test/live-turbounit-smoke.yaml and must run through scripts/runMaestroLive.mjs.
 
 # Step 1: Create wallet with vault
 - runFlow: ../helpers/create-wallet-with-vault.yaml
@@ -39,16 +38,29 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
-- hideKeyboard
 
 - extendedWaitUntil:
     visible:
       text: "Valid"
     timeout: 10000
+- pressKey: Enter
+- waitForAnimationToEnd
 
-# Select QTR amount of UNIT
+# Enter a small UNIT amount through the visible amount editor.
 - tapOn:
-    id: "unit-slider-quarter-btn"
+    id: "unit-send-amount-display"
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,37%"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "unit-send-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "0.01"
+- tapOn:
+    id: "unit-send-amount-done-btn"
 - waitForAnimationToEnd
 
 # Verify Turbo toggle is visible and ON by default
@@ -57,14 +69,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Step 3: Tap Review — InsufficientTurboSheet appears (no ecash balance)
 - tapOn:
-    text: "Review transaction"
+    id: "send-review-btn"
 
 # Wait for async ecash balance check + BottomSheet render
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 
 # Step 4: Verify InsufficientTurboSheet buttons are accessible
-# BottomSheet has E2E bypass (View overlay instead of Modal) for Maestro accessibility
+# BottomSheet exposes an accessible overlay path for Maestro.
 - extendedWaitUntil:
     visible:
       id: "turbo-use-turbo-btn"

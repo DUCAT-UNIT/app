@@ -1,0 +1,20 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Submit the import form if it is still visible. The coordinate fallback covers
+# iOS keyboard focus cases where the visible button tap is swallowed.
+- runFlow:
+    when:
+      visible:
+        id: "import-wallet-screen"
+    commands:
+      - tapOn:
+          id: "import-wallet-btn"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "import-wallet-screen"
+    commands:
+      - tapOn:
+          point: "50%,63%"
+      - waitForAnimationToEnd

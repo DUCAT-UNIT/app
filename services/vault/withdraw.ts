@@ -137,13 +137,11 @@ export async function guardianSendReqWithdraw(
   logger.debug('[VaultOps] Submitting withdraw request to guardian...');
 
   try {
-    const guardSub = await gclient.req.vault.withdraw(withdrawReq);
-    logger.debug('[VaultOps] Withdraw request submitted, waiting for response...');
-
-    // Brief delay to allow the Guardian node to commit the state change internally
-    // before resolving. Without this, subsequent reads may return stale data.
-    // This mirrors the web frontend behavior and was empirically determined.
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    const submitStartedAt = Date.now();
+    const guardSub = gclient.req.vault.withdraw(withdrawReq);
+    logger.info('[VaultOps] Withdraw request submitted to guardian', {
+      durationMs: Date.now() - submitStartedAt,
+    });
 
     const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
@@ -152,7 +150,10 @@ export async function guardianSendReqWithdraw(
 
     const vault_txid = guardRes.vault_txid;
 
-    logger.debug('[VaultOps] Withdraw completed:', { vault_txid });
+    logger.info('[VaultOps] Withdraw guardian response ready', {
+      durationMs: Date.now() - submitStartedAt,
+      vault_txid,
+    });
 
     return { vault_txid };
   } catch (error) {

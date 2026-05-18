@@ -3,7 +3,10 @@ import { NavigationProp } from '@react-navigation/native';
 import { RepayFundingStep } from '../../components/vaultAction';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { useRepay } from '../../stores/repayStore';
-import { resolveVaultSettlementRequestedAsset, type VaultSettlementRequestedAsset } from '../../stores/vaultSettlementStore';
+import {
+  resolveVaultSettlementRequestedAsset,
+  type VaultSettlementRequestedAsset,
+} from '../../stores/vaultSettlementStore';
 
 interface RepayFundingScreenProps {
   navigation: NavigationProp<Record<string, object | undefined>>;
@@ -12,12 +15,14 @@ interface RepayFundingScreenProps {
 function canFund(
   asset: VaultSettlementRequestedAsset,
   amountUsd: number,
-  balances: Record<VaultSettlementRequestedAsset, number>,
+  balances: Record<VaultSettlementRequestedAsset, number>
 ): boolean {
   return balances[asset] >= amountUsd;
 }
 
-export default function RepayFundingScreen({ navigation }: RepayFundingScreenProps): React.JSX.Element {
+export default function RepayFundingScreen({
+  navigation,
+}: RepayFundingScreenProps): React.JSX.Element {
   const {
     repayAmountUsd,
     repayFundingAsset,
@@ -30,15 +35,19 @@ export default function RepayFundingScreen({ navigation }: RepayFundingScreenPro
   const { settingsHandlers } = useSettingsHandlers();
   const allowUsdc = settingsHandlers.usdcFeaturesEnabled;
   const effectiveFundingAsset = resolveVaultSettlementRequestedAsset(repayFundingAsset, allowUsdc);
-  const unitAndTurboBalanceUsd = availableDirectUnitBalanceUsd + availableTurboUnitBalanceUsd;
 
   const balances = useMemo(
     () => ({
       UNIT: availableDirectUnitBalanceUsd,
-      TURBOUNIT: availableTurboUnitBalanceUsd > 0 ? unitAndTurboBalanceUsd : 0,
+      TURBOUNIT: availableTurboUnitBalanceUsd,
       USDC: allowUsdc ? availableRepayBalanceUsd : 0,
     }),
-    [allowUsdc, availableDirectUnitBalanceUsd, availableRepayBalanceUsd, availableTurboUnitBalanceUsd, unitAndTurboBalanceUsd],
+    [
+      allowUsdc,
+      availableDirectUnitBalanceUsd,
+      availableRepayBalanceUsd,
+      availableTurboUnitBalanceUsd,
+    ]
   );
 
   useEffect(() => {
@@ -49,8 +58,9 @@ export default function RepayFundingScreen({ navigation }: RepayFundingScreenPro
 
   useEffect(() => {
     if (canFund(effectiveFundingAsset, repayAmountUsd, balances)) return;
-    const fallback = (['UNIT', 'TURBOUNIT', ...(allowUsdc ? (['USDC'] as const) : [])] as const)
-      .find((asset) => canFund(asset, repayAmountUsd, balances));
+    const fallback = (
+      ['UNIT', 'TURBOUNIT', ...(allowUsdc ? (['USDC'] as const) : [])] as const
+    ).find((asset) => canFund(asset, repayAmountUsd, balances));
 
     if (fallback && fallback !== effectiveFundingAsset) {
       setRepayFundingAsset(fallback);

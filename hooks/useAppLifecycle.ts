@@ -50,6 +50,7 @@ export function useAppLifecycle({
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasInBackground = useRef(false);
   const lastResetAtRef = useRef(0);
+  const wasProcessingRef = useRef(isProcessing);
 
   // Use refs for callbacks and state to avoid stale closures in timers
   const onLockRef = useRef(onLock);
@@ -91,7 +92,9 @@ export function useAppLifecycle({
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       const prevState = appState.current;
       logger.debug(`[useAppLifecycle] AppState changed: ${prevState} -> ${nextAppState}`);
-      logger.debug(`[useAppLifecycle] walletExists: ${walletExists.current}, seedConfirmed: ${seedConfirmedRef.current}`);
+      logger.debug(
+        `[useAppLifecycle] walletExists: ${walletExists.current}, seedConfirmed: ${seedConfirmedRef.current}`
+      );
       logger.debug(`[useAppLifecycle] wasInBackground: ${wasInBackground.current}`);
 
       // Track when we go to background (NOT inactive - that triggers Face ID, control center, etc.)
@@ -139,17 +142,22 @@ export function useAppLifecycle({
     }
 
     // Set new timer
-    inactivityTimer.current = setTimeout(() => {
-      // Don't lock during active transaction processing
-      if (isProcessingRef.current) {
-        logger.debug('[useAppLifecycle] ⏱️ Inactivity timeout reached but processing active - deferring lock');
-        startInactivityTimer();
-        return;
-      }
-      // Lock the wallet after inactivity timeout
-      logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
-      onLockRef.current();
-    }, Math.max(1000, inactivityTimeoutMs));
+    inactivityTimer.current = setTimeout(
+      () => {
+        // Don't lock during active transaction processing
+        if (isProcessingRef.current) {
+          logger.debug(
+            '[useAppLifecycle] ⏱️ Inactivity timeout reached but processing active - deferring lock'
+          );
+          startInactivityTimer();
+          return;
+        }
+        // Lock the wallet after inactivity timeout
+        logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
+        onLockRef.current();
+      },
+      Math.max(1000, inactivityTimeoutMs)
+    );
   }, [inactivityTimeoutMs]); // Callback refs supply latest lock/auth state.
 
   const resetInactivityTimer = useCallback(() => {
@@ -162,14 +170,28 @@ export function useAppLifecycle({
     startInactivityTimer();
   }, [startInactivityTimer]);
 
-  // Start timer when authenticated (but only if seed backup is confirmed)
   useEffect(() => {
-    logger.debug(`[useAppLifecycle] Inactivity timer check: isAuth=${isAuthenticated}, walletExists=${walletExists.current}, seedConfirmed=${seedConfirmedRef.current}`);
+    const wasProcessing = wasProcessingRef.current;
+    wasProcessingRef.current = isProcessing;
+
     if (
+      wasProcessing &&
+      !isProcessing &&
       isAuthenticated &&
       walletExists.current &&
       seedConfirmedRef.current
     ) {
+      logger.debug('[useAppLifecycle] Processing finished - refreshing inactivity timer');
+      startInactivityTimer();
+    }
+  }, [isAuthenticated, isProcessing, seedConfirmedRef, startInactivityTimer, walletExists]);
+
+  // Start timer when authenticated (but only if seed backup is confirmed)
+  useEffect(() => {
+    logger.debug(
+      `[useAppLifecycle] Inactivity timer check: isAuth=${isAuthenticated}, walletExists=${walletExists.current}, seedConfirmed=${seedConfirmedRef.current}`
+    );
+    if (isAuthenticated && walletExists.current && seedConfirmedRef.current) {
       logger.debug('[useAppLifecycle] ⏱️  Starting inactivity timer');
       startInactivityTimer();
 

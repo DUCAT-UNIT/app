@@ -25,14 +25,16 @@ jest.useFakeTimers();
 
 // Mock AppState listeners
 let mockAppStateListeners: { change?: (state: AppStateStatus) => void } = {};
-(AppState.addEventListener as jest.Mock) = jest.fn((event: string, handler: (state: AppStateStatus) => void) => {
-  mockAppStateListeners[event as 'change'] = handler;
-  return {
-    remove: jest.fn(() => {
-      delete mockAppStateListeners[event as 'change'];
-    }),
-  };
-});
+(AppState.addEventListener as jest.Mock) = jest.fn(
+  (event: string, handler: (state: AppStateStatus) => void) => {
+    mockAppStateListeners[event as 'change'] = handler;
+    return {
+      remove: jest.fn(() => {
+        delete mockAppStateListeners[event as 'change'];
+      }),
+    };
+  }
+);
 
 // Helper to render hooks with props
 function renderHook<T, P>(hook: (props: P) => T, { initialProps }: { initialProps: P }) {
@@ -412,7 +414,37 @@ describe('useAppLifecycle', () => {
       expect(mockProps.onLock).toHaveBeenCalledTimes(1);
     });
 
+    it('should refresh the timer when processing finishes before timeout', () => {
+      mockProps.isAuthenticated = true;
+      mockProps.walletExists.current = true;
+      mockProps.seedConfirmedRef.current = true;
+      mockProps.isProcessing = true;
 
+      const { rerender } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
+        initialProps: mockProps,
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(595_000);
+      });
+
+      mockProps.isProcessing = false;
+      act(() => {
+        rerender(mockProps);
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(595_000);
+      });
+
+      expect(mockProps.onLock).not.toHaveBeenCalled();
+
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      expect(mockProps.onLock).toHaveBeenCalledTimes(1);
+    });
 
     it('should clean up inactivity timer through final useEffect', () => {
       mockProps.isAuthenticated = false;
@@ -420,9 +452,12 @@ describe('useAppLifecycle', () => {
       mockProps.seedConfirmedRef.current = false;
       mockProps.isBiometricSupported = false;
 
-      const { unmount, result } = renderHook((props: UseAppLifecycleParams) => useAppLifecycle(props), {
-        initialProps: mockProps,
-      });
+      const { unmount, result } = renderHook(
+        (props: UseAppLifecycleParams) => useAppLifecycle(props),
+        {
+          initialProps: mockProps,
+        }
+      );
 
       // Manually create a timer by calling resetInactivityTimer
       act(() => {
@@ -440,9 +475,7 @@ describe('useAppLifecycle', () => {
       // Should not throw
       expect(true).toBe(true);
     });
-
   });
-
 
   describe('Edge Cases', () => {
     it('should handle multiple rapid app state changes', () => {

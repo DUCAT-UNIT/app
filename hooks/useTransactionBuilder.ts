@@ -240,7 +240,7 @@ export function useTransactionBuilder({
         throw new Error('Wallet not initialized');
       }
 
-      // E2E bypass: skip UTXO lookup and PSBT building — no real Runes UTXOs exist
+      // Legacy fixture path: skip UTXO lookup and PSBT building.
       if (isE2E()) {
         const parsedAmount = parseFloat(sendAmount) || 0;
         const fakeIntent: UnitTransactionIntent = {
@@ -281,7 +281,7 @@ export function useTransactionBuilder({
           psbt: 'e2e-mock-psbt',
           timestamp: Date.now(),
         };
-        logger.info('[createUnitIntent] E2E bypass: fake intent created', { amount: sendAmount });
+        logger.info('[createUnitIntent] E2E fixture intent created', { amount: sendAmount });
         setSendIntent(fakeIntent);
         setIntentStep('reviewing');
         return;

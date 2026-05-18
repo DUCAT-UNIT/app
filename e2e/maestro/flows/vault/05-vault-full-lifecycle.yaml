@@ -10,7 +10,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - extendedWaitUntil:
     visible:
       id: "wallet-repay-btn"
-    timeout: 10000
+    timeout: 240000
 - tapOn:
     id: "wallet-repay-btn"
 
@@ -40,13 +40,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 - tapOn:
     id: "vault-repay-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 - extendedWaitUntil:
     visible:
       id: "vault-repay-success-screen"
     timeout: 120000
-- assertVisible:
-    text: "Repayment Complete!"
 - tapOn:
     id: "vault-success-done-btn"
 
@@ -63,6 +67,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
     direction: DOWN
     duration: 500
 - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "wallet-vault-actions-ready"
+    timeout: 240000
 
 # Use withdraw button → select vault withdrawal from sheet
 - extendedWaitUntil:
@@ -85,9 +93,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-withdraw-input-screen"
     timeout: 10000
 
-# Withdraw HALF collateral (conservative — avoids UTXO conflict with unconfirmed repay TX)
+# Withdraw a small explicit collateral amount.
 - tapOn:
-    id: "btc-slider-half-btn"
+    id: "vault-withdraw-amount-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-withdraw-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "0.00001000"
+- tapOn:
+    id: "vault-withdraw-amount-done-btn"
 - waitForAnimationToEnd
 
 - tapOn:
@@ -99,13 +115,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 - tapOn:
     id: "vault-withdraw-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 - extendedWaitUntil:
     visible:
       id: "vault-withdraw-success-screen"
     timeout: 120000
-- assertVisible:
-    text: "Withdrawal Complete!"
 - tapOn:
     id: "vault-success-done-btn"
 

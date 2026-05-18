@@ -314,6 +314,7 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             if (cancelled) return;
 
             logger.debug('[Airdrop] Airdrop received!', { txId: result.txId });
+            logger.info(`[E2E_TX] airdrop_requested txid=${result.txId}`);
 
             // Store pending airdrop in SecureStore (survives state resets during onboarding)
             await storePendingAirdrop(pendingKey, result.txId);

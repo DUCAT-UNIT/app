@@ -2,14 +2,11 @@
  * Melt Quotes API - redeem Cashu UNIT tokens to an on-chain UNIT Rune transfer
  */
 
-import { getJSON, postJSON } from '../../../utils/apiClient';
+import { getJsonWithNativeTimeout, postJsonWithNativeTimeout } from '../../../utils/nativeHttp';
 import { logger } from '../../../utils/logger';
 import { MINT_URL, CASHU_UNIT, RUNE_ID } from './mintConfig';
 import { CashuProof } from '../p2pk';
-import {
-  normalizeOptionalCashuAmount,
-  type CashuAmountLike,
-} from '../cashuTsCompat';
+import { normalizeOptionalCashuAmount, type CashuAmountLike } from '../cashuTsCompat';
 import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../cashuUnits';
 
 export interface MeltQuote {
@@ -89,9 +86,11 @@ export const createMeltQuote = async (
       ...(unit === DEFAULT_CASHU_UNIT ? { rune_id: RUNE_ID } : {}),
     };
 
-    const response = await postJSON<MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain`, body, {
+    const response = await postJsonWithNativeTimeout<
+      MeltQuoteWire[] | { quotes?: MeltQuoteWire[] } | MeltQuoteWire
+    >(`${MINT_URL}/v1/melt/quote/onchain`, body, {
       timeout: 10000,
-      description: 'Create melt quote',
+      headers: { Accept: 'application/json' },
     });
 
     const responseWithQuotes = response as { quotes?: MeltQuoteWire[] };
@@ -106,7 +105,10 @@ export const createMeltQuote = async (
     }
 
     const quote = [...normalizedQuotes].sort(
-      (a, b) => ((a.amount ?? 0) + (a.fee ?? a.fee_reserve ?? 0)) - ((b.amount ?? 0) + (b.fee ?? b.fee_reserve ?? 0))
+      (a, b) =>
+        (a.amount ?? 0) +
+        (a.fee ?? a.fee_reserve ?? 0) -
+        ((b.amount ?? 0) + (b.fee ?? b.fee_reserve ?? 0))
     )[0];
 
     if (quote.amount === undefined) {
@@ -116,7 +118,7 @@ export const createMeltQuote = async (
     logger.info('Melt quote created', {
       quoteId: quote.quote,
       amount: quote.amount,
-      fee: quote.fee ?? quote.fee_reserve ?? 0
+      fee: quote.fee ?? quote.fee_reserve ?? 0,
     });
 
     return quote;
@@ -133,10 +135,15 @@ export const createMeltQuote = async (
  */
 export const checkMeltQuote = async (quoteId: string): Promise<MeltQuote> => {
   try {
-    const quote = normalizeMeltQuote(await getJSON<MeltQuoteWire>(`${MINT_URL}/v1/melt/quote/onchain/${quoteId}`, {
-      timeout: 5000,
-      description: 'Check melt quote',
-    }));
+    const quote = normalizeMeltQuote(
+      await getJsonWithNativeTimeout<MeltQuoteWire>(
+        `${MINT_URL}/v1/melt/quote/onchain/${quoteId}`,
+        {
+          timeout: 5000,
+          headers: { Accept: 'application/json' },
+        }
+      )
+    );
     return quote;
   } catch (error: unknown) {
     logger.error('Failed to check melt quote', { error: (error as Error).message, quoteId });
@@ -156,16 +163,24 @@ export const meltTokens = async (
   outputs: Array<{ amount: number; B_: string; id?: string }> = []
 ): Promise<MeltResponse> => {
   try {
-    logger.info('Melting tokens', { quoteId, inputCount: inputs.length, outputCount: outputs.length });
-
-    const response = await postJSON<MeltResponse>(`${MINT_URL}/v1/melt/onchain`, {
-      quote: quoteId,
-      inputs,
-      outputs,
-    }, {
-      timeout: 15000,
-      description: 'Melt tokens',
+    logger.info('Melting tokens', {
+      quoteId,
+      inputCount: inputs.length,
+      outputCount: outputs.length,
     });
+
+    const response = await postJsonWithNativeTimeout<MeltResponse>(
+      `${MINT_URL}/v1/melt/onchain`,
+      {
+        quote: quoteId,
+        inputs,
+        outputs,
+      },
+      {
+        timeout: 15000,
+        headers: { Accept: 'application/json' },
+      }
+    );
 
     logger.info('Tokens melted', {
       paid: response.paid,

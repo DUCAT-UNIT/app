@@ -251,6 +251,11 @@ export default function VaultProcessingScreen({
               ]}
               onPress={error ? handleCancel : handleRetrySettlement}
               disabled={isRetryingSettlement}
+              testID={
+                error
+                  ? `vault-${config.operationType}-cancel-processing-btn`
+                  : `vault-${config.operationType}-retry-settlement-btn`
+              }
               accessibilityRole="button"
               accessibilityLabel={error ? 'Cancel and go back' : 'Retry settlement'}
               accessibilityHint={

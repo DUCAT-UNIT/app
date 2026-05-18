@@ -38,7 +38,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
-- hideKeyboard
 
 - extendedWaitUntil:
     visible:
@@ -46,15 +45,22 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 5000
 
 - tapOn:
-    id: "btc-slider-quarter-btn"
+    id: "btc-send-amount-display"
+- extendedWaitUntil:
+    visible:
+      id: "btc-send-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "0.00001000"
+- tapOn:
+    id: "btc-send-amount-done-btn"
 - waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible:
-      text: "Review transaction"
+      id: "send-review-btn"
     timeout: 5000
-- tapOn:
-    text: "Review transaction"
+- runFlow: ../helpers/tap-send-review.yaml
 
 - extendedWaitUntil:
     visible:

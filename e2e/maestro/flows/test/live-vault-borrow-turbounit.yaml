@@ -1,0 +1,64 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live borrow-to-TurboUNIT path.
+# Imports the TestFlight reviewer wallet, runs a real vault borrow, selects
+# TurboUNIT as the payout asset, and waits for the borrow success screen.
+
+- runFlow: setup-reviewer-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-borrow-btn'
+    timeout: 240000
+- tapOn:
+    id: 'wallet-borrow-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-input-screen'
+    timeout: 20000
+- tapOn:
+    id: 'vault-borrow-amount-display'
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-amount-input'
+    timeout: 5000
+- eraseText
+- inputText: '1'
+- tapOn:
+    id: 'vault-borrow-amount-done-btn'
+- waitForAnimationToEnd
+
+- tapOn:
+    id: 'vault-borrow-continue-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-payout-turbounit-card'
+    timeout: 20000
+- tapOn:
+    id: 'vault-borrow-payout-turbounit-card'
+- tapOn:
+    id: 'vault-borrow-payout-continue-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-confirm-screen'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'vault-borrow-confirm-btn'
+    direction: DOWN
+    timeout: 5000
+- tapOn:
+    id: 'vault-borrow-confirm-btn'
+- runFlow:
+    when:
+      visible:
+        id: 'pin-fallback-modal'
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-success-screen'
+    timeout: 420000

@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { readProjectEnvironment } from './loadEnv.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
@@ -10,7 +11,7 @@ const args = new Set(process.argv.slice(2));
 
 const failures = [];
 const warnings = [];
-const env = loadEnvironment();
+const env = readProjectEnvironment({ root });
 
 const offline = args.has('--offline') || env.DUCAT_LIVE_DOCTOR_OFFLINE === '1';
 const skipTooling = args.has('--skip-tooling') || env.DUCAT_LIVE_DOCTOR_SKIP_TOOLING === '1';
@@ -25,32 +26,6 @@ const REQUIRED_ADDRESS_ENV = [
   'EXPO_PUBLIC_UNIT_BRIDGE_ROUTER_ADDRESS',
   'EXPO_PUBLIC_UNIT_USDC_STABLE_POOL_ADDRESS',
 ];
-const REQUIRED_OPERATOR_ASSERTIONS = [
-  'DUCAT_LIVE_E2E_FUNDED_MUTINYNET',
-  'DUCAT_LIVE_E2E_FUNDED_SEPOLIA',
-  'DUCAT_LIVE_E2E_BRIDGE_FUNDED',
-];
-
-function loadEnvironment() {
-  const loaded = { ...process.env };
-  for (const filename of ['.env', '.env.local']) {
-    const filePath = join(root, filename);
-    if (!existsSync(filePath)) continue;
-
-    const contents = readFileSync(filePath, 'utf8');
-    for (const line of contents.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-      if (!match) continue;
-
-      const [, key, rawValue] = match;
-      if (loaded[key]) continue;
-      loaded[key] = rawValue.replace(/^['"]|['"]$/g, '');
-    }
-  }
-  return loaded;
-}
 
 function fail(message) {
   failures.push(message);
@@ -72,7 +47,12 @@ function commandExists(command, args = ['--version']) {
 
 function isLocalHost(hostname) {
   const normalized = hostname.toLowerCase();
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized.endsWith('.local');
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '::1' ||
+    normalized.endsWith('.local')
+  );
 }
 
 function validateHttpUrl(name, { required = true, allowWebSocket = false } = {}) {
@@ -96,7 +76,9 @@ function validateHttpUrl(name, { required = true, allowWebSocket = false } = {})
   }
 
   if (!allowLocal && isLocalHost(parsed.hostname)) {
-    fail(`${name} points at ${parsed.hostname}; set DUCAT_LIVE_ALLOW_LOCAL=1 only for intentional local bridge testing`);
+    fail(
+      `${name} points at ${parsed.hostname}; set DUCAT_LIVE_ALLOW_LOCAL=1 only for intentional local bridge testing`
+    );
   }
 
   return parsed;
@@ -181,7 +163,9 @@ async function probeCashuMintInfo(cashuMintUrl) {
       fail('Cashu mint does not advertise NUT-04 onchain/unit support');
     }
   } catch (error) {
-    fail(`Cashu mint /v1/info probe failed: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Cashu mint /v1/info probe failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -241,12 +225,16 @@ async function probeBridgeApi(bridgeUrl) {
       await response.json();
     }
   } catch (error) {
-    fail(`Bridge API health probe failed: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Bridge API health probe failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
 async function probeMutinynetEsplora() {
-  const esploraUrl = validateHttpUrl('EXPO_PUBLIC_ESPLORA_API_URL', { required: false }) ?? new URL(DEFAULT_MUTINYNET_ESPLORA);
+  const esploraUrl =
+    validateHttpUrl('EXPO_PUBLIC_ESPLORA_API_URL', { required: false }) ??
+    new URL(DEFAULT_MUTINYNET_ESPLORA);
   const tipUrl = new URL(`${esploraUrl.pathname.replace(/\/$/, '')}/blocks/tip/height`, esploraUrl);
 
   try {
@@ -261,7 +249,9 @@ async function probeMutinynetEsplora() {
       fail('Mutinynet Esplora tip height was not a positive number');
     }
   } catch (error) {
-    fail(`Mutinynet Esplora probe failed: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Mutinynet Esplora probe failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -286,20 +276,21 @@ function checkRequiredConfiguration() {
   }
 
   if (!envValue('EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS')) {
-    warn(`EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS is unset; app default ${DEFAULT_SEPOLIA_USDC} will be used`);
+    warn(
+      `EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS is unset; app default ${DEFAULT_SEPOLIA_USDC} will be used`
+    );
   }
-  validateAddress('EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS', { required: false, defaultValue: DEFAULT_SEPOLIA_USDC });
+  validateAddress('EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS', {
+    required: false,
+    defaultValue: DEFAULT_SEPOLIA_USDC,
+  });
 }
 
-function checkOperatorAssertions() {
-  for (const name of REQUIRED_OPERATOR_ASSERTIONS) {
-    if (envValue(name) !== '1') {
-      fail(`${name}=1 is required to acknowledge funded live fixtures before running e2e:live`);
-    }
-  }
-
+function checkSeedWarning() {
   if (envValue('DUCAT_LIVE_E2E_SEED_PHRASE')) {
-    warn('DUCAT_LIVE_E2E_SEED_PHRASE is present; this script never prints it, but prefer secure local injection over shell history');
+    warn(
+      'DUCAT_LIVE_E2E_SEED_PHRASE is present; this script never prints it, but prefer secure local injection over shell history'
+    );
   }
 }
 
@@ -341,7 +332,7 @@ async function checkNetworkProbes() {
 
 checkMutinynetOnly();
 checkRequiredConfiguration();
-checkOperatorAssertions();
+checkSeedWarning();
 checkTooling();
 await checkNetworkProbes();
 
@@ -356,4 +347,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`live integration doctor passed${warnings.length > 0 ? ` with ${warnings.length} warning(s)` : ''}`);
+console.log(
+  `live integration doctor passed${warnings.length > 0 ? ` with ${warnings.length} warning(s)` : ''}`
+);

@@ -1,0 +1,14 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- tapOn:
+    id: "send-review-btn"
+- waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        id: "send-review-btn"
+    commands:
+      - tapOn:
+          point: "50%,93%"
+      - waitForAnimationToEnd

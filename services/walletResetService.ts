@@ -58,17 +58,12 @@ export const performFullWalletReset = async ({
   setSeedConfirmed,
 }: PerformFullWalletResetParams = {}): Promise<void> => {
   await deleteWalletData(clearICloudBackup, { preservePinAuth });
-  await resetOnboardingState();
-
-  if (clearVaultCredentials) {
-    await clearVaultCredentials();
-  }
-
-  if (resetWallet) {
-    await Promise.resolve(resetWallet());
-  }
-
-  await resetRuntimeStores();
+  await Promise.all([
+    resetOnboardingState(),
+    clearVaultCredentials ? Promise.resolve(clearVaultCredentials()) : Promise.resolve(),
+    resetWallet ? Promise.resolve(resetWallet()) : Promise.resolve(),
+    resetRuntimeStores(),
+  ]);
 
   if (setSeedConfirmed) {
     setSeedConfirmed(false);

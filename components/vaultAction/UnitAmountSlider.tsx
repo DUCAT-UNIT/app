@@ -69,6 +69,7 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
   const [width, setWidth] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
+  const editTextRef = useRef('');
   const inputRef = useRef<TextInput>(null);
   const thumbX = useSharedValue(0);
   const currentValue = useSharedValue(value);
@@ -190,13 +191,20 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
 
   const handleTapToEdit = useCallback(() => {
     if (disabled) return;
-    setEditText(value.toFixed(2));
+    const initialText = value.toFixed(2);
+    editTextRef.current = initialText;
+    setEditText(initialText);
     setIsEditing(true);
     setTimeout(() => inputRef.current?.focus(), 100);
   }, [disabled, value]);
 
+  const handleEditTextChange = useCallback((text: string) => {
+    editTextRef.current = text;
+    setEditText(text);
+  }, []);
+
   const handleEditSubmit = useCallback(() => {
-    const parsed = parseFloat(editText);
+    const parsed = parseFloat(editTextRef.current || editText);
     if (!isNaN(parsed) && parsed >= 0) {
       const clamped = Math.min(parsed, maxValue);
       currentValue.value = clamped;
@@ -288,8 +296,8 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
                 ref={inputRef}
                 style={styles.editInput}
                 value={editText}
-                onChangeText={setEditText}
-                keyboardType="number-pad"
+                onChangeText={handleEditTextChange}
+                keyboardType="decimal-pad"
                 onSubmitEditing={handleEditSubmit}
                 onBlur={handleEditSubmit}
                 selectTextOnFocus
@@ -297,15 +305,15 @@ export const UnitAmountSlider = memo(function UnitAmountSlider({
                 testID={testIDPrefix ? `${testIDPrefix}-input` : undefined}
               />
               <Text style={styles.unitLabel}>{unitLabel}</Text>
+              <TouchableOpacity
+                onPress={handleEditSubmit}
+                activeOpacity={0.8}
+                style={styles.doneButton}
+                testID={testIDPrefix ? `${testIDPrefix}-done-btn` : undefined}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={handleEditSubmit}
-              activeOpacity={0.8}
-              style={styles.doneButton}
-              testID={testIDPrefix ? `${testIDPrefix}-done-btn` : undefined}
-            >
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity
@@ -467,7 +475,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   doneButton: {
-    marginBottom: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,

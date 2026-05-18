@@ -156,7 +156,13 @@ export function useTransactionBroadcast({
         }
 
         if (outputs.length > 0 || spentInputs.length > 0) {
-          logger.debug('💾 Pre-tracking pending transaction:', preparedTxid, 'with', outputs.length, 'outputs');
+          logger.debug(
+            '💾 Pre-tracking pending transaction:',
+            preparedTxid,
+            'with',
+            outputs.length,
+            'outputs'
+          );
           await addPendingTransaction(
             preparedTxid,
             outputs,
@@ -173,12 +179,18 @@ export function useTransactionBroadcast({
         broadcastAttempted = true;
         const txid = await broadcastTransaction(intent.signedTxHex);
         logger.debug('✅ Broadcast successful, txid:', txid);
+        logger.info(
+          `[E2E_TX] send_broadcasted txid=${txid} asset=${assetType} amount=${sendAmount}`
+        );
 
         if (txid !== preparedTxid && (outputs.length > 0 || spentInputs.length > 0)) {
-          logger.warn('Broadcast txid differed from signed intent txid; tracking returned txid too', {
-            preparedTxid,
-            txid,
-          });
+          logger.warn(
+            'Broadcast txid differed from signed intent txid; tracking returned txid too',
+            {
+              preparedTxid,
+              txid,
+            }
+          );
           await addPendingTransaction(
             txid,
             outputs,
@@ -213,6 +225,7 @@ export function useTransactionBroadcast({
           txid,
           (isConfirmed) => {
             if (isConfirmed) {
+              logger.info(`[E2E_TX] send_confirmed txid=${txid} asset=${assetType}`);
               if (notificationsEnabled) {
                 sendTransactionConfirmedNotification(
                   assetType,
@@ -288,10 +301,7 @@ export function useTransactionBroadcast({
             await unmarkUtxosAsSpent(spentInputsForRollback);
           } catch (rollbackError) {
             logger.error('Failed to roll back pre-broadcast UTXO locks:', {
-              error:
-                rollbackError instanceof Error
-                  ? rollbackError.message
-                  : String(rollbackError),
+              error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
             });
           }
         }

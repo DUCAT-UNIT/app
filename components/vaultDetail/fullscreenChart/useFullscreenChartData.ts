@@ -4,20 +4,28 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback,useEffect,useMemo,useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
-import { API,API_KEYS } from '../../../utils/constants';
+import { API, API_KEYS } from '../../../utils/constants';
 import { logger } from '../../../utils/logger';
 import { getWithRetry } from '../../../utils/apiClient';
-import type { BitcoinData,PriceTimeframe,ReferenceLine,SeriesItem } from '../vaultChart/types';
-import { createEventSeries,transformToEvents } from '../vaultChart/utils';
-import { CACHE_EXPIRY_MS,CACHE_KEY_PREFIX,CHART_PADDING,PORTRAIT_HEIGHT,PORTRAIT_WIDTH } from './constants';
+import type { BitcoinData, PriceTimeframe, ReferenceLine, SeriesItem } from '../vaultChart/types';
+import { createEventSeries, transformToEvents } from '../vaultChart/utils';
+import {
+  CACHE_EXPIRY_MS,
+  CACHE_KEY_PREFIX,
+  CHART_PADDING,
+  PORTRAIT_HEIGHT,
+  PORTRAIT_WIDTH,
+} from './constants';
+
+type HealthSeriesItem = SeriesItem & { healthValue: number };
 
 interface UseFullscreenChartDataReturn {
   loading: boolean;
   series: SeriesItem[];
   referenceLines: ReferenceLine[];
-  lineData: Array<SeriesItem & { healthValue: number }>;
+  lineData: HealthSeriesItem[];
   lineSegments: string[];
   areaPath: string;
   yDomain: [number, number];
@@ -57,9 +65,14 @@ export function useFullscreenChartData(
     let cancelled = false;
 
     const fetchPrices = async () => {
-      const days = selectedTimeframe === '1D' ? 1 :
-                   selectedTimeframe === '1W' ? 7 :
-                   selectedTimeframe === '1M' ? 30 : 365;
+      const days =
+        selectedTimeframe === '1D'
+          ? 1
+          : selectedTimeframe === '1W'
+            ? 7
+            : selectedTimeframe === '1M'
+              ? 30
+              : 365;
 
       const cacheKey = `${CACHE_KEY_PREFIX}${selectedTimeframe}`;
 
@@ -78,7 +91,9 @@ export function useFullscreenChartData(
           }
         }
       } catch (err) {
-        logger.debug('Failed to read price cache', { error: err instanceof Error ? err.message : String(err) });
+        logger.debug('Failed to read price cache', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       try {
@@ -86,8 +101,8 @@ export function useFullscreenChartData(
           `${API.COINGECKO}/coins/bitcoin/market_chart?vs_currency=usd&days=${days}`,
           {
             headers: {
-              'accept': 'application/json',
-              'x-cg-demo-api-key': API_KEYS.COINGECKO
+              accept: 'application/json',
+              'x-cg-demo-api-key': API_KEYS.COINGECKO,
             },
             timeout: 8000,
             retryOptions: { maxRetries: 0 },
@@ -99,10 +114,13 @@ export function useFullscreenChartData(
         if (response.ok) {
           const data = await response.json();
           if (data.prices?.length) {
-            const sampled = data.prices.length > 150
-              ? data.prices.filter((_: [number, number], i: number) =>
-                  i % Math.ceil(data.prices.length / 150) === 0)
-              : data.prices;
+            const sampled =
+              data.prices.length > 150
+                ? data.prices.filter(
+                    (_: [number, number], i: number) =>
+                      i % Math.ceil(data.prices.length / 150) === 0
+                  )
+                : data.prices;
 
             const bitcoinData: BitcoinData[] = sampled.map((p: [number, number]) => ({
               timestamp: Math.floor(p[0] / 1000),
@@ -111,14 +129,23 @@ export function useFullscreenChartData(
 
             setBtcPrices(bitcoinData);
 
-            AsyncStorage.setItem(cacheKey, JSON.stringify({
-              prices: sampled,
-              timestamp: Date.now()
-            })).catch((err) => logger.debug('Failed to cache prices', { error: err instanceof Error ? err.message : String(err) }));
+            AsyncStorage.setItem(
+              cacheKey,
+              JSON.stringify({
+                prices: sampled,
+                timestamp: Date.now(),
+              })
+            ).catch((err) =>
+              logger.debug('Failed to cache prices', {
+                error: err instanceof Error ? err.message : String(err),
+              })
+            );
           }
         }
       } catch (err) {
-        logger.debug('Failed to fetch BTC prices', { error: err instanceof Error ? err.message : String(err) });
+        logger.debug('Failed to fetch BTC prices', {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
 
       if (!cancelled) setLoading(false);
@@ -127,7 +154,9 @@ export function useFullscreenChartData(
     setLoading(true);
     fetchPrices();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [visible, selectedTimeframe, transactions.length]);
 
   // Generate chart data
@@ -140,12 +169,12 @@ export function useFullscreenChartData(
   }, [btcPrices, selectedTimeframe, transactions]);
 
   const lineData = useMemo(() => {
-    return series.filter(s => s.healthValue !== null) as Array<SeriesItem & { healthValue: number }>;
+    return series.filter((s) => s.healthValue !== null) as HealthSeriesItem[];
   }, [series]);
 
   // Find the "open" event timestamp (first transaction)
   const openEventTimestamp = useMemo(() => {
-    const openTx = transactions.find(tx => tx.action.toLowerCase() === 'open');
+    const openTx = transactions.find((tx) => tx.action.toLowerCase() === 'open');
     return openTx ? openTx.timestamp * 1000 : null; // Convert to milliseconds
   }, [transactions]);
 
@@ -174,7 +203,7 @@ export function useFullscreenChartData(
   // Y domain
   const yDomain = useMemo((): [number, number] => {
     if (!lineData.length) return [125, 350];
-    const values = lineData.map(d => d.healthValue);
+    const values = lineData.map((d) => d.healthValue);
     const dataMax = Math.max(...values);
     const min = 125;
     const headroom = (dataMax - min) * 0.1;
@@ -183,18 +212,24 @@ export function useFullscreenChartData(
   }, [lineData]);
 
   // Scale functions - use centered time domain
-  const xScale = useCallback((timestamp: number) => {
-    if (!series.length) return CHART_PADDING.left;
-    const [minX, maxX] = timeDomain;
-    const range = maxX - minX || 1;
-    return CHART_PADDING.left + ((timestamp - minX) / range) * drawWidth;
-  }, [series, timeDomain, drawWidth]);
+  const xScale = useCallback(
+    (timestamp: number) => {
+      if (!series.length) return CHART_PADDING.left;
+      const [minX, maxX] = timeDomain;
+      const range = maxX - minX || 1;
+      return CHART_PADDING.left + ((timestamp - minX) / range) * drawWidth;
+    },
+    [series, timeDomain, drawWidth]
+  );
 
-  const yScale = useCallback((value: number) => {
-    const [minY, maxY] = yDomain;
-    const range = maxY - minY || 1;
-    return CHART_PADDING.top + drawHeight - ((value - minY) / range) * drawHeight;
-  }, [yDomain, drawHeight]);
+  const yScale = useCallback(
+    (value: number) => {
+      const [minY, maxY] = yDomain;
+      const range = maxY - minY || 1;
+      return CHART_PADDING.top + drawHeight - ((value - minY) / range) * drawHeight;
+    },
+    [yDomain, drawHeight]
+  );
 
   // Generate line segments
   const lineSegments = useMemo(() => {
@@ -202,7 +237,7 @@ export function useFullscreenChartData(
 
     const leftEdge = 0;
     const rightEdge = chartWidthValue;
-    const eventDates = new Set(referenceLines.map(rl => rl.date));
+    const eventDates = new Set(referenceLines.map((rl) => rl.date));
 
     if (lineData.length === 1) {
       const y = yScale(lineData[0].healthValue);
@@ -242,7 +277,7 @@ export function useFullscreenChartData(
     const bottomY = effectiveChartHeight;
     const leftEdge = 0;
     const rightEdge = chartWidthValue;
-    const eventDates = new Set(referenceLines.map(rl => rl.date));
+    const eventDates = new Set(referenceLines.map((rl) => rl.date));
 
     if (lineData.length === 1) {
       const y = yScale(lineData[0].healthValue);
@@ -275,61 +310,106 @@ export function useFullscreenChartData(
     return path;
   }, [lineData, xScale, yScale, chartWidthValue, effectiveChartHeight, referenceLines]);
 
-  // Get timestamp at X position
-  const getTimestampAtX = useCallback((x: number): number | null => {
-    if (!series.length) return null;
+  const referenceLinePositions = useMemo(() => {
+    return referenceLines
+      .map((line, index) => ({ index, x: xScale(line.date) }))
+      .sort((a, b) => a.x - b.x);
+  }, [referenceLines, xScale]);
 
-    const clampedX = Math.max(0, Math.min(x, chartWidthValue));
-    const ratio = clampedX / chartWidthValue;
-    const [minTime, maxTime] = timeDomain;
-    return minTime + ratio * (maxTime - minTime);
-  }, [series, chartWidthValue, timeDomain]);
+  // Get timestamp at X position
+  const getTimestampAtX = useCallback(
+    (x: number): number | null => {
+      if (!series.length) return null;
+
+      const clampedX = Math.max(0, Math.min(x, chartWidthValue));
+      const ratio = clampedX / chartWidthValue;
+      const [minTime, maxTime] = timeDomain;
+      return minTime + ratio * (maxTime - minTime);
+    },
+    [series, chartWidthValue, timeDomain]
+  );
 
   // Get health at X position
-  const getHealthAtX = useCallback((x: number): number | null => {
-    if (!lineData.length || !series.length) return null;
+  const getHealthAtX = useCallback(
+    (x: number): number | null => {
+      if (!lineData.length || !series.length) return null;
 
-    const clampedX = Math.max(0, Math.min(x, chartWidthValue));
-    const ratio = clampedX / chartWidthValue;
-    const [minTime, maxTime] = timeDomain;
-    const targetTime = minTime + ratio * (maxTime - minTime);
+      const clampedX = Math.max(0, Math.min(x, chartWidthValue));
+      const ratio = clampedX / chartWidthValue;
+      const [minTime, maxTime] = timeDomain;
+      const targetTime = minTime + ratio * (maxTime - minTime);
 
-    if (lineData.length === 1) return lineData[0].healthValue;
-    if (targetTime <= lineData[0].date) return lineData[0].healthValue;
-    if (targetTime >= lineData[lineData.length - 1].date) return lineData[lineData.length - 1].healthValue;
+      if (lineData.length === 1) return lineData[0].healthValue;
+      if (targetTime <= lineData[0].date) return lineData[0].healthValue;
+      if (targetTime >= lineData[lineData.length - 1].date)
+        return lineData[lineData.length - 1].healthValue;
 
-    let beforeIdx = 0;
-    let afterIdx = lineData.length - 1;
-    for (let i = 0; i < lineData.length - 1; i++) {
-      if (lineData[i].date <= targetTime && lineData[i + 1].date >= targetTime) {
-        beforeIdx = i;
-        afterIdx = i + 1;
-        break;
+      let left = 0;
+      let right = lineData.length - 1;
+      let afterIdx = lineData.length - 1;
+
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (lineData[mid].date >= targetTime) {
+          afterIdx = mid;
+          right = mid - 1;
+        } else {
+          left = mid + 1;
+        }
       }
-    }
 
-    const beforePoint = lineData[beforeIdx];
-    const afterPoint = lineData[afterIdx];
-    const timeFraction = (targetTime - beforePoint.date) / (afterPoint.date - beforePoint.date || 1);
-    return beforePoint.healthValue + timeFraction * (afterPoint.healthValue - beforePoint.healthValue);
-  }, [lineData, series, chartWidthValue, timeDomain]);
+      const beforeIdx = Math.max(0, afterIdx - 1);
+
+      const beforePoint = lineData[beforeIdx];
+      const afterPoint = lineData[afterIdx];
+      const timeFraction =
+        (targetTime - beforePoint.date) / (afterPoint.date - beforePoint.date || 1);
+      return (
+        beforePoint.healthValue + timeFraction * (afterPoint.healthValue - beforePoint.healthValue)
+      );
+    },
+    [lineData, series, chartWidthValue, timeDomain]
+  );
 
   // Find nearby reference line
-  const findNearbyRefLine = useCallback((x: number): number | null => {
-    const tolerance = 25;
-    let closestIndex: number | null = null;
-    let closestDistance = tolerance;
+  const findNearbyRefLine = useCallback(
+    (x: number): number | null => {
+      if (referenceLinePositions.length === 0) return null;
 
-    for (let i = 0; i < referenceLines.length; i++) {
-      const refLineX = xScale(referenceLines[i].date);
-      const distance = Math.abs(x - refLineX);
-      if (distance <= closestDistance) {
-        closestDistance = distance;
-        closestIndex = i;
+      const tolerance = 25;
+      let closestIndex: number | null = null;
+      let closestDistance = tolerance;
+
+      let left = 0;
+      let right = referenceLinePositions.length - 1;
+      let insertionIndex = referenceLinePositions.length;
+
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (referenceLinePositions[mid].x >= x) {
+          insertionIndex = mid;
+          right = mid - 1;
+        } else {
+          left = mid + 1;
+        }
       }
-    }
-    return closestIndex;
-  }, [referenceLines, xScale]);
+
+      const checkPosition = (position: { index: number; x: number } | undefined) => {
+        if (!position) return;
+        const distance = Math.abs(x - position.x);
+        if (distance <= closestDistance) {
+          closestDistance = distance;
+          closestIndex = position.index;
+        }
+      };
+
+      checkPosition(referenceLinePositions[insertionIndex - 1]);
+      checkPosition(referenceLinePositions[insertionIndex]);
+
+      return closestIndex;
+    },
+    [referenceLinePositions]
+  );
 
   return {
     loading,

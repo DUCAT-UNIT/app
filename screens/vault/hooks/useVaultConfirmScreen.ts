@@ -75,6 +75,10 @@ function getReceiveAssetIfPresent(store: VaultStoreState): VaultSettlementReques
     : null;
 }
 
+async function yieldAfterNavigation(): Promise<void> {
+  await Promise.resolve();
+}
+
 export function useVaultConfirmScreen<
   TStore extends VaultStoreState,
   THook extends VaultOperationHookState,
@@ -138,6 +142,7 @@ export function useVaultConfirmScreen<
     setIsAuthenticating(false);
     store.setCurrentStep('processing');
     navigation.navigate(config.routes.processing);
+    await yieldAfterNavigation();
 
     const executeOp = getOperationExecutor(vaultHook, config.operationType);
     if (executeOp) {

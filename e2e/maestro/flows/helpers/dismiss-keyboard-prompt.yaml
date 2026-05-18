@@ -1,0 +1,11 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# iOS can show a first-use bilingual keyboard prompt after text input.
+- runFlow:
+    when:
+      visible:
+        text: 'Continue'
+    commands:
+      - tapOn:
+          text: 'Continue'
+      - waitForAnimationToEnd

@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Cold-start token link recovery for a live TurboUNIT P2PK token URL.
+# The token URL must be fresh, spendable, and locked to this reviewer wallet.
+
+- runFlow: ../helpers/import-reviewer-wallet.yaml
+
+- stopApp
+- openLink: '${DUCAT_LIVE_TURBOUNIT_TOKEN_URL}'
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
+- runFlow: ../helpers/unlock-if-locked.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 120000
+- extendedWaitUntil:
+    visible:
+      id: 'snackbar-description'
+    timeout: 120000
+- assertVisible:
+    text: 'Successfully received.*'

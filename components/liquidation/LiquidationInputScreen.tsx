@@ -66,6 +66,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
         btcPrice={btcPrice || undefined}
         disabled={disabled}
         attachedBottom
+        testIDPrefix="liquidation-invest-amount"
         renderFooter={() => {
           const profitBtc = investAmount * profitRate;
           const returnBtc = investAmount + profitBtc;

@@ -142,6 +142,13 @@ export function useLiquidationExecution({
         selectedVaults = claimedFull;
       }
 
+      if (selectedVaults.length === 0) {
+        store.getState().releaseVaults(claimedVaultIds);
+        store.getState().setError('Investment amount too small to claim any vault.');
+        store.getState().setCurrentStep('error');
+        return;
+      }
+
       // Compute deficit from selected vaults
       const deficitBtc = selectedVaults.reduce(
         (acc, v) => acc + (v.claimAmountPartial || v.claimAmountBtc),

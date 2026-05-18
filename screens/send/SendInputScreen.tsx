@@ -4,19 +4,19 @@
  */
 
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationProp,RouteProp } from '@react-navigation/native';
-import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { NavigationProp, RouteProp } from '@react-navigation/native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-ActivityIndicator,
-Alert,
-Keyboard,
-KeyboardAvoidingView,
-Platform,
-ScrollView,
-StyleSheet,
-Text,
-TouchableOpacity,
-View,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TouchableScale from '../../components/common/TouchableScale';
@@ -29,19 +29,14 @@ import { useKeyboard } from '../../hooks/useKeyboard';
 import { useTurboReview } from '../../hooks/useTurboReview';
 import { TransactionType } from '../../services/feeEstimationService';
 import { usePrice } from '../../stores/priceStore';
-import { useSendFlowStore,type AssetType } from '../../stores/sendFlowStore';
+import { useSendFlowStore, type AssetType } from '../../stores/sendFlowStore';
 import { analytics } from '../../services/analyticsService';
 import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
-import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 
 // Local hooks and components
-import {
-AddressInputSection,
-AmountSection,
-SendWarnings,
-TurboToggle,
-} from './components';
-import { useAddressInput,useSendBalances,useSendValidation } from './hooks';
+import { AddressInputSection, AmountSection, SendWarnings, TurboToggle } from './components';
+import { useAddressInput, useSendBalances, useSendValidation } from './hooks';
 
 interface SendInputRouteParams {
   assetType?: AssetType;
@@ -62,11 +57,12 @@ const formatSatsAsBtcInput = (sats: number): string =>
   (sats / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
 
 const formatBtcInputAmount = (btcAmount: number): string =>
-  Number.isFinite(btcAmount)
-    ? btcAmount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '')
-    : '';
+  Number.isFinite(btcAmount) ? btcAmount.toFixed(8).replace(/0+$/, '').replace(/\.$/, '') : '';
 
-export default function SendInputScreen({ navigation, route }: SendInputScreenProps): React.JSX.Element {
+export default function SendInputScreen({
+  navigation,
+  route,
+}: SendInputScreenProps): React.JSX.Element {
   // Store selectors
   const sendAssetType = useSendFlowStore((state) => state.sendAssetType);
   const sendRecipient = useSendFlowStore((state) => state.sendRecipient);
@@ -121,12 +117,8 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   const estimatedFeeSats = Math.ceil(feeEstimateSats * 1.1); // 10% buffer
 
   // Balance calculations
-  const {
-    maxSendableBtc,
-    maxSendableTurboBtc,
-    maxSendableUnit,
-    hasSufficientBtcForUnitFees,
-  } = useSendBalances({ estimatedFeeSats });
+  const { maxSendableBtc, maxSendableTurboBtc, maxSendableUnit, hasSufficientBtcForUnitFees } =
+    useSendBalances({ estimatedFeeSats });
 
   // Address input handling
   const {
@@ -146,12 +138,9 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
 
   // Current amount as number
   const currentAmount = parseFloat(sendAmount) || 0;
-  const activeMaxSendableBtc = isTurboBtc
-    ? maxSendableTurboBtc + maxSendableBtc
-    : maxSendableBtc;
-  const btcMaxButtonValue = isTurboBtc && maxSendableTurboBtc > 0
-    ? maxSendableTurboBtc
-    : activeMaxSendableBtc;
+  const activeMaxSendableBtc = isTurboBtc ? maxSendableTurboBtc + maxSendableBtc : maxSendableBtc;
+  const btcMaxButtonValue =
+    isTurboBtc && maxSendableTurboBtc > 0 ? maxSendableTurboBtc : activeMaxSendableBtc;
 
   // Turbo review hook for UNIT transactions
   const {
@@ -181,11 +170,7 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
   });
 
   // Validation
-  const {
-    exceedsBalance,
-    insufficientBtcForFees,
-    canContinue,
-  } = useSendValidation({
+  const { exceedsBalance, insufficientBtcForFees, canContinue } = useSendValidation({
     isValidAddress,
     addressError,
     sendRecipient,
@@ -197,7 +182,8 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     isRequestingMint: isRequestingMint || isRequestingBtcTurbo,
   });
 
-  const turboBtcNeedsTaproot = isTurboBtc && sendRecipient.length > 0 && sendAddressType !== 'taproot';
+  const turboBtcNeedsTaproot =
+    isTurboBtc && sendRecipient.length > 0 && sendAddressType !== 'taproot';
   const canContinueWithTurboBtc = canContinue && !turboBtcNeedsTaproot;
 
   // Track send flow started on mount
@@ -221,12 +207,15 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     }
   }, [isInitializing]);
 
-  useEffect(() => () => {
-    if (reviewUnlockTimerRef.current) {
-      clearTimeout(reviewUnlockTimerRef.current);
-      reviewUnlockTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (reviewUnlockTimerRef.current) {
+        clearTimeout(reviewUnlockTimerRef.current);
+        reviewUnlockTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   // Adjust amount when max changes based on fee rate (for BTC only)
   useEffect(() => {
@@ -257,9 +246,12 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     }
   }, [prefillAddress, prefillAmount, handleRecipientChange, setSendAmount]);
 
-  const handleAmountChange = useCallback((value: number) => {
-    setSendAmount(isBtc ? formatBtcInputAmount(value) : value.toString());
-  }, [isBtc, setSendAmount]);
+  const handleAmountChange = useCallback(
+    (value: number) => {
+      setSendAmount(isBtc ? formatBtcInputAmount(value) : value.toString());
+    },
+    [isBtc, setSendAmount]
+  );
 
   const handleLiveAmountChange = useCallback((_value: number) => {
     Keyboard.dismiss();
@@ -270,60 +262,63 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     navigation.goBack();
   }, [navigation, resetSendFlow]);
 
-  const prepareBtcTurboTopUp = useCallback(async (
-    requestedAmountBtc: number,
-    currentTurboBalanceBtc: number,
-    originalRecipient: string
-  ): Promise<void> => {
-    setIsRequestingBtcTurbo(true);
-    const amountSats = Math.round(requestedAmountBtc * 100_000_000);
-    const currentTurboBalanceSats = Math.max(0, Math.round(currentTurboBalanceBtc * 100_000_000));
-    const shortfallSats = amountSats - currentTurboBalanceSats;
+  const prepareBtcTurboTopUp = useCallback(
+    async (
+      requestedAmountBtc: number,
+      currentTurboBalanceBtc: number,
+      originalRecipient: string
+    ): Promise<void> => {
+      setIsRequestingBtcTurbo(true);
+      const amountSats = Math.round(requestedAmountBtc * 100_000_000);
+      const currentTurboBalanceSats = Math.max(0, Math.round(currentTurboBalanceBtc * 100_000_000));
+      const shortfallSats = amountSats - currentTurboBalanceSats;
 
-    if (!wallet?.taprootAddress) {
-      throw new Error('Wallet Taproot address unavailable for Turbo BTC recovery');
-    }
+      if (!wallet?.taprootAddress) {
+        throw new Error('Wallet Taproot address unavailable for Turbo BTC recovery');
+      }
 
-    if (shortfallSats <= 0) {
-      navigation.navigate('TurboProcessing', {
+      if (shortfallSats <= 0) {
+        navigation.navigate('TurboProcessing', {
+          cashuUnit: 'sat',
+          senderTaprootAddress: wallet.taprootAddress,
+        });
+        return;
+      }
+
+      const { requestMint } = await import('../../services/cashu/cashuWalletService');
+      const { savePendingTurboSend } = await import('../../services/cashu/cashuTurboRecovery');
+      const mintQuote = await requestMint(shortfallSats, 'sat');
+      const mintAmountSats = mintQuote.amount ?? shortfallSats;
+
+      await savePendingTurboSend(
+        mintQuote.quoteId,
+        originalRecipient,
+        amountSats,
+        wallet.taprootAddress,
+        'sat',
+        mintAmountSats
+      );
+
+      const mintAmountBtc = formatSatsAsBtcInput(mintAmountSats);
+      setSendAmount(mintAmountBtc);
+      setSendRecipient(mintQuote.depositAddress);
+      navigation.navigate('Processing', {
+        fromScreen: 'SendInput',
+        action: 'create_intent',
+        isTurbo: true,
         cashuUnit: 'sat',
+        mintQuoteId: mintQuote.quoteId,
+        mintAmount: amountSats,
+        mintClaimAmount: mintAmountSats,
+        turboRecipient: originalRecipient,
         senderTaprootAddress: wallet.taprootAddress,
+        assetType: 'btc',
+        amount: mintAmountBtc,
+        recipient: mintQuote.depositAddress,
       });
-      return;
-    }
-
-    const { requestMint } = await import('../../services/cashu/cashuWalletService');
-    const { savePendingTurboSend } = await import('../../services/cashu/cashuTurboRecovery');
-    const mintQuote = await requestMint(shortfallSats, 'sat');
-    const mintAmountSats = mintQuote.amount ?? shortfallSats;
-
-    await savePendingTurboSend(
-      mintQuote.quoteId,
-      originalRecipient,
-      amountSats,
-      wallet.taprootAddress,
-      'sat',
-      mintAmountSats
-    );
-
-    const mintAmountBtc = formatSatsAsBtcInput(mintAmountSats);
-    setSendAmount(mintAmountBtc);
-    setSendRecipient(mintQuote.depositAddress);
-    navigation.navigate('Processing', {
-      fromScreen: 'SendInput',
-      action: 'create_intent',
-      isTurbo: true,
-      cashuUnit: 'sat',
-      mintQuoteId: mintQuote.quoteId,
-      mintAmount: amountSats,
-      mintClaimAmount: mintAmountSats,
-      turboRecipient: originalRecipient,
-      senderTaprootAddress: wallet.taprootAddress,
-      assetType: 'btc',
-      amount: mintAmountBtc,
-      recipient: mintQuote.depositAddress,
-    });
-  }, [navigation, setSendAmount, setSendRecipient, wallet?.taprootAddress]);
+    },
+    [navigation, setSendAmount, setSendRecipient, wallet?.taprootAddress]
+  );
 
   const handleUseBtcTurbo = useCallback(async () => {
     setShowInsufficientBtcTurboSheet(false);
@@ -453,7 +448,11 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
     );
   }
 
-  const reviewDisabled = !(isTurboBtc ? canContinueWithTurboBtc : canContinue) || isReviewing || isRequestingMint || isRequestingBtcTurbo;
+  const reviewDisabled =
+    !(isTurboBtc ? canContinueWithTurboBtc : canContinue) ||
+    isReviewing ||
+    isRequestingMint ||
+    isRequestingBtcTurbo;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']} testID="send-input-screen">
@@ -515,16 +514,15 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
               description="App-to-app Cashu BTC"
             />
           ) : (
-            <TurboToggle
-              enabled={turboEnabled}
-              onToggle={setTurboEnabled}
-            />
+            <TurboToggle enabled={turboEnabled} onToggle={setTurboEnabled} />
           )}
 
           {turboBtcNeedsTaproot && (
             <View style={styles.warningCard}>
               <Ionicons name="warning-outline" size={16} color={colors.semantic.warning} />
-              <Text style={styles.warningText}>Turbo BTC requires a Taproot recipient address.</Text>
+              <Text style={styles.warningText}>
+                Turbo BTC requires a Taproot recipient address.
+              </Text>
             </View>
           )}
 
@@ -543,8 +541,13 @@ export default function SendInputScreen({ navigation, route }: SendInputScreenPr
             onPress={handleReview}
             disabled={reviewDisabled}
             testID="send-review-btn"
-            accessibilityLabel={reviewDisabled && isReviewing ? "Preparing transaction review" : "Review transaction"}
-            accessibilityState={{ disabled: reviewDisabled, busy: isReviewing || isRequestingMint || isRequestingBtcTurbo }}
+            accessibilityLabel={
+              reviewDisabled && isReviewing ? 'Preparing transaction review' : 'Review transaction'
+            }
+            accessibilityState={{
+              disabled: reviewDisabled,
+              busy: isReviewing || isRequestingMint || isRequestingBtcTurbo,
+            }}
             lockWhilePending
             pressLockMs={700}
           >

@@ -6,16 +6,21 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 - tapOn:
     id: "pin-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "pin-keypad-2"
+    id: "pin-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "pin-keypad-3"
+    id: "pin-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "pin-keypad-4"
+    id: "pin-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "pin-keypad-5"
+    id: "pin-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "pin-keypad-6"
+    id: "pin-keypad-1"
 - waitForAnimationToEnd
 
 - runFlow:
@@ -25,13 +30,19 @@ appId: com.ducatprotocol.DucatProtocolWallet
     commands:
       - tapOn:
           id: "lock-keypad-1"
+      - waitForAnimationToEnd
       - tapOn:
-          id: "lock-keypad-2"
+          id: "lock-keypad-1"
+      - waitForAnimationToEnd
       - tapOn:
-          id: "lock-keypad-3"
+          id: "lock-keypad-1"
+      - waitForAnimationToEnd
       - tapOn:
-          id: "lock-keypad-4"
+          id: "lock-keypad-1"
+      - waitForAnimationToEnd
       - tapOn:
-          id: "lock-keypad-5"
+          id: "lock-keypad-1"
+      - waitForAnimationToEnd
       - tapOn:
-          id: "lock-keypad-6"
+          id: "lock-keypad-1"
+      - waitForAnimationToEnd

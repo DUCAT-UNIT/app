@@ -6,23 +6,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-ActivityIndicator,
-KeyboardAvoidingView,
-Platform,
-ScrollView,
-StyleSheet,
-Text,
-TouchableOpacity,
-View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeeRateDropdown } from '../../components/common/FeeRateSelectorCompact';
 import TouchableScale from '../../components/common/TouchableScale';
-import { AmountSlider,VaultActionGauge,VaultChangesCard } from '../../components/vaultAction';
+import { AmountSlider, VaultActionGauge, VaultChangesCard } from '../../components/vaultAction';
 import { UnitAmountSlider } from '../../components/vaultAction/UnitAmountSlider';
-import { colors,fonts,fontSizes,radii,spacing } from '../../styles/theme';
+import { colors, fonts, fontSizes, radii, spacing } from '../../styles/theme';
 import { useVaultInputScreen } from './hooks';
-import type { VaultInputScreenConfig,VaultScreenNavigationProp,VaultStoreState } from './types';
+import type { VaultInputScreenConfig, VaultScreenNavigationProp, VaultStoreState } from './types';
 
 interface VaultInputScreenProps<TStore extends VaultStoreState, TAdditionalData = unknown> {
   navigation: VaultScreenNavigationProp;
@@ -32,7 +32,10 @@ interface VaultInputScreenProps<TStore extends VaultStoreState, TAdditionalData 
   additionalData?: TAdditionalData;
 }
 
-export default function VaultInputScreen<TStore extends VaultStoreState, TAdditionalData = unknown>({
+export default function VaultInputScreen<
+  TStore extends VaultStoreState,
+  TAdditionalData = unknown,
+>({
   navigation,
   config,
   store,
@@ -74,10 +77,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
 
     // Slider color
     sliderColor,
-  } = useVaultInputScreen(
-    { config, store, loadVaultData, additionalData },
-    navigation
-  );
+  } = useVaultInputScreen({ config, store, loadVaultData, additionalData }, navigation);
 
   // Show loading state during initialization to prevent layout flash
   if (isInitializing) {
@@ -97,16 +97,16 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
         <View style={styles.centered}>
           <Ionicons name={emptyState.icon} size={48} color={emptyState.iconColor} />
           <Text style={styles.noVaultText}>{emptyState.title}</Text>
-          {emptyState.subtitle && (
-            <Text style={styles.noVaultSubtext}>{emptyState.subtitle}</Text>
-          )}
+          {emptyState.subtitle && <Text style={styles.noVaultSubtext}>{emptyState.subtitle}</Text>}
           <TouchableScale
             style={styles.closeBtn}
             onPress={handleClose}
             accessibilityRole="button"
             accessibilityLabel="Close"
           >
-            <Text style={styles.closeBtnText} accessibilityElementsHidden>Close</Text>
+            <Text style={styles.closeBtnText} accessibilityElementsHidden>
+              Close
+            </Text>
           </TouchableScale>
         </View>
       </SafeAreaView>
@@ -121,12 +121,25 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
     : 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']} testID={`vault-${config.operationType}-input-screen`}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
-        <ScrollView style={styles.flex} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView
+      style={styles.container}
+      edges={['top']}
+      testID={`vault-${config.operationType}-input-screen`}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <View style={styles.header} accessibilityRole="header">
-            <Text style={styles.title} accessibilityRole="header">{config.title}</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              {config.title}
+            </Text>
             <TouchableOpacity
               onPress={handleClose}
               style={styles.headerCloseButton}
@@ -160,6 +173,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
                 disabled={amountConfig.maxValue <= 0}
                 sliderColor={sliderColor}
                 hideAvailable={amountConfig.hideAvailable}
+                testIDPrefix={`vault-${config.operationType}-amount`}
                 renderFooter={() => (
                   <FeeRateDropdown
                     selectedRate={selectedFeeRate}
@@ -179,6 +193,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
                 btcPrice={btcPrice ?? undefined}
                 disabled={amountConfig.maxValue <= 0}
                 sliderColor={sliderColor}
+                testIDPrefix={`vault-${config.operationType}-amount`}
                 renderFooter={() => (
                   <FeeRateDropdown
                     selectedRate={selectedFeeRate}
@@ -199,8 +214,15 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
               accessibilityRole="alert"
               accessibilityLabel={`Error: ${error}`}
             >
-              <Ionicons name="warning" size={20} color={colors.semantic.error} accessibilityElementsHidden />
-              <Text style={styles.warningText} accessibilityElementsHidden>{error}</Text>
+              <Ionicons
+                name="warning"
+                size={20}
+                color={colors.semantic.error}
+                accessibilityElementsHidden
+              />
+              <Text style={styles.warningText} accessibilityElementsHidden>
+                {error}
+              </Text>
             </View>
           ))}
 
@@ -212,8 +234,15 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
               accessibilityRole="alert"
               accessibilityLabel={`Warning: ${warning}`}
             >
-              <Ionicons name="warning" size={20} color={colors.semantic.warning} accessibilityElementsHidden />
-              <Text style={styles.warningTextYellow} accessibilityElementsHidden>{warning}</Text>
+              <Ionicons
+                name="warning"
+                size={20}
+                color={colors.semantic.warning}
+                accessibilityElementsHidden
+              />
+              <Text style={styles.warningTextYellow} accessibilityElementsHidden>
+                {warning}
+              </Text>
             </View>
           ))}
 
@@ -224,8 +253,15 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
               accessibilityRole="alert"
               accessibilityLabel={`Error: ${store.error}`}
             >
-              <Ionicons name="warning" size={20} color={colors.semantic.error} accessibilityElementsHidden />
-              <Text style={styles.warningText} accessibilityElementsHidden>{store.error}</Text>
+              <Ionicons
+                name="warning"
+                size={20}
+                color={colors.semantic.error}
+                accessibilityElementsHidden
+              />
+              <Text style={styles.warningText} accessibilityElementsHidden>
+                {store.error}
+              </Text>
             </View>
           )}
 
@@ -255,7 +291,7 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
             disabled={continueDisabled}
             testID={`vault-${config.operationType}-continue-btn`}
             accessibilityRole="button"
-            accessibilityLabel={isContinuing ? "Preparing review" : "Continue to review"}
+            accessibilityLabel={isContinuing ? 'Preparing review' : 'Continue to review'}
             accessibilityHint={`Review ${config.title} details before confirming`}
             accessibilityState={{ disabled: continueDisabled, busy: isContinuing }}
             pressLockMs={700}
@@ -263,11 +299,16 @@ export default function VaultInputScreen<TStore extends VaultStoreState, TAdditi
             {isContinuing ? (
               <View style={styles.busyButtonContent}>
                 <ActivityIndicator size="small" color={colors.text.white} />
-                <Text style={styles.continueBtnText} accessibilityElementsHidden>Preparing...</Text>
+                <Text style={styles.continueBtnText} accessibilityElementsHidden>
+                  Preparing...
+                </Text>
               </View>
             ) : (
               <Text
-                style={[styles.continueBtnText, !validation.canContinue && styles.continueBtnTextDisabled]}
+                style={[
+                  styles.continueBtnText,
+                  !validation.canContinue && styles.continueBtnTextDisabled,
+                ]}
                 accessibilityElementsHidden
               >
                 Continue
@@ -285,12 +326,29 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { padding: spacing.md, paddingBottom: 120 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.md, padding: spacing.xl },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.xl,
+  },
   noVaultText: { color: colors.text.primary, fontSize: fontSizes.xl, fontFamily: fonts.bold },
   noVaultSubtext: { color: colors.text.secondary, fontSize: fontSizes.md, textAlign: 'center' },
-  closeBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
+  closeBtn: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
+  },
   closeBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
   headerCloseButton: {
     width: 44,
     height: 44,
@@ -301,14 +359,57 @@ const styles = StyleSheet.create({
   },
   title: { color: colors.text.primary, fontSize: fontSizes.xxl, fontFamily: fonts.bold },
   section: { marginTop: spacing.lg },
-  warning: { flexDirection: 'row', backgroundColor: 'rgba(208,76,104,0.1)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
-  warningText: { flex: 1, color: colors.semantic.error, fontSize: fontSizes.sm, fontFamily: fonts.medium },
-  warningYellow: { flexDirection: 'row', backgroundColor: 'rgba(253,227,123,0.15)', borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },
-  warningTextYellow: { flex: 1, color: colors.semantic.warning, fontSize: fontSizes.sm, fontFamily: fonts.medium },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: spacing.lg, backgroundColor: colors.bg.primary, borderTopWidth: 1, borderTopColor: colors.border.default },
-  continueBtn: { backgroundColor: colors.brand.primary, borderRadius: radii.lg, paddingVertical: spacing.md, alignItems: 'center' },
+  warning: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(208,76,104,0.1)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  warningText: {
+    flex: 1,
+    color: colors.semantic.error,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+  },
+  warningYellow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(253,227,123,0.15)',
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  warningTextYellow: {
+    flex: 1,
+    color: colors.semantic.warning,
+    fontSize: fontSizes.sm,
+    fontFamily: fonts.medium,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.lg,
+    backgroundColor: colors.bg.primary,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+  },
+  continueBtn: {
+    backgroundColor: colors.brand.primary,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
   continueBtnDisabled: { backgroundColor: colors.bg.tertiary },
   continueBtnText: { color: colors.text.white, fontSize: fontSizes.md, fontFamily: fonts.bold },
   continueBtnTextDisabled: { color: colors.text.tertiary },
-  busyButtonContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  busyButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
 });

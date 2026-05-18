@@ -27,19 +27,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "lock-screen"
     timeout: 15000
 
-# Enter PIN to unlock (123456)
-- tapOn:
-    id: "lock-keypad-1"
-- tapOn:
-    id: "lock-keypad-2"
-- tapOn:
-    id: "lock-keypad-3"
-- tapOn:
-    id: "lock-keypad-4"
-- tapOn:
-    id: "lock-keypad-5"
-- tapOn:
-    id: "lock-keypad-6"
+# Enter PIN to unlock (111111)
+- runFlow: ../helpers/enter-pin-lock.yaml
 
 # Verify wallet screen loads with balance intact
 - extendedWaitUntil:

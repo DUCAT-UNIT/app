@@ -16,7 +16,11 @@ import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
-import { checkBatchAllowed, Utxo, withVaultOperationLock } from './utils';
+import {
+  checkBatchAllowed,
+  Utxo,
+  withVaultOperationLock,
+} from './utils';
 import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
@@ -199,11 +203,11 @@ export async function guardianSendReqBorrow(
   logger.debug('[VaultOps] Submitting borrow request to guardian...');
 
   try {
-    const guardSub = await gclient.req.vault.borrow(borrowReq);
-    logger.debug('[VaultOps] Borrow request submitted, waiting for response...');
-
-    // Small delay before resolving (as in frontend)
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    const submitStartedAt = Date.now();
+    const guardSub = gclient.req.vault.borrow(borrowReq);
+    logger.info('[VaultOps] Borrow request submitted to guardian', {
+      durationMs: Date.now() - submitStartedAt,
+    });
 
     const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
@@ -213,7 +217,11 @@ export async function guardianSendReqBorrow(
     const txid = guardRes.issue_txid;
     const vault_txid = guardRes.vault_txid;
 
-    logger.debug('[VaultOps] Borrow completed:', { txid, vault_txid });
+    logger.info('[VaultOps] Borrow guardian response ready', {
+      durationMs: Date.now() - submitStartedAt,
+      txid,
+      vault_txid,
+    });
 
     return { txid, vault_txid };
   } catch (error) {

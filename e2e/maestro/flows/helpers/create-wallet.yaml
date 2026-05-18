@@ -11,46 +11,51 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Tap create button — first tap may dismiss Expo Dev Client overlay
 - tapOn:
-    id: "welcome-create-wallet-btn"
+    id: 'welcome-create-wallet-btn'
 
 # If overlay intercepted first tap, we're still on welcome screen — retry
 - runFlow:
     when:
       visible:
-        id: "welcome-screen"
+        id: 'welcome-screen'
     commands:
       - tapOn:
-          id: "welcome-create-wallet-btn"
+          id: 'welcome-create-wallet-btn'
 
 # PasskeyPinInput screen — enter 6-digit PIN
 - extendedWaitUntil:
     visible:
-      id: "pin-setup-screen"
+      id: 'pin-setup-screen'
     timeout: 30000
 
-# Enter PIN (123456)
+# Enter PIN (111111)
 - runFlow: enter-pin-setup.yaml
 
-# Confirm PIN (123456 again)
+# Confirm PIN (111111 again)
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
 - runFlow: enter-pin-setup.yaml
+- runFlow: retry-pin-setup-if-mismatch.yaml
 
 # Skip biometric if prompted
 - runFlow:
     when:
       visible:
-        id: "biometric-modal"
+        id: 'biometric-modal'
     commands:
       - tapOn:
-          id: "biometric-skip-btn"
+          id: 'biometric-skip-btn'
 
 # Skip passkey migration if prompted
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        id: 'passkey-migration-modal'
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          id: 'passkey-skip-btn'
 
 # Airdrop and post-create transitions are intentionally non-blocking:
 # on slow networks the modal can arrive late, and with short autolock settings
@@ -71,53 +76,58 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        id: 'passkey-migration-modal'
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          id: 'passkey-skip-btn'
 
 # Verify wallet screen loads
 - extendedWaitUntil:
     visible:
-      id: "wallet-screen"
+      id: 'wallet-screen'
     timeout: 15000
 
 # This prompt can appear slightly later, after the wallet home mounts.
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        id: 'passkey-migration-modal'
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          id: 'passkey-skip-btn'
 
 # Wait for balance section to appear
 - extendedWaitUntil:
     visible:
-      id: "balance-section"
+      id: 'balance-section'
     timeout: 30000
 
 # Dismiss any delayed passkey prompt before continuing the funded-wallet flow.
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        id: 'passkey-migration-modal'
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          id: 'passkey-skip-btn'
 
 # Wait for the funded BTC card to render in the live wallet UI.
 # The exact decimal formatting changes over time, so do not pin this to one string.
 - extendedWaitUntil:
     visible:
-      id: "asset-card-btc"
+      id: 'asset-card-btc'
     timeout: 90000
+- extendedWaitUntil:
+    visible:
+      text: "^(0\\.0*[1-9]\\d*|[1-9][\\d,]*\\.\\d{8})$"
+    timeout: 180000
 
 # Force defaults again now that the authenticated settings provider is mounted.
 # This updates live auto-lock/feature-flag state, not only persisted storage.
-- openLink: "ducat://e2e/reset-settings"
+- openLink: 'ducat://e2e/reset-settings'
+- runFlow: accept-open-in-app-alert.yaml
 - runFlow: unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
-      id: "wallet-screen"
+      id: 'wallet-screen'
     timeout: 15000

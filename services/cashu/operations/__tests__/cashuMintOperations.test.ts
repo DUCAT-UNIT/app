@@ -105,7 +105,7 @@ describe('cashuMintOperations', () => {
 
       const result = await requestMint(100);
 
-      expect(createMintQuote).toHaveBeenCalledWith(pubkey, 'unit');
+      expect(createMintQuote).toHaveBeenCalledWith(pubkey, 'unit', 100);
       expect(result).toEqual({
         quoteId: 'quote123',
         amount: 100,

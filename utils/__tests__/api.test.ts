@@ -66,6 +66,22 @@ describe('api utilities', () => {
       await expect(fetchWithTimeout('https://example.com/api', {}, 100)).rejects.toThrow();
     }, 10000);
 
+    it('should reject on timeout even when fetch ignores abort', async () => {
+      jest.useFakeTimers();
+      (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+
+      try {
+        const fetchPromise = fetchWithTimeout('https://example.com/api', {}, 100);
+
+        jest.advanceTimersByTime(100);
+
+        await expect(fetchPromise).rejects.toThrow('Request timed out after 100ms');
+        expect((global.fetch as jest.Mock).mock.calls[0][1].signal.aborted).toBe(true);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it('should abort when external signal is already aborted', async () => {
       const externalController = new AbortController();
       externalController.abort();

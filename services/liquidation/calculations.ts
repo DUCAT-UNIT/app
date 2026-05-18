@@ -12,7 +12,15 @@ import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
 type ProtocolProfile = Parameters<typeof VaultAPI.repo.liquidation.get_profile>[0];
 import { logger } from '../../utils/logger';
 import { fetchProtocolContract } from '../vaultWallet';
-import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, UNIT_TO_BTC_RATE, VIN_ALLOWANCE } from './constants';
+import {
+  COIN_SIZE,
+  DUST_BTC,
+  MIN_COL_RATE,
+  MIN_REPO_PORTION,
+  REPO_PORTION_PRECISION,
+  UNIT_TO_BTC_RATE,
+  VIN_ALLOWANCE,
+} from './constants';
 import { formatValidatorResponse } from './fetchVaults';
 import { roundNumber, roundNumberDown, satsToBtc } from './math';
 import type {
@@ -93,6 +101,42 @@ export function computeLiqMeta(profile: LiquidVaultProfile): Omit<LiquidationVau
 // Partial Vault Recomputation
 // ============================================================
 
+function floorToPrecision(value: number, precision: number): number {
+  const factor = 10 ** precision;
+  return Math.floor((value + Number.EPSILON * 100) * factor) / factor;
+}
+
+export function getPartialRepoPortion(
+  partialClaimBtc: number | undefined,
+  fullClaimBtc: number
+): number {
+  if (!partialClaimBtc || fullClaimBtc <= 0) {
+    return 1;
+  }
+
+  const portion = floorToPrecision(partialClaimBtc / fullClaimBtc, REPO_PORTION_PRECISION);
+  return Math.min(1, Math.max(0, portion));
+}
+
+function normalizePartialClaimForRepo(
+  partialClaimBtc: number,
+  fullClaimBtc: number
+): { claimAmountBtc: number; repoPortion: number } | null {
+  if (partialClaimBtc <= DUST_BTC + Number.EPSILON * 100 || fullClaimBtc <= 0) {
+    return null;
+  }
+
+  const repoPortion = getPartialRepoPortion(partialClaimBtc, fullClaimBtc);
+  if (repoPortion < MIN_REPO_PORTION || repoPortion >= 1) {
+    return null;
+  }
+
+  return {
+    claimAmountBtc: Number((fullClaimBtc * repoPortion).toFixed(8)),
+    repoPortion,
+  };
+}
+
 /**
  * Re-compute a partial vault profile with its repo_portion applied.
  * Used when a vault is only partially claimed (last vault in a selection).
@@ -101,19 +145,36 @@ export async function recomputePartialVaultProfile(
   claimedPartial: LiquidVaultProfileWithMeta,
   btcPrice: number,
 ): Promise<LiquidVaultProfileWithMeta> {
-  const portion = Number(
-    (claimedPartial.claimAmountPartial! / claimedPartial.claimAmountBtc).toFixed(4),
+  const normalized = normalizePartialClaimForRepo(
+    claimedPartial.claimAmountPartial ?? 0,
+    claimedPartial.claimAmountBtc
   );
+  if (!normalized) {
+    throw new Error('Partial liquidation amount is below the minimum protocol claim size');
+  }
+
   const contract = await fetchProtocolContract();
   const partialProfile = VaultAPI.repo.liquidation.get_profile(
     contract,
     claimedPartial as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
     claimedPartial.thold_key,
     btcPrice,
-    portion,
+    normalized.repoPortion,
   );
   const partialMeta = computeLiqMeta(partialProfile);
-  return { ...claimedPartial, ...partialProfile, ...partialMeta } as LiquidVaultProfileWithMeta;
+  const partialUnit = partialProfile.liquid_quote.unit_balance / 100;
+
+  return {
+    ...claimedPartial,
+    ...partialProfile,
+    ...partialMeta,
+    unit: partialUnit,
+    unitSwapBtc: btcPrice > 0 ? partialUnit / btcPrice : 0,
+    claimAmountPartial: partialMeta.claimAmountBtc,
+    claimAmountDiff: Number(
+      Math.max(0, claimedPartial.claimAmountBtc - partialMeta.claimAmountBtc).toFixed(8)
+    ),
+  } as LiquidVaultProfileWithMeta;
 }
 
 // ============================================================
@@ -194,11 +255,16 @@ export function selectItemsForAmount(
     const sumWithItem = sum + item.claimAmountBtc;
 
     if (sumWithItem > amount) {
-      const claimAmountDiff = sumWithItem - amount;
+      const partialClaim = item.claimAmountBtc - (sumWithItem - amount);
+      const normalized = normalizePartialClaimForRepo(partialClaim, item.claimAmountBtc);
+      if (!normalized) {
+        break;
+      }
+      const claimAmountDiff = item.claimAmountBtc - normalized.claimAmountBtc;
       result.push({
         ...item,
         claimAmountDiff,
-        claimAmountPartial: item.claimAmountBtc - claimAmountDiff,
+        claimAmountPartial: normalized.claimAmountBtc,
       });
       break;
     }

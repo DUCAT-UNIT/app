@@ -3,16 +3,24 @@
  * Fullscreen modal with chart on top 60% and activity list below
  */
 
-import React,{ memo,useCallback,useEffect,useMemo,useState } from 'react';
-import { Animated,Dimensions,Modal,ScrollView,Text,TouchableOpacity,View } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg,{ Defs,Line,LinearGradient,Path,Stop } from 'react-native-svg';
+import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import type { VaultHistoryTransaction } from '../../../services/vaultService';
 import { COLORS } from '../../../theme';
 import Icon from '../../icons';
 import { VaultActivityList } from '../VaultActivityList';
-import type { PriceTimeframe,ScrubData } from '../vaultChart/types';
-import { INTERVAL_CONFIG,TIMEFRAMES } from '../vaultChart/types';
+import type { PriceTimeframe, ScrubData } from '../vaultChart/types';
+import { INTERVAL_CONFIG, TIMEFRAMES } from '../vaultChart/types';
 import VaultTransactionDetailsSheet from '../VaultTransactionDetailsSheet';
 import { fullscreenStyles as styles } from './styles';
 import { useFullscreenChartData } from './useFullscreenChartData';
@@ -38,8 +46,12 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const [lockedEventDate, setLockedEventDate] = useState<number | null>(null);
   const [lockedRefLineIndex, setLockedRefLineIndex] = useState<number | null>(null);
   // Transaction details sheet state
-  const [selectedTransaction, setSelectedTransaction] = useState<VaultHistoryTransaction | null>(null);
-  const [previousTransaction, setPreviousTransaction] = useState<VaultHistoryTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<VaultHistoryTransaction | null>(
+    null
+  );
+  const [previousTransaction, setPreviousTransaction] = useState<VaultHistoryTransaction | null>(
+    null
+  );
   const [showTransactionDetails, setShowTransactionDetails] = useState(false);
 
   // Safe area insets (portrait mode)
@@ -64,13 +76,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   } = useFullscreenChartData(visible, selectedTimeframe, transactions, CHART_HEIGHT);
 
   // Scrub animation with locking to filter activity
-  const {
-    scrubXAnim,
-    scrubYAnim,
-    scrubOpacity,
-    scrubColorAnim,
-    panResponder,
-  } = useScrubAnimation({
+  const { scrubXAnim, scrubYAnim, scrubOpacity, scrubColorAnim, panResponder } = useScrubAnimation({
     chartWidth,
     padding: { left: 0, right: 0 },
     referenceLines,
@@ -99,21 +105,29 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   const filteredTransactions = useMemo(() => {
     const { unitLength, numberOfUnits } = INTERVAL_CONFIG[selectedTimeframe];
     const now = Date.now() / 1000;
-    const timeframeStart = now - (unitLength * numberOfUnits);
+    const timeframeStart = now - unitLength * numberOfUnits;
 
-    // First filter by overall timeframe
-    let filtered = transactions.filter(tx => tx.timestamp >= timeframeStart);
-
-    // If an event is locked, further filter to only show transactions in that time bucket
     if (lockedEventDate !== null) {
-      // lockedEventDate is in milliseconds, convert to seconds for comparison
       const bucketEnd = lockedEventDate / 1000;
       const bucketStart = bucketEnd - unitLength;
-      filtered = filtered.filter(tx => tx.timestamp > bucketStart && tx.timestamp <= bucketEnd);
+      return transactions.filter(
+        (tx) =>
+          tx.timestamp >= timeframeStart && tx.timestamp > bucketStart && tx.timestamp <= bucketEnd
+      );
     }
 
-    return filtered;
+    return transactions.filter((tx) => tx.timestamp >= timeframeStart);
   }, [transactions, selectedTimeframe, lockedEventDate]);
+
+  const lineDataIndexByDate = useMemo(() => {
+    const indexByDate = new Map<number, number>();
+    lineData.forEach((point, index) => {
+      if (!indexByDate.has(point.date)) {
+        indexByDate.set(point.date, index);
+      }
+    });
+    return indexByDate;
+  }, [lineData]);
 
   // Format timestamp for display
   const formatScrubDate = (timestamp: number | null): string | null => {
@@ -148,14 +162,14 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
   }, [selectedTimeframe, scrubOpacity]);
 
   // Transaction press handler
-  const handleTransactionPress = useCallback((
-    transaction: VaultHistoryTransaction,
-    prevTransaction: VaultHistoryTransaction | null
-  ) => {
-    setSelectedTransaction(transaction);
-    setPreviousTransaction(prevTransaction);
-    setShowTransactionDetails(true);
-  }, []);
+  const handleTransactionPress = useCallback(
+    (transaction: VaultHistoryTransaction, prevTransaction: VaultHistoryTransaction | null) => {
+      setSelectedTransaction(transaction);
+      setPreviousTransaction(prevTransaction);
+      setShowTransactionDetails(true);
+    },
+    []
+  );
 
   const handleCloseTransactionDetails = useCallback(() => {
     setShowTransactionDetails(false);
@@ -163,7 +177,9 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
 
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
-      <View style={[styles.modalContainer, { paddingTop: safeAreaTop, paddingBottom: safeAreaBottom }]}>
+      <View
+        style={[styles.modalContainer, { paddingTop: safeAreaTop, paddingBottom: safeAreaBottom }]}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={{ width: 44 }} />
@@ -196,8 +212,24 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                     gradientUnits="userSpaceOnUse"
                   >
                     <Stop offset="0" stopColor="#59AA8A" stopOpacity="0.15" />
-                    <Stop offset={Math.max(0, (yScale(200) - yScale(yDomain[1])) / (CHART_HEIGHT - 100 - yScale(yDomain[1])))} stopColor="#59AA8A" stopOpacity="0.15" />
-                    <Stop offset={Math.max(0, (yScale(160) - yScale(yDomain[1])) / (CHART_HEIGHT - 100 - yScale(yDomain[1])))} stopColor="#FDE37B" stopOpacity="0.1" />
+                    <Stop
+                      offset={Math.max(
+                        0,
+                        (yScale(200) - yScale(yDomain[1])) /
+                          (CHART_HEIGHT - 100 - yScale(yDomain[1]))
+                      )}
+                      stopColor="#59AA8A"
+                      stopOpacity="0.15"
+                    />
+                    <Stop
+                      offset={Math.max(
+                        0,
+                        (yScale(160) - yScale(yDomain[1])) /
+                          (CHART_HEIGHT - 100 - yScale(yDomain[1]))
+                      )}
+                      stopColor="#FDE37B"
+                      stopOpacity="0.1"
+                    />
                     <Stop offset="1" stopColor="#D04C68" stopOpacity="0.05" />
                   </LinearGradient>
                   <LinearGradient
@@ -208,8 +240,16 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                     y2={yScale(yDomain[0])}
                     gradientUnits="userSpaceOnUse"
                   >
-                    <Stop offset={Math.max(0, (yDomain[1] - 200) / (yDomain[1] - yDomain[0]))} stopColor="#59AA8A" stopOpacity="1" />
-                    <Stop offset={Math.max(0, (yDomain[1] - 160) / (yDomain[1] - yDomain[0]))} stopColor="#FDE37B" stopOpacity="1" />
+                    <Stop
+                      offset={Math.max(0, (yDomain[1] - 200) / (yDomain[1] - yDomain[0]))}
+                      stopColor="#59AA8A"
+                      stopOpacity="1"
+                    />
+                    <Stop
+                      offset={Math.max(0, (yDomain[1] - 160) / (yDomain[1] - yDomain[0]))}
+                      stopColor="#FDE37B"
+                      stopOpacity="1"
+                    />
                     <Stop offset="1" stopColor="#D04C68" stopOpacity="1" />
                   </LinearGradient>
                 </Defs>
@@ -219,13 +259,19 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
 
                 {/* Line segments */}
                 {lineSegments.map((segment, i) => (
-                  <Path key={i} d={segment} stroke="url(#fsLineGradient)" strokeWidth={2} fill="none" />
+                  <Path
+                    key={i}
+                    d={segment}
+                    stroke="url(#fsLineGradient)"
+                    strokeWidth={2}
+                    fill="none"
+                  />
                 ))}
 
                 {/* Reference lines */}
                 {referenceLines.map((line, i) => {
                   const isActive = hoveredRefLineIndex === i;
-                  const dataIndex = lineData.findIndex(d => d.date === line.date);
+                  const dataIndex = lineDataIndexByDate.get(line.date) ?? -1;
                   if (dataIndex < 1) return null;
 
                   const prevHealth = lineData[dataIndex - 1].healthValue;
@@ -252,10 +298,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                   styles.scrubberLine,
                   {
                     opacity: scrubOpacity,
-                    transform: [
-                      { translateX: scrubXAnim },
-                      { translateY: scrubYAnim },
-                    ],
+                    transform: [{ translateX: scrubXAnim }, { translateY: scrubYAnim }],
                     height: Animated.subtract(CHART_HEIGHT - 100, scrubYAnim),
                     backgroundColor: scrubColorAnim.interpolate({
                       inputRange: [0, 0.5, 1],
@@ -321,8 +364,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                         })()
                       : scrubData.health
                         ? `${scrubData.health.toFixed(0)}%`
-                        : ''
-                  }
+                        : ''}
                 </Animated.Text>
               </Animated.View>
 
@@ -332,9 +374,7 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
                   styles.scrubberDateLabel,
                   {
                     opacity: scrubOpacity,
-                    transform: [
-                      { translateX: Animated.subtract(scrubXAnim, 45) },
-                    ],
+                    transform: [{ translateX: Animated.subtract(scrubXAnim, 45) }],
                   },
                 ]}
               >
@@ -350,10 +390,18 @@ export const FullscreenVaultChart = memo(function FullscreenVaultChart({
             {TIMEFRAMES.map((tf) => (
               <TouchableOpacity
                 key={tf}
-                style={[styles.timeframeButton, selectedTimeframe === tf && styles.timeframeButtonActive]}
+                style={[
+                  styles.timeframeButton,
+                  selectedTimeframe === tf && styles.timeframeButtonActive,
+                ]}
                 onPress={() => setSelectedTimeframe(tf)}
               >
-                <Text style={[styles.timeframeText, selectedTimeframe === tf && styles.timeframeTextActive]}>
+                <Text
+                  style={[
+                    styles.timeframeText,
+                    selectedTimeframe === tf && styles.timeframeTextActive,
+                  ]}
+                >
                   {tf}
                 </Text>
               </TouchableOpacity>

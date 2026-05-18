@@ -15,6 +15,7 @@ import {
   authenticateWithBiometrics,
   isBiometricEnabled,
 } from '../services/biometricService';
+import { hasAccessibleMnemonic } from '../services/secureStorageService';
 import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsService';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
@@ -81,7 +82,7 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
-  const [showFaceIdButton, setShowFaceIdButton] = useState(true);
+  const [showFaceIdButton, setShowFaceIdButton] = useState(false);
 
   // Passkey state
   const [isPasskeySupported, setIsPasskeySupported] = useState(false);
@@ -141,7 +142,11 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
       }
     };
 
-    void checkAuthSupport();
+    checkAuthSupport().catch((error: unknown) => {
+      logger.warn('[useAuth] Failed to check auth support', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
 
     return () => {
       cancelled = true;
@@ -218,6 +223,15 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
 
         if (result.success) {
           analytics.track(AUTH_EVENTS.AUTH_SUCCESS, { method: 'biometric' });
+          const sessionReady = await hasAccessibleMnemonic();
+          if (!sessionReady) {
+            logger.warn('[useAuth] Face ID succeeded but wallet secret is unavailable; requiring PIN');
+            setShowPinEntry(true);
+            setShowFaceIdButton(false);
+            setPinError('Enter your PIN to unlock wallet signing.');
+            return;
+          }
+
           if (changingPin) {
             // User authenticated to change PIN, proceed to PIN setup
             setSettingUpPin(true);
@@ -288,13 +302,14 @@ export function useAuth({ onSeedConfirmed }: UseAuthParams): UseAuthReturn {
   const lock = useCallback(() => {
     analytics.track(AUTH_EVENTS.APP_LOCKED);
     setIsAuthenticated(false);
+    setShowFaceIdButton(false);
   }, []);
 
   // Reset auth state (for wallet deletion)
   const resetAuth = useCallback(() => {
     setIsAuthenticated(false);
     setBiometricEnabled(false);
-    setShowFaceIdButton(true);
+    setShowFaceIdButton(false);
     setShowBiometricPrompt(false);
     setSettingUpPin(false);
     setChangingPin(false);

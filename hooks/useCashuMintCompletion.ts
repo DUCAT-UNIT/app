@@ -61,6 +61,7 @@ export function useCashuMintCompletion({
       mintAmount,
       cashuUnit,
     });
+    logger.info(`[E2E_TX] cashu_mint_registered amount=${mintAmount} cashuUnit=${cashuUnit}`);
 
     // Add to app-level pendingMints so useCashuMint's polling will auto-complete it
     if (cashuUnit === 'sat') {
@@ -68,7 +69,15 @@ export function useCashuMintCompletion({
     } else {
       addPendingMint(quoteId, mintAmount, senderTaprootAddress);
     }
-  }, [cashuMint, quoteId, mintAmount, cashuUnit, senderTaprootAddress, addPendingMint, addPendingBtcMint]);
+  }, [
+    cashuMint,
+    quoteId,
+    mintAmount,
+    cashuUnit,
+    senderTaprootAddress,
+    addPendingMint,
+    addPendingBtcMint,
+  ]);
 
   // Track when the mint completes via the app-level polling
   useEffect(() => {
@@ -76,10 +85,13 @@ export function useCashuMintCompletion({
 
     // Check if our quote is still in pendingMints - if it was removed, mint completed
     const activePendingMints = cashuUnit === 'sat' ? pendingBtcMints : pendingMints;
-    const stillPending = activePendingMints.some(m => m.quoteId === quoteId);
+    const stillPending = activePendingMints.some((m) => m.quoteId === quoteId);
     if (!stillPending && hasRegistered.current) {
       // The app-level polling completed our mint
-      logger.debug('[useCashuMintCompletion] Mint completed by app-level polling', { quoteId: quoteId.substring(0, 8) });
+      logger.debug('[useCashuMintCompletion] Mint completed by app-level polling', {
+        quoteId: quoteId.substring(0, 8),
+      });
+      logger.info(`[E2E_TX] cashu_mint_completed amount=${mintAmount ?? 0} cashuUnit=${cashuUnit}`);
       setIsCompletingMint(false);
 
       // Dismiss the SendFlow modal so the user can interact with the wallet again

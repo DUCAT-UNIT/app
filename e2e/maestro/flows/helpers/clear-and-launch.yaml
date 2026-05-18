@@ -16,21 +16,23 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - launchApp
 
 # Step 4: Open deep link to connect to Metro bundler
-- openLink: "${MAESTRO_EXPO_DEV_CLIENT_URL}"
+- openLink: '${MAESTRO_EXPO_DEV_CLIENT_URL}'
+- runFlow: accept-open-in-app-alert.yaml
 
 # Step 5: Wait for the JS bundle to download and the welcome screen to appear
 - extendedWaitUntil:
     visible:
-      id: "welcome-screen"
+      id: 'welcome-screen'
     timeout: 120000
 
 # Step 6: Force non-secret preference defaults through the running app. This
 # catches AsyncStorage preference leakage that simulator uninstall/keychain
 # clearing can miss in dev-client runs.
-- openLink: "ducat://e2e/reset-settings"
+- openLink: 'ducat://e2e/reset-settings'
+- runFlow: accept-open-in-app-alert.yaml
 - extendedWaitUntil:
     visible:
-      id: "welcome-screen"
+      id: 'welcome-screen'
     timeout: 10000
 
 # Step 7: Wait for animations to settle so buttons are interactive

@@ -15,6 +15,7 @@ import {
   getAvailableCollateralBtc,
   computeLiqMeta,
   computeLiquidVaultProfiles,
+  recomputePartialVaultProfile,
   selectItemsForAmount,
   getMaxInvest,
   computeClaimFromInvest,
@@ -67,10 +68,12 @@ jest.mock('../fetchVaults', () => ({
 
 import { VaultAPI } from '@ducat-unit/client-sdk';
 import { formatValidatorResponse } from '../fetchVaults';
+import { fetchProtocolContract } from '../../vaultWallet';
 
 const mockGetProfile = VaultAPI.repo.liquidation.get_profile as jest.Mock;
 const mockGetTxQuote = VaultAPI.repo.get_tx_quote as jest.Mock;
 const mockFormatValidatorResponse = formatValidatorResponse as jest.Mock;
+const mockFetchProtocolContract = fetchProtocolContract as jest.Mock;
 
 // ============================================================
 // Test Fixtures
@@ -537,6 +540,14 @@ describe('selectItemsForAmount', () => {
       expect(result[0].claimAmountPartial).toBeCloseTo(0.005, 8);
     });
 
+    it('should floor partial claims to the SDK repo-portion precision', () => {
+      const result = selectItemsForAmount([profileA], 0.00512345);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].claimAmountPartial).toBe(0.005123);
+      expect(result[0].claimAmountDiff).toBeCloseTo(0.004877, 8);
+    });
+
     it('should stop after partial vault (no further vaults appended)', () => {
       // Give first vault a large claim so partial is triggered immediately
       const bigProfile = makeProfile({ vaultId: 'Big', claimAmountBtc: 0.05 });
@@ -559,11 +570,73 @@ describe('selectItemsForAmount', () => {
       expect(selectItemsForAmount([], 0.5)).toHaveLength(0);
     });
 
+    it('should return empty when a partial claim is below dust', () => {
+      expect(selectItemsForAmount([profileA], DUST_BTC)).toHaveLength(0);
+    });
+
     it('should not mutate the original profile objects', () => {
       const original = makeProfile({ vaultId: 'X', claimAmountBtc: 0.05 });
       selectItemsForAmount([original], 0.02);
       expect(original.claimAmountPartial).toBeUndefined();
     });
+  });
+});
+
+// ============================================================
+
+describe('recomputePartialVaultProfile', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFetchProtocolContract.mockResolvedValue({ terms: [] });
+  });
+
+  it('passes the protocol-rounded repo portion into the SDK', async () => {
+    const partialProfile = makeLiquidVaultProfile({
+      deficit_sats: 512_300,
+      unit_balance: 321,
+    });
+    mockGetProfile.mockReturnValue(partialProfile);
+
+    await recomputePartialVaultProfile(
+      makeProfile({ claimAmountBtc: 0.01, claimAmountPartial: 0.00512345 }),
+      80_000
+    );
+
+    expect(mockGetProfile).toHaveBeenCalledWith(
+      { terms: [] },
+      expect.anything(),
+      'mock-thold-key',
+      80_000,
+      0.5123
+    );
+  });
+
+  it('normalizes partial metadata to the recomputed SDK profile', async () => {
+    const partialProfile = makeLiquidVaultProfile({
+      deficit_sats: 512_300,
+      unit_balance: 321,
+    });
+    mockGetProfile.mockReturnValue(partialProfile);
+
+    const result = await recomputePartialVaultProfile(
+      makeProfile({ claimAmountBtc: 0.01, claimAmountPartial: 0.00512345 }),
+      80_000
+    );
+
+    expect(result.claimAmountBtc).toBe(0.005123);
+    expect(result.claimAmountPartial).toBe(0.005123);
+    expect(result.unit).toBe(3.21);
+    expect(result.unitSwapBtc).toBe(3.21 / 80_000);
+  });
+
+  it('rejects partial claims below the executable protocol size', async () => {
+    await expect(
+      recomputePartialVaultProfile(
+        makeProfile({ claimAmountBtc: 0.01, claimAmountPartial: DUST_BTC }),
+        80_000
+      )
+    ).rejects.toThrow('Partial liquidation amount is below the minimum protocol claim size');
+    expect(mockGetProfile).not.toHaveBeenCalled();
   });
 });
 

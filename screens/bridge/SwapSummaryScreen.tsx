@@ -758,6 +758,9 @@ export default function SwapSummaryScreen({
 
       await registerSwapTxid(txid, toUnitSmallestUnits(amountIn), { confirmed: false });
       await fetchTransactionHistory();
+      logger.info(
+        `[E2E_TX] sepolia_bridge_send_submitted txid=${txid} sourceAsset=${sourceAsset} amount=${amountIn}`
+      );
       showToast('Bridge send submitted', 'success');
       resetToUnitAssetDetail(navigation);
     } catch (error) {
@@ -788,6 +791,9 @@ export default function SwapSummaryScreen({
         confirmed: true,
       });
       await fetchTransactionHistory();
+      logger.info(
+        `[E2E_TX] sepolia_swap_submitted txHash=${result.burnTxHash} sourceAsset=${sourceAsset} amount=${amountIn} redeemedAmount=${result.redeemedAmount}`
+      );
       showToast('Swap submitted', 'success');
       resetToUnitAssetDetail(navigation);
     } catch (error) {

@@ -35,7 +35,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
-- hideKeyboard
 
 - extendedWaitUntil:
     visible:
@@ -55,10 +54,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Review and confirm
 - extendedWaitUntil:
     visible:
-      text: "Review transaction"
+      id: "send-review-btn"
     timeout: 5000
-- tapOn:
-    text: "Review transaction"
+- runFlow: ../helpers/tap-send-review.yaml
 
 - extendedWaitUntil:
     visible:

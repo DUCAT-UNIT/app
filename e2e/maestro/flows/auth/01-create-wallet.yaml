@@ -1,6 +1,6 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Create Wallet - Passkey PIN creation flow (E2E bypasses native passkey dialog)
+# Create Wallet - Passkey PIN creation flow
 # clearState → welcome → passkey PIN (enter + confirm) → wallet
 
 - runFlow: ../helpers/clear-and-launch.yaml
@@ -24,11 +24,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "pin-setup-screen"
     timeout: 30000
 
-# Enter PIN (123456)
+# Enter PIN (111111)
 - runFlow: ../helpers/enter-pin-setup.yaml
 
-# Confirm PIN (123456 again)
+# Confirm PIN (111111 again)
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
 - runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/retry-pin-setup-if-mismatch.yaml
 
 # Skip biometric if prompted
 - runFlow:

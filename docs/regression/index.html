@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ducat Regression Report</title>
+  <style>
+    :root {
+      --bg: #101115;
+      --panel: #191b21;
+      --panel-2: #20232b;
+      --text: #f2f4f8;
+      --muted: #a5adba;
+      --soft: #d5dae2;
+      --border: #30343d;
+      --success: #69c49a;
+      --danger: #e36b7f;
+      --warn: #e0b55a;
+      --blue: #68a6ff;
+      --orange: #f7931a;
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      color-scheme: dark;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code {
+      color: var(--soft);
+      font-size: 12px;
+      word-break: break-word;
+    }
+
+    .shell {
+      width: min(1320px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .top {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--orange);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    h1,
+    h2,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: clamp(30px, 4vw, 52px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 860px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .result-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 132px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .metric,
+    .section {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .metric {
+      padding: 16px;
+      min-height: 112px;
+    }
+
+    .label {
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.05;
+      word-break: break-word;
+    }
+
+    .detail {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .section {
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      gap: 12px;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .section-head span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    td span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .status {
+      display: inline-flex;
+      width: fit-content;
+      margin: 0;
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .pass {
+      color: var(--success);
+      background: rgba(105, 196, 154, 0.1);
+      border-color: rgba(105, 196, 154, 0.45);
+    }
+
+    .fail {
+      color: var(--danger);
+      background: rgba(227, 107, 127, 0.1);
+      border-color: rgba(227, 107, 127, 0.45);
+    }
+
+    .warn {
+      color: var(--warn);
+      background: rgba(224, 181, 90, 0.1);
+      border-color: rgba(224, 181, 90, 0.45);
+    }
+
+    .duration {
+      white-space: nowrap;
+      font-weight: 700;
+    }
+
+    .bar {
+      width: 180px;
+      height: 10px;
+      border-radius: 999px;
+      background: #2a2d35;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      margin: 0;
+      background: var(--blue);
+    }
+
+    .copy {
+      margin-left: 8px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--soft);
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+    }
+
+    .copy:hover {
+      border-color: var(--blue);
+    }
+
+    .commands {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 16px 18px;
+    }
+
+    .command {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #121318;
+    }
+
+    .command strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .command code {
+      display: block;
+      line-height: 1.45;
+    }
+
+    .notice {
+      padding: 16px 18px;
+      color: var(--soft);
+      line-height: 1.55;
+    }
+
+    .notice strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 920px) {
+      .top {
+        grid-template-columns: 1fr;
+      }
+
+      .grid,
+      .commands {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      table,
+      thead,
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      td {
+        display: grid;
+        grid-template-columns: minmax(92px, 0.34fr) minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 0;
+      }
+
+      td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      td[data-label='Flow'],
+      td[data-label='Txid'],
+      td[data-label='Check'] {
+        display: block;
+      }
+
+      td[data-label='Flow']::before,
+      td[data-label='Txid']::before,
+      td[data-label='Check']::before {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .bar {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Ducat live regression</p>
+        <h1>Build 0.0.10 (2)</h1>
+        <p class="subtitle">User-facing no-USDC release gate against the TestFlight reviewer wallet on Mutinynet. The page is generated from the Maestro report and live chain-confirmation report.</p>
+      </div>
+      <div class="result-pill pass">PASSED</div>
+    </header>
+
+    <section class="grid" aria-label="Run summary">
+      <div class="metric">
+        <div class="label">Total Runtime</div>
+        <div class="value">32m 01s</div>
+        <div class="detail">Started 2026-05-18 13:54:53.320Z</div>
+      </div>
+      <div class="metric">
+        <div class="label">Flows</div>
+        <div class="value">7/7</div>
+        <div class="detail">All maintained no-USDC live flows passed.</div>
+      </div>
+      <div class="metric">
+        <div class="label">Confirmed Txids</div>
+        <div class="value">5/5</div>
+        <div class="detail">Mutinynet confirmation required.</div>
+      </div>
+      <div class="metric">
+        <div class="label">Exit State</div>
+        <div class="value">Clean</div>
+        <div class="detail">No active stuck phases at exit.</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Flow Timings</h2>
+        <span>com.ducatprotocol.DucatProtocolWallet / mutinynet</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Flow</th>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Expected Proofs</th>
+            <th>Relative</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+        <td data-label="Flow">
+          <strong>Receive BTC</strong>
+          <span>Creates a fresh wallet, verifies a funded BTC balance, opens receive, and copies the receive address.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">1m 55s</td>
+        <td data-label="Expected Proofs">1 receive funding proof</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Receive BTC duration">
+            <span style="width: 23%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-receive-btc-airdrop.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Send BTC</strong>
+          <span>Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">2m 43s</td>
+        <td data-label="Expected Proofs">1 BTC send txid</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Send BTC duration">
+            <span style="width: 33%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-send-btc.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Send UNIT</strong>
+          <span>Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">2m 43s</td>
+        <td data-label="Expected Proofs">1 UNIT send txid</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Send UNIT duration">
+            <span style="width: 33%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-send-unit.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Actions</strong>
+          <span>Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">8m 13s</td>
+        <td data-label="Expected Proofs">5 vault action checkpoints; raw txids can be 8+</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Actions duration">
+            <span style="width: 100%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-actions.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Borrow TurboUNIT</strong>
+          <span>Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 04s</td>
+        <td data-label="Expected Proofs">Borrow txids plus TurboUNIT mint settlement</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Borrow TurboUNIT duration">
+            <span style="width: 37%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-borrow-turbounit.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Repay TurboUNIT</strong>
+          <span>Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">6m 12s</td>
+        <td data-label="Expected Proofs">TurboUNIT funding plus repay txids</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Repay TurboUNIT duration">
+            <span style="width: 75%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-turbounit-repay.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Second Repay</strong>
+          <span>Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">6m 42s</td>
+        <td data-label="Expected Proofs">2 consecutive repay checkpoints</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Second Repay duration">
+            <span style="width: 82%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-second-repay.yaml</code></td>
+      </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Confirmed Transactions</h2>
+        <span>https://mutinynet.com/api</span>
+      </div>
+      <div class="notice">
+        <strong>Capture scope:</strong> these txids are aggregate run evidence from clipboard and simulator pending storage.
+        They are not yet attributed to individual substeps inside <code>live-vault-actions.yaml</code>. The vault-actions
+        flow has five user-facing checkpoints: open, deposit, borrow, repay, and withdraw. Raw chain txids can be higher
+        because open, borrow, and repay may each emit both an account/UNIT txid and a vault txid.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Txid</th>
+            <th>Status</th>
+            <th>Block</th>
+            <th>Evidence</th>
+            <th>Lookup</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/f5eaf511b39b1220a40686fa187a442ed2141a3240717a7436fbfbfafb23fb40" target="_blank" rel="noreferrer">f5eaf511b3...fafb23fb40</a>
+          <button class="copy" type="button" data-copy="f5eaf511b39b1220a40686fa187a442ed2141a3240717a7436fbfbfafb23fb40">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3110717</td>
+        <td data-label="Evidence">Clipboard txid</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/6d8e1b4462722d209259df49bcbf988460a010ba9598256b76eca9b121b6ae56" target="_blank" rel="noreferrer">6d8e1b4462...b121b6ae56</a>
+          <button class="copy" type="button" data-copy="6d8e1b4462722d209259df49bcbf988460a010ba9598256b76eca9b121b6ae56">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3110762</td>
+        <td data-label="Evidence">Pending store: btc send:pending, Pending store: vault repay:pending</td>
+        <td data-label="Lookup" class="duration">21s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/7bd6f37c97361a7fcf2238642486fc8856dfcce0b5c0b11e583f8fbc8cdc1800" target="_blank" rel="noreferrer">7bd6f37c97...bc8cdc1800</a>
+          <button class="copy" type="button" data-copy="7bd6f37c97361a7fcf2238642486fc8856dfcce0b5c0b11e583f8fbc8cdc1800">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3110762</td>
+        <td data-label="Evidence">Pending store: unit send:pending, Pending store: vault repay:pending</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/61e804f0ccd0547d608e06f4b64883267a8cc5bc3167729c218604ca4882e828" target="_blank" rel="noreferrer">61e804f0cc...ca4882e828</a>
+          <button class="copy" type="button" data-copy="61e804f0ccd0547d608e06f4b64883267a8cc5bc3167729c218604ca4882e828">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3110755</td>
+        <td data-label="Evidence">Pending store: vault repay:recoverable, Pending store: unit send:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/58719b6bca76e9a01eee28eb6f63444dc81734d8e7435f05b8dd396644d7e30d" target="_blank" rel="noreferrer">58719b6bca...6644d7e30d</a>
+          <button class="copy" type="button" data-copy="58719b6bca76e9a01eee28eb6f63444dc81734d8e7435f05b8dd396644d7e30d">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3110755</td>
+        <td data-label="Evidence">Pending store: vault repay:recoverable, Pending store: btc send:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Fixture Checks</h2>
+        <span>Reviewer wallet readiness</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Status</th>
+            <th>Total Sats</th>
+            <th>Addresses</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+        <td data-label="Check">reviewer-mutinynet-funding</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Total Sats">28574203</td>
+        <td data-label="Addresses">7 UTXOs / 28514203 sats, 6 UTXOs / 60000 sats</td>
+      </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Artifacts And Commands</h2>
+        <span>Local paths are relative to the repo root</span>
+      </div>
+      <div class="commands">
+        <div class="command">
+          <strong>Regression JSON</strong>
+          <code>artifacts/live-regression/testflight-no-usdc-20260518T135452Z.json</code>
+        </div>
+        <div class="command">
+          <strong>Maestro JSON</strong>
+          <code>artifacts/live-maestro/testflight-no-usdc-20260518T135452Z.json</code>
+        </div>
+        <div class="command">
+          <strong>Run the gate</strong>
+          <code>npm run e2e:real:no-usdc</code>
+        </div>
+        <div class="command">
+          <strong>Regenerate this page</strong>
+          <code>npm run regression:site</code>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const value = button.getAttribute('data-copy');
+        try {
+          await navigator.clipboard.writeText(value);
+          button.textContent = 'Copied';
+          setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 1200);
+        } catch {
+          button.textContent = 'Copy failed';
+          setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 1200);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

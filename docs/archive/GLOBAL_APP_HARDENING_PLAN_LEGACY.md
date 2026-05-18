@@ -88,7 +88,7 @@ This app must remain a Mutinynet app. Sepolia support is limited to EVM-side USD
 
 - Re-audit seed, private key, PSBT, proof, and PIN handling.
 - Add log redaction tests for known sensitive shapes.
-- Ensure E2E bypasses and dev-only controls cannot ship enabled by default.
+- Ensure dev-only controls cannot ship enabled by default.
 - Extend storage sensitivity docs as new persisted stores are added.
 - Run dependency audit and pin or replace risky packages.
 

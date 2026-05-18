@@ -42,17 +42,30 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     text: "Recipient Bitcoin address.*"
 - inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
-- hideKeyboard
 
 # Wait for address validation
 - extendedWaitUntil:
     visible:
       text: "Valid"
     timeout: 5000
+- pressKey: Enter
+- waitForAnimationToEnd
 
-# Select QTR amount of available UNIT
+# Enter a small UNIT amount through the visible amount editor.
 - tapOn:
-    id: "unit-slider-quarter-btn"
+    id: "unit-send-amount-display"
+- waitForAnimationToEnd
+- tapOn:
+    point: "50%,37%"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "unit-send-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "0.01"
+- tapOn:
+    id: "unit-send-amount-done-btn"
 - waitForAnimationToEnd
 
 # Disable Turbo toggle (enabled by default) to send on-chain
@@ -63,10 +76,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Tap review button
 - extendedWaitUntil:
     visible:
-      text: "Review transaction"
+      id: "send-review-btn"
     timeout: 5000
-- tapOn:
-    text: "Review transaction"
+- runFlow: ../helpers/tap-send-review.yaml
 
 # Wait for review screen
 - extendedWaitUntil:

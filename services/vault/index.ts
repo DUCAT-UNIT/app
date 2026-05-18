@@ -12,8 +12,10 @@ export {
   normalizeMasterId,
   normalizeVaultAction,
   computeVaultPrevoutFromTx,
+  resolveLatestUnspentVaultPrevout,
   buildVaultProfile,
 } from './utils';
+export type { ResolvedVaultPrevout } from './utils';
 
 // Open operations
 export type { CreateVaultReqOptions } from './open';

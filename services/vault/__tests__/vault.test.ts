@@ -18,12 +18,28 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
 
 // Mock SDK
 jest.mock('@ducat-unit/client-sdk', () => ({
+  CONST: {
+    TXMAP: {
+      repay: {
+        vault_tx: { vin: { vault: 0, conn: 1 } },
+        acct_tx: { vin: { acct: 1 } },
+      },
+    },
+  },
   VaultAPI: {
     deposit: {
       get_change: jest.fn(() => 1_000),
     },
     open: {
       get_change: jest.fn(() => 1_000),
+    },
+    repay: {
+      create_psbt1: jest.fn(() => 'repay-account-psbt'),
+      create_psbt2: jest.fn(() => 'repay-vault-psbt'),
+      create_req: jest.fn(() => ({
+        sats_inputs: [{}],
+        unit_inputs: [{}],
+      })),
     },
   },
 }));
@@ -1507,24 +1523,29 @@ describe('Vault Request Creation', () => {
   describe('createVaultReqRepay', () => {
     it('should create repay request with sats and unit UTXOs', async () => {
       const { createVaultReqRepay } = require('../repay');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
 
       const mockWallet = {
         vault: {
           repay: {
             ctx: jest.fn().mockReturnValue({ repay_amount: 5000, config: 'repay_ctx' }),
             quote: jest.fn().mockReturnValue({ total_cost: 800 }),
-            req: jest.fn().mockResolvedValue({
-              sats_inputs: [{}],
-            }),
           },
         },
         fetch: {
           sats_utxos: jest.fn().mockResolvedValue([{ txid: 'sats_utxo', vout: 0, value: 5000 }]),
           rune_utxos: jest.fn().mockResolvedValue([{ txid: 'unit_utxo', vout: 0, amount: 5000 }]),
         },
+        sign: {
+          psbt: jest.fn(async (psbt: string) => `signed-${psbt}`),
+        },
         acct: {
           sats: { address: 'tb1qtest' },
+          runes: { address: 'tb1ptest' },
+          vault: { address: 'tb1pvault' },
         },
+        contract_id: 'contract-id',
+        network: 'mutinynet',
       };
 
       const repayConfig = { repay_amount: 5000, deposit_amount: 0, tx_feerate: 4 };
@@ -1534,13 +1555,79 @@ describe('Vault Request Creation', () => {
       const result = await createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
 
       expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT', 5000);
-      expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(
+      expect(VaultAPI.repay.create_psbt1).toHaveBeenCalledWith(
         expect.anything(),
         expect.any(Array),
-        expect.any(Array),
-        true
+        expect.any(Array)
       );
+      expect(VaultAPI.repay.create_psbt2).toHaveBeenCalledWith(
+        expect.anything(),
+        'signed-repay-account-psbt'
+      );
+      expect(mockWallet.sign.psbt).toHaveBeenCalledTimes(2);
       expect(result.sats_inputs).toHaveLength(1);
+    });
+
+    it('should use preferred TurboUNIT melt UTXOs when provided', async () => {
+      const {
+        clearPreferredRepayUnitTxids,
+        createVaultReqRepay,
+        setPreferredRepayUnitTxids,
+      } = require('../repay');
+      const { VaultAPI } = require('@ducat-unit/client-sdk');
+      const directUnitUtxo = {
+        txid: 'direct_unit_txid',
+        vout: 0,
+        value: 10000,
+        runes: new Map([['UNIT', { amount: 5000 }]]),
+      };
+      const meltedUnitUtxo = {
+        txid: 'melted_unit_txid',
+        vout: 1,
+        value: 10000,
+        runes: new Map([['UNIT', { amount: 5000 }]]),
+      };
+
+      const mockWallet = {
+        vault: {
+          repay: {
+            ctx: jest.fn().mockReturnValue({ repay_amount: 5000, config: 'repay_ctx' }),
+            quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn().mockResolvedValue([{ txid: 'sats_utxo', vout: 0, value: 5000 }]),
+          rune_utxos: jest.fn().mockResolvedValue([directUnitUtxo, meltedUnitUtxo]),
+        },
+        sign: {
+          psbt: jest.fn(async (psbt: string) => `signed-${psbt}`),
+        },
+        acct: {
+          sats: { address: 'tb1qtest' },
+          runes: { address: 'tb1ptest' },
+          vault: { address: 'tb1pvault' },
+        },
+        contract_id: 'contract-id',
+        network: 'mutinynet',
+      };
+
+      const repayConfig = { repay_amount: 5000, deposit_amount: 0, tx_feerate: 4 };
+      const acctRes = { mint_account: 'burn_123' };
+      const options = { feeRate: 4, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+      setPreferredRepayUnitTxids(['melted_unit_txid']);
+      try {
+        await createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
+      } finally {
+        clearPreferredRepayUnitTxids();
+      }
+
+      expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT');
+      expect(VaultAPI.repay.create_psbt1).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(Array),
+        [meltedUnitUtxo]
+      );
     });
 
     it('should throw when no sats UTXOs available', async () => {
@@ -1596,6 +1683,59 @@ describe('Vault Request Creation', () => {
       await expect(
         createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options)
       ).rejects.toThrow('No UNIT UTXOs available to repay');
+    });
+
+    it('should time out the total repay transaction build when subcalls stall cumulatively', async () => {
+      jest.useFakeTimers();
+
+      try {
+        const { createVaultReqRepay } = require('../repay');
+
+        const mockWallet = {
+          vault: {
+            repay: {
+              ctx: jest.fn().mockReturnValue({ repay_amount: 5000 }),
+              quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+              req: jest.fn().mockResolvedValue({ sats_inputs: [{}] }),
+            },
+          },
+          fetch: {
+            sats_utxos: jest.fn(
+              () =>
+                new Promise((resolve) => {
+                  setTimeout(() => {
+                    resolve([{ txid: 'sats', vout: 0, value: 5000 }]);
+                  }, 25_000);
+                })
+            ),
+            rune_utxos: jest.fn(() => new Promise(() => undefined)),
+          },
+          acct: {
+            sats: { address: 'tb1qtest' },
+          },
+        };
+
+        const repayConfig = { repay_amount: 5000, deposit_amount: 0, tx_feerate: 4 };
+        const acctRes = { mint_account: 'burn_123' };
+        const options = {
+          feeRate: 4,
+          oracleQuote: mockOracleQuote,
+          vaultProfile: mockVaultProfile,
+        };
+
+        const result = createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
+        const expectation = expect(result).rejects.toThrow(
+          'Timed out building the repay transaction. Please try again.'
+        );
+
+        await jest.advanceTimersByTimeAsync(25_000);
+        expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT', 5000);
+
+        await jest.advanceTimersByTimeAsync(20_000);
+        await expectation;
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 

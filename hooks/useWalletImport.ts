@@ -12,7 +12,6 @@ import * as WalletService from '../services/walletService';
 import { ERRORS } from '../utils/messages';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
-import { isE2E } from '../utils/e2e';
 import { consumeSeedRestoreRequest } from '../utils/onboardingHelpers';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
@@ -22,6 +21,7 @@ import {
   type WalletDerivationMode,
   type WalletImportProfile,
 } from '../constants/bitcoin';
+import { createEmptySeedPhrase } from '../constants/mnemonic';
 
 interface UseWalletImportParams {
   currentAccount: number;
@@ -51,7 +51,7 @@ export function useWalletImport({
   setSettingUpPin,
 }: UseWalletImportParams): UseWalletImportReturn {
   const [importingWallet, setImportingWallet] = useState(false);
-  const [importSeedPhrase, setImportSeedPhrase] = useState<string[]>(Array(12).fill(''));
+  const [importSeedPhrase, setImportSeedPhrase] = useState<string[]>(createEmptySeedPhrase());
   const [importWalletProfile, setImportWalletProfile] = useState<WalletImportProfile>('xverse');
   const [isImportedWallet, setIsImportedWallet] = useState(false);
 
@@ -109,15 +109,8 @@ export function useWalletImport({
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     try {
-      // E2E bypass: use test seed phrase in dev builds with explicit env var
-      const e2eSeed = __DEV__ ? process.env.EXPO_PUBLIC_E2E_TEST_SEED : undefined;
-      const seedWords =
-        isE2E() && e2eSeed && importSeedPhrase.every((word: string) => !word.trim())
-          ? e2eSeed.split(' ')
-          : importSeedPhrase;
-
       // Join the array of words and trim/normalize
-      const mnemonic = seedWords
+      const mnemonic = importSeedPhrase
         .map((word: string) => word.trim().toLowerCase())
         .join(' ')
         .trim();
@@ -148,7 +141,7 @@ export function useWalletImport({
       // Clear import form but KEEP isImportedWallet flag
       // The flag is needed by OnboardingPage to know this is an imported wallet
       setImportingWallet(false);
-      setImportSeedPhrase(Array(12).fill(''));
+      setImportSeedPhrase(createEmptySeedPhrase());
 
       // Set imported wallet flag AFTER clearing form data
       // This flag persists so OnboardingPage knows to handle post-PIN-setup properly
@@ -190,7 +183,7 @@ export function useWalletImport({
    */
   const resetImportState = async () => {
     setImportingWallet(false);
-    setImportSeedPhrase(Array(12).fill(''));
+    setImportSeedPhrase(createEmptySeedPhrase());
     setImportWalletProfile('xverse');
     setIsImportedWallet(false);
     setImportedMnemonic(null);

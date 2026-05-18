@@ -81,6 +81,7 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
     biometricEnabled,
     showLogoutModal,
     showDeleteModal,
+    isDeletingWallet,
     showFaceIdModal,
     showNotificationsModal,
     confirmLogout,
@@ -148,6 +149,7 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
         confirmLogout={confirmLogout}
         cancelLogout={cancelLogout}
         showDeleteModal={showDeleteModal}
+        isDeletingWallet={isDeletingWallet}
         confirmDeleteWallet={confirmDeleteWallet}
         cancelDeleteWallet={cancelDeleteWallet}
         showFaceIdModal={showFaceIdModal}

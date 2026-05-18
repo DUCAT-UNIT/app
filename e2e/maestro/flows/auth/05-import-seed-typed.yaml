@@ -84,9 +84,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Word 12 (last word is "about")
 - inputText: "about"
 
-# Hide keyboard
-- hideKeyboard
-
 # Verify all 12 words populated
 - extendedWaitUntil:
     visible:
@@ -103,7 +100,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "pin-setup-title"
     timeout: 30000
 - runFlow: ../helpers/enter-pin-setup.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
 - runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/retry-pin-setup-if-mismatch.yaml
 
 # Skip biometric if prompted
 - runFlow:

@@ -3,7 +3,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # PIN Lockout Counter - Verify wrong PIN attempts decrement counter
 # Import wallet → relaunch → wrong PIN × 2 → verify counter → correct PIN → unlock
 
-# Set up wallet with PIN 123456
+# Set up wallet with PIN 111111
 - runFlow: ../helpers/import-wallet-typed.yaml
 
 # Kill and relaunch app (wallet persists, goes to lock screen)
@@ -73,7 +73,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     text: ".*8 attempt.*"
 
-# Enter correct PIN (123456) to unlock
+# Enter correct PIN (111111) to unlock
 - runFlow: ../helpers/enter-pin-lock.yaml
 
 # Dismiss modals

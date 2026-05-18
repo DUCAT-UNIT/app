@@ -1,8 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Import Wallet - Seed phrase import flow
-# E2E bypass auto-fills test seed when import button is tapped with empty fields
-# clearState → welcome → restore choice → import screen → tap import → PIN → wallet
+# clearState → welcome → restore choice → import screen → type seed → PIN → wallet
 
 - runFlow: ../helpers/clear-and-launch.yaml
 
@@ -27,16 +26,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "restore-seed-phrase-btn"
 
-# Import wallet screen - E2E bypass auto-fills seed
-- assertVisible:
-    id: "import-wallet-screen"
-- scrollUntilVisible:
-    element:
-      id: "import-wallet-btn"
-    direction: DOWN
-    timeout: 5000
-- tapOn:
-    id: "import-wallet-btn"
+# Import wallet screen
+- runFlow: ../helpers/type-default-seed.yaml
+- runFlow: ../helpers/submit-import-wallet-if-visible.yaml
 
 # PIN setup - enter PIN twice (key derivation takes time)
 - extendedWaitUntil:
@@ -44,7 +36,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "pin-setup-title"
     timeout: 30000
 - runFlow: ../helpers/enter-pin-setup.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
 - runFlow: ../helpers/enter-pin-setup.yaml
+- runFlow: ../helpers/retry-pin-setup-if-mismatch.yaml
 
 # Skip biometric if prompted
 - runFlow:

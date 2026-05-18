@@ -260,6 +260,7 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
 
   return (
     <Animated.View
+      testID={action ? `snackbar-${action}-${type}` : `snackbar-${type}`}
       style={[
         styles.container,
         {
@@ -276,7 +277,7 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
         {/* Text Content */}
         <View style={styles.textContainer}>
           <View style={styles.headerRow}>
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={styles.title} numberOfLines={2} testID="snackbar-title">
               {title}
             </Text>
             <TouchableOpacity
@@ -291,7 +292,7 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
           </View>
 
           {description && (
-            <Text style={styles.description} numberOfLines={3}>
+            <Text style={styles.description} numberOfLines={3} testID="snackbar-description">
               {description}
             </Text>
           )}

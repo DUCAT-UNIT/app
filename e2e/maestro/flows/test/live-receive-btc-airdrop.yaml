@@ -1,0 +1,33 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live BTC receive path.
+# Creates a real wallet, waits for the faucet transaction to fund it, then opens
+# the BTC receive screen. The live runner verifies the emitted faucet txid on
+# Mutinynet, and --require-confirmation waits for block confirmation.
+
+- runFlow: ../helpers/create-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 30000
+
+- tapOn:
+    id: 'wallet-deposit-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'deposit-btc'
+    timeout: 10000
+- tapOn:
+    id: 'deposit-btc'
+
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      text: 'Only use this address to receive Bitcoin.'
+    timeout: 10000
+- assertVisible:
+    text: 'Bitcoin address'
+- tapOn:
+    text: 'BTC Address, Tap to copy, tb1.*'

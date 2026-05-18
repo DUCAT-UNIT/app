@@ -4,7 +4,14 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import {
+  ActivityIndicator,
+  View,
+  Text,
+  TouchableOpacity,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
 import Icon from './icons';
 
 interface ConfirmationModalProps {
@@ -15,7 +22,10 @@ interface ConfirmationModalProps {
   cancelText?: string;
   confirmStyle?: 'destructive' | 'primary';
   iconName?: string;
-  onConfirm: () => void;
+  isLoading?: boolean;
+  loadingText?: string;
+  confirmDisabled?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
   styles: {
     modalOverlay: ViewStyle;
@@ -42,6 +52,9 @@ export default function ConfirmationModal({
   cancelText,
   confirmStyle, // 'destructive' or 'primary'
   iconName, // Optional icon to display at the top
+  isLoading = false,
+  loadingText,
+  confirmDisabled = false,
 
   // Callbacks
   onConfirm,
@@ -51,6 +64,9 @@ export default function ConfirmationModal({
   styles,
 }: ConfirmationModalProps) {
   if (!visible) return null;
+
+  const confirmLabel = isLoading && loadingText ? loadingText : confirmText || 'Confirm';
+  const isConfirmDisabled = isLoading || confirmDisabled;
 
   return (
     <View style={styles.modalOverlay} testID="confirmation-modal">
@@ -64,8 +80,13 @@ export default function ConfirmationModal({
         <Text style={styles.confirmationModalText}>{message}</Text>
         <View style={styles.confirmationModalButtons}>
           <TouchableOpacity
-            style={[styles.confirmationModalButton, styles.confirmationModalButtonCancel]}
+            style={[
+              styles.confirmationModalButton,
+              styles.confirmationModalButtonCancel,
+              isLoading && { opacity: 0.6 },
+            ]}
             onPress={onCancel}
+            disabled={isLoading}
             testID="confirmation-cancel-btn"
           >
             <Text style={styles.confirmationModalButtonTextCancel}>{cancelText || 'Cancel'}</Text>
@@ -76,15 +97,26 @@ export default function ConfirmationModal({
               confirmStyle === 'destructive'
                 ? styles.confirmationModalButtonDestructive
                 : styles.confirmationModalButtonPrimary,
+              isConfirmDisabled && { opacity: 0.75 },
             ]}
             onPress={onConfirm}
+            disabled={isConfirmDisabled}
             testID="confirmation-confirm-btn"
           >
-            <Text style={styles.confirmationModalButtonText}>{confirmText || 'Confirm'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              {isLoading && (
+                <ActivityIndicator
+                  size="small"
+                  color="#DDDDDD"
+                  style={{ marginRight: 8 }}
+                  testID="confirmation-loading-indicator"
+                />
+              )}
+              <Text style={styles.confirmationModalButtonText}>{confirmLabel}</Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
     </View>
   );
 }
-

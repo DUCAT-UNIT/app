@@ -48,7 +48,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "lock-keypad"
 
-# === UNLOCK: Enter PIN (123456) to verify lock/unlock cycle ===
+# === UNLOCK: Enter PIN (111111) to verify lock/unlock cycle ===
 - runFlow: ../helpers/enter-pin-lock.yaml
 
 # Verify wallet screen loads after unlock

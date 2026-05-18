@@ -8,6 +8,11 @@ jest.mock('../../../utils/apiClient', () => ({
   postJSON: jest.fn(),
 }));
 
+jest.mock('../../../utils/nativeHttp', () => ({
+  getJsonWithNativeTimeout: jest.fn(),
+  postJsonWithNativeTimeout: jest.fn(),
+}));
+
 jest.mock('../../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -23,6 +28,7 @@ jest.mock('../crypto', () => ({
 }));
 
 import { getJSON, postJSON } from '../../../utils/apiClient';
+import { getJsonWithNativeTimeout, postJsonWithNativeTimeout } from '../../../utils/nativeHttp';
 import {
   getMintInfo,
   mintSupportsNut12Dleq,
@@ -345,7 +351,7 @@ describe('cashuMintClient', () => {
       const mockResponse = {
         signatures: [{ C_: 'newsig1' }, { C_: 'newsig2' }],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const inputs = [{ amount: 100, secret: 's', C: 'c', id: 'id1' }];
       const outputs = [
@@ -355,27 +361,27 @@ describe('cashuMintClient', () => {
       const result = await swapTokens(inputs, outputs);
 
       expect(result).toEqual(mockResponse);
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/swap`,
         { inputs, outputs },
-        expect.any(Object)
+        expect.objectContaining({ timeout: 10000 })
       );
     });
 
     it('should throw on swap error response', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({ error: 'Proofs already spent' });
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({ error: 'Proofs already spent' });
 
       await expect(swapTokens([], [])).rejects.toThrow('Swap failed: Proofs already spent');
     });
 
     it('should throw on missing signatures', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({});
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({});
 
       await expect(swapTokens([], [])).rejects.toThrow('Invalid swap response: missing signatures');
     });
 
     it('should throw on network error', async () => {
-      (postJSON as jest.Mock).mockRejectedValue(new Error('Network error'));
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       await expect(swapTokens([], [])).rejects.toThrow('Network error');
     });
@@ -383,7 +389,7 @@ describe('cashuMintClient', () => {
 
   describe('restoreSignatures', () => {
     it('should restore signatures in the requested output order', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         outputs: [
           { amount: 32, B_: 'b2' },
           { amount: 64, B_: 'b1' },
@@ -406,15 +412,15 @@ describe('cashuMintClient', () => {
           { C_: 'sig2', amount: 32 },
         ],
       });
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/restore`,
         { outputs },
-        expect.any(Object)
+        expect.objectContaining({ timeout: 10000 })
       );
     });
 
     it('should throw when restore returns only partial signatures', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         outputs: [{ amount: 64, B_: 'b1' }],
         signatures: [{ C_: 'sig1', amount: 64 }],
       });
@@ -436,7 +442,7 @@ describe('cashuMintClient', () => {
         fee: 10,
         unit: 'unit',
       };
-      (postJSON as jest.Mock).mockResolvedValue([mockQuote]);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue([mockQuote]);
 
       const result = await createMeltQuote('tb1pwithdraw', 1000);
 
@@ -445,7 +451,7 @@ describe('cashuMintClient', () => {
         fee: 0,
         fee_reserve: 0,
       });
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/quote/onchain`,
         expect.objectContaining({
           request: 'tb1pwithdraw',
@@ -458,7 +464,7 @@ describe('cashuMintClient', () => {
     });
 
     it('should ignore stale UNIT melt fees from the mint response', async () => {
-      (postJSON as jest.Mock).mockResolvedValue([
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue([
         {
           quote: 'meltquote123',
           amount: 10616,
@@ -476,7 +482,7 @@ describe('cashuMintClient', () => {
     });
 
     it('should preserve BTC sat melt fees when the mint omits unit in the response', async () => {
-      (postJSON as jest.Mock).mockResolvedValue([
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue([
         {
           quote: 'btcmelt123',
           amount: 5000,
@@ -489,7 +495,7 @@ describe('cashuMintClient', () => {
         amount: 5000,
         fee: 250,
       });
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/quote/onchain`,
         expect.objectContaining({
           request: 'tb1pwithdraw',
@@ -498,7 +504,7 @@ describe('cashuMintClient', () => {
         }),
         expect.any(Object)
       );
-      expect(postJSON).not.toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).not.toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ rune_id: expect.any(String) }),
         expect.any(Object)
@@ -506,7 +512,7 @@ describe('cashuMintClient', () => {
     });
 
     it('should throw on error', async () => {
-      (postJSON as jest.Mock).mockRejectedValue(new Error('Invalid address'));
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Invalid address'));
 
       await expect(createMeltQuote('invalid', 1000)).rejects.toThrow('Invalid address');
     });
@@ -515,7 +521,7 @@ describe('cashuMintClient', () => {
   describe('checkMeltQuote', () => {
     it('should check melt quote status', async () => {
       const mockQuote = { quote: 'meltquote123', state: 'PENDING', unit: 'unit', fee: 1000 };
-      (getJSON as jest.Mock).mockResolvedValue(mockQuote);
+      (getJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockQuote);
 
       const result = await checkMeltQuote('meltquote123');
 
@@ -524,14 +530,14 @@ describe('cashuMintClient', () => {
         fee: 0,
         fee_reserve: 0,
       });
-      expect(getJSON).toHaveBeenCalledWith(
+      expect(getJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/quote/onchain/meltquote123`,
         expect.any(Object)
       );
     });
 
     it('should throw on error', async () => {
-      (getJSON as jest.Mock).mockRejectedValue(new Error('Quote not found'));
+      (getJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Quote not found'));
 
       await expect(checkMeltQuote('badquote')).rejects.toThrow('Quote not found');
     });
@@ -543,14 +549,14 @@ describe('cashuMintClient', () => {
         paid: true,
         payment_preimage: 'txid123',
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const inputs = [{ amount: 100, secret: 's', C: 'c', id: 'id1' }];
       const outputs = [{ amount: 5, B_: 'blind-change' }];
       const result = await meltTokens('meltquote123', inputs, outputs);
 
       expect(result).toEqual(mockResponse);
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         `${MINT_URL}/v1/melt/onchain`,
         { quote: 'meltquote123', inputs, outputs },
         expect.objectContaining({ timeout: 15000 })
@@ -558,7 +564,7 @@ describe('cashuMintClient', () => {
     });
 
     it('should throw on network error', async () => {
-      (postJSON as jest.Mock).mockRejectedValue(new Error('Timeout'));
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Timeout'));
 
       await expect(meltTokens('quote', [])).rejects.toThrow('Timeout');
     });
@@ -574,6 +580,7 @@ describe('cashuMintClient', () => {
 
     it('should throw when dynamic import fails', async () => {
       // Dynamic imports fail in Jest without --experimental-vm-modules
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('checkstate failed'));
       await expect(
         checkProofsSpent([{ secret: 's', amount: 1, C: 'c', id: 'id1' }])
       ).rejects.toThrow();

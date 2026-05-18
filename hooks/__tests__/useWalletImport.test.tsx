@@ -205,6 +205,29 @@ describe('useWalletImport', () => {
       expect(mockProps.setSettingUpPin).toHaveBeenCalledWith(true);
     });
 
+    it('should import wallet with a 24-word seed phrase', async () => {
+      const { result } = renderHook(() => useWalletImport(mockProps), {
+        initialProps: mockProps,
+      });
+
+      const seedPhrase = Array.from({ length: 24 }, (_, index) => `word${index + 1}`);
+
+      act(() => {
+        result.current!.setImportSeedPhrase(seedPhrase);
+      });
+
+      await act(async () => {
+        await result.current!.importWallet();
+      });
+
+      expect(WalletService.importWallet).toHaveBeenCalledWith(
+        seedPhrase.join(' '),
+        mockProps.currentAccount,
+        DEFAULT_WALLET_DERIVATION_MODE
+      );
+      expect(result.current!.importedMnemonic).toBe(seedPhrase.join(' '));
+    });
+
     it('should normalize seed phrase (trim and lowercase)', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,

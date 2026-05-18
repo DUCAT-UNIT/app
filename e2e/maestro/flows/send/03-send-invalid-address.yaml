@@ -56,9 +56,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
     text: "Recipient Bitcoin address.*"
 - inputText: "invalidaddress123"
 
-# Dismiss keyboard to trigger validation
-- hideKeyboard
-
 # Verify address error appears
 - extendedWaitUntil:
     visible:

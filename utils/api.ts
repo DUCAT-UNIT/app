@@ -2,6 +2,12 @@
  * API utilities with AbortController support
  */
 
+function createAbortError(message: string): Error {
+  const error = new Error(message);
+  error.name = 'AbortError';
+  return error;
+}
+
 /**
  * Centralized low-level fetch with timeout and optional external abort signal.
  * Product code should normally call apiClient helpers instead of this directly.
@@ -16,7 +22,20 @@ export const fetchWithTimeout = async (
   timeout = 10000
 ): Promise<Response> => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  let rejectAbort: ((error: Error) => void) | null = null;
+  const abortPromise = new Promise<never>((_, reject) => {
+    rejectAbort = reject;
+  });
+
+  const rejectWithAbort = (message: string): void => {
+    controller.abort();
+    rejectAbort?.(createAbortError(message));
+  };
+
+  const timeoutId = setTimeout(
+    () => rejectWithAbort(`Request timed out after ${timeout}ms`),
+    timeout
+  );
   (timeoutId as { unref?: () => void }).unref?.();
 
   // If an external signal is provided, link it to our controller
@@ -24,21 +43,24 @@ export const fetchWithTimeout = async (
   let externalAbortListener: (() => void) | undefined;
   if (externalSignal) {
     if (externalSignal.aborted) {
-      controller.abort();
+      rejectWithAbort('Request aborted');
     } else {
-      externalAbortListener = () => controller.abort();
+      externalAbortListener = () => rejectWithAbort('Request aborted');
       externalSignal.addEventListener('abort', externalAbortListener, { once: true });
     }
   }
 
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    return response;
+    return await Promise.race([
+      fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }),
+      abortPromise,
+    ]);
   } finally {
     clearTimeout(timeoutId);
+    rejectAbort = null;
     if (externalSignal && externalAbortListener) {
       externalSignal.removeEventListener('abort', externalAbortListener);
     }

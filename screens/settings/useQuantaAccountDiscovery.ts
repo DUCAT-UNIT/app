@@ -15,6 +15,7 @@ import {
   ACCOUNT_CHECK_TIMEOUT_RESULT,
   ACCOUNT_COMPATIBILITY_TIMEOUT_MS,
   NO_MATCH_ACCOUNT_MESSAGE,
+  QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE,
   QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY,
   QUANTA_ACCOUNT_MATCH_SEARCH_LIMIT,
   QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT,
@@ -320,7 +321,8 @@ export function useQuantaAccountDiscovery({
             }
 
             try {
-              const requestKey = `quanta-discovery:${entry.address.toLowerCase()}`;
+              const normalizedEntryAddress = entry.address.toLowerCase();
+              const requestKey = `quanta-discovery:${normalizedEntryAddress}`;
               const status = await getQuantaMobileRewardStatus(
                 {
                   quantaAddress: entry.address,
@@ -332,7 +334,7 @@ export function useQuantaAccountDiscovery({
                   cacheKey: requestKey,
                   cacheTtlMs: QUANTA_DISCOVERY_STATUS_CACHE_TTL_MS,
                   staleOnError: true,
-                  circuitKey: QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY,
+                  circuitKey: `${QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY}:${normalizedEntryAddress}`,
                   timeout: QUANTA_DISCOVERY_STATUS_TIMEOUT_MS,
                   signal,
                 }
@@ -395,26 +397,35 @@ export function useQuantaAccountDiscovery({
         batches.push(priorityEntries);
       }
 
-      for (let index = 0; index < remainingEntries.length; index += 18) {
-        batches.push(remainingEntries.slice(index, index + 18));
+      for (
+        let index = 0;
+        index < remainingEntries.length;
+        index += QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE
+      ) {
+        batches.push(remainingEntries.slice(index, index + QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE));
       }
 
+      let discoveredCandidates: QuantaAccountCandidate[] = [];
       for (const batch of batches) {
         if (signal?.aborted) {
-          return [];
+          return discoveredCandidates;
         }
 
         if (batch.length === 0) {
           continue;
         }
 
-        const candidates = await checkEntries(batch);
-        if (candidates.length > 0) {
-          return candidates;
+        const batchCandidates = await checkEntries(batch);
+        if (batchCandidates.length > 0) {
+          discoveredCandidates = normalizeCandidates([...discoveredCandidates, ...batchCandidates]);
+          setAccountCandidates(discoveredCandidates);
+          setSelectedCandidateKey(
+            (currentKey) => currentKey ?? getCandidateKey(discoveredCandidates[0]!)
+          );
         }
       }
 
-      return [];
+      return discoveredCandidates;
     },
     [
       currentAccount,

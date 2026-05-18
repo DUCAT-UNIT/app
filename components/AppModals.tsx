@@ -27,7 +27,8 @@ export interface AppModalsProps {
   confirmLogout: () => void;
   cancelLogout: () => void;
   showDeleteModal: boolean;
-  confirmDeleteWallet: () => void;
+  isDeletingWallet?: boolean;
+  confirmDeleteWallet: () => void | Promise<void>;
   cancelDeleteWallet: () => void;
   showFaceIdModal: boolean;
   biometricEnabled: boolean;
@@ -48,6 +49,7 @@ export default function AppModals({
 
   // Delete wallet modal
   showDeleteModal,
+  isDeletingWallet = false,
   confirmDeleteWallet,
   cancelDeleteWallet,
 
@@ -89,6 +91,8 @@ export default function AppModals({
         confirmText="Delete"
         confirmStyle="destructive"
         iconName="delete_wallet"
+        isLoading={isDeletingWallet}
+        loadingText="Deleting..."
         onConfirm={confirmDeleteWallet}
         onCancel={cancelDeleteWallet}
         styles={styles}

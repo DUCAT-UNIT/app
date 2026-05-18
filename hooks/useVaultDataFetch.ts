@@ -118,7 +118,7 @@ export function useVaultDataFetch(wallet: WalletAddresses | null): UseVaultDataF
         setVaultIsRefreshing(true);
       }
 
-      // E2E bypass: return fake vault data when vault was "created" via bypass
+      // Legacy fixture path: return fake vault data when requested.
       if (isE2E() && e2eVaultState.vaultCreated) {
         const fakeData: VaultData = {
           vaultId: 'e2e-vault-001',

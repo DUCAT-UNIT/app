@@ -9,7 +9,7 @@ const QUANTA_TAB_ICON = { type: 'sfSymbol', name: 'diamond' } as const;
 
 export const MAIN_TAB_BAR_OPTIONS: NativeBottomTabNavigationOptions = {
   headerShown: false,
-  tabBarActiveTintColor: COLORS.BLACK,
+  tabBarActiveTintColor: COLORS.PRIMARY_BLUE,
   tabBarInactiveTintColor: COLORS.TEXT_SECONDARY,
   tabBarActiveIndicatorColor: COLORS.TRANSPARENT,
   tabBarActiveIndicatorEnabled: false,

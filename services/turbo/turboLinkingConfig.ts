@@ -120,6 +120,7 @@ const processUrlAndStoreToken = async (url: string): Promise<void> => {
       tokenLength: token?.length,
       message: 'Token stored in global.pendingCashuToken for processing',
     });
+    logger.info(`[E2E_TX] cashu_token_deeplink_queued tokenLength=${token.length}`);
     await useTokenProcessingStore.getState().setPendingToken(token);
     turboGlobal.pendingCashuToken = token;
   }
@@ -187,6 +188,15 @@ const linkingConfig: LinkingOptions<RootNavigatorParamList>['config'] = {
     Main: {
       screens: {
         WalletTab: 'wallet',
+        LiquidationsTab: 'liquidations',
+      },
+    },
+    WalletFlow: {
+      screens: {
+        SepoliaSend: 'sepolia/send',
+        SepoliaSwap: 'sepolia/swap',
+        SepoliaRedeem: 'sepolia/redeem',
+        CashuReceive: 'cashu/receive',
       },
     },
   },

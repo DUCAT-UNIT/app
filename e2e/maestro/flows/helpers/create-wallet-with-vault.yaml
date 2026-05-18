@@ -36,17 +36,78 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-amounts-screen"
     timeout: 10000
 
-# Select HALF BTC deposit + QTR UNIT borrow (conservative for high health)
+# Enter explicit deposit and borrow amounts through the visible amount editors.
 - tapOn:
-    id: "btc-slider-half-btn"
+    id: "vault-create-btc-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-btc-input"
+    timeout: 5000
+- eraseText
+- inputText: "0.05000000"
+- tapOn:
+    id: "vault-create-btc-done-btn"
 - waitForAnimationToEnd
 - tapOn:
-    id: "unit-slider-quarter-btn"
+    id: "vault-create-borrow-usd-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+- tapOn:
+    id: "vault-create-borrow-usd-input"
+- eraseText
+- inputText: "1200"
+- pressKey: Enter
 - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-borrow-usd-input"
+    commands:
+      - tapOn:
+          text: "Done"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-create-borrow-usd-input"
+    timeout: 5000
+- runFlow: dismiss-debug-warning.yaml
 
 # Continue to payout selection
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-continue-btn"
+    timeout: 5000
 - tapOn:
     id: "vault-create-continue-btn"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "vault-amounts-screen"
+    commands:
+      - scrollUntilVisible:
+          element:
+            id: "vault-create-continue-btn"
+          direction: DOWN
+          timeout: 5000
+      - tapOn:
+          id: "vault-create-continue-btn"
+      - waitForAnimationToEnd
+- runFlow: dismiss-debug-warning.yaml
+- runFlow:
+    when:
+      visible:
+        id: "vault-amounts-screen"
+    commands:
+      - tapOn:
+          id: "vault-create-continue-btn"
+      - waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "vault-create-payout-unit-card"
+    timeout: 10000
 
 # Deterministic vault helper keeps issued value as on-chain UNIT.
 - scrollUntilVisible:
@@ -58,6 +119,31 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "vault-create-payout-unit-card"
 - tapOn:
     id: "vault-create-payout-continue-btn"
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-payout-unit-card"
+    commands:
+      - tapOn:
+          text: "Continue"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-payout-unit-card"
+    commands:
+      - tapOn:
+          point: "50%,93%"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "vault-create-payout-unit-card"
+    commands:
+      - tapOn:
+          point: "50%,95%"
+      - waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible:
@@ -67,6 +153,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Confirm & Sign
 - tapOn:
     id: "vault-create-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: enter-pin-fallback.yaml
 
 # Wait for success (skip transient processing screen)
 - extendedWaitUntil:
@@ -115,7 +207,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 10000
 - extendedWaitUntil:
     visible:
-      text: "^[1-9]\\d*\\.\\d{2}$"
+      id: "asset-card-unit-amount"
+      text: "^1,200\\.00$"
     timeout: 180000
 
 # Scroll back to top for the test to interact with wallet actions

@@ -41,7 +41,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     text: "Only use this address to receive Bitcoin."
 
-# Verify Mutinynet banner is present (confirms we're on the QR screen)
+# Verify receive actions are present (confirms we're on the QR screen)
 - assertVisible:
-    text: "Mutinynet Edition"
-
+    text: ".*Tap to copy.*"

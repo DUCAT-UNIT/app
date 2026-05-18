@@ -61,7 +61,9 @@ jest.mock('../core', () => ({
   derivationVersionForPrf: jest.fn((prfEnabled: boolean) => (prfEnabled ? '5' : '4')),
   resolvePasskeyDerivationVersion: jest.fn((storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')),
   isLegacyPasskeyDerivationVersion: jest.fn((version) => version === '4'),
-  toBase64Url: jest.fn((buffer) => Buffer.from(buffer).toString('base64')),
+  toBase64Url: jest.fn((buffer) =>
+    Buffer.from(buffer).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '')
+  ),
   isPasskeySupported: jest.fn(),
 }));
 
@@ -368,7 +370,7 @@ describe('Passkey Unlock', () => {
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, mockEncrypted, DEVICE_ONLY);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV, mockIv, DEVICE_ONLY);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG, mockTag, DEVICE_ONLY);
-      expect(mockCacheSessionMnemonic).toHaveBeenCalledWith(mockMnemonic);
+      expect(mockSaveMnemonic).toHaveBeenCalledWith(mockMnemonic);
       expect(mockSaveCachedAddresses).toHaveBeenCalled();
       expect(mockSaveCurrentAccount).toHaveBeenCalledWith(0);
       expect(mockSaveToMultiAccountCache).toHaveBeenCalled();

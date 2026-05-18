@@ -69,7 +69,7 @@ Cashu token handling is v4-only:
 
 ## Live Maestro Boundary
 
-Maintained product E2E flows are deterministic and may use explicit E2E bypass:
+Maintained product E2E flows must drive the normal app UI:
 
 ```bash
 npm run e2e
@@ -86,7 +86,7 @@ npm run e2e:live:turbo
 
 Successful live runs write redacted evidence to `artifacts/live-maestro/last-run.json` by default. That artifact is local-only and ignored by git.
 
-`utils/e2e.ts` must not treat `__DEV__` as E2E. Bypass behavior is explicit only through `EXPO_PUBLIC_E2E_BYPASS=true`.
+`utils/e2e.ts` must not treat `__DEV__` as E2E. Live flows exercise the normal dev-client app bundle.
 
 ## Maintained Docs
 

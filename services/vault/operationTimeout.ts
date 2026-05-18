@@ -29,3 +29,30 @@ export async function withVaultBuildTimeout<T>(
     }
   });
 }
+
+export async function withVaultBuildTimeoutFn<T>(
+  operation: () => Promise<T>,
+  message: string,
+  timeoutMs: number = VAULT_BUILD_TIMEOUT_MS
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      logger.warn('[VaultOps] Vault build operation timed out', {
+        timeoutMs,
+        message,
+      });
+      reject(new Error(message));
+    }, timeoutMs);
+    (timeoutId as { unref?: () => void }).unref?.();
+  });
+
+  const operationPromise = Promise.resolve().then(operation);
+
+  return Promise.race([operationPromise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}

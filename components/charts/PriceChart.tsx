@@ -4,9 +4,16 @@
  * Supports interactive scrubbing to show price at any point
  */
 
-import React,{ useCallback,useMemo,useState } from 'react';
-import { Dimensions,GestureResponderEvent,PanResponder,StyleSheet,Text,View } from 'react-native';
-import Svg,{ Circle,Defs,G,Line,LinearGradient,Path,Stop } from 'react-native-svg';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  Dimensions,
+  GestureResponderEvent,
+  PanResponder,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import { COLORS } from '../../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -23,7 +30,17 @@ interface PriceChartProps {
   height?: number;
 }
 
-function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScrubStart, onScrubEnd, width, height }: PriceChartProps) {
+function PriceChart({
+  data,
+  isPositive,
+  minBoundary,
+  maxBoundary,
+  onScrub,
+  onScrubStart,
+  onScrubEnd,
+  width,
+  height,
+}: PriceChartProps) {
   // State for scrubber position
   const [scrubX, setScrubX] = useState<number | null>(null);
   const [scrubY, setScrubY] = useState<number | null>(null);
@@ -36,8 +53,16 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
       return null;
     }
 
-    // Extract prices from the data array
-    const prices = data.map(item => item[1]);
+    const prices: number[] = [];
+    let dataMinPrice = Number.POSITIVE_INFINITY;
+    let dataMaxPrice = Number.NEGATIVE_INFINITY;
+
+    data.forEach((item) => {
+      const price = item[1];
+      prices.push(price);
+      dataMinPrice = Math.min(dataMinPrice, price);
+      dataMaxPrice = Math.max(dataMaxPrice, price);
+    });
 
     // Chart dimensions - use props or defaults
     const chartWidth = width ?? SCREEN_WIDTH;
@@ -50,61 +75,45 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
 
     // Find min and max for scaling
     // If boundaries are provided, use them instead of auto-scaling
-    let minPrice, maxPrice;
+    let minPrice: number;
+    let maxPrice: number;
     if (minBoundary !== undefined && maxBoundary !== undefined) {
       minPrice = minBoundary;
       maxPrice = maxBoundary;
     } else {
-      // Use exact min/max to fill the full chart height
-      minPrice = Math.min(...prices);
-      maxPrice = Math.max(...prices);
+      minPrice = dataMinPrice;
+      maxPrice = dataMaxPrice;
     }
-    const priceRange = maxPrice - minPrice;
+    const priceRange = maxPrice - minPrice || 1;
 
-    // Generate smooth curve path using bezier curves
-    const generatePath = () => {
-      if (prices.length === 0) return '';
+    const points = prices.map((price, index) => {
+      const denominator = Math.max(prices.length - 1, 1);
+      const x = padding.left + (index / denominator) * drawWidth;
+      const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
+      return { x, y };
+    });
 
-      let path = '';
-      const points: Array<{ x: number; y: number }> = [];
+    let linePath = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prevPoint = points[i - 1];
+      const currentPoint = points[i];
+      const cp1x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
+      const cp1y = prevPoint.y;
+      const cp2x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
+      const cp2y = currentPoint.y;
 
-      // Calculate all points
-      prices.forEach((price, index) => {
-        const x = padding.left + (index / (prices.length - 1)) * drawWidth;
-        const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
-        points.push({ x, y });
-      });
-
-      // Start the path
-      path = `M ${points[0].x} ${points[0].y}`;
-
-      // Create smooth bezier curves between points
-      for (let i = 1; i < points.length; i++) {
-        const prevPoint = points[i - 1];
-        const currentPoint = points[i];
-
-        // Control points for smooth curve
-        const cp1x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
-        const cp1y = prevPoint.y;
-        const cp2x = prevPoint.x + (currentPoint.x - prevPoint.x) * 0.5;
-        const cp2y = currentPoint.y;
-
-        path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${currentPoint.x} ${currentPoint.y}`;
-      }
-
-      return path;
-    };
+      linePath += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${currentPoint.x} ${currentPoint.y}`;
+    }
 
     // Generate the filled area path
     const generateAreaPath = () => {
-      const linePath = generatePath();
       if (!linePath) return '';
 
       // Start from bottom left
       let areaPath = `M ${padding.left} ${chartHeight}`;
 
       // Add the line path
-      areaPath += ` L ${padding.left} ${padding.top + ((maxPrice - prices[0]) / priceRange) * drawHeight}`;
+      areaPath += ` L ${padding.left} ${points[0].y}`;
       areaPath += linePath.substring(1); // Remove the initial M command
 
       // Close at bottom right
@@ -116,7 +125,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
     };
 
     return {
-      linePath: generatePath(),
+      linePath,
       areaPath: generateAreaPath(),
       chartWidth,
       chartHeight,
@@ -126,48 +135,58 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
       drawHeight,
       minPrice,
       maxPrice,
-      priceRange
+      priceRange,
     };
   }, [data, minBoundary, maxBoundary, width, height]);
 
   // Calculate price and Y position from X position
-  const getPriceAtX = useCallback((x: number) => {
-    if (!chartPaths || !data || data.length === 0) return { price: null, y: null, timestamp: null };
+  const getPriceAtX = useCallback(
+    (x: number) => {
+      if (!chartPaths || !data || data.length === 0)
+        return { price: null, y: null, timestamp: null };
 
-    const { padding, drawWidth, prices, maxPrice, priceRange, drawHeight } = chartPaths;
+      const { padding, drawWidth, prices, maxPrice, priceRange, drawHeight } = chartPaths;
 
-    // Clamp x to chart bounds
-    const clampedX = Math.max(padding.left, Math.min(x, padding.left + drawWidth));
+      // Clamp x to chart bounds
+      const clampedX = Math.max(padding.left, Math.min(x, padding.left + drawWidth));
 
-    // Calculate which data point we're closest to
-    const ratio = (clampedX - padding.left) / drawWidth;
-    const index = Math.round(ratio * (prices.length - 1));
-    const clampedIndex = Math.max(0, Math.min(index, prices.length - 1));
+      // Calculate which data point we're closest to
+      const ratio = (clampedX - padding.left) / drawWidth;
+      const index = Math.round(ratio * (prices.length - 1));
+      const clampedIndex = Math.max(0, Math.min(index, prices.length - 1));
 
-    const price = prices[clampedIndex];
-    const timestamp = data[clampedIndex][0];
+      const price = prices[clampedIndex];
+      const timestamp = data[clampedIndex][0];
 
-    // Calculate Y position for the dot
-    const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
+      // Calculate Y position for the dot
+      const y = padding.top + ((maxPrice - price) / priceRange) * drawHeight;
 
-    return { price, y, timestamp };
-  }, [chartPaths, data]);
+      return { price, y, timestamp };
+    },
+    [chartPaths, data]
+  );
 
   // Handle touch/pan events
-  const handleScrubStart = useCallback((x: number) => {
-    const { price, y, timestamp } = getPriceAtX(x);
-    setScrubX(x);
-    setScrubY(y);
-    if (onScrubStart) onScrubStart();
-    if (onScrub) onScrub(price, timestamp);
-  }, [getPriceAtX, onScrub, onScrubStart]);
+  const handleScrubStart = useCallback(
+    (x: number) => {
+      const { price, y, timestamp } = getPriceAtX(x);
+      setScrubX(x);
+      setScrubY(y);
+      if (onScrubStart) onScrubStart();
+      if (onScrub) onScrub(price, timestamp);
+    },
+    [getPriceAtX, onScrub, onScrubStart]
+  );
 
-  const handleScrubMove = useCallback((x: number) => {
-    const { price, y, timestamp } = getPriceAtX(x);
-    setScrubX(x);
-    setScrubY(y);
-    if (onScrub) onScrub(price, timestamp);
-  }, [getPriceAtX, onScrub]);
+  const handleScrubMove = useCallback(
+    (x: number) => {
+      const { price, y, timestamp } = getPriceAtX(x);
+      setScrubX(x);
+      setScrubY(y);
+      if (onScrub) onScrub(price, timestamp);
+    },
+    [getPriceAtX, onScrub]
+  );
 
   const handleScrubEnd = useCallback(() => {
     setScrubX(null);
@@ -177,24 +196,28 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
   }, [onScrub, onScrubEnd]);
 
   // Create pan responder for gesture handling
-  const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderTerminationRequest: () => false, // Prevent parent ScrollView from stealing gesture
-    onShouldBlockNativeResponder: () => true, // Block native scroll while scrubbing
-    onPanResponderGrant: (evt: GestureResponderEvent) => {
-      handleScrubStart(evt.nativeEvent.locationX);
-    },
-    onPanResponderMove: (evt: GestureResponderEvent) => {
-      handleScrubMove(evt.nativeEvent.locationX);
-    },
-    onPanResponderRelease: () => {
-      handleScrubEnd();
-    },
-    onPanResponderTerminate: () => {
-      handleScrubEnd();
-    },
-  }), [handleScrubStart, handleScrubMove, handleScrubEnd]);
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false, // Prevent parent ScrollView from stealing gesture
+        onShouldBlockNativeResponder: () => true, // Block native scroll while scrubbing
+        onPanResponderGrant: (evt: GestureResponderEvent) => {
+          handleScrubStart(evt.nativeEvent.locationX);
+        },
+        onPanResponderMove: (evt: GestureResponderEvent) => {
+          handleScrubMove(evt.nativeEvent.locationX);
+        },
+        onPanResponderRelease: () => {
+          handleScrubEnd();
+        },
+        onPanResponderTerminate: () => {
+          handleScrubEnd();
+        },
+      }),
+    [handleScrubStart, handleScrubMove, handleScrubEnd]
+  );
 
   const strokeColor = isPositive ? COLORS.SUCCESS_GREEN : COLORS.RED;
 
@@ -208,7 +231,10 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
   }
 
   return (
-    <View style={[styles.container, { height: chartPaths.chartHeight, width: chartPaths.chartWidth }]} {...panResponder.panHandlers}>
+    <View
+      style={[styles.container, { height: chartPaths.chartHeight, width: chartPaths.chartWidth }]}
+      {...panResponder.panHandlers}
+    >
       <Svg width={chartPaths.chartWidth} height={chartPaths.chartHeight}>
         <Defs>
           <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -220,10 +246,7 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
 
         <G>
           {/* Filled area with gradient */}
-          <Path
-            d={chartPaths.areaPath}
-            fill="url(#chartGradient)"
-          />
+          <Path d={chartPaths.areaPath} fill="url(#chartGradient)" />
 
           {/* Line stroke on top */}
           <Path
@@ -248,18 +271,8 @@ function PriceChart({ data, isPositive, minBoundary, maxBoundary, onScrub, onScr
                 strokeWidth={0.5}
               />
               {/* Dot on the line */}
-              <Circle
-                cx={scrubX}
-                cy={scrubY}
-                r={6}
-                fill={strokeColor}
-              />
-              <Circle
-                cx={scrubX}
-                cy={scrubY}
-                r={3}
-                fill={COLORS.WHITE}
-              />
+              <Circle cx={scrubX} cy={scrubY} r={6} fill={strokeColor} />
+              <Circle cx={scrubX} cy={scrubY} r={3} fill={COLORS.WHITE} />
             </>
           )}
         </G>

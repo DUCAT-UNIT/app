@@ -26,8 +26,10 @@ import {
   SWAP_TXIDS_MIGRATION_V2_KEY,
 } from './transactionHistoryService';
 import { VAULT_SETTLEMENT_HISTORY_STORAGE_KEY } from './vaultSettlementHistoryService';
+import { withTimeout } from '../utils/withTimeout';
 
 let sessionMnemonic: string | null = null;
+const SECURE_STORE_READ_TIMEOUT_MS = 5000;
 
 // Clear cached mnemonic when app goes to background to reduce exposure window
 AppState.addEventListener('change', (nextState) => {
@@ -52,7 +54,12 @@ export const hasAccessibleMnemonic = async (): Promise<boolean> => {
   }
 
   try {
-    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    const mnemonic = await withTimeout(
+      SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC),
+      SECURE_STORE_READ_TIMEOUT_MS,
+      null,
+      'secureStorage:hasAccessibleMnemonic',
+    );
     if (!mnemonic) {
       return false;
     }
@@ -67,6 +74,39 @@ export const hasAccessibleMnemonic = async (): Promise<boolean> => {
   }
 };
 
+export const canUseBiometricUnlockForMnemonic = async (): Promise<boolean> => {
+  if (sessionMnemonic) {
+    return true;
+  }
+
+  try {
+    const creationMethod = await withTimeout(
+      SecureStore.getItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
+      SECURE_STORE_READ_TIMEOUT_MS,
+      null,
+      'secureStorage:getWalletCreationMethod',
+    );
+
+    if (creationMethod !== 'passkey') {
+      return true;
+    }
+
+    const appUnlockReady = await withTimeout(
+      SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC_APP_UNLOCK_READY),
+      SECURE_STORE_READ_TIMEOUT_MS,
+      null,
+      'secureStorage:getMnemonicAppUnlockReady',
+    );
+
+    return appUnlockReady === 'true';
+  } catch (error: unknown) {
+    logger.warn('Failed to check biometric mnemonic unlock readiness', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+};
+
 /**
  * Save mnemonic to secure storage
  * @param mnemonic - BIP39 mnemonic phrase
@@ -74,7 +114,10 @@ export const hasAccessibleMnemonic = async (): Promise<boolean> => {
  */
 export const saveMnemonic = async (mnemonic: string): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic, DEVICE_ONLY);
+    await Promise.all([
+      SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic, DEVICE_ONLY),
+      SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC_APP_UNLOCK_READY, 'true', DEVICE_ONLY),
+    ]);
     cacheSessionMnemonic(mnemonic);
   } catch (error: unknown) {
     logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
@@ -92,11 +135,46 @@ export const getMnemonic = async (): Promise<string | null> => {
     if (sessionMnemonic) {
       return sessionMnemonic;
     }
-    return await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    return await withTimeout(
+      SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC),
+      SECURE_STORE_READ_TIMEOUT_MS,
+      null,
+      'secureStorage:getMnemonic',
+    );
   } catch (error: unknown) {
     logger.error('Failed to get mnemonic', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
+};
+
+/**
+ * Rehydrate the session-only mnemonic after a PIN unlock.
+ * If the generic mnemonic is missing, passkey-created wallets must decrypt it
+ * through the passkey path before the app is considered unlocked.
+ */
+export const unlockSessionMnemonicWithPin = async (pin: string): Promise<void> => {
+  if (sessionMnemonic) {
+    return;
+  }
+
+  const mnemonic = await getMnemonic();
+  if (mnemonic) {
+    cacheSessionMnemonic(mnemonic);
+    return;
+  }
+
+  const [creationMethod, passkeyEnabled] = await Promise.all([
+    SecureStore.getItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
+    SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
+  ]);
+
+  if (creationMethod === 'passkey' && passkeyEnabled === 'true') {
+    const { unlockWithPasskey } = require('./passkey') as typeof import('./passkey');
+    await unlockWithPasskey(pin);
+    return;
+  }
+
+  throw new Error('Wallet secret unavailable. Restore your wallet to continue.');
 };
 
 /**
@@ -134,7 +212,10 @@ export const withMnemonic = async <T>(callback: (mnemonic: string) => Promise<T>
  */
 export const deleteMnemonic = async (): Promise<void> => {
   try {
-    await SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC);
+    await Promise.all([
+      SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
+      SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC_APP_UNLOCK_READY),
+    ]);
     clearSessionMnemonic();
   } catch (error: unknown) {
     logger.error('Failed to delete mnemonic', { error: error instanceof Error ? error.message : String(error) });
@@ -481,29 +562,34 @@ export const deleteWalletData = async (
     memoryCache = null;
     clearSessionMnemonic();
 
-    // Clear passkey data if it exists (iCloud backup preserved by default for recovery)
-    try {
-      const { clearPasskeyData } = await import('./passkey');
-      await clearPasskeyData(clearICloudBackup);
-    } catch (passkeyError) {
-      // Passkey service might not be available or error clearing - continue anyway
-      logger.warn('Failed to clear passkey data', { error: (passkeyError as Error).message });
-    }
+    const clearPasskeyDataPromise = (async (): Promise<void> => {
+      try {
+        const { clearPasskeyData } = await import('./passkey');
+        await clearPasskeyData(clearICloudBackup);
+      } catch (passkeyError) {
+        // Passkey service might not be available or error clearing - continue anyway
+        logger.warn('Failed to clear passkey data', { error: (passkeyError as Error).message });
+      }
+    })();
 
-    // Clear derived key cache and its index
-    try {
-      const { clearAllDerivedKeys } = await import('../utils/wallet/keyDerivation');
-      await clearAllDerivedKeys();
-    } catch (derivedKeyError) {
-      logger.warn('Failed to clear derived keys', { error: (derivedKeyError as Error).message });
-    }
+    const clearDerivedKeysPromise = (async (): Promise<void> => {
+      try {
+        const { clearAllDerivedKeys } = await import('../utils/wallet/keyDerivation');
+        await clearAllDerivedKeys();
+      } catch (derivedKeyError) {
+        logger.warn('Failed to clear derived keys', { error: (derivedKeyError as Error).message });
+      }
+    })();
 
-    const [multiAccountCacheRaw, sentLockedTokensRaw, receivedLockedTokensRaw, currentAccountRaw] = await Promise.all([
+    const storageSnapshotPromise = Promise.all([
       SecureStore.getItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
       SecureStore.getItemAsync('sent_turbo_tokens'),
       SecureStore.getItemAsync('received_turbo_tokens'),
       SecureStore.getItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
     ]);
+    const [multiAccountCacheRaw, sentLockedTokensRaw, receivedLockedTokensRaw, currentAccountRaw] =
+      await storageSnapshotPromise;
+    await Promise.all([clearPasskeyDataPromise, clearDerivedKeysPromise]);
 
     const proofKeys = new Set<string>(['cashu_proofs', 'cashu_proofs_sat']);
     const accountScopedStorageIndexes = new Set<number>([0]);
@@ -599,7 +685,7 @@ export const deleteWalletData = async (
       collectRegistryEntries('cashu_failed_proof_recovery_keys_v1'),
     ]);
 
-    await clearPreferenceItems([
+    const preferenceKeysToDelete = [
       'pendingFaceIdEnable',
       'pendingNotificationsEnable',
       'returnToSettingsAfterAuth',
@@ -610,73 +696,84 @@ export const deleteWalletData = async (
       'showZeroAssets',
       'advancedMode',
       'ecashThreshold',
+    ];
+
+    const asyncStorageKeysToDelete = new Set<string>([
+      LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY,
+      EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY,
+      OPERATION_JOURNAL_STORAGE_KEY,
+      TURBO_PROCESSING_STORAGE_KEY,
+      VAULT_SETTLEMENT_STORAGE_KEY,
+      VAULT_SETTLEMENT_HISTORY_STORAGE_KEY,
+      SWAP_TXIDS_KEY,
+      SWAP_TXIDS_MIGRATION_V2_KEY,
+      LIQUIDATION_TXIDS_KEY,
     ]);
 
-    // Clear all wallet-related secure storage keys
-    await Promise.all([
-      ...Array.from(proofKeys).map((key) => SecureStore.deleteItemAsync(key)),
-      AsyncStorage.removeItem(LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY),
-      AsyncStorage.removeItem(EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY),
-      AsyncStorage.removeItem(OPERATION_JOURNAL_STORAGE_KEY),
-      AsyncStorage.removeItem(TURBO_PROCESSING_STORAGE_KEY),
-      AsyncStorage.removeItem(VAULT_SETTLEMENT_STORAGE_KEY),
-      AsyncStorage.removeItem(VAULT_SETTLEMENT_HISTORY_STORAGE_KEY),
-      AsyncStorage.removeItem(SWAP_TXIDS_KEY),
-      AsyncStorage.removeItem(SWAP_TXIDS_MIGRATION_V2_KEY),
-      AsyncStorage.removeItem(LIQUIDATION_TXIDS_KEY),
-      ...Array.from(accountScopedStorageIndexes).flatMap((accountIndex) => [
-        SecureStore.deleteItemAsync(`pending_txs_${accountIndex}`),
-        SecureStore.deleteItemAsync(`spent_utxos_${accountIndex}`),
-        SecureStore.deleteItemAsync(`pending_vault_tx_${accountIndex}`),
-      ]),
-      SecureStore.deleteItemAsync('cashu_pending_swap'),
-      SecureStore.deleteItemAsync('cashu_pending_swaps_v1'),
-      SecureStore.deleteItemAsync('cashu_pending_mint_quotes'),
-      SecureStore.deleteItemAsync('cashu_pending_turbo_send'),
-      SecureStore.deleteItemAsync('cashu_pending_turbo_sends_v1'),
-      SecureStore.deleteItemAsync('cashu_recovered_outgoing_swap_tokens_v1'),
-      SecureStore.deleteItemAsync(PENDING_TOKEN_KEY),
-      SecureStore.deleteItemAsync(PENDING_TOKEN_QUEUE_KEY),
-      SecureStore.deleteItemAsync('sent_turbo_tokens'),
-      SecureStore.deleteItemAsync('received_turbo_tokens'),
-      SecureStore.deleteItemAsync('cashu_proof_keys_v1'),
-      SecureStore.deleteItemAsync('cashu_failed_proof_recovery_keys_v1'),
-      SecureStore.deleteItemAsync('cashu_failed_proofs_latest_v1'),
-      ...Array.from(extraSecureStoreKeys).map((key) => SecureStore.deleteItemAsync(key)),
+    const secureStoreKeysToDelete = new Set<string>([
+      ...proofKeys,
+      'cashu_pending_swap',
+      'cashu_pending_swaps_v1',
+      'cashu_pending_mint_quotes',
+      'cashu_pending_turbo_send',
+      'cashu_pending_turbo_sends_v1',
+      'cashu_recovered_outgoing_swap_tokens_v1',
+      PENDING_TOKEN_KEY,
+      PENDING_TOKEN_QUEUE_KEY,
+      'sent_turbo_tokens',
+      'received_turbo_tokens',
+      'cashu_proof_keys_v1',
+      'cashu_failed_proof_recovery_keys_v1',
+      'cashu_failed_proofs_latest_v1',
 
       // Wallet data
-      SecureStore.deleteItemAsync(SECURE_KEYS.MNEMONIC),
-      SecureStore.deleteItemAsync(SECURE_KEYS.CURRENT_ACCOUNT),
-      SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES),
-      SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE),
-
-      // PIN and authentication
-      ...(preservePinAuth
-        ? []
-        : [
-            SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
-            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT),
-            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_SALT_HMAC),
-            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_HMAC_KEY),
-            SecureStore.deleteItemAsync(SECURE_KEYS.PIN_VERSION),
-            SecureStore.deleteItemAsync(SECURE_KEYS.BIOMETRIC_ENABLED),
-          ]),
+      SECURE_KEYS.MNEMONIC,
+      SECURE_KEYS.MNEMONIC_APP_UNLOCK_READY,
+      SECURE_KEYS.CURRENT_ACCOUNT,
+      SECURE_KEYS.CACHED_ADDRESSES,
+      SECURE_KEYS.MULTI_ACCOUNT_CACHE,
 
       // Unified auth lockout state
-      SecureStore.deleteItemAsync('pin_failed_attempts'),
-      SecureStore.deleteItemAsync('pin_lockout_until'),
-      SecureStore.deleteItemAsync('pin_failed_attempts_v2'),
-      SecureStore.deleteItemAsync('pin_lockout_until_v2'),
-      SecureStore.deleteItemAsync('biometric_failed_attempts_v1'),
-      SecureStore.deleteItemAsync('biometric_lockout_until_v1'),
+      'pin_failed_attempts',
+      'pin_lockout_until',
+      'pin_failed_attempts_v2',
+      'pin_lockout_until_v2',
+      'biometric_failed_attempts_v1',
+      'biometric_lockout_until_v1',
 
       // Passkey-related keys (belt and suspenders - clearPasskeyData should handle these)
-      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_CREDENTIAL_ID),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_USER_HANDLE),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PEPPER),
-      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
-      SecureStore.deleteItemAsync(WALLET_DERIVATION_MODE_KEY),
+      SECURE_KEYS.PASSKEY_ENABLED,
+      SECURE_KEYS.PASSKEY_CREDENTIAL_ID,
+      SECURE_KEYS.PASSKEY_USER_HANDLE,
+      SECURE_KEYS.PASSKEY_PEPPER,
+      SECURE_KEYS.WALLET_CREATION_METHOD,
+      WALLET_DERIVATION_MODE_KEY,
+    ]);
+
+    accountScopedStorageIndexes.forEach((accountIndex) => {
+      secureStoreKeysToDelete.add(`pending_txs_${accountIndex}`);
+      secureStoreKeysToDelete.add(`spent_utxos_${accountIndex}`);
+      secureStoreKeysToDelete.add(`pending_vault_tx_${accountIndex}`);
+    });
+
+    extraSecureStoreKeys.forEach((key) => secureStoreKeysToDelete.add(key));
+
+    if (!preservePinAuth) {
+      [
+        SECURE_KEYS.PIN,
+        SECURE_KEYS.PIN_SALT,
+        SECURE_KEYS.PIN_SALT_HMAC,
+        SECURE_KEYS.PIN_HMAC_KEY,
+        SECURE_KEYS.PIN_VERSION,
+        SECURE_KEYS.BIOMETRIC_ENABLED,
+      ].forEach((key) => secureStoreKeysToDelete.add(key));
+    }
+
+    // Clear all wallet-related storage keys, deduplicating SecureStore work where registries overlap.
+    await Promise.all([
+      clearPreferenceItems(preferenceKeysToDelete),
+      ...Array.from(asyncStorageKeysToDelete).map((key) => AsyncStorage.removeItem(key)),
+      ...Array.from(secureStoreKeysToDelete).map((key) => SecureStore.deleteItemAsync(key)),
     ]);
   } catch (error: unknown) {
     logger.error(error as Error, { context: 'deleteWalletData' });

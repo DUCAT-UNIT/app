@@ -3,12 +3,12 @@
  * Covers swapTokens and checkProofsSpent including error handling
  */
 
-import { postJSON } from '../../../../utils/apiClient';
+import { postJsonWithNativeTimeout } from '../../../../utils/nativeHttp';
 import { logger } from '../../../../utils/logger';
 
 // Mock dependencies
-jest.mock('../../../../utils/apiClient', () => ({
-  postJSON: jest.fn(),
+jest.mock('../../../../utils/nativeHttp', () => ({
+  postJsonWithNativeTimeout: jest.fn(),
 }));
 
 jest.mock('../../../../utils/logger', () => ({
@@ -37,9 +37,7 @@ describe('Mint Swap Service', () => {
   });
 
   describe('swapTokens', () => {
-    const mockInputs = [
-      { amount: 100, secret: 's1', C: 'c1', id: 'id1' },
-    ];
+    const mockInputs = [{ amount: 100, secret: 's1', C: 'c1', id: 'id1' }];
     const mockOutputs = [
       { amount: 50, B_: 'b1' },
       { amount: 50, B_: 'b2' },
@@ -49,17 +47,17 @@ describe('Mint Swap Service', () => {
       const mockResponse = {
         signatures: [{ C_: 'sig1' }, { C_: 'sig2' }],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await swapTokens(mockInputs, mockOutputs);
 
       expect(result).toEqual(mockResponse);
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         'https://test-mint.example.com/v1/swap',
         { inputs: mockInputs, outputs: mockOutputs },
         expect.objectContaining({
           timeout: 10000,
-          description: 'Swap tokens',
+          headers: expect.objectContaining({ Accept: 'application/json' }),
         })
       );
       expect(logger.info).toHaveBeenCalledWith('Swapping tokens', {
@@ -70,7 +68,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error if response contains error field', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         error: 'Proofs already spent',
       });
 
@@ -84,7 +82,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error if signatures are missing', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         success: true,
       });
 
@@ -94,7 +92,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error if signatures is not an array', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         signatures: 'not-an-array',
       });
 
@@ -104,7 +102,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error if signatures is null', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         signatures: null,
       });
 
@@ -114,7 +112,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error on network failure', async () => {
-      (postJSON as jest.Mock).mockRejectedValue(new Error('Network timeout'));
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Network timeout'));
 
       await expect(swapTokens(mockInputs, mockOutputs)).rejects.toThrow('Network timeout');
 
@@ -126,7 +124,7 @@ describe('Mint Swap Service', () => {
     it('should handle empty inputs array', async () => {
       // With empty inputs but outputs, the mint should return matching signatures
       const mockResponse = { signatures: [{ C_: 'sig1' }, { C_: 'sig2' }] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await swapTokens([], mockOutputs);
 
@@ -139,7 +137,7 @@ describe('Mint Swap Service', () => {
 
     it('should handle empty outputs array', async () => {
       const mockResponse = { signatures: [] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await swapTokens(mockInputs, []);
 
@@ -155,7 +153,7 @@ describe('Mint Swap Service', () => {
       const mockResponse = {
         signatures: [{ C_: '1' }, { C_: '2' }],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       await swapTokens(mockInputs, mockOutputs);
 
@@ -168,7 +166,7 @@ describe('Mint Swap Service', () => {
       const mockResponse = {
         signatures: [{ C_: '1' }, { C_: '2' }, { C_: '3' }],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       await expect(swapTokens(mockInputs, mockOutputs)).rejects.toThrow(
         'Signature count mismatch: expected 2 signatures but got 3'
@@ -183,9 +181,7 @@ describe('Mint Swap Service', () => {
     ];
 
     beforeEach(() => {
-      (hashToCurve as jest.Mock).mockImplementation(
-        (secret) => Promise.resolve(`Y_${secret}`)
-      );
+      (hashToCurve as jest.Mock).mockImplementation((secret) => Promise.resolve(`Y_${secret}`));
     });
 
     it('should check proof states successfully', async () => {
@@ -195,26 +191,26 @@ describe('Mint Swap Service', () => {
           { Y: 'Y_s2', state: 'SPENT' },
         ],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await checkProofsSpent(mockProofs);
 
       expect(result).toEqual(mockResponse);
       expect(hashToCurve).toHaveBeenCalledWith('s1');
       expect(hashToCurve).toHaveBeenCalledWith('s2');
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         'https://test-mint.example.com/v1/checkstate',
         { Ys: ['Y_s1', 'Y_s2'] },
         expect.objectContaining({
           timeout: 5000,
-          description: 'Check proof state',
+          headers: expect.objectContaining({ Accept: 'application/json' }),
         })
       );
     });
 
     it('should hash all secrets to Y values', async () => {
       const mockResponse = { states: [] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       await checkProofsSpent(mockProofs);
 
@@ -225,13 +221,13 @@ describe('Mint Swap Service', () => {
 
     it('should handle empty proofs array', async () => {
       const mockResponse = { states: [] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await checkProofsSpent([]);
 
       expect(result).toEqual(mockResponse);
       expect(hashToCurve).not.toHaveBeenCalled();
-      expect(postJSON).toHaveBeenCalledWith(
+      expect(postJsonWithNativeTimeout).toHaveBeenCalledWith(
         'https://test-mint.example.com/v1/checkstate',
         { Ys: [] },
         expect.any(Object)
@@ -239,7 +235,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('should throw error on network failure', async () => {
-      (postJSON as jest.Mock).mockRejectedValue(new Error('Connection error'));
+      (postJsonWithNativeTimeout as jest.Mock).mockRejectedValue(new Error('Connection error'));
 
       await expect(checkProofsSpent(mockProofs)).rejects.toThrow('Connection error');
 
@@ -256,11 +252,9 @@ describe('Mint Swap Service', () => {
 
     it('should handle states with witness field', async () => {
       const mockResponse = {
-        states: [
-          { Y: 'Y_s1', state: 'UNSPENT', witness: 'witness_data' },
-        ],
+        states: [{ Y: 'Y_s1', state: 'UNSPENT', witness: 'witness_data' }],
       };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await checkProofsSpent([mockProofs[0]]);
 
@@ -269,29 +263,29 @@ describe('Mint Swap Service', () => {
 
     it('should use 5 second timeout for check state', async () => {
       const mockResponse = { states: [] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       await checkProofsSpent(mockProofs);
 
-      const callArgs = (postJSON as jest.Mock).mock.calls[0];
+      const callArgs = (postJsonWithNativeTimeout as jest.Mock).mock.calls[0];
       expect(callArgs[2].timeout).toBe(5000);
     });
 
-    it('should pass correct description to postJSON', async () => {
+    it('should pass JSON accept header to postJsonWithNativeTimeout', async () => {
       const mockResponse = { states: [] };
-      (postJSON as jest.Mock).mockResolvedValue(mockResponse);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(mockResponse);
 
       await checkProofsSpent(mockProofs);
 
-      const callArgs = (postJSON as jest.Mock).mock.calls[0];
-      expect(callArgs[2].description).toBe('Check proof state');
+      const callArgs = (postJsonWithNativeTimeout as jest.Mock).mock.calls[0];
+      expect(callArgs[2].headers).toEqual(expect.objectContaining({ Accept: 'application/json' }));
     });
   });
 
   describe('error handling edge cases', () => {
     it('swapTokens should handle response with both error and signatures', async () => {
       // If response has error field, it should throw regardless of signatures
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         error: 'Some error',
         signatures: [{ C_: 'sig1' }],
       });
@@ -300,7 +294,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('swapTokens should validate signatures is array before checking length', async () => {
-      (postJSON as jest.Mock).mockResolvedValue({
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue({
         signatures: {},
       });
 
@@ -308,7 +302,7 @@ describe('Mint Swap Service', () => {
     });
 
     it('checkProofsSpent should handle malformed response', async () => {
-      (postJSON as jest.Mock).mockResolvedValue(null);
+      (postJsonWithNativeTimeout as jest.Mock).mockResolvedValue(null);
 
       // Should not throw on malformed response, just return it
       const result = await checkProofsSpent([]);

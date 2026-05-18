@@ -22,6 +22,10 @@ export const DUST_LIMIT = 546;
 /** Dust limit in BTC */
 export const DUST_BTC = DUST_LIMIT / COIN_SIZE;
 
+/** Repo portions are serialized and recomputed by the SDK at 4 decimal places. */
+export const REPO_PORTION_PRECISION = 4;
+export const MIN_REPO_PORTION = 1 / 10 ** REPO_PORTION_PRECISION;
+
 /** VIN allowance for fee estimation */
 export const VIN_ALLOWANCE = 350;
 

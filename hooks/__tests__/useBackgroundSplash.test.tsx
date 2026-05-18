@@ -6,6 +6,10 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { AppState } from 'react-native';
 import { useBackgroundSplash } from '../useBackgroundSplash';
+import {
+  _resetPrivacySplashSuppressionForTests,
+  beginPrivacySplashSuppression,
+} from '../../services/privacySplashSuppression';
 
 // Helper to render hooks with react-test-renderer
 function renderHook<T>(hook: () => T) {
@@ -40,14 +44,18 @@ describe('useBackgroundSplash', () => {
   beforeEach(() => {
     mockEventListener = null;
     mockSubscription = { remove: jest.fn() };
+    _resetPrivacySplashSuppressionForTests();
 
-    (AppState.addEventListener as jest.Mock).mockImplementation((_event: string, listener: (state: string) => void) => {
-      mockEventListener = listener;
-      return mockSubscription;
-    });
+    (AppState.addEventListener as jest.Mock).mockImplementation(
+      (_event: string, listener: (state: string) => void) => {
+        mockEventListener = listener;
+        return mockSubscription;
+      }
+    );
   });
 
   afterEach(() => {
+    _resetPrivacySplashSuppressionForTests();
     jest.clearAllMocks();
   });
 
@@ -84,11 +92,10 @@ describe('useBackgroundSplash', () => {
     });
     expect((result.current!.opacityRef as any)._value).toBe(1);
 
-    // Then, go to active - animation starts to 0
+    // Then, go to active - splash hides immediately
     act(() => {
       mockEventListener!('active');
     });
-    // Note: Animated.timing is mocked to call callback immediately, so value should be 0
     expect((result.current!.opacityRef as any)._value).toBe(0);
   });
 
@@ -98,7 +105,7 @@ describe('useBackgroundSplash', () => {
     // First, ensure starting hidden
     expect((result.current!.opacityRef as any)._value).toBe(0);
 
-    // Go to inactive (e.g., during Face ID) - should show splash
+    // Go to inactive outside native auth - should show splash
     act(() => {
       mockEventListener!('inactive');
     });
@@ -130,13 +137,39 @@ describe('useBackgroundSplash', () => {
   it('should show splash for inactive state', () => {
     const { result } = renderHook(() => useBackgroundSplash());
 
-    // App goes inactive (e.g., Face ID prompt, notification, control center)
+    // App goes inactive (e.g., notification, control center)
     act(() => {
       mockEventListener!('inactive');
     });
 
     // SHOULD show splash for inactive state to protect sensitive info
     expect((result.current!.opacityRef as any)._value).toBe(1);
+  });
+
+  it('should not show splash for inactive state while native auth is suppressing it', () => {
+    const { result } = renderHook(() => useBackgroundSplash());
+    const releaseSuppression = beginPrivacySplashSuppression();
+
+    act(() => {
+      mockEventListener!('inactive');
+    });
+
+    expect((result.current!.opacityRef as any)._value).toBe(0);
+
+    releaseSuppression();
+  });
+
+  it('should still show splash for background state while native auth suppression is active', () => {
+    const { result } = renderHook(() => useBackgroundSplash());
+    const releaseSuppression = beginPrivacySplashSuppression();
+
+    act(() => {
+      mockEventListener!('background');
+    });
+
+    expect((result.current!.opacityRef as any)._value).toBe(1);
+
+    releaseSuppression();
   });
 
   it('should handle multiple background/active cycles', () => {

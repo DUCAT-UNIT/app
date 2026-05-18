@@ -144,10 +144,10 @@ export const TransactionExecutionProvider: React.FC<TransactionExecutionProvider
   // Sign and broadcast the PSBT
   const signIntent = useCallback(
     async (options: SignOptions = {}): Promise<string | null> => {
-      // E2E bypass: skip real signing/broadcasting for mock intents
+      // Legacy fixture path: skip real signing/broadcasting for mock intents.
       if (isE2E() && sendIntent?.psbt === 'e2e-mock-psbt') {
         const fakeTxid = `e2e-send-${Date.now().toString(16)}`;
-        logger.info('[signIntent] E2E bypass: fake txid', { fakeTxid });
+        logger.info('[signIntent] E2E fixture txid', { fakeTxid });
         setBroadcastedTxid(fakeTxid);
         setIntentStep('confirmed');
         return fakeTxid;

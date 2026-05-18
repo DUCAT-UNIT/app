@@ -84,10 +84,7 @@ const isQuoteReadyToMint = (quote: MintQuoteLike, expectedAmount: number): boole
     return quote.state === 'PAID' || quote.state === 'ISSUED';
   }
 
-  return (
-    (quote.amount_paid ?? 0) >= expectedAmount &&
-    (quote.amount_issued ?? 0) >= expectedAmount
-  );
+  return (quote.amount_paid ?? 0) >= expectedAmount && (quote.amount_issued ?? 0) >= expectedAmount;
 };
 
 const isQuoteAlreadyIssued = (quote: MintQuoteLike): boolean =>
@@ -101,18 +98,14 @@ const getClaimAmount = (quote: MintQuoteLike, fallbackAmount: number): number =>
   const availableAmount = getMintQuoteAvailableAmount(quote);
   if (availableAmount > 0) {
     if (availableAmount !== fallbackAmount) {
-      throw new Error(
-        `Turbo mint returned ${availableAmount}; expected exactly ${fallbackAmount}`
-      );
+      throw new Error(`Turbo mint returned ${availableAmount}; expected exactly ${fallbackAmount}`);
     }
     return fallbackAmount;
   }
 
   const quoteAmount = quote.amount ?? fallbackAmount;
   if (quoteAmount !== fallbackAmount) {
-    throw new Error(
-      `Turbo mint returned ${quoteAmount}; expected exactly ${fallbackAmount}`
-    );
+    throw new Error(`Turbo mint returned ${quoteAmount}; expected exactly ${fallbackAmount}`);
   }
   return fallbackAmount;
 };
@@ -263,6 +256,7 @@ export function useTurboMintCompletion({
           if (claimAmount <= 0) {
             throw new Error('Mint quote has no claimable amount');
           }
+          logger.info(`[E2E_TX] turbo_mint_paid amount=${claimAmount} cashuUnit=${cashuUnit}`);
 
           assertSenderAccountActive('Turbo mint completion');
           if (isQuoteAlreadyIssued(paidQuote)) {
@@ -341,6 +335,7 @@ export function useTurboMintCompletion({
               proofs?.length
             );
           }
+          logger.info(`[E2E_TX] turbo_mint_completed amount=${claimAmount} cashuUnit=${cashuUnit}`);
 
           // Update stage: mint completed
           await updateTurboSendStage('mint_completed', undefined, recoverySelector);
@@ -473,6 +468,11 @@ export function useTurboMintCompletion({
                   '[useTurboMintCompletion] turboToken state has been set, transitioned to ready stage'
                 );
               }
+              logger.info(
+                `[E2E_TX] turbo_token_ready amount=${mintAmount} cashuUnit=${cashuUnit} hasDeeplink=${Boolean(
+                  shortUrl
+                )}`
+              );
             } catch (storageError) {
               logger.error('[useTurboMintCompletion] Failed to generate/save token:', {
                 error: storageError instanceof Error ? storageError.message : String(storageError),
@@ -489,6 +489,7 @@ export function useTurboMintCompletion({
               setProcessingMessage(null);
               setProcessingStage('ready');
             }
+            logger.info(`[E2E_TX] cashu_mint_ready amount=${mintAmount} cashuUnit=${cashuUnit}`);
           }
 
           // Refresh all balances — Runes (ord indexer) + Cashu + TX history
@@ -511,6 +512,9 @@ export function useTurboMintCompletion({
           }
         } else {
           logger.debug('[useTurboMintCompletion] Payment not confirmed after 10 minutes');
+          logger.info(
+            `[E2E_TX] turbo_mint_awaiting_confirmation amount=${mintAmount} cashuUnit=${cashuUnit}`
+          );
           // Don't clear pending turbo send - will resume polling on next app start
           if (mountedRef.current) {
             setProcessingStage('awaiting_confirmation');

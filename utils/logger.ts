@@ -5,6 +5,9 @@
 
 const isDev = __DEV__;
 const isVerboseDebugEnabled = process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS === 'true';
+const isLiveRegressionLoggingEnabled =
+  process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION === 'true';
+const shouldLogAppBreadcrumbs = isDev || isLiveRegressionLoggingEnabled;
 
 // Keys and payload shapes that should never appear in log output.
 const SENSITIVE_KEY_PATTERNS = [
@@ -109,7 +112,7 @@ export const logger = {
    * @param args - Additional arguments
    */
   debug: (message: string, ...args: unknown[]): void => {
-    if (isDev && isVerboseDebugEnabled) {
+    if (shouldLogAppBreadcrumbs && (isVerboseDebugEnabled || isLiveRegressionLoggingEnabled)) {
       console.log(`[DEBUG] ${message}`, ...sanitizeArgs(args));
     }
   },
@@ -120,7 +123,7 @@ export const logger = {
    * @param context - Additional context
    */
   info: (message: string, context: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[INFO] ${message}`, sanitizeContext(context));
     }
   },
@@ -131,8 +134,8 @@ export const logger = {
    * @param context - Additional context
    */
   warn: (message: string, context: LogContext = {}): void => {
-    if (isDev) {
-      console.warn(`[WARN] ${message}`, sanitizeContext(context));
+    if (shouldLogAppBreadcrumbs) {
+      console.log(`[WARN] ${message}`, sanitizeContext(context));
     }
   },
 
@@ -144,10 +147,9 @@ export const logger = {
   error: (error: Error | string | unknown, context: LogContext = {}): void => {
     const sanitizedError = sanitizeValue(error);
     const sanitizedContext = sanitizeContext(context);
-    if (isDev) {
-      // Use console.warn in dev to avoid triggering the red error overlay
-      // Errors are still clearly labeled [ERROR] in the log output
-      console.warn('[ERROR]', sanitizedError, sanitizedContext);
+    if (shouldLogAppBreadcrumbs) {
+      // Keep app-level errors visible in the Metro console without triggering LogBox overlays.
+      console.log('[ERROR]', sanitizedError, sanitizedContext);
     } else {
       // Production: log to console.error so crash reporters (e.g. EAS Updates) can capture
       console.error('[ERROR]', sanitizedError, sanitizedContext);
@@ -160,7 +162,7 @@ export const logger = {
    * @param data - Transaction data
    */
   transaction: (step: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[TRANSACTION] ${step}`, {
         step,
         timestamp: new Date().toISOString(),
@@ -175,8 +177,8 @@ export const logger = {
    * @param data - Event data
    */
   security: (event: string, data: LogContext = {}): void => {
-    if (isDev) {
-      console.warn(`[SECURITY] ${event}`, {
+    if (shouldLogAppBreadcrumbs) {
+      console.log(`[SECURITY] ${event}`, {
         event,
         timestamp: new Date().toISOString(),
         ...sanitizeContext(data),
@@ -197,7 +199,7 @@ export const logger = {
    * @param params - Navigation params
    */
   screen: (screenName: string, params: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[SCREEN] ${screenName}`, sanitizeContext(params));
     }
   },
@@ -209,7 +211,7 @@ export const logger = {
    * @param data - Additional data
    */
   action: (action: string, category = 'user_action', data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[ACTION] ${category}: ${action}`, sanitizeContext(data));
     }
   },
@@ -220,7 +222,7 @@ export const logger = {
    * @param data - Operation data
    */
   wallet: (operation: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[WALLET] ${operation}`, sanitizeContext(data));
     }
   },
@@ -231,7 +233,7 @@ export const logger = {
    * @param data - Operation data
    */
   cashu: (operation: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[CASHU] ${operation}`, sanitizeContext(data));
     }
   },
@@ -244,7 +246,7 @@ export const logger = {
    * @param duration - Request duration in ms
    */
   api: (endpoint: string, method: string, status: number, duration?: number | null): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[API] ${method} ${endpoint} -> ${status}`, duration ? `(${duration}ms)` : '');
     }
   },
@@ -255,7 +257,7 @@ export const logger = {
    * @param data - Event data
    */
   auth: (event: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[AUTH] ${event}`, sanitizeContext(data));
     }
   },
@@ -267,7 +269,7 @@ export const logger = {
    * @param unit - Unit of measurement
    */
   perf: (metric: string, value: number, unit = 'ms'): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[PERF] ${metric}: ${value}${unit}`);
     }
   },
@@ -278,7 +280,7 @@ export const logger = {
    * @param data - Operation data
    */
   turbo: (operation: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[TURBO] ${operation}`, sanitizeContext(data));
     }
   },
@@ -289,7 +291,7 @@ export const logger = {
    * @param data - Operation data
    */
   vault: (operation: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[VAULT] ${operation}`, sanitizeContext(data));
     }
   },
@@ -300,7 +302,7 @@ export const logger = {
    * @param data - Step data
    */
   onboarding: (step: string, data: LogContext = {}): void => {
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[ONBOARDING] ${step}`, sanitizeContext(data));
     }
   },
@@ -314,14 +316,14 @@ export const logger = {
   startTransaction: (name: string, _op = 'task'): PerformanceTransaction => {
     const startTime = Date.now();
 
-    if (isDev) {
+    if (shouldLogAppBreadcrumbs) {
       console.log(`[PERF START] ${name}`);
     }
 
     return {
       finish: (status = 'ok'): void => {
         const duration = Date.now() - startTime;
-        if (isDev) {
+        if (shouldLogAppBreadcrumbs) {
           console.log(`[PERF END] ${name}: ${duration}ms (${status})`);
         }
       },

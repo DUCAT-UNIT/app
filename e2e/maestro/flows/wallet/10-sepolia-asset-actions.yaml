@@ -25,8 +25,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "asset-detail-swap-btn"
 
-- tapOn:
-    id: "asset-detail-receive-btn"
+- runFlow: ../helpers/tap-asset-detail-receive.yaml
 - extendedWaitUntil:
     visible:
       id: "receive-qr-screen"

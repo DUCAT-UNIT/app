@@ -98,6 +98,7 @@ type VaultSettlementStore = VaultSettlementState & VaultSettlementActions;
 
 export const VAULT_SETTLEMENT_STORAGE_KEY = 'vault-settlement';
 export const VAULT_SETTLEMENT_PERSIST_TTL_MS = 24 * 60 * 60 * 1000;
+export const VAULT_SETTLEMENT_ACTIVE_TTL_MS = 3 * 60 * 1000;
 
 const settlementKinds: VaultSettlementKind[] = ['borrow', 'open', 'repay'];
 const requestedAssets: VaultSettlementRequestedAsset[] = ['USDC', 'UNIT', 'TURBOUNIT'];
@@ -207,6 +208,14 @@ function isActiveSettlement(state: VaultSettlementState): boolean {
   return state.phase !== 'idle' && state.phase !== 'settled' && state.kind !== null;
 }
 
+function isStaleActiveSettlement(state: VaultSettlementState, now = Date.now()): boolean {
+  return (
+    isActiveSettlement(state) &&
+    state.updatedAt > 0 &&
+    now - state.updatedAt > VAULT_SETTLEMENT_ACTIVE_TTL_MS
+  );
+}
+
 function isRecoveryCriticalPhase(phase: VaultSettlementPhase): boolean {
   return phase !== 'idle' && phase !== 'settled';
 }
@@ -269,8 +278,15 @@ export function normalizeVaultSettlementPersistedState(
   const updatedAt = finiteNonNegative(value.updatedAt);
   const boundedUpdatedAt = updatedAt > now + 60_000 ? now : updatedAt;
   const isStale = boundedUpdatedAt > 0 && now - boundedUpdatedAt > VAULT_SETTLEMENT_PERSIST_TTL_MS;
+  const isStaleActive =
+    boundedUpdatedAt > 0 && now - boundedUpdatedAt > VAULT_SETTLEMENT_ACTIVE_TTL_MS;
 
-  if (!phase || (isStale && !isRecoveryCriticalPhase(phase)) || (phase !== 'idle' && !kind)) {
+  if (
+    !phase ||
+    isStaleActive ||
+    (isStale && !isRecoveryCriticalPhase(phase)) ||
+    (phase !== 'idle' && !kind)
+  ) {
     return { ...initialVaultSettlementState };
   }
 
@@ -391,7 +407,7 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
           const nextAccountIndex = context.accountIndex ?? null;
           const nextTaprootAddress = context.taprootAddress ?? null;
 
-          if (isActiveSettlement(current)) {
+          if (isActiveSettlement(current) && !isStaleActiveSettlement(current)) {
             const accountMismatch =
               current.accountIndex !== null &&
               nextAccountIndex !== null &&
@@ -408,7 +424,7 @@ export const useVaultSettlementStore = create<VaultSettlementStore>()(
             if (
               current.kind === kind &&
               current.requestedPayoutAsset === requestedPayoutAsset &&
-              (current.faceValueUsd === faceValueUsd || hasSettlementRecoveryHandle(current))
+              current.faceValueUsd === faceValueUsd
             ) {
               return;
             }

@@ -518,6 +518,26 @@ describe('useLiquidationExecution', () => {
         expect(call.liquidVaults).toEqual([fullVault]);
       });
 
+      it('should stop when only a partial vault is below executable size', async () => {
+        const partialVault = makePartialVault();
+        mockSelectItems.mockReturnValue([partialVault]);
+        mockRecomputePartial.mockRejectedValue(
+          new Error('Partial liquidation amount is below the minimum protocol claim size'),
+        );
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        expect(mockExecuteLiquidation).not.toHaveBeenCalled();
+        expect(useLiquidationFlowStore.getState().currentStep).toBe('error');
+        expect(useLiquidationFlowStore.getState().error).toBe(
+          'Investment amount too small to claim any vault.',
+        );
+      });
+
       it('should use btcPrice=0 for recompute when btcPrice is null', async () => {
         const partialVault = makePartialVault();
         mockSelectItems.mockReturnValue([partialVault]);

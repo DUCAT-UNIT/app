@@ -30,6 +30,7 @@ import { useNotifications } from '../../stores/notificationStore';
 import { COLORS } from '../../theme';
 import type { RedemptionRequest } from '../../shared/bridgeTypes';
 import { TAPROOT_ADDRESS_PREFIX, validateBitcoinAddress } from '../../utils/bitcoin';
+import { logger } from '../../utils/logger';
 import {
   describeEvmRecoveryCheckpoint,
   formatEvmCheckpointReconciliationSummary,
@@ -165,6 +166,16 @@ export default function RedeemScreen({ route, navigation }: RedeemScreenProps): 
     return () => clearInterval(interval);
   }, [redemption]);
 
+  useEffect(() => {
+    if (!redemption?.releaseTxid) {
+      return;
+    }
+
+    logger.info(
+      `[E2E_TX] sepolia_redeem_released txid=${redemption.releaseTxid} releaseId=${redemption.id}`
+    );
+  }, [redemption?.id, redemption?.releaseTxid]);
+
   const requiredSourceAmount = estimate?.requiredSourceAmount || amount;
   const blockingReasons = estimate?.blockingReasons ?? [];
   const insufficientSource = estimate?.hasEnoughSource === false;
@@ -280,6 +291,9 @@ export default function RedeemScreen({ route, navigation }: RedeemScreenProps): 
         ? route?.params?.amount === amount && maxInputAmount ? maxInputAmount : estimate?.requiredSourceAmount
         : undefined;
       const result = await requestRedemption(currentAccount, amount, destination.trim(), sourceAsset, sourceSpendCap);
+      logger.info(
+        `[E2E_TX] sepolia_redeem_submitted txHash=${result.burnTxHash} releaseId=${result.releaseId} sourceAsset=${sourceAsset} amount=${amount}`
+      );
       let trackedStatusLoaded = false;
       try {
         const tracked = await getRedemptionStatus(result.releaseId);

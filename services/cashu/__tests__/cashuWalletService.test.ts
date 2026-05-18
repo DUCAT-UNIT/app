@@ -492,7 +492,8 @@ describe('cashuWalletService', () => {
         });
         expect(cashuMintClient.createMintQuote).toHaveBeenCalledWith(
           '02' + 'a'.repeat(64),
-          'unit'
+          'unit',
+          1000
         );
       });
 

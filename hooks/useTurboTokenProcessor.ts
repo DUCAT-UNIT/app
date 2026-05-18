@@ -174,6 +174,7 @@ export function useTurboTokenProcessor({
         const result = await receive(token);
 
         const amountDisplay = formatCashuAmount(result.amount, unit);
+        logger.info(`[E2E_TX] cashu_token_claimed amount=${result.amount} cashuUnit=${unit}`);
         logger.debug('[TURBO] Success! Received:', amountDisplay, unitSymbol);
         if (pollId) {
           useSwapDiagnosticsStore.getState().recordAttempt(pollId, {

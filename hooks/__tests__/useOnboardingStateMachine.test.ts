@@ -11,8 +11,10 @@ import {
   authenticateWithBiometrics,
   setBiometricEnabled as persistBiometricEnabled,
 } from '../../services/biometricService';
-import * as PasskeyService from '../../services/passkey';
-import { hasAccessibleMnemonic } from '../../services/secureStorageService';
+import {
+  canUseBiometricUnlockForMnemonic,
+  hasAccessibleMnemonic,
+} from '../../services/secureStorageService';
 import { logger } from '../../utils/logger';
 import { useOnboardingHandlers } from '../useOnboardingHandlers';
 import { usePasskeyCreation } from '../usePasskeyCreation';
@@ -57,17 +59,15 @@ jest.mock('../../services/biometricService', () => ({
   setBiometricEnabled: jest.fn(),
 }));
 
-jest.mock('../../services/passkey', () => ({
-  isPasskeyEnabled: jest.fn(),
-}));
-
 jest.mock('../../services/secureStorageService', () => ({
+  canUseBiometricUnlockForMnemonic: jest.fn(),
   hasAccessibleMnemonic: jest.fn(),
 }));
 
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
   },
 }));
@@ -253,6 +253,7 @@ describe('useOnboardingStateMachine', () => {
   const mockSetIsAuthenticated = jest.fn();
   const mockSetSettingUpPin = jest.fn();
   const mockSetBiometricEnabled = jest.fn();
+  const mockSetShowFaceIdButton = jest.fn();
   const mockSetSeedConfirmed = jest.fn();
   const mockSetWalletAddresses = jest.fn();
   const mockShowBiometricSetupPrompt = jest.fn();
@@ -283,12 +284,14 @@ describe('useOnboardingStateMachine', () => {
       isAuthenticated: false,
       isBiometricSupported: true,
       biometricEnabled: false,
+      showFaceIdButton: true,
       settingUpPin: false,
       changingPin: false,
       showPinEntry: false,
       setIsAuthenticated: mockSetIsAuthenticated,
       setSettingUpPin: mockSetSettingUpPin,
       setBiometricEnabled: mockSetBiometricEnabled,
+      setShowFaceIdButton: mockSetShowFaceIdButton,
       ...overrides,
     });
   }
@@ -326,7 +329,7 @@ describe('useOnboardingStateMachine', () => {
     mockHandlePinChangeComplete.mockResolvedValue(undefined);
     (authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
     (persistBiometricEnabled as jest.Mock).mockResolvedValue(true);
-    (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(false);
+    (canUseBiometricUnlockForMnemonic as jest.Mock).mockResolvedValue(true);
     (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
     (useWallet as jest.Mock).mockReturnValue({
       wallet: null,
@@ -440,9 +443,8 @@ describe('useOnboardingStateMachine', () => {
     expect(mockHandleLockScreenAuthenticatedWrapper).toHaveBeenCalled();
   });
 
-  it('forces PIN unlock when a passkey wallet has no accessible standard mnemonic', async () => {
+  it('requires mnemonic availability before biometric unlock succeeds', async () => {
     configureAuth({ biometricEnabled: true });
-    (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
     (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(false);
 
     const { result } = renderHook(() => useOnboardingStateMachine(params));
@@ -451,18 +453,14 @@ describe('useOnboardingStateMachine', () => {
       await result.current.handleBiometricAuth();
     });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Use PIN To Unlock',
-      expect.stringContaining('re-establish the encrypted passkey session'),
-    );
-    expect(mockSetIsAuthenticated).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(mockSetShowFaceIdButton).toHaveBeenCalledWith(false);
+    expect(mockSetIsAuthenticated).not.toHaveBeenCalledWith(true);
     expect(mockHandleLockScreenAuthenticatedWrapper).not.toHaveBeenCalled();
   });
 
-  it('unlocks with biometric auth when passkey recovery is enabled but the PIN wallet mnemonic is accessible', async () => {
+  it('unlocks with biometric auth when biometrics are enabled', async () => {
     configureAuth({ biometricEnabled: true });
-    (PasskeyService.isPasskeyEnabled as jest.Mock).mockResolvedValue(true);
-    (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
 
     const { result } = renderHook(() => useOnboardingStateMachine(params));
 
@@ -474,6 +472,7 @@ describe('useOnboardingStateMachine', () => {
       'Authenticate to unlock wallet',
       'Use PIN',
     );
+    expect(hasAccessibleMnemonic).toHaveBeenCalled();
     expect(mockSetIsAuthenticated).toHaveBeenCalledWith(true);
     expect(mockHandleLockScreenAuthenticatedWrapper).toHaveBeenCalled();
   });

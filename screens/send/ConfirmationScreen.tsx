@@ -177,6 +177,11 @@ export default function ConfirmationScreen({
       analytics.trackTransaction(TRANSACTION_EVENTS.SEND_BROADCAST, broadcastedTxid, {
         is_turbo: isTurbo ?? false,
       });
+      logger.info(
+        `[E2E_TX] send_success txid=${broadcastedTxid} isTurbo=${Boolean(
+          isTurbo
+        )} cashuMint=${Boolean(cashuMint)} cashuUnit=${localCashuUnit}`
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [broadcastedTxid]);
@@ -239,7 +244,13 @@ export default function ConfirmationScreen({
         {/* Transaction Links */}
         {broadcastedTxid && (
           <View style={styles.linksContainer}>
-            <TouchableOpacity onPress={handleCopyTxid} style={styles.linkRow} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={handleCopyTxid}
+              style={styles.linkRow}
+              activeOpacity={0.7}
+              accessibilityLabel={`Transaction ID ${broadcastedTxid}. Tap to copy`}
+              testID="confirmation-copy-txid-btn"
+            >
               <Ionicons name="copy-outline" size={16} color={colors.text.secondary} />
               <Text style={styles.txId}>{truncatedTxid}</Text>
             </TouchableOpacity>

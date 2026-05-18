@@ -22,6 +22,7 @@ import {
   type WalletDerivationMode,
   type WalletImportProfile,
 } from '../../constants/bitcoin';
+import { createEmptySeedPhrase } from '../../constants/mnemonic';
 import { useAuthSession, useOnboardingFlow, useWallet } from '../../contexts';
 import type { RootNavigatorParamList } from '../../navigation/types';
 import { performFullWalletReset } from '../../services/walletResetService';
@@ -61,7 +62,7 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
     warningText:
       'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
     restoreTitle: 'Restore Xverse Wallet',
-    restoreSubtitle: 'Enter the 12 words exported from Xverse.',
+    restoreSubtitle: 'Enter the 12 or 24 words exported from Xverse.',
     importProfile: 'xverse',
     derivationMode: DEFAULT_WALLET_DERIVATION_MODE,
     steps: [
@@ -92,7 +93,7 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       },
       {
         title: 'Reveal and copy the words',
-        body: 'Tap Reveal, then write the 12 words down in the exact order shown.',
+        body: 'Tap Reveal, then write the recovery words down in the exact order shown.',
         image: require('../../assets/quanta-guide/reveal-seed.png'),
       },
     ],
@@ -106,7 +107,7 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
     warningText:
       'Never share your seed phrase. Only enter it inside Ducat when restoring your own wallet.',
     restoreTitle: 'Restore UniSat Wallet',
-    restoreSubtitle: 'Enter the 12 words exported from UniSat.',
+    restoreSubtitle: 'Enter the 12 or 24 words exported from UniSat.',
     importProfile: 'unisat',
     derivationMode: UNISAT_WALLET_DERIVATION_MODE,
     steps: [
@@ -132,7 +133,7 @@ const GUIDE_PROFILES: Record<GuideProfile, GuideProfileConfig> = {
       },
       {
         title: 'Write down the words',
-        body: 'Copy the 12 words in order. The advanced derivation path shown by UniSat is expected.',
+        body: 'Copy the recovery words in order. The advanced derivation path shown by UniSat is expected.',
         image: require('../../assets/quanta-guide/unisat-reveal-seed.png'),
       },
     ],
@@ -149,7 +150,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
   const { setIsAuthenticated, setPasskeyEnabled } = useAuthSession();
   const [restoreMode, setRestoreMode] = React.useState(false);
   const [selectedGuideProfile, setSelectedGuideProfile] = React.useState<GuideProfile>('xverse');
-  const [importSeedPhrase, setImportSeedPhrase] = React.useState<string[]>(Array(12).fill(''));
+  const [importSeedPhrase, setImportSeedPhrase] = React.useState<string[]>(createEmptySeedPhrase());
   const [isRestoring, setIsRestoring] = React.useState(false);
   const [selectedGuideStep, setSelectedGuideStep] = React.useState<GuideStep | null>(null);
   const seedInputRefs = React.useRef<(TextInput | null)[]>([]);
@@ -207,7 +208,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
       setPasskeyEnabled(false);
       setSeedConfirmed(true);
       setIsAuthenticated(true);
-      setImportSeedPhrase(Array(12).fill(''));
+      setImportSeedPhrase(createEmptySeedPhrase());
       notify.success('Wallet restored from seed phrase');
       navigation.navigate('Main', { screen: 'QuantaTab' });
     } catch (error: unknown) {
@@ -246,7 +247,7 @@ export default function QuantaSeedPhraseGuideScreen(): React.ReactElement {
           onImport={handleRestoreImport}
           onCancel={() => {
             setRestoreMode(false);
-            setImportSeedPhrase(Array(12).fill(''));
+            setImportSeedPhrase(createEmptySeedPhrase());
           }}
           title={activeGuide.restoreTitle}
           subtitle={activeGuide.restoreSubtitle}

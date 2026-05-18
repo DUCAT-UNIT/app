@@ -25,7 +25,6 @@ import {
   setCurrentAccount,
 } from './passkeyStorage';
 import {
-  cacheSessionMnemonic,
   saveCachedAddresses,
   saveMnemonic,
   saveToMultiAccountCache,
@@ -137,7 +136,7 @@ export const createWalletWithPasskey = async ({
     });
     await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
 
-    cacheSessionMnemonic(mnemonic);
+    await saveMnemonic(mnemonic);
 
     // Save current account (always 0 for new wallets)
     await setCurrentAccount(0);

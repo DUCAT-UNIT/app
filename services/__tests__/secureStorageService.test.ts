@@ -6,19 +6,23 @@
 // The mock throws to simulate import/execution failures which triggers the catch block
 jest.mock('../passkey', () => ({
   clearPasskeyData: jest.fn().mockRejectedValue(new Error('Mock passkey error')),
+  unlockWithPasskey: jest.fn(),
 }));
 
 import {
   clearSessionMnemonic,
+  canUseBiometricUnlockForMnemonic,
   hasAccessibleMnemonic,
   saveMnemonic,
   getMnemonic,
+  unlockSessionMnemonicWithPin,
   withMnemonic,
   deleteMnemonic,
   saveCurrentAccount,
   getCurrentAccount,
   deleteWalletData,
 } from '../secureStorageService';
+import { unlockWithPasskey } from '../passkey';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from '../liquidation/recoveryKeys';
@@ -50,6 +54,7 @@ jest.mock('../../utils/logger', () => ({
 const mockGetItemAsync = SecureStore.getItemAsync as jest.MockedFunction<typeof SecureStore.getItemAsync>;
 const mockSetItemAsync = SecureStore.setItemAsync as jest.MockedFunction<typeof SecureStore.setItemAsync>;
 const mockDeleteItemAsync = SecureStore.deleteItemAsync as jest.MockedFunction<typeof SecureStore.deleteItemAsync>;
+const mockUnlockWithPasskey = unlockWithPasskey as jest.MockedFunction<typeof unlockWithPasskey>;
 
 describe('SecureStorageService', () => {
   beforeEach(() => {
@@ -67,6 +72,11 @@ describe('SecureStorageService', () => {
       expect(mockSetItemAsync).toHaveBeenCalledWith(
         'wallet_mnemonic_v1',
         'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12',
+        { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+      );
+      expect(mockSetItemAsync).toHaveBeenCalledWith(
+        'wallet_mnemonic_app_unlock_ready_v1',
+        'true',
         { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
       );
     });
@@ -124,6 +134,93 @@ describe('SecureStorageService', () => {
     });
   });
 
+  describe('canUseBiometricUnlockForMnemonic', () => {
+    it('should allow biometric unlock for standard wallets without reading the mnemonic', async () => {
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'wallet_creation_method_v1') {
+          return Promise.resolve('pin');
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(canUseBiometricUnlockForMnemonic()).resolves.toBe(true);
+      expect(mockGetItemAsync).toHaveBeenCalledWith('wallet_creation_method_v1');
+      expect(mockGetItemAsync).not.toHaveBeenCalledWith('wallet_mnemonic_v1');
+    });
+
+    it('should hide biometric unlock for passkey wallets that have not been backfilled', async () => {
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'wallet_creation_method_v1') {
+          return Promise.resolve('passkey');
+        }
+        if (key === 'wallet_mnemonic_app_unlock_ready_v1') {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(canUseBiometricUnlockForMnemonic()).resolves.toBe(false);
+    });
+
+    it('should allow biometric unlock for passkey wallets after mnemonic backfill', async () => {
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'wallet_creation_method_v1') {
+          return Promise.resolve('passkey');
+        }
+        if (key === 'wallet_mnemonic_app_unlock_ready_v1') {
+          return Promise.resolve('true');
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(canUseBiometricUnlockForMnemonic()).resolves.toBe(true);
+    });
+  });
+
+  describe('unlockSessionMnemonicWithPin', () => {
+    it('should hydrate the session from the standard mnemonic store', async () => {
+      mockGetItemAsync.mockResolvedValue('standard mnemonic phrase');
+
+      await expect(unlockSessionMnemonicWithPin('123456')).resolves.toBeUndefined();
+
+      expect(mockGetItemAsync).toHaveBeenCalledWith('wallet_mnemonic_v1');
+      expect(mockUnlockWithPasskey).not.toHaveBeenCalled();
+
+      mockGetItemAsync.mockClear();
+      await expect(getMnemonic()).resolves.toBe('standard mnemonic phrase');
+      expect(mockGetItemAsync).not.toHaveBeenCalled();
+    });
+
+    it('should unlock passkey wallets when no standard mnemonic is stored', async () => {
+      mockGetItemAsync.mockImplementation((key: string) => {
+        if (key === 'wallet_mnemonic_v1') {
+          return Promise.resolve(null);
+        }
+        if (key === 'wallet_creation_method_v1') {
+          return Promise.resolve('passkey');
+        }
+        if (key === 'passkey_enabled_v1') {
+          return Promise.resolve('true');
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(unlockSessionMnemonicWithPin('123456')).resolves.toBeUndefined();
+
+      expect(mockUnlockWithPasskey).toHaveBeenCalledWith('123456');
+    });
+
+    it('should throw when no recoverable mnemonic source exists', async () => {
+      mockGetItemAsync.mockResolvedValue(null);
+
+      await expect(unlockSessionMnemonicWithPin('123456')).rejects.toThrow(
+        'Wallet secret unavailable'
+      );
+
+      expect(mockUnlockWithPasskey).not.toHaveBeenCalled();
+    });
+  });
+
   describe('withMnemonic', () => {
     it('should execute callback with mnemonic', async () => {
       mockGetItemAsync.mockResolvedValue('test mnemonic');
@@ -177,6 +274,7 @@ describe('SecureStorageService', () => {
 
       await expect(deleteMnemonic()).resolves.toBeUndefined();
       expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_mnemonic_v1');
+      expect(mockDeleteItemAsync).toHaveBeenCalledWith('wallet_mnemonic_app_unlock_ready_v1');
     });
 
     it('should throw error on storage error', async () => {

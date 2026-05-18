@@ -4,10 +4,19 @@
  */
 
 import React from 'react';
-import { Alert, Image, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import PinFallbackModal from '../../components/auth/PinFallbackModal';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { DEFAULT_WALLET_DERIVATION_MODE, type WalletDerivationMode } from '../../constants/bitcoin';
 import { useAccountSwitcherContext } from '../../contexts/NavigationHandlersContext';
@@ -18,9 +27,11 @@ import {
   disconnectQuantaMobileReward,
   preloadQuantaRewardInstallId,
   previewQuantaMobileRewardStatus,
+  unifyQuantaAccounts,
   type QuantaMobileMatchedAddressType,
   type QuantaRewardStatusResult,
 } from '../../services/quantaRewardService';
+import { unlockSessionMnemonicWithPin } from '../../services/secureStorageService';
 import { COLORS } from '../../theme';
 import { validateBitcoinAddress, type DerivedAddresses } from '../../utils/bitcoin';
 import { logger } from '../../utils/logger';
@@ -31,7 +42,12 @@ import { QuantaMismatchWarningModal } from './QuantaMismatchWarningModal';
 import { QuantaStatusBanner } from './QuantaStatusBanner';
 import { quantaLinkStyles as localStyles } from './quantaLinkStyles';
 import { QUANTA_POINTS } from './quantaLinkAssets';
-import { CheckCircleIcon, StatusIconFrame, AnimatedStars } from './quantaLinkVisuals';
+import {
+  CheckCircleIcon,
+  StatusIconFrame,
+  AnimatedStars,
+  WarningTriangleIcon,
+} from './quantaLinkVisuals';
 import {
   CONNECT_QUANTA_ERROR_MESSAGE,
   NO_MATCH_ACCOUNT_MESSAGE,
@@ -53,11 +69,18 @@ interface QuantaLinkScreenProps {
   showBackButton?: boolean;
 }
 
+type PendingQuantaUnlockAction = 'search';
+
 function waitForSearchStart(): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, QUANTA_SEARCH_START_DELAY_MS);
     (timer as { unref?: () => void }).unref?.();
   });
+}
+
+function isPasskeySessionLockedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Passkey wallet is locked');
 }
 
 export default function QuantaLinkScreen({
@@ -72,6 +95,8 @@ export default function QuantaLinkScreen({
   const [isSwitchingAccount, setIsSwitchingAccount] = React.useState(false);
   const [isClaimingReward, setIsClaimingReward] = React.useState(false);
   const [isDisconnectingReward, setIsDisconnectingReward] = React.useState(false);
+  const [isUnifyingAccounts, setIsUnifyingAccounts] = React.useState(false);
+  const [hasUnifiedQuantaAccounts, setHasUnifiedQuantaAccounts] = React.useState(false);
   const [hasNoQuantaInWallet, setHasNoQuantaInWallet] = React.useState(false);
   const [isDifferentWalletMode, setIsDifferentWalletMode] = React.useState(false);
   const [isCheckingDifferentWallet, setIsCheckingDifferentWallet] = React.useState(false);
@@ -81,9 +106,13 @@ export default function QuantaLinkScreen({
   const [showMismatchProceedModal, setShowMismatchProceedModal] = React.useState(false);
   const [showAccountPickerModal, setShowAccountPickerModal] = React.useState(false);
   const [accountPickerError, setAccountPickerError] = React.useState<string | null>(null);
+  const [showQuantaUnlockPin, setShowQuantaUnlockPin] = React.useState(false);
+  const [quantaUnlockError, setQuantaUnlockError] = React.useState<string | null>(null);
+  const [isUnlockingQuantaWallet, setIsUnlockingQuantaWallet] = React.useState(false);
   const searchRequestIdRef = React.useRef(0);
   const differentWalletCheckIdRef = React.useRef(0);
   const searchAbortControllerRef = React.useRef<AbortController | null>(null);
+  const pendingQuantaUnlockActionRef = React.useRef<PendingQuantaUnlockAction | null>(null);
   const logoSize = Math.min(width * 0.58, 252);
   const topOffset = height * 0.05;
   const addressMaxLength = Math.max(Math.floor((width - 64) / 7.2), 14);
@@ -270,6 +299,7 @@ export default function QuantaLinkScreen({
   const canSearchQuanta =
     !isDiscoveringAccounts && !isSwitchingAccount && !isClaimingReward && !isDisconnectingReward;
   const isQuantaConnected = rewardStatus?.connected === true;
+  const shouldPromptUnifyQuanta = isQuantaConnected && !hasUnifiedQuantaAccounts;
   const connectedPoints = rewardStatus?.stats?.total_points ?? 0;
   const connectedTasks = rewardStatus?.stats?.tasks_completed ?? 0;
   const connectedRank = rewardStatus?.stats?.rank ?? null;
@@ -307,6 +337,7 @@ export default function QuantaLinkScreen({
       differentWalletCheckIdRef.current += 1;
       searchAbortControllerRef.current?.abort();
       searchAbortControllerRef.current = null;
+      pendingQuantaUnlockActionRef.current = null;
     },
     []
   );
@@ -318,6 +349,10 @@ export default function QuantaLinkScreen({
       });
     });
   }, []);
+
+  React.useEffect(() => {
+    setHasUnifiedQuantaAccounts(false);
+  }, [connectedAddress]);
 
   const handleShowMismatchHelp = React.useCallback(() => {
     navigation.navigate('QuantaSeedPhraseGuide');
@@ -353,6 +388,12 @@ export default function QuantaLinkScreen({
     setIsCheckingDifferentWallet(true);
     setDifferentWalletError(null);
     setDifferentWalletStatus(null);
+  }, []);
+
+  const requestQuantaWalletUnlock = React.useCallback((action: PendingQuantaUnlockAction) => {
+    pendingQuantaUnlockActionRef.current = action;
+    setQuantaUnlockError(null);
+    setShowQuantaUnlockPin(true);
   }, []);
 
   const switchToAccountIndex = React.useCallback(
@@ -412,6 +453,7 @@ export default function QuantaLinkScreen({
         setShowMismatchProceedModal(false);
         setShowAccountPickerModal(false);
         setRewardStatus(connectedStatus);
+        setHasUnifiedQuantaAccounts(false);
         setQuantaAddress(claimAddress);
         if (candidate) {
           markCandidateMatched(candidate);
@@ -453,6 +495,7 @@ export default function QuantaLinkScreen({
       isClaimingReward,
       markCandidateMatched,
       normalizedQuantaAddress,
+      setRewardStatus,
       switchToAccountIndex,
     ]
   );
@@ -507,6 +550,14 @@ export default function QuantaLinkScreen({
           return;
         }
 
+        if (isPasskeySessionLockedError(error)) {
+          setAccountCandidates([]);
+          setSelectedCandidateKey(null);
+          setShowAccountPickerModal(false);
+          requestQuantaWalletUnlock('search');
+          return;
+        }
+
         logger.warn('[QuantaLinkScreen] Failed to search Quanta accounts', {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -529,9 +580,57 @@ export default function QuantaLinkScreen({
   }, [
     canSearchQuanta,
     discoverQuantaAccountCandidates,
+    requestQuantaWalletUnlock,
     setAccountCandidates,
+    setIsDiscoveringAccounts,
     setSelectedCandidateKey,
   ]);
+
+  const handleQuantaUnlockPinSubmit = React.useCallback(
+    async (pin: string): Promise<void> => {
+      if (isUnlockingQuantaWallet) {
+        return;
+      }
+
+      setIsUnlockingQuantaWallet(true);
+      setQuantaUnlockError(null);
+
+      try {
+        await unlockSessionMnemonicWithPin(pin);
+        const pendingAction = pendingQuantaUnlockActionRef.current;
+        pendingQuantaUnlockActionRef.current = null;
+        setShowQuantaUnlockPin(false);
+
+        if (pendingAction === 'search') {
+          requestAnimationFrame(() => {
+            handleSearchQuanta();
+          });
+        }
+      } catch (error: unknown) {
+        logger.warn('[QuantaLinkScreen] Failed to unlock passkey wallet for Quanta lookup', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        setQuantaUnlockError(
+          error instanceof Error
+            ? error.message
+            : 'Could not unlock this wallet. Try again.'
+        );
+      } finally {
+        setIsUnlockingQuantaWallet(false);
+      }
+    },
+    [handleSearchQuanta, isUnlockingQuantaWallet]
+  );
+
+  const handleCancelQuantaUnlockPin = React.useCallback(() => {
+    if (isUnlockingQuantaWallet) {
+      return;
+    }
+
+    pendingQuantaUnlockActionRef.current = null;
+    setShowQuantaUnlockPin(false);
+    setQuantaUnlockError(null);
+  }, [isUnlockingQuantaWallet]);
 
   const handleCheckDifferentWallet = React.useCallback(() => {
     if (isClaimingReward || normalizedQuantaAddress.length === 0) {
@@ -637,7 +736,7 @@ export default function QuantaLinkScreen({
     searchAbortControllerRef.current = null;
     setShowAccountPickerModal(false);
     setIsDiscoveringAccounts(false);
-  }, []);
+  }, [setIsDiscoveringAccounts]);
 
   const handleSwitchToMatchedAccount = React.useCallback(async () => {
     if (matchedAccountIndex === null) {
@@ -655,6 +754,7 @@ export default function QuantaLinkScreen({
     searchAbortControllerRef.current?.abort();
     searchAbortControllerRef.current = null;
     setRewardStatus(null);
+    setHasUnifiedQuantaAccounts(false);
     setQuantaAddress('');
     resetAccountDiscovery();
     setHasNoQuantaInWallet(false);
@@ -665,7 +765,75 @@ export default function QuantaLinkScreen({
     setShowMismatchProceedModal(false);
     setShowAccountPickerModal(false);
     setAccountPickerError(null);
+    pendingQuantaUnlockActionRef.current = null;
+    setShowQuantaUnlockPin(false);
+    setQuantaUnlockError(null);
+    setIsUnlockingQuantaWallet(false);
   }, [resetAccountDiscovery, setRewardStatus]);
+
+  const handleUnifyQuantaAccounts = React.useCallback(async () => {
+    if (isUnifyingAccounts || !isQuantaConnected) {
+      return;
+    }
+
+    if (!connectedAddress || !currentWalletAddresses) {
+      Alert.alert('Could not unify Quanta', 'Connected wallet details are not available yet.');
+      return;
+    }
+
+    const mobileWalletPayload = getQuantaMobileWalletPayload(connectedAddress);
+    if (!mobileWalletPayload.mobileWalletAddress) {
+      Alert.alert('Could not unify Quanta', 'Mobile wallet address is missing.');
+      return;
+    }
+
+    setIsUnifyingAccounts(true);
+    try {
+      const result = await unifyQuantaAccounts({
+        quantaAddress: connectedAddress,
+        ...mobileWalletPayload,
+        accountIndex: matchedAccountIndex ?? currentAccount,
+        derivationMode: matchedAccountDerivationMode ?? walletDerivationMode,
+      });
+
+      setHasUnifiedQuantaAccounts(true);
+
+      try {
+        const { status, displayAddress } = await fetchQuantaRewardStatus(
+          result.canonical_wallet_address || connectedAddress
+        );
+        if (status.connected) {
+          setRewardStatus(status);
+        }
+        if (displayAddress) {
+          setQuantaAddress(displayAddress);
+        }
+      } catch (statusError: unknown) {
+        logger.warn('[QuantaLinkScreen] Failed to refresh Quanta reward status after unify', {
+          error: statusError instanceof Error ? statusError.message : String(statusError),
+        });
+      }
+    } catch (error: unknown) {
+      logger.warn('[QuantaLinkScreen] Failed to unify Quanta accounts', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      Alert.alert('Could not unify Quanta', error instanceof Error ? error.message : 'Try again.');
+    } finally {
+      setIsUnifyingAccounts(false);
+    }
+  }, [
+    connectedAddress,
+    currentAccount,
+    currentWalletAddresses,
+    fetchQuantaRewardStatus,
+    getQuantaMobileWalletPayload,
+    isQuantaConnected,
+    isUnifyingAccounts,
+    matchedAccountDerivationMode,
+    matchedAccountIndex,
+    setRewardStatus,
+    walletDerivationMode,
+  ]);
 
   const handleDisconnectQuanta = React.useCallback(() => {
     if (isDisconnectingReward) {
@@ -674,7 +842,7 @@ export default function QuantaLinkScreen({
 
     Alert.alert(
       'Disconnect Quanta?',
-      'This removes the mobile app reward task and clears this device download record so you can connect again.',
+      'This clears this device connection so you can connect again. Already-awarded Quanta points stay on the account.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -689,7 +857,7 @@ export default function QuantaLinkScreen({
                   'Quanta disconnected',
                   result.removed.task
                     ? 'The mobile reward was removed and this app is ready to connect again.'
-                    : 'This app is ready to connect again.'
+                    : 'This app is ready to connect again. Existing Quanta points were preserved.'
                 );
               })
               .catch((error: unknown) => {
@@ -734,12 +902,42 @@ export default function QuantaLinkScreen({
           />
           {isQuantaConnected ? (
             <View style={localStyles.connectedTopSummary}>
-              <View style={localStyles.connectedBadge}>
+              <Pressable
+                accessibilityLabel={
+                  shouldPromptUnifyQuanta ? 'Unify Quanta accounts' : 'Quanta connected'
+                }
+                accessibilityRole={shouldPromptUnifyQuanta ? 'button' : 'text'}
+                disabled={!shouldPromptUnifyQuanta || isUnifyingAccounts}
+                onPress={handleUnifyQuantaAccounts}
+                style={[
+                  localStyles.connectedBadge,
+                  shouldPromptUnifyQuanta && localStyles.connectedBadgeWarning,
+                  isUnifyingAccounts && { opacity: 0.72 },
+                ]}
+                testID="quanta-connected-status-chip"
+              >
                 <StatusIconFrame>
-                  <CheckCircleIcon />
+                  {isUnifyingAccounts ? (
+                    <ActivityIndicator color={COLORS.YELLOW} size="small" />
+                  ) : shouldPromptUnifyQuanta ? (
+                    <WarningTriangleIcon />
+                  ) : (
+                    <CheckCircleIcon />
+                  )}
                 </StatusIconFrame>
-                <Text style={localStyles.connectedBadgeText}>Quanta connected</Text>
-              </View>
+                <Text
+                  style={[
+                    localStyles.connectedBadgeText,
+                    shouldPromptUnifyQuanta && localStyles.connectedBadgeWarningText,
+                  ]}
+                >
+                  {isUnifyingAccounts
+                    ? 'Unifying Quanta accounts...'
+                    : shouldPromptUnifyQuanta
+                      ? 'Click to unify Quanta accounts'
+                      : 'Quanta connected'}
+                </Text>
+              </Pressable>
               {connectedAddress && (
                 <Text style={localStyles.connectedFullAddress} selectable>
                   {connectedAddress}
@@ -858,6 +1056,15 @@ export default function QuantaLinkScreen({
         onCancel={() => setShowMismatchProceedModal(false)}
         onProceed={handleConfirmMismatchConnect}
         visible={showMismatchProceedModal}
+      />
+      <PinFallbackModal
+        busy={isUnlockingQuantaWallet}
+        error={quantaUnlockError}
+        message="Enter your wallet PIN, then approve the passkey prompt so Ducat can scan your Quanta addresses."
+        onCancel={handleCancelQuantaUnlockPin}
+        onSubmit={handleQuantaUnlockPinSubmit}
+        title="Unlock wallet"
+        visible={showQuantaUnlockPin}
       />
     </ScreenLayout>
   );

@@ -22,10 +22,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     text: "Sepolia ETH"
 - assertVisible:
-    text: "Ethereum Sepolia gas"
-
-- tapOn:
+    id: "asset-detail-send-btn"
+- assertVisible:
     id: "asset-detail-receive-btn"
+
+- runFlow: ../helpers/tap-asset-detail-receive.yaml
 - extendedWaitUntil:
     visible:
       id: "receive-qr-screen"
@@ -48,11 +49,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "sepolia-send-screen"
     timeout: 10000
 - assertVisible:
-    text: "Send Sepolia ETH"
+    text: "Send ETH"
 - assertVisible:
     id: "sepolia-send-recipient-input"
 - assertVisible:
-    id: "sepolia-send-amount-input"
+    id: "sepolia-send-amount-focus-target"
 - assertVisible:
     text: "Network fee"
 - assertVisible:
@@ -60,6 +61,5 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "sepolia-send-recipient-input"
 - inputText: "invalidaddress123"
-- hideKeyboard
 - assertVisible:
     id: "sepolia-send-recipient-error"

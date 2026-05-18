@@ -528,6 +528,17 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
   const amountIssued = mintQuote.amount_issued ?? 0;
   const isFullyIssued = mintState === 'ISSUED' || (amountPaid > 0 && amountIssued >= amountPaid);
 
+  if (!cashuMintSendTxid && amountPaid <= 0 && amountIssued <= 0 && mintState !== 'PAID') {
+    const message = 'TurboUNIT mint quote is ready to fund. Retry settlement to finish it.';
+    useVaultSettlementStore.getState().markNeedsRetry(message);
+
+    return {
+      status: 'needs_retry',
+      message,
+      lastStatus: mintState,
+    };
+  }
+
   if (isFullyIssued) {
     if (cashuMintSendTxid) {
       await usePendingTransactionsStore

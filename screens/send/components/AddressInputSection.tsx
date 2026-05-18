@@ -84,6 +84,9 @@ export function AddressInputSection({
           autoCorrect={false}
           multiline
           numberOfLines={2}
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={() => addressInputRef.current?.blur()}
           testID="send-address-input"
           accessibilityLabel="Recipient Bitcoin address"
           accessibilityHint="Enter the Bitcoin address to send to"

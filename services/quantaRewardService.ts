@@ -90,6 +90,27 @@ export interface QuantaRewardDisconnectResult {
   };
 }
 
+export interface UnifyQuantaAccountsInput {
+  quantaAddress: string;
+  mobileWalletAddress?: string | null;
+  mobileLegacyAddress?: string | null;
+  mobileTaprootAddress?: string | null;
+  mobileSegwitAddress?: string | null;
+  matchedAddressType?: QuantaMobileMatchedAddressType | null;
+  accountIndex: number;
+  derivationMode: string;
+}
+
+export interface UnifyQuantaAccountsResult {
+  unified: boolean;
+  status: 'unified' | 'already_unified' | 'no_changes';
+  canonical_wallet_address?: string | null;
+  merged_users?: number;
+  moved_task_rows?: number;
+  dropped_duplicate_task_rows?: number;
+  moved_points?: number;
+}
+
 export interface ClaimQuantaMobileRewardInput {
   quantaAddress: string;
   mobileWalletAddress?: string | null;
@@ -343,6 +364,71 @@ export async function disconnectQuantaMobileReward(): Promise<QuantaRewardDiscon
   logger.info('[QuantaReward] Mobile reward disconnected', {
     disconnected: response.data.disconnected,
     pointsRemoved: response.data.removed.points,
+  });
+
+  return response.data;
+}
+
+export async function unifyQuantaAccounts({
+  quantaAddress,
+  mobileWalletAddress,
+  mobileLegacyAddress,
+  mobileTaprootAddress,
+  mobileSegwitAddress,
+  matchedAddressType,
+  accountIndex,
+  derivationMode,
+}: UnifyQuantaAccountsInput): Promise<UnifyQuantaAccountsResult> {
+  const trimmedAddress = quantaAddress.trim();
+  if (!isLikelyQuantaAddress(trimmedAddress)) {
+    throw new Error('Connected Quanta address is invalid');
+  }
+
+  const trimmedMobileLegacyAddress = mobileLegacyAddress?.trim() || undefined;
+  const trimmedMobileTaprootAddress = mobileTaprootAddress?.trim() || undefined;
+  const trimmedMobileSegwitAddress = mobileSegwitAddress?.trim() || undefined;
+  const trimmedMobileAddress =
+    mobileWalletAddress?.trim() ||
+    trimmedMobileLegacyAddress ||
+    trimmedMobileTaprootAddress ||
+    trimmedMobileSegwitAddress;
+
+  if (!trimmedMobileAddress || !isLikelyQuantaAddress(trimmedMobileAddress)) {
+    throw new Error('Mobile wallet address is missing or invalid');
+  }
+
+  const installId = await getOrCreateInstallId();
+  const url = joinUrl(APP_NETWORK_CONFIG.api.quantaUrl, '/mobile/unify-quanta-accounts');
+
+  const response = await postJSON<ApiEnvelope<UnifyQuantaAccountsResult>>(
+    url,
+    {
+      installId,
+      quantaAddress: trimmedAddress,
+      mobileWalletAddress: trimmedMobileAddress,
+      mobileLegacyAddress: trimmedMobileLegacyAddress,
+      mobileTaprootAddress: trimmedMobileTaprootAddress,
+      mobileSegwitAddress: trimmedMobileSegwitAddress,
+      matchedAddressType: matchedAddressType ?? undefined,
+      accountIndex,
+      derivationMode,
+      platform: Platform.OS,
+      appVersion: Application.nativeApplicationVersion ?? undefined,
+      buildVersion: Application.nativeBuildVersion ?? undefined,
+    },
+    {
+      timeout: 20000,
+      description: 'Unify Quanta accounts',
+    }
+  );
+
+  if (response.success === false || !response.data?.unified) {
+    throw new Error('Quanta account unification failed');
+  }
+
+  logger.info('[QuantaReward] Quanta account unification checked', {
+    status: response.data.status,
+    mergedUsers: response.data.merged_users,
   });
 
   return response.data;

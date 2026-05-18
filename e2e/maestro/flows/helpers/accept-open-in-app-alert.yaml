@@ -1,0 +1,12 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# iOS may require confirmation after Maestro opens custom URL schemes.
+# Keep this helper scoped to the command immediately after openLink calls.
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        text: 'Open'
+    commands:
+      - tapOn:
+          text: 'Open'

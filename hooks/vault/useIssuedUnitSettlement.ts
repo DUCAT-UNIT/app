@@ -55,6 +55,18 @@ function isUnitAvailabilityError(error: unknown): boolean {
   return error instanceof Error && error.message === ERRORS.NO_UNIT_BALANCE;
 }
 
+function isUnitIntentBuildRetryableError(error: unknown): boolean {
+  if (isUnitAvailabilityError(error)) {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /failed to fetch transaction .*404|HTTP\s+404|not found/i.test(error.message);
+}
+
 function isBridgeSettlementPendingError(error: unknown): boolean {
   return error instanceof Error && error.message === 'Bridge settlement is still processing.';
 }
@@ -292,12 +304,13 @@ export function useIssuedUnitSettlement() {
           );
         } catch (error) {
           lastError = error;
-          if (!isUnitAvailabilityError(error)) {
+          if (!isUnitIntentBuildRetryableError(error)) {
             throw error;
           }
 
           logger.info('[VaultSettlement] Waiting for freshly issued UNIT to become spendable', {
             amountInput,
+            error: error instanceof Error ? error.message : String(error),
           });
           await delay(BRIDGE_SEND_BUILD_RETRY_MS);
         }

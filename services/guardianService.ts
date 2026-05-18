@@ -15,6 +15,9 @@ type GuardianSocketClient = GuardianSocket & {
 // Singleton promise for guardian client
 let gclientPromise: Promise<GuardianSocketClient> | null = null;
 let currentClient: GuardianSocketClient | null = null;
+let gclientPromiseStartedAt: number | null = null;
+
+const PENDING_GUARDIAN_CONNECTION_MAX_AGE_MS = 15_000;
 
 interface GuardianClientParams {
   url?: string;
@@ -34,10 +37,11 @@ export async function createGuardianClient(
     throw new Error(`DUCAT mobile is Mutinynet-only. Unsupported Guardian network "${network}".`);
   }
 
-  logger.debug(`[GuardianService] Creating new guardian client for ${url}`);
+  logger.info('[GuardianService] Creating new guardian client', { url });
 
   const client = new GuardianSocket(url, network, params.pubkey);
   currentClient = client as GuardianSocketClient;
+  gclientPromiseStartedAt = Date.now();
 
   const clientPromise = new Promise<GuardianSocketClient>((resolve, reject) => {
     let settled = false;
@@ -49,7 +53,9 @@ export async function createGuardianClient(
       (client as GuardianSocketClient).isError = true;
       (client as GuardianSocketClient).isConnected = false;
       gclientPromise = null;
+      gclientPromiseStartedAt = null;
       currentClient = null;
+      logger.warn('[GuardianService] Guardian connection timed out', { url });
       reject(new Error('Guardian connection timeout'));
     }, 30_000); // 30 second connection timeout
     (timeout as { unref?: () => void }).unref?.();
@@ -62,6 +68,7 @@ export async function createGuardianClient(
       (client as GuardianSocketClient).isConnected = false;
       logger.error('[GuardianService] Socket error:', { error });
       gclientPromise = null;
+      gclientPromiseStartedAt = null;
       currentClient = null;
       if (shouldReject) {
         reject(typeof error === 'string' ? new Error(`guardian: ${error}`) : error);
@@ -72,6 +79,7 @@ export async function createGuardianClient(
       (client as GuardianSocketClient).isConnected = false;
       logger.debug('[GuardianService] Socket closed');
       gclientPromise = null;
+      gclientPromiseStartedAt = null;
       currentClient = null;
 
       if (!settled) {
@@ -88,7 +96,9 @@ export async function createGuardianClient(
       settled = true;
       clearTimeout(timeout);
       (client as GuardianSocketClient).isConnected = true;
-      logger.debug('[GuardianService] Socket ready');
+      logger.info('[GuardianService] Socket ready', {
+        durationMs: gclientPromiseStartedAt ? Date.now() - gclientPromiseStartedAt : undefined,
+      });
       currentClient = client as GuardianSocketClient;
       resolve(client as GuardianSocketClient);
     });
@@ -110,14 +120,22 @@ export async function getGuardianClient(pubkey: string): Promise<GuardianSocketC
 
   // If there's a pending connection, wait for it
   if (gclientPromise) {
-    logger.debug('[GuardianService] Waiting for pending connection');
-    try {
-      return await gclientPromise;
-    } catch (error: unknown) {
-      // Connection failed, will create new one below
-      logger.debug('[GuardianService] Pending connection failed, creating new one', {
-        error: error instanceof Error ? error.message : String(error),
+    const pendingAgeMs = gclientPromiseStartedAt ? Date.now() - gclientPromiseStartedAt : 0;
+    if (pendingAgeMs > PENDING_GUARDIAN_CONNECTION_MAX_AGE_MS) {
+      logger.warn('[GuardianService] Discarding stale pending guardian connection', {
+        pendingAgeMs,
       });
+      disconnectGuardian();
+    } else {
+      logger.debug('[GuardianService] Waiting for pending connection');
+      try {
+        return await gclientPromise;
+      } catch (error: unknown) {
+        // Connection failed, will create new one below
+        logger.debug('[GuardianService] Pending connection failed, creating new one', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -137,9 +155,10 @@ export function disconnectGuardian(): void {
     } catch (e) {
       logger.debug('[GuardianService] Error closing socket', { error: (e as Error).message });
     }
-    currentClient = null;
-    gclientPromise = null;
   }
+  currentClient = null;
+  gclientPromise = null;
+  gclientPromiseStartedAt = null;
 }
 
 /**

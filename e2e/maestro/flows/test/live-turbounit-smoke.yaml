@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Live TurboUNIT smoke path.
-# This flow must run through scripts/runMaestroLive.mjs so EXPO_PUBLIC_E2E_BYPASS=false.
+# This flow must run through scripts/runMaestroLive.mjs against the normal app bundle.
 # It uses the reviewer wallet fixture, creates a real live vault if needed by the setup
 # flow, sends UNIT to the advertised Cashu onchain mint, and waits for a P2PK TurboUNIT
 # token to be produced.
@@ -39,16 +39,21 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "send-address-input"
 - inputText: "tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c"
-- hideKeyboard
+- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
 
 - extendedWaitUntil:
     visible:
       text: "Valid"
     timeout: 10000
 
-# Enter a small live amount without relying on bypass-only buttons.
+# Enter a small live amount through the visible UI.
 - tapOn:
     id: "unit-send-amount-display"
+- extendedWaitUntil:
+    visible:
+      id: "unit-send-amount-input"
+    timeout: 5000
+- eraseText
 - inputText: "0.01"
 - tapOn:
     id: "unit-send-amount-done-btn"

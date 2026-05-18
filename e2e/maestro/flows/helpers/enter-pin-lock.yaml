@@ -2,13 +2,19 @@ appId: com.ducatprotocol.DucatProtocolWallet
 ---
 - tapOn:
     id: "lock-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "lock-keypad-2"
+    id: "lock-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "lock-keypad-3"
+    id: "lock-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "lock-keypad-4"
+    id: "lock-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "lock-keypad-5"
+    id: "lock-keypad-1"
+- waitForAnimationToEnd
 - tapOn:
-    id: "lock-keypad-6"
+    id: "lock-keypad-1"
+- waitForAnimationToEnd

@@ -55,9 +55,13 @@ export function usePostAuthHandler({
     // Set authenticated first
     setIsAuthenticated(true);
 
-    // Check if user was trying to enable Face ID
-    const pendingFaceId = await getBoolean(SettingKeys.PENDING_FACE_ID_ENABLE, false);
+    const [pendingFaceId, pendingNotifications, pendingWalletDelete] = await Promise.all([
+      getBoolean(SettingKeys.PENDING_FACE_ID_ENABLE, false),
+      getBoolean(SettingKeys.PENDING_NOTIFICATIONS_ENABLE, false),
+      getBoolean(SettingKeys.PENDING_WALLET_DELETE, false),
+    ]);
 
+    // Check if user was trying to enable Face ID
     if (pendingFaceId) {
       try {
         await deleteSetting(SettingKeys.PENDING_FACE_ID_ENABLE);
@@ -77,7 +81,6 @@ export function usePostAuthHandler({
     }
 
     // Check if user was trying to enable notifications
-    const pendingNotifications = await getBoolean(SettingKeys.PENDING_NOTIFICATIONS_ENABLE, false);
     if (pendingNotifications) {
       await deleteSetting(SettingKeys.PENDING_NOTIFICATIONS_ENABLE);
       if (onNotificationsEnableAfterAuth) {
@@ -95,7 +98,6 @@ export function usePostAuthHandler({
     }
 
     // Check if user was trying to delete wallet
-    const pendingWalletDelete = await getBoolean(SettingKeys.PENDING_WALLET_DELETE, false);
     if (pendingWalletDelete) {
       await deleteSetting(SettingKeys.PENDING_WALLET_DELETE);
       try {

@@ -34,8 +34,10 @@ import {
   authenticateWithBiometrics,
   setBiometricEnabled as persistBiometricEnabled,
 } from '../services/biometricService';
-import { isPasskeyEnabled } from '../services/passkey';
-import { hasAccessibleMnemonic } from '../services/secureStorageService';
+import {
+  canUseBiometricUnlockForMnemonic,
+  hasAccessibleMnemonic,
+} from '../services/secureStorageService';
 import { COLORS } from '../theme';
 import {
   AuthStack,
@@ -62,6 +64,11 @@ import {
 import { useAppLifecycle } from '../hooks/useAppLifecycle';
 import { useNavigationState } from '../hooks/useNavigationState';
 import { useNotifications } from '../stores/notificationStore';
+import { useBorrowStore } from '../stores/borrowStore';
+import { useDepositStore } from '../stores/depositStore';
+import { useRepayStore } from '../stores/repayStore';
+import { useVaultCreationStore } from '../stores/vaultCreationStore';
+import { useWithdrawStore } from '../stores/withdrawStore';
 import { useNotifications as useNotificationsPush } from '../hooks/useNotifications';
 import type { NotificationDataType } from '../hooks/useNotifications';
 import * as Notifications from 'expo-notifications';
@@ -211,7 +218,7 @@ interface LockScreenRouteProps {
   onAuthenticated: () => Promise<void>;
   showFaceIdButton: boolean;
   onFaceIdPress: () => Promise<void>;
-  onResetWallet: () => void;
+  onResetWallet: () => void | Promise<void>;
 }
 
 const LockScreenRoute = React.memo(function LockScreenRoute({
@@ -280,6 +287,8 @@ export default function RootNavigator(): React.JSX.Element {
     biometricEnabled,
     setIsAuthenticated,
     setBiometricEnabled,
+    showFaceIdButton,
+    setShowFaceIdButton,
     resetAuth,
   } = useAuthSession();
   const { wallet, switchAccount, resetWallet } = useWallet();
@@ -289,6 +298,32 @@ export default function RootNavigator(): React.JSX.Element {
   const { receive, receiveBtc, refresh: refreshCashu } = useCashuOperations();
   const { setShowAirdropModal } = useAirdrop();
   const { settingsHandlers } = useSettingsHandlers();
+
+  useEffect(() => {
+    if (!shouldShowLockOverlay || !isBiometricSupported) {
+      return;
+    }
+
+    let cancelled = false;
+    canUseBiometricUnlockForMnemonic()
+      .then((canUseBiometricUnlock) => {
+        if (!cancelled) {
+          setShowFaceIdButton(canUseBiometricUnlock);
+        }
+      })
+      .catch((error: unknown) => {
+        logger.warn('[RootNavigator] Failed to resolve Face ID unlock availability', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (!cancelled) {
+          setShowFaceIdButton(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBiometricSupported, setShowFaceIdButton, shouldShowLockOverlay, wallet?.taprootAddress]);
 
   // Notification tap response handler — routes to appropriate screen
   const handleNotificationResponse = useCallback(
@@ -378,6 +413,28 @@ export default function RootNavigator(): React.JSX.Element {
   // Check for pending turbo transaction and navigate to resume
   const pendingTurboChecked = useRef(false);
   const turboIsProcessing = useTurboProcessingStore((state) => state.isProcessing);
+  const borrowIsProcessing = useBorrowStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const depositIsProcessing = useDepositStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const repayIsProcessing = useRepayStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const vaultCreationIsProcessing = useVaultCreationStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const withdrawIsProcessing = useWithdrawStore(
+    (state) => state.loading || state.currentStep === 'processing'
+  );
+  const walletOperationIsProcessing =
+    turboIsProcessing ||
+    borrowIsProcessing ||
+    depositIsProcessing ||
+    repayIsProcessing ||
+    vaultCreationIsProcessing ||
+    withdrawIsProcessing;
   const loadPersistedState = useTurboProcessingStore((state) => state.loadPersistedState);
 
   useEffect(() => {
@@ -504,9 +561,11 @@ export default function RootNavigator(): React.JSX.Element {
     }
 
     // Lock the app
+    setShowFaceIdButton(false);
     setIsAuthenticated(false);
   }, [
     setIsAuthenticated,
+    setShowFaceIdButton,
     dismissSnackbar,
     hidePasskeyMigrationPrompt,
     hideBiometricSetupPrompt,
@@ -518,6 +577,12 @@ export default function RootNavigator(): React.JSX.Element {
       const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
 
       if (!result.success) {
+        return;
+      }
+
+      if (!(await hasAccessibleMnemonic())) {
+        setShowFaceIdButton(false);
+        Alert.alert('Use PIN', 'Enter your PIN once to unlock wallet signing on this device.');
         return;
       }
 
@@ -533,7 +598,12 @@ export default function RootNavigator(): React.JSX.Element {
         error: error instanceof Error ? error.message : String(error),
       });
     }
-  }, [setBiometricEnabled, setIsAuthenticated, handleLockScreenAuthenticatedWrapper]);
+  }, [
+    setBiometricEnabled,
+    setIsAuthenticated,
+    setShowFaceIdButton,
+    handleLockScreenAuthenticatedWrapper,
+  ]);
 
   // Handle biometric authentication with proper post-auth flow
   const handleBiometricAuth = useCallback(async () => {
@@ -546,14 +616,14 @@ export default function RootNavigator(): React.JSX.Element {
         const result = await authenticateWithBiometrics('Authenticate to unlock wallet', 'Use PIN');
 
         if (result.success) {
-          const passkeyEnabled = await isPasskeyEnabled();
-          if (passkeyEnabled && !(await hasAccessibleMnemonic())) {
-            Alert.alert(
-              'Use PIN To Unlock',
-              'This wallet needs your PIN to re-establish the encrypted passkey session after a restart.'
+          if (!(await hasAccessibleMnemonic())) {
+            logger.warn(
+              '[RootNavigator] Face ID succeeded but wallet secret is unavailable; requiring PIN'
             );
+            setShowFaceIdButton(false);
             return;
           }
+
           setIsAuthenticated(true);
           handleLockScreenAuthenticatedWrapper();
         }
@@ -577,6 +647,7 @@ export default function RootNavigator(): React.JSX.Element {
     biometricEnabled,
     isBiometricSupported,
     setIsAuthenticated,
+    setShowFaceIdButton,
     enableBiometricFromPrompt,
     handleLockScreenAuthenticatedWrapper,
   ]);
@@ -606,7 +677,7 @@ export default function RootNavigator(): React.JSX.Element {
     seedConfirmedRef,
     isBiometricSupported,
     biometricEnabled,
-    isProcessing: turboIsProcessing,
+    isProcessing: walletOperationIsProcessing,
     inactivityTimeoutMs: settingsHandlers.autoLockTimeoutMs,
     onLock: handleLock,
     onAuthenticateUser: handleBiometricAuth,
@@ -665,7 +736,7 @@ export default function RootNavigator(): React.JSX.Element {
               {() => (
                 <LockScreenRoute
                   onAuthenticated={handleLockScreenAuthenticatedWrapper}
-                  showFaceIdButton={isBiometricSupported}
+                  showFaceIdButton={isBiometricSupported && showFaceIdButton}
                   onFaceIdPress={handleBiometricAuth}
                   onResetWallet={handleResetWalletFromLockScreen}
                 />

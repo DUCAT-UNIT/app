@@ -1,0 +1,388 @@
+{
+  "schemaVersion": 1,
+  "description": "User-facing regression matrix for Ducat Wallet. This file is the source of truth for critical app flows and the suites that exercise them.",
+  "profiles": {
+    "pr": {
+      "description": "Fast local/CI checks that do not require an installed app.",
+      "suites": ["quality-gates", "e2e-flow-validation", "critical-transaction-jest"]
+    },
+    "device": {
+      "description": "Simulator/device Maestro checks that drive the normal app UI.",
+      "suites": ["device-core-smoke", "device-transaction-critical"]
+    },
+    "live": {
+      "description": "Real Mutinynet/Sepolia/Cashu/Guardian flows with log watchdogs.",
+      "suites": [
+        "live-vault-turbounit-repay",
+        "live-vault-usdc-lifecycle",
+        "live-vault-second-repay"
+      ]
+    },
+    "real": {
+      "description": "Strict live E2E gate. Runs real phone flows, verifies emitted Mutinynet txids/Sepolia hashes, and waits for confirmation.",
+      "suites": [
+        "real-receive-btc",
+        "real-send-btc",
+        "real-send-unit",
+        "real-vault-actions",
+        "real-vault-turbounit-repay",
+        "real-vault-usdc-lifecycle",
+        "real-vault-second-repay",
+        "real-liquidation-execution",
+        "real-deep-link-recovery",
+        "real-sepolia-send-swap-redeem"
+      ]
+    },
+    "real-no-usdc": {
+      "description": "Strict live TestFlight reviewer-data gate without Sepolia/USDC flows.",
+      "suites": [
+        "real-receive-btc",
+        "real-send-btc",
+        "real-send-unit",
+        "real-vault-actions",
+        "real-vault-borrow-turbounit",
+        "real-vault-turbounit-repay",
+        "real-vault-second-repay"
+      ]
+    },
+    "release": {
+      "description": "Full user-facing release gate. Runs PR, device, and strict live real-flow checks.",
+      "suites": [
+        "quality-gates",
+        "e2e-flow-validation",
+        "critical-transaction-jest",
+        "device-core-smoke",
+        "device-transaction-critical",
+        "live-vault-turbounit-repay",
+        "live-vault-usdc-lifecycle",
+        "live-vault-second-repay",
+        "real-receive-btc",
+        "real-send-btc",
+        "real-send-unit",
+        "real-vault-actions",
+        "real-vault-turbounit-repay",
+        "real-vault-usdc-lifecycle",
+        "real-vault-second-repay",
+        "real-liquidation-execution",
+        "real-deep-link-recovery",
+        "real-sepolia-send-swap-redeem"
+      ]
+    }
+  },
+  "suites": {
+    "quality-gates": {
+      "kind": "command",
+      "tier": "pr",
+      "surfaces": ["app"],
+      "description": "TypeScript, ESLint, and cleanup guardrails.",
+      "command": ["npm", "run", "verify:quick"]
+    },
+    "e2e-flow-validation": {
+      "kind": "command",
+      "tier": "pr",
+      "surfaces": ["e2e"],
+      "description": "Validates Maestro flow references and suite hygiene.",
+      "command": ["npm", "run", "e2e:validate"]
+    },
+    "critical-transaction-jest": {
+      "kind": "command",
+      "tier": "pr",
+      "surfaces": ["vault", "cashu", "turbo"],
+      "description": "Focused transaction-state tests for vault, TurboUNIT, Cashu melt/mint, and settlement recovery.",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "hooks/vault/__tests__/useRepayFromUsdcSettlement.test.tsx",
+        "hooks/vault/__tests__/useBorrowToUsdcSettlement.test.tsx",
+        "hooks/vault/__tests__/useIssuedUnitSettlement.test.tsx",
+        "services/vault/__tests__/vault.test.ts",
+        "services/__tests__/vaultSettlementService.test.ts",
+        "services/__tests__/evmBridgeService.test.ts",
+        "services/liquidation/__tests__/execution.test.ts",
+        "services/liquidation/__tests__/liquidationSwapBroadcastRecovery.test.ts",
+        "services/turbo/__tests__/turboLinkingConfig.test.ts",
+        "services/cashu/operations/__tests__/cashuMintOperations.test.ts",
+        "services/cashu/operations/__tests__/cashuMeltOperations.test.ts",
+        "stores/__tests__/pendingTransactionsStore.test.ts",
+        "stores/__tests__/pendingVaultTransactionStore.test.ts",
+        "stores/__tests__/vaultSettlementStore.test.ts",
+        "stores/__tests__/tokenProcessingStore.test.ts",
+        "stores/__tests__/evmTransactionCheckpointStore.test.ts",
+        "--runInBand"
+      ]
+    },
+    "device-core-smoke": {
+      "kind": "maestro",
+      "tier": "device",
+      "surfaces": ["auth", "wallet", "send", "settings"],
+      "description": "Core create-wallet, funded wallet, invalid-send, and USDC settings gate checks on an installed app.",
+      "command": ["node", "scripts/runMaestroCritical.mjs"]
+    },
+    "device-transaction-critical": {
+      "kind": "maestro",
+      "tier": "device",
+      "surfaces": ["wallet", "send", "vault", "cashu", "turbo"],
+      "description": "High-risk deterministic user flows covering wallet balances, BTC/UNIT sends, Turbo send route, vault lifecycle, and Cashu mint surfaces.",
+      "command": [
+        "node",
+        "scripts/runMaestroCritical.mjs",
+        "e2e/maestro/flows/wallet/03-funded-balance.yaml",
+        "e2e/maestro/flows/send/01-send-btc-complete.yaml",
+        "e2e/maestro/flows/send/02-send-unit-complete.yaml",
+        "e2e/maestro/flows/send/09-send-unit-turbo.yaml",
+        "e2e/maestro/flows/vault/05-vault-full-lifecycle.yaml",
+        "e2e/maestro/flows/ecash/04-cashu-mint-screen.yaml"
+      ]
+    },
+    "live-vault-turbounit-repay": {
+      "kind": "live",
+      "tier": "live",
+      "surfaces": ["vault", "repay", "turbo", "cashu"],
+      "description": "Real vault creation, real TurboUNIT mint, and real TurboUNIT repay with phase watchdogs.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "repay-turbounit"]
+    },
+    "live-vault-usdc-lifecycle": {
+      "kind": "live",
+      "tier": "live",
+      "surfaces": ["vault", "borrow", "repay", "usdc", "bridge"],
+      "description": "Real vault creation settled to USDC, then real USDC-funded repay with phase watchdogs.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "vault-usdc-lifecycle"]
+    },
+    "live-vault-second-repay": {
+      "kind": "live",
+      "tier": "live",
+      "surfaces": ["vault", "repay", "recovery"],
+      "description": "Real vault creation followed by two consecutive UNIT repayments with phase watchdogs.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "vault-second-repay"]
+    },
+    "real-receive-btc": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["wallet", "receive", "btc"],
+      "description": "Real wallet creation and faucet receive, with emitted Mutinynet txid confirmation.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "--require-confirmation", "receive-btc"]
+    },
+    "real-send-btc": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["send", "btc"],
+      "description": "Real BTC send on the app, with broadcast txid confirmation.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "--require-confirmation", "send-btc"]
+    },
+    "real-send-unit": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["send", "unit", "vault"],
+      "description": "Real vault-issued UNIT send with Turbo disabled, with broadcast txid confirmation.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "--require-confirmation", "send-unit"]
+    },
+    "real-vault-actions": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["vault", "deposit", "borrow", "repay", "withdraw"],
+      "description": "Real vault open, additional deposit, borrow, repay, and withdraw with txid confirmation.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "vault-actions"
+      ]
+    },
+    "real-vault-turbounit-repay": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["vault", "repay", "turbo", "cashu"],
+      "description": "Strict TurboUNIT repay regression with real txid confirmation.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "repay-turbounit"
+      ]
+    },
+    "real-vault-borrow-turbounit": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["vault", "borrow", "turbo", "cashu"],
+      "description": "Strict borrow-to-TurboUNIT regression with real vault issuance and Cashu mint settlement.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "vault-borrow-turbounit"
+      ]
+    },
+    "real-vault-usdc-lifecycle": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["vault", "borrow", "repay", "usdc", "bridge"],
+      "description": "Strict USDC settlement lifecycle with real Mutinynet txid confirmation.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "vault-usdc-lifecycle"
+      ]
+    },
+    "real-vault-second-repay": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["vault", "repay", "recovery"],
+      "description": "Strict second-repay regression with real Mutinynet txid confirmation.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "vault-second-repay"
+      ]
+    },
+    "real-liquidation-execution": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["liquidation", "vault", "swap"],
+      "description": "Live liquidation claim, auto-swap, txid capture, and confirmation.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "liquidation-execution"
+      ]
+    },
+    "real-deep-link-recovery": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["deeplink", "cashu", "turbo", "recovery"],
+      "description": "Cold-start Cashu and TurboUNIT token links and prove claims complete after restart.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "deep-link-recovery"]
+    },
+    "real-sepolia-send-swap-redeem": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["bridge", "sepolia", "usdc", "swap", "redeem"],
+      "description": "Live Sepolia USDC send, swap, and redeem with EVM receipt verification.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "sepolia-send-swap-redeem"
+      ]
+    }
+  },
+  "criticalFlows": [
+    {
+      "id": "auth-create-import-unlock",
+      "surface": "auth",
+      "risk": "critical",
+      "coverage": ["device-core-smoke"],
+      "notes": "Wallet creation/import/PIN unlock are user entry gates."
+    },
+    {
+      "id": "wallet-balance-receive-history",
+      "surface": "wallet",
+      "risk": "critical",
+      "coverage": ["device-core-smoke", "device-transaction-critical", "real-receive-btc"],
+      "notes": "Wallet screen, balances, receive surfaces, funded state, and real faucet receive."
+    },
+    {
+      "id": "send-btc-unit",
+      "surface": "send",
+      "risk": "critical",
+      "coverage": ["device-transaction-critical", "real-send-btc", "real-send-unit"],
+      "notes": "Deterministic BTC/UNIT send completion plus real broadcast and confirmation flows."
+    },
+    {
+      "id": "send-turbo-route",
+      "surface": "turbo",
+      "risk": "critical",
+      "coverage": ["device-transaction-critical", "real-vault-turbounit-repay"],
+      "notes": "Deterministic Turbo route selection surface plus real Turbo mint/repay execution."
+    },
+    {
+      "id": "vault-lifecycle-deterministic",
+      "surface": "vault",
+      "risk": "critical",
+      "coverage": [
+        "device-transaction-critical",
+        "critical-transaction-jest",
+        "real-vault-actions"
+      ],
+      "notes": "Deterministic vault lifecycle, transaction-state tests, and strict real vault open/deposit/borrow/repay/withdraw."
+    },
+    {
+      "id": "vault-borrow-turbounit-live",
+      "surface": "turbo",
+      "risk": "critical",
+      "coverage": [
+        "real-vault-borrow-turbounit",
+        "critical-transaction-jest"
+      ],
+      "notes": "Real borrow issuance followed by TurboUNIT Cashu settlement."
+    },
+    {
+      "id": "vault-repay-turbounit-live",
+      "surface": "repay",
+      "risk": "critical",
+      "coverage": [
+        "live-vault-turbounit-repay",
+        "real-vault-turbounit-repay",
+        "critical-transaction-jest"
+      ],
+      "notes": "Real Cashu melt, released UNIT detection, raw repay build, Guardian submit."
+    },
+    {
+      "id": "vault-borrow-repay-usdc-live",
+      "surface": "usdc",
+      "risk": "critical",
+      "coverage": [
+        "live-vault-usdc-lifecycle",
+        "real-vault-usdc-lifecycle",
+        "critical-transaction-jest"
+      ],
+      "notes": "Real USDC settlement and USDC-funded repay path."
+    },
+    {
+      "id": "cashu-mint-melt-recovery",
+      "surface": "cashu",
+      "risk": "critical",
+      "coverage": [
+        "critical-transaction-jest",
+        "device-transaction-critical",
+        "real-vault-turbounit-repay"
+      ],
+      "notes": "Unit tests cover mint/melt/recovery state; strict live flow covers Turbo mint/melt execution."
+    },
+    {
+      "id": "pending-transaction-recovery",
+      "surface": "recovery",
+      "risk": "critical",
+      "coverage": [
+        "critical-transaction-jest",
+        "live-vault-second-repay",
+        "real-vault-second-repay"
+      ],
+      "notes": "Pending transaction cleanup, stale settlement state, and consecutive repay recovery are covered by focused state tests and a strict live second-repay flow."
+    },
+    {
+      "id": "liquidation-execution-live",
+      "surface": "liquidation",
+      "risk": "critical",
+      "coverage": ["critical-transaction-jest", "real-liquidation-execution"],
+      "notes": "Requires at least one claimable liquidation from the live validator; the runner verifies availability before Maestro starts."
+    },
+    {
+      "id": "deep-link-recovery",
+      "surface": "deeplink",
+      "risk": "high",
+      "coverage": ["critical-transaction-jest", "real-deep-link-recovery"],
+      "notes": "Cold-start token links require fresh DUCAT_LIVE_CASHU_TOKEN_URL and DUCAT_LIVE_TURBOUNIT_TOKEN_URL fixtures."
+    },
+    {
+      "id": "sepolia-send-swap-redeem-live",
+      "surface": "bridge",
+      "risk": "high",
+      "coverage": ["critical-transaction-jest", "real-sepolia-send-swap-redeem"],
+      "notes": "Requires funded reviewer Sepolia ETH/USDC fixtures plus a Sepolia RPC URL for receipt verification; the runner verifies balances before Maestro starts."
+    }
+  ]
+}

@@ -43,7 +43,7 @@ export function useSendBalances({
   // For UNIT, combine on-chain runes balance + ecash balance
   // Runes come in display units, ecash is in smallest units (needs /100)
   const rawRunes = useMemo(() => getRunesAmount(runesBalance), [runesBalance]);
-  // E2E bypass: Ord indexer on Mutinynet is intermittent — cache last known
+  // Ord indexer on Mutinynet is intermittent; cache the last known
   // non-zero Runes balance so the send screen stays usable between polls.
   const lastKnownRunes = useRef(0);
   if (rawRunes > 0) lastKnownRunes.current = rawRunes;

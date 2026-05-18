@@ -190,7 +190,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       analytics.track(TRANSACTION_EVENTS.SEND_PROCESSING, { asset_type: sendAssetType });
       // Small delay to allow screen to render before starting heavy operations
       const timer = setTimeout(() => {
-        logger.debug('Creating send intent for asset type:', sendAssetType);
+        logger.info(`[SendProcessing] Creating transaction intent asset=${sendAssetType}`);
         createSendIntent();
       }, 100);
       (timer as { unref?: () => void }).unref?.();
@@ -222,10 +222,12 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
           }
 
           // Sign and broadcast transaction
+          logger.info(`[SendProcessing] Signing and broadcasting transaction asset=${sendAssetType}`);
           const txid = await signIntent();
 
           if (cancelled) return;
           if (txid) {
+            logger.info(`[SendProcessing] Transaction broadcast ready asset=${sendAssetType} txid=${txid}`);
             navigation.dispatch(
               StackActions.replace('Confirmation', {
                 isTurbo,
@@ -277,7 +279,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
       logger.debug('Intent step changed to:', intentStep, 'sendIntent exists:', !!sendIntent);
       if (intentStep === 'reviewing' && sendIntent) {
         // Success - navigate to review screen
-        logger.debug('Navigating to Review screen');
+        logger.info(`[SendProcessing] Transaction intent ready asset=${sendAssetType}`);
         hasNavigated.current = true;
         navigation.dispatch(
           StackActions.replace('Review', {

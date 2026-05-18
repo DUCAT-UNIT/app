@@ -76,11 +76,12 @@ export interface SettingsContextValue {
   triggerPasskeyUpgrade: () => void;
   showLogoutModal: boolean;
   showDeleteModal: boolean;
+  isDeletingWallet: boolean;
   showFaceIdModal: boolean;
   showNotificationsModal: boolean;
   confirmLogout: () => void;
   cancelLogout: () => void;
-  confirmDeleteWallet: () => void;
+  confirmDeleteWallet: () => void | Promise<void>;
   cancelDeleteWallet: () => void;
   confirmFaceIdToggle: () => void;
   cancelFaceIdToggle: () => void;
@@ -210,6 +211,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     handleDisableUsdcFeatures,
     showLogoutModal,
     showDeleteModal,
+    isDeletingWallet,
     showFaceIdModal,
     showNotificationsModal,
     confirmLogout,
@@ -355,6 +357,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       triggerPasskeyUpgrade: showPasskeyUpgradePrompt,
       showLogoutModal,
       showDeleteModal,
+      isDeletingWallet,
       showFaceIdModal,
       showNotificationsModal,
       confirmLogout,
@@ -373,6 +376,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       showPasskeyUpgradePrompt,
       showLogoutModal,
       showDeleteModal,
+      isDeletingWallet,
       showFaceIdModal,
       showNotificationsModal,
       confirmLogout,

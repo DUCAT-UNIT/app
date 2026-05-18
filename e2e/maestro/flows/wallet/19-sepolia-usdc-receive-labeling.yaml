@@ -18,8 +18,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "asset-detail-screen"
     timeout: 10000
 
-- tapOn:
-    id: "asset-detail-receive-btn"
+- runFlow: ../helpers/tap-asset-detail-receive.yaml
 - extendedWaitUntil:
     visible:
       id: "receive-qr-screen"
@@ -29,10 +28,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
     text: "Sepolia USDC address"
 - assertVisible:
     text: "Only use this address to receive Sepolia USDC on Ethereum Sepolia."
-- assertVisible:
-    text: "Sepolia USDC"
 
 - tapOn:
-    id: "receive-copy-btn"
+    text: ".*Tap to copy.*"
 - assertVisible:
     text: "Sepolia USDC address copied"

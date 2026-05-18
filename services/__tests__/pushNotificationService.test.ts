@@ -452,11 +452,11 @@ describe('initializePushNotifications', () => {
   });
 });
 
-// ─── E2E mode bypasses ───────────────────────────────────────────────────────
+// ─── E2E mode notification suppression ───────────────────────────────────────
 // jest.isolateModules + require() is used because dynamic import() requires
 // --experimental-vm-modules which is not enabled in this project's Jest config.
 
-describe('E2E mode bypasses', () => {
+describe('E2E mode notification suppression', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

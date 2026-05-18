@@ -14,6 +14,7 @@ import {
   ImportWalletScreen,
 } from '../../components/onboarding';
 import type { WalletImportProfile } from '../../constants/bitcoin';
+import { createEmptySeedPhrase } from '../../constants/mnemonic';
 
 /**
  * Seed input refs for managing focus in import flow
@@ -116,7 +117,7 @@ export default function WelcomeScreen({
         onImport={importWallet}
         onCancel={() => {
           setImportingWallet(false);
-          setImportSeedPhrase(Array(12).fill(''));
+          setImportSeedPhrase(createEmptySeedPhrase());
           setRestoringWithPasskey?.(true);
         }}
       />

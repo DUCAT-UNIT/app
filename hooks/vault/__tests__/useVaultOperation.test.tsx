@@ -4,16 +4,20 @@ import { useVaultOperation } from '../useVaultOperation';
 const mockSetPendingVaultTransaction = jest.fn().mockResolvedValue(undefined);
 const mockSetPendingVaultTransactionForAccount = jest.fn().mockResolvedValue(undefined);
 const mockClearPendingVaultTransactionForAccount = jest.fn().mockResolvedValue(undefined);
+const mockDiscardPendingVaultTransactionForAccount = jest.fn().mockResolvedValue(undefined);
 const mockAddPendingTransaction = jest.fn().mockResolvedValue(undefined);
+const mockInvalidatePendingTransaction = jest.fn().mockResolvedValue([]);
 const mockMarkUtxoAsSpent = jest.fn().mockResolvedValue(undefined);
 const mockMarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
 const mockUnmarkUtxosAsSpent = jest.fn().mockResolvedValue(undefined);
 const mockShowSnackbar = jest.fn();
 const mockWatchTransaction = jest.fn();
+const mockGetJsonWithNativeTimeout = jest.fn();
 
 const mockPendingStoreState = {
   pendingTransactions: {} as Record<string, { status: string }>,
   addPendingTransaction: mockAddPendingTransaction,
+  invalidateTransaction: mockInvalidatePendingTransaction,
   markUtxoAsSpent: mockMarkUtxoAsSpent,
   markUtxosAsSpent: mockMarkUtxosAsSpent,
   unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
@@ -26,6 +30,10 @@ jest.mock('../../../utils/logger', () => ({
     warn: jest.fn(),
     error: jest.fn(),
   },
+}));
+
+jest.mock('../../../utils/nativeHttp', () => ({
+  getJsonWithNativeTimeout: (...args: unknown[]) => mockGetJsonWithNativeTimeout(...args),
 }));
 
 jest.mock('../../../contexts/WalletContext', () => ({
@@ -47,6 +55,7 @@ jest.mock('../../../contexts/WalletDataContext', () => ({
       totalCollateral: 1,
       vaultId: 'vault-id',
     },
+    vaultTransactions: [],
   })),
 }));
 
@@ -61,13 +70,15 @@ jest.mock('../../../stores/pendingVaultTransactionStore', () => ({
       setPendingTransaction: mockSetPendingVaultTransaction,
       setPendingTransactionForAccount: mockSetPendingVaultTransactionForAccount,
       clearPendingTransactionForAccount: mockClearPendingVaultTransactionForAccount,
+      discardPendingTransactionForAccount: mockDiscardPendingVaultTransactionForAccount,
     })
   ),
 }));
 
 jest.mock('../../../stores/pendingTransactionsStore', () => {
-  const usePendingTransactionsStore = jest.fn((selector) => selector(mockPendingStoreState)) as
-    jest.Mock & { getState: jest.Mock };
+  const usePendingTransactionsStore = jest.fn((selector) =>
+    selector(mockPendingStoreState)
+  ) as jest.Mock & { getState: jest.Mock };
   usePendingTransactionsStore.getState = jest.fn(() => mockPendingStoreState);
 
   return {
@@ -82,6 +93,12 @@ jest.mock('../../../stores/notificationStore', () => ({
     })
   ),
 }));
+
+jest.mock('../../../stores/vaultSettlementStore', () => {
+  const useVaultSettlementStore = jest.fn() as jest.Mock & { getState: jest.Mock };
+  useVaultSettlementStore.getState = jest.fn(() => ({ kind: null, phase: 'idle' }));
+  return { useVaultSettlementStore };
+});
 
 jest.mock('../../../services/guardianService', () => ({
   getGuardianClient: jest.fn().mockResolvedValue({ guardian: true }),
@@ -102,6 +119,14 @@ jest.mock('../../../services/vaultOperationsService', () => ({
     utxo: {},
   })),
   computeVaultPrevoutFromTx: jest.fn(() => ({ txid: 'prevout', vout: 0 })),
+  resolveLatestUnspentVaultPrevout: jest.fn((prevout) =>
+    Promise.resolve({
+      prevout,
+      replaced: false,
+      hopCount: 0,
+      sourceTxids: ['prevout'],
+    })
+  ),
 }));
 
 jest.mock('../../../services/vaultService', () => ({
@@ -151,20 +176,47 @@ const makeActions = () => ({
   reset: jest.fn(),
 });
 
+const flushPromises = async (count = 8): Promise<void> => {
+  for (let i = 0; i < count; i += 1) {
+    await Promise.resolve();
+  }
+};
+
 describe('useVaultOperation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    const { useVaultData } = require('../../../contexts/WalletDataContext');
+    useVaultData.mockReturnValue({
+      vaultData: {
+        totalDebt: 100,
+        totalCollateral: 1,
+        vaultId: 'vault-id',
+      },
+      vaultTransactions: [],
+    });
     mockPendingStoreState.pendingTransactions = {};
     mockAddPendingTransaction.mockResolvedValue(undefined);
+    mockInvalidatePendingTransaction.mockResolvedValue([]);
+    mockGetJsonWithNativeTimeout.mockReset();
+    mockGetJsonWithNativeTimeout.mockResolvedValue({ status: { confirmed: false } });
     mockMarkUtxoAsSpent.mockResolvedValue(undefined);
     mockMarkUtxosAsSpent.mockResolvedValue(undefined);
     mockUnmarkUtxosAsSpent.mockResolvedValue(undefined);
     mockSetPendingVaultTransactionForAccount.mockResolvedValue(undefined);
     mockClearPendingVaultTransactionForAccount.mockResolvedValue(undefined);
+    mockDiscardPendingVaultTransactionForAccount.mockResolvedValue(undefined);
+    const { useVaultSettlementStore } = require('../../../stores/vaultSettlementStore');
+    useVaultSettlementStore.getState.mockReturnValue({ kind: null, phase: 'idle' });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('tracks finalization-only vault transactions in the wallet pending store', async () => {
-    const { extractVaultFinalizationPendingData } = require('../../../services/vault/pendingIssueOutputs');
+    const {
+      extractVaultFinalizationPendingData,
+    } = require('../../../services/vault/pendingIssueOutputs');
     const spentInputs = [{ txid: 'vault-input-txid', vout: 0 }];
     extractVaultFinalizationPendingData.mockReturnValueOnce({
       outputs: [],
@@ -192,7 +244,9 @@ describe('useVaultOperation', () => {
       }),
       validate: () => null,
       createConfig: () => ({ deposit_amount: 50_000 }),
-      createRequest: jest.fn().mockResolvedValue({ vault_txhex: 'vault-txhex', vault_txid: 'vault-final-txid' }),
+      createRequest: jest
+        .fn()
+        .mockResolvedValue({ vault_txhex: 'vault-txhex', vault_txid: 'vault-final-txid' }),
       sendRequest: jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' }),
       extractResult: () => ({ vaultTxid: 'vault-final-txid' }),
       createPendingTransaction: () => ({
@@ -224,12 +278,106 @@ describe('useVaultOperation', () => {
       'BTC',
       null,
       undefined,
-      spentInputs,
+      spentInputs
     );
   });
 
+  it('uses cached vault data and history when building a vault profile for an operation', async () => {
+    const { useVaultData } = require('../../../contexts/WalletDataContext');
+    const {
+      fetchVaultData,
+      fetchLatestVaultHistoryTransaction,
+    } = require('../../../services/vaultService');
+    const {
+      buildVaultProfile,
+      computeVaultPrevoutFromTx,
+      resolveLatestUnspentVaultPrevout,
+    } = require('../../../services/vaultOperationsService');
+    const cachedHistoryTx = {
+      transaction_id: 'cached-history-txid',
+      utxo: 'cached-history-txid:0',
+      utxo_script: '5120',
+      amount_borrowed: 100,
+      oracle_price: 100000,
+      timestamp: 123,
+      action: 'deposit',
+      vault_amount: 50000,
+    };
+    useVaultData.mockReturnValue({
+      vaultData: {
+        totalDebt: 100,
+        totalCollateral: 1,
+        vaultId: 'vault-id',
+        vaultInfo: {
+          creation_account: 'acct-id',
+          guard_pubkey: 'guard-pk',
+          master_id: 'master-id',
+        },
+      },
+      vaultTransactions: [cachedHistoryTx],
+    });
+
+    const actions = makeActions();
+    const createRequest = jest.fn().mockResolvedValue({
+      vault_txhex: 'vault-txhex',
+      vault_txid: 'vault-final-txid',
+    });
+    const config = {
+      operationType: 'deposit',
+      operationName: 'testDeposit',
+      needsReservation: false,
+      hasIssueTxid: false,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ deposit_amount: 50_000 }),
+      createRequest,
+      sendRequest: jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' }),
+      extractResult: () => ({ vaultTxid: 'vault-final-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'vault-final-txid',
+        vaultTxid: 'vault-final-txid',
+        action: 'deposit',
+        btcAmt: 50_000,
+        unitAmt: 0,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+
+    await act(async () => {
+      await result.current.execute();
+    });
+
+    expect(fetchVaultData).not.toHaveBeenCalled();
+    expect(fetchLatestVaultHistoryTransaction).not.toHaveBeenCalled();
+    expect(computeVaultPrevoutFromTx).toHaveBeenCalledWith(cachedHistoryTx);
+    expect(resolveLatestUnspentVaultPrevout).toHaveBeenCalledWith({ txid: 'prevout', vout: 0 });
+    expect(buildVaultProfile).toHaveBeenCalledWith(
+      'taproot-pubkey',
+      expect.objectContaining({ creation_account: 'acct-id' }),
+      { txid: 'prevout', vout: 0 }
+    );
+    expect(createRequest).toHaveBeenCalled();
+  });
+
   it('rolls back vault recovery locks when local pending tracking fails before guardian submit', async () => {
-    const { extractVaultFinalizationPendingData } = require('../../../services/vault/pendingIssueOutputs');
+    const {
+      extractVaultFinalizationPendingData,
+    } = require('../../../services/vault/pendingIssueOutputs');
     const spentInputs = [{ txid: 'vault-input-txid', vout: 0 }];
     const sendRequest = jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' });
     mockAddPendingTransaction.mockRejectedValueOnce(new Error('pending storage failed'));
@@ -259,7 +407,9 @@ describe('useVaultOperation', () => {
       }),
       validate: () => null,
       createConfig: () => ({ deposit_amount: 50_000 }),
-      createRequest: jest.fn().mockResolvedValue({ vault_txhex: 'vault-txhex', vault_txid: 'vault-final-txid' }),
+      createRequest: jest
+        .fn()
+        .mockResolvedValue({ vault_txhex: 'vault-txhex', vault_txid: 'vault-final-txid' }),
       sendRequest,
       extractResult: () => ({ vaultTxid: 'vault-final-txid' }),
       createPendingTransaction: () => ({
@@ -284,8 +434,92 @@ describe('useVaultOperation', () => {
     expect(mockSetPendingVaultTransactionForAccount).toHaveBeenCalled();
     expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
     expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
-    expect(mockClearPendingVaultTransactionForAccount).toHaveBeenCalledWith(0);
+    expect(mockDiscardPendingVaultTransactionForAccount).toHaveBeenCalledWith(
+      0,
+      'vault-final-txid',
+      expect.any(Error)
+    );
     expect(actions.setError).toHaveBeenCalledWith('pending storage failed');
+  });
+
+  it('discards local recovery when guardian rejects before request txids reach the mempool', async () => {
+    jest.useFakeTimers();
+    mockGetJsonWithNativeTimeout.mockRejectedValue(new Error('HTTP 404: Not Found'));
+
+    const actions = makeActions();
+    const guardianError = { message: 'guardian rejected repay' };
+    const sendRequest = jest.fn().mockRejectedValue(guardianError);
+    const config = {
+      operationType: 'repay',
+      operationName: 'testRepay',
+      needsReservation: false,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ repay_amount: 50_000 }),
+      createRequest: jest.fn().mockResolvedValue({
+        repay_txid: 'repay-issue-txid',
+        vault_txid: 'repay-vault-txid',
+      }),
+      sendRequest,
+      extractResult: () => ({ txid: 'repay-issue-txid', vaultTxid: 'repay-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'repay-issue-txid',
+        vaultTxid: 'repay-vault-txid',
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: 50_000,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+    let outcome: unknown;
+    let executePromise: Promise<unknown>;
+
+    await act(async () => {
+      executePromise = result.current.execute();
+      await flushPromises(30);
+    });
+
+    expect(sendRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      await flushPromises(30);
+      jest.runOnlyPendingTimers();
+      await flushPromises(30);
+      outcome = await executePromise;
+    });
+
+    expect(outcome).toBeNull();
+    expect(mockDiscardPendingVaultTransactionForAccount).toHaveBeenCalledWith(
+      0,
+      'repay-vault-txid',
+      guardianError
+    );
+    expect(mockInvalidatePendingTransaction).toHaveBeenCalledWith(
+      'repay-issue-txid',
+      'guardian rejected repay'
+    );
+    expect(mockInvalidatePendingTransaction).toHaveBeenCalledWith(
+      'repay-vault-txid',
+      'guardian rejected repay'
+    );
+    expect(actions.setError).toHaveBeenCalledWith('guardian rejected repay');
   });
 
   it('refuses to submit to guardian when request txids cannot be checkpointed first', async () => {
@@ -335,6 +569,286 @@ describe('useVaultOperation', () => {
     expect(mockSetPendingVaultTransactionForAccount).not.toHaveBeenCalled();
     expect(actions.setError).toHaveBeenCalledWith(
       'testDeposit request did not include transaction IDs; refusing to submit without a recovery checkpoint.'
+    );
+  });
+
+  it('keeps repay settlement finalization on the final visible processing step', async () => {
+    const { useVaultSettlementStore } = require('../../../stores/vaultSettlementStore');
+    useVaultSettlementStore.getState.mockReturnValue({
+      kind: 'repay',
+      phase: 'repaying_vault',
+    });
+
+    const actions = makeActions();
+    const createRequest = jest.fn().mockResolvedValue({
+      repay_txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const sendRequest = jest.fn().mockResolvedValue({
+      txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const config = {
+      operationType: 'repay',
+      operationName: 'testRepay',
+      needsReservation: false,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ repay_amount: 50_000 }),
+      createRequest,
+      sendRequest,
+      extractResult: () => ({ txid: 'repay-issue-txid', vaultTxid: 'repay-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'repay-issue-txid',
+        vaultTxid: 'repay-vault-txid',
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: 50_000,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+
+    await act(async () => {
+      await result.current.execute();
+    });
+
+    expect(createRequest).toHaveBeenCalled();
+    expect(sendRequest).toHaveBeenCalled();
+    expect(actions.setProcessingStep).toHaveBeenCalledWith(4);
+    expect(actions.setProcessingStep).not.toHaveBeenCalledWith(1);
+    expect(actions.setProcessingStep).not.toHaveBeenCalledWith(2);
+    expect(actions.setProcessingStep).not.toHaveBeenCalledWith(3);
+  });
+
+  it('times out when request creation hangs while building a repay transaction', async () => {
+    jest.useFakeTimers();
+
+    const actions = makeActions();
+    const createRequest = jest.fn(() => new Promise(() => undefined));
+    const sendRequest = jest.fn().mockResolvedValue({
+      txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const config = {
+      operationType: 'repay',
+      operationName: 'testRepay',
+      needsReservation: false,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ repay_amount: 50_000 }),
+      createRequest,
+      sendRequest,
+      extractResult: () => ({ txid: 'repay-issue-txid', vaultTxid: 'repay-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'repay-issue-txid',
+        vaultTxid: 'repay-vault-txid',
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: 50_000,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+    let outcome: unknown;
+    let executePromise: Promise<unknown>;
+
+    await act(async () => {
+      executePromise = result.current.execute();
+      await flushPromises(20);
+    });
+
+    expect(createRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.runOnlyPendingTimers();
+      outcome = await executePromise;
+    });
+
+    expect(outcome).toBeNull();
+    expect(sendRequest).not.toHaveBeenCalled();
+    expect(actions.setCurrentStep).toHaveBeenCalledWith('confirm');
+    expect(actions.setError).toHaveBeenCalledWith(
+      'Timed out building the repay transaction. Please try again.'
+    );
+  });
+
+  it('times out when oracle quote fetching hangs while building a repay transaction', async () => {
+    jest.useFakeTimers();
+
+    const { fetchPriceQuote } = require('../../../services/oracleService');
+    fetchPriceQuote.mockImplementationOnce(() => new Promise(() => undefined));
+
+    const actions = makeActions();
+    const createRequest = jest.fn().mockResolvedValue({
+      repay_txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const sendRequest = jest.fn().mockResolvedValue({
+      txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const config = {
+      operationType: 'repay',
+      operationName: 'testRepay',
+      needsReservation: false,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ repay_amount: 50_000 }),
+      createRequest,
+      sendRequest,
+      extractResult: () => ({ txid: 'repay-issue-txid', vaultTxid: 'repay-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'repay-issue-txid',
+        vaultTxid: 'repay-vault-txid',
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: 50_000,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+    let outcome: unknown;
+    let executePromise: Promise<unknown>;
+
+    await act(async () => {
+      executePromise = result.current.execute();
+      await flushPromises(20);
+    });
+
+    expect(createRequest).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(20_000);
+      outcome = await executePromise;
+    });
+
+    expect(outcome).toBeNull();
+    expect(createRequest).not.toHaveBeenCalled();
+    expect(sendRequest).not.toHaveBeenCalled();
+    expect(actions.setCurrentStep).toHaveBeenCalledWith('confirm');
+    expect(actions.setError).toHaveBeenCalledWith(
+      'Timed out fetching oracle price quote. Please try again.'
+    );
+  });
+
+  it('times out when guardian connection hangs before building a repay transaction', async () => {
+    jest.useFakeTimers();
+
+    const { getGuardianClient } = require('../../../services/guardianService');
+    getGuardianClient.mockImplementationOnce(() => new Promise(() => undefined));
+
+    const actions = makeActions();
+    const createRequest = jest.fn().mockResolvedValue({
+      repay_txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const sendRequest = jest.fn().mockResolvedValue({
+      txid: 'repay-issue-txid',
+      vault_txid: 'repay-vault-txid',
+    });
+    const config = {
+      operationType: 'repay',
+      operationName: 'testRepay',
+      needsReservation: true,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ repay_amount: 50_000 }),
+      createRequest,
+      performReservation: jest.fn().mockResolvedValue({ mint_account: 'mint-account' }),
+      sendRequest,
+      extractResult: () => ({ txid: 'repay-issue-txid', vaultTxid: 'repay-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'repay-issue-txid',
+        vaultTxid: 'repay-vault-txid',
+        action: 'repay',
+        btcAmt: 0,
+        unitAmt: 50_000,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+    let outcome: unknown;
+    let executePromise: Promise<unknown>;
+
+    await act(async () => {
+      executePromise = result.current.execute();
+      await flushPromises(20);
+    });
+
+    expect(createRequest).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(15_000);
+      outcome = await executePromise;
+    });
+
+    expect(outcome).toBeNull();
+    expect(createRequest).not.toHaveBeenCalled();
+    expect(sendRequest).not.toHaveBeenCalled();
+    expect(actions.setCurrentStep).toHaveBeenCalledWith('confirm');
+    expect(actions.setError).toHaveBeenCalledWith(
+      'Timed out connecting to Guardian. Please try again.'
     );
   });
 });

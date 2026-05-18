@@ -39,7 +39,7 @@ Read `CLAUDE.md` first for architecture context, then perform a comprehensive co
 - Review `contexts/AuthContext.tsx`, `hooks/useAuth.ts` — auth state machine
 - Review `screens/auth/LockScreen.tsx`, `PinSetupScreen.tsx`
 - Check: Can auth be bypassed via navigation manipulation?
-- Check: Are E2E bypasses properly guarded by `__DEV__`?
+- Check: Are dev-only controls properly guarded by `__DEV__`?
 
 **Data Exposure:**
 - Search for any `console.log` calls (should use `logger` instead)
@@ -122,8 +122,8 @@ Read `CLAUDE.md` first for architecture context, then perform a comprehensive co
 
 ### 6. Production Readiness
 
-- List all `__DEV__` guards and E2E bypasses — are they safe for production?
-- Check: Is `isE2E` properly scoped (only true in test builds)?
+- List all `__DEV__` guards and test-only controls — are they safe for production?
+- Check: Are test helpers unable to alter production behavior?
 - Check: Are there any hardcoded test values (addresses, keys, amounts)?
 - Review `app.json` / `app.config.ts` — are production settings correct?
 - Check: Is screenshot prevention enabled on all sensitive screens?

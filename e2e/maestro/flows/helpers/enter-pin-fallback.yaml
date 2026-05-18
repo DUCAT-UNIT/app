@@ -1,0 +1,70 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+- extendedWaitUntil:
+    visible:
+      id: "pin-fallback-modal"
+    timeout: 10000
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - tapOn:
+          id: "pin-fallback-key-1"
+      - waitForAnimationToEnd

@@ -29,19 +29,25 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "lock-keypad-1"
     timeout: 5000
 
-# Enter wrong PIN (654321) — rapid taps, matching working enter-pin-lock.yaml pattern
+# Enter wrong PIN (654321)
 - tapOn:
     id: "lock-keypad-6"
+- waitForAnimationToEnd
 - tapOn:
     id: "lock-keypad-5"
+- waitForAnimationToEnd
 - tapOn:
     id: "lock-keypad-4"
+- waitForAnimationToEnd
 - tapOn:
     id: "lock-keypad-3"
+- waitForAnimationToEnd
 - tapOn:
     id: "lock-keypad-2"
+- waitForAnimationToEnd
 - tapOn:
     id: "lock-keypad-1"
+- waitForAnimationToEnd
 
 # Verify error message appears (PIN hashing via PBKDF2 takes a few seconds)
 - extendedWaitUntil:

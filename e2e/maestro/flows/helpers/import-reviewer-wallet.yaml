@@ -1,0 +1,100 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import the funded reviewer wallet without creating a vault.
+
+- runFlow: clear-and-launch.yaml
+
+- tapOn:
+    id: "welcome-restore-wallet-btn"
+
+- runFlow:
+    when:
+      visible:
+        id: "welcome-screen"
+    commands:
+      - tapOn:
+          id: "welcome-restore-wallet-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "restore-choice-screen"
+    timeout: 5000
+- tapOn:
+    id: "restore-seed-phrase-btn"
+
+- assertVisible:
+    id: "import-wallet-screen"
+- tapOn:
+    id: "seed-word-container-0"
+- inputText: "pool"
+- pressKey: Enter
+- inputText: "token"
+- pressKey: Enter
+- inputText: "pledge"
+- pressKey: Enter
+- inputText: "wagon"
+- pressKey: Enter
+- inputText: "rebuild"
+- pressKey: Enter
+- inputText: "vast"
+- pressKey: Enter
+- inputText: "bracket"
+- pressKey: Enter
+- inputText: "denial"
+- pressKey: Enter
+- inputText: "fashion"
+- pressKey: Enter
+- inputText: "cattle"
+- pressKey: Enter
+- inputText: "pave"
+- pressKey: Enter
+- inputText: "royal"
+
+- extendedWaitUntil:
+    visible:
+      text: "12/12"
+    timeout: 5000
+- pressKey: Enter
+- waitForAnimationToEnd
+- runFlow: submit-import-wallet-if-visible.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "pin-setup-title"
+    timeout: 30000
+- runFlow: enter-pin-setup.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
+- runFlow: enter-pin-setup.yaml
+- runFlow: retry-pin-setup-if-mismatch.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "biometric-modal"
+    commands:
+      - tapOn:
+          id: "biometric-skip-btn"
+
+- runFlow: unlock-if-locked.yaml
+- runFlow: dismiss-airdrop.yaml
+- runFlow: dismiss-low-ecash.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "balance-section"
+    timeout: 30000

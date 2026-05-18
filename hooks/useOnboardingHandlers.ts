@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { isE2E } from '../utils/e2e';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
+import { createEmptySeedPhrase } from '../constants/mnemonic';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
 interface LoadWalletResult {
@@ -128,7 +129,7 @@ export function useOnboardingHandlers({
   // Reset all onboarding UI state and wallet data
   const handleCancelOnboarding = async (): Promise<void> => {
     setImportingWallet(false);
-    setImportSeedPhrase(Array(12).fill(''));
+    setImportSeedPhrase(createEmptySeedPhrase());
     setIsImportedWallet(false);
 
     await resetWalletAndState();

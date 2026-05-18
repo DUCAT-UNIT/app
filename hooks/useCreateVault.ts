@@ -142,7 +142,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
       setError(null);
       setCurrentStep('processing');
 
-      // E2E bypass: skip Guardian and simulate instant vault creation
+      // Legacy fixture path: skip Guardian and simulate instant vault creation.
       if (isE2E()) {
         try {
           for (const step of [1, 2, 3, 4] as ProcessingStep[]) {
@@ -158,7 +158,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           if (!options.deferSuccessTransition) {
             setCurrentStep('success');
           }
-          logger.info('[useCreateVault] E2E bypass: vault created', {
+          logger.info('[useCreateVault] E2E fixture vault created', {
             fakeTxid,
             borrowAmountUsd,
             btcAmount,
@@ -331,6 +331,9 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         }
 
         logger.info('[useCreateVault] Vault created successfully:', { txid: resultTxid });
+        logger.info(
+          `[E2E_TX] vault_create_success txid=${resultTxid} vaultTxid=${vaultReq.vault_txid} receiveAsset=${receiveAsset}`
+        );
         return resultTxid;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Vault creation failed';

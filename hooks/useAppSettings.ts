@@ -13,7 +13,6 @@ import { getExpoPushToken, unregisterPushToken } from '../services/pushNotificat
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import {
   E2E_RESET_SETTINGS_URL_PREFIX,
-  hasActiveE2EBypass,
   resetNonSecretE2ESettings,
 } from '../services/e2eSettingsResetService';
 import {
@@ -511,7 +510,7 @@ export function useAppSettings({
 
   const handleEnableUsdcFeatures = useCallback(
     async (password: string): Promise<boolean> => {
-      if (!__DEV__ && !hasActiveE2EBypass()) {
+      if (!__DEV__) {
         notify.error('USDC features are not enabled in this build');
         return false;
       }
@@ -520,10 +519,7 @@ export function useAppSettings({
       const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
       const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
       const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-      const allowDevelopmentAutomationBypass =
-        normalizedPassword.length === 0 && hasActiveE2EBypass();
       if (
-        !allowDevelopmentAutomationBypass &&
         normalizedPassword !== expectedPassword &&
         canonicalPassword !== expectedCanonicalPassword
       ) {

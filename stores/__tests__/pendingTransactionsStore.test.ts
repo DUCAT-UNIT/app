@@ -168,6 +168,51 @@ describe('pendingTransactionsStore', () => {
       expect(usePendingTransactionsStore.getState().spentUtxos.has('input_txid:0')).toBe(true);
     });
 
+    it('auto-cleans persisted pending transactions older than three minutes', async () => {
+      const now = Date.UTC(2026, 4, 17, 12, 0, 0);
+      const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+      const persistedTx = {
+        expired_txid: {
+          txid: 'expired_txid',
+          outputs: mockOutputs,
+          parentTxid: null,
+          assetType: 'BTC',
+          status: 'pending',
+          timestamp: now - 181_000,
+          inputUtxos: [{ txid: 'expired_input_txid', vout: 0 }],
+        },
+      };
+
+      (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
+        if (key === 'pending_txs_0') return JSON.stringify(persistedTx);
+        if (key === 'spent_utxos_0') return JSON.stringify(['expired_input_txid:0']);
+        return null;
+      });
+
+      try {
+        await act(async () => {
+          await usePendingTransactionsStore.getState().loadFromStorage(0);
+        });
+      } finally {
+        dateNowSpy.mockRestore();
+      }
+
+      const state = usePendingTransactionsStore.getState();
+      expect(state.pendingTransactions).toEqual({});
+      expect(state.spentUtxos.has('expired_input_txid:0')).toBe(false);
+      expect(state.hydratedAccount).toBe(0);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'spent_utxos_0',
+        '[]',
+        expect.any(Object),
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        'pending_txs_0',
+        '{}',
+        expect.any(Object),
+      );
+    });
+
     it('does not hydrate or overwrite corrupt pending transaction storage', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => {
         if (key === 'pending_txs_0') return '{bad json';

@@ -1,7 +1,6 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Import wallet using E2E bypass (empty seed fields → uses default test seed)
-# This imports the abandon...about wallet without needing clipboard
+# Import the default abandon...about wallet through the visible seed inputs.
 
 - runFlow: clear-and-launch.yaml
 - tapOn:
@@ -15,18 +14,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "restore-seed-phrase-btn"
 
-# Import wallet screen - tap import without entering words (E2E bypass)
-- assertVisible:
-    id: "import-wallet-screen"
-
-# Scroll down to reveal import button
-- scrollUntilVisible:
-    element:
-      id: "import-wallet-btn"
-    direction: DOWN
-    timeout: 5000
-- tapOn:
-    id: "import-wallet-btn"
+# Import wallet screen
+- runFlow: type-default-seed.yaml
+- runFlow: submit-import-wallet-if-visible.yaml
 
 # PIN setup - wait longer for key derivation
 - extendedWaitUntil:
@@ -34,7 +24,12 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "pin-setup-title"
     timeout: 30000
 - runFlow: enter-pin-setup.yaml
+- extendedWaitUntil:
+    visible:
+      text: "Confirm Your PIN"
+    timeout: 10000
 - runFlow: enter-pin-setup.yaml
+- runFlow: retry-pin-setup-if-mismatch.yaml
 
 # Skip biometric if prompted
 - runFlow:

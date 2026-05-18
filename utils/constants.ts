@@ -7,6 +7,7 @@ import { APP_NETWORK_CONFIG } from './networkConfig';
 // Secure storage keys
 export const SECURE_KEYS = {
   MNEMONIC: 'wallet_mnemonic_v1',
+  MNEMONIC_APP_UNLOCK_READY: 'wallet_mnemonic_app_unlock_ready_v1',
   CURRENT_ACCOUNT: 'wallet_current_account_v1',
   CACHED_ADDRESSES: 'wallet_cached_addresses_v1', // Cached derived addresses for fast startup
   MULTI_ACCOUNT_CACHE: 'wallet_multi_account_cache_v1', // Multi-account address cache for fast switching

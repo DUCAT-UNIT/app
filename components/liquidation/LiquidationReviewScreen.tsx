@@ -33,7 +33,7 @@ const LiquidationReviewScreen = React.memo(function LiquidationReviewScreen({
   onTabChange,
 }: LiquidationReviewScreenProps): React.ReactElement {
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="liquidation-review-screen">
       {/* Tab Bar */}
       <View style={styles.tabBar}>
         <TouchableOpacity

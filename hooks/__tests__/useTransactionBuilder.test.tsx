@@ -381,7 +381,7 @@ describe('useTransactionBuilder', () => {
       mockProps.sendAssetType = 'unit';
     });
 
-    it('should create a fake UNIT intent in E2E bypass mode', async () => {
+    it('should create a fake UNIT intent in fixture mode', async () => {
       mockIsE2E.mockReturnValue(true);
 
       const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);

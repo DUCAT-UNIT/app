@@ -3,7 +3,7 @@
  * Handles wallet logout and deletion
  */
 
-import { useState, useCallback, useMemo, MutableRefObject } from 'react';
+import { useState, useCallback, useMemo, useRef, MutableRefObject } from 'react';
 import { authenticateWithBiometrics } from '../services/biometricService';
 import { deleteSetting, setBoolean, SettingKeys } from '../services/settingsService';
 import { performFullWalletReset } from '../services/walletResetService';
@@ -25,15 +25,25 @@ interface UseWalletActionsReturn {
   handleViewSeedPhrase: () => string;
   showLogoutModal: boolean;
   showDeleteModal: boolean;
+  isDeletingWallet: boolean;
   confirmLogout: () => void;
   cancelLogout: () => void;
   confirmDeleteWallet: () => Promise<void>;
   cancelDeleteWallet: () => void;
 }
 
-export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated, onLock }: UseWalletActionsParams): UseWalletActionsReturn {
+export function useWalletActions({
+  resetAuth,
+  resetWallet,
+  clearVaultCredentials,
+  walletExistsRef,
+  setIsAuthenticated,
+  onLock,
+}: UseWalletActionsParams): UseWalletActionsReturn {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingWallet, setIsDeletingWallet] = useState(false);
+  const deletingWalletRef = useRef(false);
 
   const handleLogout = useCallback((): void => {
     setShowLogoutModal(true);
@@ -55,17 +65,27 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
   }, []);
 
   const handleDeleteWallet = useCallback((): void => {
+    if (deletingWalletRef.current) {
+      return;
+    }
+
     setShowDeleteModal(true);
   }, []);
 
   const confirmDeleteWallet = useCallback(async (): Promise<void> => {
-    setShowDeleteModal(false);
+    if (deletingWalletRef.current) {
+      return;
+    }
+
+    deletingWalletRef.current = true;
+    setIsDeletingWallet(true);
 
     const requestPinConfirmation = async () => {
       const pendingFlagSet = await setBoolean(SettingKeys.PENDING_WALLET_DELETE, true);
       if (!pendingFlagSet) {
         logger.error('[useWalletActions] Failed to persist pending wallet delete flag');
       }
+      setShowDeleteModal(false);
       setIsAuthenticated(false);
       notify.auth.requiredForDeleteWallet();
     };
@@ -91,6 +111,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
         walletExistsRef.current = false;
       }
 
+      setShowDeleteModal(false);
       notify.wallet.deleted();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
@@ -102,10 +123,17 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
       }
 
       notify.wallet.deleteFailed();
+    } finally {
+      deletingWalletRef.current = false;
+      setIsDeletingWallet(false);
     }
   }, [resetAuth, resetWallet, clearVaultCredentials, walletExistsRef, setIsAuthenticated]);
 
   const cancelDeleteWallet = useCallback((): void => {
+    if (deletingWalletRef.current) {
+      return;
+    }
+
     setShowDeleteModal(false);
   }, []);
 
@@ -120,6 +148,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
       handleViewSeedPhrase,
       showLogoutModal,
       showDeleteModal,
+      isDeletingWallet,
       confirmLogout,
       cancelLogout,
       confirmDeleteWallet,
@@ -131,6 +160,7 @@ export function useWalletActions({ resetAuth, resetWallet, clearVaultCredentials
       handleViewSeedPhrase,
       showLogoutModal,
       showDeleteModal,
+      isDeletingWallet,
       confirmLogout,
       cancelLogout,
       confirmDeleteWallet,

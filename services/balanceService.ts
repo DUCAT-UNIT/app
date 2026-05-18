@@ -175,7 +175,7 @@ export const fetchWalletBalances = async (
     {
       name: 'Runes balance',
       fn: async () => {
-        // E2E bypass: return fake Runes balance when vault was created via bypass
+        // Legacy fixture path: return fake Runes balance when requested.
         // Note: ord indexer returns amounts in display format (divisibility already applied)
         // so getRunesAmount uses parseFloat(amount) directly
         if (isE2E() && e2eVaultState.vaultCreated && e2eVaultState.unitBorrowed > 0) {

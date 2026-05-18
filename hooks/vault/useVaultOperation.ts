@@ -24,18 +24,28 @@ import { fetchPriceQuote } from '../../services/oracleService';
 import {
   buildVaultProfile,
   computeVaultPrevoutFromTx,
+  resolveLatestUnspentVaultPrevout,
 } from '../../services/vaultOperationsService';
-import { fetchLatestVaultHistoryTransaction, fetchVaultData } from '../../services/vaultService';
+import {
+  fetchLatestVaultHistoryTransaction,
+  fetchVaultData,
+  type VaultData,
+  type VaultHistoryTransaction,
+} from '../../services/vaultService';
 import { createVaultWallet, prefetchProtocolContract } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
 import { usePendingTransactionsStore } from '../../stores/pendingTransactionsStore';
 import { usePrice } from '../../stores/priceStore';
+import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { watchTransaction } from '../../services/pushNotificationService';
 import { getNotificationsEnabled } from '../../services/settingsService';
 import { VAULT_EVENTS } from '../../constants/analyticsEvents';
+import { getTxApiUrl } from '../../utils/constants';
+import { getErrorMessage } from '../../utils/errorUtils';
+import { getJsonWithNativeTimeout } from '../../utils/nativeHttp';
 import {
   getPendingVaultOperationMessage,
   shouldBlockVaultOperationForPendingTx,
@@ -44,13 +54,34 @@ import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
 } from '../../services/vault/pendingIssueOutputs';
-import { withVaultBuildTimeout } from '../../services/vault/operationTimeout';
+import {
+  withVaultBuildTimeout,
+  withVaultBuildTimeoutFn,
+} from '../../services/vault/operationTimeout';
 import type {
   ProcessingStep,
   UseVaultOperationResult,
   VaultOperationConfig,
   VaultWalletData,
 } from './vaultOperationTypes';
+
+const VAULT_REQUEST_BUILD_TIMEOUT_MS = 90_000;
+const VAULT_REQUEST_SUBMIT_TIMEOUT_MS = 75_000;
+const VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS = 3;
+const VAULT_RECOVERY_TX_VISIBILITY_TIMEOUT_MS = 4_000;
+const VAULT_RECOVERY_TX_VISIBILITY_RETRY_MS = 2_000;
+
+function hasVaultProfileData(
+  data: VaultData | null | undefined
+): data is VaultData & { vaultId: string; vaultInfo: NonNullable<VaultData['vaultInfo']> } {
+  return Boolean(data?.vaultId && data.vaultInfo);
+}
+
+function getLatestUsableVaultTransaction(
+  transactions: VaultHistoryTransaction[]
+): VaultHistoryTransaction | undefined {
+  return transactions.find((transaction) => transaction.transaction_id && transaction.utxo);
+}
 
 interface VaultRequestTxidLike {
   issue_txid?: string;
@@ -83,6 +114,61 @@ function txidResultsMatch(
   return left.txid === right.txid && left.vaultTxid === right.vaultTxid;
 }
 
+function compactTxids(txids: Array<string | null | undefined>): string[] {
+  return [...new Set(txids.filter((txid): txid is string => Boolean(txid)))];
+}
+
+function isMissingTxError(error: unknown): boolean {
+  return /\bHTTP\s+404\b/i.test(getErrorMessage(error, ''));
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, ms);
+    (timeout as { unref?: () => void }).unref?.();
+  });
+}
+
+async function checkTxMissingFromExplorer(txid: string): Promise<boolean | null> {
+  try {
+    await getJsonWithNativeTimeout<unknown>(getTxApiUrl(txid), {
+      timeout: VAULT_RECOVERY_TX_VISIBILITY_TIMEOUT_MS,
+      headers: { Accept: 'application/json' },
+    });
+    return false;
+  } catch (error) {
+    if (isMissingTxError(error)) {
+      return true;
+    }
+
+    logger.warn('[VaultOps] Could not verify failed vault tx visibility', {
+      txid,
+      error: getErrorMessage(error, 'Unknown transaction visibility check error'),
+    });
+    return null;
+  }
+}
+
+async function areTxidsStillMissingFromExplorer(txids: string[]): Promise<boolean> {
+  if (txids.length === 0) {
+    return false;
+  }
+
+  for (let attempt = 1; attempt <= VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS; attempt += 1) {
+    const statuses = await Promise.all(txids.map((txid) => checkTxMissingFromExplorer(txid)));
+
+    if (statuses.some((status) => status === false || status === null)) {
+      return false;
+    }
+
+    if (attempt < VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS) {
+      await wait(VAULT_RECOVERY_TX_VISIBILITY_RETRY_MS);
+    }
+  }
+
+  return true;
+}
+
 /**
  * Base hook for all vault operations
  *
@@ -112,7 +198,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   // Wallet and price context
   const { wallet, currentAccount } = useWallet();
   const { btcPrice } = usePrice();
-  const { vaultData: contextVaultData } = useVaultData();
+  const { vaultData: contextVaultData, vaultTransactions: contextVaultTransactions = [] } =
+    useVaultData();
 
   // Get store state and actions
   const { state, actions } = useStore();
@@ -145,8 +232,12 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
   const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
     (s) => s.clearPendingTransactionForAccount
   );
+  const discardPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.discardPendingTransactionForAccount
+  );
   const pendingVaultTransaction = usePendingVaultTransactionStore((s) => s.pendingTransaction);
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
+  const invalidatePendingTransaction = usePendingTransactionsStore((s) => s.invalidateTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
   const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
   const unmarkUtxosAsSpent = usePendingTransactionsStore((s) => s.unmarkUtxosAsSpent);
@@ -213,22 +304,57 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     }
 
     try {
-      const vaultData = await withVaultBuildTimeout(
-        fetchVaultData(wallet.taprootPubkey),
-        'Vault data request timed out. Please check your connection and try again.',
-        25000
-      );
+      let vaultData: VaultData | null = null;
 
-      if (!vaultData?.vaultInfo || !vaultData.vaultId) {
+      if (hasVaultProfileData(contextVaultData)) {
+        vaultData = contextVaultData;
+        logger.info(`[${operationName}] Using cached vault data for request preparation`, {
+          operationType,
+          vaultId: contextVaultData.vaultId,
+        });
+      } else {
+        const vaultDataStartedAt = Date.now();
+        logger.info(`[${operationName}] Fetching vault data for request preparation`, {
+          operationType,
+        });
+        vaultData = await withVaultBuildTimeout(
+          fetchVaultData(wallet.taprootPubkey),
+          'Vault data request timed out. Please check your connection and try again.',
+          25000
+        );
+        logger.info(`[${operationName}] Vault data ready for request preparation`, {
+          operationType,
+          durationMs: Date.now() - vaultDataStartedAt,
+        });
+      }
+
+      if (!hasVaultProfileData(vaultData)) {
         logger.error(`[${operationName}] No vault info available`);
         return null;
       }
 
-      const latestTx = await withVaultBuildTimeout(
-        fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540),
-        'Vault history request timed out. Please check your connection and try again.',
-        25000
-      );
+      let latestTx = getLatestUsableVaultTransaction(contextVaultTransactions);
+      if (latestTx) {
+        logger.info(`[${operationName}] Using cached vault history transaction`, {
+          operationType,
+          vaultId: vaultData.vaultId,
+          txid: latestTx.transaction_id,
+        });
+      } else {
+        const vaultHistoryStartedAt = Date.now();
+        logger.info(`[${operationName}] Fetching latest vault history transaction`, {
+          operationType,
+        });
+        latestTx = await withVaultBuildTimeout(
+          fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540),
+          'Vault history request timed out. Please check your connection and try again.',
+          25000
+        );
+        logger.info(`[${operationName}] Latest vault history transaction ready`, {
+          operationType,
+          durationMs: Date.now() - vaultHistoryStartedAt,
+        });
+      }
 
       if (!latestTx) {
         logger.error(`[${operationName}] No vault history available`);
@@ -242,8 +368,31 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         return null;
       }
 
-      const profile = buildVaultProfile(wallet.taprootPubkey, vaultData.vaultInfo, vaultPrevout);
+      const resolvedVaultPrevout = await withVaultBuildTimeout(
+        resolveLatestUnspentVaultPrevout(vaultPrevout),
+        'Timed out verifying the current vault UTXO. Please try again.',
+        45_000
+      );
 
+      if (resolvedVaultPrevout.replaced) {
+        logger.warn(`[${operationName}] Using on-chain vault prevout ahead of validator history`, {
+          operationType,
+          hopCount: resolvedVaultPrevout.hopCount,
+          sourceTxids: resolvedVaultPrevout.sourceTxids,
+          latestTxid: resolvedVaultPrevout.prevout.utxo.txid,
+          latestVout: resolvedVaultPrevout.prevout.utxo.vout,
+        });
+      }
+
+      const profile = buildVaultProfile(
+        wallet.taprootPubkey,
+        vaultData.vaultInfo,
+        resolvedVaultPrevout.prevout
+      );
+
+      logger.info(`[${operationName}] Vault profile built`, {
+        operationType,
+      });
       logger.debug(`[${operationName}] VaultProfile built:`, {
         acct_id: profile.acct_id,
         master_id: profile.master_id,
@@ -256,7 +405,13 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       logger.error(`[${operationName}] Error building VaultProfile:`, { error: err });
       throw err;
     }
-  }, [wallet?.taprootPubkey, operationName]);
+  }, [
+    wallet?.taprootPubkey,
+    contextVaultData,
+    contextVaultTransactions,
+    operationName,
+    operationType,
+  ]);
 
   /**
    * Execute the vault operation
@@ -317,9 +472,23 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setError(null);
     setCurrentStep('processing');
     analytics.track(VAULT_EVENTS.VAULT_OPERATION_STARTED, { operation: operationName });
+    const preserveSettlementFinalStep =
+      operationType === 'repay' &&
+      useVaultSettlementStore.getState().kind === 'repay' &&
+      useVaultSettlementStore.getState().phase === 'repaying_vault';
+    const setOperationProcessingStep = (step: ProcessingStep): void => {
+      if (preserveSettlementFinalStep) {
+        if (step === 1) {
+          updateProcessingStep(4);
+        }
+        return;
+      }
+      updateProcessingStep(step);
+    };
 
     let guardianSubmitAttempted = false;
     let localVaultRecoveryWrittenBeforeSubmit = false;
+    let recoveryTxidsForSubmit: { txid?: string; vaultTxid: string } | null = null;
     const spentInputsForPreSubmitRollback: Array<{ txid: string; vout: number }> = [];
     const recordPreSubmitRollbackInputs = (inputs: Array<{ txid: string; vout: number }>): void => {
       for (const input of inputs) {
@@ -335,15 +504,22 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
     try {
       // Step 1: Build VaultProfile and create config
-      updateProcessingStep(1);
+      setOperationProcessingStep(1);
+      logger.info(`[${operationName}] Preparing vault request`, { operationType });
       logger.debug(`[${operationName}] Step 1: Building VaultProfile and config...`);
 
+      const profileStartedAt = Date.now();
       const vaultProfile = await buildVaultProfileFromData();
 
       if (!vaultProfile) {
         throw new Error('Failed to build vault profile. Please try again.');
       }
+      logger.info(`[${operationName}] Vault profile ready for request`, {
+        operationType,
+        durationMs: Date.now() - profileStartedAt,
+      });
 
+      const walletStartedAt = Date.now();
       const vaultWallet = await withVaultBuildTimeout(
         createVaultWallet({
           segwitAddress: wallet!.segwitAddress!,
@@ -354,48 +530,101 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         'Timed out preparing the vault wallet. Please try again.',
         25000
       );
+      logger.info(`[${operationName}] Vault wallet ready for request`, {
+        operationType,
+        durationMs: Date.now() - walletStartedAt,
+      });
 
       const operationConfig = createConfig(amount, selectedFeeRate);
 
+      const liquidationPrice = calculateLiquidationPrice({
+        amount,
+        currentUnitBorrowed,
+        currentBtcLocked,
+      });
+      logger.info(`[${operationName}] Fetching oracle quote for transaction build`, {
+        operationType,
+        liquidationPrice,
+      });
+
+      const quoteStartedAt = Date.now();
+      const oracleQuote = await withVaultBuildTimeoutFn(
+        () =>
+          fetchPriceQuote(liquidationPrice, {
+            cache: false,
+            dedupe: false,
+            transport: 'xhr',
+            timeout: 8_000,
+          }),
+        'Timed out fetching oracle price quote. Please try again.',
+        20_000
+      );
+      logger.info(`[${operationName}] Oracle quote ready for transaction build`, {
+        operationType,
+        durationMs: Date.now() - quoteStartedAt,
+      });
+
       // Step 2: Connect to guardian (+ optional reservation)
-      updateProcessingStep(2);
+      setOperationProcessingStep(2);
+      logger.info(`[${operationName}] Connecting to guardian`, {
+        operationType,
+        needsReservation,
+      });
       if (needsReservation) {
         logger.debug(`[${operationName}] Step 2: Connecting to guardian and reserving...`);
       } else {
         logger.debug(`[${operationName}] Step 2: Connecting to guardian...`);
       }
 
-      const gclient = await getGuardianClient(wallet!.taprootPubkey || '');
+      disconnectGuardian();
+      const guardianStartedAt = Date.now();
+      const gclient = await withVaultBuildTimeout(
+        getGuardianClient(wallet!.taprootPubkey || ''),
+        'Timed out connecting to Guardian. Please try again.',
+        15_000
+      );
+      logger.info(`[${operationName}] Guardian connected`, {
+        operationType,
+        durationMs: Date.now() - guardianStartedAt,
+      });
 
       let reservationResult: unknown;
       if (needsReservation && performReservation) {
-        reservationResult = await performReservation(
-          gclient,
-          operationConfig,
-          wallet!.taprootPubkey || ''
+        const reservationStartedAt = Date.now();
+        reservationResult = await withVaultBuildTimeout(
+          performReservation(gclient, operationConfig, wallet!.taprootPubkey || ''),
+          'Timed out reserving UNIT with Guardian. Please try again.',
+          20_000
         );
+        logger.info(`[${operationName}] Guardian reservation ready`, {
+          operationType,
+          durationMs: Date.now() - reservationStartedAt,
+        });
       }
 
       // Step 3: Create request with PSBT
-      updateProcessingStep(3);
+      setOperationProcessingStep(3);
+      logger.info(`[${operationName}] Building vault transaction request`, {
+        operationType,
+      });
       logger.debug(`[${operationName}] Step 3: Creating ${operationType} request...`);
 
-      // Calculate liquidation price for oracle quote
-      const liquidationPrice = calculateLiquidationPrice({
-        amount,
-        currentUnitBorrowed,
-        currentBtcLocked,
-      });
-
-      const oracleQuote = await fetchPriceQuote(liquidationPrice);
-
-      const request = await createRequest({
-        vaultWallet,
-        config: operationConfig,
-        reservationResult,
-        feeRate: selectedFeeRate,
-        oracleQuote,
-        vaultProfile,
+      const requestStartedAt = Date.now();
+      const request = await withVaultBuildTimeout(
+        createRequest({
+          vaultWallet,
+          config: operationConfig,
+          reservationResult,
+          feeRate: selectedFeeRate,
+          oracleQuote,
+          vaultProfile,
+        }),
+        `Timed out building the ${operationType} transaction. Please try again.`,
+        VAULT_REQUEST_BUILD_TIMEOUT_MS
+      );
+      logger.info(`[${operationName}] Vault request built`, {
+        operationType,
+        durationMs: Date.now() - requestStartedAt,
       });
 
       const persistVaultRecovery = async (recoveryResult: {
@@ -490,7 +719,10 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       };
 
       // Step 4: Submit to guardian
-      updateProcessingStep(4);
+      setOperationProcessingStep(4);
+      logger.info(`[${operationName}] Submitting vault request to guardian`, {
+        operationType,
+      });
       logger.debug(`[${operationName}] Step 4: Submitting to guardian...`);
 
       const requestTxids = extractTxidsFromVaultRequest(request);
@@ -499,10 +731,20 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
           `${operationName} request did not include transaction IDs; refusing to submit without a recovery checkpoint.`
         );
       }
+      recoveryTxidsForSubmit = requestTxids;
       await persistVaultRecovery(requestTxids);
 
       guardianSubmitAttempted = true;
-      const result = await sendRequest(gclient, request);
+      const submitStartedAt = Date.now();
+      const result = await withVaultBuildTimeout(
+        sendRequest(gclient, request),
+        `Timed out submitting the ${operationType} request to Guardian. Please wait for confirmation or try again after the pending transaction clears.`,
+        VAULT_REQUEST_SUBMIT_TIMEOUT_MS
+      );
+      logger.info(`[${operationName}] Guardian submit finished`, {
+        operationType,
+        durationMs: Date.now() - submitStartedAt,
+      });
       const { txid, vaultTxid: resultVaultTxid } = extractResult(result);
       const resultTxids = { txid, vaultTxid: resultVaultTxid };
 
@@ -531,6 +773,9 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         txid,
         vault_txid: resultVaultTxid,
       });
+      logger.info(
+        `[E2E_TX] vault_operation_success operation=${operationType} txid=${txid ?? ''} vaultTxid=${resultVaultTxid}`
+      );
       analytics.trackTransaction(VAULT_EVENTS.VAULT_OPERATION_COMPLETED, resultVaultTxid, {
         operation: operationName,
       });
@@ -542,10 +787,11 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
       return { txid, vaultTxid: resultVaultTxid };
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : `${operationName} operation failed`;
+      const errorMessage = getErrorMessage(err, `${operationName} operation failed`);
       const errorStack = err instanceof Error ? err.stack : undefined;
       logger.error(`[${operationName}] Error:`, {
         message: errorMessage,
+        errorName: err instanceof Error ? err.name : typeof err,
         stack: errorStack,
       });
       if (!guardianSubmitAttempted) {
@@ -561,12 +807,62 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
         if (localVaultRecoveryWrittenBeforeSubmit) {
           try {
-            await clearPendingTransactionForAccount(currentAccount);
+            await discardPendingTransactionForAccount(
+              currentAccount,
+              recoveryTxidsForSubmit?.vaultTxid || recoveryTxidsForSubmit?.txid,
+              err
+            );
           } catch (clearError) {
             logger.error(`[${operationName}] Failed to clear pre-submit vault recovery lock:`, {
-              error: clearError instanceof Error ? clearError.message : String(clearError),
+              error: getErrorMessage(clearError, 'Unknown vault recovery cleanup error'),
             });
           }
+        }
+      } else if (localVaultRecoveryWrittenBeforeSubmit && recoveryTxidsForSubmit) {
+        const recoveryTxids = compactTxids([
+          recoveryTxidsForSubmit.txid,
+          recoveryTxidsForSubmit.vaultTxid,
+        ]);
+        const txidsMissing = await areTxidsStillMissingFromExplorer(recoveryTxids);
+
+        if (txidsMissing) {
+          logger.warn(
+            `[${operationName}] Guardian submit failed before recovery txids reached mempool; clearing local recovery lock`,
+            {
+              operationType,
+              recoveryTxids,
+              error: errorMessage,
+            }
+          );
+
+          try {
+            await discardPendingTransactionForAccount(
+              currentAccount,
+              recoveryTxidsForSubmit.vaultTxid || recoveryTxidsForSubmit.txid,
+              err
+            );
+          } catch (clearError) {
+            logger.error(`[${operationName}] Failed to discard rejected vault recovery lock:`, {
+              error: getErrorMessage(clearError, 'Unknown vault recovery cleanup error'),
+            });
+          }
+
+          for (const txid of recoveryTxids) {
+            try {
+              await invalidatePendingTransaction(txid, errorMessage);
+            } catch (invalidateError) {
+              logger.error(`[${operationName}] Failed to invalidate rejected vault tx:`, {
+                txid,
+                error: getErrorMessage(invalidateError, 'Unknown pending tx cleanup error'),
+              });
+            }
+          }
+        } else {
+          logger.warn(`[${operationName}] Guardian submit failed after local recovery was written`, {
+            operationType,
+            recoveryTxids,
+            error: errorMessage,
+          });
         }
       }
       analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, {
@@ -612,7 +908,9 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     setPendingTransactionForAccount,
     currentAccount,
     clearPendingTransactionForAccount,
+    discardPendingTransactionForAccount,
     addPendingTransaction,
+    invalidatePendingTransaction,
     markUtxoAsSpent,
     markUtxosAsSpent,
     unmarkUtxosAsSpent,

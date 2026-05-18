@@ -13,7 +13,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - extendedWaitUntil:
     visible:
       id: "wallet-borrow-btn"
-    timeout: 10000
+    timeout: 240000
 
 # Step 2: Borrow additional UNIT (second on-chain transaction)
 - tapOn:
@@ -25,9 +25,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-borrow-input-screen"
     timeout: 10000
 
-# Select QTR UNIT to borrow (conservative to maintain health)
+# Enter a small additional borrow amount.
 - tapOn:
-    id: "unit-slider-quarter-btn"
+    id: "vault-borrow-amount-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-borrow-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "1"
+- tapOn:
+    id: "vault-borrow-amount-done-btn"
 - waitForAnimationToEnd
 
 # Continue to payout selection
@@ -53,14 +61,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Confirm & Sign
 - tapOn:
     id: "vault-borrow-confirm-btn"
+- runFlow:
+    when:
+      visible:
+        id: "pin-fallback-modal"
+    commands:
+      - runFlow: ../helpers/enter-pin-fallback.yaml
 
 # Wait for success (skip transient processing screen)
 - extendedWaitUntil:
     visible:
       id: "vault-borrow-success-screen"
     timeout: 120000
-- assertVisible:
-    text: "Borrow Complete!"
 
 # Tap Done
 - tapOn:

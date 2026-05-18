@@ -16,6 +16,7 @@ import {
   getPreferenceItem,
   setDeviceOnlyItem,
 } from './storagePolicy';
+import { beginPrivacySplashSuppression } from './privacySplashSuppression';
 
 // Timeout for biometric authentication to prevent indefinite hangs
 // (iPad compatibility mode can cause the native dialog to stall)
@@ -146,9 +147,13 @@ export const authenticateWithBiometrics = async (
   promptMessage = 'Authenticate to access your wallet',
   fallbackLabel = 'Use PIN'
 ): Promise<BiometricResult> => {
+  let releasePrivacySplashSuppression: (() => void) | null = null;
+
   try {
     // SECURITY: Check if locked out before attempting authentication
     await checkBiometricLockout();
+
+    releasePrivacySplashSuppression = beginPrivacySplashSuppression();
 
     // iPad in iPhone compatibility mode can cause the native biometric dialog
     // to hang or fail silently. Wrap with a timeout to prevent indefinite freeze.
@@ -201,6 +206,8 @@ export const authenticateWithBiometrics = async (
       success: false,
       error: err.message,
     };
+  } finally {
+    releasePrivacySplashSuppression?.();
   }
 };
 

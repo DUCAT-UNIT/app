@@ -59,9 +59,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     text: "Mint Turbo UNIT"
 - assertVisible:
-    text: "Amount (sats)"
+    text: "Amount (smallest units)"
 
-# Enter mint amount (100 sats)
+# Enter mint amount (100 smallest units)
 - tapOn:
     id: "cashu-mint-amount-input"
 - inputText: "100"
@@ -78,7 +78,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Verify the deposit details show UNIT amount
 - assertVisible:
-    text: "100.00 UNIT"
+    text: "1.00 UNIT"
 
 # Tap Confirm and Sign to broadcast the UNIT deposit to the mint
 - tapOn:

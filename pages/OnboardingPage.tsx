@@ -109,7 +109,7 @@ function renderScreen(
       return (
         <LockScreen
           onAuthenticated={state.handleLockScreenAuthenticatedWrapper}
-          showFaceIdButton={state.isBiometricSupported}
+          showFaceIdButton={state.isBiometricSupported && state.showFaceIdButton}
           onFaceIdPress={state.handleBiometricAuth}
         />
       );

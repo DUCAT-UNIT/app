@@ -20,7 +20,6 @@ let metroProcess = null;
 function e2eEnvironment(extra = {}) {
   return {
     ...process.env,
-    EXPO_PUBLIC_E2E_BYPASS: 'true',
     EXPO_NO_TELEMETRY: '1',
     ...extra,
   };
@@ -124,7 +123,7 @@ const flows = process.argv.slice(2);
 if (flows.includes('-h') || flows.includes('--help')) {
   console.log(`Usage: node scripts/runMaestroCritical.mjs [flow ...]
 
-Runs the deterministic critical Maestro suite with MAESTRO_EXPO_DEV_CLIENT_URL
+Runs the critical Maestro suite with MAESTRO_EXPO_DEV_CLIENT_URL
 resolved from the active Expo Metro server. Override with:
   MAESTRO_EXPO_DEV_CLIENT_URL=<url>
   MAESTRO_EXPO_PORT=<port>`);
