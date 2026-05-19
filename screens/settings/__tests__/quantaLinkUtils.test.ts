@@ -5,6 +5,7 @@ import {
   getWalletProfileForDerivationMode,
 } from '../../../constants/bitcoin';
 import {
+  QUANTA_ADDRESS_NOT_FOUND_MESSAGE,
   formatAddressPreview,
   getAccountAddressEntries,
   getConnectedStatusFromClaim,
@@ -62,6 +63,10 @@ describe('quantaLinkUtils', () => {
     expect(formatAddressPreview('tb1qabcdefghijklmnopqrstuvwxyz1234567890', 16)).toBe(
       'tb1qabc...567890'
     );
+  });
+
+  it('uses explicit copy when an address is not found in Quanta', () => {
+    expect(QUANTA_ADDRESS_NOT_FOUND_MESSAGE).toContain('not a Quanta address');
   });
 
   it('sorts account address entries by account first, then p2sh, segwit, taproot', () => {

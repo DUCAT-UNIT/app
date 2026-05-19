@@ -25,11 +25,20 @@ export const quantaLinkStyles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 16,
   },
+  tabTopHalf: {
+    height: '44%',
+    gap: 10,
+  },
   bottomHalf: {
     height: '50%',
     paddingHorizontal: 16,
     paddingTop: 18,
     gap: 10,
+  },
+  tabBottomHalf: {
+    height: '56%',
+    paddingTop: 10,
+    gap: 8,
   },
   differentWalletBottomHalf: {
     paddingTop: 4,

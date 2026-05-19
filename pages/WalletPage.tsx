@@ -30,7 +30,7 @@ import {
 } from '../contexts/NavigationHandlersContext';
 import { useTransactionExecution } from '../contexts/TransactionExecutionContext';
 import { useWallet } from '../contexts/WalletContext';
-import { useBalance, useVaultData } from '../contexts/WalletDataContext';
+import { useBalance } from '../contexts/WalletDataContext';
 import { useNotifications } from '../stores/notificationStore';
 import { usePrice } from '../stores/priceStore';
 import { useSendFlow } from '../stores/sendFlowStore';
@@ -111,9 +111,6 @@ export default function WalletPage({ route }: WalletPageProps) {
   const { settingsHandlers } = useSettingsHandlers();
   const { switchingAccount } = useAccountSwitcherContext();
   const { runesBalance, segwitBalance, taprootBalance } = useBalance();
-  const { vaultData } = useVaultData();
-  const hasVault = !!(vaultData && (vaultData.totalCollateral ?? 0) > 0);
-  const vaultCollateral = vaultData?.totalCollateral ?? 0;
   const { btcPrice } = usePrice();
   const {
     balance: cashuBalance,
@@ -229,12 +226,14 @@ export default function WalletPage({ route }: WalletPageProps) {
   }, [closeSettings, navigateWalletFlow, showSettings]);
 
   useEffect(() => {
-    (navigation as unknown as { setOptions?: (options: { tabBarHidden?: boolean }) => void })
-      .setOptions?.({ tabBarHidden: shouldHideTabBarForOverlay });
+    (
+      navigation as unknown as { setOptions?: (options: { tabBarHidden?: boolean }) => void }
+    ).setOptions?.({ tabBarHidden: shouldHideTabBarForOverlay });
 
     return () => {
-      (navigation as unknown as { setOptions?: (options: { tabBarHidden?: boolean }) => void })
-        .setOptions?.({ tabBarHidden: false });
+      (
+        navigation as unknown as { setOptions?: (options: { tabBarHidden?: boolean }) => void }
+      ).setOptions?.({ tabBarHidden: false });
     };
   }, [navigation, shouldHideTabBarForOverlay]);
 
@@ -303,6 +302,8 @@ export default function WalletPage({ route }: WalletPageProps) {
               onVaultPress={handleVaultPress}
               onRepayPress={handleRepayPress}
               onBorrowPress={handleBorrowPress}
+              onWithdrawPress={handleVaultWithdraw}
+              onDepositPress={handleVaultDeposit}
               onResumeVaultSettlementPress={handleResumeVaultSettlementPress}
               onBridgePress={() => navigateWalletFlow('UnitBridge')}
               onSwapPress={(sourceAsset?: 'UNIT' | 'USDC') =>
@@ -348,14 +349,11 @@ export default function WalletPage({ route }: WalletPageProps) {
               params: { assetType: assetType ?? undefined },
             });
           }}
-          onVaultWithdraw={handleVaultWithdraw}
           btcBalance={
             (segwitBalance || 0) + (taprootBalance || 0) + (btcBalanceSats || 0) / 100_000_000
           }
           unitBalance={currentUnitBalance + (cashuBalance || 0) / 100}
           btcPrice={btcPrice}
-          vaultCollateral={vaultCollateral}
-          hasVault={hasVault}
         />
         <DepositSheet
           visible={showDepositSheet}
@@ -364,8 +362,6 @@ export default function WalletPage({ route }: WalletPageProps) {
             setReceiveAssetType(assetType);
             setShowReceiveQR(true);
           }}
-          onVaultDeposit={handleVaultDeposit}
-          hasVault={hasVault}
         />
         <ReceiveScreen
           key={`receive-qr-${currentAccount}`}

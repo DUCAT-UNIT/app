@@ -4,7 +4,15 @@
  */
 
 import React, { memo, useMemo, useCallback, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, PanResponder, Modal } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  StyleSheet,
+  PanResponder,
+  Modal,
+} from 'react-native';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
@@ -154,7 +162,7 @@ export const WithdrawSheet = memo(function WithdrawSheet({
         {...panResponderRef.current.panHandlers}
       >
         <View style={styles.handle} />
-        <Text style={styles.title}>Withdraw</Text>
+        <Text style={styles.title}>Send</Text>
 
         {/* BTC Row */}
         <TouchableOpacity
@@ -301,7 +309,7 @@ export const DepositSheet = memo(function DepositSheet({
         {...panResponderRef.current.panHandlers}
       >
         <View style={styles.handle} />
-        <Text style={styles.title}>Deposit</Text>
+        <Text style={styles.title}>Receive</Text>
 
         {/* BTC Row */}
         <TouchableOpacity

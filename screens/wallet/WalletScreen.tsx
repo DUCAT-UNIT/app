@@ -32,6 +32,7 @@ import { useTotalBalanceStyles } from '../../hooks/useTotalBalanceStyles';
 import { useVaultCardStyles } from '../../hooks/useVaultCardStyles';
 import { useWalletCalculations } from '../../hooks/useWalletCalculations';
 import { useDisplayPreferences } from '../../stores/displayPreferencesStore';
+import { usePendingTxs } from '../../stores/pendingTransactionsStore';
 import { usePrice } from '../../stores/priceStore';
 import { useVaultSettlementStore } from '../../stores/vaultSettlementStore';
 import { COLORS } from '../../theme';
@@ -71,6 +72,8 @@ interface WalletScreenProps {
   onVaultPress: () => void;
   onRepayPress: () => void;
   onBorrowPress: () => void;
+  onWithdrawPress: () => void;
+  onDepositPress: () => void;
   onResumeVaultSettlementPress?: () => void;
   onBridgePress?: () => void;
   onSwapPress?: (sourceAsset?: 'UNIT' | 'USDC') => void;
@@ -92,6 +95,8 @@ const WalletScreen = React.memo(function WalletScreen({
   onVaultPress,
   onRepayPress,
   onBorrowPress,
+  onWithdrawPress,
+  onDepositPress,
   onResumeVaultSettlementPress,
   onAssetPress,
   _sendAddressType,
@@ -129,6 +134,7 @@ const WalletScreen = React.memo(function WalletScreen({
     error: settlementError,
   } = useVaultSettlementStore();
   const { showTotalInBTC, setShowTotalInBTC } = useDisplayPreferences();
+  const pendingTransactions = usePendingTxs();
   const hasBtcBalance = segwitBalance > 0 || taprootBalance > 0 || btcBalanceSats > 0;
 
   React.useEffect(() => {
@@ -332,29 +338,34 @@ const WalletScreen = React.memo(function WalletScreen({
     settlementFaceValueUsd > 0 &&
     settlementRequestedPayoutAsset !== 'UNIT' &&
     !!onResumeVaultSettlementPress &&
-    (
-      settlementPhase === 'needs_retry' ||
-      (
-        settlementRequestedPayoutAsset === 'USDC' &&
+    (settlementPhase === 'needs_retry' ||
+      (settlementRequestedPayoutAsset === 'USDC' &&
         !settlementBridgeSendTxid &&
-        (
-          settlementPhase === 'building_bridge_send' ||
+        (settlementPhase === 'building_bridge_send' ||
           settlementPhase === 'signing_bridge_send' ||
           settlementPhase === 'broadcasting_bridge_send' ||
-          settlementPhase === 'waiting_bridge_fulfillment'
-        )
-      ) ||
-      (
-        settlementRequestedPayoutAsset === 'TURBOUNIT' &&
+          settlementPhase === 'waiting_bridge_fulfillment')) ||
+      (settlementRequestedPayoutAsset === 'TURBOUNIT' &&
         !settlementCashuMintSendTxid &&
-        (
-          settlementPhase === 'building_turbo_send' ||
+        (settlementPhase === 'building_turbo_send' ||
           settlementPhase === 'signing_turbo_send' ||
           settlementPhase === 'broadcasting_turbo_send' ||
-          settlementPhase === 'waiting_turbo_mint'
-        )
-      )
-    );
+          settlementPhase === 'waiting_turbo_mint')));
+  const pendingWalletTxCount = React.useMemo(
+    () =>
+      Object.values(pendingTransactions).filter((transaction) => transaction.status === 'pending')
+        .length,
+    [pendingTransactions]
+  );
+  const showPendingTransactionPanel = isPendingVaultTx || pendingWalletTxCount > 0;
+  const pendingTransactionTitle = isPendingVaultTx
+    ? 'Vault transaction pending'
+    : pendingWalletTxCount > 1
+      ? `${pendingWalletTxCount} transactions pending`
+      : 'Transaction pending';
+  const pendingTransactionMessage = isPendingVaultTx
+    ? 'Waiting for confirmation before another vault action can start.'
+    : 'Waiting for confirmation. You can keep track in history.';
 
   return (
     <View style={styles.walletContainer} testID="wallet-screen">
@@ -387,12 +398,37 @@ const WalletScreen = React.memo(function WalletScreen({
         isPendingVaultTx={isPendingVaultTx}
         isLowHealth={isLowHealth}
         hasNoDebt={hasNoDebt}
+        hasVault={hasVault}
         hasVaultCollateral={hasVaultCollateral}
         onRepayPress={onRepayPress}
         onBorrowPress={onBorrowPress}
+        onWithdrawPress={onWithdrawPress}
+        onDepositPress={onDepositPress}
         onSendPress={onSendPress}
         onReceivePress={onReceivePress}
       />
+
+      {showPendingTransactionPanel && (
+        <TouchableOpacity
+          style={localStyles.pendingTransactionPanel}
+          onPress={onHistoryPress}
+          testID="wallet-pending-transaction-panel"
+          accessibilityRole="button"
+          accessibilityLabel={pendingTransactionTitle}
+          accessibilityHint="Opens transaction history"
+        >
+          <View style={localStyles.pendingTransactionIconWrap}>
+            <ActivityIndicator color={COLORS.YELLOW} size="small" />
+          </View>
+          <View style={localStyles.pendingTransactionTextWrap}>
+            <Text style={localStyles.pendingTransactionTitle}>{pendingTransactionTitle}</Text>
+            <Text style={localStyles.pendingTransactionMessage} numberOfLines={2}>
+              {pendingTransactionMessage}
+            </Text>
+          </View>
+          <Icon name="transaction_history" size={18} color={COLORS.YELLOW} />
+        </TouchableOpacity>
+      )}
 
       {showAirdropWaitingPanel && (
         <View style={localStyles.airdropPanel} testID="airdrop-waiting-panel">
@@ -403,8 +439,8 @@ const WalletScreen = React.memo(function WalletScreen({
             <View style={localStyles.airdropPanelTextWrap}>
               <Text style={localStyles.airdropPanelTitle}>Waiting for BTC to appear</Text>
               <Text style={localStyles.airdropPanelMessage}>
-                The faucet accepted the request. Your balance will update automatically once
-                the network sees it.
+                The faucet accepted the request. Your balance will update automatically once the
+                network sees it.
               </Text>
             </View>
           </View>
@@ -545,7 +581,6 @@ const WalletScreen = React.memo(function WalletScreen({
           </View>
         )}
       </ScrollView>
-
     </View>
   );
 });
@@ -553,6 +588,43 @@ const WalletScreen = React.memo(function WalletScreen({
 const localStyles = StyleSheet.create({
   largeBalanceAmount: {
     fontSize: 32,
+  },
+  pendingTransactionPanel: {
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(245, 228, 162, 0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 228, 162, 0.26)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pendingTransactionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(245, 228, 162, 0.12)',
+  },
+  pendingTransactionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pendingTransactionTitle: {
+    color: COLORS.YELLOW,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  pendingTransactionMessage: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 16,
   },
   airdropPanel: {
     marginHorizontal: 24,

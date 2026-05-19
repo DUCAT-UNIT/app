@@ -13,6 +13,7 @@ import { useTotalBalanceStyles } from '../../../hooks/useTotalBalanceStyles';
 import { useVaultCardStyles } from '../../../hooks/useVaultCardStyles';
 import { useWalletCalculations } from '../../../hooks/useWalletCalculations';
 import { useDisplayPreferences } from '../../../stores/displayPreferencesStore';
+import { usePendingTxs } from '../../../stores/pendingTransactionsStore';
 import { usePrice } from '../../../stores/priceStore';
 import WalletScreen from '../WalletScreen';
 
@@ -149,6 +150,10 @@ jest.mock('../../../stores/displayPreferencesStore', () => ({
   useDisplayPreferences: jest.fn(),
 }));
 
+jest.mock('../../../stores/pendingTransactionsStore', () => ({
+  usePendingTxs: jest.fn(),
+}));
+
 jest.mock('../../../stores/priceStore', () => ({
   usePrice: jest.fn(),
 }));
@@ -175,6 +180,8 @@ const baseProps = {
   onVaultPress: jest.fn(),
   onRepayPress: jest.fn(),
   onBorrowPress: jest.fn(),
+  onWithdrawPress: jest.fn(),
+  onDepositPress: jest.fn(),
   onAssetPress: jest.fn(),
   showZeroAssets: false,
 };
@@ -218,6 +225,7 @@ describe('WalletScreen Sepolia asset cards', () => {
       showTotalInBTC: false,
       setShowTotalInBTC: jest.fn(),
     });
+    (usePendingTxs as jest.Mock).mockReturnValue({});
     (useWalletCalculations as jest.Mock).mockReturnValue({
       totalBalanceBTC: 0,
       totalBalanceUSD: 0,
@@ -246,7 +254,7 @@ describe('WalletScreen Sepolia asset cards', () => {
 
   it('hides Sepolia ETH and USDC while the developer flag is disabled', () => {
     const { queryByTestId } = render(
-      <WalletScreen {...(baseProps as unknown as React.ComponentProps<typeof WalletScreen>)} />,
+      <WalletScreen {...(baseProps as unknown as React.ComponentProps<typeof WalletScreen>)} />
     );
 
     expect(queryByTestId('asset-card-eth')).toBeNull();
@@ -261,7 +269,7 @@ describe('WalletScreen Sepolia asset cards', () => {
     });
 
     const { getByTestId } = render(
-      <WalletScreen {...(baseProps as unknown as React.ComponentProps<typeof WalletScreen>)} />,
+      <WalletScreen {...(baseProps as unknown as React.ComponentProps<typeof WalletScreen>)} />
     );
 
     expect(getByTestId('asset-card-eth')).toBeTruthy();

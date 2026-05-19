@@ -1,11 +1,13 @@
+/* eslint-disable react-native/no-unused-styles */
 /**
  * WalletActions Component
- * Renders the action buttons row (Repay, Borrow, Withdraw, Deposit) on the wallet screen
+ * Renders vault actions plus separate wallet Send and Receive buttons.
  */
 
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { useResponsive } from '../../hooks/useResponsive';
 import { COLORS } from '../../theme';
@@ -14,20 +16,39 @@ interface WalletActionsProps {
   isPendingVaultTx: boolean;
   isLowHealth: boolean;
   hasNoDebt: boolean;
+  hasVault: boolean;
   hasVaultCollateral: boolean;
   onRepayPress: () => void;
   onBorrowPress: () => void;
+  onWithdrawPress: () => void;
+  onDepositPress: () => void;
   onSendPress: () => void;
   onReceivePress: () => void;
+}
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+interface VaultActionButtonConfig {
+  disabled: boolean;
+  icon: IoniconName;
+  label: string;
+  onPress: () => void;
+  testID: string;
+  disabledTestID: string;
+  accessibilityLabel: string;
+  accessibilityHint: string;
 }
 
 const WalletActions = React.memo(function WalletActions({
   isPendingVaultTx,
   isLowHealth,
   hasNoDebt,
+  hasVault,
   hasVaultCollateral,
   onRepayPress,
   onBorrowPress,
+  onWithdrawPress,
+  onDepositPress,
   onSendPress,
   onReceivePress,
 }: WalletActionsProps): React.ReactElement {
@@ -36,10 +57,48 @@ const WalletActions = React.memo(function WalletActions({
     () =>
       StyleSheet.create({
         row: {
-          flexDirection: 'row',
-          justifyContent: 'flex-start',
-          marginLeft: s(24),
+          width: '100%',
+          paddingHorizontal: s(24),
           gap: s(12),
+        },
+        vaultGroup: {
+          width: '100%',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderRadius: s(8),
+          backgroundColor: 'rgba(255, 255, 255, 0.035)',
+          paddingHorizontal: s(10),
+          paddingTop: s(9),
+          paddingBottom: s(8),
+          gap: s(8),
+        },
+        vaultHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        vaultTitle: {
+          color: COLORS.SECONDARY_TEXT,
+          fontSize: sf(11),
+          lineHeight: sf(14),
+          fontWeight: '700',
+          letterSpacing: 0,
+          textTransform: 'uppercase',
+        },
+        vaultPendingLabel: {
+          color: COLORS.YELLOW,
+          fontSize: sf(11),
+          lineHeight: sf(14),
+          fontWeight: '700',
+        },
+        vaultActionsRow: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          gap: s(8),
+        },
+        walletRow: {
+          flexDirection: 'row',
+          gap: s(10),
         },
         stateSentinel: {
           position: 'absolute',
@@ -49,17 +108,18 @@ const WalletActions = React.memo(function WalletActions({
           height: 1,
         },
         action: {
+          flex: 1,
           alignItems: 'center',
-          minWidth: s(58),
-          minHeight: s(66),
+          minWidth: 0,
+          minHeight: s(62),
           justifyContent: 'center',
         },
         actionDisabled: {
           opacity: 0.5,
         },
         icon: {
-          width: s(50),
-          height: s(50),
+          width: s(44),
+          height: s(44),
           borderRadius: s(8),
           backgroundColor: '#DDDDDD',
           justifyContent: 'center',
@@ -69,18 +129,37 @@ const WalletActions = React.memo(function WalletActions({
         iconDisabled: {
           backgroundColor: '#888888',
         },
-        iconText: {
-          fontSize: sf(24),
-          color: COLORS.DARK_BG,
-          fontWeight: '200',
-        },
         label: {
-          fontSize: sf(13),
+          fontSize: sf(12),
+          lineHeight: sf(15),
           color: COLORS.WHITE,
           fontWeight: '600',
+          textAlign: 'center',
         },
         labelDisabled: {
           color: COLORS.SECONDARY_TEXT,
+        },
+        walletAction: {
+          flex: 1,
+          minHeight: s(48),
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: s(7),
+          borderRadius: s(8),
+          backgroundColor: COLORS.PRIMARY_BLUE,
+          paddingHorizontal: s(12),
+        },
+        walletActionSecondary: {
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.14)',
+          backgroundColor: COLORS.CARD_BG,
+        },
+        walletActionText: {
+          color: COLORS.WHITE,
+          fontSize: sf(15),
+          lineHeight: sf(18),
+          fontWeight: '700',
         },
       }),
     [s, sf]
@@ -122,9 +201,133 @@ const WalletActions = React.memo(function WalletActions({
     });
   }, []);
 
+  const handleNoVaultPress = useCallback(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    useNotificationStore.getState().showSnackbar({
+      title: 'No vault',
+      description: 'Create a vault before using vault deposit or withdraw',
+      type: 'warning',
+    });
+  }, []);
+
   const repayDisabled = isPendingVaultTx || hasNoDebt;
   const borrowDisabled = isPendingVaultTx || isLowHealth || !hasVaultCollateral;
+  const withdrawDisabled = isPendingVaultTx || !hasVaultCollateral;
+  const depositDisabled = isPendingVaultTx || !hasVault;
   const actionHitSlop = { top: 10, bottom: 10, left: 8, right: 8 };
+
+  const vaultActions: VaultActionButtonConfig[] = [
+    {
+      disabled: repayDisabled,
+      icon: 'arrow-down-outline',
+      label: 'Repay',
+      onPress: isPendingVaultTx
+        ? handleDisabledPress
+        : hasNoDebt
+          ? handleNoDebtPress
+          : onRepayPress,
+      testID: 'wallet-repay-btn',
+      disabledTestID: 'wallet-repay-btn-disabled',
+      accessibilityLabel: 'Repay vault debt',
+      accessibilityHint: isPendingVaultTx
+        ? 'Disabled while transaction is pending'
+        : hasNoDebt
+          ? 'No debt to repay'
+          : 'Opens the repay screen',
+    },
+    {
+      disabled: borrowDisabled,
+      icon: 'arrow-up-outline',
+      label: 'Borrow',
+      onPress: isPendingVaultTx
+        ? handleDisabledPress
+        : !hasVaultCollateral
+          ? handleNoVaultCollateralPress
+          : isLowHealth
+            ? handleLowHealthPress
+            : onBorrowPress,
+      testID: 'wallet-borrow-btn',
+      disabledTestID: 'wallet-borrow-btn-disabled',
+      accessibilityLabel: 'Borrow against vault',
+      accessibilityHint: isPendingVaultTx
+        ? 'Disabled while transaction is pending'
+        : !hasVaultCollateral
+          ? 'No vault collateral to borrow against'
+          : isLowHealth
+            ? 'Vault health too low to borrow'
+            : 'Opens the borrow screen',
+    },
+    {
+      disabled: withdrawDisabled,
+      icon: 'remove-outline',
+      label: 'Withdraw',
+      onPress: isPendingVaultTx
+        ? handleDisabledPress
+        : !hasVaultCollateral
+          ? handleNoVaultCollateralPress
+          : onWithdrawPress,
+      testID: 'wallet-withdraw-btn',
+      disabledTestID: 'wallet-withdraw-btn-disabled',
+      accessibilityLabel: 'Withdraw vault collateral',
+      accessibilityHint: isPendingVaultTx
+        ? 'Disabled while transaction is pending'
+        : !hasVaultCollateral
+          ? 'No vault collateral to withdraw'
+          : 'Opens the vault withdraw screen',
+    },
+    {
+      disabled: depositDisabled,
+      icon: 'add-outline',
+      label: 'Deposit',
+      onPress: isPendingVaultTx
+        ? handleDisabledPress
+        : !hasVault
+          ? handleNoVaultPress
+          : onDepositPress,
+      testID: 'wallet-deposit-btn',
+      disabledTestID: 'wallet-deposit-btn-disabled',
+      accessibilityLabel: 'Deposit vault collateral',
+      accessibilityHint: isPendingVaultTx
+        ? 'Disabled while transaction is pending'
+        : !hasVault
+          ? 'Create a vault before depositing collateral'
+          : 'Opens the vault deposit screen',
+    },
+  ];
+
+  const renderVaultAction = (action: VaultActionButtonConfig): React.ReactElement => (
+    <TouchableOpacity
+      key={action.label}
+      style={[styles.action, action.disabled && styles.actionDisabled]}
+      onPress={action.onPress}
+      testID={action.disabled ? action.disabledTestID : action.testID}
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel}
+      accessibilityHint={action.accessibilityHint}
+      accessibilityState={{ disabled: action.disabled }}
+      hitSlop={actionHitSlop}
+      pressRetentionOffset={actionHitSlop}
+    >
+      <View style={[styles.icon, action.disabled && styles.iconDisabled]}>
+        {isPendingVaultTx && action.disabled ? (
+          <ActivityIndicator color={COLORS.DARK_BG} size="small" />
+        ) : (
+          <Ionicons
+            name={action.icon}
+            size={22}
+            color={COLORS.DARK_BG}
+            accessibilityElementsHidden
+          />
+        )}
+      </View>
+      <Text
+        style={[styles.label, action.disabled && styles.labelDisabled]}
+        accessibilityElementsHidden
+      >
+        {action.label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View
@@ -138,117 +341,43 @@ const WalletActions = React.memo(function WalletActions({
         style={styles.stateSentinel}
         testID={isPendingVaultTx ? 'wallet-vault-actions-pending' : 'wallet-vault-actions-ready'}
       />
-      <TouchableOpacity
-        style={[styles.action, repayDisabled && styles.actionDisabled]}
-        onPress={
-          isPendingVaultTx ? handleDisabledPress : hasNoDebt ? handleNoDebtPress : onRepayPress
-        }
-        testID={repayDisabled ? 'wallet-repay-btn-disabled' : 'wallet-repay-btn'}
-        accessibilityRole="button"
-        accessibilityLabel="Repay vault debt"
-        accessibilityHint={
-          isPendingVaultTx
-            ? 'Disabled while transaction is pending'
-            : hasNoDebt
-              ? 'No debt to repay'
-              : 'Opens the repay screen'
-        }
-        accessibilityState={{ disabled: repayDisabled }}
-        hitSlop={actionHitSlop}
-        pressRetentionOffset={actionHitSlop}
-      >
-        <View style={[styles.icon, repayDisabled && styles.iconDisabled]}>
-          <Text style={styles.iconText} accessibilityElementsHidden>
-            ↓
-          </Text>
+      <View style={styles.vaultGroup} testID="wallet-vault-action-group">
+        <View style={styles.vaultHeader}>
+          <Text style={styles.vaultTitle}>Vault</Text>
+          {isPendingVaultTx && <Text style={styles.vaultPendingLabel}>Pending</Text>}
         </View>
-        <Text
-          style={[styles.label, repayDisabled && styles.labelDisabled]}
-          accessibilityElementsHidden
+        <View style={styles.vaultActionsRow}>{vaultActions.map(renderVaultAction)}</View>
+      </View>
+
+      <View style={styles.walletRow}>
+        <TouchableOpacity
+          style={styles.walletAction}
+          onPress={onSendPress}
+          testID="wallet-send-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Send BTC or UNIT"
+          accessibilityHint="Opens the send asset picker"
+          hitSlop={actionHitSlop}
+          pressRetentionOffset={actionHitSlop}
         >
-          Repay
-        </Text>
-      </TouchableOpacity>
+          <Ionicons name="paper-plane-outline" size={18} color={COLORS.WHITE} />
+          <Text style={styles.walletActionText}>Send</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.action, borrowDisabled && styles.actionDisabled]}
-        onPress={
-          isPendingVaultTx
-            ? handleDisabledPress
-            : !hasVaultCollateral
-              ? handleNoVaultCollateralPress
-              : isLowHealth
-                ? handleLowHealthPress
-                : onBorrowPress
-        }
-        testID={borrowDisabled ? 'wallet-borrow-btn-disabled' : 'wallet-borrow-btn'}
-        accessibilityRole="button"
-        accessibilityLabel="Borrow against vault"
-        accessibilityHint={
-          isPendingVaultTx
-            ? 'Disabled while transaction is pending'
-            : !hasVaultCollateral
-              ? 'No vault collateral to borrow against'
-              : isLowHealth
-                ? 'Vault health too low to borrow'
-                : 'Opens the borrow screen'
-        }
-        accessibilityState={{ disabled: borrowDisabled }}
-        hitSlop={actionHitSlop}
-        pressRetentionOffset={actionHitSlop}
-      >
-        <View style={[styles.icon, borrowDisabled && styles.iconDisabled]}>
-          <Text style={styles.iconText} accessibilityElementsHidden>
-            ↑
-          </Text>
-        </View>
-        <Text
-          style={[styles.label, borrowDisabled && styles.labelDisabled]}
-          accessibilityElementsHidden
+        <TouchableOpacity
+          style={[styles.walletAction, styles.walletActionSecondary]}
+          onPress={onReceivePress}
+          testID="wallet-receive-btn"
+          accessibilityRole="button"
+          accessibilityLabel="Receive BTC or UNIT"
+          accessibilityHint="Opens the receive asset picker"
+          hitSlop={actionHitSlop}
+          pressRetentionOffset={actionHitSlop}
         >
-          Borrow
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.action}
-        onPress={onSendPress}
-        testID="wallet-withdraw-btn"
-        accessibilityRole="button"
-        accessibilityLabel="Withdraw funds"
-        accessibilityHint="Opens the send screen to withdraw BTC or UNIT"
-        hitSlop={actionHitSlop}
-        pressRetentionOffset={actionHitSlop}
-      >
-        <View style={styles.icon}>
-          <Text style={styles.iconText} accessibilityElementsHidden>
-            -
-          </Text>
-        </View>
-        <Text style={styles.label} accessibilityElementsHidden>
-          Withdraw
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.action}
-        onPress={onReceivePress}
-        testID="wallet-deposit-btn"
-        accessibilityRole="button"
-        accessibilityLabel="Deposit funds"
-        accessibilityHint="Opens the receive screen to deposit BTC or UNIT"
-        hitSlop={actionHitSlop}
-        pressRetentionOffset={actionHitSlop}
-      >
-        <View style={styles.icon}>
-          <Text style={styles.iconText} accessibilityElementsHidden>
-            +
-          </Text>
-        </View>
-        <Text style={styles.label} accessibilityElementsHidden>
-          Deposit
-        </Text>
-      </TouchableOpacity>
+          <Ionicons name="qr-code-outline" size={18} color={COLORS.WHITE} />
+          <Text style={styles.walletActionText}>Receive</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 });

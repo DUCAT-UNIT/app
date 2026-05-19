@@ -40,6 +40,7 @@ import { QuantaAddressForm } from './QuantaAddressForm';
 import { QuantaConnectedPanel } from './QuantaConnectedPanel';
 import { QuantaMismatchWarningModal } from './QuantaMismatchWarningModal';
 import { QuantaStatusBanner } from './QuantaStatusBanner';
+import { loadQuantaDiscoveryCache, saveQuantaDiscoveryCache } from './quantaDiscoveryCache';
 import { quantaLinkStyles as localStyles } from './quantaLinkStyles';
 import { QUANTA_POINTS } from './quantaLinkAssets';
 import {
@@ -52,6 +53,7 @@ import {
   CONNECT_QUANTA_ERROR_MESSAGE,
   NO_MATCH_ACCOUNT_MESSAGE,
   QUANTA_DIFFERENT_WALLET_STATUS_TIMEOUT_MS,
+  QUANTA_ADDRESS_NOT_FOUND_MESSAGE,
   QUANTA_SEARCH_START_DELAY_MS,
   QUANTA_WALLET_SEARCH_TIMEOUT_MS,
   formatAddressPreview,
@@ -113,10 +115,16 @@ export default function QuantaLinkScreen({
   const differentWalletCheckIdRef = React.useRef(0);
   const searchAbortControllerRef = React.useRef<AbortController | null>(null);
   const pendingQuantaUnlockActionRef = React.useRef<PendingQuantaUnlockAction | null>(null);
-  const logoSize = Math.min(width * 0.58, 252);
-  const topOffset = height * 0.05;
+  const hydratedDiscoveryCacheKeyRef = React.useRef<string | null>(null);
+  const logoSize = Math.min(width * (showBackButton ? 0.58 : 0.48), showBackButton ? 252 : 204);
+  const topOffset = height * (showBackButton ? 0.05 : 0.015);
+  const quantaBottomPadding = showBackButton
+    ? Math.max(insets.bottom + 16, 24)
+    : Math.max(insets.bottom + 88, 104);
   const addressMaxLength = Math.max(Math.floor((width - 64) / 7.2), 14);
   const normalizedQuantaAddress = quantaAddress.trim();
+  const quantaDiscoveryWalletFingerprint =
+    wallet?.taprootAddress ?? wallet?.segwitAddress ?? wallet?.legacyAddress ?? null;
   const addressValidation = normalizedQuantaAddress
     ? validateBitcoinAddress(normalizedQuantaAddress)
     : null;
@@ -276,6 +284,44 @@ export default function QuantaLinkScreen({
     getQuantaMobileWalletPayload,
     onDisplayAddress: setQuantaAddress,
   });
+  const discoveryCacheKey = React.useMemo(
+    () =>
+      [
+        quantaDiscoveryWalletFingerprint ?? 'none',
+        String(currentAccount),
+        walletDerivationMode,
+        normalizedQuantaAddress.toLowerCase(),
+      ].join(':'),
+    [
+      currentAccount,
+      normalizedQuantaAddress,
+      quantaDiscoveryWalletFingerprint,
+      walletDerivationMode,
+    ]
+  );
+  const persistQuantaDiscoveryResult = React.useCallback(
+    (
+      candidates: QuantaAccountCandidate[],
+      hasNoQuantaResult: boolean,
+      selectedKey: string | null
+    ) => {
+      saveQuantaDiscoveryCache({
+        accountIndex: currentAccount,
+        candidates,
+        derivationMode: walletDerivationMode,
+        hasNoQuantaInWallet: hasNoQuantaResult,
+        selectedCandidateKey: selectedKey,
+        targetAddress: normalizedQuantaAddress,
+        walletFingerprint: quantaDiscoveryWalletFingerprint,
+      }).catch(() => undefined);
+    },
+    [
+      currentAccount,
+      normalizedQuantaAddress,
+      quantaDiscoveryWalletFingerprint,
+      walletDerivationMode,
+    ]
+  );
   const isCheckingAddress = canCheckAddress && !hasCheckedAddress;
   const hasAccountCheckFailure =
     canCheckAddress &&
@@ -341,6 +387,56 @@ export default function QuantaLinkScreen({
     },
     []
   );
+
+  React.useEffect(() => {
+    if (
+      hydratedDiscoveryCacheKeyRef.current === discoveryCacheKey ||
+      isQuantaConnected ||
+      isDifferentWalletMode ||
+      isDiscoveringAccounts
+    ) {
+      return undefined;
+    }
+
+    hydratedDiscoveryCacheKeyRef.current = discoveryCacheKey;
+    let isCancelled = false;
+
+    loadQuantaDiscoveryCache({
+      accountIndex: currentAccount,
+      derivationMode: walletDerivationMode,
+      targetAddress: normalizedQuantaAddress,
+      walletFingerprint: quantaDiscoveryWalletFingerprint,
+    })
+      .then((cached) => {
+        if (isCancelled || !cached) {
+          return;
+        }
+
+        setAccountCandidates(cached.candidates);
+        setSelectedCandidateKey(
+          cached.selectedCandidateKey ??
+            (cached.candidates[0] ? getCandidateKey(cached.candidates[0]) : null)
+        );
+        setHasNoQuantaInWallet(cached.hasNoQuantaInWallet && cached.candidates.length === 0);
+        setShowAccountPickerModal(cached.candidates.length > 0);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    currentAccount,
+    discoveryCacheKey,
+    isDifferentWalletMode,
+    isDiscoveringAccounts,
+    isQuantaConnected,
+    normalizedQuantaAddress,
+    quantaDiscoveryWalletFingerprint,
+    setAccountCandidates,
+    setSelectedCandidateKey,
+    walletDerivationMode,
+  ]);
 
   React.useEffect(() => {
     preloadQuantaRewardInstallId().catch((error: unknown) => {
@@ -537,7 +633,9 @@ export default function QuantaLinkScreen({
         }
 
         setAccountCandidates(candidates);
-        setSelectedCandidateKey(candidates[0] ? getCandidateKey(candidates[0]) : null);
+        const nextSelectedCandidateKey = candidates[0] ? getCandidateKey(candidates[0]) : null;
+        setSelectedCandidateKey(nextSelectedCandidateKey);
+        persistQuantaDiscoveryResult(candidates, candidates.length === 0, nextSelectedCandidateKey);
 
         if (candidates.length === 0) {
           setShowAccountPickerModal(false);
@@ -580,6 +678,7 @@ export default function QuantaLinkScreen({
   }, [
     canSearchQuanta,
     discoverQuantaAccountCandidates,
+    persistQuantaDiscoveryResult,
     requestQuantaWalletUnlock,
     setAccountCandidates,
     setIsDiscoveringAccounts,
@@ -611,9 +710,7 @@ export default function QuantaLinkScreen({
           error: error instanceof Error ? error.message : String(error),
         });
         setQuantaUnlockError(
-          error instanceof Error
-            ? error.message
-            : 'Could not unlock this wallet. Try again.'
+          error instanceof Error ? error.message : 'Could not unlock this wallet. Try again.'
         );
       } finally {
         setIsUnlockingQuantaWallet(false);
@@ -679,7 +776,7 @@ export default function QuantaLinkScreen({
           });
 
           if (!status.user || !status.stats) {
-            setDifferentWalletError('No Quanta profile was found for this address.');
+            setDifferentWalletError(QUANTA_ADDRESS_NOT_FOUND_MESSAGE);
             return;
           }
 
@@ -893,7 +990,13 @@ export default function QuantaLinkScreen({
         </Pressable>
       )}
       <View style={localStyles.content}>
-        <View style={[localStyles.topHalf, { transform: [{ translateY: topOffset }] }]}>
+        <View
+          style={[
+            localStyles.topHalf,
+            !showBackButton && localStyles.tabTopHalf,
+            { transform: [{ translateY: topOffset }] },
+          ]}
+        >
           <Image
             source={QUANTA_POINTS}
             resizeMode="contain"
@@ -992,8 +1095,10 @@ export default function QuantaLinkScreen({
           <QuantaAddressForm
             accountCandidates={accountCandidates}
             addressMaxLength={addressMaxLength}
+            bottomPadding={quantaBottomPadding}
             canSearchQuanta={canSearchQuanta}
             canShowAccountCandidates={canShowAccountCandidates}
+            compactLayout={!showBackButton}
             displayedWalletAddressLabel={displayedWalletAddressLabel}
             displayedWalletAddressPreview={displayedWalletAddressPreview}
             differentWalletAddress={quantaAddress}

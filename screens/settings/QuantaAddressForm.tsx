@@ -18,8 +18,10 @@ import {
 interface QuantaAddressFormProps {
   accountCandidates: QuantaAccountCandidate[];
   addressMaxLength: number;
+  bottomPadding: number;
   canSearchQuanta: boolean;
   canShowAccountCandidates: boolean;
+  compactLayout: boolean;
   displayedWalletAddressLabel: string;
   displayedWalletAddressPreview: string;
   differentWalletAddress: string;
@@ -47,8 +49,10 @@ interface QuantaAddressFormProps {
 export function QuantaAddressForm({
   accountCandidates,
   addressMaxLength,
+  bottomPadding,
   canSearchQuanta,
   canShowAccountCandidates,
+  compactLayout,
   displayedWalletAddressLabel,
   displayedWalletAddressPreview,
   differentWalletAddress,
@@ -236,7 +240,12 @@ export function QuantaAddressForm({
 
   return (
     <View
-      style={[localStyles.bottomHalf, differentWalletMode && localStyles.differentWalletBottomHalf]}
+      style={[
+        localStyles.bottomHalf,
+        compactLayout && localStyles.tabBottomHalf,
+        differentWalletMode && localStyles.differentWalletBottomHalf,
+        { paddingBottom: bottomPadding },
+      ]}
     >
       {!differentWalletMode && statusBanner}
       {canShowAccountCandidates && (

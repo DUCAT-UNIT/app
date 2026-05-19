@@ -20,6 +20,8 @@ export const NO_MATCH_ACCOUNT_MESSAGE =
 export const ACCOUNT_CHECK_TIMEOUT_MESSAGE = 'Account compatibility check timed out. Try again.';
 export const ACCOUNT_CHECK_FAILURE_MESSAGE = 'Could not check wallet accounts. Try again.';
 export const CONNECT_QUANTA_ERROR_MESSAGE = 'Could not connect Quanta. Try again.';
+export const QUANTA_ADDRESS_NOT_FOUND_MESSAGE =
+  "This is not a Quanta address. We couldn't find it in Quanta.";
 export const QUANTA_ACCOUNT_MATCH_SEARCH_LIMIT = 100;
 export const QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT = 20;
 export const QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY = 12;
