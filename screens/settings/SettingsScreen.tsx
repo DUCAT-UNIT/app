@@ -24,6 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Responsive horizontal padding
 const HORIZONTAL_PADDING = SCREEN_WIDTH < 375 ? 16 : SCREEN_WIDTH > 414 ? 24 : 20;
+const SHOW_CASHU_SETTINGS_ROW = false;
 
 /**
  * Props for the SettingsScreen component
@@ -158,8 +159,8 @@ const SettingsScreen = React.memo(function SettingsScreen({
               onPress={onViewAdvanced}
               testID="settings-advanced-btn"
             />
-            {/* Turbo Cashu settings only visible in developer mode */}
-            {advancedMode && (
+            {/* Turbo Cashu settings remain available in code, but hidden from the settings menu. */}
+            {SHOW_CASHU_SETTINGS_ROW && advancedMode && (
               <SettingsOption
                 iconName="asset"
                 title="Turbo Cashu"

@@ -99,7 +99,7 @@ export default function AirdropSuccessModal({ visible, onClose }: AirdropSuccess
 
           {/* Message */}
           <Text style={localStyles.message}>
-            Network BTC is on the way.{'\n'}Your balance will update once the transaction appears.
+            Mutinynet BTC is on the way.{'\n'}Your balance will update once the transaction appears.
           </Text>
 
           {/* Get Started Button - Instantly dismisses modal */}

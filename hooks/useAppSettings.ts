@@ -3,7 +3,7 @@
  * Handles app preferences like notifications and display settings
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
@@ -25,6 +25,7 @@ import {
 } from '../services/settingsService';
 import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
+import { isE2E } from '../utils/e2e';
 
 const normalizeUsdcFeaturePassword = (password: string): string =>
   password
@@ -47,6 +48,8 @@ type LockedChangeRecoveryResult = {
   amount: number;
   message: string;
 };
+
+export type NotificationsPromptMode = 'settings' | 'onboarding';
 
 const EMPTY_LOCKED_CHANGE_RECOVERY: LockedChangeRecoveryResult = {
   recovered: 0,
@@ -77,8 +80,10 @@ interface UseAppSettingsReturn {
   handleEnableUsdcFeatures: (password: string) => Promise<boolean>;
   handleDisableUsdcFeatures: () => Promise<void>;
   showNotificationsModal: boolean;
+  notificationsPromptMode: NotificationsPromptMode;
   confirmNotificationsToggle: () => Promise<void>;
   cancelNotificationsToggle: () => void;
+  handleOnboardingNotificationsPrompt: () => Promise<void>;
   completeNotificationsEnableAfterAuth: () => Promise<void>;
 }
 
@@ -94,7 +99,10 @@ export function useAppSettings({
   const [usdcFeaturesEnabled, setUsdcFeaturesEnabled] = useState(false);
   const mirroredUsdcFeaturesEnabled = useUsdcFeatureFlagStore((state) => state.enabled);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [notificationsPromptMode, setNotificationsPromptMode] =
+    useState<NotificationsPromptMode>('settings');
   const [pendingNotificationsValue, setPendingNotificationsValue] = useState(false);
+  const onboardingNotificationsPromptedRef = useRef(false);
 
   // Load settings on mount
   useEffect(() => {
@@ -176,7 +184,11 @@ export function useAppSettings({
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
       if (url?.startsWith(E2E_RESET_SETTINGS_URL_PREFIX)) {
-        void resetE2ESettings();
+        resetE2ESettings().catch((error: unknown) => {
+          logger.warn('Failed to reset E2E settings', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       }
     });
 
@@ -226,6 +238,7 @@ export function useAppSettings({
   const handleNotificationsToggle = useCallback(() => {
     const newValue = !notificationsEnabled;
     setPendingNotificationsValue(newValue);
+    setNotificationsPromptMode('settings');
     setShowNotificationsModal(true);
   }, [notificationsEnabled]);
 
@@ -272,9 +285,51 @@ export function useAppSettings({
     await enableNotificationsPreference();
   }, [enableNotificationsPreference]);
 
+  const handleOnboardingNotificationsPrompt = useCallback(async (): Promise<void> => {
+    if (
+      isE2E() ||
+      onboardingNotificationsPromptedRef.current ||
+      notificationsEnabled ||
+      showNotificationsModal
+    ) {
+      return;
+    }
+
+    onboardingNotificationsPromptedRef.current = true;
+
+    try {
+      const hasStoredNotificationPreference = await exists(SettingKeys.NOTIFICATIONS_ENABLED);
+      if (hasStoredNotificationPreference) {
+        return;
+      }
+
+      const permissions = await Notifications.getPermissionsAsync();
+      if (permissions.status === 'granted') {
+        await enableNotificationsPreference();
+        return;
+      }
+
+      setPendingNotificationsValue(true);
+      setNotificationsPromptMode('onboarding');
+      setShowNotificationsModal(true);
+    } catch (error: unknown) {
+      logger.warn('Failed to prepare onboarding notification prompt', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [enableNotificationsPreference, notificationsEnabled, showNotificationsModal]);
+
   const confirmNotificationsToggle = useCallback(async () => {
     setShowNotificationsModal(false);
     const newValue = pendingNotificationsValue;
+
+    if (notificationsPromptMode === 'onboarding') {
+      setNotificationsPromptMode('settings');
+      if (newValue) {
+        await enableNotificationsPreference();
+      }
+      return;
+    }
 
     // If enabling, require authentication first
     if (newValue) {
@@ -369,6 +424,7 @@ export function useAppSettings({
     }
   }, [
     pendingNotificationsValue,
+    notificationsPromptMode,
     biometricEnabled,
     persistBooleanOrThrow,
     setIsAuthenticated,
@@ -376,8 +432,20 @@ export function useAppSettings({
   ]);
 
   const cancelNotificationsToggle = useCallback(() => {
+    if (notificationsPromptMode === 'onboarding') {
+      persistBooleanOrThrow(
+        SettingKeys.NOTIFICATIONS_ENABLED,
+        false,
+        'Failed to persist notifications setting'
+      ).catch((error: unknown) => {
+        logger.warn('Failed to persist skipped onboarding notification prompt', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+      setNotificationsPromptMode('settings');
+    }
     setShowNotificationsModal(false);
-  }, []);
+  }, [notificationsPromptMode, persistBooleanOrThrow]);
 
   const handleClearCashuCache = useCallback(async () => {
     try {
@@ -527,7 +595,6 @@ export function useAppSettings({
         return false;
       }
 
-      const previousValue = usdcFeaturesEnabled;
       setUsdcFeaturesEnabled(true);
       useUsdcFeatureFlagStore.getState().setEnabled(true);
       try {
@@ -546,7 +613,7 @@ export function useAppSettings({
         return true;
       }
     },
-    [persistBooleanOrThrow, usdcFeaturesEnabled]
+    [persistBooleanOrThrow]
   );
 
   const handleDisableUsdcFeatures = useCallback(async (): Promise<void> => {
@@ -589,8 +656,10 @@ export function useAppSettings({
       handleEnableUsdcFeatures,
       handleDisableUsdcFeatures,
       showNotificationsModal,
+      notificationsPromptMode,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      handleOnboardingNotificationsPrompt,
       completeNotificationsEnableAfterAuth,
     }),
     [
@@ -611,8 +680,10 @@ export function useAppSettings({
       handleEnableUsdcFeatures,
       handleDisableUsdcFeatures,
       showNotificationsModal,
+      notificationsPromptMode,
       confirmNotificationsToggle,
       cancelNotificationsToggle,
+      handleOnboardingNotificationsPrompt,
       completeNotificationsEnableAfterAuth,
     ]
   );

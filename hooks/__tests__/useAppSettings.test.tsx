@@ -256,6 +256,36 @@ describe('useAppSettings', () => {
     });
   });
 
+  describe('handleOnboardingNotificationsPrompt', () => {
+    it('should show the onboarding notifications prompt when no preference exists', async () => {
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await result.current!.handleOnboardingNotificationsPrompt();
+      });
+
+      expect(result.current!.showNotificationsModal).toBe(true);
+      expect(result.current!.notificationsPromptMode).toBe('onboarding');
+    });
+
+    it('should activate notifications from onboarding without requiring app auth', async () => {
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await result.current!.handleOnboardingNotificationsPrompt();
+      });
+
+      await act(async () => {
+        await result.current!.confirmNotificationsToggle();
+      });
+
+      expect(biometricService.authenticateWithBiometrics).not.toHaveBeenCalled();
+      expect(mockProps.setIsAuthenticated).not.toHaveBeenCalled();
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('notificationsEnabled', 'true');
+      expect(result.current!.notificationsEnabled).toBe(true);
+    });
+  });
+
   describe('confirmNotificationsToggle - Enabling with biometrics', () => {
     beforeEach(() => {
       mockProps.biometricEnabled = true;

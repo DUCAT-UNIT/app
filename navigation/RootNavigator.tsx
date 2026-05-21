@@ -711,6 +711,35 @@ export default function RootNavigator(): React.JSX.Element {
     }
   }, [showBiometricSetupPrompt, biometricEnabled]);
 
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      !wallet ||
+      shouldShowAuth ||
+      shouldShowPinOverlay ||
+      shouldShowLockOverlay ||
+      showPasskeyMigrationModal ||
+      showBiometricSetupModal
+    ) {
+      return;
+    }
+
+    settingsHandlers.handleOnboardingNotificationsPrompt().catch((error: unknown) => {
+      logger.warn('[RootNavigator] Failed to show onboarding notification prompt', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }, [
+    isAuthenticated,
+    settingsHandlers,
+    shouldShowAuth,
+    shouldShowLockOverlay,
+    shouldShowPinOverlay,
+    showBiometricSetupModal,
+    showPasskeyMigrationModal,
+    wallet,
+  ]);
+
   return (
     <View
       style={styles.container}

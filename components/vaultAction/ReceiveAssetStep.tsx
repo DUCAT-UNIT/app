@@ -27,9 +27,13 @@ type OptionMeta = {
   bullets: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string }>;
 };
 
+const DISABLED_USDC_SUBTITLE = 'Sepolia testnet';
+const DISABLED_USDC_DESCRIPTION =
+  'USDC loans are available on testnet by request. Contact the team to enable this payout route.';
+
 const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
   USDC: {
-    title: 'Receive as Sepolia USDC',
+    title: 'Receive as Testnet USDC',
     subtitle: 'Cash out',
     description: "We'll automatically convert and settle to Sepolia USDC after issuance.",
     icon: 'usdc_logo',
@@ -75,8 +79,8 @@ export function ReceiveAssetStep({
 }: ReceiveAssetStepProps): React.JSX.Element {
   const [expandedAsset, setExpandedAsset] = useState<VaultSettlementRequestedAsset | null>(value);
   const availableAssets: VaultSettlementRequestedAsset[] = [
+    'USDC',
     ...(allowTurboUnit ? (['TURBOUNIT'] as const) : []),
-    ...(allowUsdc ? (['USDC'] as const) : []),
     'UNIT',
   ];
   const availableAssetCopy = allowTurboUnit && allowUsdc
@@ -88,6 +92,10 @@ export function ReceiveAssetStep({
         : 'You will receive UNIT';
 
   const handleSelect = (asset: VaultSettlementRequestedAsset) => {
+    if (asset === 'USDC' && !allowUsdc) {
+      return;
+    }
+
     onChange(asset);
     setExpandedAsset(asset);
   };
@@ -121,36 +129,79 @@ export function ReceiveAssetStep({
         <View style={styles.cardList}>
           {availableAssets.map((asset) => {
             const option = OPTIONS[asset];
+            const isDisabled = asset === 'USDC' && !allowUsdc;
             const isSelected = value === asset;
             const isExpanded = isSelected && expandedAsset === asset;
+            const optionSubtitle = isDisabled ? DISABLED_USDC_SUBTITLE : option.subtitle;
             return (
-              <View key={asset} style={[styles.optionCard, isSelected && styles.optionCardSelected]}>
+              <View
+                key={asset}
+                style={[
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
+                  isDisabled && styles.optionCardDisabled,
+                ]}
+              >
                 <TouchableScale
                   style={styles.optionButton}
                   onPress={() => handleSelect(asset)}
+                  disabled={isDisabled}
                   testID={testIDPrefix ? `${testIDPrefix}-${asset.toLowerCase()}-card` : undefined}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${option.title}, ${optionSubtitle}`}
+                  accessibilityState={{ disabled: isDisabled, selected: isSelected }}
                 >
                   <View style={styles.optionTopRow}>
                     <View style={styles.optionIdentity}>
-                      <View style={[styles.optionIconWrap, isSelected && styles.optionIconWrapSelected]}>
+                      <View
+                        style={[
+                          styles.optionIconWrap,
+                          isSelected && styles.optionIconWrapSelected,
+                          isDisabled && styles.optionIconWrapDisabled,
+                        ]}
+                      >
                         <Icon name={option.icon} size={24} />
                       </View>
                       <View style={styles.optionIdentityCopy}>
-                        <Text style={[styles.optionTitle, isSelected && styles.optionTitleSelected]}>
+                        <Text
+                          style={[
+                            styles.optionTitle,
+                            isSelected && styles.optionTitleSelected,
+                            isDisabled && styles.optionTextDisabled,
+                          ]}
+                        >
                           {option.title}
                         </Text>
-                        <Text style={[styles.optionSubtitle, isSelected && styles.optionSubtitleSelected]}>
-                          {option.subtitle}
+                        <Text
+                          style={[
+                            styles.optionSubtitle,
+                            isSelected && styles.optionSubtitleSelected,
+                            isDisabled && styles.optionTextDisabled,
+                          ]}
+                        >
+                          {optionSubtitle}
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
+                    <View
+                      style={[
+                        styles.selectionCircle,
+                        isSelected && styles.selectionCircleSelected,
+                        isDisabled && styles.selectionCircleDisabled,
+                      ]}
+                    >
                       {isSelected && <Ionicons name="checkmark" size={18} color={colors.brand.primary} />}
                     </View>
                   </View>
                 </TouchableScale>
 
-                {isSelected && (
+                {isDisabled && (
+                  <View style={styles.disabledDetailsPanel}>
+                    <Text style={styles.disabledDescription}>{DISABLED_USDC_DESCRIPTION}</Text>
+                  </View>
+                )}
+
+                {isSelected && !isDisabled && (
                   <TouchableOpacity
                     onPress={() => setExpandedAsset(isExpanded ? null : asset)}
                     style={styles.detailsButton}
@@ -264,6 +315,10 @@ const styles = StyleSheet.create({
     borderColor: colors.brand.primary,
     backgroundColor: '#171f2a',
   },
+  optionCardDisabled: {
+    borderColor: colors.border.default,
+    backgroundColor: '#14171d',
+  },
   optionButton: {
     paddingVertical: spacing.xs,
   },
@@ -290,6 +345,9 @@ const styles = StyleSheet.create({
   optionIconWrapSelected: {
     backgroundColor: 'rgba(24,88,228,0.18)',
   },
+  optionIconWrapDisabled: {
+    backgroundColor: 'rgba(142,141,144,0.10)',
+  },
   optionIdentityCopy: {
     gap: 4,
     flex: 1,
@@ -310,6 +368,9 @@ const styles = StyleSheet.create({
   optionSubtitleSelected: {
     color: colors.text.primary,
   },
+  optionTextDisabled: {
+    color: colors.text.secondary,
+  },
   selectionCircle: {
     width: 32,
     height: 32,
@@ -322,6 +383,10 @@ const styles = StyleSheet.create({
   },
   selectionCircleSelected: {
     borderColor: colors.brand.primary,
+  },
+  selectionCircleDisabled: {
+    borderColor: colors.border.default,
+    opacity: 0.7,
   },
   optionDescription: {
     color: colors.text.primary,
@@ -350,6 +415,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
+  },
+  disabledDetailsPanel: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
+  disabledDescription: {
+    color: colors.text.secondary,
+    fontSize: fontSizes.sm,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
   },
   bulletList: {
     gap: spacing.xs,

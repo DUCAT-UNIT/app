@@ -28,15 +28,36 @@ const mapValueToRange = (value: number): number => {
   const inputMax = 300;
   const outputMin = 11;
   const outputMax = 95;
+  const redStartOutput = 6;
+  const redYellowBoundaryOutput = 27;
+  const yellowGreenBoundaryOutput = 50;
+
+  const interpolate = (
+    current: number,
+    min: number,
+    max: number,
+    outputStart: number,
+    outputEnd: number
+  ): number => {
+    const t = (current - min) / (max - min);
+    return outputStart + (outputEnd - outputStart) * t;
+  };
 
   if (value >= 135 && value <= 160) {
     const specialMin = 135;
     const specialMax = 160;
-    const specialOutputMin = 6;
-    const specialOutputMax = 23.7;
     const t = (value - specialMin) / (specialMax - specialMin);
     const easedT = t * (1 + 0.2 * (1 - t));
-    return specialOutputMin + (specialOutputMax - specialOutputMin) * easedT;
+    return redStartOutput + (redYellowBoundaryOutput - redStartOutput) * easedT;
+  }
+
+  if (value > 160 && value <= 200) {
+    return interpolate(value, 160, 200, redYellowBoundaryOutput, yellowGreenBoundaryOutput);
+  }
+
+  if (value > 200) {
+    const clampedValue = Math.min(value, inputMax);
+    return interpolate(clampedValue, 200, inputMax, yellowGreenBoundaryOutput, outputMax);
   }
 
   const clampedValue = Math.min(Math.max(value, inputMin), inputMax);

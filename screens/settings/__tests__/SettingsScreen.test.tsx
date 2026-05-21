@@ -85,9 +85,9 @@ describe('SettingsScreen', () => {
       expect(queryByTestId('settings-cashu-btn')).toBeNull();
     });
 
-    it('should render Cashu settings when advancedMode is true', () => {
-      const { getByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
-      expect(getByTestId('settings-cashu-btn')).toBeTruthy();
+    it('should not render Cashu settings when advancedMode is true', () => {
+      const { queryByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
+      expect(queryByTestId('settings-cashu-btn')).toBeNull();
     });
 
     it('should not render clear cache button when advancedMode is false', () => {
@@ -150,12 +150,10 @@ describe('SettingsScreen', () => {
       expect(mockOnViewAbout).toHaveBeenCalledTimes(1);
     });
 
-    it('should call onViewCashuSettings when Turbo Cashu is pressed (advanced mode)', () => {
-      const { getByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
-
-      fireEvent.press(getByTestId('settings-cashu-btn'));
-
-      expect(mockOnViewCashuSettings).toHaveBeenCalledTimes(1);
+    it('should keep Cashu Settings hidden in advanced mode', () => {
+      const { queryByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
+      expect(queryByTestId('settings-cashu-btn')).toBeNull();
+      expect(mockOnViewCashuSettings).not.toHaveBeenCalled();
     });
   });
 
@@ -201,9 +199,9 @@ describe('SettingsScreen', () => {
       expect(getByTestId('settings-about-btn').props.accessibilityLabel).toBe('About');
     });
 
-    it('should display Turbo Cashu option in advanced mode', () => {
-      const { getByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
-      expect(getByTestId('settings-cashu-btn').props.accessibilityLabel).toBe('Turbo Cashu');
+    it('should not display Turbo Cashu option in advanced mode', () => {
+      const { queryByTestId } = render(<SettingsScreen {...defaultProps} advancedMode={true} />);
+      expect(queryByTestId('settings-cashu-btn')).toBeNull();
     });
 
     it('should display danger zone section in advanced mode', () => {

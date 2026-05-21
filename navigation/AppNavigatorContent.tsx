@@ -84,6 +84,7 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
     isDeletingWallet,
     showFaceIdModal,
     showNotificationsModal,
+    notificationsPromptMode,
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
@@ -158,6 +159,7 @@ export default function AppNavigatorContent(): React.JSX.Element | null {
         cancelFaceIdToggle={cancelFaceIdToggle}
         showNotificationsModal={showNotificationsModal}
         notificationsEnabled={settingsHandlers.notificationsEnabled}
+        notificationsPromptMode={notificationsPromptMode}
         confirmNotificationsToggle={confirmNotificationsToggle}
         cancelNotificationsToggle={cancelNotificationsToggle}
         styles={styles}

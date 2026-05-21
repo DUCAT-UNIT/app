@@ -31,6 +31,10 @@ type OptionMeta = {
   bullets: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string }>;
 };
 
+const DISABLED_USDC_SUBTITLE = 'Sepolia testnet';
+const DISABLED_USDC_DESCRIPTION =
+  'USDC repayments are available on testnet by request. Contact the team to enable this funding route.';
+
 const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
   UNIT: {
     title: 'Repay with UNIT',
@@ -57,7 +61,7 @@ const OPTIONS: Record<VaultSettlementRequestedAsset, OptionMeta> = {
     ],
   },
   USDC: {
-    title: 'Repay with Sepolia USDC',
+    title: 'Repay with Testnet USDC',
     subtitle: 'Redeem to UNIT first',
     description: 'Redeem Sepolia USDC into UNIT, then use the released UNIT to repay the vault.',
     balanceLabel: 'Sepolia USDC',
@@ -88,26 +92,31 @@ export function RepayFundingStep({
   const [expandedAsset, setExpandedAsset] = useState<VaultSettlementRequestedAsset | null>(value);
   const availableAssets = useMemo(
     (): VaultSettlementRequestedAsset[] => [
+      'USDC',
       'UNIT',
       ...(allowTurboUnit ? (['TURBOUNIT'] as const) : []),
-      ...(allowUsdc ? (['USDC'] as const) : []),
     ],
-    [allowTurboUnit, allowUsdc],
+    [allowTurboUnit],
   );
 
-  const selectedCanContinue = availableAssets.includes(value) && balances[value] >= amountUsd;
+  const selectedCanContinue =
+    availableAssets.includes(value) &&
+    !(value === 'USDC' && !allowUsdc) &&
+    balances[value] >= amountUsd;
 
   useEffect(() => {
     if (selectedCanContinue) return;
-    const firstFundedAsset = availableAssets.find((asset) => balances[asset] >= amountUsd);
+    const firstFundedAsset = availableAssets.find(
+      (asset) => !(asset === 'USDC' && !allowUsdc) && balances[asset] >= amountUsd
+    );
     if (firstFundedAsset && firstFundedAsset !== value) {
       onChange(firstFundedAsset);
       setExpandedAsset(firstFundedAsset);
     }
-  }, [amountUsd, availableAssets, balances, onChange, selectedCanContinue, value]);
+  }, [allowUsdc, amountUsd, availableAssets, balances, onChange, selectedCanContinue, value]);
 
   const handleSelect = (asset: VaultSettlementRequestedAsset) => {
-    if (balances[asset] < amountUsd) return;
+    if ((asset === 'USDC' && !allowUsdc) || balances[asset] < amountUsd) return;
     onChange(asset);
     setExpandedAsset(asset);
   };
@@ -141,10 +150,15 @@ export function RepayFundingStep({
         <View style={styles.cardList}>
           {availableAssets.map((asset) => {
             const option = OPTIONS[asset];
+            const isUsdcByRequest = asset === 'USDC' && !allowUsdc;
             const isSelected = value === asset;
             const isExpanded = isSelected && expandedAsset === asset;
             const balance = balances[asset] || 0;
-            const isFunded = balance >= amountUsd;
+            const isFunded = !isUsdcByRequest && balance >= amountUsd;
+            const isDisabled = isUsdcByRequest || !isFunded;
+            const optionSubtitle = isUsdcByRequest
+              ? DISABLED_USDC_SUBTITLE
+              : `${option.subtitle} · ${formatBalance(balance)} available`;
 
             return (
               <View
@@ -152,42 +166,65 @@ export function RepayFundingStep({
                 style={[
                   styles.optionCard,
                   isSelected && styles.optionCardSelected,
-                  !isFunded && styles.optionCardDisabled,
+                  isDisabled && styles.optionCardDisabled,
                 ]}
               >
                 <TouchableScale
                   style={styles.optionButton}
                   onPress={() => handleSelect(asset)}
-                  disabled={!isFunded}
+                  disabled={isDisabled}
                   testID={testIDPrefix ? `${testIDPrefix}-${asset.toLowerCase()}-card` : undefined}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${option.title}, ${optionSubtitle}`}
+                  accessibilityState={{ disabled: isDisabled, selected: isSelected }}
                 >
                   <View style={styles.optionTopRow}>
                     <View style={styles.optionIdentity}>
-                      <View style={[styles.optionIconWrap, isSelected && styles.optionIconWrapSelected]}>
+                      <View
+                        style={[
+                          styles.optionIconWrap,
+                          isSelected && styles.optionIconWrapSelected,
+                          isDisabled && styles.optionIconWrapDisabled,
+                        ]}
+                      >
                         <Icon name={option.icon} size={24} />
                       </View>
                       <View style={styles.optionIdentityCopy}>
-                        <Text style={[styles.optionTitle, isSelected && styles.optionTitleSelected]}>
+                        <Text
+                          style={[
+                            styles.optionTitle,
+                            isSelected && styles.optionTitleSelected,
+                            isDisabled && styles.optionTextDisabled,
+                          ]}
+                        >
                           {option.title}
                         </Text>
-                        <Text style={styles.optionSubtitle}>
-                          {option.subtitle} · {formatBalance(balance)} available
+                        <Text style={[styles.optionSubtitle, isDisabled && styles.optionTextDisabled]}>
+                          {optionSubtitle}
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.selectionCircle, isSelected && styles.selectionCircleSelected]}>
+                    <View
+                      style={[
+                        styles.selectionCircle,
+                        isSelected && styles.selectionCircleSelected,
+                        isDisabled && styles.selectionCircleDisabled,
+                      ]}
+                    >
                       {isSelected && <Ionicons name="checkmark" size={18} color={colors.brand.primary} />}
                     </View>
                   </View>
                 </TouchableScale>
 
-                {!isFunded && (
+                {isUsdcByRequest ? (
+                  <Text style={styles.disabledDescription}>{DISABLED_USDC_DESCRIPTION}</Text>
+                ) : !isFunded ? (
                   <Text style={styles.insufficientText}>
                     Not enough {option.balanceLabel} for this repay amount.
                   </Text>
-                )}
+                ) : null}
 
-                {isSelected && (
+                {isSelected && !isDisabled && (
                   <TouchableOpacity
                     onPress={() => setExpandedAsset(isExpanded ? null : asset)}
                     style={styles.detailsButton}
@@ -205,7 +242,7 @@ export function RepayFundingStep({
                   </TouchableOpacity>
                 )}
 
-                {isExpanded && (
+                {isExpanded && !isDisabled && (
                   <View style={styles.detailsPanel}>
                     <Text style={styles.optionDescription}>{option.description}</Text>
                     <View style={styles.bulletList}>
@@ -300,7 +337,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#171f2a',
   },
   optionCardDisabled: {
-    opacity: 0.62,
+    borderColor: colors.border.default,
+    backgroundColor: '#14171d',
   },
   optionButton: {
     paddingVertical: spacing.xs,
@@ -328,6 +366,9 @@ const styles = StyleSheet.create({
   optionIconWrapSelected: {
     backgroundColor: 'rgba(24,88,228,0.18)',
   },
+  optionIconWrapDisabled: {
+    backgroundColor: 'rgba(142,141,144,0.10)',
+  },
   optionIdentityCopy: {
     gap: 4,
     flex: 1,
@@ -345,6 +386,9 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontFamily: fonts.regular,
   },
+  optionTextDisabled: {
+    color: colors.text.secondary,
+  },
   selectionCircle: {
     width: 32,
     height: 32,
@@ -358,10 +402,21 @@ const styles = StyleSheet.create({
   selectionCircleSelected: {
     borderColor: colors.brand.primary,
   },
+  selectionCircleDisabled: {
+    borderColor: colors.border.default,
+    opacity: 0.7,
+  },
   insufficientText: {
     color: colors.semantic.warning,
     fontSize: fontSizes.sm,
     fontFamily: fonts.medium,
+    marginTop: spacing.sm,
+  },
+  disabledDescription: {
+    color: colors.text.secondary,
+    fontSize: fontSizes.sm,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
     marginTop: spacing.sm,
   },
   detailsButton: {

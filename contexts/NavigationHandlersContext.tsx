@@ -33,6 +33,7 @@ import { useSeedPhrase } from './SeedPhraseContext';
 import { useNotifications } from '../stores/notificationStore';
 import { useCashuOperations } from './CashuContext';
 import { useSettings } from '../hooks/useSettings';
+import type { NotificationsPromptMode } from '../hooks/useAppSettings';
 import { useAccountSwitcher } from '../hooks/useAccountSwitcher';
 import { usePostAuthHandler } from '../hooks/usePostAuthHandler';
 import { usePasskeyBiometricFlow } from '../hooks/usePasskeyBiometricFlow';
@@ -51,6 +52,7 @@ interface SettingsHandlers {
   handleChangePin: () => void;
   handleFaceIdToggle: () => void;
   handleNotificationsToggle: () => void;
+  handleOnboardingNotificationsPrompt: () => Promise<void>;
   handleShowZeroAssetsToggle: () => void;
   handleAdvancedModeToggle: () => void;
   handleClearCashuCache: () => void;
@@ -79,6 +81,7 @@ export interface SettingsContextValue {
   isDeletingWallet: boolean;
   showFaceIdModal: boolean;
   showNotificationsModal: boolean;
+  notificationsPromptMode: NotificationsPromptMode;
   confirmLogout: () => void;
   cancelLogout: () => void;
   confirmDeleteWallet: () => void | Promise<void>;
@@ -200,6 +203,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     handleChangePin,
     handleFaceIdToggle,
     handleNotificationsToggle,
+    handleOnboardingNotificationsPrompt,
     handleShowZeroAssetsToggle,
     handleAdvancedModeToggle,
     handleClearCashuCache,
@@ -214,6 +218,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
     isDeletingWallet,
     showFaceIdModal,
     showNotificationsModal,
+    notificationsPromptMode,
     confirmLogout,
     cancelLogout,
     confirmDeleteWallet,
@@ -313,6 +318,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       handleChangePin,
       handleFaceIdToggle,
       handleNotificationsToggle,
+      handleOnboardingNotificationsPrompt,
       handleShowZeroAssetsToggle,
       handleAdvancedModeToggle,
       handleClearCashuCache,
@@ -336,6 +342,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       handleChangePin,
       handleFaceIdToggle,
       handleNotificationsToggle,
+      handleOnboardingNotificationsPrompt,
       handleShowZeroAssetsToggle,
       handleAdvancedModeToggle,
       handleClearCashuCache,
@@ -360,6 +367,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       isDeletingWallet,
       showFaceIdModal,
       showNotificationsModal,
+      notificationsPromptMode,
       confirmLogout,
       cancelLogout,
       confirmDeleteWallet,
@@ -379,6 +387,7 @@ export const NavigationHandlersProvider: React.FC<NavigationHandlersProviderProp
       isDeletingWallet,
       showFaceIdModal,
       showNotificationsModal,
+      notificationsPromptMode,
       confirmLogout,
       cancelLogout,
       confirmDeleteWallet,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewStyle, TextStyle } from 'react-native';
 import ConfirmationModal from './ConfirmationModal';
+import type { NotificationsPromptMode } from '../hooks/useAppSettings';
 
 /**
  * AppModals Component
@@ -36,6 +37,7 @@ export interface AppModalsProps {
   cancelFaceIdToggle: () => void;
   showNotificationsModal: boolean;
   notificationsEnabled: boolean;
+  notificationsPromptMode?: NotificationsPromptMode;
   confirmNotificationsToggle: () => void;
   cancelNotificationsToggle: () => void;
   styles: ConfirmationModalStyles;
@@ -62,12 +64,16 @@ export default function AppModals({
   // Notifications modal
   showNotificationsModal,
   notificationsEnabled,
+  notificationsPromptMode = 'settings',
   confirmNotificationsToggle,
   cancelNotificationsToggle,
 
   // Styles
   styles,
 }: AppModalsProps) {
+  const isOnboardingNotificationsPrompt =
+    notificationsPromptMode === 'onboarding' && !notificationsEnabled;
+
   return (
     <>
       {/* Lock Wallet Modal */}
@@ -118,13 +124,24 @@ export default function AppModals({
       {/* Notifications Toggle Modal */}
       <ConfirmationModal
         visible={showNotificationsModal}
-        title={notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications'}
+        title={
+          isOnboardingNotificationsPrompt
+            ? 'Activate Notifications'
+            : notificationsEnabled
+              ? 'Disable Notifications'
+              : 'Enable Notifications'
+        }
         message={
-          notificationsEnabled
+          isOnboardingNotificationsPrompt
+            ? 'Activate notifications to know when transactions confirm and when your vault health needs attention.'
+            : notificationsEnabled
             ? 'Are you sure you want to disable transaction notifications?'
             : 'Enable notifications for transaction confirmations?'
         }
-        confirmText={notificationsEnabled ? 'Disable' : 'Enable'}
+        confirmText={
+          isOnboardingNotificationsPrompt ? 'Activate' : notificationsEnabled ? 'Disable' : 'Enable'
+        }
+        cancelText={isOnboardingNotificationsPrompt ? 'Not Now' : undefined}
         confirmStyle="primary"
         iconName="notification"
         onConfirm={confirmNotificationsToggle}
