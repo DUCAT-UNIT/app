@@ -26,11 +26,9 @@ interface WalletActionsProps {
   onReceivePress: () => void;
 }
 
-type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
-
 interface VaultActionButtonConfig {
   disabled: boolean;
-  icon: IoniconName;
+  icon: string;
   label: string;
   onPress: () => void;
   testID: string;
@@ -127,7 +125,16 @@ const WalletActions = React.memo(function WalletActions({
           marginBottom: s(2),
         },
         iconDisabled: {
-          backgroundColor: '#888888',
+          backgroundColor: COLORS.DARK_GRAY,
+        },
+        iconGlyph: {
+          color: COLORS.DARK_BG,
+          fontSize: sf(24),
+          lineHeight: sf(28),
+          fontWeight: '200',
+        },
+        iconGlyphDisabled: {
+          color: COLORS.SECONDARY_TEXT,
         },
         label: {
           fontSize: sf(12),
@@ -219,7 +226,7 @@ const WalletActions = React.memo(function WalletActions({
   const vaultActions: VaultActionButtonConfig[] = [
     {
       disabled: repayDisabled,
-      icon: 'arrow-down-outline',
+      icon: '↓',
       label: 'Repay',
       onPress: isPendingVaultTx
         ? handleDisabledPress
@@ -237,7 +244,7 @@ const WalletActions = React.memo(function WalletActions({
     },
     {
       disabled: borrowDisabled,
-      icon: 'arrow-up-outline',
+      icon: '↑',
       label: 'Borrow',
       onPress: isPendingVaultTx
         ? handleDisabledPress
@@ -259,7 +266,7 @@ const WalletActions = React.memo(function WalletActions({
     },
     {
       disabled: withdrawDisabled,
-      icon: 'remove-outline',
+      icon: '−',
       label: 'Withdraw',
       onPress: isPendingVaultTx
         ? handleDisabledPress
@@ -277,7 +284,7 @@ const WalletActions = React.memo(function WalletActions({
     },
     {
       disabled: depositDisabled,
-      icon: 'add-outline',
+      icon: '+',
       label: 'Deposit',
       onPress: isPendingVaultTx
         ? handleDisabledPress
@@ -310,14 +317,14 @@ const WalletActions = React.memo(function WalletActions({
     >
       <View style={[styles.icon, action.disabled && styles.iconDisabled]}>
         {isPendingVaultTx && action.disabled ? (
-          <ActivityIndicator color={COLORS.DARK_BG} size="small" />
+          <ActivityIndicator color={COLORS.SECONDARY_TEXT} size="small" />
         ) : (
-          <Ionicons
-            name={action.icon}
-            size={22}
-            color={COLORS.DARK_BG}
+          <Text
+            style={[styles.iconGlyph, action.disabled && styles.iconGlyphDisabled]}
             accessibilityElementsHidden
-          />
+          >
+            {action.icon}
+          </Text>
         )}
       </View>
       <Text
