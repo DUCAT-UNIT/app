@@ -25,6 +25,7 @@ import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analyticsService';
 import { sendLocalNotification, watchTransaction } from '../../services/pushNotificationService';
 import { formatUnitAmount } from '../../utils/formatters/amounts';
+import { isStaleLiquidationOpportunityError } from '../../utils/liquidationErrors';
 import { LIQUIDATION_EVENTS } from '../../constants/analyticsEvents';
 
 interface UseLiquidationExecutionParams {
@@ -314,19 +315,30 @@ export function useLiquidationExecution({
         }
         store.getState().setCurrentStep('success');
       } else {
-        await discardPreSubmitPendingTransaction(result.error || 'Liquidation failed');
-        store.getState().releaseVaults(claimedVaultIds);
-        store.getState().setError(result.error || 'Liquidation failed');
+        const errorMessage = result.error || 'Liquidation failed';
+        await discardPreSubmitPendingTransaction(errorMessage);
+        if (isStaleLiquidationOpportunityError(errorMessage)) {
+          store.getState().markVaultsClaimed(claimedVaultIds);
+        } else {
+          store.getState().releaseVaults(claimedVaultIds);
+        }
+        store.getState().setError(errorMessage);
         store.getState().setCurrentStep('error');
       }
     } catch (err: unknown) {
       await discardPreSubmitPendingTransaction(err);
-      store.getState().releaseVaults(store.getState().executingVaultIds);
+      const errorMessage = err instanceof Error ? err.message : 'Liquidation failed';
+      const executingVaultIds = store.getState().executingVaultIds;
+      if (isStaleLiquidationOpportunityError(errorMessage)) {
+        store.getState().markVaultsClaimed(executingVaultIds);
+      } else {
+        store.getState().releaseVaults(executingVaultIds);
+      }
       logger.warn('[Liquidation] Execution error', {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
       });
-      analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_FAILED, { error: err instanceof Error ? err.message : 'unknown' });
-      store.getState().setError(err instanceof Error ? err.message : 'Liquidation failed');
+      analytics.track(LIQUIDATION_EVENTS.LIQUIDATION_FAILED, { error: errorMessage });
+      store.getState().setError(errorMessage);
       store.getState().setCurrentStep('error');
     }
   }, [wallet, vaultCollateral, vaultDebt, btcPrice, vaultData, currentAccount]);

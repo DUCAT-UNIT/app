@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../vaultCreation/ProcessingStepsList';
 import { useNotifications } from '../../stores/notificationStore';
 import { getTxUrl } from '../../utils/constants';
+import { getStaleLiquidationOpportunityMessage } from '../../utils/liquidationErrors';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 import type { LiquidationStep } from '../../stores/liquidationFlowStore';
 import type { ProcessingStep } from '../../stores/vault/vaultStoreTypes';
@@ -27,6 +28,8 @@ export interface LiquidationStatusScreenProps {
   txid: string | null;
   swapTxid: string | null;
   error: string | null;
+  isStaleOpportunity?: boolean;
+  remainingVaultCount?: number;
 }
 
 // ============================================================
@@ -59,6 +62,8 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   txid,
   swapTxid,
   error,
+  isStaleOpportunity = false,
+  remainingVaultCount = 0,
 }: LiquidationStatusScreenProps): React.ReactElement {
   const { showToast } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -253,6 +258,11 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   }
 
   // ── Error ──
+  const errorTitle = isStaleOpportunity ? 'Opportunity Already Claimed' : 'Liquidation Failed';
+  const errorMessage = isStaleOpportunity
+    ? getStaleLiquidationOpportunityMessage(remainingVaultCount)
+    : error || 'An error occurred';
+
   return (
     <ScrollView
       style={styles.container}
@@ -267,9 +277,9 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
         <Ionicons name="close" size={48} color={colors.semantic.error} />
       </View>
 
-      <Text style={styles.title}>Liquidation Failed</Text>
+      <Text style={styles.title}>{errorTitle}</Text>
       <View style={styles.errorCard}>
-        <Text style={styles.errorMessage}>{error || 'An error occurred'}</Text>
+        <Text style={styles.errorMessage}>{errorMessage}</Text>
       </View>
     </ScrollView>
   );

@@ -41,6 +41,7 @@ import {
 import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationVaults } from '../../hooks/liquidation/useLiquidationVaults';
 import { useLiquidationExecution } from '../../hooks/liquidation/useLiquidationExecution';
+import { isStaleLiquidationOpportunityError } from '../../utils/liquidationErrors';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import type { WalletAddresses } from '../../contexts/WalletContext';
 import type { VaultData } from '../../services/vaultService';
@@ -102,6 +103,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const _depositRate = useLiqDepositRate();
   const _swapRate = useLiqSwapRate();
   const hasPendingVaultTx = useHasPendingVaultTx();
+  const isStaleOpportunityError = isStaleLiquidationOpportunityError(error);
 
   const { setCurrentStep, setInvestAmount, setShowBTC, setReviewTab, setVaultExpanded } =
     useLiquidationFlowStore.getState();
@@ -133,6 +135,12 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       refreshLiqVaults({ force: true }).catch(() => undefined);
     }
   }, [hasPendingVaultTx, refreshLiqVaults]);
+
+  useEffect(() => {
+    if (visible && currentStep === 'error' && isStaleOpportunityError) {
+      refreshLiqVaults({ force: true }).catch(() => undefined);
+    }
+  }, [currentStep, isStaleOpportunityError, refreshLiqVaults, visible]);
 
   const { execute, resetAfterSuccess, resetAfterError } = useLiquidationExecution({
     wallet,
@@ -241,6 +249,9 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       resetAfterSuccess();
       onClose();
     } else if (latestStep === 'error') {
+      if (isStaleLiquidationOpportunityError(latestState.error)) {
+        await refreshLiqVaults({ force: true });
+      }
       resetAfterError();
     }
   }, [
@@ -254,7 +265,13 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     resetAfterSuccess,
     onClose,
     resetAfterError,
+    refreshLiqVaults,
   ]);
+
+  const handleErrorDecline = useCallback(() => {
+    resetAfterError();
+    onClose();
+  }, [onClose, resetAfterError]);
 
   // ── Button label + disabled ──────────────────────────────────────
   const buttonDisabled =
@@ -268,7 +285,9 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       : currentStep === 'success'
         ? 'Done'
         : currentStep === 'error'
-          ? 'Try Again'
+          ? isStaleOpportunityError
+            ? 'Yes, Try Again'
+            : 'Try Again'
           : isReview
             ? 'Claim Liquidation'
             : 'Continue';
@@ -295,6 +314,15 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       >
         <Text style={styles.continueBtnText}>{buttonLabel}</Text>
       </TouchableOpacity>
+      {currentStep === 'error' && isStaleOpportunityError && (
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={handleErrorDecline}
+          testID="liquidation-decline-retry-btn"
+        >
+          <Text style={styles.secondaryBtnText}>No, Back Home</Text>
+        </TouchableOpacity>
+      )}
     </View>
   ) : null;
 
@@ -308,6 +336,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           txid={resultTxid}
           swapTxid={resultSwapTxid}
           error={error}
+          isStaleOpportunity={isStaleOpportunityError}
+          remainingVaultCount={vaults.length}
         />
       );
     }
@@ -502,6 +532,20 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontFamily: fonts.bold,
     color: colors.text.white,
+  },
+  secondaryBtn: {
+    marginTop: 12,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.bg.secondary,
+  },
+  secondaryBtnText: {
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+    color: colors.text.secondary,
   },
 });
 

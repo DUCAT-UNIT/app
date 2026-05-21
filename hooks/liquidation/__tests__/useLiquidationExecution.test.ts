@@ -16,7 +16,10 @@ import {
   usePendingVaultTransactionStore,
   resetPendingVaultTransactionStore,
 } from '../../../stores/pendingVaultTransactionStore';
-import type { LiquidVaultProfileWithMeta } from '../../../services/liquidation/types';
+import type {
+  LiqVaultDisplay,
+  LiquidVaultProfileWithMeta,
+} from '../../../services/liquidation/types';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -130,6 +133,19 @@ function makePartialVault(): LiquidVaultProfileWithMeta {
     claimAmountPartial: 0.006,
     claimAmountDiff: 0.004,
   });
+}
+
+function makeDisplayVault(vault: LiquidVaultProfileWithMeta): LiqVaultDisplay {
+  return {
+    vaultId: vault.vaultId,
+    unit: vault.unit,
+    btcInVault: vault.btcInVault,
+    postTaxBtcInVault: vault.postTaxBtcInVault,
+    claimAmountBtc: vault.claimAmountBtc,
+    unitSwapBtc: vault.unitSwapBtc,
+    profitBtc: vault.profitBtc,
+    profitPercent: vault.profitPercent,
+  };
 }
 
 const MOCK_WALLET = {
@@ -594,6 +610,35 @@ describe('useLiquidationExecution', () => {
         });
 
         expect(useLiquidationFlowStore.getState().error).toBe('Liquidation failed');
+      });
+
+      it('suppresses a spent vault after a stale liquidation opportunity failure', async () => {
+        const spentVault = makeFullVault({ vaultId: 'spent-vault' });
+        const remainingVault = makeFullVault({ vaultId: 'remaining-vault' });
+        mockSelectItems.mockReturnValue([spentVault]);
+        useLiquidationFlowStore.getState().setVaultData(
+          [makeDisplayVault(spentVault), makeDisplayVault(remainingVault)],
+          [spentVault, remainingVault],
+          0,
+          0,
+          0,
+        );
+        mockExecuteLiquidation.mockResolvedValue({
+          success: false,
+          error: 'Validation of RepoVault failed: "UTXO spent: abc is spent or not exist"',
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const state = useLiquidationFlowStore.getState();
+        expect(state.currentStep).toBe('error');
+        expect(state.suppressedVaultIds).toContain('spent-vault');
+        expect(state.vaultsFull.map((vault) => vault.vaultId)).toEqual(['remaining-vault']);
+        expect(state.isExecuting).toBe(false);
       });
 
       it('should set step to error when executeLiquidation throws', async () => {

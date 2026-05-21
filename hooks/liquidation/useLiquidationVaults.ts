@@ -465,9 +465,11 @@ export function useLiquidationVaults({
       },
     });
     diagnosticsPollIdRef.current = pollId;
-    void refreshLiqVaults();
+    void refreshLiqVaults({ force: visible && currentStep === 'input' });
     pollingRef.current = setInterval(() => {
-      void refreshLiqVaults();
+      void refreshLiqVaults({
+        force: store.getState().currentStep === 'input' && visible,
+      });
     }, interval);
     (pollingRef.current as { unref?: () => void }).unref?.();
     logger.debug('[Liquidation] Polling started', { interval, visible });
