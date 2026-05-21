@@ -250,7 +250,10 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       onClose();
     } else if (latestStep === 'error') {
       if (isStaleLiquidationOpportunityError(latestState.error)) {
-        await refreshLiqVaults({ force: true });
+        resetAfterError();
+        useLiquidationFlowStore.getState().setFetchStatus('idle');
+        refreshLiqVaults({ force: true }).catch(() => undefined);
+        return;
       }
       resetAfterError();
     }
@@ -294,13 +297,14 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
 
   const headerTopPadding = 0;
   const useStickyActionBar = !isInput;
+  const stickyBottomOffset = useStickyActionBar ? (bottomInset ?? 0) : 0;
   const continueBottomInset = useStickyActionBar
     ? 0
     : (bottomInset ?? Math.max(insets.bottom + 24, 38));
   const actionWrapStyle = [
     useStickyActionBar ? styles.stickyActionWrap : styles.continueWrap,
     useStickyActionBar
-      ? { paddingBottom: Math.max(insets.bottom + 14, 24) }
+      ? { bottom: stickyBottomOffset, paddingBottom: Math.max(insets.bottom + 14, 24) }
       : { bottom: continueBottomInset },
   ];
 
@@ -311,6 +315,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
         onPress={handleButtonPress}
         testID="liquidation-continue-btn"
         disabled={buttonDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={buttonLabel}
       >
         <Text style={styles.continueBtnText}>{buttonLabel}</Text>
       </TouchableOpacity>
@@ -319,6 +325,8 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           style={styles.secondaryBtn}
           onPress={handleErrorDecline}
           testID="liquidation-decline-retry-btn"
+          accessibilityRole="button"
+          accessibilityLabel="No, Back Home"
         >
           <Text style={styles.secondaryBtnText}>No, Back Home</Text>
         </TouchableOpacity>
