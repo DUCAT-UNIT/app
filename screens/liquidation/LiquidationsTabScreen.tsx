@@ -7,6 +7,7 @@ import type { NativeBottomTabNavigationProp } from '@react-navigation/bottom-tab
 import { useIsFocused, useNavigation, type NavigationProp } from '@react-navigation/native';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LiquidationScreen from '../../components/liquidation/LiquidationScreen';
 import { useWallet } from '../../contexts/WalletContext';
 import { useBalance, useVaultData } from '../../contexts/WalletDataContext';
@@ -23,6 +24,7 @@ type LiquidationsTabNavigationProp = NativeBottomTabNavigationProp<
 export default function LiquidationsTabScreen(): React.ReactElement {
   const isFocused = useIsFocused();
   const navigation = useNavigation<LiquidationsTabNavigationProp>();
+  const insets = useSafeAreaInsets();
   const { wallet, currentAccount } = useWallet();
   const { segwitBalance, taprootBalance, runesBalance } = useBalance();
   const { vaultData } = useVaultData();
@@ -43,6 +45,7 @@ export default function LiquidationsTabScreen(): React.ReactElement {
   const navigateReview = React.useCallback(() => {
     navigation.getParent<NavigationProp<RootNavigatorParamList>>()?.navigate('LiquidationFlow');
   }, [navigation]);
+  const tabBarClearance = Math.max(insets.bottom + 120, 150);
 
   return (
     <View style={styles.container} testID="liquidations-tab-screen">
@@ -60,7 +63,7 @@ export default function LiquidationsTabScreen(): React.ReactElement {
         onClose={navigateHome}
         onToggle={navigateHome}
         onReviewStart={navigateReview}
-        bottomInset={104}
+        bottomInset={tabBarClearance}
       />
     </View>
   );

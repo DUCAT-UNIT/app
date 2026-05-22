@@ -15,49 +15,6 @@ function parseValue(rawValue) {
   return trimmed;
 }
 
-export function loadDotenvFiles({
-  root = DEFAULT_ROOT,
-  files = DEFAULT_FILES,
-  target = process.env,
-  override = false,
-} = {}) {
-  const loaded = {};
-
-  for (const filename of files) {
-    const filePath = join(root, filename);
-    if (!existsSync(filePath)) continue;
-
-    const contents = readFileSync(filePath, 'utf8');
-    for (const line of contents.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-
-      const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-      if (!match) continue;
-
-      const [, key, rawValue] = match;
-      if (!override && target[key] !== undefined) continue;
-
-      const value = parseValue(rawValue);
-      target[key] = value;
-      loaded[key] = value;
-    }
-  }
-
-  return loaded;
-}
-
-export function readDotenvEnvironment({
-  root = DEFAULT_ROOT,
-  files = DEFAULT_FILES,
-  base = process.env,
-  override = false,
-} = {}) {
-  const env = { ...base };
-  loadDotenvFiles({ root, files, target: env, override });
-  return env;
-}
-
 export function loadEasProfileEnv({
   root = DEFAULT_ROOT,
   profile = process.env.DUCAT_EAS_PROFILE || process.env.EAS_BUILD_PROFILE || 'production',

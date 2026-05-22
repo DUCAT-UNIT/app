@@ -156,13 +156,10 @@ export function useTransactionBroadcast({
         }
 
         if (outputs.length > 0 || spentInputs.length > 0) {
-          logger.debug(
-            '💾 Pre-tracking pending transaction:',
-            preparedTxid,
-            'with',
-            outputs.length,
-            'outputs'
-          );
+          logger.debug('Pre-tracking pending transaction before broadcast', {
+            txid: preparedTxid,
+            outputCount: outputs.length,
+          });
           await addPendingTransaction(
             preparedTxid,
             outputs,
@@ -173,12 +170,12 @@ export function useTransactionBroadcast({
           );
           pendingTrackedBeforeBroadcast = true;
         } else {
-          logger.debug('⚠️ No change outputs found to save before broadcast');
+          logger.debug('No change outputs found to save before broadcast');
         }
 
         broadcastAttempted = true;
         const txid = await broadcastTransaction(intent.signedTxHex);
-        logger.debug('✅ Broadcast successful, txid:', txid);
+        logger.debug('Broadcast successful', { txid });
         logger.info(
           `[E2E_TX] send_broadcasted txid=${txid} asset=${assetType} amount=${sendAmount}`
         );
@@ -269,7 +266,7 @@ export function useTransactionBroadcast({
 
         return txid;
       } catch (error) {
-        logger.error('❌ Broadcast failed:', {
+        logger.error('Broadcast failed', {
           error: error instanceof Error ? error.message : String(error),
         });
 

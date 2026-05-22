@@ -53,7 +53,8 @@ export const checkICloudAvailability = async (): Promise<ICloudAvailabilityResul
       if (iCloudError.code === 'ICLOUD_STORAGE_NOT_AVAILABLE') {
         return {
           available: false,
-          error: 'iCloud is not available. Please sign into iCloud in Settings and enable iCloud Drive.',
+          error:
+            'iCloud is not available. Please sign into iCloud in Settings and enable iCloud Drive.',
         };
       }
       if (iCloudError.message && iCloudError.message.includes('not entitled')) {
@@ -118,7 +119,7 @@ interface AtomicBackupData {
  * @param data.credentialId - Base64 credential ID
  * @param data.userHandle - Base64 user handle
  * @param data.pinSalt - Hex PIN salt for 10k iteration hashing (CRITICAL for recovery)
- * @returns Debug information string
+ * @returns Diagnostic information string
  */
 export const saveToICloud = async ({
   encrypted,
@@ -181,7 +182,7 @@ export const saveToICloud = async ({
     try {
       saveSteps += `\nSaving atomic backup to iCloud...\n`;
       await iCloudStorage.setItem(ICLOUD_KEYS.ATOMIC_BACKUP, JSON.stringify(backupData));
-      saveSteps += `  ✅ Atomic backup saved successfully\n`;
+      saveSteps += `  [ok] Atomic backup saved successfully\n`;
 
       // Clean up legacy keys if they exist (migration)
       saveSteps += `\nCleaning up legacy keys (if any)...\n`;
@@ -194,19 +195,19 @@ export const saveToICloud = async ({
           iCloudStorage.removeItem(ICLOUD_KEYS.USER_HANDLE),
           iCloudStorage.removeItem(ICLOUD_KEYS.PIN_SALT),
         ]);
-        saveSteps += `  ✅ Legacy keys cleaned up\n`;
+        saveSteps += `  [ok] Legacy keys cleaned up\n`;
       } catch (cleanupError) {
         // Non-critical - legacy keys might not exist
-        saveSteps += `  ⚠️ Legacy cleanup skipped (keys may not exist)\n`;
+        saveSteps += `  [warn] Legacy cleanup skipped (keys may not exist)\n`;
       }
     } catch (setError) {
       const err = setError as ICloudError;
-      saveSteps += `  ❌ Failed: ${err.message}\n`;
+      saveSteps += `  [error] Failed: ${err.message}\n`;
       saveSteps += `  Error code: ${err.code || 'N/A'}\n`;
       throw setError;
     }
 
-    saveSteps += `\n✅ Backup saved successfully with atomic write protection\n`;
+    saveSteps += `\n[ok] Backup saved successfully with atomic write protection\n`;
     saveSteps += `Note: Data syncs to iCloud asynchronously (may take a few seconds)\n`;
     saveSteps += `\nBenefit: Single atomic write prevents data corruption if app crashes during save\n`;
 
@@ -216,7 +217,7 @@ export const saveToICloud = async ({
     return saveSteps;
   } catch (error: unknown) {
     const err = error as ICloudError;
-    saveSteps += `\n❌ SAVE FAILED\n`;
+    saveSteps += `\nSAVE FAILED\n`;
     saveSteps += `Error: ${err.message}\n`;
     saveSteps += `Code: ${err.code || 'N/A'}\n`;
     saveSteps += `Name: ${err.name || 'N/A'}\n`;
@@ -245,7 +246,7 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
     const atomicBackupJson = await iCloudStorage.getItem(ICLOUD_KEYS.ATOMIC_BACKUP);
 
     if (atomicBackupJson) {
-      loadSteps += '  ✅ Atomic backup found\n';
+      loadSteps += '  [ok] Atomic backup found\n';
       try {
         const backupData = JSON.parse(atomicBackupJson) as AtomicBackupData;
         loadSteps += `  - Version: ${backupData.version}\n`;
@@ -253,8 +254,13 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
         loadSteps += `  - Backup size: ${atomicBackupJson.length} bytes\n`;
 
         // Validate all required fields exist
-        if (!backupData.encrypted || !backupData.iv || !backupData.credentialId ||
-            !backupData.userHandle || !backupData.pinSalt) {
+        if (
+          !backupData.encrypted ||
+          !backupData.iv ||
+          !backupData.credentialId ||
+          !backupData.userHandle ||
+          !backupData.pinSalt
+        ) {
           logger.error('Atomic backup is missing required fields', {
             hasEncrypted: !!backupData.encrypted,
             hasIv: !!backupData.iv,
@@ -262,7 +268,7 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
             hasUserHandle: !!backupData.userHandle,
             hasPinSalt: !!backupData.pinSalt,
           });
-          loadSteps += '\n❌ Atomic backup is corrupted (missing required fields)\n';
+          loadSteps += '\n[error] Atomic backup is corrupted (missing required fields)\n';
           throw new Error(loadSteps);
         }
 
@@ -276,7 +282,7 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
         loadSteps += `  - Has pepper: ${!!backupData.pepper}\n`;
         loadSteps += `  - PRF enabled: ${!!backupData.prfEnabled}\n`;
         loadSteps += `  - Derivation version: ${backupData.derivationVersion || 'N/A'}\n`;
-        loadSteps += '\n✅ Atomic backup loaded successfully\n';
+        loadSteps += '\n[ok] Atomic backup loaded successfully\n';
 
         return {
           encrypted: backupData.encrypted,
@@ -292,11 +298,11 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
         };
       } catch (parseError) {
         logger.error('Failed to parse atomic backup', { error: (parseError as Error).message });
-        loadSteps += `  ❌ Failed to parse atomic backup: ${(parseError as Error).message}\n`;
+        loadSteps += `  [error] Failed to parse atomic backup: ${(parseError as Error).message}\n`;
         loadSteps += '  Falling back to legacy format...\n';
       }
     } else {
-      loadSteps += '  ⚠️ No atomic backup found\n';
+      loadSteps += '  [warn] No atomic backup found\n';
       loadSteps += '  Trying legacy format (v1)...\n';
     }
 
@@ -305,32 +311,32 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
 
     loadSteps += '  1. Loading ENCRYPTED_MNEMONIC...\n';
     const encrypted = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTED_MNEMONIC);
-    loadSteps += `     ${encrypted ? '✅' : '❌'} ${encrypted ? `Found (${encrypted.length} chars)` : 'Not found (null)'}\n`;
+    loadSteps += `     ${encrypted ? '[ok]' : '[error]'} ${encrypted ? `Found (${encrypted.length} chars)` : 'Not found (null)'}\n`;
 
     if (!encrypted) {
       logger.debug('No backup found in iCloud (neither v2 nor v1)');
-      throw new Error(loadSteps + '\n❌ No backup found in iCloud - backup does not exist');
+      throw new Error(loadSteps + '\n[error] No backup found in iCloud - backup does not exist');
     }
 
     loadSteps += '  2. Loading ENCRYPTION_IV...\n';
     const iv = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTION_IV);
-    loadSteps += `     ${iv ? '✅' : '❌'} ${iv ? `Found (${iv.length} chars)` : 'Not found'}\n`;
+    loadSteps += `     ${iv ? '[ok]' : '[error]'} ${iv ? `Found (${iv.length} chars)` : 'Not found'}\n`;
 
     loadSteps += '  3. Loading ENCRYPTION_TAG...\n';
     const tag = await iCloudStorage.getItem(ICLOUD_KEYS.ENCRYPTION_TAG);
-    loadSteps += `     ${tag ? '✅' : '⚠️'} ${tag ? `Found (${tag.length} chars)` : 'Not found (optional)'}\n`;
+    loadSteps += `     ${tag ? '[ok]' : '[warn]'} ${tag ? `Found (${tag.length} chars)` : 'Not found (optional)'}\n`;
 
     loadSteps += '  4. Loading CREDENTIAL_ID...\n';
     const credentialId = await iCloudStorage.getItem(ICLOUD_KEYS.CREDENTIAL_ID);
-    loadSteps += `     ${credentialId ? '✅' : '❌'} ${credentialId ? `Found (${credentialId.length} chars)` : 'Not found'}\n`;
+    loadSteps += `     ${credentialId ? '[ok]' : '[error]'} ${credentialId ? `Found (${credentialId.length} chars)` : 'Not found'}\n`;
 
     loadSteps += '  5. Loading USER_HANDLE...\n';
     const userHandle = await iCloudStorage.getItem(ICLOUD_KEYS.USER_HANDLE);
-    loadSteps += `     ${userHandle ? '✅' : '❌'} ${userHandle ? `Found (${userHandle.length} chars)` : 'Not found'}\n`;
+    loadSteps += `     ${userHandle ? '[ok]' : '[error]'} ${userHandle ? `Found (${userHandle.length} chars)` : 'Not found'}\n`;
 
     loadSteps += '  6. Loading PIN_SALT...\n';
     const pinSalt = await iCloudStorage.getItem(ICLOUD_KEYS.PIN_SALT);
-    loadSteps += `     ${pinSalt ? '✅' : '❌'} ${pinSalt ? `Found (${pinSalt.length} chars)` : 'Not found'}\n`;
+    loadSteps += `     ${pinSalt ? '[ok]' : '[error]'} ${pinSalt ? `Found (${pinSalt.length} chars)` : 'Not found'}\n`;
 
     if (!iv || !credentialId || !userHandle || !pinSalt) {
       logger.error('Incomplete backup data in iCloud', {
@@ -339,13 +345,14 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
         hasUserHandle: !!userHandle,
         hasPinSalt: !!pinSalt,
       });
-      loadSteps += '\n❌ INCOMPLETE DATA - Missing required keys\n';
+      loadSteps += '\n[error] INCOMPLETE DATA - Missing required keys\n';
       throw new Error(loadSteps);
     }
 
     logger.debug('Successfully loaded legacy backup from iCloud (will be migrated on next save)');
-    loadSteps += '\n✅ Legacy backup loaded successfully\n';
-    loadSteps += '⚠️ Note: This backup will be automatically migrated to atomic format on next save\n';
+    loadSteps += '\n[ok] Legacy backup loaded successfully\n';
+    loadSteps +=
+      '[warn] This backup will be automatically migrated to atomic format on next save\n';
 
     return {
       encrypted,
@@ -362,7 +369,9 @@ export const loadFromICloud = async (): Promise<LoadedBackupData> => {
       throw error; // Already has debug info
     } else {
       const err = error as ICloudError;
-      throw new Error(loadSteps + `\n❌ Load failed: ${err.message}\nCode: ${err.code || 'N/A'}`);
+      throw new Error(
+        loadSteps + `\n[error] Load failed: ${err.message}\nCode: ${err.code || 'N/A'}`
+      );
     }
   }
 };
@@ -400,14 +409,18 @@ export const hasICloudBackup = async (): Promise<boolean> => {
       errorCode: err.code,
       errorName: err.name,
       errorDomain: err.domain,
-      stack: err.stack
+      stack: err.stack,
     });
 
     // Provide more helpful error messages for common issues
     if (err.code === 'ICLOUD_STORAGE_NOT_AVAILABLE') {
-      throw new Error(`iCloud is not available. Please ensure:\n1. You're signed into iCloud in Settings\n2. iCloud Drive is enabled\n3. This app has iCloud permission\n\nOriginal error: ${err.message}`);
+      throw new Error(
+        `iCloud is not available. Please ensure:\n1. You're signed into iCloud in Settings\n2. iCloud Drive is enabled\n3. This app has iCloud permission\n\nOriginal error: ${err.message}`
+      );
     } else if (err.message && err.message.includes('not entitled')) {
-      throw new Error(`App not entitled for iCloud. This is a configuration issue - please contact support.\n\nError: ${err.message}`);
+      throw new Error(
+        `App not entitled for iCloud. This is a configuration issue - please contact support.\n\nError: ${err.message}`
+      );
     }
 
     // Throw error instead of returning false so we can see what went wrong

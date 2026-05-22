@@ -23,6 +23,7 @@ export interface LiquidationInputScreenProps {
   onExpandToggle: () => void;
   profitRate: number;
   disabled?: boolean;
+  bottomPadding?: number;
 }
 
 const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
@@ -38,6 +39,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
   onExpandToggle,
   profitRate,
   disabled = false,
+  bottomPadding,
 }: LiquidationInputScreenProps): React.ReactElement {
   const { s } = useResponsive();
   const price = btcPrice;
@@ -53,7 +55,7 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
   return (
     <ScrollView
       style={styles.body}
-      contentContainerStyle={{ paddingBottom: s(168) }}
+      contentContainerStyle={{ paddingBottom: bottomPadding ?? s(32) }}
       showsVerticalScrollIndicator={false}
     >
       {/* Investment Amount */}

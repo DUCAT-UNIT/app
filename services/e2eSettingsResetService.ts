@@ -1,19 +1,19 @@
-import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
+import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import { setBoolean, setNumber, SettingKeys } from './settingsService';
 
 export const E2E_RESET_SETTINGS_URL_PREFIX = 'ducat://e2e/reset-settings';
 export const E2E_ENABLE_USDC_URL_PREFIX = 'ducat://e2e/enable-usdc';
 
-const canonicalizePassword = (password: string): string =>
-  password
+const canonicalizeUnlockPhrase = (phrase: string): string =>
+  phrase
     .trim()
     .normalize('NFKC')
     .replace(/[\u2010-\u2015\u2212]/g, '-')
     .replace(/[^a-z0-9]/gi, '')
     .toLocaleLowerCase('en-US');
 
-const getUrlPassword = (url: string): string => {
+const getUrlUnlockPhrase = (url: string): string => {
   const match = url.match(/[?&]password=([^&#]+)/);
   if (!match?.[1]) return '';
 
@@ -46,10 +46,11 @@ export async function resetNonSecretE2ESettings(): Promise<void> {
 export async function enableUsdcFeaturesForE2E(url = ''): Promise<void> {
   if (!__DEV__) return;
 
-  const urlPassword = getUrlPassword(url);
-  const hasUrlPassword =
-    canonicalizePassword(urlPassword) === canonicalizePassword(USDC_FEATURE_PASSWORD);
-  if (!hasUrlPassword) return;
+  const urlUnlockPhrase = getUrlUnlockPhrase(url);
+  const hasUnlockPhrase =
+    canonicalizeUnlockPhrase(urlUnlockPhrase) ===
+    canonicalizeUnlockPhrase(USDC_FEATURE_UNLOCK_PHRASE);
+  if (!hasUnlockPhrase) return;
 
   useUsdcFeatureFlagStore.getState().setEnabled(true);
   await setBoolean(SettingKeys.USDC_FEATURES_ENABLED, true);

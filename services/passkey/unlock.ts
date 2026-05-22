@@ -77,7 +77,10 @@ const persistMnemonicForAppUnlock = async (mnemonic: string): Promise<void> => {
 const parseStoredCredentialId = (credentialIdBase64: string): Uint8Array =>
   new Uint8Array(Buffer.from(credentialIdBase64, 'base64'));
 
-const credentialIdMatches = (expectedCredentialId: Uint8Array, actualCredentialId: string): boolean => {
+const credentialIdMatches = (
+  expectedCredentialId: Uint8Array,
+  actualCredentialId: string
+): boolean => {
   const expectedBase64 = Buffer.from(expectedCredentialId).toString('base64');
   const expectedBase64Url = toBase64Url(expectedCredentialId);
 
@@ -284,19 +287,19 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     debugSteps += '1. Checking passkey support...\n';
     const supported = await isPasskeySupported();
     if (!supported) {
-      throw new Error(`${debugSteps}❌ Passkeys not supported on this device`);
+      throw new Error(`${debugSteps}Passkeys not supported on this device`);
     }
-    debugSteps += '✅ Passkeys supported\n';
+    debugSteps += 'Passkeys supported\n';
 
     // Check iCloud availability first
     debugSteps += '2. Checking iCloud availability...\n';
     const iCloudCheck = await checkICloudAvailability();
     if (!iCloudCheck.available) {
       throw new Error(
-        `${debugSteps}❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled\n3. This app has permission to use iCloud`
+        `${debugSteps}iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled\n3. This app has permission to use iCloud`
       );
     }
-    debugSteps += '✅ iCloud is available\n';
+    debugSteps += 'iCloud is available\n';
 
     // Check if iCloud backup exists with detailed error
     debugSteps += '3. Checking iCloud backup...\n';
@@ -304,12 +307,12 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     try {
       const loadedBackup = await loadFromICloud();
       if (!loadedBackup) {
-        throw new Error(`${debugSteps}❌ No data in iCloud (loadFromICloud returned null)`);
+        throw new Error(`${debugSteps}No data in iCloud (loadFromICloud returned null)`);
       }
       backup = loadedBackup as PasskeyBackupData;
-      debugSteps += `✅ Found iCloud data with keys: ${Object.keys(backup).join(', ')}\n`;
+      debugSteps += `Found iCloud data with keys: ${Object.keys(backup).join(', ')}\n`;
     } catch (icloudError: unknown) {
-      throw new Error(`${debugSteps}❌ iCloud load failed: ${(icloudError as Error).message}`);
+      throw new Error(`${debugSteps}iCloud load failed: ${(icloudError as Error).message}`);
     }
 
     // Load encrypted backup from iCloud
@@ -357,7 +360,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     let prfSecret: Uint8Array | null = null;
     try {
       const authResult = await withPasskeyTimeout(Passkey.get(requestJson));
-      debugSteps += '✅ Passkey authentication successful\n';
+      debugSteps += 'Passkey authentication successful\n';
 
       // Extract PRF result if PRF was requested
       if (usePrf) {
@@ -370,10 +373,10 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
         if (!prfSecret) {
           throw new Error('PRF result missing from authenticator during recovery');
         }
-        debugSteps += '✅ PRF secret extracted from authenticator\n';
+        debugSteps += 'PRF secret extracted from authenticator\n';
       }
     } catch (passkeyError) {
-      throw new Error(`${debugSteps}❌ Passkey auth failed: ${(passkeyError as Error).message}`);
+      throw new Error(`${debugSteps}Passkey auth failed: ${(passkeyError as Error).message}`);
     }
 
     logger.debug('Passkey authentication successful');
@@ -389,18 +392,18 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     // Validate PIN
     debugSteps += '6. Validating PIN...\n';
     if (!pin || pin.length !== 6) {
-      throw new Error(`${debugSteps}❌ Invalid PIN (length: ${pin?.length || 0})`);
+      throw new Error(`${debugSteps}Invalid PIN (length: ${pin?.length || 0})`);
     }
-    debugSteps += '✅ PIN format valid\n';
+    debugSteps += 'PIN format valid\n';
 
     // Use the PIN salt from the backup (critical for PBKDF2 hashing)
     debugSteps += '7. Checking PIN salt...\n';
     const pinSalt = backup.pinSalt;
     // Validate salt format: 32 bytes = 64 hex characters
     if (!pinSalt || pinSalt.length !== 64 || !/^[0-9a-f]{64}$/i.test(pinSalt)) {
-      throw new Error(`${debugSteps}❌ Invalid PIN salt (length: ${pinSalt?.length || 0})`);
+      throw new Error(`${debugSteps}Invalid PIN salt (length: ${pinSalt?.length || 0})`);
     }
-    debugSteps += '✅ PIN salt valid\n';
+    debugSteps += 'PIN salt valid\n';
 
     // Restore pepper from backup before key derivation (critical for cross-device recovery)
     // Save existing pepper so we can restore it if decryption fails
@@ -409,13 +412,13 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     if (backup.pepper) {
       previousPepper = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PEPPER);
       await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, backup.pepper, DEVICE_ONLY);
-      debugSteps += `✅ Pepper restored from backup (length: ${backup.pepper.length})\n`;
+      debugSteps += `Pepper restored from backup (length: ${backup.pepper.length})\n`;
       logger.debug('Pepper restored from iCloud backup for key derivation');
     } else {
       logger.warn(
         'No pepper in iCloud backup (v2 format) - key derivation will generate a new one, decryption will likely fail'
       );
-      debugSteps += '⚠️ No pepper in backup (v2 format) - recovery may fail\n';
+      debugSteps += 'No pepper in backup (v2 format) - recovery may fail\n';
     }
 
     // Derive encryption key. If PRF is enabled, uses authenticator-derived secret;
@@ -436,13 +439,13 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
         false,
         prfSecret
       );
-      debugSteps += '✅ Encryption key derived\n';
+      debugSteps += 'Encryption key derived\n';
     } catch (keyError: unknown) {
       // Restore previous pepper if key derivation failed
       if (previousPepper !== null) {
         await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PEPPER, previousPepper, DEVICE_ONLY);
       }
-      throw new Error(`${debugSteps}❌ Key derivation failed: ${(keyError as Error).message}`);
+      throw new Error(`${debugSteps}Key derivation failed: ${(keyError as Error).message}`);
     }
 
     // Decrypt mnemonic from iCloud backup
@@ -456,7 +459,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
         backup.tag || '',
         encryptionKey
       );
-      debugSteps += '✅ Mnemonic decrypted successfully\n';
+      debugSteps += 'Mnemonic decrypted successfully\n';
     } catch (decryptError) {
       // Restore previous pepper since decryption failed
       if (previousPepper !== null) {
@@ -465,7 +468,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
       // Provide a more specific error if pepper was missing from backup
       if (!backup.pepper) {
         throw new Error(
-          `${debugSteps}❌ Decryption failed (backup missing pepper).\n\n` +
+          `${debugSteps}Decryption failed (backup missing pepper).\n\n` +
             'This backup was created before the pepper fix (v2 format). ' +
             'The device-bound pepper used during encryption was not included in the backup, ' +
             'so cross-device recovery is not possible. ' +
@@ -473,7 +476,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
         );
       }
       throw new Error(
-        `${debugSteps}❌ Decryption failed: ${(decryptError as Error).message}\n\nThis usually means wrong PIN.`
+        `${debugSteps}Decryption failed: ${(decryptError as Error).message}\n\nThis usually means wrong PIN.`
       );
     }
 
@@ -528,7 +531,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     if (errorMessage && errorMessage.includes('Starting recovery')) {
       throw error;
     } else {
-      throw new Error(`${debugSteps}❌ Error: ${errorMessage}`);
+      throw new Error(`${debugSteps}Error: ${errorMessage}`);
     }
   }
 };

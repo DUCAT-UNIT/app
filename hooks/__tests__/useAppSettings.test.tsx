@@ -10,6 +10,7 @@ import * as biometricService from '../../services/biometricService';
 import { recoverLockedChange } from '../../services/cashu/cashuWalletService';
 import { useAppSettings, type UseAppSettingsParams } from '../useAppSettings';
 import { notify } from '../../utils/notify';
+import { USDC_FEATURE_UNLOCK_PHRASE } from '../../constants/settings';
 
 // Helper to render hooks with react-test-renderer
 function renderHook<T>(hook: () => T) {
@@ -617,6 +618,46 @@ describe('useAppSettings', () => {
 
       expect(result.current!.ecashThreshold).toBe(250);
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('ecashThreshold', '250');
+    });
+  });
+
+  describe('USDC feature flag', () => {
+    const originalDevFlag = (global as typeof globalThis & { __DEV__?: boolean }).__DEV__;
+
+    afterEach(() => {
+      (global as typeof globalThis & { __DEV__?: boolean }).__DEV__ = originalDevFlag;
+    });
+
+    it('enables USDC with the developer unlock phrase in release-like builds', async () => {
+      (global as typeof globalThis & { __DEV__?: boolean }).__DEV__ = false;
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      await act(async () => {
+        const enabled = await result.current!.handleEnableUsdcFeatures(USDC_FEATURE_UNLOCK_PHRASE);
+        expect(enabled).toBe(true);
+      });
+
+      expect(result.current!.usdcFeaturesEnabled).toBe(true);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('usdcFeaturesEnabled', 'true');
+      expect(notify.success).toHaveBeenCalledWith('USDC features enabled');
+      expect(notify.error).not.toHaveBeenCalledWith('USDC features are not enabled in this build');
+    });
+
+    it('rejects an incorrect USDC unlock phrase', async () => {
+      const { result } = renderHook(() => useAppSettings(mockProps));
+
+      await act(async () => {
+        const enabled = await result.current!.handleEnableUsdcFeatures('wrong phrase');
+        expect(enabled).toBe(false);
+      });
+
+      expect(result.current!.usdcFeaturesEnabled).toBe(false);
+      expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith('usdcFeaturesEnabled', 'true');
+      expect(notify.error).toHaveBeenCalledWith('Incorrect USDC unlock phrase');
     });
   });
 

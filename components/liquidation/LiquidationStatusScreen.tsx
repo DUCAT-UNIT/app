@@ -30,6 +30,7 @@ export interface LiquidationStatusScreenProps {
   error: string | null;
   isStaleOpportunity?: boolean;
   remainingVaultCount?: number;
+  bottomInset?: number;
 }
 
 // ============================================================
@@ -64,6 +65,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   error,
   isStaleOpportunity = false,
   remainingVaultCount = 0,
+  bottomInset = 0,
 }: LiquidationStatusScreenProps): React.ReactElement {
   const { showToast } = useNotifications();
   const insets = useSafeAreaInsets();
@@ -142,7 +144,7 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   const truncatedSwapTxid = swapTxid ? `${swapTxid.slice(0, 8)}...${swapTxid.slice(-8)}` : '';
 
   const topPadding = Math.max(insets.top + spacing.lg, 76);
-  const bottomPadding = Math.max(insets.bottom + 132, 148);
+  const bottomPadding = Math.max(insets.bottom + 132, bottomInset + 116, 148);
 
   // ── Processing ──
   if (isProcessing) {

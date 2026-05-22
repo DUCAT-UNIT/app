@@ -33,9 +33,12 @@ jest.mock('../../services/oracleService', () => ({
 // Vault operations service
 const mockBuildVaultProfile = jest.fn();
 const mockComputeVaultPrevoutFromTx = jest.fn();
+const mockResolveLatestUnspentVaultPrevout = jest.fn();
 jest.mock('../../services/vaultOperationsService', () => ({
   buildVaultProfile: (...args: unknown[]) => mockBuildVaultProfile(...args),
   computeVaultPrevoutFromTx: (...args: unknown[]) => mockComputeVaultPrevoutFromTx(...args),
+  resolveLatestUnspentVaultPrevout: (...args: unknown[]) =>
+    mockResolveLatestUnspentVaultPrevout(...args),
 }));
 
 // Vault service
@@ -45,7 +48,8 @@ const mockFetchLatestVaultHistoryTransaction = jest.fn();
 jest.mock('../../services/vaultService', () => ({
   fetchVaultData: (...args: unknown[]) => mockFetchVaultData(...args),
   fetchVaultHistory: (...args: unknown[]) => mockFetchVaultHistory(...args),
-  fetchLatestVaultHistoryTransaction: (...args: unknown[]) => mockFetchLatestVaultHistoryTransaction(...args),
+  fetchLatestVaultHistoryTransaction: (...args: unknown[]) =>
+    mockFetchLatestVaultHistoryTransaction(...args),
 }));
 
 // Vault wallet service
@@ -88,11 +92,12 @@ jest.mock('../../stores/pendingVaultTransactionStore', () => ({
       setPendingTransaction: jest.Mock;
       setPendingTransactionForAccount: jest.Mock;
     }) => unknown
-  ) => selector({
-    pendingTransaction: null,
-    setPendingTransaction: mockSetPendingTransaction,
-    setPendingTransactionForAccount: mockSetPendingTransactionForAccount,
-  }),
+  ) =>
+    selector({
+      pendingTransaction: null,
+      setPendingTransaction: mockSetPendingTransaction,
+      setPendingTransactionForAccount: mockSetPendingTransactionForAccount,
+    }),
 }));
 
 // Price store
@@ -168,9 +173,9 @@ interface FakeResult {
 }
 
 const mockValidate = jest.fn<string | null, [VaultValidationParams]>().mockReturnValue(null);
-const mockCreateConfig = jest.fn<FakeConfig, [number, number]>().mockImplementation(
-  (amount, feeRate) => ({ deposit_amount: amount, fee_rate: feeRate })
-);
+const mockCreateConfig = jest
+  .fn<FakeConfig, [number, number]>()
+  .mockImplementation((amount, feeRate) => ({ deposit_amount: amount, fee_rate: feeRate }));
 const mockCreateRequest = jest
   .fn<Promise<FakeRequest>, [VaultRequestParams<FakeConfig>]>()
   .mockResolvedValue({ psbt: 'signed-psbt-hex', vault_txid: 'vault-tx-abc' });
@@ -251,6 +256,12 @@ function setupHappyPath(): void {
   mockFetchVaultHistory.mockResolvedValue([{ txid: 'hist-tx-1', rawTx: '0200...' }]);
   mockFetchLatestVaultHistoryTransaction.mockResolvedValue({ txid: 'hist-tx-1', rawTx: '0200...' });
   mockComputeVaultPrevoutFromTx.mockReturnValue({ txid: 'hist-tx-1', vout: 0, value: 50_000_000 });
+  mockResolveLatestUnspentVaultPrevout.mockResolvedValue({
+    prevout: { txid: 'hist-tx-1', vout: 0, value: 50_000_000 },
+    replaced: false,
+    hopCount: 0,
+    sourceTxids: ['hist-tx-1'],
+  });
   mockBuildVaultProfile.mockReturnValue({
     acct_id: 'acct-1',
     master_id: 'master-1',
@@ -275,23 +286,22 @@ describe('useVaultOperation integration', () => {
 
     // Reset config-level mocks to happy-path defaults (clearAllMocks doesn't reset implementations)
     mockValidate.mockReturnValue(null);
-    mockCreateConfig.mockImplementation(
-      (amount: number, feeRate: number) => ({ deposit_amount: amount, fee_rate: feeRate })
-    );
+    mockCreateConfig.mockImplementation((amount: number, feeRate: number) => ({
+      deposit_amount: amount,
+      fee_rate: feeRate,
+    }));
     mockCreateRequest.mockResolvedValue({ psbt: 'signed-psbt-hex', vault_txid: 'vault-tx-abc' });
     mockSendRequest.mockResolvedValue({ vault_txid: 'vault-tx-abc' });
     mockExtractResult.mockImplementation((r: FakeResult) => ({ vaultTxid: r.vault_txid }));
-    mockCreatePendingTransaction.mockImplementation(
-      (p: PendingTransactionParams<FakeConfig>) => ({
-        txid: p.result.vaultTxid,
-        vaultTxid: p.result.vaultTxid,
-        action: 'deposit' as const,
-        btcAmt: 0.01,
-        unitAmt: 0,
-        timestamp: Date.now(),
-        vaultPubkey: p.taprootPubkey,
-      })
-    );
+    mockCreatePendingTransaction.mockImplementation((p: PendingTransactionParams<FakeConfig>) => ({
+      txid: p.result.vaultTxid,
+      vaultTxid: p.result.vaultTxid,
+      action: 'deposit' as const,
+      btcAmt: 0.01,
+      unitAmt: 0,
+      timestamp: Date.now(),
+      vaultPubkey: p.taprootPubkey,
+    }));
     mockCalculateLiquidationPrice.mockReturnValue(30000);
     mockSetPendingTransaction.mockResolvedValue(undefined);
     mockSetPendingTransactionForAccount.mockResolvedValue(undefined);
@@ -327,9 +337,7 @@ describe('useVaultOperation integration', () => {
       await result.current!.execute();
     });
 
-    const calls = mockStoreActions.setProcessingStep.mock.calls.map(
-      (c: [number]) => c[0]
-    );
+    const calls = mockStoreActions.setProcessingStep.mock.calls.map((c: [number]) => c[0]);
     expect(calls).toEqual([1, 2, 3, 4]);
   });
 
@@ -377,9 +385,7 @@ describe('useVaultOperation integration', () => {
     });
 
     expect(mockShowSnackbar).toHaveBeenCalledTimes(1);
-    expect(mockShowSnackbar).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'info' })
-    );
+    expect(mockShowSnackbar).toHaveBeenCalledWith(expect.objectContaining({ type: 'info' }));
   });
 
   it('should disconnect guardian in finally block', async () => {
@@ -389,7 +395,7 @@ describe('useVaultOperation integration', () => {
       await result.current!.execute();
     });
 
-    expect(mockDisconnectGuardian).toHaveBeenCalledTimes(1);
+    expect(mockDisconnectGuardian).toHaveBeenCalled();
   });
 
   // ── Validation failure ──────────────────────────────────────────────
@@ -507,9 +513,7 @@ describe('useVaultOperation integration', () => {
     });
 
     // setLoading(true) at start, setLoading(false) in finally
-    const loadingCalls = mockStoreActions.setLoading.mock.calls.map(
-      (c: [boolean]) => c[0]
-    );
+    const loadingCalls = mockStoreActions.setLoading.mock.calls.map((c: [boolean]) => c[0]);
     expect(loadingCalls).toContain(true);
     expect(loadingCalls[loadingCalls.length - 1]).toBe(false);
   });

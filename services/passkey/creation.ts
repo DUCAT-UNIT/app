@@ -12,11 +12,7 @@ import { checkICloudAvailability } from '../icloudStorage';
 import { savePinWithHash, savePin } from '../pinService';
 import { setWalletDerivationMode } from '../walletDerivationService';
 
-import {
-  derivationVersionForPrf,
-  isPasskeySupported,
-  PASSKEY_KEYS,
-} from './core';
+import { derivationVersionForPrf, isPasskeySupported, PASSKEY_KEYS } from './core';
 import { generateRandomMnemonic, deriveEncryptionKey, encryptMnemonic } from './encryption';
 import { createPasskeyCredential } from './credentialCreation';
 import {
@@ -52,7 +48,7 @@ export const createWalletWithPasskey = async ({
   userDisplayName,
   pin,
 }: CreateWalletOptions): Promise<CreateWalletResult> => {
-  let createDebugLog = '=== WALLET CREATION DEBUG LOG ===\n\n';
+  let createDebugLog = 'Wallet creation diagnostics\n\n';
   try {
     createDebugLog += `Step 1: Checking passkey support...\n`;
     logger.debug('Creating wallet with passkey', { userName });
@@ -60,21 +56,26 @@ export const createWalletWithPasskey = async ({
     // Check if passkeys are supported
     const supported = await isPasskeySupported();
     if (!supported) {
-      throw new Error(createDebugLog + '❌ Passkeys not supported on this device');
+      throw new Error(createDebugLog + 'Passkeys not supported on this device');
     }
-    createDebugLog += `✅ Passkeys supported\n\n`;
+    createDebugLog += `Passkeys supported\n\n`;
 
     // Check iCloud availability
     createDebugLog += `Step 2: Checking iCloud availability...\n`;
     const iCloudCheck = await checkICloudAvailability();
     if (!iCloudCheck.available) {
-      throw new Error(createDebugLog + `❌ iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled`);
+      throw new Error(
+        createDebugLog +
+          `iCloud not available: ${iCloudCheck.error}\n\nPlease check:\n1. Settings > [Your Name] > iCloud - ensure you're signed in\n2. Settings > [Your Name] > iCloud > iCloud Drive - ensure it's enabled`
+      );
     }
-    createDebugLog += `✅ iCloud is available\n\n`;
+    createDebugLog += `iCloud is available\n\n`;
 
     // Create passkey credential (includes PRF extension request)
-    const { credentialId, userHandle, prfEnabled, prfResult } =
-      await createPasskeyCredential(userName, userDisplayName);
+    const { credentialId, userHandle, prfEnabled, prfResult } = await createPasskeyCredential(
+      userName,
+      userDisplayName
+    );
 
     logger.debug('Generating random mnemonic...');
 
@@ -101,7 +102,7 @@ export const createWalletWithPasskey = async ({
     }
 
     // Determine PRF secret for key derivation
-    const prfSecret = (prfEnabled && prfResult) ? prfResult : null;
+    const prfSecret = prfEnabled && prfResult ? prfResult : null;
     const derivationVersion = derivationVersionForPrf(!!prfSecret);
     if (prfSecret) {
       logger.debug('Using PRF secret for key derivation (v5 salt)');
@@ -112,7 +113,12 @@ export const createWalletWithPasskey = async ({
     // Derive encryption key from PRF secret (or credential IDs) + hashed PIN + device pepper (HKDF).
     // OPTIMIZATION: Pass pre-hashed PIN to skip 310k PBKDF2 iterations (~500ms saved)
     const encryptionKey = await deriveEncryptionKey(
-      credentialId, userHandle, hashedPin, pinSalt, true, prfSecret
+      credentialId,
+      userHandle,
+      hashedPin,
+      pinSalt,
+      true,
+      prfSecret
     );
 
     // Encrypt mnemonic for storage
@@ -168,13 +174,15 @@ export const createWalletWithPasskey = async ({
       pepper: pepper || undefined,
       prfEnabled: !!prfSecret,
       derivationVersion,
-    }).then((backup) => {
-      logger.debug('iCloud backup succeeded', backup);
-      return { success: true, debugInfo: backup.debugInfo + backup.verificationLog };
-    }).catch((icloudError) => {
-      logger.error('iCloud backup failed (non-blocking)', { error: icloudError.message });
-      return { success: false, error: icloudError.message };
-    });
+    })
+      .then((backup) => {
+        logger.debug('iCloud backup succeeded', backup);
+        return { success: true, debugInfo: backup.debugInfo + backup.verificationLog };
+      })
+      .catch((icloudError) => {
+        logger.error('iCloud backup failed (non-blocking)', { error: icloudError.message });
+        return { success: false, error: icloudError.message };
+      });
 
     return {
       mnemonic,
@@ -184,12 +192,11 @@ export const createWalletWithPasskey = async ({
     };
   } catch (error: unknown) {
     logger.error('Failed to create wallet with passkey', { error: (error as Error).message });
-    // Include full debug log in error
     const errorMessage = (error as Error).message;
-    if (errorMessage && errorMessage.includes('=== WALLET CREATION DEBUG LOG ===')) {
+    if (errorMessage && errorMessage.includes('Wallet creation diagnostics')) {
       throw error;
     } else {
-      throw new Error(createDebugLog + `\n\n❌ ERROR: ${errorMessage}\nStack: ${(error as Error).stack || 'N/A'}`);
+      throw new Error(createDebugLog + `\n\nError: ${errorMessage}`);
     }
   }
 };
@@ -221,8 +228,10 @@ export const addPasskeyToExistingWallet = async (
     const existingStandardMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
 
     // Create passkey credential (includes PRF extension request)
-    const { credentialId, userHandle, prfEnabled, prfResult } =
-      await createPasskeyCredential(userName, userDisplayName);
+    const { credentialId, userHandle, prfEnabled, prfResult } = await createPasskeyCredential(
+      userName,
+      userDisplayName
+    );
 
     // Validate PIN
     if (!pin || pin.length !== 6) {
@@ -243,7 +252,7 @@ export const addPasskeyToExistingWallet = async (
     }
 
     // Determine PRF secret for key derivation
-    const prfSecret = (prfEnabled && prfResult) ? prfResult : null;
+    const prfSecret = prfEnabled && prfResult ? prfResult : null;
     const derivationVersion = derivationVersionForPrf(!!prfSecret);
     if (prfSecret) {
       logger.debug('Using PRF secret for migration key derivation (v5 salt)');
@@ -253,7 +262,12 @@ export const addPasskeyToExistingWallet = async (
 
     // Derive encryption key from PRF secret (or credential IDs) + PIN + device pepper (310k PBKDF2 iterations)
     const encryptionKey = await deriveEncryptionKey(
-      credentialId, userHandle, pin, pinSalt, false, prfSecret
+      credentialId,
+      userHandle,
+      pin,
+      pinSalt,
+      false,
+      prfSecret
     );
 
     // Encrypt existing mnemonic
@@ -312,7 +326,9 @@ export const addPasskeyToExistingWallet = async (
         recommendation: 'User should check iCloud settings and retry adding passkey',
       });
       // Re-throw so caller knows backup failed
-      throw new Error(`Failed to backup passkey to iCloud: ${(icloudError as Error).message}. Recovery may not work on new devices.`);
+      throw new Error(
+        `Failed to backup passkey to iCloud: ${(icloudError as Error).message}. Recovery may not work on new devices.`
+      );
     }
 
     logger.debug('Passkey added to wallet successfully');

@@ -5,6 +5,7 @@
 jest.mock('../../../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
+    debug: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
   },
@@ -245,7 +246,10 @@ describe('cashuSendP2PK', () => {
       await sendP2PKToken(64, 'recipientpubkey123'.padEnd(64, '0'));
 
       // Check logger was called with change proof info
-      expect(logger.info).toHaveBeenCalledWith('Change proof secret types', expect.any(Object));
+      expect(logger.debug).toHaveBeenCalledWith(
+        'P2PK change proof classification',
+        expect.any(Object)
+      );
       expect(logger.info).toHaveBeenCalledWith(
         'Change proofs added back to wallet',
         expect.any(Object)

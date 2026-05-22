@@ -4,19 +4,23 @@
  * Features: cycling loading messages, automatic navigation on success/error
  */
 
-import { NavigationProp,RouteProp,StackActions } from '@react-navigation/native';
-import React,{ useEffect,useRef,useState } from 'react';
-import { ActivityIndicator,StyleSheet,Text,View } from 'react-native';
+import { NavigationProp, RouteProp, StackActions } from '@react-navigation/native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useTransactionBuild } from '../../contexts/TransactionBuildContext';
 import { useTransactionExecution } from '../../contexts/TransactionExecutionContext';
 import { analytics } from '../../services/analyticsService';
 import { TRANSACTION_EVENTS } from '../../constants/analyticsEvents';
-import { useNotifications } from "../../stores/notificationStore";
-import { useSendFlow,type AssetType } from '../../stores/sendFlowStore';
+import { useNotifications } from '../../stores/notificationStore';
+import { useSendFlow, type AssetType } from '../../stores/sendFlowStore';
 import { COLORS } from '../../theme';
 import { isE2E } from '../../utils/e2e';
 import { logger } from '../../utils/logger';
-import { DEFAULT_CASHU_UNIT, normalizeCashuUnit, type CashuUnit } from '../../services/cashu/cashuUnits';
+import {
+  DEFAULT_CASHU_UNIT,
+  normalizeCashuUnit,
+  type CashuUnit,
+} from '../../services/cashu/cashuUnits';
 
 /**
  * Route parameters for ProcessingScreen
@@ -46,8 +50,19 @@ interface ProcessingScreenProps {
   route: RouteProp<{ params: ProcessingRouteParams }, 'params'>;
 }
 
-export default function ProcessingScreen({ navigation, route }: ProcessingScreenProps): React.JSX.Element {
-  const { sendAssetType, sendAmount, sendRecipient, intentStep, setSendAssetType, setSendAmount, setSendRecipient } = useSendFlow();
+export default function ProcessingScreen({
+  navigation,
+  route,
+}: ProcessingScreenProps): React.JSX.Element {
+  const {
+    sendAssetType,
+    sendAmount,
+    sendRecipient,
+    intentStep,
+    setSendAssetType,
+    setSendAmount,
+    setSendRecipient,
+  } = useSendFlow();
   const { createSendIntent, sendIntent } = useTransactionBuild();
   const { signIntent } = useTransactionExecution();
   const { showSnackbar } = useNotifications();
@@ -69,8 +84,12 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   const cashuUnit = normalizeCashuUnit(route.params?.cashuUnit, DEFAULT_CASHU_UNIT);
   const snackbarAction =
     sendAssetType === 'unit'
-      ? (isTurbo ? 'swap' : 'unit_send')
-      : (isTurbo && cashuUnit === 'sat' ? 'btc_swap' : 'btc_send');
+      ? isTurbo
+        ? 'swap'
+        : 'unit_send'
+      : isTurbo && cashuUnit === 'sat'
+        ? 'btc_swap'
+        : 'btc_send';
 
   // Helper to handle navigation errors - dismiss modal if coming from Settings
   const handleNavigationError = (errorMessage: string): void => {
@@ -95,12 +114,15 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
     (navigationErrorTimerRef.current as { unref?: () => void }).unref?.();
   };
 
-  useEffect(() => () => {
-    if (navigationErrorTimerRef.current) {
-      clearTimeout(navigationErrorTimerRef.current);
-      navigationErrorTimerRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (navigationErrorTimerRef.current) {
+        clearTimeout(navigationErrorTimerRef.current);
+        navigationErrorTimerRef.current = null;
+      }
+    },
+    []
+  );
 
   // Get Cashu mint params if provided
   const paramAssetType = route.params?.assetType;
@@ -116,7 +138,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   // Set send flow params from route if provided (for Cashu mint)
   useEffect(() => {
     if (paramAssetType && paramAmount && paramRecipient) {
-      logger.debug('🔵 ProcessingScreen: Setting send flow from route params', {
+      logger.debug('ProcessingScreen: setting send flow from route params', {
         assetType: paramAssetType,
         amount: paramAmount,
         recipient: paramRecipient,
@@ -129,10 +151,7 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   }, [paramAssetType, paramAmount, paramRecipient]);
 
   // Messages for different asset types during PSBT creation
-  const btcCreatingMessages = [
-    'Collecting UTXOs...',
-    'Building PSBT...',
-  ];
+  const btcCreatingMessages = ['Collecting UTXOs...', 'Building PSBT...'];
 
   const unitCreatingMessages = [
     'Collecting rune UTXOs...',
@@ -222,12 +241,16 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
           }
 
           // Sign and broadcast transaction
-          logger.info(`[SendProcessing] Signing and broadcasting transaction asset=${sendAssetType}`);
+          logger.info(
+            `[SendProcessing] Signing and broadcasting transaction asset=${sendAssetType}`
+          );
           const txid = await signIntent();
 
           if (cancelled) return;
           if (txid) {
-            logger.info(`[SendProcessing] Transaction broadcast ready asset=${sendAssetType} txid=${txid}`);
+            logger.info(
+              `[SendProcessing] Transaction broadcast ready asset=${sendAssetType} txid=${txid}`
+            );
             navigation.dispatch(
               StackActions.replace('Confirmation', {
                 isTurbo,
@@ -248,14 +271,21 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
           }
         } catch (error: unknown) {
           if (cancelled) return;
-          const errorMessage = error instanceof Error ? error.message : String(error) || 'Transaction failed';
-          analytics.track(TRANSACTION_EVENTS.SEND_FAILED, { asset_type: sendAssetType, error: errorMessage });
+          const errorMessage =
+            error instanceof Error ? error.message : String(error) || 'Transaction failed';
+          analytics.track(TRANSACTION_EVENTS.SEND_FAILED, {
+            asset_type: sendAssetType,
+            error: errorMessage,
+          });
           logger.error('Signing error:', { error: errorMessage });
           handleNavigationError(errorMessage);
         }
       }, 100);
       (timer as { unref?: () => void }).unref?.();
-      return () => { cancelled = true; clearTimeout(timer); };
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -306,7 +336,9 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
           asset_type: sendAssetType,
           error: 'Failed to create transaction',
         });
-        handleNavigationError('Failed to create transaction. Please check your balance and try again.');
+        handleNavigationError(
+          'Failed to create transaction. Please check your balance and try again.'
+        );
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -319,9 +351,18 @@ export default function ProcessingScreen({ navigation, route }: ProcessingScreen
   return (
     <View style={localStyles.container} testID="processing-screen">
       <View style={localStyles.content}>
-        <ActivityIndicator size="large" color={COLORS.PRIMARY_BLUE} style={localStyles.spinner} testID="processing-spinner" />
-        <Text style={localStyles.title} testID="processing-title">{title}</Text>
-        <Text style={localStyles.message} testID="processing-message">{message}</Text>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.PRIMARY_BLUE}
+          style={localStyles.spinner}
+          testID="processing-spinner"
+        />
+        <Text style={localStyles.title} testID="processing-title">
+          {title}
+        </Text>
+        <Text style={localStyles.message} testID="processing-message">
+          {message}
+        </Text>
       </View>
     </View>
   );

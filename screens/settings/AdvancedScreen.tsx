@@ -4,22 +4,14 @@
  */
 
 import React from 'react';
-import {
-  Alert,
-  Modal,
-  Text,
-  TextInput,
-  View,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import { Alert, Modal, Text, TextInput, View, TouchableOpacity, ScrollView } from 'react-native';
 import { COLORS } from '../../theme';
 import Icon from '../../components/icons';
 import ScreenLayout from '../../components/layouts/ScreenLayout';
 import { useSettingsHandlers } from '../../contexts/NavigationHandlersContext';
 import { analytics } from '../../services/analyticsService';
 import { SETTINGS_EVENTS } from '../../constants/analyticsEvents';
-import { USDC_FEATURE_PASSWORD } from '../../constants/settings';
+import { USDC_FEATURE_UNLOCK_PHRASE } from '../../constants/settings';
 import { logger } from '../../utils/logger';
 import {
   useOperationJournalStore,
@@ -27,16 +19,16 @@ import {
 } from '../../stores/operationJournalStore';
 import { styles } from './AdvancedScreen.styles';
 
-const canonicalizeUsdcPassword = (password: string): string =>
-  password
+const canonicalizeUsdcUnlockPhrase = (phrase: string): string =>
+  phrase
     .trim()
     .normalize('NFKC')
     .replace(/[\u2010-\u2015\u2212]/g, '-')
     .replace(/[^a-z0-9]/gi, '')
     .toLocaleLowerCase('en-US');
 
-const isUsdcPasswordMatch = (password: string): boolean =>
-  canonicalizeUsdcPassword(password) === canonicalizeUsdcPassword(USDC_FEATURE_PASSWORD);
+const isUsdcUnlockPhraseMatch = (phrase: string): boolean =>
+  canonicalizeUsdcUnlockPhrase(phrase) === canonicalizeUsdcUnlockPhrase(USDC_FEATURE_UNLOCK_PHRASE);
 
 /**
  * Props for the AdvancedScreen component
@@ -74,13 +66,10 @@ interface SettingsOptionProps {
   testID?: string;
 }
 
-const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScreenProps): React.ReactElement {
-  const {
-    onClose,
-    onSwitchAccount,
-    onAdvancedModeToggle,
-    onEcashThresholdPress,
-  } = route.params;
+const AdvancedScreen = React.memo(function AdvancedScreen({
+  route,
+}: AdvancedScreenProps): React.ReactElement {
+  const { onClose, onSwitchAccount, onAdvancedModeToggle, onEcashThresholdPress } = route.params;
 
   // Get advancedMode and ecashThreshold directly from context so they update when toggled
   const { settingsHandlers } = useSettingsHandlers();
@@ -90,14 +79,15 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   const operationEntries = useOperationJournalStore((state) => state.entries);
   const clearTerminalOperations = useOperationJournalStore((state) => state.clearTerminalOlderThan);
   const [showUsdcPasswordPrompt, setShowUsdcPasswordPrompt] = React.useState(false);
-  const [usdcPassword, setUsdcPassword] = React.useState('');
-  const [usdcPasswordError, setUsdcPasswordError] = React.useState<string | null>(null);
-  const [usdcPasswordSubmitting, setUsdcPasswordSubmitting] = React.useState(false);
-  const activeOperationCount = operationEntries.filter((entry) =>
-    entry.stage === 'pending' ||
-    entry.stage === 'submit' ||
-    entry.stage === 'auth' ||
-    entry.stage === 'recoverable'
+  const [usdcUnlockPhrase, setUsdcUnlockPhrase] = React.useState('');
+  const [usdcUnlockPhraseError, setUsdcUnlockPhraseError] = React.useState<string | null>(null);
+  const [usdcUnlockPhraseSubmitting, setUsdcUnlockPhraseSubmitting] = React.useState(false);
+  const activeOperationCount = operationEntries.filter(
+    (entry) =>
+      entry.stage === 'pending' ||
+      entry.stage === 'submit' ||
+      entry.stage === 'auth' ||
+      entry.stage === 'recoverable'
   ).length;
 
   // Format threshold display value
@@ -136,52 +126,55 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               void settingsHandlers.handleDisableUsdcFeatures();
             },
           },
-        ],
+        ]
       );
       return;
     }
 
-    setUsdcPassword('');
-    setUsdcPasswordError(null);
+    setUsdcUnlockPhrase('');
+    setUsdcUnlockPhraseError(null);
     setShowUsdcPasswordPrompt(true);
   };
 
   const handleCancelUsdcPassword = (): void => {
-    if (usdcPasswordSubmitting) return;
+    if (usdcUnlockPhraseSubmitting) return;
     setShowUsdcPasswordPrompt(false);
-    setUsdcPassword('');
-    setUsdcPasswordError(null);
+    setUsdcUnlockPhrase('');
+    setUsdcUnlockPhraseError(null);
   };
 
-  const enableUsdcWithPassword = React.useCallback(async (
-    password: string,
-    options: { showError: boolean } = { showError: true },
-  ): Promise<void> => {
-    if (usdcPasswordSubmitting) return;
+  const enableUsdcWithPassword = React.useCallback(
+    async (
+      unlockPhrase: string,
+      options: { showError: boolean } = { showError: true }
+    ): Promise<void> => {
+      if (usdcUnlockPhraseSubmitting) return;
 
-    setUsdcPasswordError(null);
-    setUsdcPasswordSubmitting(true);
-    const enabled = await settingsHandlers.handleEnableUsdcFeatures(
-      isUsdcPasswordMatch(password) ? USDC_FEATURE_PASSWORD : password,
-    );
-    setUsdcPasswordSubmitting(false);
+      setUsdcUnlockPhraseError(null);
+      setUsdcUnlockPhraseSubmitting(true);
+      const enabled = await settingsHandlers.handleEnableUsdcFeatures(
+        isUsdcUnlockPhraseMatch(unlockPhrase) ? USDC_FEATURE_UNLOCK_PHRASE : unlockPhrase
+      );
+      setUsdcUnlockPhraseSubmitting(false);
 
-    if (enabled) {
-      setShowUsdcPasswordPrompt(false);
-      setUsdcPassword('');
-      setUsdcPasswordError(null);
-    } else if (options.showError) {
-      setUsdcPasswordError('Incorrect password. Enter the developer password exactly.');
-    }
-  }, [settingsHandlers, usdcPasswordSubmitting]);
+      if (enabled) {
+        setShowUsdcPasswordPrompt(false);
+        setUsdcUnlockPhrase('');
+        setUsdcUnlockPhraseError(null);
+      } else if (options.showError) {
+        setUsdcUnlockPhraseError('Incorrect phrase. Enter the developer unlock phrase exactly.');
+      }
+    },
+    [settingsHandlers, usdcUnlockPhraseSubmitting]
+  );
 
   const handleSubmitUsdcPassword = async (): Promise<void> => {
-    await enableUsdcWithPassword(usdcPassword);
+    await enableUsdcWithPassword(usdcUnlockPhrase);
   };
 
   const handleUsdcPasswordChange = (nextPassword: string): void => {
-    setUsdcPassword(nextPassword);
-    if (isUsdcPasswordMatch(nextPassword)) {
+    setUsdcUnlockPhrase(nextPassword);
+    if (isUsdcUnlockPhraseMatch(nextPassword)) {
       void enableUsdcWithPassword(nextPassword, { showError: false });
     }
   };
@@ -189,8 +182,8 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
   React.useEffect(() => {
     if (!usdcFeaturesEnabled || !showUsdcPasswordPrompt) return;
     setShowUsdcPasswordPrompt(false);
-    setUsdcPassword('');
-    setUsdcPasswordError(null);
+    setUsdcUnlockPhrase('');
+    setUsdcUnlockPhraseError(null);
   }, [showUsdcPasswordPrompt, usdcFeaturesEnabled]);
 
   const handleClearCompletedOperations = (): void => {
@@ -203,11 +196,16 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
           text: 'Clear',
           onPress: () => clearTerminalOperations(0),
         },
-      ],
+      ]
     );
   };
 
-  logger.debug('[AdvancedScreen] Rendering with advancedMode:', advancedMode, 'ecashThreshold:', ecashThreshold);
+  logger.debug(
+    '[AdvancedScreen] Rendering with advancedMode:',
+    advancedMode,
+    'ecashThreshold:',
+    ecashThreshold
+  );
 
   return (
     <ScreenLayout testID="advanced-screen">
@@ -273,10 +271,11 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
           <View style={styles.passwordModalCard} testID="enable-usdc-password-modal">
             <Text style={styles.passwordModalTitle}>Enable USDC</Text>
             <Text style={styles.passwordModalBody}>
-              Enter the developer password to reveal USDC cards, vault USDC payout, and swap entry points.
+              Enter the developer unlock phrase to reveal USDC cards, vault USDC payout, and swap
+              entry points.
             </Text>
             <TextInput
-              value={usdcPassword}
+              value={usdcUnlockPhrase}
               onChangeText={handleUsdcPasswordChange}
               secureTextEntry
               autoCapitalize="none"
@@ -285,36 +284,40 @@ const AdvancedScreen = React.memo(function AdvancedScreen({ route }: AdvancedScr
               autoComplete="off"
               textContentType="none"
               returnKeyType="done"
-              onSubmitEditing={() => { void handleSubmitUsdcPassword(); }}
-              placeholder="Developer password"
+              onSubmitEditing={() => {
+                void handleSubmitUsdcPassword();
+              }}
+              placeholder="Unlock phrase"
               placeholderTextColor="#777"
               style={styles.passwordInput}
               testID="enable-usdc-password-input"
-              accessibilityLabel="Enable USDC password"
-              editable={!usdcPasswordSubmitting}
+              accessibilityLabel="Enable USDC unlock phrase"
+              editable={!usdcUnlockPhraseSubmitting}
             />
-            {usdcPasswordError ? (
+            {usdcUnlockPhraseError ? (
               <Text style={styles.passwordErrorText} testID="enable-usdc-password-error">
-                {usdcPasswordError}
+                {usdcUnlockPhraseError}
               </Text>
             ) : null}
             <View style={styles.passwordModalActions}>
               <TouchableOpacity
                 style={[styles.passwordModalButton, styles.passwordModalSecondaryButton]}
                 onPress={handleCancelUsdcPassword}
-                disabled={usdcPasswordSubmitting}
+                disabled={usdcUnlockPhraseSubmitting}
                 testID="enable-usdc-cancel-btn"
               >
                 <Text style={styles.passwordModalSecondaryText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.passwordModalButton, styles.passwordModalPrimaryButton]}
-                onPress={() => { void handleSubmitUsdcPassword(); }}
-                disabled={usdcPasswordSubmitting}
+                onPress={() => {
+                  void handleSubmitUsdcPassword();
+                }}
+                disabled={usdcUnlockPhraseSubmitting}
                 testID="enable-usdc-confirm-btn"
               >
                 <Text style={styles.passwordModalPrimaryText}>
-                  {usdcPasswordSubmitting ? 'Checking...' : 'Enable'}
+                  {usdcUnlockPhraseSubmitting ? 'Checking...' : 'Enable'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -382,7 +385,11 @@ function OperationJournalPanel({
         <Text style={styles.journalEmptyText}>No pending or recent operations.</Text>
       ) : (
         recentEntries.map((entry) => (
-          <View key={entry.id} style={styles.journalEntry} testID="advanced-operation-journal-entry">
+          <View
+            key={entry.id}
+            style={styles.journalEntry}
+            testID="advanced-operation-journal-entry"
+          >
             <View style={styles.journalEntryTopRow}>
               <Text style={styles.journalEntryTitle}>{formatOperationKind(entry.kind)}</Text>
               <Text style={styles.journalEntryStage}>{entry.stage}</Text>
@@ -410,7 +417,7 @@ const SettingsOption = React.memo(function SettingsOption({
   title,
   onPress,
   rightText,
-  testID
+  testID,
 }: SettingsOptionProps): React.ReactElement {
   const handlePress = (): void => {
     logger.debug(`[AdvancedScreen] SettingsOption pressed: ${title}`);
@@ -420,7 +427,12 @@ const SettingsOption = React.memo(function SettingsOption({
   };
 
   return (
-    <TouchableOpacity style={styles.option} onPress={handlePress} activeOpacity={0.7} testID={testID}>
+    <TouchableOpacity
+      style={styles.option}
+      onPress={handlePress}
+      activeOpacity={0.7}
+      testID={testID}
+    >
       <View style={styles.optionLeft}>
         <Icon name={iconName} size={24} color="#DDDDDD" />
         <Text style={styles.optionTitle}>{title}</Text>

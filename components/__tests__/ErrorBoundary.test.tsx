@@ -137,14 +137,14 @@ describe('ErrorBoundary', () => {
     expect(mockOnReset).toHaveBeenCalledTimes(1);
   });
 
-  it('should display error emoji', () => {
+  it('should display warning marker', () => {
     const { getByText } = render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />
       </ErrorBoundary>
     );
 
-    expect(getByText('⚠️')).toBeTruthy();
+    expect(getByText('!')).toBeTruthy();
   });
 
   it('should use custom boundary name in logger', () => {

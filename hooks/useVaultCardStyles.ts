@@ -65,7 +65,20 @@ export function useVaultCardStyles(): VaultCardStyles {
       fontSize: sf(14),
     },
     vaultOverlay: vault.vaultOverlay,
-    createVaultButton: vault.createVaultButton,
+    emptyVaultContent: {
+      flex: 1,
+      minWidth: 0,
+      gap: s(2),
+    },
+    emptyVaultSubtitle: {
+      ...vault.vaultLabel,
+      fontSize: sf(12),
+    },
+    createVaultButton: {
+      ...vault.createVaultButton,
+      minWidth: s(124),
+      alignItems: 'center',
+    },
     createVaultButtonText: {
       ...vault.createVaultButtonText,
       fontSize: sf(14),

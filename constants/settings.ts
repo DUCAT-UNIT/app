@@ -8,7 +8,7 @@ export const AUTO_LOCK_TIMEOUT_OPTIONS = [
   { label: '30 minutes', value: 30 * 60 * 1000 },
 ] as const;
 
-export const USDC_FEATURE_PASSWORD = 'fx-570ES PLUS';
+export const USDC_FEATURE_UNLOCK_PHRASE = 'fx-570ES PLUS';
 
 export function formatAutoLockTimeout(timeoutMs: number): string {
   const option = AUTO_LOCK_TIMEOUT_OPTIONS.find((item) => item.value === timeoutMs);

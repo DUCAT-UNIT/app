@@ -8,10 +8,10 @@ import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import { Buffer } from 'buffer';
 import { getDerivationPathForType } from '../../../constants/bitcoin';
-import { deriveAddressesFromMnemonic,MUTINYNET_NETWORK } from '../../../utils/bitcoin';
+import { deriveAddressesFromMnemonic, MUTINYNET_NETWORK } from '../../../utils/bitcoin';
 import { logger } from '../../../utils/logger';
 import { getPrivateKeyForAddress } from '../../../utils/wallet';
-import { getCurrentAccount,withMnemonic } from '../../secureStorageService';
+import { getCurrentAccount, withMnemonic } from '../../secureStorageService';
 import { getWalletDerivationMode } from '../../walletDerivationService';
 
 // In-memory cache for P2PK private key (never persisted to disk)
@@ -75,9 +75,10 @@ export const findAccountForP2PKToken = async (
     currentAccountIndex,
     scanRange,
     totalAccountsToCheck: accountsToCheck.length,
-    message: currentAccountIndex >= maxAccounts
-      ? `Current account ${currentAccountIndex} extends scan range to ${scanRange}`
-      : `Using default scan range of ${maxAccounts}`,
+    message:
+      currentAccountIndex >= maxAccounts
+        ? `Current account ${currentAccountIndex} extends scan range to ${scanRange}`
+        : `Using default scan range of ${maxAccounts}`,
   });
 
   // Derive ALL keys in a single withMnemonic call for maximum performance
@@ -96,7 +97,11 @@ export const findAccountForP2PKToken = async (
       targetPubkeyLength: recipientPubkey?.length,
       accountsToScan: accountsToCheck.length,
     });
-    logger.debug('[findAccountForP2PKToken] Seed and root derived in', Date.now() - startTime, 'ms');
+    logger.debug(
+      '[findAccountForP2PKToken] Seed and root derived in',
+      Date.now() - startTime,
+      'ms'
+    );
 
     // Check each account
     for (let idx = 0; idx < accountsToCheck.length; idx++) {
@@ -191,7 +196,7 @@ export const findAccountForP2PKToken = async (
       }
     }
 
-    logger.warn(`[P2PK SCAN] ❌ NO MATCH FOUND after scanning ${accountsToCheck.length} accounts`);
+    logger.warn(`[P2PK SCAN] No match found after scanning ${accountsToCheck.length} accounts`);
     logger.warn('[P2PK SCAN] Target pubkey did not match scanned accounts', {
       targetPubkeyLength: recipientPubkey?.length,
     });
@@ -206,8 +211,10 @@ export const findAccountForP2PKToken = async (
   });
 
   if (!result) {
-    logger.warn('[P2PK SCAN] ⚠️ Token does not belong to any scanned account');
-    logger.warn(`[P2PK SCAN] Scanned accounts 0-${scanRange - 1} (total: ${accountsToCheck.length})`);
+    logger.warn('[P2PK SCAN] Token does not belong to any scanned account');
+    logger.warn(
+      `[P2PK SCAN] Scanned accounts 0-${scanRange - 1} (total: ${accountsToCheck.length})`
+    );
     logger.warn(`[P2PK SCAN] Current account was: ${currentAccountIndex}`);
     logger.cashu('p2pk_no_matching_account', {
       step: 'ACCOUNT_MATCH',
@@ -218,7 +225,9 @@ export const findAccountForP2PKToken = async (
       message: 'Token does not belong to any scanned account',
     });
   } else {
-    logger.info(`[P2PK SCAN] ✅ MATCH FOUND! Account ${result.accountIndex}, Address: ${result.address}`);
+    logger.info(`[P2PK SCAN] Match found for account ${result.accountIndex}`, {
+      address: result.address,
+    });
   }
 
   return result;

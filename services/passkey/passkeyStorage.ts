@@ -5,8 +5,8 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { logger } from '../../utils/logger';
-import { loadFromICloud,saveToICloud } from '../icloudStorage';
-import { saveCurrentAccount,saveMnemonic } from '../secureStorageService';
+import { loadFromICloud, saveToICloud } from '../icloudStorage';
+import { saveCurrentAccount, saveMnemonic } from '../secureStorageService';
 import { PASSKEY_KEYS } from './core';
 
 const DEVICE_ONLY = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
@@ -105,13 +105,15 @@ export const backupToICloudWithVerification = async ({
     verificationLog = '\n\n=== VERIFICATION (immediate read-back) ===\n';
     try {
       const verifyBackup = await loadFromICloud();
-      verificationLog += '✅ iCloud data verified - immediate read-back successful\n';
-      verificationLog += `Keys found: ${Object.keys(verifyBackup).filter(k => k !== '_debugInfo').join(', ')}\n`;
+      verificationLog += '[ok] iCloud data verified - immediate read-back successful\n';
+      verificationLog += `Keys found: ${Object.keys(verifyBackup)
+        .filter((k) => k !== '_debugInfo')
+        .join(', ')}\n`;
       if (verifyBackup._debugInfo) {
         verificationLog += '\n' + verifyBackup._debugInfo;
       }
     } catch (verifyError) {
-      verificationLog += '❌ iCloud verification failed\n';
+      verificationLog += '[error] iCloud verification failed\n';
       verificationLog += (verifyError as Error).message;
     }
 
@@ -129,17 +131,17 @@ export const backupToICloudWithVerification = async ({
       hasNetwork: 'Check if device has internet connection',
     });
 
-    // Throw detailed error for debugging
+    // Preserve storage-provider details for support diagnostics.
     throw new Error(
       `iCloud backup failed.\n\n` +
-      `Error: ${error.message}\n` +
-      `Code: ${error.code || 'N/A'}\n` +
-      `Name: ${error.name || 'N/A'}\n\n` +
-      `Check:\n` +
-      `- iCloud is enabled in Settings\n` +
-      `- Signed into iCloud\n` +
-      `- Has storage space\n` +
-      `- Has network connection`
+        `Error: ${error.message}\n` +
+        `Code: ${error.code || 'N/A'}\n` +
+        `Name: ${error.name || 'N/A'}\n\n` +
+        `Check:\n` +
+        `- iCloud is enabled in Settings\n` +
+        `- Signed into iCloud\n` +
+        `- Has storage space\n` +
+        `- Has network connection`
     );
   }
 };

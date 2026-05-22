@@ -44,6 +44,7 @@ const mockSetNotificationChannelAsync = Notifications.setNotificationChannelAsyn
 const mockDeleteJSON = deleteJSON as jest.Mock;
 const mockPostJSON = postJSON as jest.Mock;
 const mockGetNotificationsEnabled = getNotificationsEnabled as jest.Mock;
+const PUSH_API_BASE_URL = 'https://config.ducatprotocol.com';
 
 // ─── getExpoPushToken ────────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ describe('registerPushToken', () => {
       await registerPushToken('ExponentPushToken[abc]', 'tb1pMY_ADDRESS');
 
       expect(mockPostJSON).toHaveBeenCalledWith(
-        'https://notifications.ducatprotocol.com/api/register',
+        `${PUSH_API_BASE_URL}/api/register`,
         {
           token: 'ExponentPushToken[abc]',
           walletAddress: 'tb1pMY_ADDRESS',
@@ -211,7 +212,7 @@ describe('unregisterPushToken', () => {
       await unregisterPushToken('ExponentPushToken[xyz]');
 
       expect(mockDeleteJSON).toHaveBeenCalledWith(
-        'https://notifications.ducatprotocol.com/api/unregister',
+        `${PUSH_API_BASE_URL}/api/unregister`,
         { token: 'ExponentPushToken[xyz]' }
       );
       expect(mockPostJSON).not.toHaveBeenCalled();
@@ -339,7 +340,7 @@ describe('watchTransaction', () => {
     await watchTransaction('txid1234567890', 'tb1pMY_ADDRESS', 'liquidation');
 
     expect(mockPostJSON).toHaveBeenCalledWith(
-      'https://notifications.ducatprotocol.com/api/watch-tx',
+      `${PUSH_API_BASE_URL}/api/watch-tx`,
       {
         txid: 'txid1234567890',
         token: 'ExponentPushToken[watch-token]',
@@ -354,7 +355,7 @@ describe('watchTransaction', () => {
     await watchTransaction('vaulttxid1234567890', 'tb1pMY_ADDRESS', 'vault_operation');
 
     expect(mockPostJSON).toHaveBeenCalledWith(
-      'https://notifications.ducatprotocol.com/api/watch-tx',
+      `${PUSH_API_BASE_URL}/api/watch-tx`,
       expect.objectContaining({
         txid: 'vaulttxid1234567890',
         type: 'vault transaction',
@@ -395,7 +396,7 @@ describe('initializePushNotifications', () => {
       await initializePushNotifications('tb1pADDRESS');
 
       expect(mockPostJSON).toHaveBeenCalledWith(
-        'https://notifications.ducatprotocol.com/api/register',
+        `${PUSH_API_BASE_URL}/api/register`,
         expect.objectContaining({ token: 'ExponentPushToken[init-token]', walletAddress: 'tb1pADDRESS' })
       );
     });

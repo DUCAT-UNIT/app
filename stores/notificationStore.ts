@@ -66,12 +66,12 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
   // Snackbar Actions
   showSnackbar: (snackbarParams: SnackbarParams) => {
-    logger.debug('🎯 NotificationStore showSnackbar called with:', snackbarParams);
+    logger.debug('NotificationStore showSnackbar called', snackbarParams);
 
     // If we just dismissed a snackbar, ignore new ones briefly
     // Exception: success/error snackbars always show (they're important confirmations)
     if (dismissCooldown && snackbarParams.type !== 'success' && snackbarParams.type !== 'error') {
-      logger.debug('🎯 Ignoring snackbar during cooldown period');
+      logger.debug('Ignoring snackbar during cooldown period');
       return;
     }
 
@@ -101,7 +101,10 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
         // Don't allow going backwards in state (e.g., submitted -> pending)
         if (currentRank < lastRank && snackbarParams.type !== 'error') {
-          logger.debug('🎯 Ignoring backward state transition:', prevSnackbar.type, '->', snackbarParams.type);
+          logger.debug('Ignoring backward snackbar state transition', {
+            from: prevSnackbar.type,
+            to: snackbarParams.type,
+          });
           return;
         }
       }

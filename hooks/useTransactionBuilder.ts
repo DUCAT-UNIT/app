@@ -426,7 +426,7 @@ export function useTransactionBuilder({
   const cancelIntent = useCallback(async () => {
     if (!sendIntent) return;
 
-    logger.debug('🚫 Canceling transaction intent');
+    logger.debug('Canceling transaction intent');
 
     // Only release UTXOs if not broadcast
     if (!sendIntent.txid) {
@@ -450,7 +450,7 @@ export function useTransactionBuilder({
       }
 
       if (utxosToRelease.length > 0) {
-        logger.debug('✅ Releasing UTXOs', { count: utxosToRelease.length });
+        logger.debug('Releasing UTXOs', { count: utxosToRelease.length });
         await unmarkUtxosAsSpent(utxosToRelease);
       }
     }

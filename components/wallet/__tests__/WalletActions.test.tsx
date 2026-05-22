@@ -73,6 +73,16 @@ describe('WalletActions', () => {
     expect(onReceivePress).toHaveBeenCalledTimes(1);
   });
 
+  it('orders vault actions as borrow, repay, deposit, withdraw', () => {
+    const { toJSON } = render(<WalletActions {...baseProps} />);
+    const tree = JSON.stringify(toJSON());
+    const labels = ['Borrow', 'Repay', 'Deposit', 'Withdraw'];
+    const labelPositions = labels.map((label) => tree.indexOf(`"${label}"`));
+
+    expect(labelPositions.every((position) => position >= 0)).toBe(true);
+    expect(labelPositions).toEqual([...labelPositions].sort((a, b) => a - b));
+  });
+
   it('routes withdraw and deposit through vault buttons', () => {
     const onWithdrawPress = jest.fn();
     const onDepositPress = jest.fn();

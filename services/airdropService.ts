@@ -6,7 +6,8 @@
 import { postJSON } from '../utils/apiClient';
 import { API, NETWORK_DISPLAY_NAME, NETWORK_CONFIG } from '../utils/constants';
 
-const DUMMY_CAPTCHA = 'XXXX.DUMMY.TOKEN.XXXX';
+// Public Mutinynet faucet sentinel. This is not an application secret.
+const TESTNET_FAUCET_CAPTCHA_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX';
 
 export interface AirdropResponse {
   txId: string;
@@ -34,7 +35,7 @@ export const requestAirdrop = async (segwitAddress: string): Promise<AirdropResp
     API.FAUCET,
     {
       address: segwitAddress,
-      captchaToken: DUMMY_CAPTCHA,
+      captchaToken: TESTNET_FAUCET_CAPTCHA_TOKEN,
       network: NETWORK_CONFIG.api.faucetNetwork,
     },
     { description: 'Request airdrop' }

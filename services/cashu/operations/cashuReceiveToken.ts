@@ -164,10 +164,10 @@ export const receiveToken = async (
       message: hasP2PKProofs ? 'Token contains P2PK locked proofs' : 'Regular token (no P2PK)',
     });
 
-    // If P2PK locked, verify token belongs to current account and get the private key
+    // P2PK tokens must be locked to the active account before redemption.
     let p2pkPrivateKey: string | null = null;
     if (hasP2PKProofs) {
-      logger.info('⚠️ P2PK token detected, verifying account ownership');
+      logger.info('[P2PK TOKEN] Verifying account ownership');
 
       // Extract recipient pubkey from first P2PK proof
       let recipientPubkey: string | null = null;
@@ -184,45 +184,41 @@ export const receiveToken = async (
       }
 
       if (recipientPubkey) {
-        // Get current account first to log it
         const currentAccountIndex = await getCurrentAccount();
-        logger.info(`[P2PK TOKEN] 📍 Current account index: ${currentAccountIndex}`);
+        logger.info('[P2PK TOKEN] Current account loaded', { currentAccountIndex });
 
         // Find which account owns this pubkey - this also returns the correct private key
         const accountMatch = await findAccountForP2PKToken(recipientPubkey);
 
         if (!accountMatch) {
-          logger.error('[P2PK TOKEN] ❌ No matching account found for P2PK token');
+          logger.error('[P2PK TOKEN] No matching account found for token');
           throw new Error(
             'This token is not locked to any of your accounts. Make sure you are using the correct wallet.'
           );
         }
 
-        logger.info(`[P2PK TOKEN] ✅ Token locked to account: ${accountMatch.accountIndex}`);
-        logger.info(
-          `[P2PK TOKEN] 🔄 Comparing: current=${currentAccountIndex}, lockedTo=${accountMatch.accountIndex}`
-        );
+        logger.info('[P2PK TOKEN] Account match found', {
+          lockedToAccountIndex: accountMatch.accountIndex,
+          currentAccountIndex,
+        });
 
         if (accountMatch.accountIndex !== currentAccountIndex) {
-          logger.error('⚠️ ACCOUNT MISMATCH - blocking claim');
+          logger.error('[P2PK TOKEN] Account mismatch; blocking claim');
           throw new Error(
             `This proof belongs to account ${accountMatch.accountIndex + 1}. Please switch to that account to claim this token.`
           );
         }
 
-        logger.info('✅ P2PK token verified for current account', {
+        logger.info('[P2PK TOKEN] Token verified for current account', {
           accountIndex: currentAccountIndex,
         });
 
-        // Use the private key from accountMatch - this is the correct key for this specific token
         p2pkPrivateKey = accountMatch.privateKey;
-        logger.info('[P2PK TOKEN] Using private key from account match (not cached key)');
       } else {
-        logger.warn('⚠️ Could not extract recipient pubkey from P2PK token');
+        logger.warn('[P2PK TOKEN] Could not extract recipient pubkey from token');
       }
     }
 
-    // Use the private key we got from findAccountForP2PKToken
     const privateKey = p2pkPrivateKey;
 
     const keysetId = unitKeyset.id;
@@ -230,10 +226,9 @@ export const receiveToken = async (
 
     let proofsToSwap = proofs;
 
-    // If P2PK locked, sign them with the private key we already got
     if (hasP2PKProofs && privateKey) {
       const t5 = Date.now();
-      logger.info('[P2PK TOKEN] About to sign proofs with privateKey');
+      logger.info('[P2PK TOKEN] Signing locked proofs');
       proofsToSwap = await signP2PKProofs(proofs, privateKey);
       logger.info('[PERF] P2PK signing took', { durationMs: Date.now() - t5 });
 
@@ -313,8 +308,7 @@ export const receiveToken = async (
     );
     logger.info('[PERF] Unblind signatures took', { durationMs: Date.now() - t8 });
 
-    // SECURITY: Verify the swap returned proofs matching the expected total amount.
-    // A malicious mint could return fewer/different proofs, causing silent fund loss.
+    // Verify the mint returned the exact expected amount before saving proofs.
     const newProofsTotal = sumProofs(newProofs);
     if (newProofsTotal !== outputAmount) {
       logger.error('SECURITY: Swap proof amount mismatch', {
@@ -377,9 +371,9 @@ export const receiveToken = async (
       }
     }
 
-    // CRITICAL: If all retries failed, log proofs for manual recovery
+    // If all retries fail, keep the recovery record for startup reconciliation.
     if (!saveSuccess) {
-      logger.error('CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK', {
+      logger.error('Failed to save received proofs after all retries; recovery record retained', {
         error: lastError?.message,
         proofCount: newProofs.length,
         amount: outputAmount,
@@ -407,9 +401,8 @@ export const receiveToken = async (
         }
       }
 
-      // Re-throw the error to notify the user
       throw new Error(
-        `Critical error: Received proofs from mint but failed to save locally. Error: ${lastError?.message}. Proofs logged for recovery.`
+        `Received proofs from mint but failed to save locally. Error: ${lastError?.message}. A recovery record was retained.`
       );
     }
 

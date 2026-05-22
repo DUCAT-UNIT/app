@@ -89,7 +89,8 @@ export function useOutputExtraction({
       // Calculate rune change amount for UNIT transactions
       let runeChangeAmount = 0;
       if (sendAssetType === 'unit' && intent.assetType === 'UNIT' && intent.amount) {
-        const intentAmount = typeof intent.amount === 'string' ? parseFloat(intent.amount) : intent.amount;
+        const intentAmount =
+          typeof intent.amount === 'string' ? parseFloat(intent.amount) : intent.amount;
 
         let totalRuneInput = 0;
         if (intent.runeUtxos && intent.runeUtxos.length > 0) {
@@ -125,7 +126,7 @@ export function useOutputExtraction({
               outputData.runeAmount = runeChangeAmount;
             }
 
-            logger.debug('✅ Adding change output:', outputData);
+            logger.debug('Adding change output', outputData);
             outputs.push(outputData);
           }
         } catch (_error) {

@@ -1,9 +1,3 @@
-/**
- * Mock Icon Component for Testing
- */
-
-console.log('[MOCK] Loading Icon mock from __mocks__/icons.js');
-
 const React = require('react');
 
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -16,8 +10,6 @@ interface IconProps {
 }
 
 const Icon = React.memo(({ name, size, color, style }: IconProps) => {
-  console.log('[MOCK] Icon called with name:', name);
-  // Return a simple View-like element for testing
   return React.createElement('MockIcon', { testID: `icon-${name}` }, name);
 });
 

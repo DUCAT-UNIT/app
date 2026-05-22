@@ -1,8 +1,12 @@
 import React from 'react';
-import { getQuantaMobileRewardStatus } from '../../services/quantaRewardService';
+import {
+  getQuantaMobileRewardStatus,
+  getQuantaMobileRewardStatuses,
+} from '../../services/quantaRewardService';
 import * as WalletService from '../../services/walletService';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  UNISAT_WALLET_DERIVATION_MODE,
   getWalletProfileForDerivationMode,
   type WalletDerivationMode,
 } from '../../constants/bitcoin';
@@ -33,6 +37,16 @@ import {
   type QuantaMobileWalletPayload,
 } from './quantaLinkUtils';
 
+function getAddressEntryRequestId(entry: AccountAddressEntry): string {
+  return `${entry.derivationMode}:${entry.accountIndex}:${entry.addressType}:${entry.address.toLowerCase()}`;
+}
+
+function getPrimaryQuantaAddressType(
+  derivationMode: WalletDerivationMode
+): AccountAddressEntry['addressType'] {
+  return derivationMode === UNISAT_WALLET_DERIVATION_MODE ? 'taproot' : 'legacy';
+}
+
 interface UseQuantaAccountDiscoveryParams {
   canCheckAddress: boolean;
   currentAccount: number;
@@ -61,6 +75,7 @@ interface UseQuantaAccountDiscoveryResult {
   selectedCandidate: QuantaAccountCandidate | undefined;
   selectedCandidateKey: string | null;
   setAccountCandidates: React.Dispatch<React.SetStateAction<QuantaAccountCandidate[]>>;
+  setConnectedCompatibilityMode: React.Dispatch<React.SetStateAction<boolean>>;
   setIsDiscoveringAccounts: React.Dispatch<React.SetStateAction<boolean>>;
   setSelectedCandidateKey: React.Dispatch<React.SetStateAction<string | null>>;
 }
@@ -84,6 +99,8 @@ export function useQuantaAccountDiscovery({
   const [accountCandidates, setAccountCandidates] = React.useState<QuantaAccountCandidate[]>([]);
   const [isDiscoveringAccounts, setIsDiscoveringAccounts] = React.useState(false);
   const [selectedCandidateKey, setSelectedCandidateKey] = React.useState<string | null>(null);
+  const [connectedCompatibilityMode, setConnectedCompatibilityMode] = React.useState(false);
+  const batchStatusUnavailableRef = React.useRef(false);
 
   const selectedCandidate = React.useMemo(
     () =>
@@ -113,6 +130,16 @@ export function useQuantaAccountDiscovery({
       return;
     }
 
+    if (connectedCompatibilityMode) {
+      setMatchedAccountIndex(null);
+      setMatchedAccountAddresses(null);
+      setMatchedAccountDerivationMode(null);
+      setHasCheckedAddress(true);
+      setAccountCheckError(NO_MATCH_ACCOUNT_MESSAGE);
+      setAccountCandidates([]);
+      return;
+    }
+
     let isCancelled = false;
     setHasCheckedAddress(false);
     setAccountCheckError(null);
@@ -124,7 +151,10 @@ export function useQuantaAccountDiscovery({
         | typeof ACCOUNT_CHECK_TIMEOUT_RESULT;
 
       withTimeout<AccountCheckResult>(
-        WalletService.findAccountByWalletAddress(normalizedQuantaAddress, 100),
+        WalletService.findAccountByWalletAddress(
+          normalizedQuantaAddress,
+          QUANTA_ACCOUNT_MATCH_SEARCH_LIMIT
+        ),
         ACCOUNT_COMPATIBILITY_TIMEOUT_MS,
         ACCOUNT_CHECK_TIMEOUT_RESULT,
         'quanta_account_compatibility_check'
@@ -170,6 +200,7 @@ export function useQuantaAccountDiscovery({
     };
   }, [
     canCheckAddress,
+    connectedCompatibilityMode,
     currentAccount,
     currentAddressMatches,
     currentDerivationMode,
@@ -238,7 +269,9 @@ export function useQuantaAccountDiscovery({
         ? [enteredAddressAccount]
         : normalizedTargetAddress
           ? []
-          : await WalletService.deriveWalletAccounts(QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT);
+          : await WalletService.deriveWalletAccounts(QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT, [
+              currentDerivationMode,
+            ]);
       if (signal?.aborted) {
         return [];
       }
@@ -312,6 +345,72 @@ export function useQuantaAccountDiscovery({
       const checkEntries = async (
         entriesToCheck: AccountAddressEntry[]
       ): Promise<QuantaAccountCandidate[]> => {
+        if (entriesToCheck.length === 0) {
+          return [];
+        }
+
+        const entryByRequestId = new Map(
+          entriesToCheck.map((entry) => [getAddressEntryRequestId(entry), entry])
+        );
+        const batchRequestKey = `quanta-discovery-batch:${entriesToCheck
+          .map(getAddressEntryRequestId)
+          .join('|')}`;
+
+        if (!batchStatusUnavailableRef.current) {
+          try {
+            const batchResult = await getQuantaMobileRewardStatuses(
+              entriesToCheck.map((entry) => ({
+                requestId: getAddressEntryRequestId(entry),
+                quantaAddress: entry.address,
+                ...getQuantaWalletPayloadFromAddresses(entry.address, entry.addresses),
+              })),
+              {
+                storeConnectedAddress: false,
+                dedupeKey: batchRequestKey,
+                cacheKey: batchRequestKey,
+                cacheTtlMs: QUANTA_DISCOVERY_STATUS_CACHE_TTL_MS,
+                staleOnError: true,
+                circuitKey: QUANTA_DISCOVERY_STATUS_CIRCUIT_KEY,
+                timeout: QUANTA_DISCOVERY_STATUS_TIMEOUT_MS,
+                signal,
+              }
+            );
+
+            if (signal?.aborted) {
+              return [];
+            }
+
+            return normalizeCandidates(
+              batchResult.results.map((result) => {
+                const entry = entryByRequestId.get(result.requestId);
+                if (!entry || !result.status.user || !result.status.stats) {
+                  return null;
+                }
+
+                return {
+                  accountIndex: entry.accountIndex,
+                  derivationMode: entry.derivationMode,
+                  walletProfile: entry.walletProfile,
+                  addressType: entry.addressType,
+                  quantaAddress: entry.address,
+                  status: result.status,
+                  addresses: entry.addresses,
+                } satisfies QuantaAccountCandidate;
+              })
+            );
+          } catch (error: unknown) {
+            if (signal?.aborted) {
+              return [];
+            }
+
+            batchStatusUnavailableRef.current = true;
+            logger.debug('[QuantaLinkScreen] Quanta account batch check failed; falling back', {
+              entries: entriesToCheck.length,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
         const results = await mapWithConcurrency(
           entriesToCheck,
           QUANTA_ACCOUNT_DISCOVERY_CONCURRENCY,
@@ -378,23 +477,36 @@ export function useQuantaAccountDiscovery({
               entry.accountIndex === currentAccount &&
               entry.derivationMode === currentDerivationMode
           );
-      const priorityKeys = new Set(
-        priorityEntries.map(
-          (entry) => `${entry.derivationMode}:${entry.accountIndex}:${entry.addressType}`
-        )
-      );
+      const priorityKeys = new Set(priorityEntries.map(getAddressEntryRequestId));
+      const primaryAddressType = getPrimaryQuantaAddressType(currentDerivationMode);
+      const primaryEntries = normalizedTargetAddress
+        ? []
+        : entries.filter(
+            (entry) =>
+              !priorityKeys.has(getAddressEntryRequestId(entry)) &&
+              entry.derivationMode === currentDerivationMode &&
+              entry.addressType === primaryAddressType
+          );
+      const primaryKeys = new Set(primaryEntries.map(getAddressEntryRequestId));
       const remainingEntries = normalizedTargetAddress
         ? []
         : entries.filter(
             (entry) =>
-              !priorityKeys.has(
-                `${entry.derivationMode}:${entry.accountIndex}:${entry.addressType}`
-              )
+              !priorityKeys.has(getAddressEntryRequestId(entry)) &&
+              !primaryKeys.has(getAddressEntryRequestId(entry))
           );
       const batches: AccountAddressEntry[][] = normalizedTargetAddress ? [entries] : [];
 
       if (!normalizedTargetAddress && priorityEntries.length > 0) {
         batches.push(priorityEntries);
+      }
+
+      for (
+        let index = 0;
+        index < primaryEntries.length;
+        index += QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE
+      ) {
+        batches.push(primaryEntries.slice(index, index + QUANTA_ACCOUNT_DISCOVERY_BATCH_SIZE));
       }
 
       for (
@@ -473,6 +585,7 @@ export function useQuantaAccountDiscovery({
     selectedCandidate,
     selectedCandidateKey,
     setAccountCandidates,
+    setConnectedCompatibilityMode,
     setIsDiscoveringAccounts,
     setSelectedCandidateKey,
   };

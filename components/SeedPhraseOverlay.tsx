@@ -1,5 +1,14 @@
 import React from 'react';
-import { Animated,GestureResponderHandlers,StyleSheet,Text,TextStyle,TouchableOpacity,View,ViewStyle } from 'react-native';
+import {
+  Animated,
+  GestureResponderHandlers,
+  StyleSheet,
+  Text,
+  TextStyle,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { COLORS } from '../theme';
 import MutinynetBanner from './MutinynetBanner';
 
@@ -8,7 +17,9 @@ interface SeedPhraseOverlayProps {
   seedPhraseWords: string[];
   seedPhraseVisible: boolean;
   seedPhraseTranslateX: Animated.Value;
-  seedPhrasePanResponderRef: React.MutableRefObject<{ panHandlers: GestureResponderHandlers } | null>;
+  seedPhrasePanResponderRef: React.MutableRefObject<{
+    panHandlers: GestureResponderHandlers;
+  } | null>;
   setSeedPhraseVisible: (visible: boolean) => void;
   closeSeedPhrase: () => void;
   styles: {
@@ -52,7 +63,7 @@ export default function SeedPhraseOverlay({
       <View style={[styles.container, localStyles.contentContainer]}>
         <View style={styles.walletInfo}>
           <Text style={styles.seedPhraseWarning}>
-            ⚠️ Keep these words safe and private! Never share them with anyone.
+            Keep these words safe and private. Never share them with anyone.
           </Text>
 
           <View style={styles.seedGrid}>

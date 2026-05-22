@@ -27,6 +27,7 @@ export const saveMnemonic = async (mnemonic: string): Promise<void> => {
 ```
 
 **Services using this pattern:**
+
 - `walletService.ts` - All wallet operations
 - `transactionBroadcastService.ts` - Transaction broadcasting
 - `cashuMintOperations.ts` - Mint operations
@@ -65,6 +66,7 @@ export const loadProofs = async (): Promise<CashuProof[]> => {
 ```
 
 **Services using this pattern:**
+
 - `balanceService.ts` - `fetchBtcPrice()` returns null on failure
 - `cashuProofManager.ts` - `loadProofs()` returns empty array
 - `secureStorageService.ts` - Get operations return null
@@ -105,6 +107,7 @@ export const authenticateWithBiometrics = async (): Promise<AuthResult> => {
 ```
 
 **Services using this pattern:**
+
 - `biometricService.ts` - Authentication results
 - `pinLockout.ts` - Lockout status checks
 
@@ -148,6 +151,6 @@ logger.error('Failed to save mnemonic', { error, operation: 'saveMnemonic' });
 // Recoverable failures (returns default)
 logger.warn('Failed to load cached price, will fetch', { error });
 
-// Debug information
+// Diagnostic detail
 logger.debug('Attempting to load proofs', { accountId });
 ```

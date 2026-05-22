@@ -147,7 +147,7 @@ export function readVarInt(buffer: Buffer, offset: number): { value: number; byt
 }
 
 /**
- * Extract OP_RETURN from raw transaction hex for debugging
+ * Extract OP_RETURN from raw transaction hex for vault diagnostics.
  */
 export function extractOpReturnFromTxHex(txHex: string | undefined): string | null {
   if (!txHex) return null;

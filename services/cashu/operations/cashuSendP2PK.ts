@@ -279,8 +279,7 @@ export const sendP2PKToken = async (
       throw new Error('Proofs are not spendable - aborting swap');
     }
 
-    // CRITICAL: Save pending swap BEFORE calling the mint
-    // This allows recovery if app crashes after swap but before saving proofs
+    // Persist the pending swap before calling the mint so interrupted sends can recover.
     assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK swap setup');
     pendingSwapId = await savePendingSwap({
       inputProofs: selectedProofs,
@@ -304,7 +303,7 @@ export const sendP2PKToken = async (
       `P2PK ${unit} send swap`
     );
 
-    // CRITICAL: Save the mint's response immediately for recovery
+    // Persist the mint response immediately; after this point input proofs may be spent.
     await updateSwapWithResponse(
       {
         signatures: response.signatures,
@@ -344,7 +343,6 @@ export const sendP2PKToken = async (
       (proof) => secretTypeMap.get(proof.secret) === 'change'
     );
 
-    // Debug logging for proof amounts and secret types
     const sendTotal = proofsToSend.reduce((sum, p) => sum + p.amount, 0);
     const changeTotal = changeProofs.reduce((sum, p) => sum + p.amount, 0);
     if (sendTotal !== amount || changeTotal !== totalChangeAmount) {
@@ -352,7 +350,7 @@ export const sendP2PKToken = async (
         `P2PK swap proof classification failed: send=${sendTotal}/${amount}, change=${changeTotal}/${totalChangeAmount}`
       );
     }
-    logger.info('P2PK token split details', {
+    logger.debug('P2PK token split details', {
       requestedAmount: amount,
       selectedAmount,
       sendProofs: proofsToSend.length,
@@ -363,12 +361,11 @@ export const sendP2PKToken = async (
       difference: selectedAmount - inputFees - (sendTotal + changeTotal),
     });
 
-    // Log secret types to verify correct identification
-    logger.info('Send proof secret types', {
+    logger.debug('P2PK send proof classification', {
       count: proofsToSend.length,
       areAllP2PK: proofsToSend.every((p) => p.secret.startsWith('["P2PK"')),
     });
-    logger.info('Change proof secret types', {
+    logger.debug('P2PK change proof classification', {
       count: changeProofs.length,
       areAllNormal: changeProofs.every((p) => !p.secret.startsWith('["P2PK"')),
     });
@@ -395,7 +392,7 @@ export const sendP2PKToken = async (
       });
     }
 
-    // CRITICAL: Save change proofs FIRST, then remove spent proofs
+    // Save change proofs before removing spent proofs so interrupted sends can recover.
     // This order ensures we never lose change if app crashes mid-operation
     // If we crash after adding change but before removing spent, we might have
     // duplicates, but that's better than losing proofs (duplicates are cleaned
@@ -432,7 +429,7 @@ export const sendP2PKToken = async (
       throw proofError;
     }
 
-    // CRITICAL: Clear the pending swap AFTER all proofs are saved
+    // Clear the pending swap only after all proof mutations complete.
     try {
       assertCashuOperationAccountUnchanged(operationAccount, 'Cashu P2PK swap cleanup');
       await clearPendingSwap(pendingSwapId ?? undefined);
@@ -463,7 +460,7 @@ export const sendP2PKToken = async (
   } catch (error: unknown) {
     logger.error('Failed to send P2PK token', { error: (error as Error).message });
 
-    // CRITICAL: Recovery — the swap may have already completed on the mint,
+    // Recovery: the swap may have already completed on the mint,
     // meaning our selected proofs are spent. We must attempt to recover change
     // proofs from the pending swap data to prevent fund loss.
     // (The swap recovery service will handle this on next startup via savePendingSwap)

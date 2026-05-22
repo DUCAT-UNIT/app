@@ -132,7 +132,9 @@ function sendJournalLabel(
     return 'TurboUNIT claim submitted';
   }
   if (transaction.displayKind === 'turbo_redeem') {
-    return transaction.assetType === 'BTC' ? 'TurboBTC redeem submitted' : 'TurboUNIT redeem submitted';
+    return transaction.assetType === 'BTC'
+      ? 'TurboBTC redeem submitted'
+      : 'TurboUNIT redeem submitted';
   }
   return transaction.assetType === 'UNIT' ? 'UNIT send submitted' : 'BTC send submitted';
 }
@@ -265,10 +267,7 @@ const parsePendingTransactionsStorage = async (
   return parsed as Record<string, PendingTransaction>;
 };
 
-const parseSpentUtxosStorage = async (
-  storageKey: string,
-  stored: string
-): Promise<Set<string>> => {
+const parseSpentUtxosStorage = async (storageKey: string, stored: string): Promise<Set<string>> => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stored);
@@ -309,10 +308,7 @@ function clearPendingTransactionExpiryTimer(): void {
   }
 }
 
-function isExpiredPendingTransaction(
-  transaction: PendingTransaction,
-  now: number
-): boolean {
+function isExpiredPendingTransaction(transaction: PendingTransaction, now: number): boolean {
   return (
     transaction.status === 'pending' &&
     Number.isFinite(transaction.timestamp) &&
@@ -369,21 +365,20 @@ function getNextPendingTransactionExpiryDelay(
 function schedulePendingTransactionExpiryCheck(getState: () => PendingTransactionsStore): void {
   clearPendingTransactionExpiryTimer();
 
-  const delay = getNextPendingTransactionExpiryDelay(
-    getState().pendingTransactions,
-    Date.now()
-  );
+  const delay = getNextPendingTransactionExpiryDelay(getState().pendingTransactions, Date.now());
   if (delay === null) {
     return;
   }
 
   pendingTransactionExpiryTimer = setTimeout(() => {
     pendingTransactionExpiryTimer = null;
-    getState().cleanupExpiredTransactions().catch((error: unknown) => {
-      logger.error('[PendingTransactionsStore] Failed to auto-clean expired transactions', {
-        error: error instanceof Error ? error.message : String(error),
+    getState()
+      .cleanupExpiredTransactions()
+      .catch((error: unknown) => {
+        logger.error('[PendingTransactionsStore] Failed to auto-clean expired transactions', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
   }, delay);
   (pendingTransactionExpiryTimer as { unref?: () => void }).unref?.();
 }
@@ -451,8 +446,9 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       return;
     }
 
-    getPendingInputUtxoKeys(pendingTransactions as Record<string, UtilsPendingTransaction>)
-      .forEach((key) => spentUtxos.add(key));
+    getPendingInputUtxoKeys(pendingTransactions as Record<string, UtilsPendingTransaction>).forEach(
+      (key) => spentUtxos.add(key)
+    );
 
     const expiredCleanup = removeExpiredPendingTransactions(
       pendingTransactions,
@@ -537,8 +533,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       displayKind: options?.displayKind,
     };
 
-    let updatedPendingTransactions =
-      pendingTransactions as Record<string, UtilsPendingTransaction>;
+    let updatedPendingTransactions = pendingTransactions as Record<string, UtilsPendingTransaction>;
 
     inputUtxos?.forEach(({ txid: inputTxid, vout }) => {
       updatedPendingTransactions = removeUtxoFromPending(
@@ -676,7 +671,7 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
     const { pendingTransactions, spentUtxos } = get();
     const excludedKeys = buildExclusionSet(excludeFromIntent);
 
-    // Debug logging
+    // Emit redacted diagnostics for UTXO reconciliation.
     const txCount = Object.keys(pendingTransactions).length;
     logger.debug('[getUnconfirmedUTXOs] Pending transactions count:', { count: txCount });
     logger.debug('[getUnconfirmedUTXOs] Address type filter:', { addressType });
@@ -689,7 +684,6 @@ export const usePendingTransactionsStore = create<PendingTransactionsStore>((set
       keys: Array.from(spentUtxos).slice(0, 3),
     });
 
-    // Log each pending transaction
     Object.entries(pendingTransactions).forEach(([txid, tx]) => {
       logger.debug('[getUnconfirmedUTXOs] Pending tx:', {
         txid: txid.slice(0, 16) + '...',

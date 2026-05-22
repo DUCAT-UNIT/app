@@ -225,24 +225,6 @@ const WalletActions = React.memo(function WalletActions({
 
   const vaultActions: VaultActionButtonConfig[] = [
     {
-      disabled: repayDisabled,
-      icon: '↓',
-      label: 'Repay',
-      onPress: isPendingVaultTx
-        ? handleDisabledPress
-        : hasNoDebt
-          ? handleNoDebtPress
-          : onRepayPress,
-      testID: 'wallet-repay-btn',
-      disabledTestID: 'wallet-repay-btn-disabled',
-      accessibilityLabel: 'Repay vault debt',
-      accessibilityHint: isPendingVaultTx
-        ? 'Disabled while transaction is pending'
-        : hasNoDebt
-          ? 'No debt to repay'
-          : 'Opens the repay screen',
-    },
-    {
       disabled: borrowDisabled,
       icon: '↑',
       label: 'Borrow',
@@ -265,22 +247,22 @@ const WalletActions = React.memo(function WalletActions({
             : 'Opens the borrow screen',
     },
     {
-      disabled: withdrawDisabled,
-      icon: '−',
-      label: 'Withdraw',
+      disabled: repayDisabled,
+      icon: '↓',
+      label: 'Repay',
       onPress: isPendingVaultTx
         ? handleDisabledPress
-        : !hasVaultCollateral
-          ? handleNoVaultCollateralPress
-          : onWithdrawPress,
-      testID: 'wallet-withdraw-btn',
-      disabledTestID: 'wallet-withdraw-btn-disabled',
-      accessibilityLabel: 'Withdraw vault collateral',
+        : hasNoDebt
+          ? handleNoDebtPress
+          : onRepayPress,
+      testID: 'wallet-repay-btn',
+      disabledTestID: 'wallet-repay-btn-disabled',
+      accessibilityLabel: 'Repay vault debt',
       accessibilityHint: isPendingVaultTx
         ? 'Disabled while transaction is pending'
-        : !hasVaultCollateral
-          ? 'No vault collateral to withdraw'
-          : 'Opens the vault withdraw screen',
+        : hasNoDebt
+          ? 'No debt to repay'
+          : 'Opens the repay screen',
     },
     {
       disabled: depositDisabled,
@@ -299,6 +281,24 @@ const WalletActions = React.memo(function WalletActions({
         : !hasVault
           ? 'Create a vault before depositing collateral'
           : 'Opens the vault deposit screen',
+    },
+    {
+      disabled: withdrawDisabled,
+      icon: '−',
+      label: 'Withdraw',
+      onPress: isPendingVaultTx
+        ? handleDisabledPress
+        : !hasVaultCollateral
+          ? handleNoVaultCollateralPress
+          : onWithdrawPress,
+      testID: 'wallet-withdraw-btn',
+      disabledTestID: 'wallet-withdraw-btn-disabled',
+      accessibilityLabel: 'Withdraw vault collateral',
+      accessibilityHint: isPendingVaultTx
+        ? 'Disabled while transaction is pending'
+        : !hasVaultCollateral
+          ? 'No vault collateral to withdraw'
+          : 'Opens the vault withdraw screen',
     },
   ];
 
@@ -353,7 +353,9 @@ const WalletActions = React.memo(function WalletActions({
           <Text style={styles.vaultTitle}>Vault</Text>
           {isPendingVaultTx && <Text style={styles.vaultPendingLabel}>Pending</Text>}
         </View>
-        <View style={styles.vaultActionsRow}>{vaultActions.map(renderVaultAction)}</View>
+        <View style={styles.vaultActionsRow} testID="wallet-vault-actions-row">
+          {vaultActions.map(renderVaultAction)}
+        </View>
       </View>
 
       <View style={styles.walletRow}>

@@ -5,7 +5,6 @@
 
 import React, { memo, useMemo } from 'react';
 import { View, Text, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../icons';
 import { COLORS } from '../../theme';
 import { formatBalance } from '../../utils/formatters';
@@ -15,9 +14,6 @@ import { formatVaultUsd } from '../../utils/vaultFaceValue';
 const VAULT_LOGO_SIZE = 28;
 const CURRENCY_ICON_SIZE = 10;
 const COLLATERAL_DECIMAL_PLACES = 8;
-const GRADIENT_START = { x: 0.5, y: 0 };
-const GRADIENT_END = { x: 0.5, y: 1 };
-
 export interface VaultCardStyles {
   vaultCard: ViewStyle;
   vaultIconContainer: ViewStyle;
@@ -35,6 +31,8 @@ export interface VaultCardStyles {
   assetAmountIcon: ViewStyle;
   assetAmount: TextStyle;
   vaultOverlay: ViewStyle;
+  emptyVaultContent: ViewStyle;
+  emptyVaultSubtitle: TextStyle;
   createVaultButton: ViewStyle;
   createVaultButtonText: TextStyle;
 }
@@ -71,17 +69,53 @@ export default memo(function VaultCard({
   );
   const vaultHealthLabel = vaultHealthPercentage === Infinity ? '∞' : String(vaultHealthPercentage);
 
+  if (!hasVault) {
+    const createDisabled = creatingVault || isPendingVaultTx;
+    const createLabel = createDisabled ? 'Creating...' : 'Create Vault';
+
+    return (
+      <TouchableOpacity
+        style={styles.vaultCard}
+        onPress={onCreateVault}
+        activeOpacity={0.85}
+        disabled={createDisabled}
+        testID="vault-card"
+        accessibilityRole="button"
+        accessibilityLabel={createDisabled ? 'Creating vault' : 'Create vault'}
+        accessibilityHint="Creates a new vault to borrow dollar-denominated liquidity against your Bitcoin"
+        accessibilityState={{ disabled: createDisabled }}
+      >
+        <View style={styles.vaultIconContainer} accessibilityElementsHidden>
+          <Icon name="vault_logo" size={VAULT_LOGO_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
+        </View>
+        <View
+          style={[styles.vaultContentWrapper, styles.emptyVaultContent]}
+          accessibilityElementsHidden
+        >
+          <Text style={styles.vaultAssetName}>Vault</Text>
+          <Text style={styles.emptyVaultSubtitle}>No active vault</Text>
+        </View>
+        <View
+          style={[styles.createVaultButton, createDisabled && { opacity: 0.7 }]}
+          testID={createDisabled ? 'creating-vault-status' : 'create-vault-btn'}
+        >
+          <Text style={styles.createVaultButtonText} numberOfLines={1}>
+            {createLabel}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       style={styles.vaultCard}
-      onPress={hasVault ? onVaultPress : undefined}
-      activeOpacity={hasVault ? 0.7 : 1}
-      disabled={!hasVault}
+      onPress={onVaultPress}
+      activeOpacity={0.7}
       testID="vault-card"
       accessibilityRole="button"
-      accessibilityLabel={hasVault ? `Vault with ${vaultHealthLabel}% health, ${formatVaultUsd(vaultDebt)} debt, ${formattedCollateral} BTC collateral` : "No vault created"}
-      accessibilityHint={hasVault ? "Opens vault details" : "Create a vault to borrow dollar-denominated liquidity"}
-      accessibilityState={{ disabled: !hasVault }}
+      accessibilityLabel={`Vault with ${vaultHealthLabel}% health, ${formatVaultUsd(vaultDebt)} debt, ${formattedCollateral} BTC collateral`}
+      accessibilityHint="Opens vault details"
     >
       <View style={styles.vaultIconContainer} accessibilityElementsHidden>
         <Icon name="vault_logo" size={VAULT_LOGO_SIZE} color={COLORS.VERY_LIGHT_GRAY} />
@@ -94,17 +128,13 @@ export default memo(function VaultCard({
               <Text style={styles.vaultAssetName}>Vault</Text>
             </View>
           </View>
-          <Text style={[styles.assetValue, { color: vaultHealthColor }]}>
-            {vaultHealthLabel}%
-          </Text>
+          <Text style={[styles.assetValue, { color: vaultHealthColor }]}>{vaultHealthLabel}%</Text>
         </View>
         <View style={styles.vaultDetailsContainer}>
           <View style={styles.vaultDetailRow}>
             <Text style={styles.vaultLabel}>Overall Debt</Text>
             <View style={styles.vaultValueContainer}>
-              <Text style={styles.assetAmount}>
-                {formatVaultUsd(vaultDebt)}
-              </Text>
+              <Text style={styles.assetAmount}>{formatVaultUsd(vaultDebt)}</Text>
             </View>
           </View>
           <View style={styles.vaultDetailRow}>
@@ -116,46 +146,11 @@ export default memo(function VaultCard({
                 color={COLORS.SECONDARY_TEXT}
                 style={styles.assetAmountIcon}
               />
-              <Text style={styles.assetAmount}>
-                {formattedCollateral}
-              </Text>
+              <Text style={styles.assetAmount}>{formattedCollateral}</Text>
             </View>
           </View>
         </View>
       </View>
-
-      {/* Create Vault Overlay - Only show when no vault exists */}
-      {!hasVault && (
-        <LinearGradient
-          colors={[COLORS.OVERLAY_START, COLORS.OVERLAY_END]}
-          style={styles.vaultOverlay}
-          start={GRADIENT_START}
-          end={GRADIENT_END}
-          testID="vault-overlay"
-        >
-          {isPendingVaultTx ? (
-            <View style={[styles.createVaultButton, { opacity: 0.7 }]} testID="creating-vault-status">
-              <Text style={styles.createVaultButtonText}>Creating your vault...</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.createVaultButton}
-              onPress={onCreateVault}
-              activeOpacity={0.8}
-              disabled={creatingVault}
-              testID="create-vault-btn"
-              accessibilityRole="button"
-              accessibilityLabel="Create vault"
-              accessibilityHint="Creates a new vault to borrow dollar-denominated liquidity against your Bitcoin"
-              accessibilityState={{ disabled: creatingVault }}
-            >
-              <Text style={styles.createVaultButtonText}>
-                {creatingVault ? 'Creating your vault...' : 'Create Vault'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </LinearGradient>
-      )}
     </TouchableOpacity>
   );
 });

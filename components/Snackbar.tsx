@@ -4,11 +4,11 @@
  * Adapted from frontend-app toast design
  */
 
-import React,{ useCallback,useEffect } from 'react';
-import { Animated,Linking,StyleSheet,Text,TouchableOpacity,View } from 'react-native';
-import Svg,{ Circle,Path } from 'react-native-svg';
+import React, { useCallback, useEffect } from 'react';
+import { Animated, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { COLORS } from '../theme';
-import type { SnackbarParams,SnackbarType } from '../types/notification';
+import type { SnackbarParams, SnackbarType } from '../types/notification';
 import { logger } from '../utils/logger';
 
 /**
@@ -52,27 +52,14 @@ const Icons = {
   Error: () => (
     <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
       <Circle cx={9} cy={9} r={9} fill={COLORS.DANGER_RED} />
-      <Path
-        d="M9 5V10"
-        stroke={COLORS.WHITE}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
+      <Path d="M9 5V10" stroke={COLORS.WHITE} strokeWidth={2} strokeLinecap="round" />
       <Circle cx={9} cy={13} r={1} fill={COLORS.WHITE} />
     </Svg>
   ),
   Warning: () => (
     <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
-      <Path
-        d="M9 1L17 16H1L9 1Z"
-        fill={COLORS.YELLOW}
-      />
-      <Path
-        d="M9 6V10"
-        stroke={COLORS.TEXT_BLACK}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-      />
+      <Path d="M9 1L17 16H1L9 1Z" fill={COLORS.YELLOW} />
+      <Path d="M9 6V10" stroke={COLORS.TEXT_BLACK} strokeWidth={1.5} strokeLinecap="round" />
       <Circle cx={9} cy={13} r={1} fill={COLORS.TEXT_BLACK} />
     </Svg>
   ),
@@ -80,12 +67,7 @@ const Icons = {
     <Svg width={18} height={18} viewBox="0 0 18 18" fill="none">
       <Circle cx={9} cy={9} r={9} fill={COLORS.PRIMARY_BLUE} />
       <Circle cx={9} cy={5} r={1} fill={COLORS.WHITE} />
-      <Path
-        d="M9 8V13"
-        stroke={COLORS.WHITE}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
+      <Path d="M9 8V13" stroke={COLORS.WHITE} strokeWidth={2} strokeLinecap="round" />
     </Svg>
   ),
   Progress: () => (
@@ -181,7 +163,7 @@ interface SnackbarProps {
 }
 
 export default function Snackbar({ params, onClose }: SnackbarProps) {
-  logger.debug('🎯 Snackbar rendering with params:', params);
+  logger.debug('Snackbar rendering with params', params);
 
   const slideAnim = React.useRef(new Animated.Value(-200)).current;
   const spinAnim = React.useRef(new Animated.Value(0)).current;
@@ -198,12 +180,12 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
   } = params;
 
   const isSpinning = type === 'progress' || type === 'pending';
-  const label = action ? (ACTION_LABELS[action] || 'Transaction') : 'Notification';
+  const label = action ? ACTION_LABELS[action] || 'Transaction' : 'Notification';
   const title = titleOverride || messageOverride || computeTitle(type, label, action);
   const IconComponent = Icons[TYPE_TO_ICON[type]];
 
   useEffect(() => {
-    logger.debug('🎯 Snackbar mounted, starting animation');
+    logger.debug('Snackbar mounted; starting animation');
 
     // Slide in animation
     Animated.spring(slideAnim, {
@@ -305,9 +287,7 @@ export default function Snackbar({ params, onClose }: SnackbarProps) {
                   key={`${button.label}-${index}`}
                   style={[
                     styles.actionButton,
-                    button.variant === 'primary'
-                      ? styles.primaryButton
-                      : styles.secondaryButton,
+                    button.variant === 'primary' ? styles.primaryButton : styles.secondaryButton,
                   ]}
                   onPress={button.onPress}
                 >

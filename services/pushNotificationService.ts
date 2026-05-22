@@ -12,6 +12,8 @@ import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 import { getNotificationsEnabled } from './settingsService';
 
+const PUSH_API_BASE_URL = 'https://config.ducatprotocol.com';
+
 interface GetExpoPushTokenOptions {
   requestPermissions?: boolean;
 }
@@ -84,7 +86,7 @@ export async function registerPushToken(token: string, walletAddress: string, va
   if (isE2E()) return;
 
   try {
-    await postJSON('https://notifications.ducatprotocol.com/api/register', {
+    await postJSON(`${PUSH_API_BASE_URL}/api/register`, {
       token,
       walletAddress,
       vaultPubkey,
@@ -106,7 +108,7 @@ export async function unregisterPushToken(token: string): Promise<void> {
   if (isE2E()) return;
 
   try {
-    await deleteJSON('https://notifications.ducatprotocol.com/api/unregister', { token });
+    await deleteJSON(`${PUSH_API_BASE_URL}/api/unregister`, { token });
     logger.info('[PushNotification] Token unregistered from backend');
   } catch (error: unknown) {
     logger.error('[PushNotification] Failed to unregister push token', {
@@ -177,7 +179,7 @@ export async function watchTransaction(
       return;
     }
 
-    await postJSON('https://notifications.ducatprotocol.com/api/watch-tx', {
+    await postJSON(`${PUSH_API_BASE_URL}/api/watch-tx`, {
       txid,
       token,
       walletAddress,

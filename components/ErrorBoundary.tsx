@@ -1,11 +1,5 @@
-/**
- * ErrorBoundary Component
- * Catches JavaScript errors anywhere in the component tree
- * Displays a fallback UI and logs errors for debugging
- */
-
 import React from 'react';
-import { StyleSheet,Text,TouchableOpacity,View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../theme';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
@@ -37,12 +31,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   static getDerivedStateFromError(_error: Error): Partial<ErrorBoundaryState> {
-    // Update state so the next render will show the fallback UI
     return { hasError: true };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Log the error using centralized logger
     logger.error(error, {
       componentStack: errorInfo.componentStack,
       boundary: this.props.boundaryName || 'ErrorBoundary',
@@ -57,7 +49,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       error_message: error.message,
     });
 
-    // Update state with error details
     this.setState({
       error,
       errorInfo,
@@ -65,14 +56,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   handleReset = (): void => {
-    // Reset the error boundary state
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null,
     });
 
-    // Call the optional onReset callback
     if (this.props.onReset) {
       this.props.onReset();
     }
@@ -80,11 +69,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   render() {
     if (this.state.hasError) {
-      // Render fallback UI
       return (
         <View style={styles.container}>
           <View style={styles.content}>
-            <Text style={styles.emoji}>⚠️</Text>
+            <View style={styles.warningBadge}>
+              <Text style={styles.warningBadgeText}>!</Text>
+            </View>
             <Text style={styles.title}>Something went wrong</Text>
             <Text style={styles.message}>
               {this.props.fallbackMessage ||
@@ -109,7 +99,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       );
     }
 
-    // No error, render children normally
     return this.props.children;
   }
 }
@@ -126,9 +115,21 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 64,
+  warningBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: COLORS.WARNING,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
+  },
+  warningBadgeText: {
+    color: COLORS.WARNING,
+    fontSize: 36,
+    fontWeight: '700',
+    fontFamily: 'CabinetGrotesk-Bold',
   },
   title: {
     fontSize: 24,

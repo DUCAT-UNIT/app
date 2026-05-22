@@ -237,7 +237,7 @@ export const receiveP2PKToken = async (
       outputCount: outputs.length,
     });
 
-    // Log only non-secret proof metadata for debugging signature issues.
+    // Log only non-secret proof metadata for signature diagnostics.
     signedProofs.forEach((proof, idx) => {
       let secretParsed: unknown = null;
       let lockedToPubkeyLength = 0;
@@ -390,10 +390,9 @@ export const receiveP2PKToken = async (
       error: (error as Error).message,
     });
 
-    // Enhanced error message with diagnostic info
     let errorMessage = (error as Error).message;
 
-    // Add diagnostic details to error message for debugging
+    // Add non-secret diagnostics for supportable P2PK failures.
     if (
       (error as Error).message.includes('P2PK verification failed') ||
       (error as Error).message.includes('Swap failed')
@@ -409,7 +408,6 @@ export const receiveP2PKToken = async (
         diagnostics.push(`Private key length is ${privateKey.length} chars (expected 64)`);
       }
 
-      // Add device info for debugging
       const Platform = require('react-native').Platform;
       diagnostics.push(`Platform: ${Platform.OS} ${Platform.Version}`);
 

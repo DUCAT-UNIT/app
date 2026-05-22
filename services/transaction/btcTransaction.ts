@@ -139,7 +139,7 @@ export async function createBtcIntent(
       });
     }
 
-    // Log UTXO sources for debugging
+    // Record UTXO source counts for send diagnostics.
     logger.info('[BTC Intent] UTXO sources:', {
       current: currentUtxos.length,
       currentTotal: currentUtxos.reduce((sum, u) => sum + u.value, 0),

@@ -5,11 +5,7 @@
 
 import { retrySilently, type RetryOptions } from './retry';
 import { fetchWithTimeout } from './api';
-import {
-  AppRequestError,
-  classifyError,
-  classifyHttpStatus,
-} from './errorTaxonomy';
+import { AppRequestError, classifyError, classifyHttpStatus } from './errorTaxonomy';
 import { logger } from './logger';
 import { runRequestWithPolicy } from './requestPolicy';
 import { analytics } from '../services/analyticsService';
@@ -31,7 +27,11 @@ const DEFAULT_HEADERS = {
 };
 
 function logApi(url: string, method: string, status: number, duration: number): void {
-  const apiLogger = (logger as typeof logger & { api?: (url: string, method: string, status: number, duration: number) => void }).api;
+  const apiLogger = (
+    logger as typeof logger & {
+      api?: (url: string, method: string, status: number, duration: number) => void;
+    }
+  ).api;
   if (typeof apiLogger === 'function') {
     apiLogger(url, method, status, duration);
   }
@@ -91,12 +91,7 @@ export async function postWithRetry(
   options: PostOptions = {}
 ): Promise<Response> {
   assertHttps(url);
-  const {
-    headers = {},
-    timeout = DEFAULT_TIMEOUT,
-    retryOptions = {},
-    signal,
-  } = options;
+  const { headers = {}, timeout = DEFAULT_TIMEOUT, retryOptions = {}, signal } = options;
 
   const startTime = Date.now();
   try {
@@ -145,12 +140,7 @@ export async function deleteWithRetry(
   options: DeleteOptions = {}
 ): Promise<Response> {
   assertHttps(url);
-  const {
-    headers = {},
-    timeout = DEFAULT_TIMEOUT,
-    retryOptions = {},
-    signal,
-  } = options;
+  const { headers = {}, timeout = DEFAULT_TIMEOUT, retryOptions = {}, signal } = options;
 
   const startTime = Date.now();
   try {
@@ -194,12 +184,7 @@ export async function deleteWithRetry(
  */
 export async function getWithRetry(url: string, options: GetOptions = {}): Promise<Response> {
   assertHttps(url);
-  const {
-    headers = {},
-    timeout = DEFAULT_TIMEOUT,
-    retryOptions = {},
-    signal,
-  } = options;
+  const { headers = {}, timeout = DEFAULT_TIMEOUT, retryOptions = {}, signal } = options;
 
   const startTime = Date.now();
   try {
@@ -240,38 +225,49 @@ export async function getWithRetry(url: string, options: GetOptions = {}): Promi
  * @param options - Additional options (see postWithRetry)
  * @returns Parsed JSON response
  */
-export async function postJSON<T = unknown>(url: string, body: unknown, options: PostOptions = {}): Promise<T> {
-  return runRequestWithPolicy(async () => {
-    const response = await postWithRetry(url, body, options);
+export async function postJSON<T = unknown>(
+  url: string,
+  body: unknown,
+  options: PostOptions = {}
+): Promise<T> {
+  return runRequestWithPolicy(
+    async () => {
+      const response = await postWithRetry(url, body, options);
 
-    // Check if response was successful
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string };
-      const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
-      if (response.status >= 500) {
-        analytics.track(ERROR_EVENTS.API_ERROR, {
+      // Check if response was successful
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        const errorMessage =
+          errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText}`;
+        if (response.status >= 500) {
+          analytics.track(ERROR_EVENTS.API_ERROR, {
+            endpoint: getEndpointPath(url),
+            status_code: response.status,
+            error: errorMessage,
+          });
+        }
+        throw new AppRequestError({
+          category: classifyHttpStatus(response.status),
+          message: errorMessage,
+          statusCode: response.status,
           endpoint: getEndpointPath(url),
-          status_code: response.status,
-          error: errorMessage,
+          method: 'POST',
         });
       }
-      throw new AppRequestError({
-        category: classifyHttpStatus(response.status),
-        message: errorMessage,
-        statusCode: response.status,
-        endpoint: getEndpointPath(url),
-        method: 'POST',
-      });
-    }
 
-    return response.json() as Promise<T>;
-  }, {
-    dedupeKey: options.dedupeKey,
-    cacheKey: options.cacheKey,
-    cacheTtlMs: options.cacheTtlMs,
-    staleOnError: options.staleOnError,
-    circuitKey: options.circuitKey,
-  });
+      return response.json() as Promise<T>;
+    },
+    {
+      dedupeKey: options.dedupeKey,
+      cacheKey: options.cacheKey,
+      cacheTtlMs: options.cacheTtlMs,
+      staleOnError: options.staleOnError,
+      circuitKey: options.circuitKey,
+    }
+  );
 }
 
 /**
@@ -332,47 +328,50 @@ export async function deleteJSON<T = unknown>(
  * @returns Parsed JSON response
  */
 export async function getJSON<T = unknown>(url: string, options: GetOptions = {}): Promise<T> {
-  return runRequestWithPolicy(async () => {
-    const response = await getWithRetry(url, options);
+  return runRequestWithPolicy(
+    async () => {
+      const response = await getWithRetry(url, options);
 
-    // Check if response is OK before parsing
-    if (!response.ok) {
-      const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      if (response.status >= 500) {
-        analytics.track(ERROR_EVENTS.API_ERROR, {
+      // Check if response is OK before parsing
+      if (!response.ok) {
+        const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        if (response.status >= 500) {
+          analytics.track(ERROR_EVENTS.API_ERROR, {
+            endpoint: getEndpointPath(url),
+            status_code: response.status,
+            error: errorMessage,
+          });
+        }
+        throw new AppRequestError({
+          category: classifyHttpStatus(response.status),
+          message: errorMessage,
+          statusCode: response.status,
           endpoint: getEndpointPath(url),
-          status_code: response.status,
-          error: errorMessage,
+          method: 'GET',
         });
       }
-      throw new AppRequestError({
-        category: classifyHttpStatus(response.status),
-        message: errorMessage,
-        statusCode: response.status,
-        endpoint: getEndpointPath(url),
-        method: 'GET',
-      });
-    }
 
-    // Check content-type to ensure it's JSON before parsing
-    const contentType = response.headers?.get?.('content-type');
-    if (contentType && !contentType.includes('application/json')) {
-      throw new AppRequestError({
-        category: 'api_client',
-        message: `Expected JSON response but got ${contentType}`,
-        endpoint: getEndpointPath(url),
-        method: 'GET',
-      });
-    }
+      // Check content-type to ensure it's JSON before parsing
+      const contentType = response.headers?.get?.('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        throw new AppRequestError({
+          category: 'api_client',
+          message: `Expected JSON response but got ${contentType}`,
+          endpoint: getEndpointPath(url),
+          method: 'GET',
+        });
+      }
 
-    return response.json() as Promise<T>;
-  }, {
-    dedupeKey: options.dedupeKey,
-    cacheKey: options.cacheKey,
-    cacheTtlMs: options.cacheTtlMs,
-    staleOnError: options.staleOnError,
-    circuitKey: options.circuitKey,
-  }).catch((error) => {
+      return response.json() as Promise<T>;
+    },
+    {
+      dedupeKey: options.dedupeKey,
+      cacheKey: options.cacheKey,
+      cacheTtlMs: options.cacheTtlMs,
+      staleOnError: options.staleOnError,
+      circuitKey: options.circuitKey,
+    }
+  ).catch((error) => {
     throw classifyError(error);
   });
 }
@@ -453,14 +452,15 @@ export async function fetchParallel<T = unknown>(operations: ParallelOperation<T
     fn().catch((error) => {
       // Only log as debug for network errors (these are expected to happen sometimes)
       const errorMessage = error instanceof Error ? error.message : String(error);
-      const isNetworkError = errorMessage.includes('HTTP 5') ||
-                             errorMessage.includes('timeout') ||
-                             errorMessage.includes('network') ||
-                             errorMessage.includes('Expected JSON') ||
-                             errorMessage.includes('Aborted') ||
-                             error instanceof DOMException;
+      const isNetworkError =
+        errorMessage.includes('HTTP 5') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('Expected JSON') ||
+        errorMessage.includes('Aborted') ||
+        error instanceof DOMException;
       if (isNetworkError) {
-        logger.debug(`⚠️ ${name} failed (using default): ${errorMessage}`);
+        logger.debug(`${name} failed; using default`, { error: errorMessage });
       } else {
         logger.error(error as Error, { operation: name });
       }

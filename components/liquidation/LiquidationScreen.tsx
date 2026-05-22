@@ -300,12 +300,12 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const stickyBottomOffset = useStickyActionBar ? (bottomInset ?? 0) : 0;
   const continueBottomInset = useStickyActionBar
     ? 0
-    : (bottomInset ?? Math.max(insets.bottom + 24, 38));
+    : Math.max(insets.bottom + 56, 82);
   const actionWrapStyle = [
-    useStickyActionBar ? styles.stickyActionWrap : styles.continueWrap,
+    useStickyActionBar ? styles.stickyActionWrap : styles.inputActionWrap,
     useStickyActionBar
       ? { bottom: stickyBottomOffset, paddingBottom: Math.max(insets.bottom + 14, 24) }
-      : { bottom: continueBottomInset },
+      : { paddingBottom: continueBottomInset },
   ];
 
   const bottomAction = shouldShowBottomButton ? (
@@ -346,6 +346,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           error={error}
           isStaleOpportunity={isStaleOpportunityError}
           remainingVaultCount={vaults.length}
+          bottomInset={stickyBottomOffset}
         />
       );
     }
@@ -432,6 +433,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
           onExpandToggle={handleExpandToggle}
           profitRate={profitRate}
           disabled={hasPendingVaultTx}
+          bottomPadding={24}
         />
       </View>
     );
@@ -508,12 +510,10 @@ const styles = StyleSheet.create({
   staleCardWrap: {
     paddingHorizontal: 16,
   },
-  continueWrap: {
-    position: 'absolute',
-    bottom: 38,
-    left: 24,
-    right: 24,
-    zIndex: 100,
+  inputActionWrap: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    backgroundColor: colors.bg.primary,
   },
   stickyActionWrap: {
     position: 'absolute',

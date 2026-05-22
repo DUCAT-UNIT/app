@@ -201,8 +201,7 @@ export const sendToken = async (
         throw new Error('Proofs are not spendable - aborting swap');
       }
 
-      // CRITICAL: Save pending swap BEFORE calling the mint
-      // This allows recovery if app crashes after swap but before saving proofs
+      // Persist the pending swap before calling the mint so interrupted sends can recover.
       assertCashuOperationAccountUnchanged(operationAccount, 'Cashu send swap setup');
       pendingSwapId = await savePendingSwap({
         inputProofs: selectedProofs,
@@ -213,8 +212,8 @@ export const sendToken = async (
         unit,
       });
 
-      // CRITICAL: After this swap, selectedProofs are spent with the mint
-      // If any error occurs after this, we MUST save changeProofs to avoid fund loss
+      // After this swap, selected proofs may be spent with the mint.
+      // Any later failure must preserve change proofs for recovery.
       const requireDleq = await mintRequiresDleqProofs();
       const response = await swapTokensAPI(selectedProofs, outputs);
       didSwap = true;
@@ -227,7 +226,7 @@ export const sendToken = async (
         `Cashu ${unit} send swap`
       );
 
-      // CRITICAL: Save the mint's response immediately for recovery
+      // Persist the mint response immediately; after this point input proofs may be spent.
       await updateSwapWithResponse(
         {
           signatures: response.signatures,
@@ -304,8 +303,7 @@ export const sendToken = async (
       });
     }
 
-    // CRITICAL: Save change proofs FIRST, then remove spent proofs
-    // This order ensures we never lose change if app crashes mid-operation
+    // Save change proofs before removing spent proofs so interrupted sends can recover.
     // If we crash after adding change but before removing spent, we might have
     // duplicates, but that's better than losing proofs (duplicates are cleaned
     // up by the mint on next spend attempt)
@@ -323,13 +321,13 @@ export const sendToken = async (
         changeCount: changeProofs.length,
       });
     } catch (proofError) {
-      // If we swapped and have change proofs, we MUST save them
+      // If we swapped and have change proofs, preserve them before surfacing the failure.
       if (didSwap && changeProofs && changeProofs.length > 0) {
         logger.warn('Error updating proofs after swap - attempting to save change proofs', {
           error: (proofError as Error).message,
         });
         try {
-          // Try to save change proofs even if removeProofs failed
+          // Try to save change proofs even if removing spent proofs failed.
           await addProofsForUnit(changeProofs, unit);
           logger.info('Successfully saved change proofs after removeProofs failure', {
             changeCount: changeProofs.length,
@@ -345,7 +343,7 @@ export const sendToken = async (
       throw proofError;
     }
 
-    // CRITICAL: Clear the pending swap AFTER all proofs are saved
+    // Clear the pending swap only after all proof mutations complete.
     if (didSwap) {
       try {
         assertCashuOperationAccountUnchanged(operationAccount, 'Cashu send swap cleanup');
@@ -371,13 +369,12 @@ export const sendToken = async (
   } catch (error: unknown) {
     logger.error('Failed to send token', { error: (error as Error).message, didSwap });
 
-    // CRITICAL: If we swapped for change but operation failed, we MUST save the change proofs
-    // The old proofs are already spent with the mint after the swap
+    // If the mint swap completed, preserve change proofs before surfacing the failure.
     if (didSwap && changeProofs && changeProofs.length > 0 && selectedProofs) {
       logger.warn('Send token failed after swap - saving change proofs to prevent fund loss');
       try {
         assertCashuOperationAccountUnchanged(operationAccount, 'Cashu send failure recovery');
-        // Save change proofs FIRST
+        // Save change proofs before removing spent proofs.
         await addProofsForUnit(changeProofs, unit);
         await removeProofsForUnit(selectedProofs, unit);
         if (outgoingTokenPersisted) {

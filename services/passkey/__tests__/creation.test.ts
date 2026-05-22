@@ -98,7 +98,8 @@ const mockSavePin = pinService.savePin as jest.Mock;
 describe('Passkey Creation', () => {
   const mockCredentialId = new Uint8Array([1, 2, 3, 4, 5]);
   const mockUserHandle = new Uint8Array([6, 7, 8, 9, 10]);
-  const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  const mockMnemonic =
+    'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   const mockEncrypted = 'encryptedData';
   const mockIv = 'ivData';
   const mockTag = 'tagData';
@@ -189,11 +190,13 @@ describe('Passkey Creation', () => {
     it('should throw error if passkeys not supported', async () => {
       (isPasskeySupported as jest.Mock).mockResolvedValue(false);
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123456',
-      })).rejects.toThrow('Passkeys not supported');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123456',
+        })
+      ).rejects.toThrow('Passkeys not supported');
     });
 
     it('should throw error if iCloud not available', async () => {
@@ -202,25 +205,31 @@ describe('Passkey Creation', () => {
         error: 'Not signed in',
       });
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123456',
-      })).rejects.toThrow('iCloud not available');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123456',
+        })
+      ).rejects.toThrow('iCloud not available');
     });
 
     it('should throw error if PIN is invalid', async () => {
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123',
-      })).rejects.toThrow('PIN is required');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123',
+        })
+      ).rejects.toThrow('PIN is required');
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '',
-      })).rejects.toThrow('PIN is required');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '',
+        })
+      ).rejects.toThrow('PIN is required');
     });
 
     it('should throw error if PIN salt is invalid', async () => {
@@ -229,11 +238,13 @@ describe('Passkey Creation', () => {
         salt: 'invalid-salt',
       });
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123456',
-      })).rejects.toThrow('Invalid or missing PIN salt');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123456',
+        })
+      ).rejects.toThrow('Invalid or missing PIN salt');
     });
 
     it('should throw error if PIN salt is missing', async () => {
@@ -242,11 +253,13 @@ describe('Passkey Creation', () => {
         salt: '',
       });
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123456',
-      })).rejects.toThrow('Invalid or missing PIN salt');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123456',
+        })
+      ).rejects.toThrow('Invalid or missing PIN salt');
     });
 
     it('should return backup promise that resolves successfully', async () => {
@@ -277,21 +290,21 @@ describe('Passkey Creation', () => {
       expect(backupResult.error).toBe('iCloud backup failed');
     });
 
-    it('should include debug log in error messages', async () => {
-      (createPasskeyCredential as jest.Mock).mockRejectedValue(
-        new Error('User cancelled')
-      );
+    it('should include diagnostics in error messages', async () => {
+      (createPasskeyCredential as jest.Mock).mockRejectedValue(new Error('User cancelled'));
 
-      await expect(createWalletWithPasskey({
-        userName: 'test@example.com',
-        userDisplayName: 'Test User',
-        pin: '123456',
-      })).rejects.toThrow('WALLET CREATION DEBUG LOG');
+      await expect(
+        createWalletWithPasskey({
+          userName: 'test@example.com',
+          userDisplayName: 'Test User',
+          pin: '123456',
+        })
+      ).rejects.toThrow('Wallet creation diagnostics');
     });
 
-    it('should preserve existing debug log in error', async () => {
+    it('should preserve existing diagnostics in error', async () => {
       const errorWithDebugLog = new Error(
-        '=== WALLET CREATION DEBUG LOG ===\nStep 1\n❌ ERROR: Custom error'
+        'Wallet creation diagnostics\nStep 1\nError: Custom error'
       );
       (isPasskeySupported as jest.Mock).mockRejectedValue(errorWithDebugLog);
 
@@ -314,7 +327,7 @@ describe('Passkey Creation', () => {
       });
 
       // Wait for async backup to start
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(backupToICloudWithVerification).toHaveBeenCalledWith({
         encrypted: mockEncrypted,
@@ -336,10 +349,9 @@ describe('Passkey Creation', () => {
         pin: '123456',
       });
 
-      expect(logger.debug).toHaveBeenCalledWith(
-        'Creating wallet with passkey',
-        { userName: 'test@example.com' }
-      );
+      expect(logger.debug).toHaveBeenCalledWith('Creating wallet with passkey', {
+        userName: 'test@example.com',
+      });
       expect(logger.debug).toHaveBeenCalledWith('Generating random mnemonic...');
       expect(logger.debug).toHaveBeenCalledWith('Random mnemonic generated successfully');
     });
@@ -353,7 +365,10 @@ describe('Passkey Creation', () => {
         if (key === SECURE_KEYS.PIN_SALT) return Promise.resolve(mockPinSalt);
         return Promise.resolve(mockPinSalt);
       });
-      (backupToICloudWithVerification as jest.Mock).mockResolvedValue({ debugInfo: '', verificationLog: '' });
+      (backupToICloudWithVerification as jest.Mock).mockResolvedValue({
+        debugInfo: '',
+        verificationLog: '',
+      });
     });
 
     it('should add passkey to existing wallet successfully', async () => {
@@ -377,32 +392,23 @@ describe('Passkey Creation', () => {
     it('should throw error if mnemonic is invalid', async () => {
       (bip39.validateMnemonic as jest.Mock).mockReturnValue(false);
 
-      await expect(addPasskeyToExistingWallet(
-        'invalid mnemonic',
-        'test@example.com',
-        'Test User',
-        '123456'
-      )).rejects.toThrow('Invalid mnemonic');
+      await expect(
+        addPasskeyToExistingWallet('invalid mnemonic', 'test@example.com', 'Test User', '123456')
+      ).rejects.toThrow('Invalid mnemonic');
     });
 
     it('should throw error if passkeys not supported', async () => {
       (isPasskeySupported as jest.Mock).mockResolvedValue(false);
 
-      await expect(addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      )).rejects.toThrow('Passkeys are not supported');
+      await expect(
+        addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456')
+      ).rejects.toThrow('Passkeys are not supported');
     });
 
     it('should throw error if PIN is invalid', async () => {
-      await expect(addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123'
-      )).rejects.toThrow('PIN is required');
+      await expect(
+        addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123')
+      ).rejects.toThrow('PIN is required');
     });
 
     it('should create new PIN salt if not exists', async () => {
@@ -420,24 +426,14 @@ describe('Passkey Creation', () => {
         return true;
       });
 
-      await addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      );
+      await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
 
       expect(mockSavePin).toHaveBeenCalledWith('123456');
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT);
     });
 
     it('should use existing PIN salt if available', async () => {
-      await addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      );
+      await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
 
       expect(mockSavePin).not.toHaveBeenCalled();
       expect(deriveEncryptionKey).toHaveBeenCalledWith(
@@ -456,21 +452,13 @@ describe('Passkey Creation', () => {
         return Promise.resolve('invalid-salt');
       });
 
-      await expect(addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      )).rejects.toThrow('Invalid or missing PIN salt');
+      await expect(
+        addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456')
+      ).rejects.toThrow('Invalid or missing PIN salt');
     });
 
     it('should store passkey data without creation method', async () => {
-      await addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      );
+      await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
 
       expect(storePasskeyData).toHaveBeenCalledWith({
         credentialId: mockCredentialId,
@@ -482,12 +470,7 @@ describe('Passkey Creation', () => {
     });
 
     it('should preserve a standard PIN wallet after enabling passkey recovery', async () => {
-      await addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      );
+      await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
         SECURE_KEYS.MNEMONIC,
@@ -502,12 +485,7 @@ describe('Passkey Creation', () => {
     });
 
     it('should backup to iCloud with PIN salt', async () => {
-      await addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      );
+      await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
 
       expect(backupToICloudWithVerification).toHaveBeenCalledWith({
         encrypted: mockEncrypted,
@@ -525,24 +503,16 @@ describe('Passkey Creation', () => {
     it('should throw error if iCloud backup fails', async () => {
       (backupToICloudWithVerification as jest.Mock).mockRejectedValue(new Error('Network error'));
 
-      await expect(addPasskeyToExistingWallet(
-        mockMnemonic,
-        'test@example.com',
-        'Test User',
-        '123456'
-      )).rejects.toThrow('Failed to backup passkey to iCloud');
+      await expect(
+        addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456')
+      ).rejects.toThrow('Failed to backup passkey to iCloud');
     });
 
     it('should log critical error when iCloud backup fails', async () => {
       (backupToICloudWithVerification as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       try {
-        await addPasskeyToExistingWallet(
-          mockMnemonic,
-          'test@example.com',
-          'Test User',
-          '123456'
-        );
+        await addPasskeyToExistingWallet(mockMnemonic, 'test@example.com', 'Test User', '123456');
       } catch (error) {
         // Expected to throw
       }

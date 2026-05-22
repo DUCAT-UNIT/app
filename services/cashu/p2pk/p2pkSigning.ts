@@ -10,7 +10,7 @@
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { Buffer } from 'buffer';
 import { logger } from '../../../utils/logger';
-import { CashuProof,isP2PKLocked } from './p2pkVerification';
+import { CashuProof, isP2PKLocked } from './p2pkVerification';
 const { createHash } = require('react-native-quick-crypto');
 
 /**
@@ -33,7 +33,7 @@ const { createHash } = require('react-native-quick-crypto');
 type P2PKSecretParsed = ['P2PK', { data?: string; [key: string]: unknown }];
 
 export const signP2PKSecret = async (secret: string, privateKey: string): Promise<string> => {
-  // Parse secret to extract P2PK details for debugging
+  // Parse only enough metadata to validate the signing key without logging the secret.
   let secretParsed: P2PKSecretParsed | null = null;
   let expectedPubkey: string | null = null;
   try {
@@ -64,11 +64,10 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     });
 
     // Convert private key to Buffer if needed
-    const privateKeyBuffer = typeof privateKey === 'string'
-      ? Buffer.from(privateKey, 'hex')
-      : privateKey;
+    const privateKeyBuffer =
+      typeof privateKey === 'string' ? Buffer.from(privateKey, 'hex') : privateKey;
 
-    // Derive public key from private key for debugging comparison
+    // Derive the public key to confirm the selected account matches the token lock.
     let derivedPubkey: string | null = null;
     try {
       const pubkeyFull = ecc.pointFromScalar(privateKeyBuffer);
@@ -85,7 +84,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 
     logger.cashu('p2pk_key_comparison', {
       step: 'SIGNING',
-      pubkeysMatch: expectedPubkey && derivedPubkey ? expectedPubkey === derivedPubkey : 'CANNOT_COMPARE',
+      pubkeysMatch:
+        expectedPubkey && derivedPubkey ? expectedPubkey === derivedPubkey : 'CANNOT_COMPARE',
       derivedPubkeyAvailable: !!derivedPubkey,
     });
 
@@ -120,7 +120,7 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
 
     // Create witness structure
     const witness = {
-      signatures: [signatureHex]
+      signatures: [signatureHex],
     };
 
     logger.cashu('p2pk_witness_created', {
@@ -134,10 +134,8 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error('Failed to sign P2PK secret', { error: errorMessage });
 
-    // Create enhanced error with diagnostics for user
     const diagnostics: string[] = [];
 
-    // Capture what we know
     if (secret) {
       diagnostics.push(`Secret length: ${secret.length}`);
     } else {
@@ -151,7 +149,6 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
       diagnostics.push('Private key is null/undefined');
     }
 
-    // Add original error details
     diagnostics.push(`Error: ${errorMessage}`);
 
     const enhancedMessage = `P2PK signing failed\n\n${diagnostics.join('\n')}`;
@@ -172,8 +169,11 @@ export const signP2PKSecret = async (secret: string, privateKey: string): Promis
  * const signedProofs = await signP2PKProofs(mixedProofs, walletPrivateKey);
  * // P2PK proofs now have witness field, regular proofs unchanged
  */
-export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): Promise<CashuProof[]> => {
-  const p2pkCount = proofs.filter(p => isP2PKLocked(p)).length;
+export const signP2PKProofs = async (
+  proofs: CashuProof[],
+  privateKey: string
+): Promise<CashuProof[]> => {
+  const p2pkCount = proofs.filter((p) => isP2PKLocked(p)).length;
 
   logger.cashu('p2pk_batch_sign_start', {
     step: 'SIGNING',
@@ -201,7 +201,7 @@ export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): 
         // Add witness to proof
         return {
           ...proof,
-          witness
+          witness,
         };
       } else {
         // Not P2PK locked, no witness needed
@@ -215,7 +215,7 @@ export const signP2PKProofs = async (proofs: CashuProof[], privateKey: string): 
   logger.cashu('p2pk_batch_sign_complete', {
     step: 'SIGNING',
     totalProofs: signedProofs.length,
-    signedProofs: signedProofs.filter(p => p.witness).length,
+    signedProofs: signedProofs.filter((p) => p.witness).length,
     signingTimeMs,
     message: 'All P2PK proofs signed successfully',
   });

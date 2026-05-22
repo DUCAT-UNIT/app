@@ -33,6 +33,8 @@ interface QuantaAddressFormProps {
   isCheckingDifferentWallet: boolean;
   isClaimingReward: boolean;
   isDiscoveringAccounts: boolean;
+  onBackFromNoQuanta: () => void;
+  onCancelDifferentWallet: () => void;
   onChangeDifferentWalletAddress: (address: string) => void;
   onBeginDifferentWalletCheck: () => void;
   onCheckDifferentWallet: () => void;
@@ -64,6 +66,8 @@ export function QuantaAddressForm({
   isCheckingDifferentWallet,
   isClaimingReward,
   isDiscoveringAccounts,
+  onBackFromNoQuanta,
+  onCancelDifferentWallet,
   onChangeDifferentWalletAddress,
   onBeginDifferentWalletCheck,
   onCheckDifferentWallet,
@@ -362,6 +366,29 @@ export function QuantaAddressForm({
             )}
           </View>
           {differentWalletActionButton}
+          <Pressable
+            accessibilityLabel="Back to Quanta options"
+            accessibilityRole="button"
+            disabled={isClaimingReward || showDifferentWalletChecking}
+            hitSlop={8}
+            onPress={onCancelDifferentWallet}
+            style={[
+              localStyles.differentWalletBackButton,
+              (isClaimingReward || showDifferentWalletChecking) &&
+                localStyles.differentWalletBackButtonDisabled,
+            ]}
+            testID="quanta-different-wallet-back-button"
+          >
+            <Text
+              style={[
+                localStyles.differentWalletBackButtonText,
+                (isClaimingReward || showDifferentWalletChecking) &&
+                  localStyles.differentWalletBackButtonTextDisabled,
+              ]}
+            >
+              Back
+            </Text>
+          </Pressable>
         </React.Fragment>
       ) : hasNoQuantaInWallet ? (
         <React.Fragment>
@@ -404,6 +431,16 @@ export function QuantaAddressForm({
               </Pressable>
             </View>
           </View>
+          <Pressable
+            accessibilityLabel="Back to Quanta options"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={onBackFromNoQuanta}
+            style={localStyles.discoveryBackButton}
+            testID="quanta-no-results-back-button"
+          >
+            <Text style={localStyles.discoveryBackButtonText}>Back</Text>
+          </Pressable>
         </React.Fragment>
       ) : (
         <React.Fragment>

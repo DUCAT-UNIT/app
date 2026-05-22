@@ -4,8 +4,8 @@
  */
 
 import { Buffer } from 'buffer';
-import { varIntSize,writeVarInt } from '../../utils/wallet/cryptoHelpers';
-import type { PsbtFieldData,SignatureData } from './types';
+import { varIntSize, writeVarInt } from '../../utils/wallet/cryptoHelpers';
+import type { PsbtFieldData, SignatureData } from './types';
 
 /**
  * Read a varint from buffer
@@ -99,7 +99,7 @@ export function encodeWitnessStack(witness: Buffer[]): Buffer {
 }
 
 /**
- * Extract OP_RETURN output from PSBT's unsigned transaction for debugging
+ * Extract OP_RETURN output from a PSBT's unsigned transaction for vault diagnostics.
  * Returns the hex of the OP_RETURN scriptPubKey or null if not found
  */
 export function extractOpReturnFromPsbt(psbtBase64: string): string | null {
@@ -132,10 +132,10 @@ export function extractOpReturnFromPsbt(psbtBase64: string): string | null {
         txOffset += varIntSize(inputCount.value);
         for (let i = 0; i < inputCount.value; i++) {
           txOffset += 32; // txid
-          txOffset += 4;  // vout
+          txOffset += 4; // vout
           const scriptLen = readVarInt(psbtBuffer, txOffset);
           txOffset += varIntSize(scriptLen.value) + scriptLen.value;
-          txOffset += 4;  // sequence
+          txOffset += 4; // sequence
         }
 
         // Read outputs
@@ -168,10 +168,7 @@ export function extractOpReturnFromPsbt(psbtBase64: string): string | null {
  * Patch signatures into a PSBT without re-encoding the transaction outputs.
  * This preserves OP_RETURN outputs that would be corrupted by full re-encoding.
  */
-export function patchPsbtSignatures(
-  psbtBase64: string,
-  signatures: SignatureData[]
-): string {
+export function patchPsbtSignatures(psbtBase64: string, signatures: SignatureData[]): string {
   const psbtBuffer = Buffer.from(psbtBase64, 'base64');
   const parts: Buffer[] = [];
   let offset = 0;
@@ -217,7 +214,7 @@ export function patchPsbtSignatures(
     }
 
     // Check if we need to add a signature for this input
-    const sigForInput = signatures.find(s => s.inputIndex === inputIdx);
+    const sigForInput = signatures.find((s) => s.inputIndex === inputIdx);
     if (sigForInput) {
       // Create signature key-value pair based on type
       let sigKv: Buffer;
@@ -230,7 +227,11 @@ export function patchPsbtSignatures(
         // PSBT_IN_TAP_KEY_SIG (0x13): key = 0x13, value = signature
         const key = Buffer.from([0x13]);
         sigKv = createPsbtKv(key, sigForInput.signature);
-      } else if (sigForInput.type === 'taproot-script' && sigForInput.pubkey && sigForInput.leafHash) {
+      } else if (
+        sigForInput.type === 'taproot-script' &&
+        sigForInput.pubkey &&
+        sigForInput.leafHash
+      ) {
         // PSBT_IN_TAP_SCRIPT_SIG (0x14): key = 0x14 || xonlypubkey || leafhash, value = signature
         const keyType = Buffer.from([0x14]);
         const key = Buffer.concat([keyType, sigForInput.pubkey, sigForInput.leafHash]);
@@ -259,10 +260,7 @@ export function patchPsbtSignatures(
 /**
  * Patch arbitrary fields into PSBT input maps
  */
-export function patchPsbtInputFields(
-  psbtBase64: string,
-  fieldsToAdd: PsbtFieldData[]
-): string {
+export function patchPsbtInputFields(psbtBase64: string, fieldsToAdd: PsbtFieldData[]): string {
   const psbtBuffer = Buffer.from(psbtBase64, 'base64');
   const parts: Buffer[] = [];
   let offset = 0;
@@ -315,7 +313,7 @@ export function patchPsbtInputFields(
     }
 
     // Add new fields for this input (if not already present)
-    const fieldsForInput = fieldsToAdd.find(f => f.inputIndex === inputIdx);
+    const fieldsForInput = fieldsToAdd.find((f) => f.inputIndex === inputIdx);
     if (fieldsForInput) {
       for (const field of fieldsForInput.fields) {
         if (!existingKeyTypes.has(field.keyType)) {

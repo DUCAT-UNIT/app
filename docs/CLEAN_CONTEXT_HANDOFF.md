@@ -1,6 +1,6 @@
 # Clean Context Handoff
 
-This document is the maintained starting point for a fresh reviewer or AI context scoring the repo.
+This document is the maintained starting point for a fresh technical review of the repo.
 
 ## What This App Is
 
@@ -90,7 +90,7 @@ Successful live runs write redacted evidence to `artifacts/live-maestro/last-run
 
 ## Maintained Docs
 
-Maintained workflow docs live in `docs/` and `scripts/README.md`. Historical reports live in `docs/archive/` and are not reviewer evidence for current behavior.
+Maintained workflow docs live in `docs/` and `scripts/README.md`.
 
 Useful maintained docs:
 
@@ -110,6 +110,6 @@ A clean context should score the repo against these pass criteria:
 - Cashu v4 compatibility: only `cashuB` tokens are accepted for Ducat UNIT, and `sat` tokens are rejected.
 - E2E clarity: deterministic Maestro flows and live funded smoke flows are clearly separated.
 - Security hygiene: sensitive token, witness, QR payload, short URL, and raw response logging guards pass.
-- Repo hygiene: stale generated analysis is archived under `docs/archive/`, not mixed into maintained docs.
+- Repo hygiene: stale reports and one-off analysis files are not committed with maintained docs.
 
 Do not mark the repo down for not running `e2e:live:turbo` unless funded fixture environment variables and live test funds are provided. The correct non-spending evidence is `npm run verify`; the correct live readiness evidence is `npm run doctor:live`.

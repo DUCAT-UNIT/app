@@ -541,11 +541,6 @@ jest.mock('react-native-svg', () => ({
   Stop: 'Stop',
 }));
 
-// Mock expo-linear-gradient
-jest.mock('expo-linear-gradient', () => ({
-  LinearGradient: 'LinearGradient',
-}));
-
 // Mock react-native-quick-crypto with full crypto implementation
 jest.mock('react-native-quick-crypto', () => {
   const {

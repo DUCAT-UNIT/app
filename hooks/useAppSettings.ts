@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_PASSWORD } from '../constants/settings';
+import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
 import { clearCashuCache } from '../services/cacheService';
 import { getExpoPushToken, unregisterPushToken } from '../services/pushNotificationService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
@@ -27,14 +27,14 @@ import { logger } from '../utils/logger';
 import { notify } from '../utils/notify';
 import { isE2E } from '../utils/e2e';
 
-const normalizeUsdcFeaturePassword = (password: string): string =>
-  password
+const normalizeUsdcFeaturePhrase = (phrase: string): string =>
+  phrase
     .trim()
     .normalize('NFKC')
     .replace(/[\u2010-\u2015\u2212]/g, '-');
 
-const canonicalizeUsdcFeaturePassword = (password: string): string =>
-  normalizeUsdcFeaturePassword(password)
+const canonicalizeUsdcFeaturePhrase = (phrase: string): string =>
+  normalizeUsdcFeaturePhrase(phrase)
     .replace(/[^a-z0-9]/gi, '')
     .toLocaleLowerCase('en-US');
 
@@ -77,7 +77,7 @@ interface UseAppSettingsReturn {
   handleClearLockedTokens: () => Promise<void>;
   handleEcashThresholdChange: (newThreshold: number) => Promise<void>;
   handleAutoLockTimeoutChange: (timeoutMs: number) => Promise<void>;
-  handleEnableUsdcFeatures: (password: string) => Promise<boolean>;
+  handleEnableUsdcFeatures: (unlockPhrase: string) => Promise<boolean>;
   handleDisableUsdcFeatures: () => Promise<void>;
   showNotificationsModal: boolean;
   notificationsPromptMode: NotificationsPromptMode;
@@ -577,21 +577,13 @@ export function useAppSettings({
   );
 
   const handleEnableUsdcFeatures = useCallback(
-    async (password: string): Promise<boolean> => {
-      if (!__DEV__) {
-        notify.error('USDC features are not enabled in this build');
-        return false;
-      }
-
-      const normalizedPassword = normalizeUsdcFeaturePassword(password);
-      const expectedPassword = normalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-      const canonicalPassword = canonicalizeUsdcFeaturePassword(password);
-      const expectedCanonicalPassword = canonicalizeUsdcFeaturePassword(USDC_FEATURE_PASSWORD);
-      if (
-        normalizedPassword !== expectedPassword &&
-        canonicalPassword !== expectedCanonicalPassword
-      ) {
-        notify.error('Incorrect Enable USDC password');
+    async (unlockPhrase: string): Promise<boolean> => {
+      const normalizedPhrase = normalizeUsdcFeaturePhrase(unlockPhrase);
+      const expectedPhrase = normalizeUsdcFeaturePhrase(USDC_FEATURE_UNLOCK_PHRASE);
+      const canonicalPhrase = canonicalizeUsdcFeaturePhrase(unlockPhrase);
+      const expectedCanonicalPhrase = canonicalizeUsdcFeaturePhrase(USDC_FEATURE_UNLOCK_PHRASE);
+      if (normalizedPhrase !== expectedPhrase && canonicalPhrase !== expectedCanonicalPhrase) {
+        notify.error('Incorrect USDC unlock phrase');
         return false;
       }
 

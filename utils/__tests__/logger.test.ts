@@ -73,12 +73,16 @@ describe('logger redaction', () => {
       address: 'tb1pvisible',
     });
 
-    expect(warnSpy).toHaveBeenCalledWith('[ERROR]', {
-      name: 'Error',
-      message: '[REDACTED]',
-    }, {
-      seed: '[REDACTED]',
-      address: 'tb1pvisible',
-    });
+    expect(logSpy).toHaveBeenCalledWith(
+      '[ERROR]',
+      {
+        name: 'Error',
+        message: '[REDACTED]',
+      },
+      {
+        seed: '[REDACTED]',
+        address: 'tb1pvisible',
+      }
+    );
   });
 });

@@ -471,12 +471,12 @@ describe('cashuReceiveToken', () => {
       const { logger } = require('../../../../utils/logger');
 
       await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
-        'Critical error: Received proofs from mint but failed to save locally'
+        'Received proofs from mint but failed to save locally'
       );
 
       expect(addProofs).toHaveBeenCalledTimes(3); // MAX_RETRIES = 3
       expect(logger.error).toHaveBeenCalledWith(
-        'CRITICAL: Failed to save received proofs after all retries - FUND LOSS RISK',
+        'Failed to save received proofs after all retries; recovery record retained',
         expect.objectContaining({
           error: 'Persistent storage error',
           proofCount: 2,
@@ -516,7 +516,9 @@ describe('cashuReceiveToken', () => {
 
       const { logger } = require('../../../../utils/logger');
 
-      await expect(receiveToken('cashuBtoken...')).rejects.toThrow('Critical error');
+      await expect(receiveToken('cashuBtoken...')).rejects.toThrow(
+        'A recovery record was retained'
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         'Failed to store proofs in recovery queue',

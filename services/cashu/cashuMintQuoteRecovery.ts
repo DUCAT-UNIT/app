@@ -55,7 +55,7 @@ export interface PersistedMintQuote {
   unit?: CashuUnit;
   purpose?: 'turbo_send';
   failCount?: number; // Track consecutive claim failures
-  lastError?: string; // Last error message for debugging
+  lastError?: string; // Last recoverable claim error.
   claim?: PersistedMintClaim;
 }
 

@@ -70,7 +70,7 @@ export function mergeAndFilterUtxos(
   return Array.from(utxoMap.values()).filter((utxo) => {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      logger.debug('⚠️ Filtering out spent UTXO:', { key });
+      logger.debug('Filtering out spent UTXO', { key });
       return false;
     }
     return true;

@@ -147,13 +147,13 @@ export function useAppLifecycle({
         // Don't lock during active transaction processing
         if (isProcessingRef.current) {
           logger.debug(
-            '[useAppLifecycle] ⏱️ Inactivity timeout reached but processing active - deferring lock'
+            '[useAppLifecycle] Inactivity timeout reached but processing active; deferring lock'
           );
           startInactivityTimer();
           return;
         }
         // Lock the wallet after inactivity timeout
-        logger.info('[useAppLifecycle] ⏱️ Inactivity timeout reached - locking wallet');
+        logger.info('[useAppLifecycle] Inactivity timeout reached; locking wallet');
         onLockRef.current();
       },
       Math.max(1000, inactivityTimeoutMs)
@@ -192,7 +192,7 @@ export function useAppLifecycle({
       `[useAppLifecycle] Inactivity timer check: isAuth=${isAuthenticated}, walletExists=${walletExists.current}, seedConfirmed=${seedConfirmedRef.current}`
     );
     if (isAuthenticated && walletExists.current && seedConfirmedRef.current) {
-      logger.debug('[useAppLifecycle] ⏱️  Starting inactivity timer');
+      logger.debug('[useAppLifecycle] Starting inactivity timer');
       startInactivityTimer();
 
       return () => {

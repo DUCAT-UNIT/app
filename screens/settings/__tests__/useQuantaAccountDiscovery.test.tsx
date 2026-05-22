@@ -1,18 +1,19 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { DEFAULT_WALLET_DERIVATION_MODE } from '../../../constants/bitcoin';
-import { getQuantaMobileRewardStatus } from '../../../services/quantaRewardService';
+import {
+  getQuantaMobileRewardStatus,
+  getQuantaMobileRewardStatuses,
+} from '../../../services/quantaRewardService';
 import type { QuantaMobileMatchedAddressType } from '../../../services/quantaRewardService';
 import { makeWalletAccountAddresses } from '../../../services/__tests__/testUtils';
 import * as WalletService from '../../../services/walletService';
 import type { DerivedAddresses } from '../../../utils/bitcoin';
-import type {
-  QuantaAccountCandidate,
-  QuantaMobileWalletPayload,
-} from '../quantaLinkUtils';
+import type { QuantaAccountCandidate, QuantaMobileWalletPayload } from '../quantaLinkUtils';
 import { useQuantaAccountDiscovery } from '../useQuantaAccountDiscovery';
 
 jest.mock('../../../services/quantaRewardService', () => ({
   getQuantaMobileRewardStatus: jest.fn(),
+  getQuantaMobileRewardStatuses: jest.fn(),
 }));
 
 jest.mock('../../../services/walletService', () => ({
@@ -89,6 +90,84 @@ describe('useQuantaAccountDiscovery', () => {
     (WalletService.findAccountByWalletAddress as jest.Mock).mockResolvedValue(null);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('keeps the broader delayed compatibility check before connected status is known', async () => {
+    jest.useFakeTimers();
+    const currentAccount = makeWalletAccountAddresses(0);
+    const matchedAccount = makeWalletAccountAddresses(4);
+    (WalletService.findAccountByWalletAddress as jest.Mock).mockResolvedValue({
+      accountIndex: matchedAccount.accountIndex,
+      derivationMode: matchedAccount.derivationMode,
+      walletProfile: matchedAccount.walletProfile,
+      addresses: matchedAccount.addresses,
+      matchedAddressType: 'taproot',
+    });
+
+    renderHook(() =>
+      useQuantaAccountDiscovery({
+        canCheckAddress: true,
+        currentAccount: 0,
+        currentAddressMatches: false,
+        currentDerivationMode: DEFAULT_WALLET_DERIVATION_MODE,
+        getQuantaWalletPayloadFromAddresses: getPayload,
+        normalizedQuantaAddress: matchedAccount.addresses.taprootAddress,
+        wallet: currentAccount.addresses,
+      })
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(299);
+    });
+    expect(WalletService.findAccountByWalletAddress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(WalletService.findAccountByWalletAddress).toHaveBeenCalledWith(
+      matchedAccount.addresses.taprootAddress,
+      100
+    );
+  });
+
+  it('checks only the current account once a connected Quanta address is loaded', async () => {
+    jest.useFakeTimers();
+    const currentAccount = makeWalletAccountAddresses(0);
+    const matchedAccount = makeWalletAccountAddresses(4);
+
+    const { result } = renderHook(() =>
+      useQuantaAccountDiscovery({
+        canCheckAddress: true,
+        currentAccount: 0,
+        currentAddressMatches: false,
+        currentDerivationMode: DEFAULT_WALLET_DERIVATION_MODE,
+        getQuantaWalletPayloadFromAddresses: getPayload,
+        normalizedQuantaAddress: matchedAccount.addresses.taprootAddress,
+        wallet: currentAccount.addresses,
+      })
+    );
+
+    act(() => {
+      result.current.setConnectedCompatibilityMode(true);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(WalletService.findAccountByWalletAddress).not.toHaveBeenCalled();
+    expect(result.current.hasCheckedAddress).toBe(true);
+    expect(result.current.matchedAccountIndex).toBeNull();
+    expect(result.current.accountCheckError).toBe(
+      'No matching Quanta account found in the scanned wallet accounts.'
+    );
+  });
+
   it('continues scanning after the first Quanta match and returns all discovered candidates', async () => {
     const firstAccount = makeWalletAccountAddresses(0);
     const secondAccount = makeWalletAccountAddresses(1);
@@ -96,14 +175,21 @@ describe('useQuantaAccountDiscovery', () => {
       firstAccount,
       secondAccount,
     ]);
-    (getQuantaMobileRewardStatus as jest.Mock).mockImplementation(async ({ quantaAddress }) => {
-      if (quantaAddress === firstAccount.addresses.segwitAddress) {
-        return makeStatus(quantaAddress, 100, 1);
-      }
-      if (quantaAddress === secondAccount.addresses.taprootAddress) {
-        return makeStatus(quantaAddress, 900, 2);
-      }
-      return makeEmptyStatus();
+    (getQuantaMobileRewardStatuses as jest.Mock).mockImplementation(async (items) => {
+      return {
+        results: items.map(
+          ({ requestId, quantaAddress }: { requestId: string; quantaAddress: string }) => {
+            const status =
+              quantaAddress === firstAccount.addresses.segwitAddress
+                ? makeStatus(quantaAddress, 100, 1)
+                : quantaAddress === secondAccount.addresses.taprootAddress
+                  ? makeStatus(quantaAddress, 900, 2)
+                  : makeEmptyStatus();
+
+            return { requestId, quantaAddress, status };
+          }
+        ),
+      };
     });
 
     const { result } = renderHook(() =>
@@ -130,12 +216,17 @@ describe('useQuantaAccountDiscovery', () => {
     expect(result.current.selectedCandidateKey).toContain(
       `${DEFAULT_WALLET_DERIVATION_MODE}:0:segwit`
     );
-    expect(getQuantaMobileRewardStatus).toHaveBeenCalledTimes(6);
+    expect(WalletService.deriveWalletAccounts).toHaveBeenCalledWith(20, [
+      DEFAULT_WALLET_DERIVATION_MODE,
+    ]);
+    expect(getQuantaMobileRewardStatuses).toHaveBeenCalledTimes(3);
+    expect(getQuantaMobileRewardStatus).not.toHaveBeenCalled();
   });
 
-  it('uses an address-scoped circuit key for each discovery request', async () => {
+  it('falls back to address-scoped discovery requests when the batch endpoint is unavailable', async () => {
     const account = makeWalletAccountAddresses(0);
     (WalletService.deriveWalletAccounts as jest.Mock).mockResolvedValue([account]);
+    (getQuantaMobileRewardStatuses as jest.Mock).mockRejectedValue(new Error('404'));
     (getQuantaMobileRewardStatus as jest.Mock).mockResolvedValue(makeEmptyStatus());
 
     const { result } = renderHook(() =>

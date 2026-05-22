@@ -5,29 +5,42 @@
 
 const isDev = __DEV__;
 const isVerboseDebugEnabled = process.env.EXPO_PUBLIC_VERBOSE_DEBUG_LOGS === 'true';
-const isLiveRegressionLoggingEnabled =
-  process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION === 'true';
+const isLiveRegressionLoggingEnabled = process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION === 'true';
 const shouldLogAppBreadcrumbs = isDev || isLiveRegressionLoggingEnabled;
 
 // Keys and payload shapes that should never appear in log output.
 const SENSITIVE_KEY_PATTERNS = [
   /mnemonic/i,
   /private.*key/i,
+  /signature/i,
+  /witness/i,
   /secret/i,
   /seed/i,
   /password/i,
+  /unlock.*phrase/i,
   /^pin/i,
   /passphrase/i,
+  /authorization/i,
+  /bearer/i,
+  /api[_-]?key/i,
+  /credential/i,
   /cashu.*token/i,
   /^token$/i,
   /tokenstring/i,
   /^proofs?$/i,
+  /payload/i,
   /psbt/i,
   /^raw/i,
   /rawtx/i,
   /txhex/i,
 ];
-const SENSITIVE_STRING_PATTERNS = [/^cashu[AB]/i, /^ducat:\/\//i, /^cHNidP/i, /^[0-9a-f]{120,}$/i];
+const SENSITIVE_STRING_PATTERNS = [
+  /^Bearer\s+/i,
+  /^cashu[AB]/i,
+  /^ducat:\/\//i,
+  /^cHNidP/i,
+  /^[0-9a-f]{120,}$/i,
+];
 const MAX_LOG_STRING_LENGTH = 500;
 const MAX_SANITIZE_DEPTH = 4;
 

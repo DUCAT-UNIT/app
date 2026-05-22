@@ -39,7 +39,7 @@ export const withErrorBoundary = <P extends object>(
     </ErrorBoundary>
   );
 
-  // Set display name for debugging
+  // Preserve a useful component name in React DevTools and error reports.
   ComponentWithErrorBoundary.displayName = `withErrorBoundary(${boundaryName})`;
 
   return ComponentWithErrorBoundary;

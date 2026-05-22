@@ -81,7 +81,7 @@ export function buildExclusionSet(intent: TransactionIntent | null | undefined):
 
   // Exclude BTC inputs
   if (intent.inputs) {
-    intent.inputs.forEach(input => {
+    intent.inputs.forEach((input) => {
       const key = `${input.txid}:${input.vout}`;
       excludedKeys.add(key);
     });
@@ -135,14 +135,16 @@ export function getUnconfirmedUTXOsFromPending(
   const utxos: UnconfirmedUTXO[] = [];
   const pendingInputKeys = getPendingInputUtxoKeys(pendingTransactions);
 
-  Object.values(pendingTransactions).forEach(tx => {
+  Object.values(pendingTransactions).forEach((tx) => {
     // Only include pending transactions (not invalid)
     if (tx.status === 'pending') {
-      tx.outputs.forEach(output => {
+      tx.outputs.forEach((output) => {
         // Check if this UTXO should be excluded
         const key = `${tx.txid}:${output.vout}`;
         if (excludedKeys.has(key)) {
-          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (in exclusion set):', { key });
+          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (in exclusion set):', {
+            key,
+          });
           return; // Skip this UTXO
         }
         if (spentUtxos.has(key)) {
@@ -150,7 +152,10 @@ export function getUnconfirmedUTXOsFromPending(
           return;
         }
         if (pendingInputKeys.has(key)) {
-          logger.debug('[getUnconfirmedUTXOsFromPending] Excluding UTXO (spent by pending input):', { key });
+          logger.debug(
+            '[getUnconfirmedUTXOsFromPending] Excluding UTXO (spent by pending input):',
+            { key }
+          );
           return;
         }
 
@@ -211,7 +216,7 @@ export function invalidateChildrenRecursive(
   parentId: string,
   invalidated: string[]
 ): void {
-  Object.keys(transactions).forEach(childTxid => {
+  Object.keys(transactions).forEach((childTxid) => {
     if (transactions[childTxid].parentTxid === parentId) {
       invalidated.push(childTxid);
       transactions[childTxid].status = 'invalid';
@@ -261,7 +266,7 @@ export function removeUtxoFromPending(
 
   if (updated[txid] && updated[txid].outputs) {
     // Remove the specific output from the transaction's outputs
-    updated[txid].outputs = updated[txid].outputs.filter(output => output.vout !== vout);
+    updated[txid].outputs = updated[txid].outputs.filter((output) => output.vout !== vout);
 
     // If no outputs left, remove the transaction entirely
     if (updated[txid].outputs.length === 0) {
@@ -283,7 +288,7 @@ export function cleanupInvalidTransactions(
   const updated = { ...pendingTransactions };
   let cleaned = 0;
 
-  Object.keys(updated).forEach(txid => {
+  Object.keys(updated).forEach((txid) => {
     if (updated[txid].status === 'invalid') {
       delete updated[txid];
       cleaned++;
@@ -308,7 +313,7 @@ export function markUtxosAsSpent(
   utxos.forEach(({ txid, vout }) => {
     const key = `${txid}:${vout}`;
     updated.add(key);
-    logger.debug('🚫 Marking UTXO as spent:', { key });
+    logger.debug('Marking UTXO as spent', { key });
   });
 
   return updated;
@@ -330,7 +335,7 @@ export function unmarkUtxosAsSpent(
     const key = `${txid}:${vout}`;
     if (updated.has(key)) {
       updated.delete(key);
-      logger.debug('✅ Unmarking UTXO as spent (released):', { key });
+      logger.debug('Unmarking UTXO as spent', { key });
     }
   });
 
@@ -347,8 +352,8 @@ export function convertSpentKeysToUtxos(
 ): Array<{ txid: string; vout: number }> {
   const keys = spentUtxoKeys instanceof Set ? Array.from(spentUtxoKeys) : spentUtxoKeys;
   return keys
-    .filter(key => key.includes(':'))
-    .map(key => {
+    .filter((key) => key.includes(':'))
+    .map((key) => {
       const colonIdx = key.lastIndexOf(':');
       const txid = key.substring(0, colonIdx);
       const vout = parseInt(key.substring(colonIdx + 1), 10);

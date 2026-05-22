@@ -53,13 +53,13 @@ export function useClaimNotifications({
   const triggerTokenCheck = useTokenProcessingStore((state) => state.triggerTokenCheck);
 
   useEffect(() => {
-    logger.debug('🎯 useClaimNotifications effect triggered:', {
+    logger.debug('useClaimNotifications effect triggered', {
       claimSuccess: route?.params?.claimSuccess,
       claimError: route?.params?.claimError,
     });
 
     if (route?.params?.claimSuccess) {
-      logger.debug('🎯 Showing success snackbar for claim');
+      logger.debug('Showing success snackbar for claim');
       showSnackbar({
         message: 'Token claimed successfully',
         type: 'success',
@@ -68,7 +68,7 @@ export function useClaimNotifications({
       // Clear the param so it doesn't trigger again
       navigation.setParams({ claimSuccess: undefined });
     } else if (route?.params?.claimError) {
-      logger.debug('🎯 Showing error snackbar for claim');
+      logger.debug('Showing error snackbar for claim');
 
       const errorMessage = route.params.claimError;
       const snackbarConfig: ExtendedSnackbarParams = {
@@ -92,9 +92,15 @@ export function useClaimNotifications({
               logger.info('[useClaimNotifications] ========================================');
               logger.info('[useClaimNotifications] Switch & Claim button clicked!');
               logger.info('[useClaimNotifications] Target account:', { targetAccountIndex });
-              logger.info('[useClaimNotifications] Has token to retry:', { hasToken: !!tokenToRetry });
-              logger.info('[useClaimNotifications] Token length:', { length: tokenToRetry?.length });
-              logger.info('[useClaimNotifications] dismissSnackbar type:', { type: typeof dismissSnackbar });
+              logger.info('[useClaimNotifications] Has token to retry:', {
+                hasToken: !!tokenToRetry,
+              });
+              logger.info('[useClaimNotifications] Token length:', {
+                length: tokenToRetry?.length,
+              });
+              logger.info('[useClaimNotifications] dismissSnackbar type:', {
+                type: typeof dismissSnackbar,
+              });
               logger.info('[useClaimNotifications] ========================================');
 
               if (!switchAccount) {
@@ -130,7 +136,9 @@ export function useClaimNotifications({
                 // Small delay to ensure wallet state is updated
                 setTimeout(() => {
                   void (async () => {
-                    logger.info('[useClaimNotifications] Queueing token retry in Turbo processor...');
+                    logger.info(
+                      '[useClaimNotifications] Queueing token retry in Turbo processor...'
+                    );
                     await setPendingToken(tokenToRetry);
                     triggerTokenCheck();
                   })().catch((err: unknown) => {
@@ -153,7 +161,9 @@ export function useClaimNotifications({
                 });
               }
             } catch (err: unknown) {
-              logger.error('[useClaimNotifications] Failed to switch account:', { error: err instanceof Error ? err.message : String(err) });
+              logger.error('[useClaimNotifications] Failed to switch account:', {
+                error: err instanceof Error ? err.message : String(err),
+              });
               showSnackbar({
                 message: 'Failed to switch account',
                 type: 'error',
@@ -170,5 +180,16 @@ export function useClaimNotifications({
         navigation.setParams({ claimError: undefined, claimToken: undefined });
       }
     }
-  }, [route?.params?.claimSuccess, route?.params?.claimError, route?.params?.claimToken, showSnackbar, navigation, switchAccount, dismissSnackbar, triggerWalletReload, setPendingToken, triggerTokenCheck]);
+  }, [
+    route?.params?.claimSuccess,
+    route?.params?.claimError,
+    route?.params?.claimToken,
+    showSnackbar,
+    navigation,
+    switchAccount,
+    dismissSnackbar,
+    triggerWalletReload,
+    setPendingToken,
+    triggerTokenCheck,
+  ]);
 }

@@ -116,7 +116,7 @@ export async function findRuneUtxo(
   for (const utxo of unconfirmedUtxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+      logger.debug('Skipping spent rune UTXO', { key });
       continue;
     }
 
@@ -132,7 +132,7 @@ export async function findRuneUtxo(
 
       // If we have enough, return early
       if (totalRuneAmount >= requiredRuneAmount) {
-        logger.debug('[findRuneUtxo] ✅ Found sufficient runes in unconfirmed UTXOs:', {
+        logger.debug('[findRuneUtxo] Found sufficient runes in unconfirmed UTXOs', {
           count: selectedUtxos.length,
         });
         return selectedUtxos;
@@ -167,7 +167,7 @@ export async function findRuneUtxo(
       runeOutputs.map(async (details) => {
         const { data, vout, key } = details;
         if (spentUtxos.has(key)) {
-          logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+          logger.debug('Skipping spent rune UTXO', { key });
           return { details, spent: true, logged: true };
         }
 
@@ -185,7 +185,7 @@ export async function findRuneUtxo(
       const { data, vout, key } = details;
       if (spent) {
         if (!logged) {
-          logger.debug('⚠️ Skipping spent rune UTXO:', { key });
+          logger.debug('Skipping spent rune UTXO', { key });
         }
         continue;
       }
@@ -217,7 +217,7 @@ export async function findRuneUtxo(
 
       // If we have enough, return after the current batch is processed in output order.
       if (totalRuneAmount >= requiredRuneAmount) {
-        logger.debug('[findRuneUtxo] ✅ Found sufficient runes using', {
+        logger.debug('[findRuneUtxo] Found sufficient runes', {
           count: selectedUtxos.length,
         });
         logger.debug('[findRuneUtxo] Total rune amount:', {
@@ -231,7 +231,7 @@ export async function findRuneUtxo(
 
   // Log summary if insufficient funds
   if (selectedUtxos.length > 0) {
-    logger.error('[findRuneUtxo] ❌ Insufficient runes across all UTXOs!');
+    logger.error('[findRuneUtxo] Insufficient runes across all UTXOs');
     logger.error('[findRuneUtxo] Required:', { amountInRunes, unit: amountInRunes / 100 });
     logger.error('[findRuneUtxo] Total available:', {
       totalRuneAmount: Number(totalRuneAmount),
@@ -259,7 +259,7 @@ export async function findSatUtxo(
   for (const utxo of unconfirmedUtxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      logger.debug('⚠️ Skipping spent sat UTXO:', { key });
+      logger.debug('Skipping spent sat UTXO', { key });
       continue;
     }
 
@@ -285,7 +285,7 @@ export async function findSatUtxo(
   for (const utxo of utxos) {
     const key = `${utxo.txid}:${utxo.vout}`;
     if (spentUtxos.has(key)) {
-      logger.debug('⚠️ Skipping spent sat UTXO from blockchain API:', { key });
+      logger.debug('Skipping spent sat UTXO from blockchain API', { key });
       continue;
     }
 

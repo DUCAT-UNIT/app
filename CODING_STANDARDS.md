@@ -7,7 +7,7 @@ This document defines coding standards and patterns for the DUCAT Wallet codebas
 ### Prefer async/await over .then()/.catch()
 
 ```typescript
-// ✅ GOOD: async/await with try/catch
+// Good: async/await with try/catch
 const fetchData = async () => {
   try {
     const result = await someAsyncOperation();
@@ -18,7 +18,7 @@ const fetchData = async () => {
   }
 };
 
-// ❌ BAD: .then()/.catch() chains
+// Avoid: .then()/.catch() chains
 const fetchData = () => {
   return someAsyncOperation()
     .then((result) => result)
@@ -32,7 +32,7 @@ const fetchData = () => {
 ### useEffect with async operations
 
 ```typescript
-// ✅ GOOD: Define async function inside useEffect
+// Good: define async function inside useEffect
 useEffect(() => {
   const fetchData = async () => {
     await someAsyncOperation();
@@ -41,7 +41,7 @@ useEffect(() => {
   fetchData();
 }, [dependency]);
 
-// ❌ BAD: .then() in useEffect
+// Avoid: .then() in useEffect
 useEffect(() => {
   someAsyncOperation().then(() => {
     doSomethingAfter();
@@ -54,7 +54,7 @@ useEffect(() => {
 For operations where you don't need the result, use void operator:
 
 ```typescript
-// ✅ GOOD: Explicit fire-and-forget
+// Good: explicit fire-and-forget
 void someAsyncOperation();
 
 // Or with error handling
@@ -69,25 +69,25 @@ void someAsyncOperation().catch((error) => {
 
 ### Log Levels
 
-| Level | Use Case | Example |
-|-------|----------|---------|
-| `error` | Failures that need attention | `logger.error('Failed to save wallet', { error })` |
-| `warn` | Recoverable issues, degraded functionality | `logger.warn('Cache miss, fetching from network')` |
-| `info` | Significant events (entry/exit points, completions) | `logger.info('Transaction broadcast successfully')` |
-| `debug` | Detailed diagnostic information | `logger.debug('Processing proof', { proofId })` |
+| Level   | Use Case                                            | Example                                             |
+| ------- | --------------------------------------------------- | --------------------------------------------------- |
+| `error` | Failures that need attention                        | `logger.error('Failed to save wallet', { error })`  |
+| `warn`  | Recoverable issues, degraded functionality          | `logger.warn('Cache miss, fetching from network')`  |
+| `info`  | Significant events (entry/exit points, completions) | `logger.info('Transaction broadcast successfully')` |
+| `debug` | Detailed diagnostic information                     | `logger.debug('Processing proof', { proofId })`     |
 
 ### Guidelines
 
 ```typescript
-// ✅ GOOD: info for significant events
+// Good: info for significant events
 logger.info('Wallet created successfully', { accountIndex });
 logger.info('Transaction broadcast', { txid });
 
-// ✅ GOOD: debug for details
+// Good: debug for details
 logger.debug('Processing UTXO', { txid, vout, value });
 logger.debug('Selected proofs for swap', { count: proofs.length });
 
-// ❌ BAD: info for every detail (too verbose)
+// Avoid: info for every detail (too verbose)
 logger.info('Starting to process proof');
 logger.info('Proof processed');
 logger.info('Moving to next proof');
@@ -98,12 +98,12 @@ logger.info('Moving to next proof');
 Use consistent prefixes for related log messages:
 
 ```typescript
-// ✅ GOOD: Consistent prefix
+// Good: consistent prefix
 logger.debug('[WalletService] Loading wallet');
 logger.debug('[WalletService] Deriving addresses');
 logger.debug('[WalletService] Wallet loaded');
 
-// ❌ BAD: Inconsistent prefixes
+// Avoid: inconsistent prefixes
 logger.debug('[WALLET] Loading wallet');
 logger.debug('Deriving addresses');
 logger.debug('[wallet-service] Wallet loaded');
@@ -117,11 +117,11 @@ See `services/ERROR_HANDLING.md` for detailed error handling patterns.
 
 ### Quick Reference
 
-| Operation Type | Pattern | Example |
-|----------------|---------|---------|
-| Critical writes | Throw errors | `saveMnemonic()` |
-| Optional reads | Return null/defaults | `getCachedAddresses()` |
-| Status checks | Return result objects | `authenticateWithBiometrics()` |
+| Operation Type  | Pattern               | Example                        |
+| --------------- | --------------------- | ------------------------------ |
+| Critical writes | Throw errors          | `saveMnemonic()`               |
+| Optional reads  | Return null/defaults  | `getCachedAddresses()`         |
+| Status checks   | Return result objects | `authenticateWithBiometrics()` |
 
 ---
 
@@ -132,12 +132,12 @@ See `services/ERROR_HANDLING.md` for detailed error handling patterns.
 Always specify return types for exported functions:
 
 ```typescript
-// ✅ GOOD: Explicit return type
+// Good: explicit return type
 export const calculateFee = (size: number, rate: number): number => {
   return size * rate;
 };
 
-// ❌ BAD: Inferred return type
+// Avoid: inferred return type
 export const calculateFee = (size: number, rate: number) => {
   return size * rate;
 };
@@ -149,16 +149,16 @@ export const calculateFee = (size: number, rate: number) => {
 - Use `type` for unions, intersections, and primitives
 
 ```typescript
-// ✅ GOOD: interface for extendable objects
+// Good: interface for extendable objects
 interface WalletAddresses {
   segwitAddress: string;
   taprootAddress: string;
 }
 
-// ✅ GOOD: type for unions
+// Good: type for unions
 type AssetType = 'BTC' | 'UNIT';
 
-// ✅ GOOD: type for computed types
+// Good: type for computed types
 type WalletWithBalance = WalletAddresses & { balance: number };
 ```
 
@@ -171,7 +171,7 @@ type WalletWithBalance = WalletAddresses & { balance: number };
 Name props interfaces as `ComponentNameProps`:
 
 ```typescript
-// ✅ GOOD
+// Good
 interface AssetCardProps {
   asset: Asset;
   onPress: () => void;
@@ -183,12 +183,13 @@ export function AssetCard({ asset, onPress }: AssetCardProps) { ... }
 ### Memoization
 
 Use `React.memo` for components that:
+
 - Receive stable props
 - Are rendered in lists
 - Have expensive render logic
 
 ```typescript
-// ✅ GOOD: Memoize list items
+// Good: memoize list items
 export const TransactionItem = React.memo(function TransactionItem({
   transaction,
   onPress,

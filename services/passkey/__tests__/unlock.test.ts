@@ -59,10 +59,16 @@ jest.mock('../core', () => ({
   },
   PRF_SALT: new Uint8Array(Buffer.from('ducat-wallet-prf-v1', 'utf8')),
   derivationVersionForPrf: jest.fn((prfEnabled: boolean) => (prfEnabled ? '5' : '4')),
-  resolvePasskeyDerivationVersion: jest.fn((storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')),
+  resolvePasskeyDerivationVersion: jest.fn(
+    (storedVersion, prfEnabled) => storedVersion || (prfEnabled ? '5' : '4')
+  ),
   isLegacyPasskeyDerivationVersion: jest.fn((version) => version === '4'),
   toBase64Url: jest.fn((buffer) =>
-    Buffer.from(buffer).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/[=]/g, '')
+    Buffer.from(buffer)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/[=]/g, '')
   ),
   isPasskeySupported: jest.fn(),
 }));
@@ -117,7 +123,8 @@ describe('Passkey Unlock', () => {
   const mockEncrypted = 'encrypted-data';
   const mockIv = 'iv-data';
   const mockTag = 'tag-data';
-  const mockMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+  const mockMnemonic =
+    'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
   const mockPin = '123456';
   const mockPinSalt = 'a'.repeat(64);
   const mockEncryptionKey = { type: 'secret' };
@@ -184,9 +191,7 @@ describe('Passkey Unlock', () => {
         return Promise.resolve(null);
       });
 
-      await expect(unlockWithPasskey(mockPin)).rejects.toThrow(
-        'Passkey data not found in storage'
-      );
+      await expect(unlockWithPasskey(mockPin)).rejects.toThrow('Passkey data not found in storage');
     });
 
     it('should throw if PIN is invalid', async () => {
@@ -205,9 +210,7 @@ describe('Passkey Unlock', () => {
         return Promise.resolve(null);
       });
 
-      await expect(unlockWithPasskey(mockPin)).rejects.toThrow(
-        'Invalid or corrupted PIN salt'
-      );
+      await expect(unlockWithPasskey(mockPin)).rejects.toThrow('Invalid or corrupted PIN salt');
     });
 
     it('should create authentication request with allowCredentials', async () => {
@@ -273,10 +276,9 @@ describe('Passkey Unlock', () => {
 
       await expect(unlockWithPasskey(mockPin)).rejects.toThrow();
 
-      expect(logger.error).toHaveBeenCalledWith(
-        'Failed to unlock with passkey',
-        { error: 'User cancelled' }
-      );
+      expect(logger.error).toHaveBeenCalledWith('Failed to unlock with passkey', {
+        error: 'User cancelled',
+      });
     });
   });
 
@@ -363,18 +365,50 @@ describe('Passkey Unlock', () => {
     it('should store recovered data in SecureStore', async () => {
       await recoverWithPasskey(mockPin);
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENABLED, 'true', DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREATION_METHOD, 'passkey', DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.CREDENTIAL_ID, mockCredentialId, DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.USER_HANDLE, mockUserHandle, DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTED_MNEMONIC, mockEncrypted, DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_IV, mockIv, DEVICE_ONLY);
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(PASSKEY_KEYS.ENCRYPTION_TAG, mockTag, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENABLED,
+        'true',
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.CREATION_METHOD,
+        'passkey',
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.CREDENTIAL_ID,
+        mockCredentialId,
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.USER_HANDLE,
+        mockUserHandle,
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTED_MNEMONIC,
+        mockEncrypted,
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTION_IV,
+        mockIv,
+        DEVICE_ONLY
+      );
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        PASSKEY_KEYS.ENCRYPTION_TAG,
+        mockTag,
+        DEVICE_ONLY
+      );
       expect(mockSaveMnemonic).toHaveBeenCalledWith(mockMnemonic);
       expect(mockSaveCachedAddresses).toHaveBeenCalled();
       expect(mockSaveCurrentAccount).toHaveBeenCalledWith(0);
       expect(mockSaveToMultiAccountCache).toHaveBeenCalled();
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(SECURE_KEYS.PIN_SALT, mockPinSalt, DEVICE_ONLY);
+      expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+        SECURE_KEYS.PIN_SALT,
+        mockPinSalt,
+        DEVICE_ONLY
+      );
     });
 
     it('should save PIN with existing salt', async () => {
@@ -386,7 +420,9 @@ describe('Passkey Unlock', () => {
     it('should fail recovery if hardened current-account storage fails', async () => {
       mockSaveCurrentAccount.mockResolvedValue(false);
 
-      await expect(recoverWithPasskey(mockPin)).rejects.toThrow('Failed to save current account securely');
+      await expect(recoverWithPasskey(mockPin)).rejects.toThrow(
+        'Failed to save current account securely'
+      );
     });
 
     it('should use discovery mode (no allowCredentials)', async () => {
@@ -408,7 +444,7 @@ describe('Passkey Unlock', () => {
     });
 
     it('should preserve debug steps if already in error', async () => {
-      const errorWithSteps = new Error('Starting recovery...\n❌ Custom error');
+      const errorWithSteps = new Error('Starting recovery...\nCustom error');
       (loadFromICloud as jest.Mock).mockRejectedValue(errorWithSteps);
 
       try {
@@ -436,7 +472,7 @@ describe('Passkey Unlock', () => {
 
       // Should not set tag if not in backup
       const tagCalls = (SecureStore.setItemAsync as jest.Mock).mock.calls.filter(
-        call => call[0] === PASSKEY_KEYS.ENCRYPTION_TAG
+        (call) => call[0] === PASSKEY_KEYS.ENCRYPTION_TAG
       );
       expect(tagCalls.length).toBe(0);
     });

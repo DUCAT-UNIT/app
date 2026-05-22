@@ -10,10 +10,7 @@ import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { DEVICE_ONLY, clearPreferenceItems } from './storagePolicy';
 import { WALLET_DERIVATION_MODE_KEY } from './walletDerivationService';
-import {
-  DEFAULT_WALLET_DERIVATION_MODE,
-  type WalletDerivationMode,
-} from '../constants/bitcoin';
+import { DEFAULT_WALLET_DERIVATION_MODE, type WalletDerivationMode } from '../constants/bitcoin';
 import { LIQUIDATION_SWAP_BROADCAST_RECOVERY_KEY } from './liquidation/recoveryKeys';
 import { EVM_TRANSACTION_CHECKPOINT_STORAGE_KEY } from '../stores/evmTransactionCheckpointStore';
 import { OPERATION_JOURNAL_STORAGE_KEY } from '../stores/operationJournalStore';
@@ -46,8 +43,6 @@ export const clearSessionMnemonic = (): void => {
   sessionMnemonic = null;
 };
 
-export const hasSessionMnemonic = (): boolean => sessionMnemonic !== null;
-
 export const hasAccessibleMnemonic = async (): Promise<boolean> => {
   if (sessionMnemonic) {
     return true;
@@ -58,7 +53,7 @@ export const hasAccessibleMnemonic = async (): Promise<boolean> => {
       SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC),
       SECURE_STORE_READ_TIMEOUT_MS,
       null,
-      'secureStorage:hasAccessibleMnemonic',
+      'secureStorage:hasAccessibleMnemonic'
     );
     if (!mnemonic) {
       return false;
@@ -84,7 +79,7 @@ export const canUseBiometricUnlockForMnemonic = async (): Promise<boolean> => {
       SecureStore.getItemAsync(SECURE_KEYS.WALLET_CREATION_METHOD),
       SECURE_STORE_READ_TIMEOUT_MS,
       null,
-      'secureStorage:getWalletCreationMethod',
+      'secureStorage:getWalletCreationMethod'
     );
 
     if (creationMethod !== 'passkey') {
@@ -95,7 +90,7 @@ export const canUseBiometricUnlockForMnemonic = async (): Promise<boolean> => {
       SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC_APP_UNLOCK_READY),
       SECURE_STORE_READ_TIMEOUT_MS,
       null,
-      'secureStorage:getMnemonicAppUnlockReady',
+      'secureStorage:getMnemonicAppUnlockReady'
     );
 
     return appUnlockReady === 'true';
@@ -120,7 +115,9 @@ export const saveMnemonic = async (mnemonic: string): Promise<void> => {
     ]);
     cacheSessionMnemonic(mnemonic);
   } catch (error: unknown) {
-    logger.error('Failed to save mnemonic', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to save mnemonic', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new Error('Failed to save wallet securely');
   }
 };
@@ -139,10 +136,12 @@ export const getMnemonic = async (): Promise<string | null> => {
       SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC),
       SECURE_STORE_READ_TIMEOUT_MS,
       null,
-      'secureStorage:getMnemonic',
+      'secureStorage:getMnemonic'
     );
   } catch (error: unknown) {
-    logger.error('Failed to get mnemonic', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to get mnemonic', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };
@@ -178,8 +177,7 @@ export const unlockSessionMnemonicWithPin = async (pin: string): Promise<void> =
 };
 
 /**
- * Retrieve mnemonic and automatically clear it after callback execution
- * Use this when you need temporary access to mnemonic
+ * Retrieve the mnemonic for scoped work and clear local references afterward.
  * @param callback - Function that receives mnemonic
  * @returns Result from callback
  */
@@ -193,7 +191,9 @@ export const withMnemonic = async <T>(callback: (mnemonic: string) => Promise<T>
         SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_ENABLED),
       ]);
       if (creationMethod === 'passkey' && passkeyEnabled === 'true') {
-        throw new Error('Passkey wallet is locked. Unlock with your PIN to re-establish the secure session.');
+        throw new Error(
+          'Passkey wallet is locked. Unlock with your PIN to re-establish the secure session.'
+        );
       }
       throw new Error('Mnemonic not found');
     }
@@ -218,7 +218,9 @@ export const deleteMnemonic = async (): Promise<void> => {
     ]);
     clearSessionMnemonic();
   } catch (error: unknown) {
-    logger.error('Failed to delete mnemonic', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to delete mnemonic', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw new Error('Failed to delete wallet securely');
   }
 };
@@ -235,10 +237,16 @@ export const saveCurrentAccount = async (accountIndex: number): Promise<boolean>
       return false;
     }
 
-    await SecureStore.setItemAsync(SECURE_KEYS.CURRENT_ACCOUNT, accountIndex.toString(), DEVICE_ONLY);
+    await SecureStore.setItemAsync(
+      SECURE_KEYS.CURRENT_ACCOUNT,
+      accountIndex.toString(),
+      DEVICE_ONLY
+    );
     return true;
   } catch (error: unknown) {
-    logger.error('Failed to save current account', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to save current account', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 };
@@ -265,7 +273,9 @@ export const getCurrentAccount = async (): Promise<number> => {
 
     return parsed;
   } catch (error: unknown) {
-    logger.error('Failed to get current account', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to get current account', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 };
@@ -324,10 +334,16 @@ export const saveCachedAddresses = async (
       derivationMode,
       addresses,
     };
-    await SecureStore.setItemAsync(SECURE_KEYS.CACHED_ADDRESSES, JSON.stringify(cached), DEVICE_ONLY);
+    await SecureStore.setItemAsync(
+      SECURE_KEYS.CACHED_ADDRESSES,
+      JSON.stringify(cached),
+      DEVICE_ONLY
+    );
     return true;
   } catch (error: unknown) {
-    logger.error('Failed to save cached addresses', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to save cached addresses', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 };
@@ -349,18 +365,23 @@ export const getCachedAddresses = async (
     try {
       parsed = JSON.parse(cached);
     } catch (parseError) {
-      logger.warn('Invalid JSON in cached addresses, clearing cache', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+      logger.warn('Invalid JSON in cached addresses, clearing cache', {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
       await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
       return null;
     }
 
     // Validate structure
-    if (typeof parsed !== 'object' || parsed === null ||
-        typeof parsed.accountIndex !== 'number' ||
-        typeof parsed.version !== 'number' ||
-        !isWalletDerivationMode(parsed.derivationMode) ||
-        !parsed.addresses ||
-        !hasValidAddressFields(parsed.addresses)) {
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof parsed.accountIndex !== 'number' ||
+      typeof parsed.version !== 'number' ||
+      !isWalletDerivationMode(parsed.derivationMode) ||
+      !parsed.addresses ||
+      !hasValidAddressFields(parsed.addresses)
+    ) {
       logger.warn('Invalid cached addresses structure, clearing cache');
       await SecureStore.deleteItemAsync(SECURE_KEYS.CACHED_ADDRESSES);
       return null;
@@ -378,7 +399,9 @@ export const getCachedAddresses = async (
 
     return parsed.addresses;
   } catch (error: unknown) {
-    logger.error('Failed to get cached addresses', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to get cached addresses', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };
@@ -438,7 +461,9 @@ export const getMultiAccountCache = async (
     try {
       parsed = JSON.parse(cached);
     } catch (parseError) {
-      logger.warn('Invalid JSON in multi-account cache, clearing cache', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+      logger.warn('Invalid JSON in multi-account cache, clearing cache', {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      });
       await SecureStore.deleteItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE);
       return null;
     }
@@ -471,7 +496,9 @@ export const getMultiAccountCache = async (
 
     return null;
   } catch (error: unknown) {
-    logger.error('Failed to get multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to get multi-account cache', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 };
@@ -519,7 +546,9 @@ export const saveToMultiAccountCache = async (
             cache = { __version: ADDRESS_CACHE_VERSION, ...parsed };
           }
         } catch (parseError) {
-          logger.warn('Invalid JSON in multi-account cache during save, resetting', { error: parseError instanceof Error ? parseError.message : String(parseError) });
+          logger.warn('Invalid JSON in multi-account cache during save, resetting', {
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+          });
         }
       }
     }
@@ -531,10 +560,16 @@ export const saveToMultiAccountCache = async (
     memoryCache = cache;
 
     // Persist to secure storage
-    await SecureStore.setItemAsync(SECURE_KEYS.MULTI_ACCOUNT_CACHE, JSON.stringify(cache), DEVICE_ONLY);
+    await SecureStore.setItemAsync(
+      SECURE_KEYS.MULTI_ACCOUNT_CACHE,
+      JSON.stringify(cache),
+      DEVICE_ONLY
+    );
     return true;
   } catch (error: unknown) {
-    logger.error('Failed to save to multi-account cache', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to save to multi-account cache', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return false;
   } finally {
     resolveOperation!();
@@ -657,7 +692,7 @@ export const deleteWalletData = async (
     const extraSecureStoreKeys = new Set<string>();
     const collectRegistryEntries = async (
       registryKey: string,
-      mapEntryToStorageKey: (entry: string) => string = (entry) => entry,
+      mapEntryToStorageKey: (entry: string) => string = (entry) => entry
     ): Promise<void> => {
       extraSecureStoreKeys.add(registryKey);
       try {
@@ -665,7 +700,9 @@ export const deleteWalletData = async (
         if (!raw) return;
         const parsed = JSON.parse(raw) as unknown;
         if (!Array.isArray(parsed)) {
-          logger.warn('SecureStore registry was not an array during wallet deletion', { registryKey });
+          logger.warn('SecureStore registry was not an array during wallet deletion', {
+            registryKey,
+          });
           return;
         }
         parsed

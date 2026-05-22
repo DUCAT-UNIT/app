@@ -39,10 +39,10 @@ export interface BtcSufficiencyResult {
 }
 
 // Transaction size constants (matching transactionCalculationService and vaultUtils)
-export const P2WPKH_INPUT_SIZE = 68;  // Native SegWit input
-export const P2TR_INPUT_SIZE = 57;    // Taproot input
-export const P2SH_INPUT_SIZE = 108;   // P2SH input
-export const P2PKH_INPUT_SIZE = 148;  // Legacy input
+export const P2WPKH_INPUT_SIZE = 68; // Native SegWit input
+export const P2TR_INPUT_SIZE = 57; // Taproot input
+export const P2SH_INPUT_SIZE = 108; // P2SH input
+export const P2PKH_INPUT_SIZE = 148; // Legacy input
 export const DEFAULT_FEE_RATE = 1; // sats per vbyte
 
 // Buffer percentage for fee safety margin (10%)
@@ -53,9 +53,9 @@ export const FEE_BUFFER_PERCENTAGE = 0.1;
  */
 export function getInputSizeForScript(script?: string): number {
   if (!script) return P2WPKH_INPUT_SIZE; // Default to SegWit
-  if (script.startsWith('5120')) return P2TR_INPUT_SIZE;   // Taproot
+  if (script.startsWith('5120')) return P2TR_INPUT_SIZE; // Taproot
   if (script.startsWith('0014')) return P2WPKH_INPUT_SIZE; // Native SegWit
-  if (script.startsWith('a914')) return P2SH_INPUT_SIZE;   // P2SH
+  if (script.startsWith('a914')) return P2SH_INPUT_SIZE; // P2SH
   return P2PKH_INPUT_SIZE; // Legacy fallback
 }
 
@@ -109,8 +109,8 @@ export function getTransactionShape(type: TransactionType): { inputs: number; ou
  * They serve as fallback fee estimates for UI display before the actual SDK transaction
  * quote is available. In production, the real cost comes from the SDK's txQuote.total_cost.
  *
- * TODO: Consider fetching actual base costs from the SDK at runtime instead of using
- * these static estimates.
+ * Limitation: these static estimates should be replaced if the SDK exposes a cheap
+ * runtime quote path before full transaction construction.
  */
 export function getVaultBaseCost(type: TransactionType): number {
   switch (type) {

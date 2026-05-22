@@ -74,11 +74,7 @@ const SAFETY_ASYNC_STORAGE_KEYS = new Set([
   '@ducat/liquidation_txids',
 ]);
 
-const SAFETY_ASYNC_STORAGE_PREFIXES = [
-  'pending_txs_',
-  'spent_utxos_',
-  'pending_vault_tx_',
-];
+const SAFETY_ASYNC_STORAGE_PREFIXES = ['pending_txs_', 'spent_utxos_', 'pending_vault_tx_'];
 
 const isProtectedAsyncStorageKey = (key: string): boolean => {
   if (PROTECTED_KEYS.includes(key)) return true;
@@ -156,7 +152,7 @@ export const clearAppCache = async (): Promise<CacheClearSummary> => {
 };
 
 /**
- * Clear P2PK cache specifically (useful for debugging P2PK issues)
+ * Clear cached P2PK derivations during account recovery or support diagnostics.
  */
 export const clearP2PKCache = async (): Promise<void> => {
   try {
@@ -172,7 +168,7 @@ export const clearP2PKCache = async (): Promise<void> => {
 };
 
 /**
- * Clear Cashu token cache (useful for debugging token issues)
+ * Clear cached Cashu token metadata during account recovery or support diagnostics.
  */
 export const clearCashuCache = async (): Promise<void> => {
   try {
