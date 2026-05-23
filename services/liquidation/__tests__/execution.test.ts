@@ -1184,8 +1184,6 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.01 }));
 
-      // availableCollateral (0.01) > deficitAmountBtc (0.01) is FALSE
-      // → depositAmountBtc = 0.01 - 0.01 = 0 → sats = 0
       expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
@@ -1193,10 +1191,9 @@ describe('executeLiquidation', () => {
       );
     });
 
-    it('should use Math.floor for depositAmountSats, truncating fractional sats', async () => {
+    it('should round depositAmountSats up to avoid underfunding by one sat', async () => {
       // deficit = 0.015, available = 0.005 → depositBtc = 0.01
       // Due to IEEE-754 floating point: 0.015 - 0.005 = 0.009999999999999998
-      // floor(0.009999999999999998 * 100_000_000) = 999_999 (NOT 1_000_000)
       mockGetAvailableCollateralBtc.mockReturnValue(0.005);
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.015 }));
@@ -1204,12 +1201,12 @@ describe('executeLiquidation', () => {
       expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
         expect.anything(),
         expect.anything(),
-        expect.objectContaining({ deposit_amount: 999_999 })
+        expect.objectContaining({ deposit_amount: 1_000_000 })
       );
     });
 
-    it('should use Math.floor and produce exact sats when values are exact powers of ten', async () => {
-      // deficit = 0.1, available = 0 → depositBtc = 0.1 → floor(0.1 * 1e8) = 10_000_000 sats
+    it('should produce exact sats when values are exact powers of ten', async () => {
+      // deficit = 0.1, available = 0 → depositBtc = 0.1 → 10_000_000 sats
       mockGetAvailableCollateralBtc.mockReturnValue(0);
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.1 }));

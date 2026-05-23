@@ -42,7 +42,7 @@ import { buildVaultProfile, computeVaultPrevoutFromTx } from '../vault/utils';
 import { fetchVaultHistory } from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { getAvailableCollateralBtc } from './calculations';
-import { SWAP_PSBT_FEE_BUFFER_BPS, SWAP_PSBT_MIN_FEE_BUFFER_SATS } from './constants';
+import { COIN_SIZE, SWAP_PSBT_FEE_BUFFER_BPS, SWAP_PSBT_MIN_FEE_BUFFER_SATS } from './constants';
 import {
   fetchSwapPsbt,
   createSwapPayload,
@@ -202,9 +202,8 @@ export async function executeLiquidation(
     // ── Step 4: Compute deposit_amount ──
     // (matches web: liquidation.helpers.tsx:183-184)
     const availableCollateral = getAvailableCollateralBtc(bitcoinPrice, btcInVault, unitDebt);
-    const depositAmountBtc =
-      availableCollateral > deficitAmountBtc ? 0 : deficitAmountBtc - availableCollateral;
-    const depositAmountSats = Math.floor(depositAmountBtc * 100_000_000);
+    const depositAmountBtc = Math.max(0, deficitAmountBtc - availableCollateral);
+    const depositAmountSats = Math.max(0, Math.ceil(depositAmountBtc * COIN_SIZE - 1e-6));
 
     logger.debug('[Liquidation] Deposit calc', {
       deficitAmountBtc,
