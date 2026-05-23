@@ -33,4 +33,10 @@ describe('LiquidationEmptyStates', () => {
 
     expect(onBackToWallet).toHaveBeenCalledTimes(1);
   });
+
+  it('separates fee funding from vault collateral failures', () => {
+    const { getByText } = render(<LiquidationEmptyStates variant="insufficientFunds" />);
+
+    expect(getByText('Wallet BTC Too Low')).toBeTruthy();
+  });
 });

@@ -8,6 +8,7 @@ export type LiquidationEmptyVariant =
   | 'noVaults'
   | 'noVault'
   | 'lowCollateral'
+  | 'insufficientFunds'
   | 'loading'
   | 'error';
 
@@ -43,6 +44,14 @@ const VARIANT_CONFIG: Record<
     title: 'Vault Collateral Too Low',
     subtitle:
       "Your vault doesn't have enough available collateral to absorb liquidated debt. Deposit more BTC or repay some debt to free up capacity.",
+  },
+  insufficientFunds: {
+    icon: 'vault',
+    iconColor: colors.semantic.error,
+    bgColor: colors.bg.errorTint,
+    title: 'Wallet BTC Too Low',
+    subtitle:
+      'Your vault has available collateral, but your wallet needs enough BTC outside the vault to pay liquidation network fees.',
   },
   loading: {
     icon: 'liquidations',

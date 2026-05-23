@@ -46,6 +46,8 @@ interface UseLiquidationVaultsParams {
 
 interface UseLiquidationVaultsReturn {
   maxInvestable: number;
+  availableCollateralBtc: number;
+  walletSats: number;
   refreshLiqVaults: (options?: LiquidationRefreshOptions) => Promise<void>;
 }
 
@@ -487,15 +489,21 @@ export function useLiquidationVaults({
 
   // Compute max investable from vault data + wallet constraints
   const vaultsFull = store((s) => s.vaultsFull);
-  const maxInvestable = useMemo(() => {
-    if (!effectiveBtcPrice || vaultsFull.length === 0) return 0;
-    const walletSats = Math.round(((segwitBalance || 0) + (taprootBalance || 0)) * 100_000_000);
-    const availableCollateral = hasVault
+  const walletSats = useMemo(
+    () => Math.round(((segwitBalance || 0) + (taprootBalance || 0)) * 100_000_000),
+    [segwitBalance, taprootBalance],
+  );
+  const availableCollateralBtc = useMemo(() => {
+    if (!effectiveBtcPrice) return 0;
+    return hasVault
       ? getAvailableCollateralBtc(effectiveBtcPrice, vaultCollateral || 0, vaultDebt || 0)
       : walletSats / 100_000_000;
+  }, [effectiveBtcPrice, hasVault, vaultCollateral, vaultDebt, walletSats]);
+  const maxInvestable = useMemo(() => {
+    if (!effectiveBtcPrice || vaultsFull.length === 0) return 0;
     const stats = getMaxInvest(
-      true,
-      availableCollateral,
+      false,
+      availableCollateralBtc,
       walletSats,
       effectiveBtcPrice,
       LIQ_DEFAULT_FEE_RATE,
@@ -504,12 +512,12 @@ export function useLiquidationVaults({
     );
     logger.debug('[Liquidation] maxInvest calc', {
       walletSats,
-      availableCollateral,
+      availableCollateral: availableCollateralBtc,
       vaultCount: vaultsFull.length,
       result: stats.maxInvestBtc,
     });
     return stats.maxInvestBtc;
-  }, [effectiveBtcPrice, segwitBalance, taprootBalance, vaultCollateral, vaultDebt, hasVault, vaultsFull, fetchStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [effectiveBtcPrice, availableCollateralBtc, walletSats, vaultsFull, fetchStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { maxInvestable, refreshLiqVaults };
+  return { maxInvestable, availableCollateralBtc, walletSats, refreshLiqVaults };
 }

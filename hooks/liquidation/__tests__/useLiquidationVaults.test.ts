@@ -436,7 +436,7 @@ describe('useLiquidationVaults', () => {
       });
 
       expect(mockGetMaxInvest).toHaveBeenCalledWith(
-        true,
+        false,
         expect.any(Number), // availableCollateral
         expect.any(Number), // walletSats
         80_000,
@@ -462,7 +462,7 @@ describe('useLiquidationVaults', () => {
 
       // walletSats = round((0.01 + 0.005) * 100_000_000) = 1_500_000
       expect(mockGetMaxInvest).toHaveBeenCalledWith(
-        true,
+        false,
         expect.any(Number),
         1_500_000,
         80_000,
@@ -487,7 +487,7 @@ describe('useLiquidationVaults', () => {
       // When hasVault=false, availableCollateral = walletSats / 100_000_000
       // getMaxInvest should be called with 0.005 (= 500_000 sats / 100_000_000) as availableCollateral
       expect(mockGetMaxInvest).toHaveBeenCalledWith(
-        true,
+        false,
         0.005, // walletSats / 100_000_000
         500_000, // walletSats in sats
         80_000,
@@ -515,7 +515,7 @@ describe('useLiquidationVaults', () => {
         DEFAULT_PARAMS.vaultDebt,
       );
       expect(mockGetMaxInvest).toHaveBeenCalledWith(
-        true,
+        false,
         0.035,
         expect.any(Number),
         80_000,

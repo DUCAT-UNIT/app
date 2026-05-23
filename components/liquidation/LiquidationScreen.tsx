@@ -12,7 +12,7 @@ import {
   getTotalEstimatedProfit,
   getHealthAfterLiquidation,
 } from '../../services/liquidation/calculations';
-import { MIN_COL_RATE, UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
+import { DUST_BTC, MIN_COL_RATE, UNIT_TO_BTC_RATE } from '../../services/liquidation/constants';
 import CurrencyToggle from './CurrencyToggle';
 import LiquidationStatusScreen from './LiquidationStatusScreen';
 import LiquidationReviewScreen from './LiquidationReviewScreen';
@@ -116,7 +116,11 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   }, [visible]);
 
   // ── Hooks ────────────────────────────────────────────────────────
-  const { maxInvestable, refreshLiqVaults } = useLiquidationVaults({
+  const {
+    maxInvestable,
+    availableCollateralBtc,
+    refreshLiqVaults,
+  } = useLiquidationVaults({
     btcPrice,
     segwitBalance,
     taprootBalance,
@@ -159,6 +163,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
   const isInput = currentStep === 'input';
   const hasStaleVaultData = fetchStatus === 'error' && vaults.length > 0;
   const hasClaimableLiquidations = hasVault && isLoaded && vaults.length > 0 && maxInvestable > 0;
+  const hasFreeVaultCollateral = hasVault && availableCollateralBtc > DUST_BTC;
   const shouldShowBottomButton =
     currentStep !== 'processing' && (!isInput || hasClaimableLiquidations);
   const selectedInputVaults = useMemo(() => {
@@ -401,6 +406,9 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
     }
 
     if (isLoaded && maxInvestable <= 0) {
+      if (hasFreeVaultCollateral) {
+        return <LiquidationEmptyStates variant="insufficientFunds" onBackToWallet={onClose} />;
+      }
       return <LiquidationEmptyStates variant="lowCollateral" onBackToWallet={onClose} />;
     }
 
