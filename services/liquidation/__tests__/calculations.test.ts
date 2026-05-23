@@ -412,6 +412,15 @@ describe('computeLiquidVaultProfiles', () => {
       expect(profile.claimAmountBtc).toBeGreaterThanOrEqual(0);
     });
 
+    it('should filter profiles whose claim amount is below dust', () => {
+      mockFormatValidatorResponse.mockReturnValue([mockExtendedVault]);
+      mockGetProfile.mockReturnValue(makeLiquidVaultProfile({ deficit_sats: 100 }));
+
+      const result = computeLiquidVaultProfiles([{} as any], 80_000, mockContract);
+
+      expect(result).toEqual([]);
+    });
+
     it('should sort results descending by profit_margin', () => {
       const vaultA = { ...mockExtendedVault, vaultId: 'vault-a' };
       const vaultB = { ...mockExtendedVault, vaultId: 'vault-b' };
@@ -554,6 +563,15 @@ describe('selectItemsForAmount', () => {
       const result = selectItemsForAmount([bigProfile, profileA, profileB], 0.02);
       expect(result).toHaveLength(1);
       expect(result[0].claimAmountPartial).toBeCloseTo(0.02, 8);
+    });
+
+    it('should skip dust-sized vaults and continue selecting claimable vaults', () => {
+      const dustProfile = makeProfile({ vaultId: 'Dust', claimAmountBtc: DUST_BTC / 2 });
+      const result = selectItemsForAmount([dustProfile, profileA], 0.005);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].vaultId).toBe('A');
+      expect(result[0].claimAmountPartial).toBeCloseTo(0.005, 8);
     });
   });
 
@@ -723,6 +741,21 @@ describe('getMaxInvest', () => {
       expect(result.maxInvestBtc).toBeGreaterThan(0);
       expect(result.maxInvestBtc).toBeLessThan(vault1.claimAmountBtc);
       expect(result.maxSwapBtc).toBeGreaterThan(0);
+      expect(result.maxVaultCount).toBe(1);
+    });
+
+    it('should skip dust-sized profiles instead of stopping all investment', () => {
+      const dustVault = makeProfile({ vaultId: 'dust', claimAmountBtc: DUST_BTC / 2 });
+      const result = getMaxInvest(
+        false,
+        availableCollateral,
+        walletSats,
+        btcPrice,
+        1,
+        [dustVault, vault1]
+      );
+
+      expect(result.maxInvestBtc).toBeCloseTo(vault1.claimAmountBtc, 8);
       expect(result.maxVaultCount).toBe(1);
     });
   });

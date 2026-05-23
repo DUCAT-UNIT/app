@@ -210,7 +210,7 @@ export function computeLiquidVaultProfiles(
       const meta = computeLiqMeta(liquidProfile);
       const unitSwapBtc = v.unit / btcPrice;
 
-      if (meta.profitBtc > 0 && meta.claimAmountBtc >= 0) {
+      if (meta.profitBtc > 0 && meta.claimAmountBtc > DUST_BTC) {
         results.push({
           ...v,
           ...liquidProfile,
@@ -251,6 +251,7 @@ export function selectItemsForAmount(
   for (const item of data) {
     if (result.at(-1)?.claimAmountPartial) break;
     if (sum >= amount) break;
+    if (item.claimAmountBtc <= DUST_BTC) continue;
 
     const sumWithItem = sum + item.claimAmountBtc;
 
@@ -310,6 +311,13 @@ export function getMaxInvest(
   for (const vaultProfile of liquidationData) {
     if (investCap && maxClaimAmountBtc >= investCap) break;
 
+    const { claimAmountBtc, unit } = vaultProfile;
+    if (claimAmountBtc <= DUST_BTC) continue;
+
+    const capRemaining = investCap ? Math.max(0, investCap - maxClaimAmountBtc) : claimAmountBtc;
+    const maxClaimForVault = Math.min(claimAmountBtc, capRemaining);
+    if (maxClaimForVault <= DUST_BTC) break;
+
     vaultCount++;
     const opcost = getOpCostRepo(feeRate, vaultCount);
     feesBtc = satsToBtc(opcost);
@@ -320,11 +328,6 @@ export function getMaxInvest(
       break;
     }
 
-    const { claimAmountBtc, unit } = vaultProfile;
-    if (claimAmountBtc <= 0) continue;
-
-    const capRemaining = investCap ? Math.max(0, investCap - maxClaimAmountBtc) : claimAmountBtc;
-    const maxClaimForVault = Math.min(claimAmountBtc, capRemaining);
     const requiredSwapBtc = isAutoSwap ? (unit / btcPrice) * UNIT_TO_BTC_RATE : 0;
     const swapPerClaimBtc = requiredSwapBtc / claimAmountBtc;
 

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
 import type { LiqVaultDisplay } from '../../services/liquidation/types';
+import { DUST_BTC } from '../../services/liquidation/constants';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 import { formatFiat } from '../../utils/formatters';
@@ -39,6 +40,7 @@ const VaultSelectorTable = React.memo(function VaultSelectorTable({
     let remaining = investAmount;
     for (const vault of vaults) {
       if (remaining <= 0) break;
+      if (vault.claimAmountBtc <= DUST_BTC) continue;
       if (remaining >= vault.claimAmountBtc) {
         result.push({ vault, isPartial: false });
         remaining -= vault.claimAmountBtc;
