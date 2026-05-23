@@ -28,16 +28,14 @@ export async function fetchLiquidatableVaults(): Promise<ValidatorLiquidatedVaul
 
     const data = await response.json() as ValidatorLiquidatedVault[] | null;
     const vaults = data ?? [];
-    const activeVaults = vaults.filter((vault) => vault.quote?.is_expired !== true);
-    const expiredQuoteCount = vaults.length - activeVaults.length;
+    const expiredQuoteCount = vaults.filter((vault) => vault.quote?.is_expired === true).length;
 
     logger.debug('[Liquidation] Fetched vaults', {
-      count: activeVaults.length,
-      rawCount: vaults.length,
+      count: vaults.length,
       expiredQuoteCount,
     });
 
-    return activeVaults;
+    return vaults;
   } catch (error: unknown) {
     logger.warn('[Liquidation] Failed to fetch liquidatable vaults', {
       error: error instanceof Error ? error.message : String(error),
