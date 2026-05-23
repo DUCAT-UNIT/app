@@ -55,7 +55,7 @@ function checkStaticReleaseInvariants() {
     fail('utils/networkConfig.ts must keep the app network narrowed to mutinynet.');
   }
 
-  if (!settings.includes("USDC_FEATURE_PASSWORD = 'fx-570ES PLUS'")) {
+  if (!settings.includes("USDC_FEATURE_UNLOCK_PHRASE = 'fx-570ES PLUS'")) {
     fail('Enable USDC developer password invariant changed.');
   }
 
