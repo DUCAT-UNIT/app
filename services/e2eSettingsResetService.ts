@@ -1,4 +1,4 @@
-import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
+import { E2E_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import { setBoolean, setNumber, SettingKeys } from './settingsService';
 
@@ -38,7 +38,7 @@ export async function resetNonSecretE2ESettings(): Promise<void> {
     setBoolean(SettingKeys.SHOW_ZERO_ASSETS, false),
     setBoolean(SettingKeys.ADVANCED_MODE, false),
     setNumber(SettingKeys.ECASH_THRESHOLD, 10000),
-    setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, DEFAULT_AUTO_LOCK_TIMEOUT_MS),
+    setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, E2E_AUTO_LOCK_TIMEOUT_MS),
     setBoolean(SettingKeys.USDC_FEATURES_ENABLED, false),
   ]);
 }

@@ -39,6 +39,7 @@ import {
   requestMint,
   checkMintStatus,
   completeMint,
+  verifyMintQuoteFundingTarget,
 } from './operations/cashuMintOperations';
 import { receiveToken } from './operations/cashuReceiveToken';
 import { sendToken } from './operations/cashuSendToken';
@@ -95,6 +96,7 @@ export {
   requestMint,
   checkMintStatus,
   completeMint,
+  verifyMintQuoteFundingTarget,
   receiveToken,
   sendToken,
   requestMelt,

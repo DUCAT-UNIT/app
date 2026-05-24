@@ -12,7 +12,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Open send UNIT screen
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-send-btn"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:

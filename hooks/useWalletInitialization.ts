@@ -49,7 +49,7 @@ export const useWalletInitialization = ({
       try {
         // Load biometric preference and wallet in parallel for speed.
         // Race against a timeout so the app never stays stuck on the splash screen.
-        // Each sub-op is tracked individually so PostHog shows which one hung.
+        // Each sub-op records a startup checkpoint so diagnostics show which one hung.
         const biometricPromise = loadBiometricPreference().then(() => {
           startupDiagnostics.recordCheckpoint('biometric_pref_loaded', {
             elapsed_ms: Date.now() - t0,

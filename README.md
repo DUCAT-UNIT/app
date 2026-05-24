@@ -141,7 +141,7 @@ Core public endpoints:
 | Esplora            | `https://mutinynet.com/api`                       |
 | Ord API            | `https://ord-mutinynet.ducatprotocol.com`         |
 | Guardian WebSocket | `wss://guardian-mutinynet-1.ducatprotocol.com`    |
-| Vault API          | `https://validator.staging.ducatprotocol.com/api` |
+| Vault API          | `https://validator.ducatprotocol.com/api`         |
 | Cashu mint         | `https://dev-cashu-mint.ducatprotocol.com`        |
 | Quote service      | `https://quote.ducatprotocol.com`                 |
 | Price service      | `https://price.ducatprotocol.com`                 |

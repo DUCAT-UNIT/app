@@ -145,6 +145,29 @@ export const requestMint = async (
   }
 };
 
+export const verifyMintQuoteFundingTarget = async (
+  quoteId: string,
+  depositAddress: string,
+  expectedAmount: number
+): Promise<void> => {
+  const [quote, signingKey] = await Promise.all([
+    checkMintQuote(quoteId),
+    getMintQuoteSigningKey(),
+  ]);
+
+  if (quote.request !== depositAddress) {
+    throw new Error('Stored TurboUNIT mint quote address does not match the mint quote');
+  }
+
+  if (quote.amount !== undefined && quote.amount !== expectedAmount) {
+    throw new Error('Stored TurboUNIT mint quote amount does not match the requested settlement');
+  }
+
+  if (!quote.pubkey || quote.pubkey !== signingKey.pubkey) {
+    throw new Error('Stored TurboUNIT mint quote is not bound to this wallet');
+  }
+};
+
 export interface MintStatusResult {
   quoteId: string;
   state: string;

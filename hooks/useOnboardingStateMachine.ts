@@ -5,10 +5,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import {
-  authenticateWithBiometrics,
-  setBiometricEnabled as persistBiometricEnabled,
-} from '../services/biometricService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 import {
   canUseBiometricUnlockForMnemonic,
   hasAccessibleMnemonic,
@@ -97,7 +94,6 @@ export function useOnboardingStateMachine({
     showPinEntry,
     setIsAuthenticated,
     setSettingUpPin,
-    setBiometricEnabled,
     setShowFaceIdButton,
   } = useAuth();
 
@@ -176,33 +172,6 @@ export function useOnboardingStateMachine({
 
   // --- Biometric helpers ---
 
-  const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
-    try {
-      const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
-      if (!result.success) return;
-      if (!(await hasAccessibleMnemonic())) {
-        setShowFaceIdButton(false);
-        Alert.alert('Use PIN', 'Enter your PIN once to unlock wallet signing on this device.');
-        return;
-      }
-      if (!(await persistBiometricEnabled(true))) {
-        throw new Error('Failed to persist biometric preference');
-      }
-      setBiometricEnabled(true);
-      setIsAuthenticated(true);
-      handleLockScreenAuthenticatedWrapper();
-    } catch (error: unknown) {
-      logger.error('[OnboardingPage] Failed to enable biometrics from lock screen', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [
-    setBiometricEnabled,
-    setIsAuthenticated,
-    setShowFaceIdButton,
-    handleLockScreenAuthenticatedWrapper,
-  ]);
-
   const handleBiometricAuth = useCallback(async () => {
     logger.debug('[OnboardingPage] handleBiometricAuth called', {
       biometricEnabled,
@@ -221,14 +190,7 @@ export function useOnboardingStateMachine({
           handleLockScreenAuthenticatedWrapper();
         }
       } else {
-        Alert.alert('Face ID', 'Use Face ID for quick and secure access to your wallet.', [
-          {
-            text: 'Continue',
-            onPress: () => {
-              enableBiometricFromPrompt();
-            },
-          },
-        ]);
+        Alert.alert('Use PIN', 'Unlock with your PIN first, then enable Face ID in settings.');
       }
     } catch (error) {
       logger.error('[OnboardingPage] Biometric auth error:', {
@@ -240,7 +202,6 @@ export function useOnboardingStateMachine({
     isBiometricSupported,
     setIsAuthenticated,
     setShowFaceIdButton,
-    enableBiometricFromPrompt,
     handleLockScreenAuthenticatedWrapper,
   ]);
 

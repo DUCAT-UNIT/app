@@ -278,10 +278,20 @@ export default function SendInputScreen({
       }
 
       if (shortfallSats <= 0) {
-        navigation.navigate('TurboProcessing', {
-          cashuUnit: 'sat',
-          senderTaprootAddress: wallet.taprootAddress,
-        });
+        Alert.alert(
+          'Review Turbo BTC send',
+          `Send ${requestedAmountBtc} BTC to this Taproot address?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Create token',
+              onPress: () => navigation.navigate('TurboProcessing', {
+                cashuUnit: 'sat',
+                senderTaprootAddress: wallet.taprootAddress,
+              }),
+            },
+          ]
+        );
         return;
       }
 
@@ -369,10 +379,20 @@ export default function SendInputScreen({
           if (!wallet?.taprootAddress) {
             throw new Error('Wallet Taproot address unavailable for Turbo BTC recovery');
           }
-          navigation.navigate('TurboProcessing', {
-            cashuUnit: 'sat',
-            senderTaprootAddress: wallet.taprootAddress,
-          });
+          Alert.alert(
+            'Review Turbo BTC send',
+            `Send ${currentAmount} BTC to this Taproot address?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Create token',
+                onPress: () => navigation.navigate('TurboProcessing', {
+                  cashuUnit: 'sat',
+                  senderTaprootAddress: wallet.taprootAddress,
+                }),
+              },
+            ]
+          );
           return;
         }
 

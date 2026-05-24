@@ -34,11 +34,10 @@ const withPasskeyTimeout = <T>(promise: Promise<T>): Promise<T> =>
     promise.then(resolve, reject).finally(() => clearTimeout(timeout));
   });
 
-import { loadLockoutState, recordFailedAttempt } from '../pinLockout';
+import { checkPinLockout, recordFailedAttempt } from '../pinLockout';
 import { savePinWithExistingSalt } from '../pinService';
 import {
   cacheSessionMnemonic,
-  saveMnemonic,
   saveCachedAddresses,
   saveCurrentAccount,
   saveToMultiAccountCache,
@@ -63,15 +62,21 @@ interface UnlockResult {
   addresses: ReturnType<typeof deriveAddressesFromMnemonic>;
 }
 
-const persistMnemonicForAppUnlock = async (mnemonic: string): Promise<void> => {
-  try {
-    await saveMnemonic(mnemonic);
-  } catch (error: unknown) {
-    logger.warn('[PasskeyUnlock] Failed to backfill mnemonic for app unlock; using session cache', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    cacheSessionMnemonic(mnemonic);
+const lockoutMessage = (remainingTime?: number): string =>
+  `Too many failed attempts. Try again in ${remainingTime ?? 0} minutes.`;
+
+const assertAuthNotLockedOut = async (): Promise<void> => {
+  const lockStatus = await checkPinLockout();
+  if (lockStatus.isLocked) {
+    throw new Error(lockoutMessage(lockStatus.remainingTime));
   }
+};
+
+const isLockoutError = (error: unknown): boolean =>
+  error instanceof Error && error.message.startsWith('Too many failed attempts.');
+
+const cacheMnemonicForCurrentSession = (mnemonic: string): void => {
+  cacheSessionMnemonic(mnemonic);
 };
 
 const parseStoredCredentialId = (credentialIdBase64: string): Uint8Array =>
@@ -109,6 +114,8 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
     if (passkeyEnabled !== 'true') {
       throw new Error('Passkey is not enabled for this wallet');
     }
+
+    await assertAuthNotLockedOut();
 
     // Retrieve stored credential info
     const credentialIdBase64 = await SecureStore.getItemAsync(PASSKEY_KEYS.CREDENTIAL_ID);
@@ -239,7 +246,7 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
       encryptionKey
     );
 
-    await persistMnemonicForAppUnlock(mnemonic);
+    cacheMnemonicForCurrentSession(mnemonic);
 
     // Get current account index
     const accountIndex = parseInt(
@@ -260,14 +267,14 @@ export const unlockWithPasskey = async (pin: string): Promise<UnlockResult> => {
   } catch (error: unknown) {
     logger.error('Failed to unlock with passkey', { error: (error as Error).message });
 
-    // Record failed passkey attempt for unified auth lockout tracking
-    try {
-      const { failedAttempts } = await loadLockoutState();
-      await recordFailedAttempt(failedAttempts);
-    } catch (lockoutError) {
-      logger.warn('[PasskeyUnlock] Failed to record failed attempt for lockout', {
-        error: (lockoutError as Error).message,
-      });
+    if (!isLockoutError(error)) {
+      try {
+        await recordFailedAttempt();
+      } catch (lockoutError) {
+        logger.warn('[PasskeyUnlock] Failed to record failed attempt for lockout', {
+          error: (lockoutError as Error).message,
+        });
+      }
     }
 
     throw error;
@@ -329,6 +336,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
 
     // Generate challenge
     debugSteps += '4. Authenticating with passkey...\n';
+    await assertAuthNotLockedOut();
     const challenge = new Uint8Array(32);
     getRandomValues(challenge);
 
@@ -503,7 +511,7 @@ export const recoverWithPasskey = async (pin: string): Promise<UnlockResult> => 
     await SecureStore.setItemAsync(PASSKEY_KEYS.DERIVATION_VERSION, derivationVersion, DEVICE_ONLY);
     await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
 
-    await saveMnemonic(mnemonic);
+    cacheMnemonicForCurrentSession(mnemonic);
     const savedAccount = await saveCurrentAccount(0);
     if (!savedAccount) {
       throw new Error('Failed to save current account securely');

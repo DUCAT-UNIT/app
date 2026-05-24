@@ -9,7 +9,7 @@ import { Platform, PlatformIOSStatic } from 'react-native';
 import { SECURE_KEYS } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { withTimeout } from '../utils/withTimeout';
-import { resetPinAttempts, loadLockoutState, recordFailedAttempt } from './pinLockout';
+import { resetPinAttempts, recordFailedAttempt } from './pinLockout';
 import {
   DEVICE_ONLY,
   deletePreferenceItem,
@@ -91,8 +91,7 @@ export const recordBiometricAttempt = async (success: boolean): Promise<void> =>
 
   // SECURITY: Also increment unified PIN lockout counter so biometric failures
   // count toward the shared auth lockout (prevents lockout bypass via method switching)
-  const pinState = await loadLockoutState();
-  await recordFailedAttempt(pinState.failedAttempts);
+  await recordFailedAttempt();
 
   logger.warn('Biometric auth failed', { attempts, maxAttempts: BIOMETRIC_MAX_ATTEMPTS });
 

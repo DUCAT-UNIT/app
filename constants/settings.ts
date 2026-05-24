@@ -1,4 +1,5 @@
 export const DEFAULT_AUTO_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+export const E2E_AUTO_LOCK_TIMEOUT_MS = 30 * 60 * 1000;
 
 export const AUTO_LOCK_TIMEOUT_OPTIONS = [
   { label: '30 seconds', value: 30 * 1000 },

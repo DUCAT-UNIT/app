@@ -63,7 +63,13 @@ describe('networkConfig', () => {
   it('uses the reachable Mutinynet validator by default', () => {
     const { APP_NETWORK_CONFIG } = loadConfig();
 
-    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.staging.ducatprotocol.com/api');
+    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.ducatprotocol.com/api');
+  });
+
+  it('rejects insecure vault API overrides', () => {
+    process.env.EXPO_PUBLIC_VAULT_API_URL = 'http://validator.example/api';
+
+    expect(() => loadConfig()).toThrow('EXPO_PUBLIC_VAULT_API_URL must use HTTPS');
   });
 
   it('fails fast on invalid bigint protocol overrides', () => {

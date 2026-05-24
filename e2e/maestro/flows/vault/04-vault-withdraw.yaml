@@ -26,13 +26,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "wallet-withdraw-btn"
 - waitForAnimationToEnd
 
-# Select vault withdrawal option (visible because hasVault=true)
-- extendedWaitUntil:
-    visible:
-      id: "withdraw-vault"
-    timeout: 10000
-- tapOn:
-    id: "withdraw-vault"
+# Select vault withdrawal option if the transfer sheet appears.
+- runFlow:
+    when:
+      visible:
+        id: "withdraw-vault"
+    commands:
+      - tapOn:
+          id: "withdraw-vault"
+      - waitForAnimationToEnd
 
 # Wait for vault withdraw input screen
 - extendedWaitUntil:

@@ -1,45 +1,13 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Cashu Mint Screen - Navigate to mint flow with funded wallet and verify interactive UI
-# Create wallet with vault (has UNIT) → settings → cashu → mint → verify input and interaction
+# Create wallet with vault (has UNIT) → Cashu receive deep link → mint → verify input and interaction
 
 - runFlow: ../helpers/create-wallet-with-vault.yaml
 
-# Navigate to settings
-- tapOn:
-    id: "wallet-settings-btn"
-- extendedWaitUntil:
-    visible:
-      id: "settings-screen"
-    timeout: 5000
-
-# Enable dev mode (required for cashu settings)
-- tapOn:
-    id: "settings-advanced-btn"
-- extendedWaitUntil:
-    visible:
-      id: "advanced-screen"
-    timeout: 5000
-- tapOn:
-    id: "advanced-dev-mode-btn"
-- tapOn:
-    id: "advanced-back-btn"
-- extendedWaitUntil:
-    visible:
-      id: "settings-screen"
-    timeout: 5000
-
-# Open Cashu settings
-- tapOn:
-    id: "settings-cashu-btn"
-- extendedWaitUntil:
-    visible:
-      id: "cashu-settings-screen"
-    timeout: 5000
-
-# Tap Redeem Token to open CashuReceiveScreen
-- tapOn:
-    id: "cashu-redeem-token-btn"
+# Open CashuReceiveScreen directly; Turbo Cashu settings are intentionally hidden.
+- openLink: "ducat://cashu/receive"
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:

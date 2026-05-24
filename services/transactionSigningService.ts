@@ -168,8 +168,14 @@ function verifyPsbtMatchesIntent(intent: TransactionIntent, psbt: bitcoin.Psbt):
     normalizedRecipient === normalizedChange || normalizedRecipient === normalizedFee;
 
   if (recipientMayAlsoBeChange) {
-    if (!recipientOutputValues.some((value) => value === expectedRecipientValue)) {
+    const exactRecipientOutputs = recipientOutputValues.filter(
+      (value) => value === expectedRecipientValue
+    );
+    if (exactRecipientOutputs.length !== 1) {
       throw new Error('SECURITY: BTC PSBT is missing the reviewed recipient amount');
+    }
+    if (recipientOutputValues.length > 2) {
+      throw new Error('SECURITY: BTC self-send PSBT has unexpected extra recipient outputs');
     }
   } else {
     if (recipientValue < expectedRecipientValue) {

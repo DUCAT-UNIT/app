@@ -16,8 +16,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "security-change-pin-btn"
 
-# Enter current PIN (111111)
-- runFlow: ../helpers/enter-pin-lock.yaml
+# Enter current PIN (111111) if the app asks for re-verification first
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - runFlow: ../helpers/enter-pin-lock.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter New PIN"
+    timeout: 10000
 
 # Enter new PIN (654321) twice
 - runFlow: ../helpers/enter-pin-reverse-setup.yaml
@@ -31,6 +41,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Verify returns to security screen
 - waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-setup-screen"
+    timeout: 60000
 - runFlow:
     when:
       visible:
@@ -109,8 +123,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: "security-change-pin-btn"
 
-# Enter current PIN (654321 — the one we just set)
-- runFlow: ../helpers/enter-pin-reverse-lock.yaml
+# Enter current PIN (654321 — the one we just set) if re-verification appears
+- runFlow:
+    when:
+      visible:
+        id: "lock-screen"
+    commands:
+      - runFlow: ../helpers/enter-pin-reverse-lock.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: "Enter New PIN"
+    timeout: 10000
 
 # Enter original PIN (111111) twice to restore
 - runFlow: ../helpers/enter-pin-setup.yaml
@@ -125,6 +149,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Verify returns to security screen (cleanup complete)
 - waitForAnimationToEnd
+- extendedWaitUntil:
+    notVisible:
+      id: "pin-setup-screen"
+    timeout: 60000
 - runFlow:
     when:
       visible:

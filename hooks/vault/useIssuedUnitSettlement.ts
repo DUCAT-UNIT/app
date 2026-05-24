@@ -8,6 +8,7 @@ import {
   checkMintStatus,
   completeMint,
   requestMint,
+  verifyMintQuoteFundingTarget,
   type CashuProof,
 } from '../../services/cashu/cashuWalletService';
 import { createBridgeIntent } from '../../services/bridgeApiService';
@@ -548,6 +549,12 @@ export function useIssuedUnitSettlement() {
           cashuMintQuoteAmount = quote.amount ?? amountSmallestUnits;
           setCashuMintQuote(quote.quoteId, quote.depositAddress, cashuMintQuoteAmount);
           await persistVaultSettlementNow();
+        } else {
+          await verifyMintQuoteFundingTarget(
+            cashuMintQuoteId,
+            cashuMintDepositAddress,
+            cashuMintQuoteAmount
+          );
         }
         const mintFundingAmountInput = formatVaultSettlementAmountInput(cashuMintQuoteAmount / 100);
 
@@ -641,7 +648,6 @@ export function useIssuedUnitSettlement() {
         const payoutAmount = formatVaultSettlementAmountInput(mintedAmount / 100);
 
         if (broadcastedMintSendTxid) {
-          await confirmTransaction(broadcastedMintSendTxid).catch(() => undefined);
           await fetchBalance().catch(() => undefined);
           await fetchTransactionHistory?.().catch(() => undefined);
         }

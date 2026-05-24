@@ -24,7 +24,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Open deposit sheet
 - tapOn:
-    id: "wallet-deposit-btn"
+    id: "wallet-receive-btn"
 
 # Select UNIT from deposit sheet
 - extendedWaitUntil:

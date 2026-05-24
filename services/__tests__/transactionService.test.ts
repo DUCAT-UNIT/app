@@ -1031,6 +1031,53 @@ describe('transactionService', () => {
         expect(selfSendPsbt.finalizeAllInputs).toHaveBeenCalled();
       });
 
+      it('should reject BTC self-send PSBTs with extra recipient outputs', async () => {
+        const bitcoin = require('bitcoinjs-lib');
+
+        (SecureStorageService.withMnemonic as jest.Mock).mockReturnValueOnce({
+          segwitChild: mockSegwitChild,
+          taprootChild: mockTaprootChild,
+        });
+
+        const selfSendScript = mockPsbt.txOutputs![0].script;
+        const selfSendPsbt = {
+          ...mockPsbt,
+          txOutputs: [
+            {
+              script: selfSendScript,
+              value: BigInt(50_000),
+            },
+            {
+              script: selfSendScript,
+              value: BigInt(100_000),
+            },
+            {
+              script: selfSendScript,
+              value: BigInt(4_850_000),
+            },
+          ],
+        };
+
+        bitcoin.Psbt.fromBase64 = jest.fn(() => selfSendPsbt);
+
+        const btcIntent = {
+          type: 'send',
+          assetType: 'BTC' as const,
+          recipient: (mockPsbt as any).__recipient,
+          sourceAddress: (mockPsbt as any).__recipient,
+          amount: 50000,
+          fee: 20_000,
+          addressType: 'segwit' as const,
+          inputs: [{ txid: 'tx1', vout: 0 }],
+          psbt: 'mock_btc_self_send_psbt_base64',
+          feeAddress: (mockPsbt as any).__recipient,
+        };
+
+        await expect(TransactionService.signIntent(btcIntent, 0)).rejects.toThrow(
+          'SECURITY: BTC self-send PSBT has unexpected extra recipient outputs'
+        );
+      });
+
       it('should sign BTC Taproot transaction with tweaked keys', async () => {
         const bitcoin = require('bitcoinjs-lib');
 

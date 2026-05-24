@@ -43,8 +43,6 @@ export default function VaultProcessingScreen({
     phase: settlementPhase,
     faceValueUsd: settlementFaceValueUsd,
     requestedPayoutAsset,
-    bridgeSendTxid,
-    cashuMintSendTxid,
   } = useVaultSettlementStore();
   const { settleIssuedUnitToUsdc, settleIssuedUnitToTurboUnit } = useIssuedUnitSettlement();
   const appState = useRef(AppState.currentState);
@@ -176,29 +174,7 @@ export default function VaultProcessingScreen({
     config.operationType === 'borrow' &&
     requestedPayoutAsset !== 'UNIT' &&
     settlementFaceValueUsd > 0 &&
-    (
-      settlementPhase === 'needs_retry' ||
-      (
-        requestedPayoutAsset === 'USDC' &&
-        !bridgeSendTxid &&
-        (
-          settlementPhase === 'building_bridge_send' ||
-          settlementPhase === 'signing_bridge_send' ||
-          settlementPhase === 'broadcasting_bridge_send' ||
-          settlementPhase === 'waiting_bridge_fulfillment'
-        )
-      ) ||
-      (
-        requestedPayoutAsset === 'TURBOUNIT' &&
-        !cashuMintSendTxid &&
-        (
-          settlementPhase === 'building_turbo_send' ||
-          settlementPhase === 'signing_turbo_send' ||
-          settlementPhase === 'broadcasting_turbo_send' ||
-          settlementPhase === 'waiting_turbo_mint'
-        )
-      )
-    );
+    settlementPhase === 'needs_retry';
   const showActionButton = !!error || isSettlementRetryNeeded;
   const actionLabel = error
     ? 'Cancel'

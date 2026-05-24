@@ -22,9 +22,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "passkey-skip-btn"
 
-# Navigate to receive via Deposit button
+# Navigate to receive via Receive button
 - tapOn:
-    id: "wallet-deposit-btn"
+    id: "wallet-receive-btn"
 
 # Deposit sheet opens - select BTC
 - extendedWaitUntil:

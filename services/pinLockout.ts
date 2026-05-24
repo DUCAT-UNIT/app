@@ -46,6 +46,8 @@ export interface FailedAttemptResult {
   lockoutUntil?: number;
 }
 
+let failedAttemptUpdateQueue: Promise<void> = Promise.resolve();
+
 /**
  * Load lockout state from secure storage
  * @returns Lockout state with failed attempts and lockout timestamp
@@ -159,30 +161,46 @@ export const getRemainingPinAttempts = async (): Promise<number> => {
  * @param currentFailedAttempts - Current number of failed attempts
  * @returns Result with lockout status and new attempt count
  */
-export const recordFailedAttempt = async (
-  currentFailedAttempts: number
-): Promise<FailedAttemptResult> => {
-  const newFailedAttempts = currentFailedAttempts + 1;
+export const recordFailedAttempt = async (_currentFailedAttempts?: number): Promise<FailedAttemptResult> => {
+  let result: FailedAttemptResult | null = null;
 
-  // Check if we've hit the limit
-  if (newFailedAttempts >= MAX_PIN_ATTEMPTS) {
-    const lockoutUntil = Date.now() + LOCKOUT_DURATION;
-    await saveLockoutState(newFailedAttempts, lockoutUntil);
+  const update = failedAttemptUpdateQueue.catch(() => undefined).then(async () => {
+    const { failedAttempts: currentFailedAttempts } = await loadLockoutState();
+    const newFailedAttempts = currentFailedAttempts + 1;
 
-    return {
-      shouldLockout: true,
+    // Check if we've hit the limit
+    if (newFailedAttempts >= MAX_PIN_ATTEMPTS) {
+      const lockoutUntil = Date.now() + LOCKOUT_DURATION;
+      await saveLockoutState(newFailedAttempts, lockoutUntil);
+
+      result = {
+        shouldLockout: true,
+        newFailedAttempts,
+        lockoutUntil,
+      };
+      return;
+    }
+
+    // Save the updated attempt count
+    await saveLockoutState(newFailedAttempts, null);
+
+    result = {
+      shouldLockout: false,
       newFailedAttempts,
-      lockoutUntil,
     };
+  });
+
+  failedAttemptUpdateQueue = update.then(
+    () => undefined,
+    () => undefined
+  );
+
+  await update;
+  if (!result) {
+    throw new Error('Unable to enforce rate limiting. Access denied for security.');
   }
 
-  // Save the updated attempt count
-  await saveLockoutState(newFailedAttempts, null);
-
-  return {
-    shouldLockout: false,
-    newFailedAttempts,
-  };
+  return result;
 };
 
 /**

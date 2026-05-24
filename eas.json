@@ -27,8 +27,6 @@
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_POSTHOG_KEY": "phc_rSk5zW5YHryxVyiCH6GzeRtirw2CQMDCp7wYDsstp7cf",
-        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
         "EXPO_PUBLIC_SEPOLIA_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
         "EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
         "EXPO_PUBLIC_WUNIT_ADDRESS": "0x139a26fec4786c83888bB2b25E39f656371ed307",
@@ -51,8 +49,6 @@
       },
       "env": {
         "EXPO_PUBLIC_ENV": "production",
-        "EXPO_PUBLIC_POSTHOG_KEY": "phc_rSk5zW5YHryxVyiCH6GzeRtirw2CQMDCp7wYDsstp7cf",
-        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
         "EXPO_PUBLIC_SEPOLIA_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
         "EXPO_PUBLIC_SEPOLIA_USDC_ADDRESS": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
         "EXPO_PUBLIC_WUNIT_ADDRESS": "0x139a26fec4786c83888bB2b25E39f656371ed307",

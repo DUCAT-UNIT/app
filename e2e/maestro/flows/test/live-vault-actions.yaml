@@ -24,13 +24,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - extendedWaitUntil:
     visible:
-      id: 'deposit-vault'
-    timeout: 10000
-- tapOn:
-    id: 'deposit-vault'
-
-- extendedWaitUntil:
-    visible:
       id: 'vault-deposit-input-screen'
     timeout: 10000
 - tapOn:
@@ -67,6 +60,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: 'vault-success-done-btn'
 
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'
@@ -86,6 +80,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 
 # Additional on-chain UNIT borrow from the existing vault.
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-borrow-btn'
@@ -141,6 +136,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: 'vault-success-done-btn'
 
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'
@@ -160,6 +156,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 
 # On-chain UNIT repay from spendable UNIT, explicitly not USDC/TurboUNIT.
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-repay-btn'
@@ -219,6 +216,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: 'vault-success-done-btn'
 
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'
@@ -242,6 +240,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 240000
 
 # BTC collateral withdrawal.
+- runFlow: ../helpers/unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
       id: 'wallet-withdraw-btn'
@@ -249,13 +248,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - tapOn:
     id: 'wallet-withdraw-btn'
 - waitForAnimationToEnd
-
-- extendedWaitUntil:
-    visible:
-      id: 'withdraw-vault'
-    timeout: 10000
-- tapOn:
-    id: 'withdraw-vault'
 
 - extendedWaitUntil:
     visible:

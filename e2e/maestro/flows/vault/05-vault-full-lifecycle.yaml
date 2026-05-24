@@ -81,12 +81,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
     id: "wallet-withdraw-btn"
 - waitForAnimationToEnd
 
-- extendedWaitUntil:
-    visible:
-      id: "withdraw-vault"
-    timeout: 10000
-- tapOn:
-    id: "withdraw-vault"
+- runFlow:
+    when:
+      visible:
+        id: "withdraw-vault"
+    commands:
+      - tapOn:
+          id: "withdraw-vault"
+      - waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible:

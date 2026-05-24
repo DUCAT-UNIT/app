@@ -287,10 +287,14 @@ describe('recordFailedAttempt', () => {
   });
 
   it('should increment failed attempts', async () => {
+    mockGetItemAsync.mockImplementation((key) => {
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve('3');
+      return Promise.resolve(null);
+    });
     mockSetItemAsync.mockResolvedValue();
     mockDeleteItemAsync.mockResolvedValue();
 
-    const result = await recordFailedAttempt(3);
+    const result = await recordFailedAttempt();
 
     expect(result.newFailedAttempts).toBe(4);
     expect(result.shouldLockout).toBe(false);
@@ -299,9 +303,15 @@ describe('recordFailedAttempt', () => {
   });
 
   it('should trigger lockout when max attempts reached', async () => {
+    mockGetItemAsync.mockImplementation((key) => {
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) {
+        return Promise.resolve((getMaxPinAttempts() - 1).toString());
+      }
+      return Promise.resolve(null);
+    });
     mockSetItemAsync.mockResolvedValue();
 
-    const result = await recordFailedAttempt(getMaxPinAttempts() - 1);
+    const result = await recordFailedAttempt();
 
     expect(result.newFailedAttempts).toBe(getMaxPinAttempts());
     expect(result.shouldLockout).toBe(true);
@@ -321,21 +331,31 @@ describe('recordFailedAttempt', () => {
   });
 
   it('should not lockout before max attempts', async () => {
+    mockGetItemAsync.mockImplementation((key) => {
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) return Promise.resolve('5');
+      return Promise.resolve(null);
+    });
     mockSetItemAsync.mockResolvedValue();
     mockDeleteItemAsync.mockResolvedValue();
 
-    const result = await recordFailedAttempt(5);
+    const result = await recordFailedAttempt();
 
     expect(result.shouldLockout).toBe(false);
     expect(result.lockoutUntil).toBeUndefined();
   });
 
   it('should set lockout duration correctly', async () => {
+    mockGetItemAsync.mockImplementation((key) => {
+      if (key === LOCKOUT_KEYS.FAILED_ATTEMPTS) {
+        return Promise.resolve((getMaxPinAttempts() - 1).toString());
+      }
+      return Promise.resolve(null);
+    });
     mockSetItemAsync.mockResolvedValue();
     const currentTime = 1000000;
     (Date.now as jest.Mock).mockReturnValue(currentTime);
 
-    const result = await recordFailedAttempt(getMaxPinAttempts() - 1);
+    const result = await recordFailedAttempt();
 
     // Lockout duration is 30 minutes = 1800000ms
     expect(result.lockoutUntil).toBe(currentTime + 1800000);

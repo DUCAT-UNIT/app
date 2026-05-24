@@ -1,10 +1,10 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Navigate to Send screen from wallet (Withdraw button opens Send)
+# Navigate to Send screen from wallet (Send button opens Send)
 - assertVisible:
     id: "wallet-screen"
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-send-btn"
 - extendedWaitUntil:
     visible:
       id: "send-input-screen"

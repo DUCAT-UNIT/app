@@ -1,53 +1,12 @@
 /**
  * Analytics Service
- * Centralized PostHog analytics with privacy guards.
- * All methods are fire-and-forget — never block UI or throw.
+ * Local no-op shim. Tracking is disabled in-app.
  */
 
-import type PostHog from 'posthog-react-native';
-import { isE2E } from '../utils/e2e';
-import { logger } from '../utils/logger';
-
-// Lazy-initialized PostHog client
-let posthogClient: PostHog | null = null;
-let initAttempted = false;
-
-function getClient(): PostHog | null {
-  if (isE2E()) return null;
-  if (posthogClient) return posthogClient;
-  if (initAttempted) return null;
-
-  initAttempted = true;
-
-  const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
-  const host = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
-
-  if (!apiKey) {
-    logger.debug('[Analytics] No POSTHOG_KEY set, analytics disabled');
-    return null;
-  }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { PostHog } = require('posthog-react-native');
-    posthogClient = new PostHog(apiKey, {
-      host,
-      flushAt: 5,          // Flush after 5 events (was 20)
-      flushInterval: 10000, // Flush every 10s (was 30s)
-    });
-    logger.debug('[Analytics] PostHog initialized');
-    return posthogClient;
-  } catch (err: unknown) {
-    logger.warn('[Analytics] Failed to initialize PostHog', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
-}
+type AnalyticsProperties = Record<string, unknown>;
 
 /**
  * SHA-256 hash an address for privacy.
- * Never send raw Bitcoin addresses to analytics.
  */
 async function hashString(value: string): Promise<string> {
   try {
@@ -58,120 +17,46 @@ async function hashString(value: string): Promise<string> {
   }
 }
 
-/** Truncate a txid to first 8 chars for privacy */
-function truncateTxid(txid: string): string {
-  return txid.substring(0, 8);
-}
-
 export const analytics = {
-  /**
-   * Track an event with optional properties.
-   * Fire-and-forget — never blocks, never throws.
-   */
-  track(event: string, properties?: Record<string, any>): void {
-    try {
-      getClient()?.capture(event, properties);
-    } catch {
-      // Never throw from analytics
-    }
+  track(_event: string, _properties?: AnalyticsProperties): void {
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Track a screen view.
-   */
-  screen(screenName: string, properties?: Record<string, any>): void {
-    try {
-      getClient()?.screen(screenName, properties);
-    } catch {
-      // Never throw from analytics
-    }
+  screen(_screenName: string, _properties?: AnalyticsProperties): void {
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Identify a user in analytics.
-   * IMPORTANT: userId MUST be a pre-hashed value (use hashAddress() or hashString()).
-   * Never pass raw Bitcoin addresses or other PII as userId.
-   */
-  identifyHashed(hashedUserId: string, traits?: Record<string, any>): void {
-    try {
-      if (hashedUserId.length !== 64) {
-        logger.warn('[Analytics] identifyHashed called with non-hash userId (expected 64-char hex)');
-      }
-      getClient()?.identify(hashedUserId, traits);
-    } catch {
-      // Never throw from analytics
-    }
+  identifyHashed(_hashedUserId: string, _traits?: AnalyticsProperties): void {
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Reset identity (on wallet delete or account switch).
-   */
   reset(): void {
-    try {
-      getClient()?.reset();
-    } catch {
-      // Never throw from analytics
-    }
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Set super properties attached to every subsequent event.
-   */
-  setSuperProperties(props: Record<string, any>): void {
-    try {
-      getClient()?.register(props);
-    } catch {
-      // Never throw from analytics
-    }
+  setSuperProperties(_props: AnalyticsProperties): void {
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Track an event with a hashed address (async).
-   */
   async trackWithAddress(
-    event: string,
-    address: string,
-    properties?: Record<string, any>,
+    _event: string,
+    _address: string,
+    _properties?: AnalyticsProperties,
   ): Promise<void> {
-    try {
-      const hashed = await hashString(address);
-      getClient()?.capture(event, { ...properties, address_hash: hashed });
-    } catch {
-      // Never throw from analytics
-    }
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Track a transaction event with truncated txid.
-   */
   trackTransaction(
-    event: string,
-    txid: string,
-    properties?: Record<string, any>,
+    _event: string,
+    _txid: string,
+    _properties?: AnalyticsProperties,
   ): void {
-    try {
-      getClient()?.capture(event, {
-        ...properties,
-        txid_prefix: truncateTxid(txid),
-      });
-    } catch {
-      // Never throw from analytics
-    }
+    // Tracking intentionally disabled.
   },
 
-  /**
-   * Hash an address for use as user ID.
-   */
   hashAddress: hashString,
 
-  /**
-   * Flush pending events immediately.
-   */
   flush(): void {
-    try {
-      getClient()?.flush();
-    } catch {
-      // Never throw from analytics
-    }
+    // Tracking intentionally disabled.
   },
 };

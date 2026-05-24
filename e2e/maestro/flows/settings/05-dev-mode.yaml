@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Developer Mode - Toggle dev mode on and verify cashu settings appears
-# Import wallet → settings → advanced → toggle dev mode → back → verify cashu btn
+# Developer Mode - Toggle dev mode on and verify advanced-only controls
+# Import wallet → settings → advanced → toggle dev mode → verify account switching, back → verify Cashu remains hidden
 
 - runFlow: ../helpers/import-wallet-typed.yaml
 
@@ -52,6 +52,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "settings-screen"
     timeout: 5000
 
-# Verify Turbo UNIT settings button now visible (only in dev mode)
-- assertVisible:
+# Turbo Cashu remains hidden even in dev mode.
+- assertNotVisible:
     id: "settings-cashu-btn"

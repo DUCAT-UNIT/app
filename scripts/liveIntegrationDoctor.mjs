@@ -106,18 +106,18 @@ function getCashuMintUrlFromSource() {
   }
 
   const contents = readFileSync(MINT_CONFIG_PATH, 'utf8');
-  const match = contents.match(/export\s+const\s+MINT_URL\s*=\s*['"]([^'"]+)['"]/);
-  if (!match) {
-    fail('Cashu mint config must export MINT_URL');
-    return null;
-  }
+  const configured = process.env.EXPO_PUBLIC_CASHU_MINT_URL || DUCAT_CASHU_MINT_URL;
 
   let parsed;
   try {
-    parsed = new URL(match[1]);
+    parsed = new URL(configured);
   } catch {
     fail('Cashu MINT_URL must be a valid URL');
     return null;
+  }
+
+  if (!contents.includes('export const MINT_URL = resolveMintUrl();')) {
+    fail('Cashu mint config must export MINT_URL from resolveMintUrl()');
   }
 
   if (parsed.origin !== DUCAT_CASHU_MINT_URL || parsed.pathname.replace(/\/$/, '') !== '') {

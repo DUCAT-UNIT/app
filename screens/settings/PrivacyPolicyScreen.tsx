@@ -95,10 +95,6 @@ const PrivacyPolicyScreen = React.memo(function PrivacyPolicyScreen({ route }: P
           <Text style={localStyles.listItem}>
             • Transaction Information: Information like non-identifying telemetry data for reliability and performance purposes of services and products.
           </Text>
-          <Text style={localStyles.listItem}>
-            • Tracking Information: We may use third-party tracking technologies like PostHog to monitor security, prevent abuse, and investigate incidents to improve products and services.
-          </Text>
-
           <Text style={localStyles.sectionTitle}>2. How We Use Your Personal Information</Text>
           <Text style={localStyles.paragraph}>
             We use the information we collect about you as required by applicable law, in connection with any purpose expressly described at the point of collection, or in accordance with a term in our agreements with you. We may also use the information we collect for the following purposes:

@@ -1,7 +1,9 @@
 import type { NativeBottomTabNavigationOptions } from '@react-navigation/bottom-tabs/unstable';
 import { COLORS } from '../theme';
 
-const HIDDEN_TAB_LABEL = '';
+const WALLET_TAB_LABEL = 'Wallet';
+const LIQUIDATIONS_TAB_LABEL = 'Liquidations';
+const QUANTA_TAB_LABEL = 'Quanta';
 
 const WALLET_TAB_ICON = { type: 'sfSymbol', name: 'house' } as const;
 const LIQUIDATIONS_TAB_ICON = { type: 'sfSymbol', name: 'chart.line.downtrend.xyaxis' } as const;
@@ -13,31 +15,35 @@ export const MAIN_TAB_BAR_OPTIONS: NativeBottomTabNavigationOptions = {
   tabBarInactiveTintColor: COLORS.TEXT_SECONDARY,
   tabBarActiveIndicatorColor: COLORS.TRANSPARENT,
   tabBarActiveIndicatorEnabled: false,
-  tabBarBlurEffect: 'systemChromeMaterialDark',
+  tabBarBlurEffect: 'none',
   tabBarControllerMode: 'tabBar',
-  tabBarLabelVisibilityMode: 'unlabeled',
+  tabBarLabelVisibilityMode: 'labeled',
+  tabBarLabelStyle: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   tabBarMinimizeBehavior: 'never',
   lazy: false,
   tabBarStyle: {
-    backgroundColor: 'rgba(17, 16, 21, 0.82)',
+    backgroundColor: COLORS.DARK_BG,
     shadowColor: COLORS.BORDER_COLOR,
   },
 };
 
 export const WALLET_TAB_OPTIONS: NativeBottomTabNavigationOptions = {
-  title: HIDDEN_TAB_LABEL,
-  tabBarLabel: HIDDEN_TAB_LABEL,
+  title: WALLET_TAB_LABEL,
+  tabBarLabel: WALLET_TAB_LABEL,
   tabBarIcon: WALLET_TAB_ICON,
 };
 
 export const LIQUIDATIONS_TAB_OPTIONS: NativeBottomTabNavigationOptions = {
-  title: HIDDEN_TAB_LABEL,
-  tabBarLabel: HIDDEN_TAB_LABEL,
+  title: LIQUIDATIONS_TAB_LABEL,
+  tabBarLabel: LIQUIDATIONS_TAB_LABEL,
   tabBarIcon: LIQUIDATIONS_TAB_ICON,
 };
 
 export const QUANTA_TAB_OPTIONS: NativeBottomTabNavigationOptions = {
-  title: HIDDEN_TAB_LABEL,
-  tabBarLabel: HIDDEN_TAB_LABEL,
+  title: QUANTA_TAB_LABEL,
+  tabBarLabel: QUANTA_TAB_LABEL,
   tabBarIcon: QUANTA_TAB_ICON,
 };

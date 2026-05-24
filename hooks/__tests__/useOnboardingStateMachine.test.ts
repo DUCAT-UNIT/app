@@ -2,20 +2,16 @@
  * Tests for deriveOnboardingScreen pure function
  */
 
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAuthFlowHandlers } from '../../contexts/NavigationHandlersContext';
 import { useWallet } from '../../contexts/WalletContext';
-import {
-  authenticateWithBiometrics,
-  setBiometricEnabled as persistBiometricEnabled,
-} from '../../services/biometricService';
+import { authenticateWithBiometrics } from '../../services/biometricService';
 import {
   canUseBiometricUnlockForMnemonic,
   hasAccessibleMnemonic,
 } from '../../services/secureStorageService';
-import { logger } from '../../utils/logger';
 import { useOnboardingHandlers } from '../useOnboardingHandlers';
 import { usePasskeyCreation } from '../usePasskeyCreation';
 import { usePasskeyRestore } from '../usePasskeyRestore';
@@ -328,7 +324,6 @@ describe('useOnboardingStateMachine', () => {
     mockHandlePinSetupComplete.mockResolvedValue(undefined);
     mockHandlePinChangeComplete.mockResolvedValue(undefined);
     (authenticateWithBiometrics as jest.Mock).mockResolvedValue({ success: true });
-    (persistBiometricEnabled as jest.Mock).mockResolvedValue(true);
     (canUseBiometricUnlockForMnemonic as jest.Mock).mockResolvedValue(true);
     (hasAccessibleMnemonic as jest.Mock).mockResolvedValue(true);
     (useWallet as jest.Mock).mockReturnValue({
@@ -413,7 +408,7 @@ describe('useOnboardingStateMachine', () => {
     }));
   });
 
-  it('prompts to enable biometrics from the lock screen and persists the preference', async () => {
+  it('does not enable biometrics from the lock screen before PIN unlock', async () => {
     const { result } = renderHook(() => useOnboardingStateMachine(params));
 
     await act(async () => {
@@ -421,26 +416,12 @@ describe('useOnboardingStateMachine', () => {
     });
 
     expect(Alert.alert).toHaveBeenCalledWith(
-      'Face ID',
-      'Use Face ID for quick and secure access to your wallet.',
-      expect.any(Array),
+      'Use PIN',
+      'Unlock with your PIN first, then enable Face ID in settings.',
     );
-
-    const buttons = alertSpy.mock.calls[0][2] as Array<{ onPress?: () => void }>;
-    await act(async () => {
-      buttons[0].onPress?.();
-    });
-
-    await waitFor(() => {
-      expect(persistBiometricEnabled).toHaveBeenCalledWith(true);
-    });
-    expect(authenticateWithBiometrics).toHaveBeenCalledWith(
-      'Authenticate to enable Face ID',
-      'Cancel',
-    );
-    expect(mockSetBiometricEnabled).toHaveBeenCalledWith(true);
-    expect(mockSetIsAuthenticated).toHaveBeenCalledWith(true);
-    expect(mockHandleLockScreenAuthenticatedWrapper).toHaveBeenCalled();
+    expect(authenticateWithBiometrics).not.toHaveBeenCalled();
+    expect(mockSetBiometricEnabled).not.toHaveBeenCalled();
+    expect(mockSetIsAuthenticated).not.toHaveBeenCalledWith(true);
   });
 
   it('requires mnemonic availability before biometric unlock succeeds', async () => {
@@ -477,25 +458,4 @@ describe('useOnboardingStateMachine', () => {
     expect(mockHandleLockScreenAuthenticatedWrapper).toHaveBeenCalled();
   });
 
-  it('logs biometric enablement failures without authenticating the session', async () => {
-    (persistBiometricEnabled as jest.Mock).mockResolvedValue(false);
-    const { result } = renderHook(() => useOnboardingStateMachine(params));
-
-    await act(async () => {
-      await result.current.handleBiometricAuth();
-    });
-    const buttons = alertSpy.mock.calls[0][2] as Array<{ onPress?: () => void }>;
-    await act(async () => {
-      buttons[0].onPress?.();
-    });
-
-    await waitFor(() => {
-      expect(logger.error).toHaveBeenCalledWith(
-        '[OnboardingPage] Failed to enable biometrics from lock screen',
-        { error: 'Failed to persist biometric preference' },
-      );
-    });
-    expect(mockSetBiometricEnabled).not.toHaveBeenCalled();
-    expect(mockSetIsAuthenticated).not.toHaveBeenCalled();
-  });
 });

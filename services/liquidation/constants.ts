@@ -40,13 +40,46 @@ export const SWAP_PSBT_MIN_FEE_BUFFER_SATS = 10_000;
 // This app is Mutinynet-only; never switch to the non-test faucet endpoint.
 export const FAUCET_SWAP_URL = 'https://faucet.ducatprotocol.com/unit/faucet/test';
 
+function requireHttpsBaseUrl(name: string, value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Invalid URL value for ${name}: ${value}`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${name} must use HTTPS`);
+  }
+
+  return parsed.toString().replace(/\/$/, '');
+}
+
+function requireWssBaseUrl(name: string, value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Invalid WebSocket URL value for ${name}: ${value}`);
+  }
+
+  if (parsed.protocol !== 'wss:') {
+    throw new Error(`${name} must use WSS`);
+  }
+
+  return parsed.toString().replace(/\/$/, '');
+}
+
 function resolveLiquidationValidatorUrl(): string {
   const configured = process.env.EXPO_PUBLIC_LIQ_VALIDATOR_URL?.trim();
   if (configured) {
-    return configured.replace(/\/$/, '');
+    return requireHttpsBaseUrl('EXPO_PUBLIC_LIQ_VALIDATOR_URL', configured);
   }
 
-  return APP_NETWORK_CONFIG.api.vaultUrl.replace(/\/api\/?$/, '').replace(/\/$/, '') + '/liq';
+  return requireHttpsBaseUrl(
+    'EXPO_PUBLIC_LIQ_VALIDATOR_URL',
+    APP_NETWORK_CONFIG.api.vaultUrl.replace(/\/api\/?$/, '').replace(/\/$/, '') + '/liq'
+  );
 }
 
 /** Liquidation validator base URL */
@@ -55,10 +88,13 @@ export const LIQ_VALIDATOR_URL = resolveLiquidationValidatorUrl();
 function resolveLiquidationValidatorWs(): string {
   const configured = process.env.EXPO_PUBLIC_LIQ_VALIDATOR_WS?.trim();
   if (configured) {
-    return configured.replace(/\/$/, '');
+    return requireWssBaseUrl('EXPO_PUBLIC_LIQ_VALIDATOR_WS', configured);
   }
 
-  return LIQ_VALIDATOR_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://') + '/ws';
+  return requireWssBaseUrl(
+    'EXPO_PUBLIC_LIQ_VALIDATOR_WS',
+    LIQ_VALIDATOR_URL.replace(/^https:\/\//, 'wss://') + '/ws'
+  );
 }
 
 /** Liquidation validator WebSocket URL */

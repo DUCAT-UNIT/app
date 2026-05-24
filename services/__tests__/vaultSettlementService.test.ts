@@ -378,6 +378,29 @@ describe('vaultSettlementService', () => {
     });
   });
 
+  it('keeps a PENDING TurboUNIT repay melt quote processing after restart', async () => {
+    useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
+    useVaultSettlementStore.getState().setCashuMeltQuote('melt-quote-pending');
+    useVaultSettlementStore.getState().setPhase('melting_turbo_repay');
+    (checkMeltQuote as jest.Mock).mockResolvedValue({
+      quote: 'melt-quote-pending',
+      state: 'PENDING',
+      amount: 2500,
+    });
+
+    await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
+      status: 'pending',
+      message: 'TurboUNIT melt is still processing.',
+      lastStatus: 'PENDING',
+    });
+
+    expect(useVaultSettlementStore.getState()).toMatchObject({
+      phase: 'melting_turbo_repay',
+      cashuMeltQuoteId: 'melt-quote-pending',
+      cashuMeltTxid: null,
+    });
+  });
+
   it('keeps a submitted TurboUNIT repay melt recoverable after restart', async () => {
     useVaultSettlementStore.getState().startOperation('repay', 25, 'TURBOUNIT');
     useVaultSettlementStore.getState().setCashuMeltTxid('unit-release-txid');

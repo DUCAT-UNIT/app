@@ -11,6 +11,7 @@ const APP_ID = 'com.ducatprotocol.DucatProtocolWallet';
 const DEFAULT_FLOWS = ['e2e/maestro/flows/test/'];
 const DEFAULT_EXPO_PORT = 8082;
 const DEFAULT_REPORT_PATH = 'artifacts/live-maestro/last-run.json';
+const DEFAULT_CASHU_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
 const MAESTRO_FORWARD_ENV_KEYS = [
   'DUCAT_LIVE_CASHU_TOKEN_URL',
   'DUCAT_LIVE_TURBOUNIT_TOKEN_URL',
@@ -70,12 +71,7 @@ function maestroEnvArgs(extra = {}) {
 }
 
 function readCashuMintUrl() {
-  try {
-    const source = readFileSync('services/cashu/mintClient/mintConfig.ts', 'utf8');
-    return source.match(/export\s+const\s+MINT_URL\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? null;
-  } catch {
-    return null;
-  }
+  return (process.env.EXPO_PUBLIC_CASHU_MINT_URL || DEFAULT_CASHU_MINT_URL).replace(/\/+$/, '');
 }
 
 function writeLiveReport() {

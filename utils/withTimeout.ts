@@ -1,7 +1,10 @@
+import { startupDiagnostics } from '../services/startupDiagnostics';
+import { logger } from './logger';
+
 /**
  * Race a promise against a timeout.
  * Returns the fallback value if the promise doesn't resolve in time.
- * Logs + reports to PostHog when a timeout fires so we have visibility.
+ * Logs and records startup diagnostics when a timeout fires.
  */
 export function withTimeout<T>(
   promise: Promise<T>,
@@ -13,12 +16,7 @@ export function withTimeout<T>(
   const timeout = new Promise<T>((resolve) => {
     timer = setTimeout(() => {
       if (label) {
-        let startupAttemptId: string | null = null;
-
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { startupDiagnostics } = require('../services/startupDiagnostics');
-          startupAttemptId = startupDiagnostics.getCurrentAttemptId();
           startupDiagnostics.recordWarning('native_api_timeout', {
             label,
             timeout_ms: ms,
@@ -28,23 +26,9 @@ export function withTimeout<T>(
         }
 
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { logger } = require('./logger');
           logger.warn(`[withTimeout] ${label} timed out after ${ms}ms, using fallback`);
         } catch {
           // logger unavailable — swallow
-        }
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { analytics } = require('../services/analyticsService');
-          analytics.track('native_api_timeout', {
-            label,
-            timeout_ms: ms,
-            startup_attempt_id: startupAttemptId,
-          });
-          analytics.flush();
-        } catch {
-          // analytics unavailable — swallow
         }
       }
       resolve(fallback);

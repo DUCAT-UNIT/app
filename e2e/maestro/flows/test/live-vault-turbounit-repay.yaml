@@ -13,7 +13,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Mint live TurboUNIT by sending a small on-chain UNIT amount to the Cashu mint.
 - tapOn:
-    id: 'wallet-withdraw-btn'
+    id: 'wallet-send-btn'
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 - assertVisible:

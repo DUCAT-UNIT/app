@@ -1,19 +1,11 @@
 import { withTimeout } from '../withTimeout';
 import { startupDiagnostics } from '../../services/startupDiagnostics';
-import { analytics } from '../../services/analyticsService';
 import { logger } from '../logger';
 
 jest.mock('../../services/startupDiagnostics', () => ({
   startupDiagnostics: {
     getCurrentAttemptId: jest.fn(() => 'attempt-1'),
     recordWarning: jest.fn(),
-  },
-}));
-
-jest.mock('../../services/analyticsService', () => ({
-  analytics: {
-    track: jest.fn(),
-    flush: jest.fn(),
   },
 }));
 
@@ -24,7 +16,6 @@ jest.mock('../logger', () => ({
 }));
 
 const mockStartupDiagnostics = startupDiagnostics as jest.Mocked<typeof startupDiagnostics>;
-const mockAnalytics = analytics as jest.Mocked<typeof analytics>;
 const mockLogger = logger as jest.Mocked<typeof logger>;
 
 describe('withTimeout', () => {
@@ -43,7 +34,6 @@ describe('withTimeout', () => {
     await expect(result).resolves.toBe('ok');
     expect(mockStartupDiagnostics.recordWarning).not.toHaveBeenCalled();
     expect(mockLogger.warn).not.toHaveBeenCalled();
-    expect(mockAnalytics.track).not.toHaveBeenCalled();
   });
 
   it('returns the fallback and records diagnostics when the timeout fires', async () => {
@@ -53,7 +43,6 @@ describe('withTimeout', () => {
     jest.advanceTimersByTime(250);
 
     await expect(result).resolves.toBe('fallback');
-    expect(mockStartupDiagnostics.getCurrentAttemptId).toHaveBeenCalled();
     expect(mockStartupDiagnostics.recordWarning).toHaveBeenCalledWith('native_api_timeout', {
       label: 'slow-native-api',
       timeout_ms: 250,
@@ -61,12 +50,6 @@ describe('withTimeout', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       '[withTimeout] slow-native-api timed out after 250ms, using fallback',
     );
-    expect(mockAnalytics.track).toHaveBeenCalledWith('native_api_timeout', {
-      label: 'slow-native-api',
-      timeout_ms: 250,
-      startup_attempt_id: 'attempt-1',
-    });
-    expect(mockAnalytics.flush).toHaveBeenCalled();
   });
 
   it('returns the fallback without diagnostics when no label is provided', async () => {
@@ -78,6 +61,5 @@ describe('withTimeout', () => {
     await expect(result).resolves.toBe(42);
     expect(mockStartupDiagnostics.recordWarning).not.toHaveBeenCalled();
     expect(mockLogger.warn).not.toHaveBeenCalled();
-    expect(mockAnalytics.track).not.toHaveBeenCalled();
   });
 });

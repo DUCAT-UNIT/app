@@ -4,15 +4,26 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - runFlow: ../helpers/create-wallet.yaml
 - runFlow: ../helpers/enable-usdc.yaml
+- openLink: "ducat://wallet"
+- runFlow: ../helpers/accept-open-in-app-alert.yaml
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 10000
 
 - scrollUntilVisible:
     element:
       id: "asset-card-usdc"
     direction: DOWN
     timeout: 15000
+    centerElement: true
+- swipe:
+    direction: UP
+    duration: 500
+- waitForAnimationToEnd
 
 - tapOn:
-    id: "asset-card-usdc"
+    text: "Sepolia USDC"
 - extendedWaitUntil:
     visible:
       id: "asset-detail-screen"

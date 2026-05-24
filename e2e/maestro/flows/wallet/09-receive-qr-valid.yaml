@@ -19,9 +19,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "passkey-skip-btn"
 
-# Open deposit sheet → BTC
+# Open receive sheet → BTC
 - tapOn:
-    id: "wallet-deposit-btn"
+    id: "wallet-receive-btn"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:

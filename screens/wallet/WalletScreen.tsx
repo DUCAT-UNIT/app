@@ -41,6 +41,7 @@ import { getRunesAmount } from '../../utils/runesHelper';
 
 // Constants
 const VAULT_CREATION_RETRY_TIMEOUT = 2000;
+const ASSETS_SCROLL_BOTTOM_PADDING = 160;
 
 /**
  * Style object for WalletScreen - combines all child component styles
@@ -473,7 +474,7 @@ const WalletScreen = React.memo(function WalletScreen({
       {/* Scrollable Assets Container */}
       <ScrollView
         style={styles.assetsScrollContainer}
-        contentContainerStyle={{ paddingBottom: s(16) }}
+        contentContainerStyle={{ paddingBottom: s(ASSETS_SCROLL_BOTTOM_PADDING) }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

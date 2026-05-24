@@ -142,8 +142,6 @@ export const createWalletWithPasskey = async ({
     });
     await setWalletDerivationMode(DEFAULT_WALLET_DERIVATION_MODE);
 
-    await saveMnemonic(mnemonic);
-
     // Save current account (always 0 for new wallets)
     await setCurrentAccount(0);
     await Promise.all([

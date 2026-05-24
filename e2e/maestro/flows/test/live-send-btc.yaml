@@ -12,7 +12,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 30000
 
 - tapOn:
-    id: 'wallet-withdraw-btn'
+    id: 'wallet-send-btn'
 - waitForAnimationToEnd
 
 - extendedWaitUntil:

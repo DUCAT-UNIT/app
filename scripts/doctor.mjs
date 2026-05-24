@@ -247,8 +247,8 @@ function checkSensitiveLoggingInvariant() {
 function checkCashuDucatUnitInvariant() {
   const mintConfig = read('services/cashu/mintClient/mintConfig.ts');
   check(
-    mintConfig.includes("export const MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com'"),
-    'Cashu mint config must use the advertised Ducat dev mint URL'
+    mintConfig.includes("'https://dev-cashu-mint.ducatprotocol.com'"),
+    'Cashu mint config must default to the Ducat Cashu mint URL'
   );
   check(
     mintConfig.includes("export const CASHU_UNIT = 'unit'"),

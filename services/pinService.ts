@@ -21,7 +21,6 @@ import {
   checkPinLockout,
   getMaxPinAttempts,
   getRemainingPinAttempts,
-  loadLockoutState,
   recordFailedAttempt,
   resetPinAttempts,
 } from './pinLockout';
@@ -363,9 +362,6 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
       };
     }
 
-    // Load current lockout state
-    const { failedAttempts } = await loadLockoutState();
-
     // Retrieve the stored salt, hashed PIN, HMAC, and version
     const storedHashedPin = await SecureStore.getItemAsync(SECURE_KEYS.PIN);
     const storedSalt = await SecureStore.getItemAsync(SECURE_KEYS.PIN_SALT);
@@ -482,7 +478,7 @@ export const verifyPin = async (enteredPin: string): Promise<PinVerificationResu
       return { success: true };
     } else {
       // Failed attempt - record it and check for lockout
-      const result = await recordFailedAttempt(failedAttempts);
+      const result = await recordFailedAttempt();
 
       if (result.shouldLockout) {
         return {

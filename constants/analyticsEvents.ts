@@ -1,6 +1,6 @@
 /**
  * Analytics Event Constants
- * Typed event names for PostHog tracking. No magic strings.
+ * Typed event names for app instrumentation. No magic strings.
  */
 
 // ── Onboarding ──────────────────────────────────────────────

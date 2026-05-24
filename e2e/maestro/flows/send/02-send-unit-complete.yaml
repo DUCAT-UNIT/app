@@ -18,7 +18,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Step 2: Send UNIT
 # Open withdraw sheet and select UNIT
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-send-btn"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:

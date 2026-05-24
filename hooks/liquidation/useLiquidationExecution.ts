@@ -76,26 +76,16 @@ export function useLiquidationExecution({
     let preSubmitSwapRecoveryRepoTxid: string | null = null;
     let preSubmitPendingRepoTxid: string | null = null;
 
-    const discardPreSubmitPendingTransaction = async (reason: unknown): Promise<void> => {
+    const retainPreSubmitPendingTransaction = (reason: unknown): void => {
       if (!preSubmitPendingRepoTxid) {
         return;
       }
 
-      try {
-        await usePendingVaultTransactionStore.getState().discardPendingTransactionForAccount(
-          currentAccount,
-          preSubmitPendingRepoTxid,
-          reason,
-        );
-        if (preSubmitSwapRecoveryRepoTxid) {
-          await clearPendingLiquidationSwapBroadcast(preSubmitSwapRecoveryRepoTxid);
-        }
-      } catch (clearError) {
-        logger.error('[Liquidation] Failed to clear failed repo pending transaction', {
-          txid: preSubmitPendingRepoTxid,
-          error: clearError instanceof Error ? clearError.message : String(clearError),
-        });
-      }
+      logger.warn('[Liquidation] Keeping pre-submit repo recovery after ambiguous failure', {
+        txid: preSubmitPendingRepoTxid,
+        hasSwapRecovery: !!preSubmitSwapRecoveryRepoTxid,
+        reason: reason instanceof Error ? reason.message : String(reason),
+      });
     };
 
     try {
@@ -316,7 +306,7 @@ export function useLiquidationExecution({
         store.getState().setCurrentStep('success');
       } else {
         const errorMessage = result.error || 'Liquidation failed';
-        await discardPreSubmitPendingTransaction(errorMessage);
+        retainPreSubmitPendingTransaction(errorMessage);
         if (isStaleLiquidationOpportunityError(errorMessage)) {
           store.getState().markVaultsClaimed(claimedVaultIds);
         } else {
@@ -326,7 +316,7 @@ export function useLiquidationExecution({
         store.getState().setCurrentStep('error');
       }
     } catch (err: unknown) {
-      await discardPreSubmitPendingTransaction(err);
+      retainPreSubmitPendingTransaction(err);
       const errorMessage = err instanceof Error ? err.message : 'Liquidation failed';
       const executingVaultIds = store.getState().executingVaultIds;
       if (isStaleLiquidationOpportunityError(errorMessage)) {

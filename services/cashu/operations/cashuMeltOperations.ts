@@ -457,7 +457,7 @@ const prepareMeltSpend = async (
   };
 };
 
-const ACCEPTED_MELT_STATES = new Set(['PAID', 'PENDING']);
+const ACCEPTED_MELT_STATES = new Set(['PAID']);
 
 const isMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): boolean =>
   result.paid === true ||

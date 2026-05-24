@@ -14,9 +14,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "wallet-screen"
     timeout: 20000
 
-# Tap deposit
+# Tap receive
 - tapOn:
-    id: "wallet-deposit-btn"
+    id: "wallet-receive-btn"
 
 # Select BTC
 - extendedWaitUntil:

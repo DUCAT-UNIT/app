@@ -133,9 +133,14 @@ const getHostname = (url: string): string | null => {
   return getUrl(url)?.hostname.toLowerCase() ?? null;
 };
 
+const isHttpsUrl = (url: URL): boolean => url.protocol === 'https:';
+
 export const isShortCashuTokenUrl = (url: string): boolean => {
   const parsed = getUrl(url);
-  return !!parsed && SHORTENER_HOSTS.has(parsed.hostname.toLowerCase()) && parsed.pathname.length > 1;
+  return !!parsed
+    && isHttpsUrl(parsed)
+    && SHORTENER_HOSTS.has(parsed.hostname.toLowerCase())
+    && parsed.pathname.length > 1;
 };
 
 export const isTurboTokenUrl = (url: string): boolean => {
@@ -172,7 +177,9 @@ interface ShortenerInfoResponse {
 
 const getShortenerInfoUrl = (url: string): string | null => {
   const parsed = getUrl(url);
-  if (!parsed || !SHORTENER_HOSTS.has(parsed.hostname.toLowerCase())) return null;
+  if (!parsed || !isHttpsUrl(parsed) || !SHORTENER_HOSTS.has(parsed.hostname.toLowerCase())) {
+    return null;
+  }
 
   const code = parsed.pathname.split('/').filter(Boolean)[0];
   if (!code) return null;

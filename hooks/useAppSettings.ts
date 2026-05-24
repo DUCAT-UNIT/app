@@ -7,7 +7,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { authenticateWithBiometrics } from '../services/biometricService';
-import { DEFAULT_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
+import {
+  DEFAULT_AUTO_LOCK_TIMEOUT_MS,
+  E2E_AUTO_LOCK_TIMEOUT_MS,
+  USDC_FEATURE_UNLOCK_PHRASE,
+} from '../constants/settings';
 import { clearCashuCache } from '../services/cacheService';
 import { getExpoPushToken, unregisterPushToken } from '../services/pushNotificationService';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
@@ -170,7 +174,7 @@ export function useAppSettings({
     setShowZeroAssets(false);
     setAdvancedMode(false);
     setEcashThreshold(10000);
-    setAutoLockTimeoutMs(DEFAULT_AUTO_LOCK_TIMEOUT_MS);
+    setAutoLockTimeoutMs(E2E_AUTO_LOCK_TIMEOUT_MS);
     setUsdcFeaturesEnabled(false);
     useUsdcFeatureFlagStore.getState().setEnabled(false);
 

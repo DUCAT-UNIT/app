@@ -16,7 +16,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Send QTR BTC
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-send-btn"
 - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:

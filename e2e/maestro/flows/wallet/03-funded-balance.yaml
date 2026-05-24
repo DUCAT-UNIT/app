@@ -34,9 +34,9 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "wallet-actions"
 - assertVisible:
-    id: "wallet-deposit-btn"
+    id: "wallet-deposit-btn-disabled"
 - assertVisible:
-    id: "wallet-withdraw-btn"
+    id: "wallet-withdraw-btn-disabled"
 
 # Verify vault card loaded (confirms vault data fetched)
 - extendedWaitUntil:

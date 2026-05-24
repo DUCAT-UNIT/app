@@ -328,7 +328,7 @@ describe('useLiquidationExecution', () => {
         expect(pending!.vaultPubkey).toBe(MOCK_WALLET.taprootPubkey);
       });
 
-      it('clears the repo pending lock if execution fails after pre-submit request creation', async () => {
+      it('keeps the repo pending lock if execution fails after pre-submit request creation', async () => {
         mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
           await onRequestCreated({
             txid: 'pre-submit-repo-txid',
@@ -345,7 +345,14 @@ describe('useLiquidationExecution', () => {
         });
 
         const pending = usePendingVaultTransactionStore.getState().pendingTransaction;
-        expect(pending).toBeNull();
+        expect(pending).not.toBeNull();
+        expect(pending).toMatchObject({
+          txid: 'pre-submit-repo-txid',
+          vaultTxid: 'pre-submit-repo-txid',
+          action: 'repo',
+          vaultPubkey: MOCK_WALLET.taprootPubkey,
+        });
+        expect(mockClearPendingLiquidationSwapBroadcast).not.toHaveBeenCalled();
       });
 
       it('saves liquidation swap recovery from the pre-submit request callback', async () => {
@@ -373,7 +380,7 @@ describe('useLiquidationExecution', () => {
           unitAmount: 77,
           createdAt: expect.any(Number),
         });
-        expect(mockClearPendingLiquidationSwapBroadcast).toHaveBeenCalledWith('pre-submit-repo-txid');
+        expect(mockClearPendingLiquidationSwapBroadcast).not.toHaveBeenCalled();
       });
 
       it('durably saves a liquidation swap broadcast before waiting for repo mempool', async () => {

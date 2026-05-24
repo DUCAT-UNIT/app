@@ -30,12 +30,10 @@ import VaultSuccessPreviewScreenComponent from '../screens/dev/VaultSuccessPrevi
 import PinSetupScreenComponent from '../screens/auth/PinSetupScreen';
 import LiquidationFlowScreenComponent from '../screens/liquidation/LiquidationFlowScreen';
 import QuantaSeedPhraseGuideScreenComponent from '../screens/quanta/QuantaSeedPhraseGuideScreen';
-import {
-  authenticateWithBiometrics,
-  setBiometricEnabled as persistBiometricEnabled,
-} from '../services/biometricService';
+import { authenticateWithBiometrics } from '../services/biometricService';
 import {
   canUseBiometricUnlockForMnemonic,
+  clearSessionMnemonic,
   hasAccessibleMnemonic,
 } from '../services/secureStorageService';
 import { COLORS } from '../theme';
@@ -286,7 +284,6 @@ export default function RootNavigator(): React.JSX.Element {
     isAuthenticated,
     biometricEnabled,
     setIsAuthenticated,
-    setBiometricEnabled,
     showFaceIdButton,
     setShowFaceIdButton,
     resetAuth,
@@ -561,6 +558,7 @@ export default function RootNavigator(): React.JSX.Element {
     }
 
     // Lock the app
+    clearSessionMnemonic();
     setShowFaceIdButton(false);
     setIsAuthenticated(false);
   }, [
@@ -570,39 +568,6 @@ export default function RootNavigator(): React.JSX.Element {
     hidePasskeyMigrationPrompt,
     hideBiometricSetupPrompt,
     setShowAirdropModal,
-  ]);
-
-  const enableBiometricFromPrompt = useCallback(async (): Promise<void> => {
-    try {
-      const result = await authenticateWithBiometrics('Authenticate to enable Face ID', 'Cancel');
-
-      if (!result.success) {
-        return;
-      }
-
-      if (!(await hasAccessibleMnemonic())) {
-        setShowFaceIdButton(false);
-        Alert.alert('Use PIN', 'Enter your PIN once to unlock wallet signing on this device.');
-        return;
-      }
-
-      if (!(await persistBiometricEnabled(true))) {
-        throw new Error('Failed to persist biometric preference');
-      }
-
-      setBiometricEnabled(true);
-      setIsAuthenticated(true);
-      handleLockScreenAuthenticatedWrapper();
-    } catch (error: unknown) {
-      logger.error('[RootNavigator] Failed to enable biometrics from lock screen', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [
-    setBiometricEnabled,
-    setIsAuthenticated,
-    setShowFaceIdButton,
-    handleLockScreenAuthenticatedWrapper,
   ]);
 
   // Handle biometric authentication with proper post-auth flow
@@ -628,15 +593,7 @@ export default function RootNavigator(): React.JSX.Element {
           handleLockScreenAuthenticatedWrapper();
         }
       } else {
-        // Biometrics not enabled - prompt user to enable
-        Alert.alert('Face ID', 'Use Face ID for quick and secure access to your wallet.', [
-          {
-            text: 'Continue',
-            onPress: () => {
-              enableBiometricFromPrompt();
-            },
-          },
-        ]);
+        Alert.alert('Use PIN', 'Unlock with your PIN first, then enable Face ID in settings.');
       }
     } catch (error) {
       logger.error('[RootNavigator] Biometric auth error:', {
@@ -648,7 +605,6 @@ export default function RootNavigator(): React.JSX.Element {
     isBiometricSupported,
     setIsAuthenticated,
     setShowFaceIdButton,
-    enableBiometricFromPrompt,
     handleLockScreenAuthenticatedWrapper,
   ]);
 

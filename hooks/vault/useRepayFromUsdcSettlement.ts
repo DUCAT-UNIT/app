@@ -52,7 +52,7 @@ const LOCAL_PENDING_SETTLEMENT_ERROR =
   'A vault settlement is still pending. Resume or reset it before starting another.';
 const TURBOUNIT_MINT_WITHDRAWAL_FAILURE_MESSAGE =
   'The TurboUNIT mint could not broadcast the UNIT withdrawal. Your TurboUNIT remains in your wallet. Try a smaller amount or try again later.';
-const ACCEPTED_MELT_STATES = new Set(['PAID', 'PENDING']);
+const ACCEPTED_MELT_STATES = new Set(['PAID']);
 
 type RecoverableMeltQuote = MeltQuote & {
   txid?: string | null;

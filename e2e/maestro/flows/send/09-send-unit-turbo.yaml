@@ -21,7 +21,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # Step 2: Open UNIT send
 - tapOn:
-    id: "wallet-withdraw-btn"
+    id: "wallet-send-btn"
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 - assertVisible:

@@ -63,7 +63,7 @@ function getLiquidationValidatorUrl(env) {
   const vaultApi = envValue(
     env,
     'EXPO_PUBLIC_VAULT_API_URL',
-    'https://validator.staging.ducatprotocol.com/api'
+    'https://validator.ducatprotocol.com/api'
   );
   return vaultApi.replace(/\/api\/?$/, '/liq').replace(/\/+$/, '');
 }

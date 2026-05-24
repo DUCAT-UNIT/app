@@ -13,7 +13,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 30000
 
 - tapOn:
-    id: 'wallet-deposit-btn'
+    id: 'wallet-receive-btn'
 
 - extendedWaitUntil:
     visible:

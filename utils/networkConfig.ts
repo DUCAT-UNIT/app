@@ -84,6 +84,21 @@ function getBigIntEnv(name: string): bigint | undefined {
   }
 }
 
+function requireHttpsUrl(name: string, value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Invalid URL value for ${name}: ${value}`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${name} must use HTTPS`);
+  }
+
+  return parsed.toString().replace(/\/$/, '');
+}
+
 function assertMutinynetOnlyConfig(): void {
   const configured = getEnv('EXPO_PUBLIC_APP_NETWORK');
   if (configured && configured !== 'mutinynet') {
@@ -131,8 +146,10 @@ function resolveMutinynetConfig(): AppNetworkConfig {
         getEnv('EXPO_PUBLIC_GUARDIAN_WS_URL') ?? 'wss://guardian-mutinynet-1.ducatprotocol.com',
       quoteServer: getEnv('EXPO_PUBLIC_QUOTE_SERVER_URL') ?? 'https://quote.ducatprotocol.com',
       priceServer: getEnv('EXPO_PUBLIC_PRICE_SERVER_URL') ?? 'https://price.ducatprotocol.com',
-      vaultUrl:
-        getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.staging.ducatprotocol.com/api',
+      vaultUrl: requireHttpsUrl(
+        'EXPO_PUBLIC_VAULT_API_URL',
+        getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.ducatprotocol.com/api'
+      ),
       phoneUrl: getEnv('EXPO_PUBLIC_PHONE_URL') ?? 'https://phone.ducatprotocol.com',
       coingeckoUrl: 'https://api.coingecko.com/api/v3',
       feeRecommendationsUrl:

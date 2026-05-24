@@ -475,7 +475,7 @@ describe('cashuMeltOperations', () => {
         ],
       });
       (meltTokens as jest.Mock).mockResolvedValue({
-        state: 'PENDING',
+        state: 'PAID',
         outpoint: 'broadcasttxid123:0',
       });
       (unblindSignatures as jest.Mock).mockReturnValue([
@@ -635,7 +635,7 @@ describe('cashuMeltOperations', () => {
       expect(removeProofs).toHaveBeenCalledWith([exactProof]);
     });
 
-    it('should accept on-chain PENDING responses and use the returned outpoint txid', async () => {
+    it('should reject on-chain PENDING responses without removing proofs', async () => {
       (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
       (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
       (meltTokens as jest.Mock).mockResolvedValue({
@@ -645,15 +645,11 @@ describe('cashuMeltOperations', () => {
         fee: 1000,
       });
 
-      const result = await completeMelt('quote123', 100);
+      await expect(completeMelt('quote123', 100)).rejects.toThrow(
+        'Mint did not confirm the withdrawal. State: PENDING.'
+      );
 
-      expect(result).toEqual({
-        paid: true,
-        txid: 'broadcasttxid123',
-        fee: 1000,
-        balance: 0,
-      });
-      expect(removeProofs).toHaveBeenCalledWith([exactProof]);
+      expect(removeProofs).not.toHaveBeenCalledWith([exactProof]);
     });
   });
 
@@ -736,7 +732,7 @@ describe('cashuMeltOperations', () => {
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         quote: 'quote123',
-        state: 'PENDING',
+        state: 'PAID',
         change: [changeSignature],
       });
       (unblindSignatures as jest.Mock).mockReturnValue([changeProof]);
@@ -798,7 +794,7 @@ describe('cashuMeltOperations', () => {
       });
       (meltTokens as jest.Mock).mockResolvedValue({
         quote: 'quote123',
-        state: 'PENDING',
+        state: 'PAID',
       });
 
       const result = await completeMeltWithoutCleanup('quote123', 1700, 'sat');
@@ -893,7 +889,7 @@ describe('cashuMeltOperations', () => {
       expect(addProofs).not.toHaveBeenCalled();
     });
 
-    it('should accept on-chain PENDING responses without cleanup', async () => {
+    it('should reject on-chain PENDING responses without returning proofs to cleanup', async () => {
       const exactProof: MockProof = { amount: 100, secret: 's1', C: 'C1', id: 'keyset1' };
       (loadProofs as jest.Mock).mockResolvedValue([exactProof]);
       (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
@@ -904,12 +900,11 @@ describe('cashuMeltOperations', () => {
         fee: 1000,
       });
 
-      const result = await completeMeltWithoutCleanup('quote123', 100);
+      await expect(completeMeltWithoutCleanup('quote123', 100)).rejects.toMatchObject({
+        message: 'Mint did not confirm the withdrawal. State: PENDING.',
+        meltSubmissionStatus: 'rejected',
+      });
 
-      expect(result.paid).toBe(true);
-      expect(result.txid).toBe('broadcasttxid456');
-      expect(result.fee).toBe(1000);
-      expect(result.proofsToRemove).toEqual([exactProof]);
       expect(removeProofs).not.toHaveBeenCalled();
       expect(addProofs).not.toHaveBeenCalled();
     });

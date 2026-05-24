@@ -85,6 +85,11 @@ jest.mock('../../pinService', () => ({
   savePinWithExistingSalt: jest.fn(),
 }));
 
+jest.mock('../../pinLockout', () => ({
+  checkPinLockout: jest.fn(),
+  recordFailedAttempt: jest.fn(),
+}));
+
 jest.mock('../../secureStorageService', () => ({
   cacheSessionMnemonic: jest.fn(),
   saveMnemonic: jest.fn(),
@@ -95,15 +100,16 @@ jest.mock('../../secureStorageService', () => ({
 
 // Import mock reference
 import { savePinWithExistingSalt } from '../../pinService';
+import { checkPinLockout, recordFailedAttempt } from '../../pinLockout';
 import {
   cacheSessionMnemonic,
-  saveMnemonic,
   saveCachedAddresses,
   saveCurrentAccount,
   saveToMultiAccountCache,
 } from '../../secureStorageService';
 const mockSavePinWithExistingSalt = savePinWithExistingSalt as jest.Mock;
-const mockSaveMnemonic = saveMnemonic as jest.Mock;
+const mockCheckPinLockout = checkPinLockout as jest.Mock;
+const mockRecordFailedAttempt = recordFailedAttempt as jest.Mock;
 const mockCacheSessionMnemonic = cacheSessionMnemonic as jest.Mock;
 const mockSaveCachedAddresses = saveCachedAddresses as jest.Mock;
 const mockSaveCurrentAccount = saveCurrentAccount as jest.Mock;
@@ -141,6 +147,8 @@ describe('Passkey Unlock', () => {
     (decryptMnemonic as jest.Mock).mockResolvedValue(mockMnemonic);
     (isPasskeySupported as jest.Mock).mockResolvedValue(true);
     (checkICloudAvailability as jest.Mock).mockResolvedValue({ available: true });
+    mockCheckPinLockout.mockResolvedValue({ isLocked: false });
+    mockRecordFailedAttempt.mockResolvedValue({ shouldLockout: false, newFailedAttempts: 1 });
     // Note: getRandomValues is provided by the global mock in jest.setup.js
     mockSavePinWithExistingSalt.mockResolvedValue(undefined);
     mockCacheSessionMnemonic.mockImplementation(() => undefined);
@@ -172,6 +180,18 @@ describe('Passkey Unlock', () => {
       expect(Passkey.get).toHaveBeenCalled();
       expect(deriveEncryptionKey).toHaveBeenCalled();
       expect(decryptMnemonic).toHaveBeenCalled();
+      expect(mockCacheSessionMnemonic).toHaveBeenCalledWith(mockMnemonic);
+    });
+
+    it('should not start passkey auth while auth is locked out', async () => {
+      mockCheckPinLockout.mockResolvedValue({ isLocked: true, remainingTime: 12 });
+
+      await expect(unlockWithPasskey(mockPin)).rejects.toThrow(
+        'Too many failed attempts. Try again in 12 minutes.'
+      );
+
+      expect(Passkey.get).not.toHaveBeenCalled();
+      expect(mockRecordFailedAttempt).not.toHaveBeenCalled();
     });
 
     it('should throw if passkey not enabled', async () => {
@@ -400,7 +420,7 @@ describe('Passkey Unlock', () => {
         mockTag,
         DEVICE_ONLY
       );
-      expect(mockSaveMnemonic).toHaveBeenCalledWith(mockMnemonic);
+      expect(mockCacheSessionMnemonic).toHaveBeenCalledWith(mockMnemonic);
       expect(mockSaveCachedAddresses).toHaveBeenCalled();
       expect(mockSaveCurrentAccount).toHaveBeenCalledWith(0);
       expect(mockSaveToMultiAccountCache).toHaveBeenCalled();

@@ -1,7 +1,7 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Cashu Settings - Enable dev mode then navigate to Turbo UNIT settings
-# Import wallet → settings → advanced → dev mode → back → cashu settings → verify options
+# Cashu Settings Hidden - Enable dev mode and verify Turbo Cashu stays hidden
+# Import wallet → settings → advanced → dev mode → back → confirm no hidden Cashu settings entry
 
 - runFlow: ../helpers/import-wallet-typed.yaml
 
@@ -42,32 +42,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "settings-screen"
     timeout: 5000
 
-# Open Turbo UNIT (cashu) settings
-- tapOn:
+# Turbo Cashu settings remain available in code but hidden from the settings menu.
+- assertNotVisible:
     id: "settings-cashu-btn"
-- extendedWaitUntil:
-    visible:
-      id: "cashu-settings-screen"
-    timeout: 5000
-
-# Verify all cashu settings options
-- assertVisible:
-    id: "cashu-recover-locked-btn"
-- assertVisible:
-    id: "cashu-recover-mint-btn"
-- assertVisible:
-    id: "cashu-redeem-token-btn"
-- assertVisible:
-    id: "cashu-remove-proofs-btn"
-- assertVisible:
-    id: "cashu-clear-tokens-btn"
-- assertVisible:
-    id: "cashu-clear-cache-btn"
-
-# Go back
-- tapOn:
-    id: "cashu-settings-back-btn"
-- extendedWaitUntil:
-    visible:
-      id: "settings-screen"
-    timeout: 5000

@@ -245,7 +245,7 @@ describe('useTurboReview', () => {
       expect(mockNavigation.navigate).toHaveBeenCalledWith('Processing', expect.any(Object));
     });
 
-    it('should navigate to TurboProcessing when ecash balance is sufficient', async () => {
+    it('should require confirmation when ecash balance is sufficient', async () => {
       // Mock sufficient ecash balance (in smallest units)
       // sendAmount '100' = 100 display units = 10000 smallest units
       // So we need balance >= 10000
@@ -257,6 +257,18 @@ describe('useTurboReview', () => {
 
       await act(async () => {
         await result.current!.handleReview();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Review Turbo send',
+        expect.stringContaining('100 UNIT'),
+        expect.any(Array)
+      );
+      expect(mockNavigation.navigate).not.toHaveBeenCalled();
+
+      const createButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+      act(() => {
+        createButton.onPress();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {
@@ -298,6 +310,16 @@ describe('useTurboReview', () => {
         await result.current!.handleReview();
       });
 
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Review Turbo send',
+        expect.stringContaining('100 UNIT'),
+        expect.any(Array)
+      );
+      const createButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+      act(() => {
+        createButton.onPress();
+      });
+
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {
         senderTaprootAddress: 'tb1psender',
       });
@@ -315,6 +337,16 @@ describe('useTurboReview', () => {
 
       await act(async () => {
         await result.current!.handleReview();
+      });
+
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Review Turbo send',
+        expect.stringContaining('0.5 UNIT'),
+        expect.any(Array)
+      );
+      const createButton = (Alert.alert as jest.Mock).mock.calls[0][2][1];
+      act(() => {
+        createButton.onPress();
       });
 
       expect(mockNavigation.navigate).toHaveBeenCalledWith('TurboProcessing', {

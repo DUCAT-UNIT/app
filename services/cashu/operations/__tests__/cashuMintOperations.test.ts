@@ -54,7 +54,12 @@ jest.mock('../../cashuQuoteSigner', () => ({
   signMintQuoteOutputs: jest.fn(),
 }));
 
-import { requestMint, checkMintStatus, completeMint } from '../cashuMintOperations';
+import {
+  requestMint,
+  checkMintStatus,
+  completeMint,
+  verifyMintQuoteFundingTarget,
+} from '../cashuMintOperations';
 import {
   createMintQuote,
   checkMintQuote,
@@ -202,6 +207,50 @@ describe('cashuMintOperations', () => {
       (checkMintQuote as jest.Mock).mockRejectedValue(new Error('Network error'));
 
       await expect(checkMintStatus('quote123')).rejects.toThrow('Network error');
+    });
+  });
+
+  describe('verifyMintQuoteFundingTarget', () => {
+    it('accepts a quote bound to the current wallet and expected funding target', async () => {
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        request: 'tb1pmint',
+        amount: 5000,
+        pubkey,
+      });
+
+      await expect(
+        verifyMintQuoteFundingTarget('quote123', 'tb1pmint', 5000)
+      ).resolves.toBeUndefined();
+
+      expect(checkMintQuote).toHaveBeenCalledWith('quote123');
+      expect(getMintQuoteSigningKey).toHaveBeenCalled();
+    });
+
+    it('rejects a quote whose deposit address changed', async () => {
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        request: 'tb1pother',
+        amount: 5000,
+        pubkey,
+      });
+
+      await expect(
+        verifyMintQuoteFundingTarget('quote123', 'tb1pmint', 5000)
+      ).rejects.toThrow('Stored TurboUNIT mint quote address does not match the mint quote');
+    });
+
+    it('rejects a quote not bound to this wallet signing key', async () => {
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        request: 'tb1pmint',
+        amount: 5000,
+        pubkey: '02' + 'b'.repeat(64),
+      });
+
+      await expect(
+        verifyMintQuoteFundingTarget('quote123', 'tb1pmint', 5000)
+      ).rejects.toThrow('Stored TurboUNIT mint quote is not bound to this wallet');
     });
   });
 

@@ -87,9 +87,19 @@ export function useTurboReview({
           if (!senderTaprootAddress) {
             throw new Error('Wallet Taproot address unavailable for Turbo recovery');
           }
-          logger.debug('[useTurboReview] Sufficient ecash - creating P2PK token directly');
+          logger.debug('[useTurboReview] Sufficient ecash - requesting Turbo send confirmation');
           setIsRequestingMint(false);
-          navigation.navigate('TurboProcessing', { senderTaprootAddress });
+          Alert.alert(
+            'Review Turbo send',
+            `Send ${displayAmount} UNIT to this Taproot address?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Create token',
+                onPress: () => navigation.navigate('TurboProcessing', { senderTaprootAddress }),
+              },
+            ]
+          );
           return;
         }
 
