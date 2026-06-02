@@ -285,36 +285,56 @@ export default function VaultInputScreen<
 
         {/* Footer */}
         <View style={styles.footer}>
-          <TouchableScale
-            style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
-            onPress={handleContinue}
-            disabled={continueDisabled}
-            testID={`vault-${config.operationType}-continue-btn`}
-            accessibilityRole="button"
-            accessibilityLabel={isContinuing ? 'Preparing review' : 'Continue to review'}
-            accessibilityHint={`Review ${config.title} details before confirming`}
-            accessibilityState={{ disabled: continueDisabled, busy: isContinuing }}
-            pressLockMs={700}
-          >
-            {isContinuing ? (
-              <View style={styles.busyButtonContent}>
-                <ActivityIndicator size="small" color={colors.text.white} />
-                <Text style={styles.continueBtnText} accessibilityElementsHidden>
-                  Preparing...
-                </Text>
-              </View>
-            ) : (
+          <View style={styles.footerActions}>
+            <TouchableScale
+              style={[styles.cancelBtn, isContinuing && styles.cancelBtnDisabled]}
+              onPress={handleClose}
+              disabled={isContinuing}
+              testID={`vault-${config.operationType}-cancel-btn`}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel"
+              accessibilityHint={`Close ${config.title} and return to the wallet`}
+              accessibilityState={{ disabled: isContinuing }}
+              pressLockMs={400}
+            >
               <Text
-                style={[
-                  styles.continueBtnText,
-                  !validation.canContinue && styles.continueBtnTextDisabled,
-                ]}
+                style={[styles.cancelBtnText, isContinuing && styles.cancelBtnTextDisabled]}
                 accessibilityElementsHidden
               >
-                Continue
+                Cancel
               </Text>
-            )}
-          </TouchableScale>
+            </TouchableScale>
+            <TouchableScale
+              style={[styles.continueBtn, continueDisabled && styles.continueBtnDisabled]}
+              onPress={handleContinue}
+              disabled={continueDisabled}
+              testID={`vault-${config.operationType}-continue-btn`}
+              accessibilityRole="button"
+              accessibilityLabel={isContinuing ? 'Preparing review' : 'Continue to review'}
+              accessibilityHint={`Review ${config.title} details before confirming`}
+              accessibilityState={{ disabled: continueDisabled, busy: isContinuing }}
+              pressLockMs={700}
+            >
+              {isContinuing ? (
+                <View style={styles.busyButtonContent}>
+                  <ActivityIndicator size="small" color={colors.text.white} />
+                  <Text style={styles.continueBtnText} accessibilityElementsHidden>
+                    Preparing...
+                  </Text>
+                </View>
+              ) : (
+                <Text
+                  style={[
+                    styles.continueBtnText,
+                    !validation.canContinue && styles.continueBtnTextDisabled,
+                  ]}
+                  accessibilityElementsHidden
+                >
+                  Continue
+                </Text>
+              )}
+            </TouchableScale>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -397,7 +417,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
   },
+  footerActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  cancelBtn: {
+    minWidth: 104,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.bg.secondary,
+  },
+  cancelBtnDisabled: { opacity: 0.55 },
+  cancelBtnText: {
+    color: colors.text.primary,
+    fontSize: fontSizes.md,
+    fontFamily: fonts.bold,
+  },
+  cancelBtnTextDisabled: { color: colors.text.tertiary },
   continueBtn: {
+    flex: 1,
     backgroundColor: colors.brand.primary,
     borderRadius: radii.lg,
     paddingVertical: spacing.md,

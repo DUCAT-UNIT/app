@@ -7,6 +7,10 @@ import {
   reconcileSubmittedEvmTransactionCheckpoints,
 } from '../evmTransactionCheckpointService';
 import { refreshPersistedVaultSettlementStatus } from '../vaultSettlementService';
+import { getWithRetry } from '../../utils/apiClient';
+
+const mockConfirmPendingTransaction = jest.fn();
+let mockPendingTransactions: Record<string, { status: string }> = {};
 
 jest.mock('../evmTransactionCheckpointService', () => ({
   recoverConfirmedRedemptionTracking: jest.fn(),
@@ -17,11 +21,30 @@ jest.mock('../vaultSettlementService', () => ({
   refreshPersistedVaultSettlementStatus: jest.fn(),
 }));
 
+jest.mock('../../stores/pendingTransactionsStore', () => ({
+  usePendingTransactionsStore: {
+    getState: jest.fn(() => ({
+      pendingTransactions: mockPendingTransactions,
+      confirmTransaction: mockConfirmPendingTransaction,
+    })),
+  },
+}));
+
+jest.mock('../../utils/apiClient', () => ({
+  getWithRetry: jest.fn(),
+}));
+
+jest.mock('../../utils/constants', () => ({
+  getTxApiUrl: jest.fn((txid: string) => `https://tx.example/${txid}`),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
   },
 }));
+
+const mockGetWithRetry = getWithRetry as jest.MockedFunction<typeof getWithRetry>;
 
 function input(overrides = {}) {
   return {
@@ -42,6 +65,13 @@ describe('reconciliationWorker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetReconciliationWorkerForTests();
+    mockPendingTransactions = {};
+    mockConfirmPendingTransaction.mockResolvedValue(undefined);
+    mockGetWithRetry.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as never);
     (reconcileSubmittedEvmTransactionCheckpoints as jest.Mock).mockResolvedValue({
       checked: 0,
       pending: 0,
@@ -85,6 +115,58 @@ describe('reconciliationWorker', () => {
     expect(cycleInput.fetchTransactionHistory).not.toHaveBeenCalled();
     expect(cycleInput.fetchEcashTokens).not.toHaveBeenCalled();
     expect(recoverConfirmedRedemptionTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms persisted pending sends directly from explorer status', async () => {
+    mockPendingTransactions = {
+      'pending-send-txid': { status: 'pending' },
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: { confirmed: true } }),
+    } as never);
+    const cycleInput = input();
+
+    const result = await runWalletReconciliationCycle(cycleInput);
+
+    expect(mockGetWithRetry).toHaveBeenCalledWith(
+      'https://tx.example/pending-send-txid',
+      expect.objectContaining({
+        dedupeKey: 'pending-reconcile:pending-send-txid',
+      })
+    );
+    expect(mockConfirmPendingTransaction).toHaveBeenCalledWith('pending-send-txid');
+    expect(result.pendingTransactions).toEqual({
+      checked: 1,
+      confirmed: 1,
+      pending: 0,
+      errors: 0,
+    });
+    expect(cycleInput.fetchTransactionHistory).toHaveBeenCalled();
+  });
+
+  it('keeps persisted pending sends when explorer status is still unconfirmed', async () => {
+    mockPendingTransactions = {
+      'pending-send-txid': { status: 'pending' },
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: { confirmed: false } }),
+    } as never);
+    const cycleInput = input();
+
+    const result = await runWalletReconciliationCycle(cycleInput);
+
+    expect(mockConfirmPendingTransaction).not.toHaveBeenCalled();
+    expect(result.pendingTransactions).toEqual({
+      checked: 1,
+      confirmed: 0,
+      pending: 1,
+      errors: 0,
+    });
+    expect(cycleInput.fetchTransactionHistory).not.toHaveBeenCalled();
   });
 
   it('refreshes EVM views when checkpoint reconciliation changes state', async () => {

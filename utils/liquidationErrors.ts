@@ -2,6 +2,8 @@ const STALE_OPPORTUNITY_PATTERNS = [
   /utxo spent/i,
   /spent or not exist/i,
   /validation of repovault failed/i,
+  /repo vault tx1id.*does not match computed repo.*tx1id/i,
+  /tx1id in request does not match computed/i,
 ];
 
 export function isStaleLiquidationOpportunityError(error: string | null | undefined): boolean {
