@@ -7,7 +7,7 @@ This is test-network tooling only. It does not represent mainnet or production l
 ## Run
 
 ```bash
-cd /Users/lucasrodriguez/Desktop/Ducat/mobile-app/app/web/pool-dashboard
+cd web/pool-dashboard
 npm install
 npm run dev
 ```
@@ -17,7 +17,7 @@ Open the printed local Vite URL, usually `http://127.0.0.1:5173`.
 ## Build Check
 
 ```bash
-cd /Users/lucasrodriguez/Desktop/Ducat/mobile-app/app/web/pool-dashboard
+cd web/pool-dashboard
 npm run build
 ```
 

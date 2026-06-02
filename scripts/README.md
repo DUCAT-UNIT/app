@@ -35,7 +35,8 @@ This is intentionally stricter than `npm run doctor`. It fails unless:
 - Sepolia RPC, bridge API, wUNIT, router, UNIT/USDC pool, and USDC config are valid
 - Maestro, simulator tooling, and `node_modules` are present
 - Sepolia RPC, bridge `/health`, Mutinynet Esplora, and Cashu mint `/v1/info` probes succeed
-- The Ducat Cashu mint advertises `nuts["4"].methods` with `method: onchain` and `unit: unit`
+- The Ducat Cashu mint advertises NUT-04 `onchain/unit` and `onchain/sat`
+  support for Turbo UNIT and Turbo BTC flows
 
 Funded fixture checks happen in `scripts/runLiveRegression.mjs` for the selected
 profile. The runner derives the reviewer fixture, checks Mutinynet/Sepolia
@@ -68,4 +69,6 @@ Run the same gate enforced by CI:
 npm run verify
 ```
 
-This runs doctor, typecheck, lint, dead-code detection, Maestro flow validation, and Jest with coverage thresholds.
+This runs doctor, typecheck, lint, cleanup guardrails, dead-code detection,
+Maestro flow validation, user-facing regression manifest validation, and Jest
+with coverage thresholds.

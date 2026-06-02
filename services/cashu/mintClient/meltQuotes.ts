@@ -66,10 +66,8 @@ const normalizeMeltQuote = (
 };
 
 /**
- * Create a melt quote for the advertised onchain/unit Cashu method.
- * @param address - Destination Bitcoin address
- * @param amount - Amount in UNIT smallest units
- * @returns Quote with ID, amount, and fee
+ * Create a melt quote for the advertised on-chain Cashu method.
+ * UNIT quotes include the Ducat rune ID; BTC sat quotes omit rune metadata.
  */
 export const createMeltQuote = async (
   address: string,
@@ -152,10 +150,7 @@ export const checkMeltQuote = async (quoteId: string): Promise<MeltQuote> => {
 };
 
 /**
- * Melt tokens through the advertised onchain/unit Cashu method.
- * @param quoteId - Melt quote ID
- * @param inputs - Proofs to burn
- * @returns Payment result with txid
+ * Melt proofs through the advertised on-chain Cashu method.
  */
 export const meltTokens = async (
   quoteId: string,

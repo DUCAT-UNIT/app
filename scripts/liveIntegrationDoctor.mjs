@@ -156,11 +156,12 @@ async function probeCashuMintInfo(cashuMintUrl) {
       return;
     }
 
-    const supportsOnchainUnit = methods.some(
-      (method) => method?.method === 'onchain' && method?.unit === 'unit'
+    const requiredUnits = ['unit', 'sat'];
+    const missingUnits = requiredUnits.filter(
+      (unit) => !methods.some((method) => method?.method === 'onchain' && method?.unit === unit)
     );
-    if (!supportsOnchainUnit) {
-      fail('Cashu mint does not advertise NUT-04 onchain/unit support');
+    if (missingUnits.length > 0) {
+      fail(`Cashu mint does not advertise NUT-04 support for: ${missingUnits.join(', ')}`);
     }
   } catch (error) {
     fail(

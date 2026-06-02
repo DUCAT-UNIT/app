@@ -1,82 +1,26 @@
-# DUCAT Client SDK
+# @ducat-unit/client-sdk
 
-Reference client and SDK for implementing the DUCAT protocol.
+Vendored copy of `@ducat-unit/client-sdk@0.7.23`.
 
-## Features
+The mobile app depends on this package through:
 
-This SDK includes the following modules (in `/src/modules`):
-
- * `guard  :` A websocket client for transacting with a guardian node.
- * `oracle :` An http request library for fetching data from indexers and oracle servers.
- * `vault  :` The core transaction library for performing vault operations.
- * `wallet :` Reference wallet for the DUCAT protocol.
-
- This SDK is under heavy development. More features and documentation coming soon.
-
-## Testing & Development
-
-This testing suite includes an internal TAP testing suite, test implementation of a guardian node, and several sets of demo scripts which demonstrate the protocol.
-
-### Running the Test Scripts
-
-The test suite is located in `test/tape`, and can be run using the following command:
-
-```bash
-npm run test  ## Using NPM
-yarn test     ## Using Yarn
+```json
+"@ducat-unit/client-sdk": "file:vendor/ducat-unit-client-sdk"
 ```
 
-There is also a `test/scratch` file that can be run for quick mock-ups and testing:
+## What It Provides
 
-```bash
-npm run scratch  ## Using NPM
-yarn scratch     ## Using Yarn
-```
+- Guardian WebSocket client exports
+- Oracle and indexer fetch helpers
+- Vault transaction construction and validation helpers
+- Reference wallet utilities used by the mobile app
+- Shared protocol types and utility functions
 
-For any other scripts, you can run then using the `load` command, followed by the script path:
+## Maintenance Notes
 
-```bash
-npm run load demo/core/open.ts  ## Using NPM
-yarn load demo/core/open.ts     ## Using Yarn
-```
+This folder is treated as a pinned package artifact. Do not hand-edit generated
+files under `dist/`. To change SDK behavior, update the source package, rebuild
+it, then replace this vendored copy as one coherent version bump.
 
-### Running the Demo Scripts
-
-The demo scripts are located in `demo` and can be run via the following command:
-
-```bash
-## Example of running the demo/core/open script using yarn.
-yarn load demo/core/open.ts
-```
-
-The demo scripts include:
- * `core`: Implements the core vault protocol.
- * `guard`: Implements an e2e interaction between a protocol guardian and client wallet.
-
- > Note: The demo scripts require the `oracle-infra` environment to be running in the background.
-
-### Running the Test Guardian
-
-You can start a test guardian server for development via the script `yarn start:guardian`.
-
-By default, the guardian will be listening for websocket requests at `http://localhost:8081`.
-
-### Running the Test Price Oracle
-
-You can start a price oracle server for development via the script `yarn start:exchange`.
-
-By default, the price server will be listening for HTTP requests at `http://localhost:8082`.
-
-## Resources
-
-**Oracle Infra**  
-
-The on-chain contract and oracle infrastructure required for the protocol.  
-
-https://github.com/DUCAT-UNIT/oracle-infra
-
-**Guardian**  
-
-The validation nodes responsible for guarding the mint and vaults.
-
-https://github.com/DUCAT-UNIT/guardian
+The vendored package keeps CI and fresh local installs reproducible without a
+private package registry token.

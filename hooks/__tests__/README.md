@@ -1,11 +1,13 @@
 # Hook Tests
 
-This directory contains the Jest test suites for app hooks. The tests run as part of the normal unit test command and are no longer blocked by the old Expo 54 Jest issue.
+This directory contains Jest coverage for app hooks. Keep this README because
+hook tests have a few local conventions that are easier to find here than in the
+top-level testing docs.
 
 ## Current Status
 
 - Hook tests run in the main Jest suite.
-- Use targeted test paths when iterating on a single hook.
+- Use targeted test paths when iterating on a single hook or hook family.
 - Prefer `npm test -- --runInBand` when debugging stateful or timer-heavy hooks.
 
 ## Common Commands
@@ -41,7 +43,7 @@ If additional hook coverage is needed, prioritize:
 1. Authentication and lock-state hooks.
 2. Wallet initialization, import, and lifecycle hooks.
 3. Transaction-building and signing-adjacent hooks.
-4. Cashu and recovery-related hooks.
+4. Cashu, Turbo BTC/UNIT, and recovery-related hooks.
 5. Navigation hooks that route through auth or destructive actions.
 
 ## Notes
