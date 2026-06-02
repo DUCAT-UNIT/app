@@ -1,0 +1,7 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live on-chain UNIT borrow interruption recovery.
+
+- runFlow: ../helpers/start-live-vault-borrow-unit.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-vault-pending-recovered.yaml

@@ -560,13 +560,6 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
     for (const quote of quotes) {
       result.checked++;
 
-      if (quote.purpose === 'turbo_send') {
-        logger.debug('[MintQuoteRecovery] Skipping Turbo send quote; Turbo recovery owns it', {
-          quoteId: quote.quoteId.substring(0, 8),
-        });
-        continue;
-      }
-
       if (quote.claim) {
         try {
           await recoverPersistedMintClaim(quote, result);
@@ -583,6 +576,13 @@ export const recoverUnclaimedMintQuotes = async (): Promise<MintQuoteRecoveryRes
             `${quote.quoteId.substring(0, 8)}: persisted claim recovery failed - ${errorMsg}`
           );
         }
+        continue;
+      }
+
+      if (quote.purpose === 'turbo_send') {
+        logger.debug('[MintQuoteRecovery] Skipping Turbo send quote; Turbo recovery owns it', {
+          quoteId: quote.quoteId.substring(0, 8),
+        });
         continue;
       }
 

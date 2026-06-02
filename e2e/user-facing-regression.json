@@ -15,7 +15,8 @@
       "suites": [
         "live-vault-turbounit-repay",
         "live-vault-usdc-lifecycle",
-        "live-vault-second-repay"
+        "live-vault-second-repay",
+        "live-relaunch-recovery"
       ]
     },
     "real": {
@@ -28,6 +29,7 @@
         "real-vault-turbounit-repay",
         "real-vault-usdc-lifecycle",
         "real-vault-second-repay",
+        "real-relaunch-recovery",
         "real-liquidation-execution",
         "real-deep-link-recovery",
         "real-sepolia-send-swap-redeem"
@@ -42,7 +44,8 @@
         "real-vault-actions",
         "real-vault-borrow-turbounit",
         "real-vault-turbounit-repay",
-        "real-vault-second-repay"
+        "real-vault-second-repay",
+        "real-relaunch-recovery"
       ]
     },
     "release": {
@@ -56,6 +59,7 @@
         "live-vault-turbounit-repay",
         "live-vault-usdc-lifecycle",
         "live-vault-second-repay",
+        "live-relaunch-recovery",
         "real-receive-btc",
         "real-send-btc",
         "real-send-unit",
@@ -63,6 +67,7 @@
         "real-vault-turbounit-repay",
         "real-vault-usdc-lifecycle",
         "real-vault-second-repay",
+        "real-relaunch-recovery",
         "real-liquidation-execution",
         "real-deep-link-recovery",
         "real-sepolia-send-swap-redeem"
@@ -156,6 +161,13 @@
       "description": "Real vault creation followed by two consecutive UNIT repayments with phase watchdogs.",
       "command": ["node", "scripts/runLiveRegression.mjs", "vault-second-repay"]
     },
+    "live-relaunch-recovery": {
+      "kind": "live",
+      "tier": "live",
+      "surfaces": ["send", "vault", "turbo", "recovery"],
+      "description": "Real send, vault action, and TurboUNIT relaunch recovery checks after app termination on confirmation screens.",
+      "command": ["node", "scripts/runLiveRegression.mjs", "relaunch-recovery"]
+    },
     "real-receive-btc": {
       "kind": "live",
       "tier": "real",
@@ -235,6 +247,18 @@
         "scripts/runLiveRegression.mjs",
         "--require-confirmation",
         "vault-second-repay"
+      ]
+    },
+    "real-relaunch-recovery": {
+      "kind": "live",
+      "tier": "real",
+      "surfaces": ["send", "vault", "turbo", "recovery"],
+      "description": "Strict relaunch recovery regression for submitted sends, vault actions, and TurboUNIT settlement variants.",
+      "command": [
+        "node",
+        "scripts/runLiveRegression.mjs",
+        "--require-confirmation",
+        "relaunch-recovery"
       ]
     },
     "real-liquidation-execution": {
@@ -359,9 +383,11 @@
       "coverage": [
         "critical-transaction-jest",
         "live-vault-second-repay",
-        "real-vault-second-repay"
+        "live-relaunch-recovery",
+        "real-vault-second-repay",
+        "real-relaunch-recovery"
       ],
-      "notes": "Pending transaction cleanup, stale settlement state, and consecutive repay recovery are covered by focused state tests and a strict live second-repay flow."
+      "notes": "Pending transaction cleanup, stale settlement state, consecutive repay recovery, and relaunch-after-submit recovery across sends, vault actions, and TurboUNIT variants are covered by focused state tests and strict live flows."
     },
     {
       "id": "liquidation-execution-live",

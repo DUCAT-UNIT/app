@@ -549,6 +549,49 @@ describe('cashuMintQuoteRecovery', () => {
       expect(completeMint).not.toHaveBeenCalled();
     });
 
+    it('should recover persisted Turbo send claims before skipping Turbo quote ownership', async () => {
+      const claimProofs = [{ amount: 1000, secret: 'secret', C: 'C', id: 'keyset_sat' }];
+      const storedQuotes: PersistedMintQuote[] = [
+        {
+          quoteId: 'quote_turbo_sat',
+          amount: 1000,
+          depositAddress: 'tb1ptest',
+          createdAt: Date.now(),
+          state: 'PENDING',
+          unit: 'sat',
+          purpose: 'turbo_send',
+          claim: {
+            amount: 1000,
+            blindingData: [{ amount: 1000, B_: 'B_', r: 'r', secret: 'secret' }],
+            keys: { 1000: 'pubkey' },
+            keysetId: 'keyset_sat',
+            createdAt: Date.now(),
+          },
+        },
+      ];
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(storedQuotes));
+      (checkMintQuote as jest.Mock).mockResolvedValue({
+        state: 'ISSUED',
+        amount_paid: 1000,
+        amount_issued: 1000,
+      });
+      (restoreSignatures as jest.Mock).mockResolvedValue({
+        signatures: [{ id: 'keyset_sat', C_: 'sig', amount: 1000 }],
+      });
+      (unblindSignatures as jest.Mock).mockReturnValue(claimProofs);
+
+      const result = await recoverUnclaimedMintQuotes();
+
+      expect(result.checked).toBe(1);
+      expect(result.recovered).toBe(1);
+      expect(result.totalAmountRecovered).toBe(1000);
+      expect(restoreSignatures).toHaveBeenCalledWith([
+        { amount: 1000, B_: 'B_', id: 'keyset_sat' },
+      ]);
+      expect(addProofs).toHaveBeenCalledWith(claimProofs, true, 'sat');
+      expect(completeMint).not.toHaveBeenCalled();
+    });
+
     it('should not recover account-tagged quotes before the current account is initialized', async () => {
       const storedQuotes: PersistedMintQuote[] = [
         {

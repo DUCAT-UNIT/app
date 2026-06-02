@@ -405,6 +405,58 @@ describe('vaultSettlementStore', () => {
       });
     });
 
+    it.each([
+      {
+        kind: 'open',
+        phase: 'waiting_turbo_mint',
+        issueTxid: 'open-issue-txid',
+        vaultTxid: 'open-vault-txid',
+        cashuMintQuoteId: 'open-mint-quote',
+        cashuMintDepositAddress: 'tb1popenmint',
+        cashuMintQuoteAmount: 100,
+        cashuMintSendTxid: 'open-mint-send-txid',
+      },
+      {
+        kind: 'borrow',
+        phase: 'building_turbo_send',
+        issueTxid: 'borrow-issue-txid',
+        vaultTxid: 'borrow-vault-txid',
+        cashuMintQuoteId: 'borrow-mint-quote',
+        cashuMintDepositAddress: 'tb1pborrowmint',
+        cashuMintQuoteAmount: 100,
+      },
+      {
+        kind: 'repay',
+        phase: 'waiting_turbo_release',
+        cashuMeltQuoteId: 'repay-melt-quote',
+        cashuMeltTxid: 'repay-melt-txid',
+      },
+    ] as const)(
+      'keeps fresh TurboUNIT $kind recovery state through rehydrate',
+      (persistedState) => {
+        const state = normalizeVaultSettlementPersistedState(
+          {
+            ...persistedState,
+            accountIndex: 2,
+            taprootAddress: 'tb1pturboaccount',
+            faceValueUsd: 50,
+            requestedPayoutAsset: 'TURBOUNIT',
+            updatedAt: now - 1000,
+          },
+          now
+        );
+
+        expect(state).toMatchObject({
+          ...persistedState,
+          accountIndex: 2,
+          taprootAddress: 'tb1pturboaccount',
+          faceValueUsd: 50,
+          requestedPayoutAsset: 'TURBOUNIT',
+          updatedAt: now - 1000,
+        });
+      }
+    );
+
     it('drops stale active recovery state and stale terminal state', () => {
       expect(
         normalizeVaultSettlementPersistedState(

@@ -1,0 +1,13 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live vault open-to-TurboUNIT interruption recovery.
+
+- runFlow: ../helpers/start-live-vault-open-turbounit.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-wallet-pending-history-recovered.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0-amount'
+    timeout: 10000
+- assertVisible:
+    text: '1.00'

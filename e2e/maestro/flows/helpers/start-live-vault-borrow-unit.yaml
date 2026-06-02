@@ -1,0 +1,63 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import the reviewer wallet, submit a small on-chain UNIT borrow, and stop on success.
+
+- runFlow: ../test/setup-reviewer-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-borrow-btn'
+    timeout: 240000
+- tapOn:
+    id: 'wallet-borrow-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-input-screen'
+    timeout: 20000
+- tapOn:
+    id: 'vault-borrow-amount-display'
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-amount-input'
+    timeout: 5000
+- eraseText
+- inputText: '1'
+- tapOn:
+    id: 'vault-borrow-amount-done-btn'
+- waitForAnimationToEnd
+
+- tapOn:
+    id: 'vault-borrow-continue-btn'
+- scrollUntilVisible:
+    element:
+      id: 'vault-borrow-payout-unit-card'
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    id: 'vault-borrow-payout-unit-card'
+- tapOn:
+    id: 'vault-borrow-payout-continue-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-confirm-screen'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'vault-borrow-confirm-btn'
+    direction: DOWN
+    timeout: 5000
+- tapOn:
+    id: 'vault-borrow-confirm-btn'
+- runFlow:
+    when:
+      visible:
+        id: 'pin-fallback-modal'
+    commands:
+      - runFlow: enter-pin-fallback.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-borrow-success-screen'
+    timeout: 240000

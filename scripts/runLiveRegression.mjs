@@ -37,13 +37,38 @@ const PROFILES = {
     description: 'Create a live wallet, sign, broadcast, and verify a BTC send.',
     flows: ['e2e/maestro/flows/test/live-send-btc.yaml'],
   },
+  'send-btc-relaunch-pending': {
+    description:
+      'Submit a live BTC send, relaunch before confirmation, and verify pending recovery.',
+    flows: ['e2e/maestro/flows/test/live-send-btc-relaunch-pending.yaml'],
+  },
   'send-unit': {
     description: 'Create a live vault, issue UNIT, then sign, broadcast, and verify a UNIT send.',
     flows: ['e2e/maestro/flows/test/live-send-unit.yaml'],
   },
+  'send-unit-relaunch-pending': {
+    description:
+      'Submit a live UNIT send, relaunch before confirmation, and verify pending recovery.',
+    flows: ['e2e/maestro/flows/test/live-send-unit-relaunch-pending.yaml'],
+  },
   'vault-actions': {
     description: 'Run live vault open, deposit, borrow, repay, and withdraw actions.',
     flows: ['e2e/maestro/flows/test/live-vault-actions.yaml'],
+  },
+  'vault-open-relaunch-pending': {
+    description:
+      'Submit a live vault open, relaunch before confirmation, and verify vault lock recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-open-relaunch-pending.yaml'],
+  },
+  'vault-deposit-relaunch-pending': {
+    description:
+      'Submit a live vault deposit, relaunch before confirmation, and verify vault lock recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-deposit-relaunch-pending.yaml'],
+  },
+  'vault-borrow-relaunch-pending': {
+    description:
+      'Submit a live UNIT borrow, relaunch before confirmation, and verify vault lock recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-borrow-relaunch-pending.yaml'],
   },
   'repay-turbounit': {
     description: 'Create a live vault, mint TurboUNIT, and repay a tiny amount with TurboUNIT.',
@@ -52,6 +77,21 @@ const PROFILES = {
   'vault-borrow-turbounit': {
     description: 'Borrow from a live vault and settle the issued UNIT into TurboUNIT.',
     flows: ['e2e/maestro/flows/test/live-vault-borrow-turbounit.yaml'],
+  },
+  'vault-open-turbounit-relaunch-pending': {
+    description:
+      'Submit a live vault open to TurboUNIT, relaunch before confirmation, and verify recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-open-turbounit-relaunch-pending.yaml'],
+  },
+  'vault-borrow-turbounit-relaunch-pending': {
+    description:
+      'Submit a live borrow-to-TurboUNIT, relaunch before confirmation, and verify recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-borrow-turbounit-relaunch-pending.yaml'],
+  },
+  'vault-repay-turbounit-relaunch-pending': {
+    description:
+      'Submit a live TurboUNIT-funded repay, relaunch before confirmation, and verify recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-repay-turbounit-relaunch-pending.yaml'],
   },
   'turbo-smoke': {
     description: 'Create a live vault and mint a TurboUNIT token.',
@@ -64,6 +104,16 @@ const PROFILES = {
   'vault-second-repay': {
     description: 'Create a live vault and run two consecutive UNIT repayments.',
     flows: ['e2e/maestro/flows/test/live-vault-second-repay.yaml'],
+  },
+  'vault-repay-relaunch-pending': {
+    description:
+      'Submit a live vault repay, relaunch before confirmation, and verify vault lock recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-repay-relaunch-pending.yaml'],
+  },
+  'vault-withdraw-relaunch-pending': {
+    description:
+      'Submit a live vault withdrawal, relaunch before confirmation, and verify vault lock recovery.',
+    flows: ['e2e/maestro/flows/test/live-vault-withdraw-relaunch-pending.yaml'],
   },
   'liquidation-execution': {
     description: 'Claim a live liquidation, capture claim/swap txids, and verify confirmation.',
@@ -97,6 +147,18 @@ const PROFILES = {
 const PROFILE_GROUPS = {
   quick: ['repay-turbounit'],
   all: ['repay-turbounit', 'vault-usdc-lifecycle', 'vault-second-repay'],
+  'relaunch-recovery': [
+    'send-btc-relaunch-pending',
+    'send-unit-relaunch-pending',
+    'vault-open-relaunch-pending',
+    'vault-deposit-relaunch-pending',
+    'vault-borrow-relaunch-pending',
+    'vault-repay-relaunch-pending',
+    'vault-withdraw-relaunch-pending',
+    'vault-open-turbounit-relaunch-pending',
+    'vault-borrow-turbounit-relaunch-pending',
+    'vault-repay-turbounit-relaunch-pending',
+  ],
   'testflight-no-usdc': [
     'receive-btc',
     'send-btc',
@@ -105,6 +167,7 @@ const PROFILE_GROUPS = {
     'vault-borrow-turbounit',
     'repay-turbounit',
     'vault-second-repay',
+    'relaunch-recovery',
   ],
   real: [
     'receive-btc',
@@ -114,6 +177,7 @@ const PROFILE_GROUPS = {
     'repay-turbounit',
     'vault-usdc-lifecycle',
     'vault-second-repay',
+    'relaunch-recovery',
     'liquidation-execution',
     'deep-link-recovery',
     'sepolia-send-swap-redeem',
@@ -215,6 +279,7 @@ ${Object.entries(PROFILES)
   .join('\n')}
   quick                Alias for repay-turbounit
   all                  repay-turbounit + vault-usdc-lifecycle + vault-second-repay
+  relaunch-recovery    Submitted send, vault action, and TurboUNIT relaunch recovery flows
   testflight-no-usdc   Strict reviewer-data suite without USDC/Sepolia flows
   real                 Strict receive, send, vault, Turbo, USDC, liquidation, link, Sepolia suite
 
@@ -238,6 +303,9 @@ if (options.has('--list')) {
   }
   console.log('quick: Alias for repay-turbounit');
   console.log('all: repay-turbounit + vault-usdc-lifecycle + vault-second-repay');
+  console.log(
+    'relaunch-recovery: Submitted send, vault action, and TurboUNIT relaunch recovery flows'
+  );
   console.log(
     'testflight-no-usdc: Strict TestFlight reviewer-data suite without USDC/Sepolia flows'
   );
@@ -452,9 +520,19 @@ async function validateLiveFixtureFunding() {
   const needsReviewerMutinynet = selectedProfiles.some((profileName) =>
     [
       'send-unit',
+      'send-btc-relaunch-pending',
+      'send-unit-relaunch-pending',
+      'vault-actions',
+      'vault-deposit-relaunch-pending',
+      'vault-borrow-relaunch-pending',
       'repay-turbounit',
+      'vault-borrow-turbounit',
+      'vault-borrow-turbounit-relaunch-pending',
+      'vault-repay-turbounit-relaunch-pending',
       'turbo-smoke',
       'vault-second-repay',
+      'vault-repay-relaunch-pending',
+      'vault-withdraw-relaunch-pending',
       'liquidation-execution',
       'deep-link-recovery',
     ].includes(profileName)

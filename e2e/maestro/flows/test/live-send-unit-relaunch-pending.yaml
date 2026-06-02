@@ -1,0 +1,22 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live UNIT interruption recovery.
+# First issue a small amount of on-chain UNIT through the reviewer vault so this
+# flow does not depend on leftover fixture UNIT from prior live runs. Then submit
+# a real UNIT send, kill the app while the confirmation screen is still open,
+# and verify the transaction is restored in durable history.
+
+- runFlow: ../helpers/start-live-vault-borrow-unit.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-vault-pending-recovered.yaml
+
+- runFlow: ../helpers/send-live-unit-small-from-wallet.yaml
+
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-wallet-pending-history-recovered.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0-amount'
+    timeout: 10000
+- assertVisible:
+    text: '0.01'

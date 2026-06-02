@@ -1,0 +1,13 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live TurboUNIT-funded repay interruption recovery.
+
+- runFlow: live-vault-turbounit-repay.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-wallet-pending-history-recovered.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0-amount'
+    timeout: 10000
+- assertVisible:
+    text: '0.01'

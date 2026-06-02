@@ -1,0 +1,49 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Import the reviewer wallet, submit a small vault deposit, and stop on success.
+
+- runFlow: ../test/setup-reviewer-wallet.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-deposit-btn'
+    timeout: 240000
+- tapOn:
+    id: 'wallet-deposit-btn'
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-deposit-input-screen'
+    timeout: 20000
+- tapOn:
+    id: 'vault-deposit-amount-display'
+- extendedWaitUntil:
+    visible:
+      id: 'vault-deposit-amount-input'
+    timeout: 5000
+- eraseText
+- inputText: '0.00001000'
+- tapOn:
+    id: 'vault-deposit-amount-done-btn'
+- waitForAnimationToEnd
+
+- tapOn:
+    id: 'vault-deposit-continue-btn'
+- extendedWaitUntil:
+    visible:
+      id: 'vault-deposit-confirm-screen'
+    timeout: 30000
+- tapOn:
+    id: 'vault-deposit-confirm-btn'
+- runFlow:
+    when:
+      visible:
+        id: 'pin-fallback-modal'
+    commands:
+      - runFlow: enter-pin-fallback.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-deposit-success-screen'
+    timeout: 240000

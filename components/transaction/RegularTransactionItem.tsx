@@ -56,9 +56,10 @@ interface RegularTransactionItemProps {
   styles: RegularTransactionStyles;
   onPress: () => void;
   advancedMode?: boolean;
+  testIDBase?: string;
 }
 
-export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode: _advancedMode = false }: RegularTransactionItemProps) {
+export default memo(function RegularTransactionItem({ tx, styles, onPress, advancedMode: _advancedMode = false, testIDBase }: RegularTransactionItemProps) {
   const { s, sf } = useResponsive();
   const { amount, assetType, isSent, isReceived, displayKind } = tx.txData;
   const numericAmount = typeof amount === 'bigint' ? Number(amount) : amount;
@@ -144,18 +145,27 @@ export default memo(function RegularTransactionItem({ tx, styles, onPress, advan
             <View style={styles.historyTxColumn3}>
               {numericAmount !== 0 && (
                 assetType === 'USDC' ? (
-                  <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                  <Text
+                    style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}
+                    testID={testIDBase ? `${testIDBase}-amount` : undefined}
+                  >
                     ${formattedAmount}
                   </Text>
                 ) : assetType === 'ETH' ? (
-                  <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                  <Text
+                    style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}
+                    testID={testIDBase ? `${testIDBase}-amount` : undefined}
+                  >
                     {formattedAmount} ETH
                   </Text>
                 ) : (
                   <View style={styles.balanceWithIcon}>
                     <Icon name={assetType === 'UNIT' ? 'unit_symbol' : 'btc_symbol'}
                       size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
-                    <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                    <Text
+                      style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}
+                      testID={testIDBase ? `${testIDBase}-amount` : undefined}
+                    >
                       {formattedAmount}
                     </Text>
                   </View>

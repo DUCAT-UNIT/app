@@ -74,7 +74,8 @@ async function jsonWithNativeTimeout<T>(
 
       settle(() => {
         if (request.status < 200 || request.status >= 300) {
-          reject(new Error(`HTTP ${request.status}: ${request.statusText}`));
+          const detail = request.responseText?.trim() || request.statusText?.trim();
+          reject(new Error(detail ? `HTTP ${request.status}: ${detail}` : `HTTP ${request.status}`));
           return;
         }
 

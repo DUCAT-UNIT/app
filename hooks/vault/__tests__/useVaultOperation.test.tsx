@@ -135,6 +135,11 @@ jest.mock('../../../services/vaultService', () => ({
     vaultId: 'vault-id',
   }),
   fetchLatestVaultHistoryTransaction: jest.fn().mockResolvedValue({ txid: 'latest-vault-tx' }),
+  selectLatestUsableVaultHistoryTransaction: jest.fn((transactions) =>
+    [...transactions]
+      .filter((transaction) => transaction.transaction_id && transaction.utxo)
+      .sort((left, right) => right.timestamp - left.timestamp)[0]
+  ),
 }));
 
 jest.mock('../../../services/vaultWalletService', () => ({
@@ -293,6 +298,16 @@ describe('useVaultOperation', () => {
       computeVaultPrevoutFromTx,
       resolveLatestUnspentVaultPrevout,
     } = require('../../../services/vaultOperationsService');
+    const staleHistoryTx = {
+      transaction_id: 'stale-history-txid',
+      utxo: 'stale-history-txid:0',
+      utxo_script: '5120',
+      amount_borrowed: 100,
+      oracle_price: 100000,
+      timestamp: 100,
+      action: 'borrow',
+      vault_amount: 40000,
+    };
     const cachedHistoryTx = {
       transaction_id: 'cached-history-txid',
       utxo: 'cached-history-txid:0',
@@ -314,7 +329,7 @@ describe('useVaultOperation', () => {
           master_id: 'master-id',
         },
       },
-      vaultTransactions: [cachedHistoryTx],
+      vaultTransactions: [staleHistoryTx, cachedHistoryTx],
     });
 
     const actions = makeActions();

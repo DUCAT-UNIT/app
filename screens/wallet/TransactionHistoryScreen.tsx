@@ -193,67 +193,70 @@ export default function TransactionHistoryScreen({
 
   // Render function for each transaction
   const renderTransaction = useCallback(
-    ({ item: tx }: { item: DisplayTransaction }) => (
-      <TransactionItem
-        tx={tx as unknown as TransactionItemType}
-        styles={styles}
-        onPress={() => {
-          if (tx.vaultTransaction && tx.vaultData) {
-            // Show vault transaction details sheet
-            const vaultTx = convertToVaultHistoryTx(tx);
-            if (vaultTx) {
-              setSelectedVaultTx(vaultTx);
-              setPreviousVaultTx(findPreviousVaultTx(tx));
-              setShowVaultDetails(true);
+    ({ item: tx, index }: { item: DisplayTransaction; index: number }) => (
+      <View testID={`transaction-history-row-${index}`} collapsable={false}>
+        <TransactionItem
+          tx={tx as unknown as TransactionItemType}
+          styles={styles}
+          testIDBase={`transaction-history-row-${index}`}
+          onPress={() => {
+            if (tx.vaultTransaction && tx.vaultData) {
+              // Show vault transaction details sheet
+              const vaultTx = convertToVaultHistoryTx(tx);
+              if (vaultTx) {
+                setSelectedVaultTx(vaultTx);
+                setPreviousVaultTx(findPreviousVaultTx(tx));
+                setShowVaultDetails(true);
+              }
+              return;
             }
-            return;
-          }
 
-          // Handle ecash token clicks
-          if (tx.ecashToken && tx.tokenData) {
-            // Check if it's a sent token (has recipient) or received token (has sender)
-            if (isSentToken(tx.tokenData)) {
-              setSelectedToken({
-                recipient: tx.tokenData.recipient,
-                shortUrl: tx.tokenData.shortUrl ?? null,
-                token: tx.tokenData.token,
-                claimed: tx.tokenData.claimed ?? false,
-                isSelfClaim: tx.isAutoclaim ?? false,
-                cashuUnit: tx.tokenData.unit,
-              });
-            } else {
-              // Received token - no recipient/shortUrl
-              setSelectedToken({
-                recipient: '',
-                shortUrl: null,
-                token: tx.tokenData.token,
-                claimed: tx.tokenData.claimed ?? false,
-                isSelfClaim: false,
-                cashuUnit: tx.tokenData.unit,
-              });
+            // Handle ecash token clicks
+            if (tx.ecashToken && tx.tokenData) {
+              // Check if it's a sent token (has recipient) or received token (has sender)
+              if (isSentToken(tx.tokenData)) {
+                setSelectedToken({
+                  recipient: tx.tokenData.recipient,
+                  shortUrl: tx.tokenData.shortUrl ?? null,
+                  token: tx.tokenData.token,
+                  claimed: tx.tokenData.claimed ?? false,
+                  isSelfClaim: tx.isAutoclaim ?? false,
+                  cashuUnit: tx.tokenData.unit,
+                });
+              } else {
+                // Received token - no recipient/shortUrl
+                setSelectedToken({
+                  recipient: '',
+                  shortUrl: null,
+                  token: tx.tokenData.token,
+                  claimed: tx.tokenData.claimed ?? false,
+                  isSelfClaim: false,
+                  cashuUnit: tx.tokenData.unit,
+                });
+              }
+              setShowTokenDetails(true);
+              return;
             }
-            setShowTokenDetails(true);
-            return;
-          }
 
-          // Handle regular BTC/UNIT transactions - show details sheet
-          if (tx.txData) {
-            setSelectedRegularTx({
-              txid: tx.txid,
-              timestamp: tx.status?.block_time,
-              confirmed: tx.status?.confirmed ?? false,
-              txData: {
-                amount: tx.txData.amount,
-                assetType: tx.txData.assetType as DisplayAssetType,
-                isSent: tx.txData.isSent,
-                isReceived: tx.txData.isReceived,
-                displayKind: tx.txData.displayKind,
-              },
-            });
-            setShowRegularTxDetails(true);
-          }
-        }}
-      />
+            // Handle regular BTC/UNIT transactions - show details sheet
+            if (tx.txData) {
+              setSelectedRegularTx({
+                txid: tx.txid,
+                timestamp: tx.status?.block_time,
+                confirmed: tx.status?.confirmed ?? false,
+                txData: {
+                  amount: tx.txData.amount,
+                  assetType: tx.txData.assetType as DisplayAssetType,
+                  isSent: tx.txData.isSent,
+                  isReceived: tx.txData.isReceived,
+                  displayKind: tx.txData.displayKind,
+                },
+              });
+              setShowRegularTxDetails(true);
+            }
+          }}
+        />
+      </View>
     ),
     [styles, convertToVaultHistoryTx, findPreviousVaultTx]
   );

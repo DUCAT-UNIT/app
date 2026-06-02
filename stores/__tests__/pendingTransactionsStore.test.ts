@@ -10,6 +10,10 @@ import {
   resetPendingTransactionsStore,
   type PendingTransactionOutput,
 } from '../pendingTransactionsStore';
+import {
+  resetOperationJournalStore,
+  useOperationJournalStore,
+} from '../operationJournalStore';
 
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -60,6 +64,7 @@ describe('pendingTransactionsStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    resetOperationJournalStore();
     resetPendingTransactionsStore();
   });
 
@@ -122,6 +127,7 @@ describe('pendingTransactionsStore', () => {
           assetType: 'BTC',
           status: 'pending',
           timestamp: Date.now(),
+          sentAmount: 12345,
           inputUtxos: [{ txid: 'input_txid', vout: 0 }],
         },
       };
@@ -138,8 +144,23 @@ describe('pendingTransactionsStore', () => {
 
       const state = usePendingTransactionsStore.getState();
       expect(state.pendingTransactions.cold_txid).toEqual(persistedTx.cold_txid);
+      expect(state.pendingTransactions.cold_txid.sentAmount).toBe(12345);
       expect(state.spentUtxos.has('input_txid:0')).toBe(true);
       expect(state.hydratedAccount).toBe(0);
+      expect(useOperationJournalStore.getState().entries).toEqual([
+        expect.objectContaining({
+          id: 'btc-send:0:cold_txid',
+          accountIndex: 0,
+          kind: 'btc_send',
+          stage: 'pending',
+          label: 'BTC send submitted',
+          retrySafety: 'unsafe_until_checked',
+          txids: ['cold_txid'],
+          asset: 'BTC',
+          amount: '12345',
+          recoveryAction: 'Wait for Mutinynet confirmation before spending the same funds again.',
+        }),
+      ]);
     });
 
     it('derives missing spent locks from persisted pending transaction inputs', async () => {

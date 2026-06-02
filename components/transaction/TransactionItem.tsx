@@ -92,6 +92,7 @@ export interface TransactionItemProps {
   styles: TransactionItemStyles;
   onPress: () => void;
   advancedMode?: boolean;
+  testIDBase?: string;
 }
 
 function isVaultTransaction(tx: Transaction): tx is VaultTransaction {
@@ -106,16 +107,16 @@ function getStatusFailed(tx: Transaction): boolean | undefined {
   return (tx.status as TransactionStatus & { failed?: boolean })?.failed;
 }
 
-function TransactionItem({ tx, styles, onPress, advancedMode = false }: TransactionItemProps) {
+function TransactionItem({ tx, styles, onPress, advancedMode = false, testIDBase }: TransactionItemProps) {
   if (isVaultTransaction(tx)) {
-    return <VaultTransactionItem tx={tx} styles={styles} onPress={onPress} />;
+    return <VaultTransactionItem tx={tx} styles={styles} onPress={onPress} testIDBase={testIDBase} />;
   }
 
   if (isEcashTransaction(tx)) {
-    return <EcashTransactionItem tx={tx} styles={styles} onPress={onPress} />;
+    return <EcashTransactionItem tx={tx} styles={styles} onPress={onPress} testIDBase={testIDBase} />;
   }
 
-  return <RegularTransactionItem tx={tx} styles={styles} onPress={onPress} advancedMode={advancedMode} />;
+  return <RegularTransactionItem tx={tx} styles={styles} onPress={onPress} advancedMode={advancedMode} testIDBase={testIDBase} />;
 }
 
 export default memo(TransactionItem, (prev: TransactionItemProps, next: TransactionItemProps) => {
@@ -142,6 +143,7 @@ export default memo(TransactionItem, (prev: TransactionItemProps, next: Transact
     prevEcash?.tokenData?.unit === nextEcash?.tokenData?.unit &&
     prevEcash?.tokenData?.amount === nextEcash?.tokenData?.amount &&
     prevEcash?.tokenData?.shortUrl === nextEcash?.tokenData?.shortUrl &&
-    prev.advancedMode === next.advancedMode
+    prev.advancedMode === next.advancedMode &&
+    prev.testIDBase === next.testIDBase
   );
 });

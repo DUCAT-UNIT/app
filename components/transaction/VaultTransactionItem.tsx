@@ -37,9 +37,10 @@ interface VaultAmountDisplayProps {
   styles: VaultTransactionStyles;
   s: (value: number) => number;
   sf: (value: number) => number;
+  testIDBase?: string;
 }
 
-function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDisplayProps) {
+function VaultAmountDisplay({ vaultData, action, styles, s, sf, testIDBase }: VaultAmountDisplayProps) {
   // Per-action, per-asset color rules:
   // BTC green: Deposit, Repossess   |  BTC red: Withdraw
   // UNIT green: Repay, Swap         |  UNIT red: Open, Borrow, Repossess
@@ -54,13 +55,19 @@ function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDis
       <View style={{ alignItems: 'flex-end', gap: s(2) }}>
         <View style={styles.balanceWithIcon}>
           <Icon name="unit_symbol" size={s(12)} color={unitColor} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}>
+          <Text
+            style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}
+            testID={testIDBase ? `${testIDBase}-amount-unit` : undefined}
+          >
             {formatUnitAmount(vaultData.unitAmount)}
           </Text>
         </View>
         <View style={styles.balanceWithIcon}>
           <Icon name="btc_symbol" size={s(12)} color={btcColor} style={styles.assetAmountIcon} />
-          <Text style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}>
+          <Text
+            style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}
+            testID={testIDBase ? `${testIDBase}-amount-btc` : undefined}
+          >
             {formatBalance(vaultData.btcAmount / 100000000)}
           </Text>
         </View>
@@ -72,7 +79,10 @@ function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDis
     return (
       <View style={styles.balanceWithIcon}>
         <Icon name="btc_symbol" size={s(12)} color={btcColor} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}>
+        <Text
+          style={[styles.assetAmount, { color: btcColor, fontSize: sf(14) }]}
+          testID={testIDBase ? `${testIDBase}-amount-btc` : undefined}
+        >
           {formatBalance(vaultData.btcAmount / 100000000)}
         </Text>
       </View>
@@ -83,7 +93,10 @@ function VaultAmountDisplay({ vaultData, action, styles, s, sf }: VaultAmountDis
     return (
       <View style={styles.balanceWithIcon}>
         <Icon name="unit_symbol" size={s(12)} color={unitColor} style={styles.assetAmountIcon} />
-        <Text style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}>
+        <Text
+          style={[styles.assetAmount, { color: unitColor, fontSize: sf(14) }]}
+          testID={testIDBase ? `${testIDBase}-amount-unit` : undefined}
+        >
           {formatUnitAmount(vaultData.unitAmount)}
         </Text>
       </View>
@@ -110,9 +123,10 @@ export interface VaultTransactionItemProps {
   tx: VaultTransaction;
   styles: VaultTransactionStyles;
   onPress: () => void;
+  testIDBase?: string;
 }
 
-export default function VaultTransactionItem({ tx, styles, onPress }: VaultTransactionItemProps) {
+export default function VaultTransactionItem({ tx, styles, onPress, testIDBase }: VaultTransactionItemProps) {
   const { s, sf } = useResponsive();
   const vaultData = tx.vaultData;
   const action: VaultAction = vaultData.action;
@@ -140,7 +154,7 @@ export default function VaultTransactionItem({ tx, styles, onPress }: VaultTrans
               </View>
             </View>
             <View style={styles.historyTxColumn3}>
-              <VaultAmountDisplay vaultData={vaultData} action={action} styles={styles} s={s} sf={sf} />
+              <VaultAmountDisplay vaultData={vaultData} action={action} styles={styles} s={s} sf={sf} testIDBase={testIDBase} />
             </View>
           </View>
         </View>

@@ -1,0 +1,66 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Starting from an already funded wallet, submit a small live BTC send and stop
+# on the confirmation screen so relaunch tests can verify recovery/history.
+
+- tapOn:
+    point: '27%,44%'
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: 'withdraw-btc'
+    timeout: 10000
+- tapOn:
+    id: 'withdraw-btc'
+
+- extendedWaitUntil:
+    visible:
+      id: 'send-input-screen'
+    timeout: 10000
+
+- tapOn:
+    id: 'send-address-input'
+- inputText: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx'
+- runFlow: dismiss-keyboard-prompt.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: 'Valid'
+    timeout: 10000
+
+- tapOn:
+    id: 'btc-send-amount-display'
+- extendedWaitUntil:
+    visible:
+      id: 'btc-send-amount-input'
+    timeout: 5000
+- eraseText
+- inputText: '0.00001000'
+- tapOn:
+    id: 'btc-send-amount-done-btn'
+- waitForAnimationToEnd
+
+- runFlow: dismiss-debug-warning.yaml
+- tapOn:
+    id: 'send-review-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'review-screen'
+    timeout: 120000
+- assertVisible:
+    text: 'You will send'
+
+- tapOn:
+    id: 'review-confirm-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'confirmation-screen'
+    timeout: 180000
+- assertVisible:
+    text: 'Transaction Sent!'
+- runFlow: dismiss-debug-warning.yaml
+- tapOn:
+    id: 'confirmation-copy-txid-btn'

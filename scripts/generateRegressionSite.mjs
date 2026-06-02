@@ -23,30 +23,80 @@ const flowNotes = {
     summary: 'Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.',
     expectedProofs: '1 BTC send txid',
   },
+  'live-send-btc-relaunch-pending.yaml': {
+    name: 'BTC Relaunch Recovery',
+    summary: 'Broadcasts a BTC send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
+    expectedProofs: 'Pending BTC send panel plus 1 BTC send txid',
+  },
   'live-send-unit.yaml': {
     name: 'Send UNIT',
     summary: 'Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.',
     expectedProofs: '1 UNIT send txid',
+  },
+  'live-send-unit-relaunch-pending.yaml': {
+    name: 'UNIT Relaunch Recovery',
+    summary: 'Broadcasts an on-chain UNIT send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
+    expectedProofs: 'Pending UNIT send panel plus 1 UNIT send txid',
   },
   'live-vault-actions.yaml': {
     name: 'Vault Actions',
     summary: 'Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.',
     expectedProofs: '5 vault action checkpoints; raw txids can be 8+',
   },
+  'live-vault-open-relaunch-pending.yaml': {
+    name: 'Vault Open Relaunch Recovery',
+    summary: 'Submits a vault open, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault open lock and vault checkpoint',
+  },
+  'live-vault-deposit-relaunch-pending.yaml': {
+    name: 'Vault Deposit Relaunch Recovery',
+    summary: 'Submits a vault deposit, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault deposit lock and vault checkpoint',
+  },
+  'live-vault-borrow-relaunch-pending.yaml': {
+    name: 'Vault Borrow Relaunch Recovery',
+    summary: 'Submits an on-chain UNIT borrow, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault borrow lock and vault checkpoint',
+  },
   'live-vault-borrow-turbounit.yaml': {
     name: 'Borrow TurboUNIT',
     summary: 'Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.',
     expectedProofs: 'Borrow txids plus TurboUNIT mint settlement',
+  },
+  'live-vault-open-turbounit-relaunch-pending.yaml': {
+    name: 'Open TurboUNIT Relaunch Recovery',
+    summary: 'Opens a vault with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
+    expectedProofs: 'Pending vault open lock plus TurboUNIT settlement checkpoint',
+  },
+  'live-vault-borrow-turbounit-relaunch-pending.yaml': {
+    name: 'Borrow TurboUNIT Relaunch Recovery',
+    summary: 'Borrows with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
+    expectedProofs: 'Pending vault borrow lock plus TurboUNIT settlement checkpoint',
   },
   'live-vault-turbounit-repay.yaml': {
     name: 'Repay TurboUNIT',
     summary: 'Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.',
     expectedProofs: 'TurboUNIT funding plus repay txids',
   },
+  'live-vault-repay-turbounit-relaunch-pending.yaml': {
+    name: 'Repay TurboUNIT Relaunch Recovery',
+    summary: 'Repays with TurboUNIT funding, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault repay lock plus TurboUNIT melt checkpoint',
+  },
   'live-vault-second-repay.yaml': {
     name: 'Second Repay',
     summary: 'Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.',
     expectedProofs: '2 consecutive repay checkpoints',
+  },
+  'live-vault-repay-relaunch-pending.yaml': {
+    name: 'Vault Repay Relaunch Recovery',
+    summary: 'Submits a real vault repay, kills the app on the success screen, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault lock, recovery panel, and repay checkpoint',
+  },
+  'live-vault-withdraw-relaunch-pending.yaml': {
+    name: 'Vault Withdraw Relaunch Recovery',
+    summary: 'Submits a vault withdrawal, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    expectedProofs: 'Pending vault withdraw lock and vault checkpoint',
   },
 };
 

@@ -1,6 +1,6 @@
 {
   "name": "ducat-wallet-mobile",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Ducat Wallet mobile app for Mutinynet BTC, UNIT Runes, Cashu e-cash, and vault workflows.",
   "license": "MIT",
   "repository": {

@@ -94,6 +94,8 @@ interface VaultHistoryResponse {
 const vaultHistoryInFlight = new Map<string, Promise<VaultHistoryTransaction[]>>();
 const vaultDataInFlight = new Map<string, Promise<VaultData | null>>();
 const vaultLatestHistoryInFlight = new Map<string, Promise<VaultHistoryTransaction | undefined>>();
+const VAULT_HISTORY_PAGE_LIMIT = 250;
+const VAULT_HISTORY_MAX_PAGES = 20;
 
 export interface FetchVaultDataOptions {
   /**
@@ -112,6 +114,15 @@ export interface FetchVaultHistoryOptions {
   maxPages?: number;
   /** History lookback window. Defaults to 18 months. */
   lookbackDays?: number;
+}
+
+export interface FetchLatestVaultHistoryOptions {
+  /** Require transaction_id + utxo for signing a follow-up vault operation. */
+  requireUsablePrevout?: boolean;
+  /** Page size for each vault_history_tx request. */
+  limit?: number;
+  /** Maximum number of pages to request. */
+  maxPages?: number;
 }
 
 const isValidPrice = (price: unknown): price is number => (
@@ -145,30 +156,120 @@ async function dedupeInFlight<T>(
   }
 }
 
+function hasUsableVaultPrevout(
+  transaction: VaultHistoryTransaction | null | undefined
+): transaction is VaultHistoryTransaction & { transaction_id: string; utxo: string } {
+  return Boolean(transaction?.transaction_id && transaction.utxo);
+}
+
+export function selectLatestUsableVaultHistoryTransaction(
+  transactions: VaultHistoryTransaction[]
+): VaultHistoryTransaction | undefined {
+  return selectLatestVaultHistoryTransaction(transactions.filter(hasUsableVaultPrevout));
+}
+
+export function selectLatestVaultHistoryTransaction(
+  transactions: VaultHistoryTransaction[]
+): VaultHistoryTransaction | undefined {
+  let latest: VaultHistoryTransaction | undefined;
+
+  for (const transaction of transactions) {
+    if (!latest || transaction.timestamp > latest.timestamp) {
+      latest = transaction;
+    }
+  }
+
+  return latest;
+}
+
+async function fetchVaultHistoryPageByVaultId(
+  vaultId: string,
+  lookbackStart: number,
+  now: number,
+  offset: number,
+  limit: number,
+  description: string
+): Promise<VaultHistoryTransaction[]> {
+  const response = await postWithRetry(
+    `${API.VAULT}/vault_history_tx`,
+    {
+      vault_id: vaultId,
+      timestamp_start: lookbackStart,
+      timestamp_end: now,
+      pagination: { limit, offset },
+    },
+    { description }
+  );
+  const data = await response.json() as VaultHistoryResponse;
+  return data.history || [];
+}
+
+async function fetchVaultHistoryByVaultId(
+  vaultId: string,
+  lookbackDays: number,
+  options: { limit?: number; maxPages?: number } = {}
+): Promise<VaultHistoryTransaction[]> {
+  const now = Math.floor(Date.now() / 1000);
+  const lookbackStart = now - lookbackDays * 24 * 60 * 60;
+  const limit = options.limit ?? VAULT_HISTORY_PAGE_LIMIT;
+  const maxPages = options.maxPages ?? VAULT_HISTORY_MAX_PAGES;
+  const allHistory: VaultHistoryTransaction[] = [];
+  let offset = 0;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const history = await fetchVaultHistoryPageByVaultId(
+      vaultId,
+      lookbackStart,
+      now,
+      offset,
+      limit,
+      `Fetch vault history (offset ${offset})`
+    );
+
+    if (history.length === 0) {
+      break;
+    }
+
+    allHistory.push(...history);
+
+    if (history.length < limit) {
+      break;
+    }
+
+    offset += limit;
+  }
+
+  if (allHistory.length >= limit * maxPages) {
+    logger.warn('Vault history reached pagination limit before latest selection', {
+      vaultId,
+      fetched: allHistory.length,
+      limit,
+      maxPages,
+    });
+  }
+
+  return allHistory;
+}
+
 export async function fetchLatestVaultHistoryTransaction(
   vaultId: string,
-  lookbackDays = 30
+  lookbackDays = 30,
+  options: FetchLatestVaultHistoryOptions = {}
 ): Promise<VaultHistoryTransaction | undefined> {
   return dedupeInFlight(
     vaultLatestHistoryInFlight,
-    `${vaultId}:${lookbackDays}`,
+    [
+      vaultId,
+      lookbackDays,
+      options.requireUsablePrevout ? 'usable' : 'any',
+      options.limit ?? VAULT_HISTORY_PAGE_LIMIT,
+      options.maxPages ?? VAULT_HISTORY_MAX_PAGES,
+    ].join(':'),
     async () => {
-      const now = Math.floor(Date.now() / 1000);
-      const lookbackStart = now - lookbackDays * 24 * 60 * 60;
-
-      const vaultHistoryResponse = await postWithRetry(
-        `${API.VAULT}/vault_history_tx`,
-        {
-          vault_id: vaultId,
-          timestamp_start: lookbackStart,
-          timestamp_end: now,
-          pagination: { limit: 1, offset: 0 },
-        },
-        { description: 'Fetch latest vault transaction' }
-      );
-
-      const vaultHistoryData = await vaultHistoryResponse.json() as VaultHistoryResponse;
-      return vaultHistoryData.history?.[0];
+      const history = await fetchVaultHistoryByVaultId(vaultId, lookbackDays, options);
+      return options.requireUsablePrevout
+        ? selectLatestUsableVaultHistoryTransaction(history)
+        : selectLatestVaultHistoryTransaction(history);
     }
   );
 }
@@ -202,28 +303,26 @@ const fetchVaultHistoryUncached = async (
     }
     const selectedVaultId = vaultId;
 
-    // Step 2: Get all vault history with pagination
-    const now = Math.floor(Date.now() / 1000);
     const lookbackDays = options.lookbackDays ?? 540;
-    const lookbackStart = now - lookbackDays * 24 * 60 * 60;
 
     // Use unified pagination utility
     const allHistory = await fetchPaginated<VaultHistoryTransaction>(
       async (offset, limit) => {
-        const response = await postWithRetry(
-          `${API.VAULT}/vault_history_tx`,
-          {
-            vault_id: selectedVaultId,
-            timestamp_start: lookbackStart,
-            timestamp_end: now,
-            pagination: { limit, offset },
-          },
-          { description: `Fetch vault history (offset ${offset})` }
+        const now = Math.floor(Date.now() / 1000);
+        const lookbackStart = now - lookbackDays * 24 * 60 * 60;
+        return fetchVaultHistoryPageByVaultId(
+          selectedVaultId,
+          lookbackStart,
+          now,
+          offset,
+          limit,
+          `Fetch vault history (offset ${offset})`
         );
-        const data = await response.json() as VaultHistoryResponse;
-        return data.history || [];
       },
-      { limit: options.limit ?? 250, maxPages: options.maxPages ?? 20 }
+      {
+        limit: options.limit ?? VAULT_HISTORY_PAGE_LIMIT,
+        maxPages: options.maxPages ?? VAULT_HISTORY_MAX_PAGES,
+      }
     );
 
     return allHistory;

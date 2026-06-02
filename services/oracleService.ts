@@ -19,6 +19,10 @@ interface FetchPriceQuoteOptions {
   transport?: 'fetch' | 'xhr';
 }
 
+function isTemporaryOracleQuoteGap(error: Error): boolean {
+  return /price point not found|invalid quote|HTTP 400/i.test(error.message);
+}
+
 /**
  * Fetches a price quote from the Oracle API
  * @param liquidationPrice - The liquidation threshold price
@@ -84,6 +88,11 @@ export async function fetchPriceQuote(
     if (error instanceof Error) {
       if (error.name === 'AbortError' || /abort/i.test(error.message)) {
         throw new Error('Timed out fetching oracle price quote. Please try again.');
+      }
+      if (isTemporaryOracleQuoteGap(error)) {
+        throw new Error(
+          'Oracle price quote is temporarily unavailable. Please try again in a minute.'
+        );
       }
       throw error;
     }

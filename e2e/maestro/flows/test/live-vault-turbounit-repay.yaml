@@ -1,83 +1,12 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Fresh reviewer wallet -> real vault -> mint TurboUNIT -> repay a tiny amount with TurboUNIT.
+# Fresh reviewer wallet -> real vault -> borrow TurboUNIT -> repay a tiny amount with TurboUNIT.
 # This is a live regression flow. Run through scripts/runLiveRegression.mjs so the
 # log watchdog fails if the app stays in preparing/building/submitting too long.
 
-- runFlow: setup-reviewer-wallet.yaml
-
-- extendedWaitUntil:
-    visible:
-      id: 'wallet-actions'
-    timeout: 30000
-
-# Mint live TurboUNIT by sending a small on-chain UNIT amount to the Cashu mint.
+- runFlow: live-vault-borrow-turbounit.yaml
 - tapOn:
-    id: 'wallet-send-btn'
-- waitForAnimationToEnd
-- waitForAnimationToEnd
-- assertVisible:
-    id: 'withdraw-unit'
-- tapOn:
-    id: 'withdraw-unit'
-
-- extendedWaitUntil:
-    visible:
-      id: 'send-input-screen'
-    timeout: 10000
-
-# Recipient must be taproot so the app can extract the x-only pubkey for P2PK locking.
-- tapOn:
-    id: 'send-address-input'
-- inputText: 'tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c'
-- runFlow: ../helpers/dismiss-keyboard-prompt.yaml
-
-- extendedWaitUntil:
-    visible:
-      text: 'Valid'
-    timeout: 10000
-
-- tapOn:
-    id: 'unit-send-amount-display'
-- extendedWaitUntil:
-    visible:
-      id: 'unit-send-amount-input'
-    timeout: 5000
-- eraseText
-- inputText: '1'
-- tapOn:
-    id: 'unit-send-amount-done-btn'
-- waitForAnimationToEnd
-
-- tapOn:
-    id: 'send-review-btn'
-- extendedWaitUntil:
-    visible:
-      id: 'turbo-use-turbo-btn'
-    timeout: 30000
-- tapOn:
-    id: 'turbo-use-turbo-btn'
-
-- extendedWaitUntil:
-    visible:
-      id: 'review-screen'
-    timeout: 120000
-- assertVisible:
-    text: 'You will send'
-- tapOn:
-    id: 'review-confirm-btn'
-
-- extendedWaitUntil:
-    visible:
-      id: 'confirmation-screen'
-    timeout: 420000
-- extendedWaitUntil:
-    visible:
-      text: 'Turbo Token Ready'
-    timeout: 420000
-
-- tapOn:
-    id: 'confirmation-done-btn'
+    id: 'vault-success-done-btn'
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'

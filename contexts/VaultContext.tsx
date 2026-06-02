@@ -13,6 +13,9 @@ import { sendLocalNotification } from '../services/pushNotificationService';
 import { getNotificationsEnabled } from '../services/settingsService';
 import { analytics } from '../services/analyticsService';
 import { VAULT_EVENTS } from '../constants/analyticsEvents';
+import type { PendingVaultTransaction } from '../stores/pendingVaultTransactionStore';
+import { getWithRetry } from '../utils/apiClient';
+import { getTxApiUrl } from '../utils/constants';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
 import { isPendingVaultTransactionApplied } from '../utils/vaultPendingGuard';
@@ -52,6 +55,42 @@ interface VaultProviderProps {
   children: ReactNode;
 }
 
+function getPendingVaultConfirmationTxids(tx: PendingVaultTransaction): string[] {
+  return Array.from(new Set([tx.txid, tx.vaultTxid].filter(Boolean) as string[]));
+}
+
+async function isConfirmedOnChain(txid: string): Promise<boolean> {
+  try {
+    const response = await getWithRetry(getTxApiUrl(txid), {
+      timeout: 8000,
+      retryOptions: { maxRetries: 0 },
+      dedupeKey: `vault-pending-confirm:${txid}`,
+      circuitKey: 'mutinynet-vault-pending-confirm',
+    });
+    if (!response.ok) {
+      return false;
+    }
+    const tx = await response.json();
+    return Boolean(tx.status?.confirmed);
+  } catch (error) {
+    logger.warn('[VaultContext] Failed to check pending vault tx chain confirmation', {
+      txid,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+async function isPendingVaultConfirmedOnChain(tx: PendingVaultTransaction): Promise<boolean> {
+  const txids = getPendingVaultConfirmationTxids(tx);
+  if (txids.length === 0) {
+    return false;
+  }
+
+  const confirmations = await Promise.all(txids.map(isConfirmedOnChain));
+  return confirmations.every(Boolean);
+}
+
 export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
   const { wallet, currentAccount } = useWallet();
   const { isAuthenticated } = useAuthSession();
@@ -64,6 +103,41 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
   const pendingVaultTx = usePendingVaultTransactionStore((state) => state.pendingTransaction);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const clearConfirmedPendingVault = (
+      confirmedAction: PendingVaultTransaction['action'],
+      submittedTxid: string,
+      confirmedTxid: string,
+      source: 'vault_state' | 'chain'
+    ) => {
+      logger.info('[VaultContext] Vault transaction confirmed', {
+        action: confirmedAction,
+        txid: confirmedTxid,
+        source,
+      });
+      logger.info(
+        `[E2E_TX] vault_state_applied operation=${confirmedAction} txid=${submittedTxid} vaultTxid=${confirmedTxid} source=${source}`
+      );
+      void usePendingVaultTransactionStore
+        .getState()
+        .clearPendingTransactionForAccount(currentAccount);
+      const currentSnackbar = useNotificationStore.getState().snackbar;
+      const intentStep = useSendFlowStore.getState().intentStep;
+      if (!currentSnackbar && intentStep === 'idle') {
+        useNotificationStore.getState().showSnackbar({
+          type: 'success',
+          action: confirmedAction,
+          txid: confirmedTxid,
+        });
+      } else {
+        logger.debug('[VaultContext] Skipping vault confirmation snackbar', {
+          hasSnackbar: !!currentSnackbar,
+          intentStep,
+        });
+      }
+    };
+
     if (pendingVaultTx && vault.vaultTransactions.length > 0) {
       logger.debug('[VaultContext] Checking vault tx confirmation', {
         pendingTxid: pendingVaultTx.txid,
@@ -89,32 +163,46 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
       if (isApplied) {
         const confirmedAction = pendingVaultTx.action;
         const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
-        logger.info('[VaultContext] Vault transaction confirmed', {
-          action: confirmedAction,
-          txid: confirmedTxid,
-        });
-        logger.info(
-          `[E2E_TX] vault_state_applied operation=${confirmedAction} txid=${pendingVaultTx.txid ?? ''} vaultTxid=${confirmedTxid}`
+        clearConfirmedPendingVault(
+          confirmedAction,
+          pendingVaultTx.txid,
+          confirmedTxid,
+          'vault_state'
         );
-        void usePendingVaultTransactionStore
-          .getState()
-          .clearPendingTransactionForAccount(currentAccount);
-        const currentSnackbar = useNotificationStore.getState().snackbar;
-        const intentStep = useSendFlowStore.getState().intentStep;
-        if (!currentSnackbar && intentStep === 'idle') {
-          useNotificationStore.getState().showSnackbar({
-            type: 'success',
+      } else {
+        void isPendingVaultConfirmedOnChain(pendingVaultTx).then((isConfirmed) => {
+          if (!isConfirmed || cancelled) {
+            return;
+          }
+
+          const currentPending =
+            usePendingVaultTransactionStore.getState().pendingTransaction;
+          if (
+            currentPending?.txid !== pendingVaultTx.txid ||
+            currentPending?.vaultTxid !== pendingVaultTx.vaultTxid
+          ) {
+            return;
+          }
+
+          const confirmedAction = pendingVaultTx.action;
+          const confirmedTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
+          logger.info('[VaultContext] Clearing pending vault transaction from chain confirmation fallback', {
             action: confirmedAction,
             txid: confirmedTxid,
           });
-        } else {
-          logger.debug('[VaultContext] Skipping vault confirmation snackbar', {
-            hasSnackbar: !!currentSnackbar,
-            intentStep,
-          });
-        }
+          clearConfirmedPendingVault(
+            confirmedAction,
+            pendingVaultTx.txid,
+            confirmedTxid,
+            'chain'
+          );
+        });
       }
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [pendingVaultTx, vault.vaultData, vault.vaultTransactions, currentAccount]);
 
   // ============================================================

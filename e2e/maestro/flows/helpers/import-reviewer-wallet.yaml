@@ -5,67 +5,49 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: clear-and-launch.yaml
 
 - tapOn:
-    id: "welcome-restore-wallet-btn"
+    id: 'welcome-restore-wallet-btn'
 
 - runFlow:
     when:
       visible:
-        id: "welcome-screen"
+        id: 'welcome-screen'
     commands:
       - tapOn:
-          id: "welcome-restore-wallet-btn"
+          id: 'welcome-restore-wallet-btn'
 
 - extendedWaitUntil:
     visible:
-      id: "restore-choice-screen"
+      id: 'restore-choice-screen'
     timeout: 5000
 - tapOn:
-    id: "restore-seed-phrase-btn"
+    id: 'restore-seed-phrase-btn'
 
 - assertVisible:
-    id: "import-wallet-screen"
+    id: 'import-wallet-screen'
 - tapOn:
-    id: "seed-word-container-0"
-- inputText: "pool"
-- pressKey: Enter
-- inputText: "token"
-- pressKey: Enter
-- inputText: "pledge"
-- pressKey: Enter
-- inputText: "wagon"
-- pressKey: Enter
-- inputText: "rebuild"
-- pressKey: Enter
-- inputText: "vast"
-- pressKey: Enter
-- inputText: "bracket"
-- pressKey: Enter
-- inputText: "denial"
-- pressKey: Enter
-- inputText: "fashion"
-- pressKey: Enter
-- inputText: "cattle"
-- pressKey: Enter
-- inputText: "pave"
-- pressKey: Enter
-- inputText: "royal"
+    id: 'import-paste-btn'
+- extendedWaitUntil:
+    visible:
+      text: 'Allow Paste'
+    timeout: 5000
+- tapOn:
+    text: 'Allow Paste'
 
 - extendedWaitUntil:
     visible:
-      text: "12/12"
+      text: '12/12'
     timeout: 5000
-- pressKey: Enter
 - waitForAnimationToEnd
 - runFlow: submit-import-wallet-if-visible.yaml
 
 - extendedWaitUntil:
     visible:
-      id: "pin-setup-title"
+      id: 'pin-setup-title'
     timeout: 30000
 - runFlow: enter-pin-setup.yaml
 - extendedWaitUntil:
     visible:
-      text: "Confirm Your PIN"
+      text: 'Confirm Your PIN'
     timeout: 10000
 - runFlow: enter-pin-setup.yaml
 - runFlow: retry-pin-setup-if-mismatch.yaml
@@ -73,10 +55,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow:
     when:
       visible:
-        id: "biometric-modal"
+        id: 'biometric-modal'
     commands:
       - tapOn:
-          id: "biometric-skip-btn"
+          id: 'biometric-skip-btn'
 
 - runFlow: unlock-if-locked.yaml
 - runFlow: dismiss-airdrop.yaml
@@ -85,16 +67,38 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        text: 'Skip for Now'
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          text: 'Skip for Now'
+      - waitForAnimationToEnd
 
 - extendedWaitUntil:
     visible:
-      id: "wallet-screen"
+      id: 'wallet-screen'
     timeout: 30000
 - extendedWaitUntil:
     visible:
-      id: "balance-section"
+      id: 'balance-section'
     timeout: 30000
+
+# This can appear after the wallet home has already mounted and would block
+# the first tap in transaction flows.
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        text: 'Skip for Now'
+    commands:
+      - tapOn:
+          text: 'Skip for Now'
+      - waitForAnimationToEnd
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        text: 'Skip for Now'
+    commands:
+      - tapOn:
+          text: 'Skip for Now'
+      - waitForAnimationToEnd

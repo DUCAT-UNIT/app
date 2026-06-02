@@ -56,9 +56,6 @@ interface PendingVaultTransactionActions {
 type PendingVaultTransactionStore = PendingVaultTransactionState & PendingVaultTransactionActions;
 
 const STORAGE_KEY_PREFIX = 'pending_vault_tx_';
-const PENDING_VAULT_TRANSACTION_AUTO_CLEAN_MS = 3 * 60 * 1000;
-const PENDING_VAULT_TRANSACTION_EXPIRED_REASON =
-  'Pending vault transaction expired after 3 minutes and was removed locally.';
 
 const getStorageKey = (accountIndex: number): string => {
   return `${STORAGE_KEY_PREFIX}${accountIndex}`;
@@ -199,39 +196,10 @@ function clearPendingVaultTransactionExpiryTimer(): void {
   }
 }
 
-function isExpiredPendingVaultTransaction(
-  tx: PendingVaultTransaction,
-  now: number
-): boolean {
-  return (
-    Number.isFinite(tx.timestamp) &&
-    now - tx.timestamp > PENDING_VAULT_TRANSACTION_AUTO_CLEAN_MS
-  );
-}
-
 function schedulePendingVaultTransactionExpiryCheck(
-  getState: () => PendingVaultTransactionStore
+  _getState: () => PendingVaultTransactionStore
 ): void {
   clearPendingVaultTransactionExpiryTimer();
-
-  const tx = getState().pendingTransaction;
-  if (!tx || !Number.isFinite(tx.timestamp)) {
-    return;
-  }
-
-  const delay = Math.max(
-    0,
-    tx.timestamp + PENDING_VAULT_TRANSACTION_AUTO_CLEAN_MS + 1 - Date.now()
-  );
-  pendingVaultTransactionExpiryTimer = setTimeout(() => {
-    pendingVaultTransactionExpiryTimer = null;
-    getState().cleanupExpiredTransaction().catch((error: unknown) => {
-      logger.error('[PendingVaultTx] Failed to auto-clean expired pending vault transaction', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, delay);
-  (pendingVaultTransactionExpiryTimer as { unref?: () => void }).unref?.();
 }
 
 export const usePendingVaultTransactionStore = create<PendingVaultTransactionStore>((set, get) => ({
@@ -256,28 +224,13 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
       const stored = await SecureStore.getItemAsync(storageKey);
       if (stored) {
         const tx = await parsePendingVaultTransaction(storageKey, stored);
-        if (isExpiredPendingVaultTransaction(tx, Date.now())) {
-          logger.info('[PendingVaultTx] Auto-cleaning expired pending vault transaction', {
-            txid: tx.txid.slice(0, 16) + '...',
-            action: tx.action,
-            ageMs: Date.now() - tx.timestamp,
-          });
-          recordPendingVaultJournal(accountIndex, tx);
-          useOperationJournalStore.getState().markFailed(
-            operationJournalId('vault', accountIndex, vaultJournalTxid(tx)),
-            PENDING_VAULT_TRANSACTION_EXPIRED_REASON,
-            'safe_to_retry',
-          );
-          await SecureStore.deleteItemAsync(storageKey);
-        } else {
-          set({ pendingTransaction: tx });
-          recordPendingVaultJournal(accountIndex, tx);
-          logger.info('[PendingVaultTx] Loaded pending vault transaction', {
-            txid: tx.txid.slice(0, 16) + '...',
-            action: tx.action,
-            ageMs: Date.now() - tx.timestamp,
-          });
-        }
+        set({ pendingTransaction: tx });
+        recordPendingVaultJournal(accountIndex, tx);
+        logger.info('[PendingVaultTx] Loaded pending vault transaction', {
+          txid: tx.txid.slice(0, 16) + '...',
+          action: tx.action,
+          ageMs: Date.now() - tx.timestamp,
+        });
       }
       set({ hydratedAccount: accountIndex });
       schedulePendingVaultTransactionExpiryCheck(get);
@@ -412,40 +365,19 @@ export const usePendingVaultTransactionStore = create<PendingVaultTransactionSto
 
   cleanupExpiredTransaction: async (now = Date.now()) => {
     await ensureAccountHydratedForVaultMutation(get, get().currentAccount);
-    const { currentAccount, pendingTransaction } = get();
+    const { pendingTransaction } = get();
 
     if (!pendingTransaction) {
       clearPendingVaultTransactionExpiryTimer();
       return;
     }
 
-    if (!isExpiredPendingVaultTransaction(pendingTransaction, now)) {
-      schedulePendingVaultTransactionExpiryCheck(get);
-      return;
-    }
-
-    const pendingTxid = vaultJournalTxid(pendingTransaction);
-    logger.info('[PendingVaultTx] Auto-cleaning expired pending vault transaction', {
+    logger.info('[PendingVaultTx] Retaining pending vault transaction until confirmation or explicit failure', {
       txid: pendingTransaction.txid.slice(0, 16) + '...',
       action: pendingTransaction.action,
       ageMs: now - pendingTransaction.timestamp,
     });
-
-    set({ pendingTransaction: null });
     clearPendingVaultTransactionExpiryTimer();
-    useOperationJournalStore.getState().markFailed(
-      operationJournalId('vault', currentAccount, pendingTxid),
-      PENDING_VAULT_TRANSACTION_EXPIRED_REASON,
-      'safe_to_retry',
-    );
-
-    try {
-      await SecureStore.deleteItemAsync(getStorageKey(currentAccount));
-    } catch (error) {
-      logger.error('[PendingVaultTx] Error cleaning expired pending vault transaction:', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
   },
 
   hasPendingTransaction: () => {

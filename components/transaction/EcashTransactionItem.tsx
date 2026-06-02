@@ -58,9 +58,10 @@ export interface EcashTransactionItemProps {
   tx: EcashTransaction;
   styles: EcashTransactionStyles;
   onPress: () => void;
+  testIDBase?: string;
 }
 
-export default function EcashTransactionItem({ tx, styles, onPress }: EcashTransactionItemProps) {
+export default function EcashTransactionItem({ tx, styles, onPress, testIDBase }: EcashTransactionItemProps) {
   const { s, sf } = useResponsive();
   const { amount, assetType = 'UNIT', isSent, isReceived, isAutoclaim } = tx.txData;
   const isClaimed = tx.claimed === true;
@@ -140,7 +141,10 @@ export default function EcashTransactionItem({ tx, styles, onPress }: EcashTrans
             <View style={styles.historyTxColumn3}>
               <View style={styles.balanceWithIcon}>
                 <Icon name={isBtcCashu ? 'btc_symbol' : 'unit_symbol'} size={s(12)} color={amountColor} style={styles.assetAmountIcon} />
-                <Text style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}>
+                <Text
+                  style={[styles.assetAmount, { color: amountColor, fontSize: sf(14) }]}
+                  testID={testIDBase ? `${testIDBase}-amount` : undefined}
+                >
                   {formattedAmount}
                 </Text>
               </View>

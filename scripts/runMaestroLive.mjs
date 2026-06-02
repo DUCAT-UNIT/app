@@ -9,9 +9,12 @@ loadProjectEnvironment();
 
 const APP_ID = 'com.ducatprotocol.DucatProtocolWallet';
 const DEFAULT_FLOWS = ['e2e/maestro/flows/test/'];
-const DEFAULT_EXPO_PORT = 8082;
+const DEFAULT_EXPO_PORT = 8081;
 const DEFAULT_REPORT_PATH = 'artifacts/live-maestro/last-run.json';
 const DEFAULT_CASHU_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
+const DEFAULT_DRIVER_CRASH_RETRIES = 1;
+const DEFAULT_REVIEWER_MNEMONIC =
+  'pool token pledge wagon rebuild vast bracket denial fashion cattle pave royal';
 const MAESTRO_FORWARD_ENV_KEYS = [
   'DUCAT_LIVE_CASHU_TOKEN_URL',
   'DUCAT_LIVE_TURBOUNIT_TOKEN_URL',
@@ -31,6 +34,9 @@ const candidatePorts = [explicitPort ? Number(explicitPort) : DEFAULT_EXPO_PORT]
 
 let metroProcess = null;
 let metroStartedByScript = false;
+const driverCrashRetries = Number.isInteger(Number(process.env.MAESTRO_DRIVER_CRASH_RETRIES))
+  ? Math.max(0, Number(process.env.MAESTRO_DRIVER_CRASH_RETRIES))
+  : DEFAULT_DRIVER_CRASH_RETRIES;
 
 const liveReport = {
   schemaVersion: 1,
@@ -72,6 +78,30 @@ function maestroEnvArgs(extra = {}) {
 
 function readCashuMintUrl() {
   return (process.env.EXPO_PUBLIC_CASHU_MINT_URL || DEFAULT_CASHU_MINT_URL).replace(/\/+$/, '');
+}
+
+function reviewerMnemonic() {
+  const configured = process.env.DUCAT_LIVE_E2E_SEED_PHRASE;
+  return typeof configured === 'string' && configured.trim()
+    ? configured.trim()
+    : DEFAULT_REVIEWER_MNEMONIC;
+}
+
+function primeReviewerSeedClipboard() {
+  const result = spawnSync('xcrun', ['simctl', 'pbcopy', 'booted'], {
+    input: reviewerMnemonic(),
+    encoding: 'utf8',
+    stdio: ['pipe', 'ignore', 'pipe'],
+  });
+
+  if ((result.status ?? 1) !== 0) {
+    const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    console.warn(
+      `Could not prime simulator clipboard for reviewer wallet import${
+        stderr ? `: ${stderr}` : ''
+      }`
+    );
+  }
 }
 
 function writeLiveReport() {
@@ -131,6 +161,90 @@ function statusForPort(port) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function appendCapturedOutput(current, chunk) {
+  const next = `${current}${chunk}`;
+  return next.length > 500_000 ? next.slice(-500_000) : next;
+}
+
+function isRetryableMaestroDriverCrash(output) {
+  return (
+    output.includes('kAXErrorInvalidUIElement') ||
+    output.includes('Request for viewHierarchy failed')
+  );
+}
+
+function runMaestroOnce(flow, devClientUrl) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'maestro',
+      ['test', ...maestroEnvArgs({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }), flow],
+      {
+        cwd: process.cwd(),
+        env: liveEnvironment({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }),
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
+
+    let output = '';
+    child.stdout?.on('data', (chunk) => {
+      process.stdout.write(chunk);
+      output = appendCapturedOutput(output, chunk.toString('utf8'));
+    });
+    child.stderr?.on('data', (chunk) => {
+      process.stderr.write(chunk);
+      output = appendCapturedOutput(output, chunk.toString('utf8'));
+    });
+    child.on('error', reject);
+    child.on('close', (status, signal) => {
+      resolve({
+        status: status ?? 1,
+        signal: signal ?? null,
+        output,
+      });
+    });
+  });
+}
+
+async function runMaestroFlowWithDriverRetry(flow, devClientUrl) {
+  let lastResult = null;
+
+  for (let attempt = 0; attempt <= driverCrashRetries; attempt += 1) {
+    primeReviewerSeedClipboard();
+    const result = await runMaestroOnce(flow, devClientUrl);
+    lastResult = result;
+
+    if ((result.status ?? 1) === 0) {
+      return { ...result, attempts: attempt + 1, retryReason: null };
+    }
+
+    if (attempt < driverCrashRetries && isRetryableMaestroDriverCrash(result.output)) {
+      const nextAttempt = attempt + 2;
+      console.warn(
+        `Retrying ${flow} after transient Maestro/XCUITest hierarchy crash ` +
+          `(attempt ${nextAttempt}/${driverCrashRetries + 1})...`
+      );
+      await wait(5_000);
+      continue;
+    }
+
+    return {
+      ...result,
+      attempts: attempt + 1,
+      retryReason: isRetryableMaestroDriverCrash(result.output)
+        ? 'maestro_xcuitest_hierarchy_crash'
+        : null,
+    };
+  }
+
+  return {
+    ...(lastResult ?? { status: 1, signal: null, output: '' }),
+    attempts: driverCrashRetries + 1,
+    retryReason: lastResult?.output && isRetryableMaestroDriverCrash(lastResult.output)
+      ? 'maestro_xcuitest_hierarchy_crash'
+      : null,
+  };
 }
 
 async function waitForMetro(port, timeoutMs) {
@@ -265,19 +379,7 @@ try {
   for (const flow of targetFlows) {
     console.log(`\nRunning live Maestro flow: ${flow}`);
     const flowStartedAt = Date.now();
-    const result = spawnSync(
-      'maestro',
-      ['test', ...maestroEnvArgs({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }), flow],
-      {
-        cwd: process.cwd(),
-        env: liveEnvironment({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }),
-        stdio: 'inherit',
-      }
-    );
-
-    if (result.error) {
-      throw result.error;
-    }
+    const result = await runMaestroFlowWithDriverRetry(flow, devClientUrl);
 
     if ((result.status ?? 1) !== 0) {
       failed += 1;
@@ -289,6 +391,8 @@ try {
       signal: result.signal ?? null,
       durationMs: Date.now() - flowStartedAt,
       passed: (result.status ?? 1) === 0,
+      attempts: result.attempts,
+      retryReason: result.retryReason,
     });
   }
 

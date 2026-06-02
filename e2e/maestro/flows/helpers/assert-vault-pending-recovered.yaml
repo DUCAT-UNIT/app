@@ -1,0 +1,30 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Assert a submitted vault operation survived process death, then wait for the
+# normal confirmation cleanup to unblock future vault actions.
+
+- runFlow:
+    when:
+      visible:
+        id: "wallet-pending-transaction-panel"
+    commands:
+      - assertVisible:
+          text: "Vault transaction pending"
+      - extendedWaitUntil:
+          visible:
+            id: "wallet-vault-actions-pending"
+          timeout: 60000
+
+- scrollUntilVisible:
+    element:
+      id: "vault-card"
+    direction: DOWN
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible:
+      id: "vault-overlay"
+    timeout: 300000
+- extendedWaitUntil:
+    visible:
+      id: "wallet-vault-actions-ready"
+    timeout: 300000

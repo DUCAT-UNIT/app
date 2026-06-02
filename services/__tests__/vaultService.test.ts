@@ -6,7 +6,12 @@
  * See testUtils/fetchMock.ts for the implementation.
  */
 
-import { fetchVaultHistory, fetchVaultData } from '../vaultService';
+import {
+  fetchVaultHistory,
+  fetchVaultData,
+  fetchLatestVaultHistoryTransaction,
+  selectLatestUsableVaultHistoryTransaction,
+} from '../vaultService';
 import {
   setupMockFetch,
   getMockFetch,
@@ -271,6 +276,165 @@ describe('vaultService', () => {
     });
   });
 
+  describe('selectLatestUsableVaultHistoryTransaction', () => {
+    it('should pick the newest transaction with a usable vault prevout', () => {
+      const result = selectLatestUsableVaultHistoryTransaction([
+        {
+          transaction_id: 'old-tx',
+          utxo: 'old-tx:0',
+          timestamp: 1000,
+          action: 'borrow',
+          amount_borrowed: 100,
+          vault_amount: 1000,
+          btc_amt: 0,
+          unit_amt: 0,
+          oracle_price: 50000,
+        },
+        {
+          transaction_id: 'new-no-utxo',
+          timestamp: 3000,
+          action: 'borrow',
+          amount_borrowed: 100,
+          vault_amount: 1000,
+          btc_amt: 0,
+          unit_amt: 0,
+          oracle_price: 50000,
+        },
+        {
+          transaction_id: 'new-tx',
+          utxo: 'new-tx:1',
+          timestamp: 2000,
+          action: 'repay',
+          amount_borrowed: 90,
+          vault_amount: 1000,
+          btc_amt: 0,
+          unit_amt: 0,
+          oracle_price: 50000,
+        },
+      ]);
+
+      expect(result?.transaction_id).toBe('new-tx');
+    });
+  });
+
+  describe('fetchLatestVaultHistoryTransaction', () => {
+    it('should not assume the first validator history row is latest', async () => {
+      getMockFetch().mockResolvedValueOnce(createMockResponse({
+        history: [
+          {
+            transaction_id: 'old-tx',
+            utxo: 'old-tx:0',
+            timestamp: 1000,
+            action: 'borrow',
+            amount_borrowed: 100,
+            vault_amount: 1000,
+            btc_amt: 0,
+            unit_amt: 0,
+            oracle_price: 50000,
+          },
+          {
+            transaction_id: 'new-tx',
+            utxo: 'new-tx:0',
+            timestamp: 2000,
+            action: 'repay',
+            amount_borrowed: 90,
+            vault_amount: 1000,
+            btc_amt: 0,
+            unit_amt: 0,
+            oracle_price: 50000,
+          },
+        ],
+      }));
+
+      const result = await fetchLatestVaultHistoryTransaction('vault_1', 540);
+
+      expect(result?.transaction_id).toBe('new-tx');
+      const requestBody = getFetchCallBody<{
+        vault_id: string;
+        pagination: { limit: number; offset: number };
+      }>(0);
+      expect(requestBody).toMatchObject({
+        vault_id: 'vault_1',
+        pagination: { limit: 250, offset: 0 },
+      });
+    });
+
+    it('should scan later pages before selecting the latest usable history row', async () => {
+      const fullOldPage = {
+        history: Array.from({ length: 250 }, (_, index) => ({
+          transaction_id: `old-tx-${index}`,
+          utxo: `old-tx-${index}:0`,
+          timestamp: 1000 + index,
+          action: 'borrow',
+          amount_borrowed: 100,
+          vault_amount: 1000,
+          btc_amt: 0,
+          unit_amt: 0,
+          oracle_price: 50000,
+        })),
+      };
+      const finalPage = {
+        history: [
+          {
+            transaction_id: 'latest-tx',
+            utxo: 'latest-tx:0',
+            timestamp: 5000,
+            action: 'deposit',
+            amount_borrowed: 100,
+            vault_amount: 1200,
+            btc_amt: 0,
+            unit_amt: 0,
+            oracle_price: 50000,
+          },
+        ],
+      };
+
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse(fullOldPage))
+        .mockResolvedValueOnce(createMockResponse(finalPage));
+
+      const result = await fetchLatestVaultHistoryTransaction('vault_2', 540);
+
+      expect(result?.transaction_id).toBe('latest-tx');
+      expect(getFetchCallCount()).toBe(2);
+      expect(getFetchCallBody<{ pagination: { offset: number } }>(1)?.pagination.offset).toBe(250);
+    });
+
+    it('should ignore rows without vault prevouts when signing requires a usable prevout', async () => {
+      getMockFetch().mockResolvedValueOnce(createMockResponse({
+        history: [
+          {
+            transaction_id: 'display-only-newer',
+            timestamp: 3000,
+            action: 'repay',
+            amount_borrowed: 90,
+            vault_amount: 1000,
+            btc_amt: 0,
+            unit_amt: 0,
+            oracle_price: 50000,
+          },
+          {
+            transaction_id: 'signable-older',
+            utxo: 'signable-older:0',
+            timestamp: 2000,
+            action: 'borrow',
+            amount_borrowed: 100,
+            vault_amount: 1000,
+            btc_amt: 0,
+            unit_amt: 0,
+            oracle_price: 50000,
+          },
+        ],
+      }));
+
+      const result = await fetchLatestVaultHistoryTransaction('vault_3', 540, {
+        requireUsablePrevout: true,
+      });
+
+      expect(result?.transaction_id).toBe('signable-older');
+    });
+  });
+
   describe('fetchVaultData', () => {
     it('should return null if no vaultPubkey provided', async () => {
       const result = await fetchVaultData(null as unknown as string);
@@ -433,7 +597,7 @@ describe('vaultService', () => {
       expect(requestBody).toMatchObject({
         vault_id: 'vault_1',
         pagination: {
-          limit: 1,
+          limit: 250,
           offset: 0,
         },
       });

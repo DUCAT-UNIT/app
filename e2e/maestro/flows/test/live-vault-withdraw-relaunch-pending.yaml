@@ -1,0 +1,7 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live vault withdraw interruption recovery.
+
+- runFlow: ../helpers/start-live-vault-withdraw.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-vault-pending-recovered.yaml

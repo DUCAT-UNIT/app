@@ -29,8 +29,8 @@ import {
 import {
   fetchLatestVaultHistoryTransaction,
   fetchVaultData,
+  selectLatestUsableVaultHistoryTransaction,
   type VaultData,
-  type VaultHistoryTransaction,
 } from '../../services/vaultService';
 import { createVaultWallet, prefetchProtocolContract } from '../../services/vaultWalletService';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -67,6 +67,7 @@ import type {
 
 const VAULT_REQUEST_BUILD_TIMEOUT_MS = 90_000;
 const VAULT_REQUEST_SUBMIT_TIMEOUT_MS = 75_000;
+const VAULT_PREVOUT_RESOLVE_TIMEOUT_MS = 90_000;
 const VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS = 3;
 const VAULT_RECOVERY_TX_VISIBILITY_TIMEOUT_MS = 4_000;
 const VAULT_RECOVERY_TX_VISIBILITY_RETRY_MS = 2_000;
@@ -75,12 +76,6 @@ function hasVaultProfileData(
   data: VaultData | null | undefined
 ): data is VaultData & { vaultId: string; vaultInfo: NonNullable<VaultData['vaultInfo']> } {
   return Boolean(data?.vaultId && data.vaultInfo);
-}
-
-function getLatestUsableVaultTransaction(
-  transactions: VaultHistoryTransaction[]
-): VaultHistoryTransaction | undefined {
-  return transactions.find((transaction) => transaction.transaction_id && transaction.utxo);
 }
 
 interface VaultRequestTxidLike {
@@ -333,7 +328,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         return null;
       }
 
-      let latestTx = getLatestUsableVaultTransaction(contextVaultTransactions);
+      let latestTx = selectLatestUsableVaultHistoryTransaction(contextVaultTransactions);
       if (latestTx) {
         logger.info(`[${operationName}] Using cached vault history transaction`, {
           operationType,
@@ -346,7 +341,9 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
           operationType,
         });
         latestTx = await withVaultBuildTimeout(
-          fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540),
+          fetchLatestVaultHistoryTransaction(vaultData.vaultId, 540, {
+            requireUsablePrevout: true,
+          }),
           'Vault history request timed out. Please check your connection and try again.',
           25000
         );
@@ -371,7 +368,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       const resolvedVaultPrevout = await withVaultBuildTimeout(
         resolveLatestUnspentVaultPrevout(vaultPrevout),
         'Timed out verifying the current vault UTXO. Please try again.',
-        45_000
+        VAULT_PREVOUT_RESOLVE_TIMEOUT_MS
       );
 
       if (resolvedVaultPrevout.replaced) {

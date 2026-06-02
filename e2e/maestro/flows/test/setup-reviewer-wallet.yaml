@@ -32,39 +32,23 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     id: "import-wallet-screen"
 
-# Type seed phrase: pool token pledge wagon rebuild vast bracket denial fashion cattle pave royal
+# The live runner primes the simulator clipboard with the reviewer mnemonic
+# before each flow. Use the app Paste button so the phrase is imported
+# atomically instead of streaming characters through XCUITest.
 - tapOn:
-    id: "seed-word-container-0"
-- inputText: "pool"
-- pressKey: Enter
-- inputText: "token"
-- pressKey: Enter
-- inputText: "pledge"
-- pressKey: Enter
-- inputText: "wagon"
-- pressKey: Enter
-- inputText: "rebuild"
-- pressKey: Enter
-- inputText: "vast"
-- pressKey: Enter
-- inputText: "bracket"
-- pressKey: Enter
-- inputText: "denial"
-- pressKey: Enter
-- inputText: "fashion"
-- pressKey: Enter
-- inputText: "cattle"
-- pressKey: Enter
-- inputText: "pave"
-- pressKey: Enter
-- inputText: "royal"
+    id: "import-paste-btn"
+- extendedWaitUntil:
+    visible:
+      text: "Allow Paste"
+    timeout: 5000
+- tapOn:
+    text: "Allow Paste"
 
 # Verify all 12 words populated
 - extendedWaitUntil:
     visible:
       text: "12/12"
     timeout: 5000
-- pressKey: Enter
 - waitForAnimationToEnd
 
 # Tap import button
@@ -122,10 +106,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow:
     when:
       visible:
-        id: "passkey-migration-modal"
+        text: "Skip for Now"
     commands:
       - tapOn:
-          id: "passkey-skip-btn"
+          text: "Skip for Now"
       - waitForAnimationToEnd
 
 # Verify wallet screen loads with funded balance
@@ -143,6 +127,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 - waitForAnimationToEnd
+- runFlow:
+    when:
+      visible:
+        text: "Skip for Now"
+    commands:
+      - tapOn:
+          text: "Skip for Now"
+      - waitForAnimationToEnd
 
 # --- Reviewer live fixture readiness ---
 

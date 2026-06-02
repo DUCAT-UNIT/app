@@ -1,0 +1,25 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live vault open interruption recovery.
+
+- runFlow: ../helpers/start-live-vault-open-unit.yaml
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-vault-pending-recovered.yaml
+- tapOn:
+    id: 'wallet-history-btn'
+- extendedWaitUntil:
+    visible:
+      text: 'Transaction History'
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0-amount-btc'
+    timeout: 60000
+- assertVisible:
+    text: '0.05000000'
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0-amount-unit'
+    timeout: 10000
+- assertVisible:
+    text: '1.00'

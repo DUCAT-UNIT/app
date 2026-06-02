@@ -1,0 +1,12 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Live BTC interruption recovery.
+# Submit a small real BTC send from the pre-funded reviewer fixture, kill the app
+# while the confirmation screen is still open, then verify the transaction is
+# restored in durable history.
+
+- runFlow: setup-reviewer-wallet.yaml
+- runFlow: ../helpers/send-live-btc-small-from-wallet.yaml
+
+- runFlow: ../helpers/relaunch-and-unlock.yaml
+- runFlow: ../helpers/assert-wallet-pending-history-recovered.yaml

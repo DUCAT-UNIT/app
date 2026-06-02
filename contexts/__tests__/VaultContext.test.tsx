@@ -9,6 +9,7 @@ import { useSendFlowStore } from '../../stores/sendFlowStore';
 import { sendLocalNotification } from '../../services/pushNotificationService';
 import { getNotificationsEnabled } from '../../services/settingsService';
 import { analytics } from '../../services/analyticsService';
+import { getWithRetry } from '../../utils/apiClient';
 import { isE2E } from '../../utils/e2e';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -92,6 +93,14 @@ jest.mock('../../utils/e2e', () => ({
   isE2E: jest.fn(),
 }));
 
+jest.mock('../../utils/apiClient', () => ({
+  getWithRetry: jest.fn(),
+}));
+
+jest.mock('../../utils/constants', () => ({
+  getTxApiUrl: jest.fn((txid: string) => `https://tx.example/${txid}`),
+}));
+
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
@@ -115,6 +124,7 @@ const mockGetNotificationsEnabled = getNotificationsEnabled as jest.MockedFuncti
   typeof getNotificationsEnabled
 >;
 const mockAnalyticsTrack = analytics.track as jest.Mock;
+const mockGetWithRetry = getWithRetry as jest.MockedFunction<typeof getWithRetry>;
 const mockIsE2E = isE2E as jest.MockedFunction<typeof isE2E>;
 const mockAsyncStorageGetItem = AsyncStorage.getItem as jest.MockedFunction<
   typeof AsyncStorage.getItem
@@ -170,6 +180,11 @@ describe('VaultContext', () => {
     mockUseSendFlowStore.getState = jest.fn(() => mockSendFlowStore);
     mockUseVaultDataFetch.mockReturnValue(makeVault());
     mockIsE2E.mockReturnValue(false);
+    mockGetWithRetry.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as never);
     mockGetNotificationsEnabled.mockResolvedValue(true);
     mockAsyncStorageGetItem.mockResolvedValue(null);
     mockAsyncStorageSetItem.mockResolvedValue(undefined);
@@ -302,6 +317,102 @@ describe('VaultContext', () => {
     });
 
     expect(mockPendingVaultStore.clearPendingTransaction).not.toHaveBeenCalled();
+    expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('clears pending vault transactions when all operation txids are confirmed on chain', async () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'issue-txid',
+      vaultTxid: 'vault-txid',
+      action: 'borrow',
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: { confirmed: true } }),
+    } as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'older-vault-txid',
+            vault_amount: 50_000,
+            amount_borrowed: 10_000,
+          },
+        ] as never,
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockGetWithRetry).toHaveBeenCalledWith(
+      'https://tx.example/issue-txid',
+      expect.objectContaining({
+        dedupeKey: 'vault-pending-confirm:issue-txid',
+      })
+    );
+    expect(mockGetWithRetry).toHaveBeenCalledWith(
+      'https://tx.example/vault-txid',
+      expect.objectContaining({
+        dedupeKey: 'vault-pending-confirm:vault-txid',
+      })
+    );
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
+    expect(mockNotificationStore.showSnackbar).toHaveBeenCalledWith({
+      type: 'success',
+      action: 'borrow',
+      txid: 'vault-txid',
+    });
+  });
+
+  it('keeps pending vault transactions when only part of the operation is confirmed on chain', async () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'issue-txid',
+      vaultTxid: 'vault-txid',
+      action: 'borrow',
+    };
+    mockGetWithRetry.mockImplementation(async (url) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: { confirmed: String(url).includes('issue-txid') } }),
+    }) as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'older-vault-txid',
+            vault_amount: 50_000,
+            amount_borrowed: 10_000,
+          },
+        ] as never,
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).not.toHaveBeenCalled();
     expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
   });
 

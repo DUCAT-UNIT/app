@@ -42,6 +42,11 @@ jest.mock('@ducat-unit/client-sdk', () => ({
       })),
     },
   },
+  OracleAPI: {
+    vault: {
+      fetch_vault_prevout: jest.fn(),
+    },
+  },
 }));
 
 // Mock logger to prevent console output during tests
@@ -69,6 +74,9 @@ jest.mock('../../guardianService', () => ({
 }));
 
 jest.mock('../../../utils/constants', () => ({
+  API: {
+    ORD_BASE: 'https://ord.test',
+  },
   VAULT_CONFIG: {
     VIN_ALLOWANCE: 200,
     TX_TIMEOUT: 30000,
@@ -81,10 +89,17 @@ jest.mock('../../../utils/constants', () => ({
     RUNE_OUTPUT_AMOUNT: 10_000,
     TX_TIMEOUT_BUFFER: 5_000,
   },
+  getTxOutspendUrl: jest.fn(
+    (txid: string, vout: number) => `https://esplora.test/tx/${txid}/outspend/${vout}`
+  ),
 }));
 
 jest.mock('../../../utils/wallet/cryptoHelpers', () => ({
   varIntSize: jest.fn((n) => (n < 0xfd ? 1 : n <= 0xffff ? 3 : 5)),
+}));
+
+jest.mock('../../../utils/nativeHttp', () => ({
+  getJsonWithNativeTimeout: jest.fn(),
 }));
 
 import {
@@ -94,6 +109,7 @@ import {
   normalizeMasterId,
   normalizeVaultAction,
   computeVaultPrevoutFromTx,
+  resolveLatestUnspentVaultPrevout,
   buildVaultProfile,
 } from '../utils';
 import { createVaultConfig } from '../open';
@@ -108,6 +124,8 @@ import {
   type MockTxForPrevout,
   type MockVaultHistoryTx,
 } from './mockTypes';
+import { OracleAPI } from '@ducat-unit/client-sdk';
+import { getJsonWithNativeTimeout } from '../../../utils/nativeHttp';
 
 describe('Vault Utils', () => {
   describe('readVarInt', () => {
@@ -416,6 +434,94 @@ describe('Vault Utils', () => {
       expect(result?.rdata.thold_hash).toBe('');
       expect(result?.rdata.thold_price).toBe(0);
       expect(result?.utxo.script).toBe('');
+    });
+  });
+
+  describe('resolveLatestUnspentVaultPrevout', () => {
+    const mockGetJsonWithNativeTimeout = getJsonWithNativeTimeout as jest.MockedFunction<
+      typeof getJsonWithNativeTimeout
+    >;
+    const mockFetchVaultPrevout = OracleAPI.vault.fetch_vault_prevout as jest.MockedFunction<
+      typeof OracleAPI.vault.fetch_vault_prevout
+    >;
+
+    beforeEach(() => {
+      mockGetJsonWithNativeTimeout.mockReset();
+      mockFetchVaultPrevout.mockReset();
+    });
+
+    function makePrevout(txid: string, vout = 0) {
+      return {
+        rdata: {
+          is_locked: false,
+          thold_hash: 'hash',
+          thold_price: 135,
+          unit_balance: 1000,
+          unit_price: 50000,
+          unit_stamp: 1234567890,
+          vault_action: 'o' as const,
+        },
+        utxo: {
+          value: 100000,
+          script: '5120abcd',
+          txid,
+          vout,
+        },
+      };
+    }
+
+    it('should follow a long stale validator chain to the unspent vault head', async () => {
+      const replacementCount = 65;
+      const txids = Array.from({ length: replacementCount + 1 }, (_, index) => `vault-tx-${index}`);
+
+      mockGetJsonWithNativeTimeout.mockImplementation(async (url: string) => {
+        const match = /\/tx\/([^/]+)\/outspend\/(\d+)$/.exec(url);
+        const txid = match?.[1];
+        const index = txids.indexOf(txid || '');
+
+        if (index >= 0 && index < replacementCount) {
+          return {
+            spent: true,
+            txid: txids[index + 1],
+            vin: 0,
+          };
+        }
+
+        return { spent: false };
+      });
+
+      mockFetchVaultPrevout.mockImplementation(async (_ordUrl, txid) => ({
+        ok: true,
+        status: 200,
+        data: makePrevout(String(txid)),
+      }));
+
+      const result = await resolveLatestUnspentVaultPrevout(makePrevout(txids[0]));
+
+      expect(result.replaced).toBe(true);
+      expect(result.hopCount).toBe(replacementCount);
+      expect(result.prevout.utxo.txid).toBe(txids[replacementCount]);
+      expect(mockFetchVaultPrevout).toHaveBeenCalledTimes(replacementCount);
+    });
+
+    it('should still fail closed when the spend chain exceeds the hard cap', async () => {
+      mockGetJsonWithNativeTimeout.mockImplementation(async (url: string) => {
+        const match = /\/tx\/([^/]+)\/outspend\/(\d+)$/.exec(url);
+        return {
+          spent: true,
+          txid: `${match?.[1] || 'unknown'}-spend`,
+          vin: 0,
+        };
+      });
+      mockFetchVaultPrevout.mockImplementation(async (_ordUrl, txid) => ({
+        ok: true,
+        status: 200,
+        data: makePrevout(String(txid)),
+      }));
+
+      await expect(resolveLatestUnspentVaultPrevout(makePrevout('loop-tx-start'), 1)).rejects.toThrow(
+        'Could not resolve the latest vault UTXO before the safety hop limit.'
+      );
     });
   });
 

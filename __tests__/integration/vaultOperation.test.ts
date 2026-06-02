@@ -50,6 +50,14 @@ jest.mock('../../services/vaultService', () => ({
   fetchVaultHistory: (...args: unknown[]) => mockFetchVaultHistory(...args),
   fetchLatestVaultHistoryTransaction: (...args: unknown[]) =>
     mockFetchLatestVaultHistoryTransaction(...args),
+  selectLatestUsableVaultHistoryTransaction: (transactions: Array<{
+    transaction_id?: string;
+    utxo?: string;
+    timestamp: number;
+  }>) =>
+    [...transactions]
+      .filter((transaction) => transaction.transaction_id && transaction.utxo)
+      .sort((left, right) => right.timestamp - left.timestamp)[0],
 }));
 
 // Vault wallet service

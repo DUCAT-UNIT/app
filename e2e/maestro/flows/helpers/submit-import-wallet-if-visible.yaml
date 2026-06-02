@@ -8,13 +8,13 @@ appId: com.ducatprotocol.DucatProtocolWallet
         id: "import-wallet-screen"
     commands:
       - tapOn:
-          id: "import-wallet-btn"
+          point: "50%,63%"
       - waitForAnimationToEnd
 - runFlow:
     when:
       visible:
-        id: "import-wallet-screen"
+        id: "import-wallet-btn"
     commands:
       - tapOn:
-          point: "50%,63%"
+          id: "import-wallet-btn"
       - waitForAnimationToEnd

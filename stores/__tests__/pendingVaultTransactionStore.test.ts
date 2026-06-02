@@ -21,7 +21,22 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../operationJournalStore', () => ({
   operationJournalId: jest.fn((scope: string, account: number, id: string) => `${scope}:${account}:${id}`),
-  mapVaultActionToJournalKind: jest.fn(() => 'vault_open'),
+  mapVaultActionToJournalKind: jest.fn((action: string) => {
+    switch (action) {
+      case 'borrow':
+        return 'vault_borrow';
+      case 'repay':
+        return 'vault_repay';
+      case 'deposit':
+        return 'vault_deposit';
+      case 'withdraw':
+        return 'vault_withdraw';
+      case 'repo':
+        return 'vault_repossess';
+      default:
+        return 'vault_open';
+    }
+  }),
   useOperationJournalStore: {
     getState: jest.fn(() => ({
       recordOperation: jest.fn(),
@@ -89,7 +104,65 @@ describe('pendingVaultTransactionStore', () => {
     );
   });
 
-  it('auto-cleans stored pending vault transactions older than three minutes', async () => {
+  it.each([
+    ['open', 'vault_open', 'Vault open submitted', 'BTC', '1000'],
+    ['borrow', 'vault_borrow', 'Vault borrow submitted', 'UNIT', '100'],
+    ['deposit', 'vault_deposit', 'Vault deposit submitted', 'BTC', '1000'],
+    ['withdraw', 'vault_withdraw', 'Vault withdraw submitted', 'BTC', '1000'],
+    ['repay', 'vault_repay', 'Vault repay submitted', 'UNIT', '100'],
+  ] as const)(
+    'rehydrates a submitted vault %s after relaunch and records an unsafe recovery journal',
+    async (action, kind, label, asset, amount) => {
+      const journal = {
+        recordOperation: jest.fn(),
+        markConfirmed: jest.fn(),
+        markFailed: jest.fn(),
+      };
+      const { useOperationJournalStore } = require('../operationJournalStore');
+      useOperationJournalStore.getState.mockReturnValue(journal);
+      const pendingTx: PendingVaultTransaction = {
+        ...tx,
+        txid: `${action}-txid`,
+        vaultTxid: `${action}-vault-txid`,
+        action,
+        unitAmt: asset === 'UNIT' ? 100 : 0,
+        btcAmt: asset === 'BTC' ? 1000 : 0,
+      };
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(JSON.stringify(pendingTx));
+
+      await usePendingVaultTransactionStore.getState().loadFromStorage(0);
+
+      const state = usePendingVaultTransactionStore.getState();
+      expect(state.pendingTransaction).toEqual(pendingTx);
+      expect(state.hasPendingTransaction()).toBe(true);
+      expect(state.getPendingAsHistoryTransaction()).toEqual(
+        expect.objectContaining({
+          btc_amt: pendingTx.btcAmt,
+          unit_amt: pendingTx.unitAmt,
+          action,
+          transaction_id: pendingTx.txid,
+          isPending: true,
+        }),
+      );
+      expect(journal.recordOperation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: `vault:0:${action}-vault-txid`,
+          accountIndex: 0,
+          kind,
+          stage: 'pending',
+          label,
+          retrySafety: 'unsafe_until_checked',
+          txids: [`${action}-txid`, `${action}-vault-txid`],
+          asset,
+          amount,
+          recipient: 'vault-pubkey',
+          recoveryAction: 'Wait for vault confirmation before submitting another vault operation.',
+        }),
+      );
+    }
+  );
+
+  it('retains stored pending vault transactions older than three minutes', async () => {
     const journal = {
       recordOperation: jest.fn(),
       markConfirmed: jest.fn(),
@@ -109,16 +182,37 @@ describe('pendingVaultTransactionStore', () => {
     }
 
     const state = usePendingVaultTransactionStore.getState();
-    expect(state.pendingTransaction).toBeNull();
+    expect(state.pendingTransaction).toEqual(expiredTx);
     expect(state.hydratedAccount).toBe(0);
-    expect(state.hasPendingTransaction()).toBe(false);
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('pending_vault_tx_0');
+    expect(state.hasPendingTransaction()).toBe(true);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     expect(journal.markConfirmed).not.toHaveBeenCalled();
-    expect(journal.markFailed).toHaveBeenCalledWith(
-      'vault:0:vaulttxid123',
-      'Pending vault transaction expired after 3 minutes and was removed locally.',
-      'safe_to_retry',
-    );
+    expect(journal.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('does not delete an old pending vault transaction during cleanup', async () => {
+    const journal = {
+      recordOperation: jest.fn(),
+      markConfirmed: jest.fn(),
+      markFailed: jest.fn(),
+    };
+    const { useOperationJournalStore } = require('../operationJournalStore');
+    useOperationJournalStore.getState.mockReturnValue(journal);
+    const now = Date.UTC(2026, 4, 17, 12, 0, 0);
+    const expiredTx = { ...tx, timestamp: now - 181_000 };
+    const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+
+    try {
+      await usePendingVaultTransactionStore.getState().setPendingTransaction(expiredTx);
+      await usePendingVaultTransactionStore.getState().cleanupExpiredTransaction(now);
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+
+    expect(usePendingVaultTransactionStore.getState().pendingTransaction).toEqual(expiredTx);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(journal.markConfirmed).not.toHaveBeenCalled();
+    expect(journal.markFailed).not.toHaveBeenCalled();
   });
 
   it('discards a matching failed pending vault transaction without marking it confirmed', async () => {

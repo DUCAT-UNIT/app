@@ -177,6 +177,18 @@ describe('oracleService', () => {
       }
     });
 
+    it('should map temporary quote gaps to a retryable oracle message', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+      });
+
+      await expect(fetchPriceQuote(50000)).rejects.toThrow(
+        'Oracle price quote is temporarily unavailable. Please try again in a minute.'
+      );
+    });
+
     it('should throw error on network failure', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 

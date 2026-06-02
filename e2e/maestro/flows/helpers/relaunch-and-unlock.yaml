@@ -1,0 +1,33 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Kill and relaunch the app, then unlock the existing wallet.
+# Used by interruption/recovery tests after a transaction has already been submitted.
+
+- stopApp
+
+- launchApp:
+    appId: "com.ducatprotocol.DucatProtocolWallet"
+- openLink: "${MAESTRO_EXPO_DEV_CLIENT_URL}"
+
+- extendedWaitUntil:
+    visible:
+      id: "lock-screen"
+    timeout: 30000
+- runFlow: unlock-if-locked.yaml
+
+- runFlow: dismiss-debug-warning.yaml
+- runFlow: dismiss-low-ecash.yaml
+- runFlow: dismiss-airdrop.yaml
+- runFlow:
+    when:
+      visible:
+        text: "Skip for Now"
+    commands:
+      - tapOn:
+          text: "Skip for Now"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "wallet-screen"
+    timeout: 30000

@@ -1,0 +1,19 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Assert a wallet/turbo operation survived process death and reached durable
+# user-facing history after relaunch.
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 60000
+- tapOn:
+    id: 'wallet-history-btn'
+- extendedWaitUntil:
+    visible:
+      text: 'Transaction History'
+    timeout: 10000
+- extendedWaitUntil:
+    visible:
+      id: 'transaction-history-row-0'
+    timeout: 60000

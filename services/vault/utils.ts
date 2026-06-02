@@ -31,7 +31,7 @@ const _vaultOpLocks: Map<string, Promise<void>> = new Map();
 export const VAULT_OPERATION_LOCK_WAIT_TIMEOUT_MS = 30_000;
 
 const VAULT_PREVOUT_OUTSPEND_TIMEOUT_MS = 8_000;
-const VAULT_PREVOUT_MAX_SPEND_HOPS = 64;
+const VAULT_PREVOUT_MAX_SPEND_HOPS = 256;
 
 interface TxOutspendResponse {
   spent: boolean;
