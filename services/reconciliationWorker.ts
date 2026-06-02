@@ -7,6 +7,9 @@ import {
   refreshPersistedVaultSettlementStatus,
   type VaultSettlementRefreshResult,
 } from './vaultSettlementService';
+import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
+import { getWithRetry } from '../utils/apiClient';
+import { getTxApiUrl } from '../utils/constants';
 import { classifyError, type AppErrorCategory } from '../utils/errorTaxonomy';
 import { logger } from '../utils/logger';
 
@@ -25,6 +28,7 @@ export interface WalletReconciliationCycleInput {
 export interface WalletReconciliationCycleResult {
   skipped: boolean;
   evmCheckpoints: EvmTransactionCheckpointReconciliationResult | null;
+  pendingTransactions: PendingTransactionReconciliationResult | null;
   vaultSettlement: VaultSettlementRefreshResult | null;
   refreshed: string[];
   errors: Array<{
@@ -32,6 +36,13 @@ export interface WalletReconciliationCycleResult {
     category: AppErrorCategory;
     message: string;
   }>;
+}
+
+export interface PendingTransactionReconciliationResult {
+  checked: number;
+  confirmed: number;
+  pending: number;
+  errors: number;
 }
 
 let cycleInFlight: Promise<WalletReconciliationCycleResult> | null = null;
@@ -59,6 +70,7 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
   const refreshed: string[] = [];
   const errors: WalletReconciliationCycleResult['errors'] = [];
   let evmCheckpoints: EvmTransactionCheckpointReconciliationResult | null = null;
+  let pendingTransactions: PendingTransactionReconciliationResult | null = null;
   let vaultSettlement: VaultSettlementRefreshResult | null = null;
 
   try {
@@ -84,8 +96,22 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
     });
   }
 
+  try {
+    pendingTransactions = await reconcileConfirmedPendingTransactions();
+  } catch (error) {
+    const appError = classifyError(error);
+    errors.push({
+      task: 'pending-transactions',
+      category: appError.category,
+      message: appError.message,
+    });
+  }
+
   const evmStateChanged = Boolean(
     evmCheckpoints && (evmCheckpoints.confirmed > 0 || evmCheckpoints.failed > 0),
+  );
+  const pendingTransactionsChanged = Boolean(
+    pendingTransactions && pendingTransactions.confirmed > 0,
   );
   const settlementStateChanged = Boolean(
     vaultSettlement && (
@@ -109,6 +135,8 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
       ['usdc-history', input.refreshUsdcHistory],
       ['eth-history', input.refreshEthHistory],
     );
+  } else if (pendingTransactionsChanged) {
+    tasks.push(['transaction-history', input.fetchTransactionHistory]);
   }
 
   await Promise.all(tasks.map(([task, run]) => settleTask(task, run, refreshed, errors)));
@@ -120,6 +148,7 @@ async function runCycle(input: WalletReconciliationCycleInput): Promise<WalletRe
   return {
     skipped: false,
     evmCheckpoints,
+    pendingTransactions,
     vaultSettlement,
     refreshed,
     errors,
@@ -133,6 +162,7 @@ export async function runWalletReconciliationCycle(
     return {
       skipped: true,
       evmCheckpoints: null,
+      pendingTransactions: null,
       vaultSettlement: null,
       refreshed: [],
       errors: [],
@@ -152,4 +182,49 @@ export async function runWalletReconciliationCycle(
 
 export function resetReconciliationWorkerForTests(): void {
   cycleInFlight = null;
+}
+
+async function reconcileConfirmedPendingTransactions(): Promise<PendingTransactionReconciliationResult> {
+  const { pendingTransactions, confirmTransaction } = usePendingTransactionsStore.getState();
+  const pendingTxids = Object.entries(pendingTransactions)
+    .filter(([, transaction]) => transaction.status === 'pending')
+    .map(([txid]) => txid);
+
+  let confirmed = 0;
+  let errors = 0;
+
+  for (const txid of pendingTxids) {
+    try {
+      const response = await getWithRetry(getTxApiUrl(txid), {
+        timeout: 8000,
+        retryOptions: { maxRetries: 0 },
+        dedupeKey: `pending-reconcile:${txid}`,
+        circuitKey: 'mutinynet-pending-reconcile',
+      });
+      if (!response.ok) {
+        continue;
+      }
+
+      const tx = await response.json();
+      if (!tx.status?.confirmed) {
+        continue;
+      }
+
+      await confirmTransaction(txid);
+      confirmed += 1;
+    } catch (error) {
+      errors += 1;
+      logger.debug('[ReconciliationWorker] Pending transaction confirmation check failed', {
+        txid,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    checked: pendingTxids.length,
+    confirmed,
+    pending: pendingTxids.length - confirmed,
+    errors,
+  };
 }

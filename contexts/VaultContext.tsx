@@ -96,11 +96,20 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
   const { isAuthenticated } = useAuthSession();
 
   const vault = useVaultDataFetch(isAuthenticated ? wallet : null);
+  const {
+    vaultData,
+    vaultLastUpdated,
+    vaultTransactions,
+    vaultTransactionsLastUpdated,
+    fetchVault,
+    fetchVaultTransactions,
+  } = vault;
 
   // ============================================================
   // VAULT TRANSACTION CONFIRMATION CHECK
   // ============================================================
   const pendingVaultTx = usePendingVaultTransactionStore((state) => state.pendingTransaction);
+  const pendingVaultChainCheckRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,9 +128,23 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
       logger.info(
         `[E2E_TX] vault_state_applied operation=${confirmedAction} txid=${submittedTxid} vaultTxid=${confirmedTxid} source=${source}`
       );
-      void usePendingVaultTransactionStore
+      usePendingVaultTransactionStore
         .getState()
         .clearPendingTransactionForAccount(currentAccount);
+      if (source === 'chain') {
+        Promise.resolve(fetchVault()).catch((error) => {
+          logger.warn('[VaultContext] Failed to refresh vault after chain confirmation', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        Promise.resolve(fetchVaultTransactions(undefined, { vaultId: vaultData?.vaultId })).catch(
+          (error) => {
+            logger.warn('[VaultContext] Failed to refresh vault history after chain confirmation', {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        );
+      }
       const currentSnackbar = useNotificationStore.getState().snackbar;
       const intentStep = useSendFlowStore.getState().intentStep;
       if (!currentSnackbar && intentStep === 'idle') {
@@ -138,27 +161,29 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
       }
     };
 
-    if (pendingVaultTx && vault.vaultTransactions.length > 0) {
-      logger.debug('[VaultContext] Checking vault tx confirmation', {
-        pendingTxid: pendingVaultTx.txid,
-        pendingVaultTxid: pendingVaultTx.vaultTxid,
-        pendingAction: pendingVaultTx.action,
-        historyCount: vault.vaultTransactions.length,
-        historyTxIds: vault.vaultTransactions.slice(0, 5).map((tx) => tx.transaction_id),
-      });
+    if (pendingVaultTx) {
+      const pendingConfirmationKey = getPendingVaultConfirmationTxids(pendingVaultTx).join(':');
 
-      const isInHistory = vault.vaultTransactions.some(
+      const isInHistory = vaultTransactions.some(
         (tx) =>
           tx.transaction_id === pendingVaultTx.txid ||
           tx.transaction_id === pendingVaultTx.vaultTxid
       );
       const isApplied = isPendingVaultTransactionApplied(
         pendingVaultTx,
-        vault.vaultData,
-        vault.vaultTransactions
+        vaultData,
+        vaultTransactions
       );
 
-      logger.debug('[VaultContext] Confirmation check result', { isInHistory, isApplied });
+      logger.debug('[VaultContext] Checking vault tx confirmation', {
+        pendingTxid: pendingVaultTx.txid,
+        pendingVaultTxid: pendingVaultTx.vaultTxid,
+        pendingAction: pendingVaultTx.action,
+        historyCount: vaultTransactions.length,
+        historyTxIds: vaultTransactions.slice(0, 5).map((tx) => tx.transaction_id),
+        isInHistory,
+        isApplied,
+      });
 
       if (isApplied) {
         const confirmedAction = pendingVaultTx.action;
@@ -169,8 +194,9 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
           confirmedTxid,
           'vault_state'
         );
-      } else {
-        void isPendingVaultConfirmedOnChain(pendingVaultTx).then((isConfirmed) => {
+      } else if (pendingVaultChainCheckRef.current !== pendingConfirmationKey) {
+        pendingVaultChainCheckRef.current = pendingConfirmationKey;
+        isPendingVaultConfirmedOnChain(pendingVaultTx).then((isConfirmed) => {
           if (!isConfirmed || cancelled) {
             return;
           }
@@ -196,6 +222,10 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
             confirmedTxid,
             'chain'
           );
+        }).finally(() => {
+          if (pendingVaultChainCheckRef.current === pendingConfirmationKey) {
+            pendingVaultChainCheckRef.current = null;
+          }
         });
       }
     }
@@ -203,7 +233,16 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [pendingVaultTx, vault.vaultData, vault.vaultTransactions, currentAccount]);
+  }, [
+    pendingVaultTx,
+    vaultData,
+    vaultLastUpdated,
+    vaultTransactions,
+    vaultTransactionsLastUpdated,
+    fetchVault,
+    fetchVaultTransactions,
+    currentAccount,
+  ]);
 
   // ============================================================
   // VAULT HEALTH ALERTS (local notifications)

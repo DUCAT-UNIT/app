@@ -156,6 +156,7 @@ const MOCK_WALLET = {
 };
 
 const MOCK_VAULT_DATA = {
+  vaultId: 'user-vault-001',
   vaultInfo: {
     creation_account: 'acct-001',
     guard_pubkey: 'guard-pk-001',
@@ -307,7 +308,10 @@ describe('useLiquidationExecution', () => {
             vaultPubkey: MOCK_WALLET.taprootPubkey,
             btcInVault: DEFAULT_PARAMS.vaultCollateral,
             unitDebt: DEFAULT_PARAMS.vaultDebt,
-            vaultInfo: MOCK_VAULT_DATA.vaultInfo,
+            vaultInfo: {
+              vault_id: MOCK_VAULT_DATA.vaultId,
+              ...MOCK_VAULT_DATA.vaultInfo,
+            },
           }),
         );
       });

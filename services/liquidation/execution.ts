@@ -38,8 +38,15 @@ import {
   clearPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
 import { signPsbtRaw } from '../signing';
-import { buildVaultProfile, computeVaultPrevoutFromTx } from '../vault/utils';
-import { fetchVaultHistory } from '../vaultService';
+import {
+  buildVaultProfile,
+  computeVaultPrevoutFromTx,
+  resolveLatestUnspentVaultPrevout,
+} from '../vault/utils';
+import {
+  fetchVaultHistory,
+  selectLatestUsableVaultHistoryTransaction,
+} from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
 import { getAvailableCollateralBtc } from './calculations';
 import { COIN_SIZE, SWAP_PSBT_FEE_BUFFER_BPS, SWAP_PSBT_MIN_FEE_BUFFER_SATS } from './constants';
@@ -75,6 +82,7 @@ export interface LiquidationExecutionParams {
   feeRate: number;
   /** Vault info for building VaultProfile */
   vaultInfo: {
+    vault_id?: string;
     creation_account: string;
     guard_pubkey: string;
     master_id: string;
@@ -115,21 +123,67 @@ function extractRepoRequestTxid(request: WalletVaultRepoRequest): string {
   return txRequest.vault_txid || txRequest.repo_txid || txRequest.liquid_txid || '';
 }
 
+type RepoRequestWithTransactions = WalletVaultRepoRequest & {
+  liquid_psbt?: string;
+  liquid_txhex?: string;
+  liquid_txid?: string;
+  vault_psbt?: string;
+  vault_txhex?: string;
+  vault_txid?: string;
+};
+
+function normalizeRepoRequestTxids(request: WalletVaultRepoRequest): WalletVaultRepoRequest {
+  const txRequest = request as RepoRequestWithTransactions;
+  const normalized: RepoRequestWithTransactions = { ...txRequest };
+
+  if (normalized.liquid_psbt) {
+    normalized.liquid_txhex = PSBT.get.txhex(normalized.liquid_psbt);
+    normalized.liquid_txid = TX.get_txid(normalized.liquid_txhex);
+  } else if (normalized.liquid_txhex) {
+    normalized.liquid_txid = TX.get_txid(normalized.liquid_txhex);
+  }
+
+  if (normalized.vault_psbt) {
+    normalized.vault_txhex = PSBT.get.txhex(normalized.vault_psbt);
+    normalized.vault_txid = TX.get_txid(normalized.vault_txhex);
+  } else if (normalized.vault_txhex) {
+    normalized.vault_txid = TX.get_txid(normalized.vault_txhex);
+  }
+
+  return normalized as WalletVaultRepoRequest;
+}
+
 function assertRepoRequestTxidsConsistent(request: WalletVaultRepoRequest): void {
-  const txRequest = request as WalletVaultRepoRequest & {
+  const txRequest = request as RepoRequestWithTransactions;
+
+  if (txRequest.liquid_psbt) {
+    const computedLiquidTxhex = PSBT.get.txhex(txRequest.liquid_psbt);
+    if (txRequest.liquid_txhex && computedLiquidTxhex !== txRequest.liquid_txhex) {
+      throw new Error('Repo liquidation request Tx1 hex does not match its signed PSBT');
+    }
+  }
+
+  if (txRequest.vault_psbt) {
+    const computedVaultTxhex = PSBT.get.txhex(txRequest.vault_psbt);
+    if (txRequest.vault_txhex && computedVaultTxhex !== txRequest.vault_txhex) {
+      throw new Error('Repo liquidation request vault Tx hex does not match its signed PSBT');
+    }
+  }
+
+  const txRequestWithHex = request as WalletVaultRepoRequest & {
     liquid_txhex?: string;
     vault_txhex?: string;
   };
 
-  if (txRequest.liquid_txhex) {
-    const computedLiquidTxid = TX.get_txid(txRequest.liquid_txhex);
+  if (txRequestWithHex.liquid_txhex) {
+    const computedLiquidTxid = TX.get_txid(txRequestWithHex.liquid_txhex);
     if (computedLiquidTxid !== txRequest.liquid_txid) {
       throw new Error('Repo liquidation request Tx1 ID does not match its signed transaction');
     }
   }
 
-  if (txRequest.vault_txhex) {
-    const computedVaultTxid = TX.get_txid(txRequest.vault_txhex);
+  if (txRequestWithHex.vault_txhex) {
+    const computedVaultTxid = TX.get_txid(txRequestWithHex.vault_txhex);
     if (computedVaultTxid !== txRequest.vault_txid) {
       throw new Error('Repo liquidation request vault Tx ID does not match its signed transaction');
     }
@@ -187,17 +241,39 @@ export async function executeLiquidation(
     // ── Step 3: Build User's VaultProfile ──
     progress('Building vault profile...');
 
-    const history = await fetchVaultHistory(vaultPubkey);
+    const history = await fetchVaultHistory(
+      vaultPubkey,
+      vaultInfo.vault_id ? { vaultId: vaultInfo.vault_id } : {}
+    );
     if (!history || history.length === 0) {
       throw new Error('No vault history found');
     }
 
-    const prevout = computeVaultPrevoutFromTx(history[0]);
+    const latestHistoryTx = selectLatestUsableVaultHistoryTransaction(history);
+    if (!latestHistoryTx) {
+      throw new Error('No usable vault history transaction found');
+    }
+
+    const prevout = computeVaultPrevoutFromTx(latestHistoryTx);
     if (!prevout) {
       throw new Error('Failed to compute vault prevout');
     }
 
-    const userVaultProfile: VaultProfile = buildVaultProfile(vaultPubkey, vaultInfo, prevout);
+    const resolvedPrevout = await resolveLatestUnspentVaultPrevout(prevout);
+    if (resolvedPrevout.replaced) {
+      logger.warn('[Liquidation] Using on-chain vault prevout ahead of validator history', {
+        hopCount: resolvedPrevout.hopCount,
+        sourceTxids: resolvedPrevout.sourceTxids,
+        latestTxid: resolvedPrevout.prevout.utxo.txid,
+        latestVout: resolvedPrevout.prevout.utxo.vout,
+      });
+    }
+
+    const userVaultProfile: VaultProfile = buildVaultProfile(
+      vaultPubkey,
+      vaultInfo,
+      resolvedPrevout.prevout
+    );
 
     // ── Step 4: Compute deposit_amount ──
     // (matches web: liquidation.helpers.tsx:183-184)
@@ -408,11 +484,11 @@ export async function executeLiquidation(
     // ── Step 9: Build request and submit ──
     // (matches web: repossess.api.ts:82-93)
     const req = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
-    const request: WalletVaultRepoRequest = {
+    const request: WalletVaultRepoRequest = normalizeRepoRequestTxids({
       ...req,
       contract_id: wallet.contract_id,
       network: wallet.network,
-    };
+    });
     assertRepoRequestTxidsConsistent(request);
 
     const requestTxid = extractRepoRequestTxid(request);

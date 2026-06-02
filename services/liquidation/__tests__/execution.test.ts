@@ -71,12 +71,27 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
   TX: {
     parse_address: jest.fn(() => ({ hex: '001400112233' })),
     parse_script_meta: jest.fn(() => ({ type: 'p2w-pkh', key: { hex: 'abc123' } })),
-    get_txid: jest.fn(() => 'mock_txid'),
+    get_txid: jest.fn((txhex: string) => {
+      if (txhex === 'signed_liquid_txhex') return 'signed_liquid_txid';
+      if (txhex === 'signed_vault_txhex') return 'signed_vault_txid';
+      if (txhex === 'normalized_liquid_txhex') return 'normalized_liquid_txid';
+      if (txhex === 'normalized_vault_txhex') return 'normalized_vault_txid';
+      return 'mock_txid';
+    }),
   },
   PSBT: {
     decode: jest.fn(),
     encode: jest.fn(),
     parse: jest.fn(() => ({})),
+    get: {
+      txhex: jest.fn((psbt: string) => {
+        if (psbt === 'signed_psbt1_base64') return 'signed_liquid_txhex';
+        if (psbt === 'signed_psbt2_base64') return 'signed_vault_txhex';
+        if (psbt === 'liquid_psbt_needs_normalizing') return 'normalized_liquid_txhex';
+        if (psbt === 'vault_psbt_needs_normalizing') return 'normalized_vault_txhex';
+        return 'mock_txhex';
+      }),
+    },
     extract: {
       utxo: jest.fn(() => ({
         txid: 'change-txid-001',
@@ -140,13 +155,20 @@ import {
   setPendingVaultSigningOperation,
   clearPendingVaultSigningOperation,
 } from '../../vaultWallet/signingContext';
-import { buildVaultProfile, computeVaultPrevoutFromTx } from '../../vault/utils';
-import { fetchVaultHistory } from '../../vaultService';
+import {
+  buildVaultProfile,
+  computeVaultPrevoutFromTx,
+  resolveLatestUnspentVaultPrevout,
+} from '../../vault/utils';
+import {
+  fetchVaultHistory,
+  selectLatestUsableVaultHistoryTransaction,
+} from '../../vaultService';
 import { signPsbtRaw } from '../../signing';
 import { getAvailableCollateralBtc } from '../calculations';
 import { fetchSwapPsbt, finalizeSwapPsbt } from '../swapService';
 import { VaultAPI, select_sat_utxos } from '@ducat-unit/client-sdk';
-import { PSBT } from '@ducat-unit/client-sdk/util';
+import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -293,7 +315,15 @@ const mockBuildVaultProfile = buildVaultProfile as jest.MockedFunction<typeof bu
 const mockComputeVaultPrevoutFromTx = computeVaultPrevoutFromTx as jest.MockedFunction<
   typeof computeVaultPrevoutFromTx
 >;
+const mockResolveLatestUnspentVaultPrevout =
+  resolveLatestUnspentVaultPrevout as jest.MockedFunction<
+    typeof resolveLatestUnspentVaultPrevout
+  >;
 const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
+const mockSelectLatestUsableVaultHistoryTransaction =
+  selectLatestUsableVaultHistoryTransaction as jest.MockedFunction<
+    typeof selectLatestUsableVaultHistoryTransaction
+  >;
 const mockSignPsbtRaw = signPsbtRaw as jest.MockedFunction<typeof signPsbtRaw>;
 const mockGetAvailableCollateralBtc = getAvailableCollateralBtc as jest.MockedFunction<
   typeof getAvailableCollateralBtc
@@ -313,6 +343,8 @@ const mockVaultApiRepoCreatePsbt2 = VaultAPI.repo.create_psbt2 as jest.MockedFun
 const mockVaultApiRepoCreateReq = VaultAPI.repo.create_req as jest.MockedFunction<
   typeof VaultAPI.repo.create_req
 >;
+const mockPsbtGetTxhex = PSBT.get.txhex as jest.MockedFunction<typeof PSBT.get.txhex>;
+const mockTxGetTxid = TX.get_txid as jest.MockedFunction<typeof TX.get_txid>;
 
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
@@ -389,9 +421,20 @@ describe('executeLiquidation', () => {
     mockComputeVaultPrevoutFromTx.mockReturnValue(
       mockPrevout as unknown as ReturnType<typeof computeVaultPrevoutFromTx>
     );
+    mockResolveLatestUnspentVaultPrevout.mockResolvedValue({
+      prevout: mockPrevout,
+      replaced: false,
+      hopCount: 0,
+      sourceTxids: ['txid-001'],
+    } as unknown as Awaited<ReturnType<typeof resolveLatestUnspentVaultPrevout>>);
     mockBuildVaultProfile.mockReturnValue(
       mockVaultProfile as unknown as ReturnType<typeof buildVaultProfile>
     );
+    mockSelectLatestUsableVaultHistoryTransaction.mockImplementation((history) => {
+      return history.reduce((latest, tx) => (
+        !latest || tx.timestamp > latest.timestamp ? tx : latest
+      ), undefined as (typeof history)[number] | undefined);
+    });
     mockGetAvailableCollateralBtc.mockReturnValue(0.005);
     mockVaultApiRepoLiquidGetCtx.mockReturnValue(
       mockLiquidCtx as unknown as ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>
@@ -403,7 +446,11 @@ describe('executeLiquidation', () => {
     mockVaultApiRepoCreatePsbt2.mockReturnValue('raw_psbt2_base64');
     mockVaultApiRepoCreateReq.mockReturnValue({
       liquid_psbt: 'signed_psbt1_base64',
-      liquid_txid: 'signed_psbt2_base64',
+      liquid_txhex: 'stale_liquid_txhex',
+      liquid_txid: 'stale_liquid_txid',
+      vault_psbt: 'signed_psbt2_base64',
+      vault_txhex: 'stale_vault_txhex',
+      vault_txid: 'stale_vault_txid',
     } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
     mockFetchSwapPsbt.mockResolvedValue(null);
     mockSignPsbtRaw.mockResolvedValue('signed_swap_psbt_base64');
@@ -456,30 +503,64 @@ describe('executeLiquidation', () => {
     it('should call fetchVaultHistory with vaultPubkey', async () => {
       await executeLiquidation(makeParams({ vaultPubkey: 'my_vault_pubkey' }));
 
-      expect(mockFetchVaultHistory).toHaveBeenCalledWith('my_vault_pubkey');
+      expect(mockFetchVaultHistory).toHaveBeenCalledWith('my_vault_pubkey', {});
     });
 
-    it('should call computeVaultPrevoutFromTx with the first history entry', async () => {
-      const historyTx = makeHistoryTx({ transaction_id: 'unique-tx-001' });
-      mockFetchVaultHistory.mockResolvedValue([historyTx, makeHistoryTx()] as unknown as ReturnType<
-        typeof fetchVaultHistory
-      > extends Promise<infer T>
-        ? T
-        : never);
+    it('should pass vault id to fetchVaultHistory when available', async () => {
+      await executeLiquidation(makeParams({
+        vaultInfo: {
+          vault_id: 'vault-id-123',
+          creation_account: 'acct_id_hex',
+          guard_pubkey: 'guard_pubkey_hex',
+          master_id: 'master_id_hex',
+        },
+      }));
+
+      expect(mockFetchVaultHistory).toHaveBeenCalledWith('vault_pubkey_hex', {
+        vaultId: 'vault-id-123',
+      });
+    });
+
+    it('should build the user vault profile from the latest usable history entry', async () => {
+      const oldHistoryTx = makeHistoryTx({ transaction_id: 'old-tx-001', timestamp: 1000 });
+      const latestHistoryTx = makeHistoryTx({ transaction_id: 'latest-tx-001', timestamp: 2000 });
+      mockFetchVaultHistory.mockResolvedValue(
+        [oldHistoryTx, latestHistoryTx] as unknown as ReturnType<
+          typeof fetchVaultHistory
+        > extends Promise<infer T>
+          ? T
+          : never
+      );
 
       await executeLiquidation(makeParams());
 
-      expect(mockComputeVaultPrevoutFromTx).toHaveBeenCalledWith(historyTx);
+      expect(mockSelectLatestUsableVaultHistoryTransaction).toHaveBeenCalledWith([
+        oldHistoryTx,
+        latestHistoryTx,
+      ]);
+      expect(mockComputeVaultPrevoutFromTx).toHaveBeenCalledWith(latestHistoryTx);
     });
 
-    it('should call buildVaultProfile with vaultPubkey, vaultInfo, and computed prevout', async () => {
+    it('should resolve the latest unspent vault prevout before building the profile', async () => {
+      const resolvedPrevout = {
+        rdata: { is_locked: false },
+        utxo: { txid: 'resolved-latest-vault-tx', vout: 0 },
+      };
+      mockResolveLatestUnspentVaultPrevout.mockResolvedValue({
+        prevout: resolvedPrevout,
+        replaced: true,
+        hopCount: 1,
+        sourceTxids: ['txid-001', 'resolved-latest-vault-tx'],
+      } as unknown as Awaited<ReturnType<typeof resolveLatestUnspentVaultPrevout>>);
       const params = makeParams();
+
       await executeLiquidation(params);
 
+      expect(mockResolveLatestUnspentVaultPrevout).toHaveBeenCalledWith(mockPrevout);
       expect(mockBuildVaultProfile).toHaveBeenCalledWith(
         params.vaultPubkey,
         params.vaultInfo,
-        mockPrevout
+        resolvedPrevout
       );
     });
 
@@ -707,6 +788,33 @@ describe('executeLiquidation', () => {
       });
     });
 
+    it('normalizes repo transaction ids from the signed PSBTs before guardian submission', async () => {
+      mockVaultApiRepoCreateReq.mockReturnValue({
+        liquid_psbt: 'liquid_psbt_needs_normalizing',
+        liquid_txhex: 'wrong_liquid_txhex',
+        liquid_txid: 'wrong_liquid_txid',
+        vault_psbt: 'vault_psbt_needs_normalizing',
+        vault_txhex: 'wrong_vault_txhex',
+        vault_txid: 'wrong_vault_txid',
+      } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
+
+      await executeLiquidation(makeParams());
+
+      const guardianRepoCall = mockGuardian.req.vault.repo.mock.calls[0][0];
+      expect(guardianRepoCall).toMatchObject({
+        liquid_psbt: 'liquid_psbt_needs_normalizing',
+        liquid_txhex: 'normalized_liquid_txhex',
+        liquid_txid: 'normalized_liquid_txid',
+        vault_psbt: 'vault_psbt_needs_normalizing',
+        vault_txhex: 'normalized_vault_txhex',
+        vault_txid: 'normalized_vault_txid',
+      });
+      expect(mockPsbtGetTxhex).toHaveBeenCalledWith('liquid_psbt_needs_normalizing');
+      expect(mockPsbtGetTxhex).toHaveBeenCalledWith('vault_psbt_needs_normalizing');
+      expect(mockTxGetTxid).toHaveBeenCalledWith('normalized_liquid_txhex');
+      expect(mockTxGetTxid).toHaveBeenCalledWith('normalized_vault_txhex');
+    });
+
     it('persists the signed repo request before connecting to the guardian', async () => {
       const callOrder: string[] = [];
       const onRequestCreated = jest.fn(async () => {
@@ -722,10 +830,11 @@ describe('executeLiquidation', () => {
       await executeLiquidation(makeParams({ onRequestCreated }));
 
       expect(onRequestCreated).toHaveBeenCalledWith({
-        txid: 'signed_psbt2_base64',
-        vaultTxid: 'signed_psbt2_base64',
+        txid: 'signed_vault_txid',
+        vaultTxid: 'signed_vault_txid',
         request: expect.objectContaining({
-          liquid_txid: 'signed_psbt2_base64',
+          liquid_txid: 'signed_liquid_txid',
+          vault_txid: 'signed_vault_txid',
           contract_id: 'test_contract_id',
           network: 'mutiny',
         }),
@@ -747,8 +856,8 @@ describe('executeLiquidation', () => {
 
       expect(onRequestCreated).toHaveBeenCalledWith(
         expect.objectContaining({
-          txid: 'signed_psbt2_base64',
-          vaultTxid: 'signed_psbt2_base64',
+          txid: 'signed_vault_txid',
+          vaultTxid: 'signed_vault_txid',
           swapPsbtHex: 'swap_tx_hex',
         })
       );
@@ -962,6 +1071,16 @@ describe('executeLiquidation', () => {
       expect(result.error).toBe('No vault history found');
     });
 
+    it('should return error when no usable vault history transaction exists', async () => {
+      mockSelectLatestUsableVaultHistoryTransaction.mockReturnValue(undefined);
+
+      const result = await executeLiquidation(makeParams());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No usable vault history transaction found');
+      expect(mockComputeVaultPrevoutFromTx).not.toHaveBeenCalled();
+    });
+
     it('should return error "Failed to compute vault prevout" when computeVaultPrevoutFromTx returns null', async () => {
       mockComputeVaultPrevoutFromTx.mockReturnValue(null);
 
@@ -969,6 +1088,18 @@ describe('executeLiquidation', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Failed to compute vault prevout');
+    });
+
+    it('should return error when latest on-chain vault prevout resolution fails', async () => {
+      mockResolveLatestUnspentVaultPrevout.mockRejectedValue(
+        new Error('Timed out verifying current vault outpoint')
+      );
+
+      const result = await executeLiquidation(makeParams());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Timed out verifying current vault outpoint');
+      expect(mockBuildVaultProfile).not.toHaveBeenCalled();
     });
 
     it('should not call buildVaultProfile when prevout is null', async () => {

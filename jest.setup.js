@@ -484,7 +484,9 @@ jest.mock('react-native', () => {
     // Mock basic React Native components - must return JSX-like structure
     View: 'View',
     Text: 'Text',
+    Pressable: 'Pressable',
     TouchableOpacity: 'TouchableOpacity',
+    KeyboardAvoidingView: 'KeyboardAvoidingView',
     ScrollView: 'ScrollView',
     Image: 'Image',
     Modal: 'Modal',

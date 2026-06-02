@@ -12,6 +12,14 @@ describe('liquidationErrors', () => {
     ).toBe(true);
   });
 
+  it('detects guardian repo Tx1 mismatch responses as changed opportunities', () => {
+    expect(
+      isStaleLiquidationOpportunityError(
+        '{"code":null,"message":"Message: Repo Vault Tx1ID in request does not match computed Repo vault Tx1ID"}'
+      )
+    ).toBe(true);
+  });
+
   it('does not treat generic liquidation failures as stale opportunities', () => {
     expect(isStaleLiquidationOpportunityError('Insufficient funds')).toBe(false);
     expect(isStaleLiquidationOpportunityError(null)).toBe(false);

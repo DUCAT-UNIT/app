@@ -39,6 +39,7 @@ interface UseLiquidationExecutionParams {
   vaultDebt: number;
   btcPrice: number | null;
   vaultData: {
+    vaultId?: string;
     vaultInfo?: {
       creation_account: string;
       guard_pubkey: string;
@@ -186,6 +187,7 @@ export function useLiquidationExecution({
         feeRate: LIQ_DEFAULT_FEE_RATE,
         deficitAmountBtc: deficitBtc,
         vaultInfo: {
+          vault_id: vaultData?.vaultId || '',
           creation_account: vaultData?.vaultInfo?.creation_account || '',
           guard_pubkey: vaultData?.vaultInfo?.guard_pubkey || '',
           master_id: vaultData?.vaultInfo?.master_id || '',

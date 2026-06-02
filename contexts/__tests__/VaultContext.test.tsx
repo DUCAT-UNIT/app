@@ -138,14 +138,19 @@ function makeVault(
 ): ReturnType<typeof useVaultDataFetch> {
   return {
     vaultData: null,
+    loadingVault: false,
+    vaultIsRefreshing: false,
+    vaultLastUpdated: null,
+    vaultIsStale: false,
+    vaultError: null,
+    fetchVault: jest.fn(),
+    resetVaultData: jest.fn(),
     vaultTransactions: [],
-    vaultSummary: null,
-    isLoading: false,
-    isRefreshing: false,
-    error: null,
-    fetchVaultData: jest.fn(),
-    refreshVaultData: jest.fn(),
-    clearVaultData: jest.fn(),
+    loadingVaultTransactions: false,
+    vaultTransactionsIsRefreshing: false,
+    vaultTransactionsLastUpdated: null,
+    vaultTransactionsIsStale: false,
+    fetchVaultTransactions: jest.fn(),
     ...overrides,
   } as ReturnType<typeof useVaultDataFetch>;
 }
@@ -373,6 +378,57 @@ describe('VaultContext', () => {
       type: 'success',
       action: 'borrow',
       txid: 'vault-txid',
+    });
+  });
+
+  it('clears pending vault transactions when chain confirms before vault history catches up', async () => {
+    const fetchVault = jest.fn();
+    const fetchVaultTransactions = jest.fn();
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'deposit-txid',
+      vaultTxid: 'deposit-txid',
+      action: 'deposit',
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: { confirmed: true } }),
+    } as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          vaultId: 'vault-1',
+          totalCollateral: 0.0005,
+          totalDebt: 0,
+        } as never,
+        vaultTransactions: [],
+        fetchVault,
+        fetchVaultTransactions,
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockGetWithRetry).toHaveBeenCalledWith(
+      'https://tx.example/deposit-txid',
+      expect.objectContaining({
+        dedupeKey: 'vault-pending-confirm:deposit-txid',
+      })
+    );
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).toHaveBeenCalledWith(0);
+    expect(fetchVault).toHaveBeenCalled();
+    expect(fetchVaultTransactions).toHaveBeenCalledWith(undefined, { vaultId: 'vault-1' });
+    expect(mockNotificationStore.showSnackbar).toHaveBeenCalledWith({
+      type: 'success',
+      action: 'deposit',
+      txid: 'deposit-txid',
     });
   });
 
