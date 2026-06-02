@@ -1,5 +1,5 @@
 /**
- * Mint Quotes API - deposit UNIT Runes and receive Cashu UNIT tokens
+ * Mint Quotes API - deposit on-chain UNIT or BTC and receive Cashu proofs.
  */
 
 import { getJSON, postJSON } from '../../../utils/apiClient';
@@ -83,9 +83,8 @@ const normalizeMintQuote = (quote: MintQuoteWire): MintQuote => {
 };
 
 /**
- * Create a mint quote for the advertised onchain/unit Cashu method.
- * @param pubkey - Compressed secp256k1 wallet public key for quote signing
- * @returns Quote with ID and deposit request
+ * Create a mint quote for the advertised on-chain Cashu method.
+ * UNIT quotes include the Ducat rune ID; BTC sat quotes omit rune metadata.
  */
 export const createMintQuote = async (
   pubkey: string,
