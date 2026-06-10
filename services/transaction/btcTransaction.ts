@@ -33,7 +33,7 @@ export interface BtcTransactionIntent {
   amountBTC: string;
   recipient: string;
   fee: number;
-  addressType: 'segwit';
+  addressType: 'segwit' | 'taproot';
   sourceAddress: string;
   inputs: UTXO[];
   inputCount: number;
@@ -80,7 +80,7 @@ function canFundWithUtxos(
  * Create a BTC transaction intent (unsigned PSBT)
  * @param recipient - Recipient Bitcoin address
  * @param amount - Amount in BTC (as string, e.g. "0.001")
- * @param segwitAddress - Source SegWit address
+ * @param sourceAddress - Source wallet address
  * @param currentAccount - Current account index
  * @param unconfirmedUtxos - Array of unconfirmed UTXOs to include
  * @param spentUtxos - Set of spent UTXO keys (txid:vout) to exclude
@@ -89,11 +89,12 @@ function canFundWithUtxos(
 export async function createBtcIntent(
   recipient: string,
   amount: string,
-  segwitAddress: string,
+  sourceAddress: string,
   _currentAccount: number,
   unconfirmedUtxos: UTXO[] = [],
   spentUtxos: Set<string> = new Set(),
-  feeRateOverride?: number
+  feeRateOverride?: number,
+  sourceAddressType: 'segwit' | 'taproot' = 'segwit'
 ): Promise<BtcTransactionIntent> {
   try {
     // Validate and normalize recipient address
@@ -106,8 +107,7 @@ export async function createBtcIntent(
       throw new Error(ERRORS.INVALID_AMOUNT);
     }
 
-    const sourceAddress = segwitAddress;
-    const addressType = 'segwit' as const;
+    const addressType = sourceAddressType;
 
     // Fetch current explorer UTXOs first. This endpoint is the authoritative
     // current spendable set for the wallet address.
@@ -125,7 +125,7 @@ export async function createBtcIntent(
     feeRate = feeRate ?? 1;
 
     // Create fee calculator
-    const calculateFee = createFeeCalculator(feeRate);
+    const calculateFee = createFeeCalculator(feeRate, addressType);
 
     // Prefer current explorer UTXOs for BTC sends. Local pending UTXOs are useful
     // for short-lived chaining, but they can become stale after vault/Turbo flows.
@@ -353,7 +353,7 @@ function buildBtcPsbt(
 ): bitcoin.Psbt {
   const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
 
-  // Add inputs (BTC always uses segwit)
+  // Add wallet inputs. Signing chooses SegWit or Taproot from the intent addressType.
   for (let i = 0; i < inputsWithTx.length; i++) {
     const utxo = inputsWithTx[i];
     const tx = bitcoin.Transaction.fromHex(utxo.txHex);

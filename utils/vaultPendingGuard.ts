@@ -5,6 +5,7 @@ type VaultOperationType = 'borrow' | 'deposit' | 'repay' | 'withdraw';
 
 const SATS_PER_BTC = 100_000_000;
 const CENTS_PER_UNIT = 100;
+export const PENDING_VAULT_SETTLED_HISTORY_GRACE_MS = 3 * 60 * 1000;
 
 export const PENDING_VAULT_OPERATION_MESSAGE =
   'A vault transaction is still updating. Wait for the vault balance to update before starting another vault operation.';
@@ -94,6 +95,50 @@ function debtMatches(vaultData: VaultData, transaction: VaultHistoryTransaction)
     approximatelyEqual(Math.round(vaultDebt * CENTS_PER_UNIT), transaction.amount_borrowed, 1) ||
     approximatelyEqual(vaultDebt, transaction.amount_borrowed, 1)
   );
+}
+
+function isPendingHistoryTransaction(transaction: VaultHistoryTransaction): boolean {
+  return (transaction as VaultHistoryTransaction & { isPending?: boolean }).isPending === true;
+}
+
+function getLatestSettledHistoryTransaction(
+  vaultTransactions: VaultHistoryTransaction[]
+): VaultHistoryTransaction | null {
+  return vaultTransactions.reduce<VaultHistoryTransaction | null>((latest, transaction) => {
+    if (isPendingHistoryTransaction(transaction)) {
+      return latest;
+    }
+
+    if (!latest || transaction.timestamp > latest.timestamp) {
+      return transaction;
+    }
+
+    return latest;
+  }, null);
+}
+
+export function findSettledHistoryForStalePendingVaultTransaction(
+  pendingTransaction: PendingVaultTransaction,
+  vaultData: VaultData | null,
+  vaultTransactions: VaultHistoryTransaction[],
+  now = Date.now()
+): VaultHistoryTransaction | null {
+  if (!vaultData || !Number.isFinite(pendingTransaction.timestamp)) {
+    return null;
+  }
+
+  if (now - pendingTransaction.timestamp < PENDING_VAULT_SETTLED_HISTORY_GRACE_MS) {
+    return null;
+  }
+
+  const latestHistory = getLatestSettledHistoryTransaction(vaultTransactions);
+  if (!latestHistory) {
+    return null;
+  }
+
+  return collateralMatches(vaultData, latestHistory) && debtMatches(vaultData, latestHistory)
+    ? latestHistory
+    : null;
 }
 
 export function isPendingVaultTransactionApplied(

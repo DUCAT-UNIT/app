@@ -34,11 +34,19 @@ export interface UseSendBalancesResult {
 export function useSendBalances({
   estimatedFeeSats,
 }: UseSendBalancesOptions): UseSendBalancesResult {
-  const { segwitBalance, runesBalance, unconfirmedSegwitBalance } = useBalance();
+  const {
+    segwitBalance,
+    taprootBalance,
+    runesBalance,
+    unconfirmedSegwitBalance,
+    unconfirmedTaprootBalance,
+  } = useBalance();
   const { balance: cashuBalance, btcBalanceSats: cashuBtcBalanceSats } = useCashuBalanceState();
 
   // Balance calculations (include unconfirmed for transaction chaining)
-  const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
+  const segwitBtcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
+  const taprootBtcBalance = (taprootBalance || 0) + (unconfirmedTaprootBalance || 0);
+  const btcBalance = segwitBtcBalance + taprootBtcBalance;
 
   // For UNIT, combine on-chain runes balance + ecash balance
   // Runes come in display units, ecash is in smallest units (needs /100)
@@ -55,8 +63,8 @@ export function useSendBalances({
   // For BTC: max sendable = balance - fee
   const maxSendableBtc = useMemo(() => {
     const feeBtc = estimatedFeeSats / 100_000_000;
-    return Math.max(0, btcBalance - feeBtc);
-  }, [btcBalance, estimatedFeeSats]);
+    return Math.max(0, Math.max(segwitBtcBalance, taprootBtcBalance) - feeBtc);
+  }, [estimatedFeeSats, segwitBtcBalance, taprootBtcBalance]);
 
   const maxSendableTurboBtc = useMemo(
     () => Math.max(0, (cashuBtcBalanceSats || 0) / 100_000_000),

@@ -69,7 +69,7 @@ interface SettingsOptionProps {
 const AdvancedScreen = React.memo(function AdvancedScreen({
   route,
 }: AdvancedScreenProps): React.ReactElement {
-  const { onClose, onSwitchAccount, onAdvancedModeToggle, onEcashThresholdPress } = route.params;
+  const { onClose, onSwitchAccount, onEcashThresholdPress } = route.params;
 
   // Get advancedMode and ecashThreshold directly from context so they update when toggled
   const { settingsHandlers } = useSettingsHandlers();
@@ -97,7 +97,7 @@ const AdvancedScreen = React.memo(function AdvancedScreen({
   };
 
   const handleAdvancedModeToggle = (): void => {
-    onAdvancedModeToggle();
+    settingsHandlers.handleAdvancedModeToggle();
     analytics.track(SETTINGS_EVENTS.PREFERENCE_CHANGED, {
       setting: 'advanced_mode',
       value: !advancedMode,

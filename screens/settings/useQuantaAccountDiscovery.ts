@@ -6,6 +6,7 @@ import {
 import * as WalletService from '../../services/walletService';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  STANDARD_ACCOUNT_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
   getWalletProfileForDerivationMode,
   type WalletDerivationMode,
@@ -44,7 +45,23 @@ function getAddressEntryRequestId(entry: AccountAddressEntry): string {
 function getPrimaryQuantaAddressType(
   derivationMode: WalletDerivationMode
 ): AccountAddressEntry['addressType'] {
-  return derivationMode === UNISAT_WALLET_DERIVATION_MODE ? 'taproot' : 'legacy';
+  return derivationMode === UNISAT_WALLET_DERIVATION_MODE ||
+    derivationMode === STANDARD_ACCOUNT_DERIVATION_MODE
+    ? 'taproot'
+    : 'legacy';
+}
+
+function getQuantaDiscoveryDerivationModes(
+  currentDerivationMode: WalletDerivationMode
+): WalletDerivationMode[] {
+  return Array.from(
+    new Set([
+      currentDerivationMode,
+      DEFAULT_WALLET_DERIVATION_MODE,
+      UNISAT_WALLET_DERIVATION_MODE,
+      STANDARD_ACCOUNT_DERIVATION_MODE,
+    ])
+  );
 }
 
 interface UseQuantaAccountDiscoveryParams {
@@ -269,9 +286,10 @@ export function useQuantaAccountDiscovery({
         ? [enteredAddressAccount]
         : normalizedTargetAddress
           ? []
-          : await WalletService.deriveWalletAccounts(QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT, [
-              currentDerivationMode,
-            ]);
+          : await WalletService.deriveWalletAccounts(
+              QUANTA_ACCOUNT_PICKER_DEFAULT_ACCOUNT_LIMIT,
+              getQuantaDiscoveryDerivationModes(currentDerivationMode)
+            );
       if (signal?.aborted) {
         return [];
       }
@@ -478,14 +496,12 @@ export function useQuantaAccountDiscovery({
               entry.derivationMode === currentDerivationMode
           );
       const priorityKeys = new Set(priorityEntries.map(getAddressEntryRequestId));
-      const primaryAddressType = getPrimaryQuantaAddressType(currentDerivationMode);
       const primaryEntries = normalizedTargetAddress
         ? []
         : entries.filter(
             (entry) =>
               !priorityKeys.has(getAddressEntryRequestId(entry)) &&
-              entry.derivationMode === currentDerivationMode &&
-              entry.addressType === primaryAddressType
+              entry.addressType === getPrimaryQuantaAddressType(entry.derivationMode)
           );
       const primaryKeys = new Set(primaryEntries.map(getAddressEntryRequestId));
       const remainingEntries = normalizedTargetAddress

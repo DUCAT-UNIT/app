@@ -468,6 +468,34 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
   });
 
+  it('continues TurboUNIT repay when the melt returns PENDING with a submitted txid', async () => {
+    configure({ repayFundingAsset: 'TURBOUNIT' });
+    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('pending-melt-txid')]);
+    (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
+    const pendingMeltError = Object.assign(
+      new Error('Mint did not confirm the withdrawal. State: PENDING.'),
+      {
+        meltState: 'PENDING',
+        meltTxid: 'pending-melt-txid:0',
+      }
+    );
+    (completeMelt as jest.Mock).mockRejectedValueOnce(pendingMeltError);
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(completeMelt).toHaveBeenCalledWith('melt-1', 5000);
+    expect(checkMeltQuote).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltTxid).toHaveBeenCalledWith('pending-melt-txid');
+    expect(mockMarkNeedsRetry).not.toHaveBeenCalled();
+    expect(mockRawRepay).toHaveBeenCalledTimes(1);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
   it('retries TurboUNIT raw repay when Guardian rejects before the melt tx propagates', async () => {
     jest.useFakeTimers();
     configure({ repayFundingAsset: 'TURBOUNIT' });
@@ -684,6 +712,37 @@ describe('useRepayFromUsdcSettlement', () => {
       'waiting_turbo_release',
       'repaying_vault',
     ]);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('recovers a submitted PENDING TurboUNIT melt quote instead of melting again after restart', async () => {
+    configure({
+      settlementKind: 'repay',
+      persistedRequestedPayoutAsset: 'TURBOUNIT',
+      persistedCashuMeltQuoteId: 'melt-existing',
+    });
+    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('pending-release-txid')]);
+    (checkMeltQuote as jest.Mock).mockResolvedValueOnce({
+      quote: 'melt-existing',
+      state: 'PENDING',
+      paid: false,
+      amount: 5000,
+      fee: 0,
+      outpoint: 'pending-release-txid:1',
+    });
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(checkMeltQuote).toHaveBeenCalledWith('melt-existing');
+    expect(requestMelt).not.toHaveBeenCalled();
+    expect(completeMelt).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltTxid).toHaveBeenCalledWith('pending-release-txid');
+    expect(mockMarkNeedsRetry).not.toHaveBeenCalled();
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
   });
 

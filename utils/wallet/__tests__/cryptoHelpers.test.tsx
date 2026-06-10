@@ -29,6 +29,7 @@ jest.mock('../../bitcoin', () => ({
 }));
 
 import * as bip39 from 'bip39';
+import { UNISAT_WALLET_DERIVATION_MODE } from '../../../constants/bitcoin';
 import {
   writeVarInt,
   varIntSize,
@@ -166,6 +167,15 @@ describe('cryptoHelpers', () => {
     it('should return path for account index 0', () => {
       const path = getDerivationPath('tb1qaddress', 0);
       expect(path).toBe("m/84'/1'/0'/0/0");
+    });
+
+    it('should return UniSat coin-type-0 account paths for UniSat imports', () => {
+      expect(getDerivationPath('tb1ptest123', 0, UNISAT_WALLET_DERIVATION_MODE)).toBe(
+        "m/86'/0'/0'/0/0"
+      );
+      expect(getDerivationPath('tb1qtest123', 2, UNISAT_WALLET_DERIVATION_MODE)).toBe(
+        "m/84'/0'/2'/0/0"
+      );
     });
 
     it('should throw error for unsupported address type', () => {

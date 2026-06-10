@@ -67,27 +67,4 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 - runFlow: ../helpers/relaunch-and-unlock.yaml
 
-- extendedWaitUntil:
-    visible:
-      id: "wallet-pending-transaction-panel"
-    timeout: 60000
-- assertVisible:
-    text: "Vault transaction pending"
-- extendedWaitUntil:
-    visible:
-      id: "wallet-vault-actions-pending"
-    timeout: 60000
-
-- scrollUntilVisible:
-    element:
-      id: 'vault-card'
-    direction: DOWN
-    timeout: 10000
-- extendedWaitUntil:
-    notVisible:
-      id: 'vault-overlay'
-    timeout: 300000
-- extendedWaitUntil:
-    visible:
-      id: 'wallet-vault-actions-ready'
-    timeout: 300000
+- runFlow: ../helpers/assert-vault-pending-recovered.yaml

@@ -384,17 +384,17 @@
     <header class="top">
       <div>
         <p class="eyebrow">Ducat live regression</p>
-        <h1>Build 0.0.12 (7)</h1>
+        <h1>Build 0.0.14 (3)</h1>
         <p class="subtitle">User-facing no-USDC release gate against the TestFlight reviewer wallet on Mutinynet. The page is generated from the Maestro report and live chain-confirmation report.</p>
       </div>
-      <div class="result-pill fail">FAILED</div>
+      <div class="result-pill pass">PASSED</div>
     </header>
 
     <section class="grid" aria-label="Run summary">
       <div class="metric">
         <div class="label">Total Runtime</div>
-        <div class="value">94m 15s</div>
-        <div class="detail">Started 2026-06-01 19:49:14.940Z</div>
+        <div class="value">65m 59s</div>
+        <div class="detail">Started 2026-06-10 18:26:05.255Z</div>
       </div>
       <div class="metric">
         <div class="label">Flows</div>
@@ -403,7 +403,7 @@
       </div>
       <div class="metric">
         <div class="label">Confirmed Txids</div>
-        <div class="value">0/0</div>
+        <div class="value">49/49</div>
         <div class="detail">Mutinynet confirmation required.</div>
       </div>
       <div class="metric">
@@ -436,11 +436,11 @@
           <span>Creates a fresh wallet, verifies a funded BTC balance, opens receive, and copies the receive address.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">2m 16s</td>
+        <td data-label="Duration" class="duration">2m 02s</td>
         <td data-label="Expected Proofs">1 receive funding proof</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Receive BTC duration">
-            <span style="width: 21%"></span>
+            <span style="width: 27%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-receive-btc-airdrop.yaml</code></td>
@@ -451,11 +451,11 @@
           <span>Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">2m 40s</td>
+        <td data-label="Duration" class="duration">2m 22s</td>
         <td data-label="Expected Proofs">1 BTC send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Send BTC duration">
-            <span style="width: 25%"></span>
+            <span style="width: 31%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-btc.yaml</code></td>
@@ -466,11 +466,11 @@
           <span>Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">3m 19s</td>
+        <td data-label="Duration" class="duration">2m 26s</td>
         <td data-label="Expected Proofs">1 UNIT send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Send UNIT duration">
-            <span style="width: 31%"></span>
+            <span style="width: 32%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-unit.yaml</code></td>
@@ -481,11 +481,11 @@
           <span>Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">8m 06s</td>
+        <td data-label="Duration" class="duration">7m 34s</td>
         <td data-label="Expected Proofs">5 vault action checkpoints; raw txids can be 8+</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Actions duration">
-            <span style="width: 75%"></span>
+            <span style="width: 100%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-actions.yaml</code></td>
@@ -496,11 +496,11 @@
           <span>Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">3m 37s</td>
+        <td data-label="Duration" class="duration">3m 19s</td>
         <td data-label="Expected Proofs">Borrow txids plus TurboUNIT mint settlement</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Borrow TurboUNIT duration">
-            <span style="width: 33%"></span>
+            <span style="width: 44%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-borrow-turbounit.yaml</code></td>
@@ -511,11 +511,11 @@
           <span>Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">4m 31s</td>
+        <td data-label="Duration" class="duration">5m 16s</td>
         <td data-label="Expected Proofs">TurboUNIT funding plus repay txids</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Repay TurboUNIT duration">
-            <span style="width: 42%"></span>
+            <span style="width: 70%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-turbounit-repay.yaml</code></td>
@@ -525,12 +525,12 @@
           <strong>Second Repay</strong>
           <span>Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 28s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 52s</td>
         <td data-label="Expected Proofs">2 consecutive repay checkpoints</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Second Repay duration">
-            <span style="width: 60%"></span>
+            <span style="width: 51%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-second-repay.yaml</code></td>
@@ -541,11 +541,11 @@
           <span>Broadcasts a BTC send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">3m 07s</td>
+        <td data-label="Duration" class="duration">2m 49s</td>
         <td data-label="Expected Proofs">Pending BTC send panel plus 1 BTC send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="BTC Relaunch Recovery duration">
-            <span style="width: 29%"></span>
+            <span style="width: 37%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-btc-relaunch-pending.yaml</code></td>
@@ -555,12 +555,12 @@
           <strong>UNIT Relaunch Recovery</strong>
           <span>Broadcasts an on-chain UNIT send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 26s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">4m 44s</td>
         <td data-label="Expected Proofs">Pending UNIT send panel plus 1 UNIT send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="UNIT Relaunch Recovery duration">
-            <span style="width: 60%"></span>
+            <span style="width: 63%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-unit-relaunch-pending.yaml</code></td>
@@ -571,11 +571,11 @@
           <span>Submits a vault open, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">4m 11s</td>
+        <td data-label="Duration" class="duration">3m 55s</td>
         <td data-label="Expected Proofs">Pending vault open lock and vault checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Open Relaunch Recovery duration">
-            <span style="width: 39%"></span>
+            <span style="width: 52%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-open-relaunch-pending.yaml</code></td>
@@ -585,12 +585,12 @@
           <strong>Vault Deposit Relaunch Recovery</strong>
           <span>Submits a vault deposit, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 25s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 27s</td>
         <td data-label="Expected Proofs">Pending vault deposit lock and vault checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Deposit Relaunch Recovery duration">
-            <span style="width: 59%"></span>
+            <span style="width: 46%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-deposit-relaunch-pending.yaml</code></td>
@@ -600,12 +600,12 @@
           <strong>Vault Borrow Relaunch Recovery</strong>
           <span>Submits an on-chain UNIT borrow, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 27s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 30s</td>
         <td data-label="Expected Proofs">Pending vault borrow lock and vault checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Borrow Relaunch Recovery duration">
-            <span style="width: 60%"></span>
+            <span style="width: 46%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-borrow-relaunch-pending.yaml</code></td>
@@ -615,12 +615,12 @@
           <strong>Vault Repay Relaunch Recovery</strong>
           <span>Submits a real vault repay, kills the app on the success screen, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 28s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 32s</td>
         <td data-label="Expected Proofs">Pending vault lock, recovery panel, and repay checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Repay Relaunch Recovery duration">
-            <span style="width: 60%"></span>
+            <span style="width: 47%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-repay-relaunch-pending.yaml</code></td>
@@ -630,12 +630,12 @@
           <strong>Vault Withdraw Relaunch Recovery</strong>
           <span>Submits a vault withdrawal, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">6m 25s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 25s</td>
         <td data-label="Expected Proofs">Pending vault withdraw lock and vault checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Withdraw Relaunch Recovery duration">
-            <span style="width: 59%"></span>
+            <span style="width: 45%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-withdraw-relaunch-pending.yaml</code></td>
@@ -646,11 +646,11 @@
           <span>Opens a vault with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">4m 34s</td>
+        <td data-label="Duration" class="duration">3m 52s</td>
         <td data-label="Expected Proofs">Pending vault open lock plus TurboUNIT settlement checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Open TurboUNIT Relaunch Recovery duration">
-            <span style="width: 42%"></span>
+            <span style="width: 51%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-open-turbounit-relaunch-pending.yaml</code></td>
@@ -660,12 +660,12 @@
           <strong>Borrow TurboUNIT Relaunch Recovery</strong>
           <span>Borrows with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">8m 08s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">4m 02s</td>
         <td data-label="Expected Proofs">Pending vault borrow lock plus TurboUNIT settlement checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Borrow TurboUNIT Relaunch Recovery duration">
-            <span style="width: 75%"></span>
+            <span style="width: 53%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-borrow-turbounit-relaunch-pending.yaml</code></td>
@@ -675,12 +675,12 @@
           <strong>Repay TurboUNIT Relaunch Recovery</strong>
           <span>Repays with TurboUNIT funding, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
         </td>
-        <td data-label="Status"><span class="status fail">FAIL</span></td>
-        <td data-label="Duration" class="duration">10m 49s</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">5m 36s</td>
         <td data-label="Expected Proofs">Pending vault repay lock plus TurboUNIT melt checkpoint</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Repay TurboUNIT Relaunch Recovery duration">
-            <span style="width: 100%"></span>
+            <span style="width: 74%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-repay-turbounit-relaunch-pending.yaml</code></td>
@@ -711,7 +711,496 @@
           </tr>
         </thead>
         <tbody>
-          
+          <tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/42be4509a57eaa174203fb70480fc583e9649e8060282ddd2a667d2e248b1be5" target="_blank" rel="noreferrer">42be4509a5...2e248b1be5</a>
+          <button class="copy" type="button" data-copy="42be4509a57eaa174203fb70480fc583e9649e8060282ddd2a667d2e248b1be5">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171844</td>
+        <td data-label="Evidence">airdrop requested</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/6a86eb37fd8c7572c45e3bbd303d5749cb322fcdf4714073cb65c654a30216ed" target="_blank" rel="noreferrer">6a86eb37fd...54a30216ed</a>
+          <button class="copy" type="button" data-copy="6a86eb37fd8c7572c45e3bbd303d5749cb322fcdf4714073cb65c654a30216ed">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171850</td>
+        <td data-label="Evidence">bitcoin broadcast, send broadcasted, send success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/af166f4b1ab0adca430437f239ae2a81bde19207984096f2cb5a87253cfe61ad" target="_blank" rel="noreferrer">af166f4b1a...253cfe61ad</a>
+          <button class="copy" type="button" data-copy="af166f4b1ab0adca430437f239ae2a81bde19207984096f2cb5a87253cfe61ad">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171854</td>
+        <td data-label="Evidence">bitcoin broadcast, send broadcasted, send success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/fe95cde02ebe636861f85304602ca993e0f49dd2859c011b5e5de1a094bd1506" target="_blank" rel="noreferrer">fe95cde02e...a094bd1506</a>
+          <button class="copy" type="button" data-copy="fe95cde02ebe636861f85304602ca993e0f49dd2859c011b5e5de1a094bd1506">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171857</td>
+        <td data-label="Evidence">airdrop requested</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/54a73e97c444e5a8b516d0eb62c6c1820decdc186e910fe7e67b1e362418c2ee" target="_blank" rel="noreferrer">54a73e97c4...362418c2ee</a>
+          <button class="copy" type="button" data-copy="54a73e97c444e5a8b516d0eb62c6c1820decdc186e910fe7e67b1e362418c2ee">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171860</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/afb8b23c1561846e6d466ecc5332b5a2302e25f6069b64c44c08889333fab86b" target="_blank" rel="noreferrer">afb8b23c15...9333fab86b</a>
+          <button class="copy" type="button" data-copy="afb8b23c1561846e6d466ecc5332b5a2302e25f6069b64c44c08889333fab86b">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171860</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/c3a8eb81b690789574363380121225acf067a9ae64931d2f33ed9971371bb6ca" target="_blank" rel="noreferrer">c3a8eb81b6...71371bb6ca</a>
+          <button class="copy" type="button" data-copy="c3a8eb81b690789574363380121225acf067a9ae64931d2f33ed9971371bb6ca">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171862</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/2a15946a71123c95269d8c3966673d213d5218d735a024bd11d275a24ee822a9" target="_blank" rel="noreferrer">2a15946a71...a24ee822a9</a>
+          <button class="copy" type="button" data-copy="2a15946a71123c95269d8c3966673d213d5218d735a024bd11d275a24ee822a9">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171864</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/5e39d3353d49d770d576d4043ffeabae2a36abb014be9ada05d0c2742a048a05" target="_blank" rel="noreferrer">5e39d3353d...742a048a05</a>
+          <button class="copy" type="button" data-copy="5e39d3353d49d770d576d4043ffeabae2a36abb014be9ada05d0c2742a048a05">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171864</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/c626ac931fb08fe0173c1154d866e4aad24b3f9c76afc5555448950f9401cfac" target="_blank" rel="noreferrer">c626ac931f...0f9401cfac</a>
+          <button class="copy" type="button" data-copy="c626ac931fb08fe0173c1154d866e4aad24b3f9c76afc5555448950f9401cfac">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171866</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/7f4811ba96e085add79694769e63adad14be7320ad780bd7150b31a43c454f91" target="_blank" rel="noreferrer">7f4811ba96...a43c454f91</a>
+          <button class="copy" type="button" data-copy="7f4811ba96e085add79694769e63adad14be7320ad780bd7150b31a43c454f91">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171866</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/d4c119922f1d4a87f5428e8e63eef582a6f37a68aaf697e58c164bd799a0cdee" target="_blank" rel="noreferrer">d4c119922f...d799a0cdee</a>
+          <button class="copy" type="button" data-copy="d4c119922f1d4a87f5428e8e63eef582a6f37a68aaf697e58c164bd799a0cdee">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171868</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/87463eedd24cf69604aed4ebd3fb3504c4a97a44feb4d73aaeae4c5440da307e" target="_blank" rel="noreferrer">87463eedd2...5440da307e</a>
+          <button class="copy" type="button" data-copy="87463eedd24cf69604aed4ebd3fb3504c4a97a44feb4d73aaeae4c5440da307e">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171873</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/fbcf4dae0e41a5803728524b0c46ce08ea04cb279712fcc3d8008ac5a37e1602" target="_blank" rel="noreferrer">fbcf4dae0e...c5a37e1602</a>
+          <button class="copy" type="button" data-copy="fbcf4dae0e41a5803728524b0c46ce08ea04cb279712fcc3d8008ac5a37e1602">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171873</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/b726326650acf2d86cde105ddc4e65738fe9cca348d989299598b3a5bc558d38" target="_blank" rel="noreferrer">b726326650...a5bc558d38</a>
+          <button class="copy" type="button" data-copy="b726326650acf2d86cde105ddc4e65738fe9cca348d989299598b3a5bc558d38">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171873</td>
+        <td data-label="Evidence">bitcoin broadcast</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/5893673e8bc6cc23d8f5d6b22a1320b5a9a1ac93c12af70d502a7db5b3053d9b" target="_blank" rel="noreferrer">5893673e8b...b5b3053d9b</a>
+          <button class="copy" type="button" data-copy="5893673e8bc6cc23d8f5d6b22a1320b5a9a1ac93c12af70d502a7db5b3053d9b">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171880</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/1014314b1341b0fd45645753a4fdf85e059e9af791388c368187800ac0466a36" target="_blank" rel="noreferrer">1014314b13...0ac0466a36</a>
+          <button class="copy" type="button" data-copy="1014314b1341b0fd45645753a4fdf85e059e9af791388c368187800ac0466a36">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171880</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/d87c8a10a7b9e625312d6acfb54dba184d2371fbaf153311ff4012dfde5ed303" target="_blank" rel="noreferrer">d87c8a10a7...dfde5ed303</a>
+          <button class="copy" type="button" data-copy="d87c8a10a7b9e625312d6acfb54dba184d2371fbaf153311ff4012dfde5ed303">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171880</td>
+        <td data-label="Evidence">bitcoin broadcast</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/d537d2464fa5bfcd8f2352f4485f54fe1ef868b97834657f79a5fb9a7c09ba40" target="_blank" rel="noreferrer">d537d2464f...9a7c09ba40</a>
+          <button class="copy" type="button" data-copy="d537d2464fa5bfcd8f2352f4485f54fe1ef868b97834657f79a5fb9a7c09ba40">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171884</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/f3aed7d943d39e009f36417858d994d106413bfc1bfe62578c1b4a7c9095b5e3" target="_blank" rel="noreferrer">f3aed7d943...7c9095b5e3</a>
+          <button class="copy" type="button" data-copy="f3aed7d943d39e009f36417858d994d106413bfc1bfe62578c1b4a7c9095b5e3">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171884</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/23c9e576656514618dc0caf66b5dbffb072f0ac1549a3625792ede7bbb474001" target="_blank" rel="noreferrer">23c9e57665...7bbb474001</a>
+          <button class="copy" type="button" data-copy="23c9e576656514618dc0caf66b5dbffb072f0ac1549a3625792ede7bbb474001">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171889</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/1b75375ded951460e50b0276e550e9a1b967af75f7daadfbf4744db72899d05b" target="_blank" rel="noreferrer">1b75375ded...b72899d05b</a>
+          <button class="copy" type="button" data-copy="1b75375ded951460e50b0276e550e9a1b967af75f7daadfbf4744db72899d05b">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171889</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/b531aa9d9db262e5e7a0ba99984e8c5eaa31a801a1df4824b2833a576c6f8753" target="_blank" rel="noreferrer">b531aa9d9d...576c6f8753</a>
+          <button class="copy" type="button" data-copy="b531aa9d9db262e5e7a0ba99984e8c5eaa31a801a1df4824b2833a576c6f8753">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171891</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/3ef742a6a582410a2941f6e852b6926e0a860aed1a07e11576ec7da7d5d254e9" target="_blank" rel="noreferrer">3ef742a6a5...a7d5d254e9</a>
+          <button class="copy" type="button" data-copy="3ef742a6a582410a2941f6e852b6926e0a860aed1a07e11576ec7da7d5d254e9">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171891</td>
+        <td data-label="Evidence">vault operation success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/08ee735d19a16cf8987f87b72c1935a00707148c82bd23444a14531e818fe8d5" target="_blank" rel="noreferrer">08ee735d19...1e818fe8d5</a>
+          <button class="copy" type="button" data-copy="08ee735d19a16cf8987f87b72c1935a00707148c82bd23444a14531e818fe8d5">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171895</td>
+        <td data-label="Evidence">bitcoin broadcast, send broadcasted, send success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/e5be1327257fedc334e11f42014347c356468ea6efdc77bd284857498cd4beaa" target="_blank" rel="noreferrer">e5be132725...498cd4beaa</a>
+          <button class="copy" type="button" data-copy="e5be1327257fedc334e11f42014347c356468ea6efdc77bd284857498cd4beaa">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171901</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/3c3ce6d5388331d78d35a94f7caef8b85a98b01cf38ce898fec3d6240ec3db51" target="_blank" rel="noreferrer">3c3ce6d538...240ec3db51</a>
+          <button class="copy" type="button" data-copy="3c3ce6d5388331d78d35a94f7caef8b85a98b01cf38ce898fec3d6240ec3db51">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171901</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/1c686cf08018f9ce17f7e71f3000b02b3079b5e8de69738bba32133dc8ee5f50" target="_blank" rel="noreferrer">1c686cf080...3dc8ee5f50</a>
+          <button class="copy" type="button" data-copy="1c686cf08018f9ce17f7e71f3000b02b3079b5e8de69738bba32133dc8ee5f50">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171904</td>
+        <td data-label="Evidence">bitcoin broadcast, send broadcasted, send success</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/4ecc3d5f7928a21214a24b4fbf8d92b41ea51e305b7f16bfeb717435d2f24bd1" target="_blank" rel="noreferrer">4ecc3d5f79...35d2f24bd1</a>
+          <button class="copy" type="button" data-copy="4ecc3d5f7928a21214a24b4fbf8d92b41ea51e305b7f16bfeb717435d2f24bd1">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171908</td>
+        <td data-label="Evidence">airdrop requested</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/28632bd121aafac6e360119dfd983342c0403e357dd4732ee7ce477988e3a251" target="_blank" rel="noreferrer">28632bd121...7988e3a251</a>
+          <button class="copy" type="button" data-copy="28632bd121aafac6e360119dfd983342c0403e357dd4732ee7ce477988e3a251">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171911</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/9120af650f6b1c85de7c3542c6b12e911e25ac930db3d8882928634e8fb6df80" target="_blank" rel="noreferrer">9120af650f...4e8fb6df80</a>
+          <button class="copy" type="button" data-copy="9120af650f6b1c85de7c3542c6b12e911e25ac930db3d8882928634e8fb6df80">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171911</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/3cc70c64624dcad6c9fe0f160c072a9aca24e5a009084fecb154bea8883d40c4" target="_blank" rel="noreferrer">3cc70c6462...a8883d40c4</a>
+          <button class="copy" type="button" data-copy="3cc70c64624dcad6c9fe0f160c072a9aca24e5a009084fecb154bea8883d40c4">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171917</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/9e2e2f63f14ae0c4da38ef6d98ef43105a7110d3f8b32382aa02f79107e62755" target="_blank" rel="noreferrer">9e2e2f63f1...9107e62755</a>
+          <button class="copy" type="button" data-copy="9e2e2f63f14ae0c4da38ef6d98ef43105a7110d3f8b32382aa02f79107e62755">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171923</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/527aea175ce149df100426d0c0a24f4201f0f55e52f77d5f15f59b69b6ed5d59" target="_blank" rel="noreferrer">527aea175c...69b6ed5d59</a>
+          <button class="copy" type="button" data-copy="527aea175ce149df100426d0c0a24f4201f0f55e52f77d5f15f59b69b6ed5d59">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171923</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/00718217bcea015dd21998dc035d1a5ab902c5b78bcf142f39c968e5ace8080d" target="_blank" rel="noreferrer">00718217bc...e5ace8080d</a>
+          <button class="copy" type="button" data-copy="00718217bcea015dd21998dc035d1a5ab902c5b78bcf142f39c968e5ace8080d">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171930</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/fe3c85f50947cdbc382f7a350521ec2db4c50eba9c67844001031703262e2281" target="_blank" rel="noreferrer">fe3c85f509...03262e2281</a>
+          <button class="copy" type="button" data-copy="fe3c85f50947cdbc382f7a350521ec2db4c50eba9c67844001031703262e2281">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171930</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/9e5c9091433fb64e8f3fd91d5540dd171cb6674b9de9619137d8e50266800dc7" target="_blank" rel="noreferrer">9e5c909143...0266800dc7</a>
+          <button class="copy" type="button" data-copy="9e5c9091433fb64e8f3fd91d5540dd171cb6674b9de9619137d8e50266800dc7">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171936</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/0d649f418b9abd3438b31b0ae1d2b82d9843931db1106b60e567935e4fe3b0f7" target="_blank" rel="noreferrer">0d649f418b...5e4fe3b0f7</a>
+          <button class="copy" type="button" data-copy="0d649f418b9abd3438b31b0ae1d2b82d9843931db1106b60e567935e4fe3b0f7">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171940</td>
+        <td data-label="Evidence">airdrop requested</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/690eecd486fd3969875619d1d168e0f091a7110c0b9594f03a5c224cb3eb7fb3" target="_blank" rel="noreferrer">690eecd486...4cb3eb7fb3</a>
+          <button class="copy" type="button" data-copy="690eecd486fd3969875619d1d168e0f091a7110c0b9594f03a5c224cb3eb7fb3">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171943</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/ab50a76d66022fdaf22f985101704eea9bac1be8bf2b507209fae606baf1ce26" target="_blank" rel="noreferrer">ab50a76d66...06baf1ce26</a>
+          <button class="copy" type="button" data-copy="ab50a76d66022fdaf22f985101704eea9bac1be8bf2b507209fae606baf1ce26">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171943</td>
+        <td data-label="Evidence">vault create success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/1fac9384c1179893aa1d57eacee8773786b6aebbc02f17abfdd84db0cd06f0c3" target="_blank" rel="noreferrer">1fac9384c1...b0cd06f0c3</a>
+          <button class="copy" type="button" data-copy="1fac9384c1179893aa1d57eacee8773786b6aebbc02f17abfdd84db0cd06f0c3">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171943</td>
+        <td data-label="Evidence">bitcoin broadcast</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/ebaf5fe430292ff00b8860f7a7cf38e691416b24bf13bcc6fa4098fab0e2e2df" target="_blank" rel="noreferrer">ebaf5fe430...fab0e2e2df</a>
+          <button class="copy" type="button" data-copy="ebaf5fe430292ff00b8860f7a7cf38e691416b24bf13bcc6fa4098fab0e2e2df">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171950</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/eaf9c2948dd64087332e778d17ef63aa36f1515bfc82d0b3e1823c133eb4a1a0" target="_blank" rel="noreferrer">eaf9c2948d...133eb4a1a0</a>
+          <button class="copy" type="button" data-copy="eaf9c2948dd64087332e778d17ef63aa36f1515bfc82d0b3e1823c133eb4a1a0">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171950</td>
+        <td data-label="Evidence">vault operation success, vault state applied</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/0c5616a8506e75b99e345428bb5931d6632b3d4b325c3e48468a363d877fa4e9" target="_blank" rel="noreferrer">0c5616a850...3d877fa4e9</a>
+          <button class="copy" type="button" data-copy="0c5616a8506e75b99e345428bb5931d6632b3d4b325c3e48468a363d877fa4e9">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171950</td>
+        <td data-label="Evidence">bitcoin broadcast</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/8d49556ba0e076a86428cbe13c6b9790a34b572dede8ebb37afe1fd383fd7ba9" target="_blank" rel="noreferrer">8d49556ba0...d383fd7ba9</a>
+          <button class="copy" type="button" data-copy="8d49556ba0e076a86428cbe13c6b9790a34b572dede8ebb37afe1fd383fd7ba9">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171957</td>
+        <td data-label="Evidence">vault operation success, vault state applied, Pending store: vault borrow:confirmed, Pending store: unit send:pending</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/10dae89dde79e3ab53d4c5f91e1b845a3e98339e5894d92d59de3f0d4784ae50" target="_blank" rel="noreferrer">10dae89dde...0d4784ae50</a>
+          <button class="copy" type="button" data-copy="10dae89dde79e3ab53d4c5f91e1b845a3e98339e5894d92d59de3f0d4784ae50">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171957</td>
+        <td data-label="Evidence">vault operation success, vault state applied, Pending store: vault borrow:confirmed, Pending store: btc send:pending</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/bd4351a57e5f2ffcfa899458bf153a199ee8ddcfdf68ac088a45e355a0eabf69" target="_blank" rel="noreferrer">bd4351a57e...55a0eabf69</a>
+          <button class="copy" type="button" data-copy="bd4351a57e5f2ffcfa899458bf153a199ee8ddcfdf68ac088a45e355a0eabf69">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171957</td>
+        <td data-label="Evidence">bitcoin broadcast, Pending store: unit send:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/171494f9b03420e24e9183fa041f6d43aed4377e1a8b7182bd4574c73d69d3ff" target="_blank" rel="noreferrer">171494f9b0...c73d69d3ff</a>
+          <button class="copy" type="button" data-copy="171494f9b03420e24e9183fa041f6d43aed4377e1a8b7182bd4574c73d69d3ff">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171961</td>
+        <td data-label="Evidence">vault operation success, vault state applied, Pending store: vault repay:confirmed, Pending store: unit send:pending</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/a15f1a2d4566d674ebdb8c9fbbae72270f43bcc06875484123c49b34d28b7a90" target="_blank" rel="noreferrer">a15f1a2d45...34d28b7a90</a>
+          <button class="copy" type="button" data-copy="a15f1a2d4566d674ebdb8c9fbbae72270f43bcc06875484123c49b34d28b7a90">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3171961</td>
+        <td data-label="Evidence">vault operation success, vault state applied, Pending store: btc send:confirmed, Pending store: vault repay:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
         </tbody>
       </table>
     </section>
@@ -734,8 +1223,8 @@
           <tr>
         <td data-label="Check">reviewer-mutinynet-funding</td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Total Sats">38238573</td>
-        <td data-label="Addresses">8 UTXOs / 38038573 sats, 20 UTXOs / 200000 sats</td>
+        <td data-label="Total Sats">37915890</td>
+        <td data-label="Addresses">9 UTXOs / 37455890 sats, 46 UTXOs / 460000 sats</td>
       </tr>
         </tbody>
       </table>
@@ -749,11 +1238,11 @@
       <div class="commands">
         <div class="command">
           <strong>Regression JSON</strong>
-          <code>artifacts/live-regression/testflight-no-usdc-20260601T194913Z.json</code>
+          <code>artifacts/live-regression/testflight-no-usdc-20260610T182604Z.json</code>
         </div>
         <div class="command">
           <strong>Maestro JSON</strong>
-          <code>artifacts/live-maestro/testflight-no-usdc-20260601T194913Z.json</code>
+          <code>artifacts/live-maestro/testflight-no-usdc-20260610T182604Z.json</code>
         </div>
         <div class="command">
           <strong>Run the gate</strong>

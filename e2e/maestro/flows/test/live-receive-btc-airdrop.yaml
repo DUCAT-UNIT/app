@@ -30,4 +30,4 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - assertVisible:
     text: 'Bitcoin address'
 - tapOn:
-    text: 'BTC Address, Tap to copy, tb1.*'
+    text: '.*Tap to copy.*'

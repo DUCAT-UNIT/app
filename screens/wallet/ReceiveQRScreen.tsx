@@ -104,6 +104,17 @@ export default function ReceiveQRScreen({
         : resolvedAssetType === 'UNIT'
           ? 'Only use this address to receive UNIT.'
           : 'Only use this address to receive Bitcoin.';
+  const copyAccessibilityAssetLabel =
+    resolvedAssetType === 'USDC'
+      ? 'Sepolia USDC Address'
+      : resolvedAssetType === 'ETH'
+        ? 'Sepolia ETH Address'
+        : resolvedAssetType === 'UNIT'
+          ? 'UNIT Address'
+          : 'BTC Address';
+  const copyAccessibilityLabel = `${copyAccessibilityAssetLabel}, ${
+    justCopied ? 'Copied' : 'Tap to copy'
+  }, ${address}`;
   const qrLogo = getQrLogo(resolvedAssetType);
 
   useEffect(() => {
@@ -278,6 +289,8 @@ export default function ReceiveQRScreen({
           onPress={handleCopy}
           activeOpacity={0.7}
           testID="receive-copy-btn"
+          accessibilityRole="button"
+          accessibilityLabel={copyAccessibilityLabel}
         >
           <View style={styles.addressContentContainer}>
             <View style={styles.addressLabelRow}>

@@ -5,6 +5,7 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from '@bitcoinerlab/secp256k1';
 import { validateBitcoinAddress, validateAndNormalizeAddress, deriveAddressesFromMnemonic, MUTINYNET_NETWORK, validateNetworkConfig } from '../bitcoin';
+import { UNISAT_WALLET_DERIVATION_MODE } from '../../constants/bitcoin';
 
 // Initialize ECC library for bitcoinjs-lib
 bitcoin.initEccLib(ecc);
@@ -97,6 +98,19 @@ describe('bitcoin utilities', () => {
       // Different mnemonics should generate different addresses
       expect(result1.segwitAddress).not.toBe(result2.segwitAddress);
       expect(result1.taprootAddress).not.toBe(result2.taprootAddress);
+    });
+
+    it('should derive UniSat account addresses with coin-type-0 paths and testnet encoding', () => {
+      const result = deriveAddressesFromMnemonic(
+        testMnemonic,
+        0,
+        UNISAT_WALLET_DERIVATION_MODE
+      );
+
+      expect(result.segwitAddress).toBe('tb1qcr8te4kr609gcawutmrza0j4xv80jy8zmfp6l0');
+      expect(result.taprootAddress).toBe(
+        'tb1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqp3mvzv'
+      );
     });
   });
 

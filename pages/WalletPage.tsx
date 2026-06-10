@@ -34,6 +34,7 @@ import { useBalance } from '../contexts/WalletDataContext';
 import { useNotifications } from '../stores/notificationStore';
 import { usePrice } from '../stores/priceStore';
 import { useSendFlow } from '../stores/sendFlowStore';
+import { getReceiveAddressTarget } from '../utils/receiveAddress';
 
 // Hooks
 import { useClaimNotifications } from '../hooks/useClaimNotifications';
@@ -118,7 +119,7 @@ export default function WalletPage({ route }: WalletPageProps) {
     receive: receiveCashuToken,
     receiveBtc: receiveBtcCashuToken,
   } = useCashu();
-  const { wallet, switchAccount, currentAccount } = useWallet();
+  const { wallet, switchAccount, currentAccount, walletProfile } = useWallet();
   const { intentStep, sendAssetType, sendAddressType, turboEnabled, btcTurboEnabled } =
     useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
@@ -171,6 +172,16 @@ export default function WalletPage({ route }: WalletPageProps) {
   const [showReceiveQR, setShowReceiveQR] = useState(false);
   const [receiveAssetType, setReceiveAssetType] = useState<'btc' | 'unit' | null>(null);
   const shouldHideTabBarForOverlay = showWithdrawSheet || showDepositSheet || showReceiveQR;
+  const btcReceiveTarget = getReceiveAddressTarget({
+    assetType: 'BTC',
+    wallet,
+    walletProfile,
+  });
+  const unitReceiveTarget = getReceiveAddressTarget({
+    assetType: 'UNIT',
+    wallet,
+    walletProfile,
+  });
 
   // QR Scanner
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -373,12 +384,16 @@ export default function WalletPage({ route }: WalletPageProps) {
           }}
           segwitAddress={wallet?.segwitAddress || ''}
           taprootAddress={wallet?.taprootAddress || ''}
+          btcAddress={btcReceiveTarget.address || ''}
+          btcAddressType={btcReceiveTarget.addressType}
           showToast={showToast}
           autoOpenQR={true}
           preSelectedAddress={
-            receiveAssetType === 'btc' ? wallet?.segwitAddress : wallet?.taprootAddress
+            receiveAssetType === 'btc' ? btcReceiveTarget.address : unitReceiveTarget.address
           }
-          preSelectedType={receiveAssetType === 'btc' ? 'BTC Address' : 'UNIT Address'}
+          preSelectedType={
+            receiveAssetType === 'btc' ? btcReceiveTarget.addressType : unitReceiveTarget.addressType
+          }
         />
         <StatusBar style="light" />
         {/* Snackbar is rendered at app level in AppNavigatorContent */}

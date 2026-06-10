@@ -13,7 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProcessingStepsList } from '../vaultCreation/ProcessingStepsList';
 import { useNotifications } from '../../stores/notificationStore';
 import { getTxUrl } from '../../utils/constants';
-import { getStaleLiquidationOpportunityMessage } from '../../utils/liquidationErrors';
+import {
+  getStaleLiquidationOpportunityMessage,
+  isStaleLiquidationOpportunityError,
+} from '../../utils/liquidationErrors';
 import { colors, fonts, fontSizes, spacing, radii } from '../../styles/theme';
 import type { LiquidationStep } from '../../stores/liquidationFlowStore';
 import type { ProcessingStep } from '../../stores/vault/vaultStoreTypes';
@@ -260,8 +263,12 @@ const LiquidationStatusScreen = React.memo(function LiquidationStatusScreen({
   }
 
   // ── Error ──
-  const errorTitle = isStaleOpportunity ? 'Opportunity Already Claimed' : 'Liquidation Failed';
-  const errorMessage = isStaleOpportunity
+  const shouldShowStaleOpportunity =
+    isStaleOpportunity || isStaleLiquidationOpportunityError(error);
+  const errorTitle = shouldShowStaleOpportunity
+    ? 'Opportunity Already Claimed'
+    : 'Liquidation Failed';
+  const errorMessage = shouldShowStaleOpportunity
     ? getStaleLiquidationOpportunityMessage(remainingVaultCount)
     : error || 'An error occurred';
 

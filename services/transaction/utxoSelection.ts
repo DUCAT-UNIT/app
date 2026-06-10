@@ -205,13 +205,18 @@ export function selectUtxosForTransaction(
  * @param feeRate - Fee rate in sats per vbyte
  * @returns Fee calculation function
  */
-export function createFeeCalculator(feeRate = 1): FeeCalculator {
+export function createFeeCalculator(
+  feeRate = 1,
+  inputType: 'segwit' | 'taproot' = 'segwit'
+): FeeCalculator {
   const BASE_TX_SIZE = 10;
   const P2WPKH_INPUT_SIZE = 68;
+  const P2TR_INPUT_SIZE = 57;
   const P2WPKH_OUTPUT_SIZE = 31;
+  const inputSize = inputType === 'taproot' ? P2TR_INPUT_SIZE : P2WPKH_INPUT_SIZE;
 
   return (numInputs: number, numOutputs: number): number => {
-    const txSize = BASE_TX_SIZE + numInputs * P2WPKH_INPUT_SIZE + numOutputs * P2WPKH_OUTPUT_SIZE;
+    const txSize = BASE_TX_SIZE + numInputs * inputSize + numOutputs * P2WPKH_OUTPUT_SIZE;
     const fee = Math.ceil(txSize * feeRate);
     if (fee <= 0) {
       throw new Error(ERRORS.FEE_TOO_LOW);

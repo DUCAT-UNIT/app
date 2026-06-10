@@ -14,6 +14,7 @@ import { SeedPhraseProvider } from '../contexts/SeedPhraseContext';
 import { TransactionBuildProvider } from '../contexts/TransactionBuildContext';
 import { TransactionExecutionProvider } from '../contexts/TransactionExecutionContext';
 import type { WalletAddresses } from '../contexts/WalletContext';
+import type { WalletImportProfile } from '../constants/bitcoin';
 import { useNotifications } from '../stores/notificationStore';
 
 // Local components
@@ -28,6 +29,7 @@ type TransactionType = 'deposit' | 'withdraw';
 export interface AppProvidersWrapperProps {
   wallet: WalletAddresses | null;
   currentAccount: number;
+  walletProfile: WalletImportProfile;
   notificationsEnabled: boolean;
   startPolling: (txid: string, onConfirmed: (confirmed: boolean) => void, onError?: (error: Error) => void) => void;
   sendTransactionConfirmedNotification: (assetType: DisplayAssetType, amount: string, txid: string, type?: TransactionType) => Promise<void>;
@@ -54,6 +56,7 @@ function createNotificationAdapter(
 export default function AppProvidersWrapper({
   wallet,
   currentAccount,
+  walletProfile,
   notificationsEnabled,
   startPolling,
   sendTransactionConfirmedNotification,
@@ -74,6 +77,7 @@ export default function AppProvidersWrapper({
     <TransactionBuildProvider
       wallet={wallet}
       currentAccount={currentAccount}
+      walletProfile={walletProfile}
     >
       <TransactionExecutionProvider
         currentAccount={currentAccount}

@@ -1,17 +1,53 @@
 const STALE_OPPORTUNITY_PATTERNS = [
   /utxo spent/i,
   /spent or not exist/i,
+  /already claimed/i,
+  /already liquidated/i,
+  /already repossessed/i,
   /validation of repovault failed/i,
-  /repo vault tx1id.*does not match computed repo.*tx1id/i,
-  /tx1id in request does not match computed/i,
+  /vault.*already.*(?:claimed|liquidated|repossessed)/i,
+  /repo vault tx1\s*i\s*d.*does not match computed repo.*tx1\s*i\s*d/i,
+  /tx1\s*i\s*d in request does not match computed/i,
 ];
+
+function extractLiquidationErrorText(error: string): string {
+  const parts = [error];
+
+  try {
+    const parsed = JSON.parse(error) as Record<string, unknown>;
+    if (typeof parsed.message === 'string') {
+      parts.push(parsed.message);
+    }
+    if (typeof parsed.error === 'string') {
+      parts.push(parsed.error);
+    }
+  } catch {
+    // Guardian errors are not guaranteed to be JSON.
+  }
+
+  return parts
+    .join(' ')
+    .replace(/\\"/g, '"')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function isStaleLiquidationOpportunityError(error: string | null | undefined): boolean {
   if (!error) {
     return false;
   }
 
-  return STALE_OPPORTUNITY_PATTERNS.some((pattern) => pattern.test(error));
+  const text = extractLiquidationErrorText(error);
+  const normalized = text.toLocaleLowerCase('en-US');
+
+  return (
+    STALE_OPPORTUNITY_PATTERNS.some((pattern) => pattern.test(text)) ||
+    (
+      normalized.includes('repo vault tx1') &&
+      normalized.includes('in request does not match computed repo')
+    )
+  );
 }
 
 export function getStaleLiquidationOpportunityMessage(remainingVaultCount: number): string {

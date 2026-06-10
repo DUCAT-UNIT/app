@@ -15,6 +15,7 @@ import {
 } from '../utils/bitcoin';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  STANDARD_ACCOUNT_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
   getDerivationPathForType,
   getWalletDerivationModeForProfile,
@@ -112,6 +113,7 @@ export interface WalletAccountAddresses {
 export const QUANTA_DISCOVERY_DERIVATION_MODES: readonly WalletDerivationMode[] = [
   DEFAULT_WALLET_DERIVATION_MODE,
   UNISAT_WALLET_DERIVATION_MODE,
+  STANDARD_ACCOUNT_DERIVATION_MODE,
 ];
 
 const saveCurrentAccountOrThrow = async (accountIndex: number): Promise<void> => {

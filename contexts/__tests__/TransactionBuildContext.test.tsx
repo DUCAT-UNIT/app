@@ -128,7 +128,8 @@ describe('TransactionBuildContext', () => {
       0,
       [], // unconfirmed UTXOs
       [], // spent UTXOs
-      undefined
+      undefined,
+      'segwit'
     );
     expect(result.current!.sendIntent).toEqual(mockIntent);
     expect(mockSetIntentStep).toHaveBeenCalledWith('reviewing');
@@ -327,7 +328,8 @@ describe('TransactionBuildContext', () => {
       0,
       [], // unconfirmed UTXOs
       [], // spent UTXOs
-      undefined
+      undefined,
+      'segwit'
     );
   });
 
@@ -394,7 +396,8 @@ describe('TransactionBuildContext', () => {
       0,
       mockUnconfirmedUtxos,
       [],
-      undefined
+      undefined,
+      'segwit'
     );
     expect(result.current!.sendIntent).toEqual(mockIntent);
   });

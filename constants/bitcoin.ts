@@ -24,15 +24,20 @@ export const MAX_FEE_RATE = 1000 as const;
 /**
  * BIP44 derivation path constants
  */
-const COIN_TYPE = APP_NETWORK_CONFIG.coinType;
+const APP_COIN_TYPE = APP_NETWORK_CONFIG.coinType;
+const BITCOIN_COIN_TYPE = 0;
 
-export type WalletDerivationMode = 'legacy_address_index' | 'bip44_account';
+export type WalletDerivationMode =
+  | 'legacy_address_index'
+  | 'bip44_account'
+  | 'unisat_account';
 export type WalletProfile = 'xverse' | 'unisat' | 'private_key';
 export type WalletImportProfile = Exclude<WalletProfile, 'private_key'>;
 
 // Match Xverse/Quanta account discovery: fixed BIP account 0, increment external address index.
 const XVERSE_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
-export const UNISAT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
+export const STANDARD_ACCOUNT_DERIVATION_MODE: WalletDerivationMode = 'bip44_account';
+export const UNISAT_WALLET_DERIVATION_MODE: WalletDerivationMode = 'unisat_account';
 export const DEFAULT_WALLET_DERIVATION_MODE: WalletDerivationMode = XVERSE_WALLET_DERIVATION_MODE;
 
 export const WALLET_PROFILES = {
@@ -94,7 +99,9 @@ export function getWalletDerivationModeForProfile(
 }
 
 export function getWalletProfileForDerivationMode(mode: WalletDerivationMode): WalletImportProfile {
-  return mode === UNISAT_WALLET_DERIVATION_MODE ? 'unisat' : 'xverse';
+  return mode === UNISAT_WALLET_DERIVATION_MODE || mode === STANDARD_ACCOUNT_DERIVATION_MODE
+    ? 'unisat'
+    : 'xverse';
 }
 
 export function getWalletProfileLabel(profile: WalletProfile): string {
@@ -107,30 +114,43 @@ export function getWalletProfileLabelForDerivationMode(mode: WalletDerivationMod
 
 export const LEGACY_DERIVATION_PATHS = {
   // BIP49: Nested SegWit P2SH-P2WPKH used by Xverse payment addresses
-  LEGACY: (account = 0): string => `m/49'/${COIN_TYPE}'/0'/0/${account}`,
+  LEGACY: (account = 0): string => `m/49'/${APP_COIN_TYPE}'/0'/0/${account}`,
 
   // BIP84: Native SegWit P2WPKH
-  SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/0'/0/${account}`,
+  SEGWIT: (account = 0): string => `m/84'/${APP_COIN_TYPE}'/0'/0/${account}`,
 
   // BIP86: Taproot P2TR
-  TAPROOT: (account = 0): string => `m/86'/${COIN_TYPE}'/0'/0/${account}`,
+  TAPROOT: (account = 0): string => `m/86'/${APP_COIN_TYPE}'/0'/0/${account}`,
 } as const;
 
 export const DERIVATION_PATHS = {
   // BIP49: Nested SegWit P2SH-P2WPKH used by Xverse payment addresses
-  LEGACY: (account = 0): string => `m/49'/${COIN_TYPE}'/${account}'/0/0`,
+  LEGACY: (account = 0): string => `m/49'/${APP_COIN_TYPE}'/${account}'/0/0`,
 
   // BIP84: Native SegWit P2WPKH
-  SEGWIT: (account = 0): string => `m/84'/${COIN_TYPE}'/${account}'/0/0`,
+  SEGWIT: (account = 0): string => `m/84'/${APP_COIN_TYPE}'/${account}'/0/0`,
 
   // BIP86: Taproot P2TR
-  TAPROOT: (account = 0): string => `m/86'/${COIN_TYPE}'/${account}'/0/0`,
+  TAPROOT: (account = 0): string => `m/86'/${APP_COIN_TYPE}'/${account}'/0/0`,
+} as const;
+
+export const UNISAT_DERIVATION_PATHS = {
+  // UniSat displays Bitcoin derivation paths with coin_type 0, even for tb1* test addresses.
+  LEGACY: (account = 0): string => `m/49'/${BITCOIN_COIN_TYPE}'/${account}'/0/0`,
+
+  // BIP84: Native SegWit P2WPKH
+  SEGWIT: (account = 0): string => `m/84'/${BITCOIN_COIN_TYPE}'/${account}'/0/0`,
+
+  // BIP86: Taproot P2TR
+  TAPROOT: (account = 0): string => `m/86'/${BITCOIN_COIN_TYPE}'/${account}'/0/0`,
 } as const;
 
 export function getDerivationPathSet(
   mode: WalletDerivationMode = DEFAULT_WALLET_DERIVATION_MODE
 ): typeof DERIVATION_PATHS {
-  return mode === 'legacy_address_index' ? LEGACY_DERIVATION_PATHS : DERIVATION_PATHS;
+  if (mode === 'legacy_address_index') return LEGACY_DERIVATION_PATHS;
+  if (mode === 'unisat_account') return UNISAT_DERIVATION_PATHS;
+  return DERIVATION_PATHS;
 }
 
 export function getDerivationPathForType(

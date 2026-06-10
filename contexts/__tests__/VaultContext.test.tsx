@@ -39,9 +39,12 @@ const mockPendingVaultStore = {
     txid: string;
     vaultTxid?: string;
     action: string;
+    timestamp?: number;
+    vaultPubkey?: string;
   },
   clearPendingTransaction: jest.fn(),
   clearPendingTransactionForAccount: jest.fn(),
+  discardPendingTransactionForAccount: jest.fn(),
 };
 
 jest.mock('../../stores/pendingVaultTransactionStore', () => {
@@ -174,6 +177,7 @@ describe('VaultContext', () => {
     mockPendingVaultStore.pendingTransaction = null;
     mockPendingVaultStore.clearPendingTransaction = jest.fn();
     mockPendingVaultStore.clearPendingTransactionForAccount = jest.fn();
+    mockPendingVaultStore.discardPendingTransactionForAccount = jest.fn();
     mockNotificationStore.snackbar = null;
     mockNotificationStore.showSnackbar = jest.fn();
     mockSendFlowStore.intentStep = 'idle';
@@ -468,6 +472,132 @@ describe('VaultContext', () => {
     });
     await flushEffects();
 
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).not.toHaveBeenCalled();
+    expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('discards old missing pending vault transactions when confirmed history matches current vault state', async () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'stale-local-txid',
+      vaultTxid: 'stale-local-vault-txid',
+      action: 'deposit',
+      timestamp: Date.now() - 4 * 60 * 1000,
+      vaultPubkey: 'vault-pubkey',
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [
+          {
+            transaction_id: 'confirmed-history-txid',
+            vault_amount: 50_000,
+            amount_borrowed: 10_000,
+            timestamp: 1_700_000_000,
+          },
+        ] as never,
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockPendingVaultStore.discardPendingTransactionForAccount).toHaveBeenCalledWith(
+      0,
+      'stale-local-vault-txid',
+      'Vault history is already settled; clearing stale pending lock.',
+    );
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).not.toHaveBeenCalled();
+    expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('discards old repo pending transactions when every txid is missing from chain', async () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'missing-repo-txid',
+      vaultTxid: 'missing-repo-txid',
+      action: 'repo',
+      timestamp: Date.now() - 4 * 60 * 1000,
+      vaultPubkey: 'vault-pubkey',
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [],
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockPendingVaultStore.discardPendingTransactionForAccount).toHaveBeenCalledWith(
+      0,
+      'missing-repo-txid',
+      'Liquidation repo transaction was not found after the recovery window.',
+    );
+    expect(mockPendingVaultStore.clearPendingTransactionForAccount).not.toHaveBeenCalled();
+    expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('keeps fresh repo pending transactions when the txid is not indexed yet', async () => {
+    mockPendingVaultStore.pendingTransaction = {
+      txid: 'fresh-repo-txid',
+      vaultTxid: 'fresh-repo-txid',
+      action: 'repo',
+      timestamp: Date.now() - 2 * 60 * 1000,
+      vaultPubkey: 'vault-pubkey',
+    };
+    mockGetWithRetry.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    } as never);
+    mockUseVaultDataFetch.mockReturnValue(
+      makeVault({
+        vaultData: {
+          totalCollateral: 0.0005,
+          totalDebt: 100,
+        } as never,
+        vaultTransactions: [],
+      })
+    );
+
+    act(() => {
+      create(
+        <VaultProvider>
+          <Consumer onValue={jest.fn()} />
+        </VaultProvider>
+      );
+    });
+    await flushEffects();
+
+    expect(mockPendingVaultStore.discardPendingTransactionForAccount).not.toHaveBeenCalled();
     expect(mockPendingVaultStore.clearPendingTransactionForAccount).not.toHaveBeenCalled();
     expect(mockNotificationStore.showSnackbar).not.toHaveBeenCalled();
   });

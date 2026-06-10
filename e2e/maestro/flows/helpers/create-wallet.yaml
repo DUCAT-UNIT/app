@@ -34,7 +34,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Confirm PIN (111111 again)
 - extendedWaitUntil:
     visible:
-      text: "Confirm Your PIN"
+      text: 'Confirm Your PIN'
     timeout: 10000
 - runFlow: enter-pin-setup.yaml
 - runFlow: retry-pin-setup-if-mismatch.yaml
@@ -57,16 +57,21 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: 'passkey-skip-btn'
 
-# Airdrop and post-create transitions are intentionally non-blocking:
-# on slow networks the modal can arrive late, and with short autolock settings
-# the app can lock before the modal appears. Do not make specific modal copy a
-# hard precondition for every runtime flow.
+# A fresh live wallet should receive a faucet response before we wait for the
+# funded BTC card. Wait for the funding modal once so it cannot appear later and
+# cover the wallet-screen assertion.
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 - runFlow: unlock-if-locked.yaml
 
-# Accept airdrop if it appeared. Tapping "Get Started" dismisses the success modal.
-- runFlow: dismiss-airdrop.yaml
+# Accept airdrop once it appears. Tapping "Get Started" dismisses the success modal.
+- extendedWaitUntil:
+    visible:
+      text: 'Get Started'
+    timeout: 45000
+- tapOn:
+    text: 'Get Started'
+- waitForAnimationToEnd
 - runFlow: unlock-if-locked.yaml
 
 # Dismiss low ecash modal if it appears

@@ -645,9 +645,11 @@ describe('cashuMeltOperations', () => {
         fee: 1000,
       });
 
-      await expect(completeMelt('quote123', 100)).rejects.toThrow(
-        'Mint did not confirm the withdrawal. State: PENDING.'
-      );
+      await expect(completeMelt('quote123', 100)).rejects.toMatchObject({
+        message: 'Mint did not confirm the withdrawal. State: PENDING.',
+        meltState: 'PENDING',
+        meltTxid: 'broadcasttxid123',
+      });
 
       expect(removeProofs).not.toHaveBeenCalledWith([exactProof]);
     });

@@ -62,11 +62,19 @@ describe('useAmountInput', () => {
   });
 
   describe('balance calculation', () => {
-    it('should use only segwit balance for BTC', () => {
+    it('should use the selected source balance for BTC', () => {
       const { result } = renderHook(() => useAmountInput(defaultProps));
 
-      // BTC is always sent from segwit, so only show segwit balance
-      expect(result.current!.balance).toBe(50000000); // segwit only, not combined
+      expect(result.current!.balance).toBe(50000000);
+      expect(result.current!.assetLabel).toBe('BTC');
+    });
+
+    it('should use Taproot balance when Taproot is selected for BTC', () => {
+      const { result } = renderHook(() =>
+        useAmountInput({ ...defaultProps, sendAddressType: 'taproot' })
+      );
+
+      expect(result.current!.balance).toBe(30000000);
       expect(result.current!.assetLabel).toBe('BTC');
     });
 
@@ -138,18 +146,16 @@ describe('useAmountInput', () => {
         await result.current!.handleMaxPress();
       });
 
-      // Should always use segwit address and segwit balance only for BTC
       expect(transactionCalculationService.calculateMaxSendableBTC).toHaveBeenCalledWith({
         sourceAddress: 'bc1qsegwit',
-        btcBalance: 50000000, // segwit balance only, not combined
+        btcBalance: 50000000,
       });
       expect(mockSetSendAmount).toHaveBeenCalledWith('0.75');
     });
 
-    it('should always use segwit address for BTC regardless of destination', async () => {
+    it('should calculate max BTC using Taproot address and balance when selected', async () => {
       (transactionCalculationService.calculateMaxSendableBTC as jest.Mock).mockResolvedValue(0.6);
 
-      // Even when sending to taproot address, should use segwit as source
       const { result } = renderHook(() =>
         useAmountInput({ ...defaultProps, sendAddressType: 'taproot' })
       );
@@ -158,10 +164,9 @@ describe('useAmountInput', () => {
         await result.current!.handleMaxPress();
       });
 
-      // Should always use segwit address and segwit balance for BTC
       expect(transactionCalculationService.calculateMaxSendableBTC).toHaveBeenCalledWith({
-        sourceAddress: 'bc1qsegwit',
-        btcBalance: 50000000, // segwit balance only, not combined
+        sourceAddress: 'bc1ptaproot',
+        btcBalance: 30000000,
       });
       expect(mockSetSendAmount).toHaveBeenCalledWith('0.6');
     });
@@ -202,7 +207,6 @@ describe('useAmountInput', () => {
         await result.current!.handleMaxPress();
       });
 
-      // Should fallback to segwit balance only, not combined
       expect(mockSetSendAmount).toHaveBeenCalledWith('50000000');
     });
 

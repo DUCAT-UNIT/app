@@ -199,7 +199,7 @@ export function useTransactionBroadcast({
         }
 
         // Register TX for push-notification monitoring (fire-and-forget)
-        void watchTransaction(txid, wallet?.segwitAddress || '');
+        void watchTransaction(txid, intent.sourceAddress || wallet?.segwitAddress || '');
 
         // Update state after outputs are extracted
         setBroadcastedTxid(txid);
@@ -331,6 +331,7 @@ export function useTransactionBroadcast({
       notificationsEnabled,
       fetchBalance,
       fetchTransactionHistory,
+      wallet?.segwitAddress,
     ]
   );
 

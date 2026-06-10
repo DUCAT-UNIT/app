@@ -84,7 +84,7 @@ export default function SendInputScreen({
 
   // Hooks
   const { btcPrice } = usePrice();
-  const { wallet } = useWallet();
+  const { wallet, walletProfile } = useWallet();
   const { keyboardHeight } = useKeyboard();
   const { settingsHandlers } = useSettingsHandlers();
   const ecashThreshold = settingsHandlers?.ecashThreshold || 10000;
@@ -105,12 +105,17 @@ export default function SendInputScreen({
   const assetSymbol = assetType === 'btc' ? 'BTC' : 'UNIT';
   const isBtc = assetType === 'btc';
   const isTurboBtc = isBtc && btcTurboEnabled;
+  const preferredBtcSourceAddress =
+    walletProfile === 'unisat'
+      ? wallet?.taprootAddress || wallet?.segwitAddress
+      : wallet?.segwitAddress || wallet?.taprootAddress;
+  const feeSourceAddress = isBtc ? preferredBtcSourceAddress : wallet?.segwitAddress;
 
   // Fee estimation
   const transactionType = isBtc ? TransactionType.BTC_SEND : TransactionType.UNIT_SEND;
   const { feeEstimateSats } = useFeeEstimate({
     type: transactionType,
-    sourceAddress: wallet?.segwitAddress,
+    sourceAddress: feeSourceAddress,
     feeRate: selectedFeeRate,
     enabled: true,
   });

@@ -461,21 +461,34 @@ const ACCEPTED_MELT_STATES = new Set(['PAID']);
 
 const isMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): boolean =>
   result.paid === true ||
-  (typeof result.state === 'string' && ACCEPTED_MELT_STATES.has(result.state));
+  (typeof result.state === 'string' && ACCEPTED_MELT_STATES.has(result.state.toUpperCase()));
 
-const assertMeltPaid = (result: Pick<MeltResponse, 'paid' | 'state'>): void => {
-  if (!isMeltPaid(result)) {
-    const state = result.state ? ` State: ${result.state}.` : '';
-    throw new Error(`Mint did not confirm the withdrawal.${state}`);
-  }
+const normalizeMeltTxid = (value?: string | null): string => {
+  const trimmed = value?.trim();
+  if (!trimmed) return '';
+  return trimmed.split(':')[0] || trimmed;
 };
 
 const getMeltTxid = (
   result: Pick<MeltResponse, 'txid' | 'outpoint' | 'payment_preimage' | 'quote'>
 ): string => {
-  if (result.txid) return result.txid;
-  if (result.outpoint) return result.outpoint.split(':')[0] || result.outpoint;
+  const txid = normalizeMeltTxid(result.txid);
+  if (txid) return txid;
+  const outpointTxid = normalizeMeltTxid(result.outpoint);
+  if (outpointTxid) return outpointTxid;
   return result.payment_preimage || result.quote || '';
+};
+
+const assertMeltPaid = (result: MeltResponse): void => {
+  if (!isMeltPaid(result)) {
+    const state = result.state ? ` State: ${result.state}.` : '';
+    const error = new Error(`Mint did not confirm the withdrawal.${state}`) as MeltOperationError;
+    const meltTxid = getMeltTxid(result);
+    error.meltResponse = result;
+    error.meltState = typeof result.state === 'string' ? result.state.toUpperCase() : undefined;
+    error.meltTxid = meltTxid || undefined;
+    throw error;
+  }
 };
 
 const getMeltFee = (result: Pick<MeltResponse, 'fee_paid' | 'fee'>): number => {
@@ -491,10 +504,7 @@ const getMeltChangeOutputCount = (changeCapacity: number): number => {
   return Math.max(1, Math.ceil(Math.log2(changeCapacity)));
 };
 
-const getMeltChangeCapacity = async (
-  quoteId: string,
-  unit: CashuUnit
-): Promise<number> => {
+const getMeltChangeCapacity = async (quoteId: string, unit: CashuUnit): Promise<number> => {
   if (isDefaultCashuUnit(unit)) {
     return 0;
   }
@@ -657,6 +667,9 @@ export type MeltSubmissionStatus = 'not_submitted' | 'unknown' | 'accepted' | 'r
 
 export interface MeltOperationError extends Error {
   meltSubmissionStatus?: MeltSubmissionStatus;
+  meltResponse?: MeltResponse;
+  meltState?: string;
+  meltTxid?: string;
   spentProofsRemoved?: number;
 }
 

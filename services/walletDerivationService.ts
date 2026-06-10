@@ -13,7 +13,7 @@ let cachedMode: WalletDerivationMode | null = null;
 const LEGACY_WALLET_DERIVATION_MODE: WalletDerivationMode = 'legacy_address_index';
 
 const isWalletDerivationMode = (value: string | null): value is WalletDerivationMode =>
-  value === 'legacy_address_index' || value === 'bip44_account';
+  value === 'legacy_address_index' || value === 'bip44_account' || value === 'unisat_account';
 
 export const getWalletDerivationMode = async (): Promise<WalletDerivationMode> => {
   if (cachedMode) {

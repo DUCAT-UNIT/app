@@ -27,6 +27,7 @@ export default function AppNavigator(): React.JSX.Element {
   const {
     wallet,
     currentAccount,
+    walletProfile,
   } = useWallet();
   const { fetchBalance } = useBalance();
   const historyContext = useTransactionHistoryContext();
@@ -58,6 +59,7 @@ export default function AppNavigator(): React.JSX.Element {
     <AppProvidersWrapper
       wallet={wallet}
       currentAccount={currentAccount}
+      walletProfile={walletProfile}
       notificationsEnabled={notificationsEnabled}
       startPolling={startPolling}
       sendTransactionConfirmedNotification={sendTransactionConfirmedNotification}

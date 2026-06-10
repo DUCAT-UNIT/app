@@ -18,7 +18,10 @@ import { getWithRetry } from '../utils/apiClient';
 import { getTxApiUrl } from '../utils/constants';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
-import { isPendingVaultTransactionApplied } from '../utils/vaultPendingGuard';
+import {
+  findSettledHistoryForStalePendingVaultTransaction,
+  isPendingVaultTransactionApplied,
+} from '../utils/vaultPendingGuard';
 import { useAuthSession } from './AuthContext';
 import { useWallet } from './WalletContext';
 
@@ -26,8 +29,10 @@ const VAULT_HEALTH_ALERT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const VAULT_HEALTH_WARNING_KEY = 'vault_health_warning_last_alert';
 const VAULT_HEALTH_CRITICAL_KEY = 'vault_health_critical_last_alert';
 const VAULT_HEALTH_BAND_KEY = 'vault_health_last_band';
+const REPO_PENDING_NOT_FOUND_GRACE_MS = 3 * 60 * 1000;
 
 type VaultHealthBand = 'safe' | 'warning' | 'critical';
+type TxChainState = 'confirmed' | 'unconfirmed' | 'not_found' | 'unknown';
 
 function getVaultHealthBand(healthPercent: number): VaultHealthBand {
   if (healthPercent <= 170) return 'critical';
@@ -59,7 +64,7 @@ function getPendingVaultConfirmationTxids(tx: PendingVaultTransaction): string[]
   return Array.from(new Set([tx.txid, tx.vaultTxid].filter(Boolean) as string[]));
 }
 
-async function isConfirmedOnChain(txid: string): Promise<boolean> {
+async function getTxChainState(txid: string): Promise<TxChainState> {
   try {
     const response = await getWithRetry(getTxApiUrl(txid), {
       timeout: 8000,
@@ -68,27 +73,45 @@ async function isConfirmedOnChain(txid: string): Promise<boolean> {
       circuitKey: 'mutinynet-vault-pending-confirm',
     });
     if (!response.ok) {
-      return false;
+      return response.status === 404 ? 'not_found' : 'unknown';
     }
     const tx = await response.json();
-    return Boolean(tx.status?.confirmed);
+    return tx.status?.confirmed ? 'confirmed' : 'unconfirmed';
   } catch (error) {
     logger.warn('[VaultContext] Failed to check pending vault tx chain confirmation', {
       txid,
       error: error instanceof Error ? error.message : String(error),
     });
-    return false;
+    return 'unknown';
   }
 }
 
-async function isPendingVaultConfirmedOnChain(tx: PendingVaultTransaction): Promise<boolean> {
+async function getPendingVaultChainStates(tx: PendingVaultTransaction): Promise<TxChainState[]> {
   const txids = getPendingVaultConfirmationTxids(tx);
   if (txids.length === 0) {
-    return false;
+    return [];
   }
 
-  const confirmations = await Promise.all(txids.map(isConfirmedOnChain));
-  return confirmations.every(Boolean);
+  return Promise.all(txids.map(getTxChainState));
+}
+
+function shouldDiscardMissingRepoPendingTransaction(
+  tx: PendingVaultTransaction,
+  chainStates: TxChainState[],
+): boolean {
+  const ageMs = Date.now() - tx.timestamp;
+
+  return (
+    tx.action === 'repo' &&
+    Number.isFinite(ageMs) &&
+    ageMs >= REPO_PENDING_NOT_FOUND_GRACE_MS &&
+    chainStates.length > 0 &&
+    chainStates.every((state) => state === 'not_found')
+  );
+}
+
+function isMissingFromChain(chainStates: TxChainState[]): boolean {
+  return chainStates.length > 0 && chainStates.every((state) => state === 'not_found');
 }
 
 export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
@@ -196,8 +219,8 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
         );
       } else if (pendingVaultChainCheckRef.current !== pendingConfirmationKey) {
         pendingVaultChainCheckRef.current = pendingConfirmationKey;
-        isPendingVaultConfirmedOnChain(pendingVaultTx).then((isConfirmed) => {
-          if (!isConfirmed || cancelled) {
+        getPendingVaultChainStates(pendingVaultTx).then(async (chainStates) => {
+          if (cancelled) {
             return;
           }
 
@@ -207,6 +230,74 @@ export const VaultProvider: React.FC<VaultProviderProps> = ({ children }) => {
             currentPending?.txid !== pendingVaultTx.txid ||
             currentPending?.vaultTxid !== pendingVaultTx.vaultTxid
           ) {
+            return;
+          }
+
+          const isConfirmed =
+            chainStates.length > 0 && chainStates.every((state) => state === 'confirmed');
+          const missingFromChain = isMissingFromChain(chainStates);
+          if (!isConfirmed && shouldDiscardMissingRepoPendingTransaction(
+            pendingVaultTx,
+            chainStates,
+          )) {
+            const missingTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
+            logger.warn('[VaultContext] Discarding old repo pending transaction missing from chain', {
+              action: pendingVaultTx.action,
+              txid: missingTxid,
+              ageMs: Date.now() - pendingVaultTx.timestamp,
+            });
+            try {
+              await usePendingVaultTransactionStore
+                .getState()
+                .discardPendingTransactionForAccount(
+                  currentAccount,
+                  missingTxid,
+                  'Liquidation repo transaction was not found after the recovery window.',
+                );
+            } catch (error) {
+              logger.warn('[VaultContext] Failed to discard old repo pending transaction', {
+                action: pendingVaultTx.action,
+                txid: missingTxid,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+            return;
+          }
+
+          const settledHistory = missingFromChain
+            ? findSettledHistoryForStalePendingVaultTransaction(
+              pendingVaultTx,
+              vaultData,
+              vaultTransactions,
+            )
+            : null;
+          if (!isConfirmed && settledHistory) {
+            const missingTxid = pendingVaultTx.vaultTxid || pendingVaultTx.txid;
+            logger.warn('[VaultContext] Discarding stale pending vault transaction after settled history', {
+              action: pendingVaultTx.action,
+              txid: missingTxid,
+              settledTxid: settledHistory.transaction_id,
+              ageMs: Date.now() - pendingVaultTx.timestamp,
+            });
+            try {
+              await usePendingVaultTransactionStore
+                .getState()
+                .discardPendingTransactionForAccount(
+                  currentAccount,
+                  missingTxid,
+                  'Vault history is already settled; clearing stale pending lock.',
+                );
+            } catch (error) {
+              logger.warn('[VaultContext] Failed to discard stale pending vault transaction', {
+                action: pendingVaultTx.action,
+                txid: missingTxid,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+            return;
+          }
+
+          if (!isConfirmed) {
             return;
           }
 

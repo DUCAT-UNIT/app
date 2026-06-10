@@ -67,6 +67,7 @@ export default function QRModal({
   allowBackdropDismiss = false,
 }: QRModalProps) {
   if (!address) return null;
+  const isUnitAddress = addressType === 'Taproot' || addressType === 'UNIT Address';
 
   return (
     <>
@@ -107,12 +108,12 @@ export default function QRModal({
           </TouchableOpacity>
           <View style={localStyles.titleContainer}>
             <Text style={styles.qrModalTitle}>
-              {addressType === 'Taproot' || addressType === 'UNIT Address' ? 'UNIT address' : 'Bitcoin address'}
+              {isUnitAddress ? 'UNIT address' : 'Bitcoin address'}
             </Text>
           </View>
         </View>
         <Text style={styles.qrModalSubtitle}>
-          {addressType === 'Taproot' || addressType === 'UNIT Address'
+          {isUnitAddress
             ? 'Only use this address to receive UNIT.'
             : 'Only use this address to receive Bitcoin.'}
         </Text>
@@ -125,7 +126,7 @@ export default function QRModal({
             backgroundColor="white"
             color="black"
             logo={
-              addressType === 'Taproot' || addressType === 'UNIT Address'
+              isUnitAddress
                 ? require('../../assets/logos/unit-log.png')
                 : require('../../assets/logos/btc-logo.png')
             }
@@ -144,7 +145,7 @@ export default function QRModal({
           <View style={localStyles.addressContentContainer}>
             <View style={localStyles.addressLabelRow}>
               <Text style={styles.qrAddressLabelText}>
-                {addressType === 'Taproot' || addressType === 'UNIT Address' ? 'UNIT' : addressType}
+                {isUnitAddress ? 'UNIT' : addressType}
               </Text>
               <Text style={localStyles.tapToCopyText}>Tap to copy</Text>
             </View>

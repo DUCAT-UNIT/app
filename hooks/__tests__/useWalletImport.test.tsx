@@ -281,7 +281,7 @@ describe('useWalletImport', () => {
       expect(result.current!.isImportedWallet).toBe(true);
     });
 
-    it('should import UniSat seed phrases with account-index derivation', async () => {
+    it('should import and persist UniSat seed phrases with BIP account derivation', async () => {
       const { result } = renderHook(() => useWalletImport(mockProps), {
         initialProps: mockProps,
       });
@@ -298,6 +298,16 @@ describe('useWalletImport', () => {
       });
 
       expect(WalletService.importWallet).toHaveBeenCalledWith(
+        seedPhrase.join(' '),
+        mockProps.currentAccount,
+        UNISAT_WALLET_DERIVATION_MODE
+      );
+
+      await act(async () => {
+        await result.current!.persistImportedWallet();
+      });
+
+      expect(WalletService.saveWalletToStorage).toHaveBeenCalledWith(
         seedPhrase.join(' '),
         mockProps.currentAccount,
         UNISAT_WALLET_DERIVATION_MODE

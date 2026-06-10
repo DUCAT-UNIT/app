@@ -20,6 +20,23 @@ describe('liquidationErrors', () => {
     ).toBe(true);
   });
 
+  it('detects guardian repo Tx1 mismatch responses with spaced IDs and escaped JSON details', () => {
+    expect(
+      isStaleLiquidationOpportunityError(
+        '{"code":null,"message":"Message: Repo Vault Tx1 ID in request does not match computed Repo Tx1ID Error: Custom(\\"Repo Vault Tx1ID d85cd3 in request does not match computed Repo vault Tx1ID aa885d\\")"}'
+      )
+    ).toBe(true);
+  });
+
+  it('detects already-claimed liquidation opportunity responses', () => {
+    expect(
+      isStaleLiquidationOpportunityError(
+        'Vault was already claimed by another liquidation transaction'
+      )
+    ).toBe(true);
+    expect(isStaleLiquidationOpportunityError('Opportunity already liquidated')).toBe(true);
+  });
+
   it('does not treat generic liquidation failures as stale opportunities', () => {
     expect(isStaleLiquidationOpportunityError('Insufficient funds')).toBe(false);
     expect(isStaleLiquidationOpportunityError(null)).toBe(false);

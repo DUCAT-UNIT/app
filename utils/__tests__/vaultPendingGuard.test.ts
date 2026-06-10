@@ -1,6 +1,7 @@
 import type { VaultData, VaultHistoryTransaction } from '../../services/vaultService';
 import type { PendingVaultTransaction } from '../../stores/pendingVaultTransactionStore';
 import {
+  findSettledHistoryForStalePendingVaultTransaction,
   findPendingVaultHistoryTransaction,
   isPendingVaultTransactionApplied,
   shouldBlockVaultOperationForPendingTx,
@@ -109,5 +110,62 @@ describe('vaultPendingGuard', () => {
         [borrowHistory]
       )
     ).toBe(true);
+  });
+
+  it('finds settled history for an old pending transaction whose txid never matched history', () => {
+    const now = Date.UTC(2026, 5, 10, 12, 0, 0);
+    const stalePending = {
+      ...pendingDeposit,
+      txid: 'stale-local-txid',
+      vaultTxid: 'stale-local-vault-txid',
+      timestamp: now - 4 * 60 * 1000,
+    };
+
+    expect(
+      findSettledHistoryForStalePendingVaultTransaction(
+        stalePending,
+        makeVaultData(),
+        [makeHistory({ transaction_id: 'confirmed-history-txid' })],
+        now
+      )
+    )?.toMatchObject({ transaction_id: 'confirmed-history-txid' });
+  });
+
+  it('keeps fresh pending transactions even when current history is settled', () => {
+    const now = Date.UTC(2026, 5, 10, 12, 0, 0);
+    const freshPending = {
+      ...pendingDeposit,
+      txid: 'fresh-local-txid',
+      vaultTxid: 'fresh-local-vault-txid',
+      timestamp: now - 2 * 60 * 1000,
+    };
+
+    expect(
+      findSettledHistoryForStalePendingVaultTransaction(
+        freshPending,
+        makeVaultData(),
+        [makeHistory({ transaction_id: 'confirmed-history-txid' })],
+        now
+      )
+    ).toBeNull();
+  });
+
+  it('keeps old pending transactions when vault balances do not match settled history', () => {
+    const now = Date.UTC(2026, 5, 10, 12, 0, 0);
+    const stalePending = {
+      ...pendingDeposit,
+      txid: 'stale-local-txid',
+      vaultTxid: 'stale-local-vault-txid',
+      timestamp: now - 4 * 60 * 1000,
+    };
+
+    expect(
+      findSettledHistoryForStalePendingVaultTransaction(
+        stalePending,
+        makeVaultData({ totalCollateral: 0.00005 }),
+        [makeHistory({ transaction_id: 'confirmed-history-txid' })],
+        now
+      )
+    ).toBeNull();
   });
 });

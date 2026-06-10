@@ -89,6 +89,44 @@ export function useLiquidationExecution({
       });
     };
 
+    const discardPreSubmitPendingTransaction = async (reason: unknown): Promise<void> => {
+      if (!preSubmitPendingRepoTxid) {
+        return;
+      }
+
+      logger.info('[Liquidation] Discarding pre-submit repo recovery after stale rejection', {
+        txid: preSubmitPendingRepoTxid,
+        hasSwapRecovery: !!preSubmitSwapRecoveryRepoTxid,
+        reason: reason instanceof Error ? reason.message : String(reason),
+      });
+
+      try {
+        await usePendingVaultTransactionStore
+          .getState()
+          .discardPendingTransactionForAccount(currentAccount, preSubmitPendingRepoTxid, reason);
+      } catch (pendingError) {
+        logger.warn('[Liquidation] Failed to discard stale repo pending recovery', {
+          txid: preSubmitPendingRepoTxid,
+          error: pendingError instanceof Error ? pendingError.message : String(pendingError),
+        });
+      }
+
+      if (!preSubmitSwapRecoveryRepoTxid) {
+        return;
+      }
+
+      try {
+        await clearPendingLiquidationSwapBroadcast(preSubmitSwapRecoveryRepoTxid);
+      } catch (swapRecoveryError) {
+        logger.warn('[Liquidation] Failed to clear stale repo swap recovery', {
+          txid: preSubmitSwapRecoveryRepoTxid,
+          error: swapRecoveryError instanceof Error
+            ? swapRecoveryError.message
+            : String(swapRecoveryError),
+        });
+      }
+    };
+
     try {
       // Select vaults (uses selectItemsForAmount — no duplicate greedy loop)
       const claimed = selectItemsForAmount(vaultsFull, investAmount);
@@ -308,22 +346,26 @@ export function useLiquidationExecution({
         store.getState().setCurrentStep('success');
       } else {
         const errorMessage = result.error || 'Liquidation failed';
-        retainPreSubmitPendingTransaction(errorMessage);
-        if (isStaleLiquidationOpportunityError(errorMessage)) {
+        const staleOpportunity = isStaleLiquidationOpportunityError(errorMessage);
+        if (staleOpportunity) {
+          await discardPreSubmitPendingTransaction(errorMessage);
           store.getState().markVaultsClaimed(claimedVaultIds);
         } else {
+          retainPreSubmitPendingTransaction(errorMessage);
           store.getState().releaseVaults(claimedVaultIds);
         }
         store.getState().setError(errorMessage);
         store.getState().setCurrentStep('error');
       }
     } catch (err: unknown) {
-      retainPreSubmitPendingTransaction(err);
       const errorMessage = err instanceof Error ? err.message : 'Liquidation failed';
       const executingVaultIds = store.getState().executingVaultIds;
-      if (isStaleLiquidationOpportunityError(errorMessage)) {
+      const staleOpportunity = isStaleLiquidationOpportunityError(errorMessage);
+      if (staleOpportunity) {
+        await discardPreSubmitPendingTransaction(err);
         store.getState().markVaultsClaimed(executingVaultIds);
       } else {
+        retainPreSubmitPendingTransaction(err);
         store.getState().releaseVaults(executingVaultIds);
       }
       logger.warn('[Liquidation] Execution error', {

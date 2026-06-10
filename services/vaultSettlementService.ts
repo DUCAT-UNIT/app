@@ -284,9 +284,19 @@ function isAcceptedTurboMeltQuote(quote: Pick<MeltQuote, 'paid' | 'state'>): boo
   return quote.paid === true || ACCEPTED_TURBO_MELT_STATES.has(getMeltQuoteState(quote));
 }
 
+function normalizeRecoverableMeltTxid(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.split(':')[0] || trimmed;
+}
+
+function getSubmittedMeltTxid(quote: RecoverableMeltQuote): string | null {
+  return normalizeRecoverableMeltTxid(quote.txid) || normalizeRecoverableMeltTxid(quote.outpoint);
+}
+
 function getRecoverableMeltTxid(quote: RecoverableMeltQuote, fallbackQuoteId: string): string {
-  if (quote.txid) return quote.txid;
-  if (quote.outpoint) return quote.outpoint.split(':')[0] || quote.outpoint;
+  const submittedTxid = getSubmittedMeltTxid(quote);
+  if (submittedTxid) return submittedTxid;
   return quote.payment_preimage || quote.quote || fallbackQuoteId;
 }
 
@@ -614,13 +624,16 @@ export async function refreshPersistedTurboMeltSettlementStatus(): Promise<Vault
 
   const meltState = getMeltQuoteState(meltQuote);
 
-  if (isAcceptedTurboMeltQuote(meltQuote)) {
-    const meltTxid = getRecoverableMeltTxid(meltQuote, cashuMeltQuoteId);
+  const submittedMeltTxid = getSubmittedMeltTxid(meltQuote);
+  if (isAcceptedTurboMeltQuote(meltQuote) || submittedMeltTxid) {
+    const meltTxid = submittedMeltTxid || getRecoverableMeltTxid(meltQuote, cashuMeltQuoteId);
     useVaultSettlementStore.getState().setCashuMeltTxid(meltTxid);
     useVaultSettlementStore.getState().setPhase('waiting_turbo_release');
     return {
       status: 'ready_to_repay',
-      message: 'TurboUNIT melt was accepted. Return to the repay flow to finish vault repayment.',
+      message: isAcceptedTurboMeltQuote(meltQuote)
+        ? 'TurboUNIT melt was accepted. Return to the repay flow to finish vault repayment.'
+        : 'TurboUNIT melt was submitted. Return to the repay flow to finish vault repayment.',
       lastStatus: meltState,
     };
   }

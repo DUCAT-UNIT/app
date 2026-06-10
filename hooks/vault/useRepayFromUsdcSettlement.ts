@@ -47,12 +47,15 @@ const TURBO_REPAY_QUOTE_TIMEOUT_MS = 20_000;
 const USDC_REPAY_QUOTE_TIMEOUT_MS = 30_000;
 const RAW_REPAY_MISSING_INPUT_MAX_ATTEMPTS = 4;
 const RAW_REPAY_MISSING_INPUT_RETRY_MS = 15_000;
+const TURBO_REPAY_PENDING_MELT_QUOTE_TIMEOUT_MS = 45_000;
+const TURBO_REPAY_PENDING_MELT_QUOTE_POLL_MS = 3_000;
 const CASHU_MINT_WITHDRAWAL_FAILURE = 'Withdrawal failed - your ecash tokens remain valid';
 const LOCAL_PENDING_SETTLEMENT_ERROR =
   'A vault settlement is still pending. Resume or reset it before starting another.';
 const TURBOUNIT_MINT_WITHDRAWAL_FAILURE_MESSAGE =
   'The TurboUNIT mint could not broadcast the UNIT withdrawal. Your TurboUNIT remains in your wallet. Try a smaller amount or try again later.';
 const ACCEPTED_MELT_STATES = new Set(['PAID']);
+const FAILED_MELT_STATES = new Set(['FAILED', 'EXPIRED', 'CANCELED', 'CANCELLED']);
 
 type RecoverableMeltQuote = MeltQuote & {
   txid?: string | null;
@@ -147,16 +150,34 @@ function refreshCashuBalanceAfterMelt(
     });
 }
 
+function getMeltQuoteState(quote: Pick<MeltQuote, 'paid' | 'state'>): string {
+  if (typeof quote.state === 'string' && quote.state.trim()) {
+    return quote.state.toUpperCase();
+  }
+  return quote.paid === true ? 'PAID' : 'UNKNOWN';
+}
+
 function isAcceptedMeltQuote(quote: Pick<MeltQuote, 'paid' | 'state'>): boolean {
-  return (
-    quote.paid === true ||
-    (typeof quote.state === 'string' && ACCEPTED_MELT_STATES.has(quote.state.toUpperCase()))
-  );
+  return quote.paid === true || ACCEPTED_MELT_STATES.has(getMeltQuoteState(quote));
+}
+
+function isFailedMeltQuote(quote: Pick<MeltQuote, 'paid' | 'state'>): boolean {
+  return FAILED_MELT_STATES.has(getMeltQuoteState(quote));
+}
+
+function normalizeRecoverableMeltTxid(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.split(':')[0] || trimmed;
+}
+
+function getSubmittedMeltTxid(quote: RecoverableMeltQuote): string | null {
+  return normalizeRecoverableMeltTxid(quote.txid) || normalizeRecoverableMeltTxid(quote.outpoint);
 }
 
 function getRecoverableMeltTxid(quote: RecoverableMeltQuote, fallbackQuoteId: string): string {
-  if (quote.txid) return quote.txid;
-  if (quote.outpoint) return quote.outpoint.split(':')[0] || quote.outpoint;
+  const submittedTxid = getSubmittedMeltTxid(quote);
+  if (submittedTxid) return submittedTxid;
   return quote.payment_preimage || quote.quote || fallbackQuoteId;
 }
 
@@ -165,6 +186,55 @@ function getRecoverableMeltTotal(quote: MeltQuote): number | null {
   const fee = quote.fee ?? quote.fee_reserve ?? 0;
   const total = amount + fee;
   return total > 0 ? total : null;
+}
+
+function isPendingMeltConfirmationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const meltState = (error as Error & { meltState?: unknown }).meltState;
+  return (
+    (typeof meltState === 'string' && meltState.toUpperCase() === 'PENDING') ||
+    /State:\s*PENDING\b/i.test(error.message)
+  );
+}
+
+function getSubmittedMeltTxidFromError(error: unknown): string | null {
+  if (!(error instanceof Error)) return null;
+  const meltError = error as Error & {
+    meltResponse?: RecoverableMeltQuote | null;
+    meltTxid?: unknown;
+  };
+  const directTxid =
+    typeof meltError.meltTxid === 'string'
+      ? normalizeRecoverableMeltTxid(meltError.meltTxid)
+      : null;
+  if (directTxid) return directTxid;
+  return meltError.meltResponse ? getSubmittedMeltTxid(meltError.meltResponse) : null;
+}
+
+async function waitForSubmittedMeltQuote(quoteId: string): Promise<RecoverableMeltQuote> {
+  const deadline = Date.now() + TURBO_REPAY_PENDING_MELT_QUOTE_TIMEOUT_MS;
+  let lastState = 'UNKNOWN';
+
+  while (Date.now() <= deadline) {
+    const quote = (await checkMeltQuote(quoteId)) as RecoverableMeltQuote;
+    lastState = getMeltQuoteState(quote);
+
+    if (isAcceptedMeltQuote(quote) || getSubmittedMeltTxid(quote)) {
+      return quote;
+    }
+
+    if (isFailedMeltQuote(quote)) {
+      throw new Error(`TurboUNIT melt failed. State: ${lastState}.`);
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await waitForRetryDelay(Math.min(TURBO_REPAY_PENDING_MELT_QUOTE_POLL_MS, remainingMs));
+  }
+
+  throw new Error(
+    `TurboUNIT melt is still processing. Return to repay shortly to finish vault repayment. Last mint state: ${lastState}.`
+  );
 }
 
 function getRuneUtxoAmount(utxo: RuneUtxo): number {
@@ -825,7 +895,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           : null;
       const quote =
         requestedPayoutAsset === 'USDC'
-          ? cachedUsdcQuote ?? (await quoteUsdcRepaySettlement(repayAmountUsd))
+          ? (cachedUsdcQuote ?? (await quoteUsdcRepaySettlement(repayAmountUsd)))
           : {
               fundingAsset: requestedPayoutAsset,
               requiredUsdcIn: '0',
@@ -881,11 +951,11 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             );
           }
 
-          if (isAcceptedMeltQuote(persistedMeltQuote)) {
-            const recoveredTxid = getRecoverableMeltTxid(
-              persistedMeltQuote,
-              persistedCashuMeltQuoteId
-            );
+          const submittedMeltTxid = getSubmittedMeltTxid(persistedMeltQuote);
+          if (isAcceptedMeltQuote(persistedMeltQuote) || submittedMeltTxid) {
+            const recoveredTxid =
+              submittedMeltTxid ||
+              getRecoverableMeltTxid(persistedMeltQuote, persistedCashuMeltQuoteId);
             const recoveredTotal = getRecoverableMeltTotal(persistedMeltQuote);
             if (recoveredTotal !== null) {
               turboSettlementAmount = formatSmallestUnitAmount(recoveredTotal);
@@ -903,6 +973,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
               quoteId: persistedCashuMeltQuoteId,
               txid: recoveredTxid,
               state: persistedMeltQuote.state,
+              submittedBeforePaid: !isAcceptedMeltQuote(persistedMeltQuote),
             });
           } else {
             logger.debug('[VaultRepayFromUsdc] Pending TurboUNIT melt quote was not accepted', {
@@ -932,9 +1003,60 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             turboSettlementAmount = formatSmallestUnitAmount(quoteTotal);
             setCashuMeltQuote(quoteId);
             await persistVaultSettlementNow();
-            const meltResult = await completeMelt(quoteId, quoteTotal);
-            setCashuMeltTxid(meltResult.txid);
-            turboMeltTxid = meltResult.txid;
+            let meltTxid: string | null = null;
+            try {
+              const meltResult = await completeMelt(quoteId, quoteTotal);
+              meltTxid = normalizeRecoverableMeltTxid(meltResult.txid) || meltResult.txid;
+            } catch (error) {
+              if (!isPendingMeltConfirmationError(error)) {
+                throw error;
+              }
+
+              meltTxid = getSubmittedMeltTxidFromError(error);
+              let recoveredQuote: RecoverableMeltQuote | null = null;
+              if (!meltTxid) {
+                logger.info(
+                  '[VaultRepayFromUsdc] TurboUNIT melt pending without txid; polling quote',
+                  {
+                    currentAccount,
+                    quoteId,
+                  }
+                );
+                recoveredQuote = await waitForSubmittedMeltQuote(quoteId);
+                meltTxid =
+                  getSubmittedMeltTxid(recoveredQuote) ||
+                  (isAcceptedMeltQuote(recoveredQuote)
+                    ? getRecoverableMeltTxid(recoveredQuote, quoteId)
+                    : null);
+              }
+
+              if (recoveredQuote) {
+                const recoveredTotal = getRecoverableMeltTotal(recoveredQuote);
+                if (recoveredTotal !== null) {
+                  turboSettlementAmount = formatSmallestUnitAmount(recoveredTotal);
+                }
+              }
+
+              if (!meltTxid) {
+                throw new Error(
+                  'TurboUNIT melt was submitted but the mint did not return a release transaction id.'
+                );
+              }
+
+              logger.info(
+                '[VaultRepayFromUsdc] TurboUNIT melt pending; continuing with submitted txid',
+                {
+                  currentAccount,
+                  quoteId,
+                  txid: meltTxid,
+                  state:
+                    recoveredQuote?.state ?? (error as Error & { meltState?: string }).meltState,
+                }
+              );
+            }
+
+            setCashuMeltTxid(meltTxid);
+            turboMeltTxid = meltTxid;
             await persistVaultSettlementNow();
             refreshCashuBalanceAfterMelt(refreshCashuBalance, {
               currentAccount,
@@ -944,7 +1066,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             logger.debug('[VaultRepayFromUsdc] TurboUNIT melt submitted', {
               currentAccount,
               quoteId,
-              txid: meltResult.txid,
+              txid: meltTxid,
               meltAmount: activeTurboQuote.meltAmount,
             });
           }

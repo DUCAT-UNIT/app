@@ -190,7 +190,7 @@ describe('WalletContext', () => {
 
     (WalletService.switchToAccount as jest.Mock).mockResolvedValueOnce({
       addresses: newAddresses,
-      derivationMode: 'bip44_account',
+      derivationMode: 'unisat_account',
       walletProfile: 'unisat',
     });
     (SecureStore.setItemAsync as jest.Mock).mockResolvedValueOnce(undefined);
@@ -206,7 +206,7 @@ describe('WalletContext', () => {
     expect(result.current!.wallet).toEqual(newAddresses);
     expect(result.current!.currentAccount).toBe(1);
     expect(result.current!.walletProfile).toBe('unisat');
-    expect(result.current!.walletDerivationMode).toBe('bip44_account');
+    expect(result.current!.walletDerivationMode).toBe('unisat_account');
     // Note: SecureStore.setItemAsync is now called in WalletService.switchToAccount, not in WalletContext
   });
 
@@ -220,7 +220,7 @@ describe('WalletContext', () => {
 
     (WalletService.switchToAccount as jest.Mock).mockResolvedValueOnce({
       addresses: newAddresses,
-      derivationMode: 'bip44_account',
+      derivationMode: 'unisat_account',
       walletProfile: 'unisat',
     });
 

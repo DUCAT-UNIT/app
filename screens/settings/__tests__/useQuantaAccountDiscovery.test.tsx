@@ -1,5 +1,10 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { DEFAULT_WALLET_DERIVATION_MODE } from '../../../constants/bitcoin';
+import {
+  DEFAULT_WALLET_DERIVATION_MODE,
+  STANDARD_ACCOUNT_DERIVATION_MODE,
+  UNISAT_WALLET_DERIVATION_MODE,
+  getWalletProfileForDerivationMode,
+} from '../../../constants/bitcoin';
 import {
   getQuantaMobileRewardStatus,
   getQuantaMobileRewardStatuses,
@@ -7,6 +12,7 @@ import {
 import type { QuantaMobileMatchedAddressType } from '../../../services/quantaRewardService';
 import { makeWalletAccountAddresses } from '../../../services/__tests__/testUtils';
 import * as WalletService from '../../../services/walletService';
+import type { WalletAccountAddresses } from '../../../services/walletService';
 import type { DerivedAddresses } from '../../../utils/bitcoin';
 import type { QuantaAccountCandidate, QuantaMobileWalletPayload } from '../quantaLinkUtils';
 import { useQuantaAccountDiscovery } from '../useQuantaAccountDiscovery';
@@ -61,6 +67,20 @@ function makeEmptyStatus() {
     task: null,
     claim: null,
     stats: null,
+  };
+}
+
+function makeUniSatWalletAccountAddresses(accountIndex = 0): WalletAccountAddresses {
+  const account = makeWalletAccountAddresses(accountIndex, {
+    legacyAddress: `2Nunisat${accountIndex}`,
+    segwitAddress: `tb1qunisat${accountIndex}`,
+    taprootAddress: `tb1punisat${accountIndex}`,
+  });
+
+  return {
+    ...account,
+    derivationMode: UNISAT_WALLET_DERIVATION_MODE,
+    walletProfile: getWalletProfileForDerivationMode(UNISAT_WALLET_DERIVATION_MODE),
   };
 }
 
@@ -218,9 +238,63 @@ describe('useQuantaAccountDiscovery', () => {
     );
     expect(WalletService.deriveWalletAccounts).toHaveBeenCalledWith(20, [
       DEFAULT_WALLET_DERIVATION_MODE,
+      UNISAT_WALLET_DERIVATION_MODE,
+      STANDARD_ACCOUNT_DERIVATION_MODE,
     ]);
     expect(getQuantaMobileRewardStatuses).toHaveBeenCalledTimes(3);
     expect(getQuantaMobileRewardStatus).not.toHaveBeenCalled();
+  });
+
+  it('discovers UniSat Taproot Quanta accounts even when the current profile is default', async () => {
+    const currentAccount = makeWalletAccountAddresses(0);
+    const unisatAccount = makeUniSatWalletAccountAddresses(0);
+    (WalletService.deriveWalletAccounts as jest.Mock).mockResolvedValue([
+      currentAccount,
+      unisatAccount,
+    ]);
+    (getQuantaMobileRewardStatuses as jest.Mock).mockImplementation(async (items) => ({
+      results: items.map(
+        ({ requestId, quantaAddress }: { requestId: string; quantaAddress: string }) => ({
+          requestId,
+          quantaAddress,
+          status:
+            quantaAddress === unisatAccount.addresses.taprootAddress
+              ? makeStatus(quantaAddress, 1200, 3)
+              : makeEmptyStatus(),
+        })
+      ),
+    }));
+
+    const { result } = renderHook(() =>
+      useQuantaAccountDiscovery({
+        canCheckAddress: false,
+        currentAccount: 0,
+        currentAddressMatches: false,
+        currentDerivationMode: DEFAULT_WALLET_DERIVATION_MODE,
+        getQuantaWalletPayloadFromAddresses: getPayload,
+        normalizedQuantaAddress: '',
+        wallet: currentAccount.addresses,
+      })
+    );
+
+    let candidates: QuantaAccountCandidate[] = [];
+    await act(async () => {
+      candidates = await result.current.discoverQuantaAccountCandidates();
+    });
+
+    expect(WalletService.deriveWalletAccounts).toHaveBeenCalledWith(20, [
+      DEFAULT_WALLET_DERIVATION_MODE,
+      UNISAT_WALLET_DERIVATION_MODE,
+      STANDARD_ACCOUNT_DERIVATION_MODE,
+    ]);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      accountIndex: 0,
+      derivationMode: UNISAT_WALLET_DERIVATION_MODE,
+      walletProfile: 'unisat',
+      addressType: 'taproot',
+      quantaAddress: unisatAccount.addresses.taprootAddress,
+    });
   });
 
   it('falls back to address-scoped discovery requests when the batch endpoint is unavailable', async () => {

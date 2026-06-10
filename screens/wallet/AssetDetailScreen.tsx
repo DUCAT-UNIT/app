@@ -45,6 +45,7 @@ import type { PendingTransaction as UtilsPendingTransaction } from '../../utils/
 import { getRunesAmount } from '../../utils/runesHelper';
 import type { CashuUnit } from '../../services/cashu/cashuUnits';
 import { saveSentLockedToken } from '../../services/cashu/cashuLockedTokensService';
+import { getReceiveAddressTarget } from '../../utils/receiveAddress';
 
 /**
  * Props for AssetDetailScreen component
@@ -368,7 +369,7 @@ function BtcUnitAssetDetailScreen({
 
   const { segwitBalance, taprootBalance, runesBalance, loadingBalance } = useBalance();
   const { btcPrice } = usePrice();
-  const { wallet } = useWallet();
+  const { wallet, walletProfile } = useWallet();
   const { balance: cashuBalance, btcBalanceSats, isLoading: loadingCashu } = useCashuBalanceState();
   const { transactionHistory, fetchTransactionHistory } = useTransactionHistory();
   const { getSpentUtxos, unmarkUtxosAsSpent } = usePendingTransactionsStore();
@@ -552,12 +553,11 @@ function BtcUnitAssetDetailScreen({
           });
           break;
         case 'receive': {
-          const address =
-            assetType === 'BTC'
-              ? segwitAddress
-              : assetType === 'UNIT'
-                ? taprootAddress
-                : effectiveEvmAddress;
+          const receiveTarget =
+            assetType === 'BTC' || assetType === 'UNIT'
+              ? getReceiveAddressTarget({ assetType, wallet, walletProfile })
+              : null;
+          const address = receiveTarget?.address ?? effectiveEvmAddress;
           if (!address) {
             Alert.alert(
               'Address unavailable',
@@ -569,12 +569,7 @@ function BtcUnitAssetDetailScreen({
           }
           navigation.navigate('ReceiveQR', {
             address,
-            addressType:
-              assetType === 'BTC'
-                ? 'Native SegWit'
-                : assetType === 'UNIT'
-                  ? 'Taproot'
-                  : 'Sepolia EVM',
+            addressType: receiveTarget?.addressType ?? 'Sepolia EVM',
             assetType,
             networkLabel: assetType === 'USDC' ? 'Ethereum Sepolia' : undefined,
           });
@@ -598,6 +593,8 @@ function BtcUnitAssetDetailScreen({
       navigation,
       segwitAddress,
       taprootAddress,
+      wallet,
+      walletProfile,
       effectiveEvmAddress,
       handleFusePress,
       handleTurboPress,

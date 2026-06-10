@@ -20,6 +20,7 @@ import { useSendFlow } from '../stores/sendFlowStore';
 import type { PendingTransaction as UtilsPendingTransaction, TransactionIntent } from '../utils/pendingTransactionsUtils';
 import type { WalletAddresses } from './WalletContext';
 import { useBalance } from './WalletDataContext';
+import type { WalletImportProfile } from '../constants/bitcoin';
 
 // Re-export SendIntent from the hook for consumers
 export type { SendIntent } from '../hooks/useTransactionBuilder';
@@ -45,12 +46,14 @@ interface TransactionBuildProviderProps {
   children: ReactNode;
   wallet: WalletAddresses | null;
   currentAccount: number;
+  walletProfile?: WalletImportProfile;
 }
 
 export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> = ({
   children,
   wallet,
   currentAccount,
+  walletProfile = 'xverse',
 }) => {
   const {
     sendRecipient,
@@ -73,6 +76,7 @@ export const TransactionBuildProvider: React.FC<TransactionBuildProviderProps> =
   // Transaction building logic
   const { createSendIntent, cancelIntent } = useTransactionBuilder({
     wallet,
+    walletProfile,
     currentAccount,
     sendRecipient,
     sendAmount,

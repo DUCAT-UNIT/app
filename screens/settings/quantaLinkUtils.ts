@@ -6,6 +6,8 @@ import type {
 import type { WalletAccountAddresses, WalletAddressMatchType } from '../../services/walletService';
 import {
   DEFAULT_WALLET_DERIVATION_MODE,
+  STANDARD_ACCOUNT_DERIVATION_MODE,
+  UNISAT_WALLET_DERIVATION_MODE,
   getWalletProfileForDerivationMode,
   getWalletProfileLabelForDerivationMode,
   type WalletDerivationMode,
@@ -109,7 +111,10 @@ function getAddressTypeSortRank(addressType: WalletAddressMatchType): number {
 }
 
 function getDerivationModeSortRank(derivationMode: WalletDerivationMode): number {
-  return derivationMode === DEFAULT_WALLET_DERIVATION_MODE ? 0 : 1;
+  if (derivationMode === DEFAULT_WALLET_DERIVATION_MODE) return 0;
+  if (derivationMode === UNISAT_WALLET_DERIVATION_MODE) return 1;
+  if (derivationMode === STANDARD_ACCOUNT_DERIVATION_MODE) return 2;
+  return 3;
 }
 
 export function getCandidateKey(candidate: QuantaAccountCandidate): string {

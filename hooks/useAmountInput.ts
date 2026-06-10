@@ -36,9 +36,11 @@ interface UseAmountInputReturn {
 export function useAmountInput({
   sendAssetType,
   segwitBalance,
+  taprootBalance,
   runesBalance,
   cashuBalance,
   wallet,
+  sendAddressType = 'segwit',
   setSendAmount,
   feeRate,
   unconfirmedSegwitBalance,
@@ -46,8 +48,12 @@ export function useAmountInput({
   const [isCalculatingMax, setIsCalculatingMax] = useState(false);
 
   // Calculate balance based on asset type
-  // BTC is always sent from segwit address - include unconfirmed for tx chaining
-  const btcBalance = (segwitBalance || 0) + (unconfirmedSegwitBalance || 0);
+  const btcSourceBalance =
+    sendAddressType === 'taproot' ? taprootBalance || 0 : segwitBalance || 0;
+  // Include unconfirmed SegWit balance for tx chaining. Taproot unconfirmed
+  // chaining is handled in the current send flow via pending UTXO selection.
+  const btcBalance =
+    btcSourceBalance + (sendAddressType === 'segwit' ? unconfirmedSegwitBalance || 0 : 0);
   // For UNIT, combine on-chain runes balance + ecash balance
   // Runes come in display units, ecash is in smallest units (needs /100)
   const unitRunesBalance = getRunesAmount(runesBalance);
@@ -59,19 +65,18 @@ export function useAmountInput({
     if (sendAssetType === 'btc') {
       setIsCalculatingMax(true);
       try {
-        // BTC is always sent from segwit address
-        const sourceAddress = wallet?.segwitAddress;
+        const sourceAddress =
+          sendAddressType === 'taproot' ? wallet?.taprootAddress : wallet?.segwitAddress;
 
         const maxSendable = await calculateMaxSendableBTC({
           sourceAddress: sourceAddress || '',
-          btcBalance: segwitBalance, // Use only segwit balance for BTC
+          btcBalance: btcSourceBalance,
           feeRate, // Pass fee rate for accurate max calculation
         });
         setSendAmount(String(maxSendable));
       } catch (error: unknown) {
         logger.error('Error calculating max:', { error });
-        // Fallback to segwit balance
-        setSendAmount(String(segwitBalance || 0));
+        setSendAmount(String(btcSourceBalance || 0));
       } finally {
         setIsCalculatingMax(false);
       }

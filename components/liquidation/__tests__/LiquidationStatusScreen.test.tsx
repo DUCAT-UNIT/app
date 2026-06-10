@@ -61,4 +61,24 @@ describe('LiquidationStatusScreen', () => {
     ).toBeTruthy();
     expect(queryByText(/UTXO spent/)).toBeNull();
   });
+
+  it('classifies raw guardian Tx1 mismatch JSON as a claimed opportunity', () => {
+    const rawGuardianError =
+      '{"code":null,"message":"Message: Repo Vault Tx1 ID in request does not match computed Repo Tx1ID Error: Custom(\\"Repo Vault Tx1ID d85cd3 in request does not match computed Repo vault Tx1ID aa885d\\")"}';
+
+    const { getByText, queryByText } = render(
+      <LiquidationStatusScreen
+        step="error"
+        processingMessage=""
+        txid={null}
+        swapTxid={null}
+        error={rawGuardianError}
+        remainingVaultCount={1}
+      />
+    );
+
+    expect(getByText('Opportunity Already Claimed')).toBeTruthy();
+    expect(getByText(/There is 1 other vault still left to liquidate/)).toBeTruthy();
+    expect(queryByText(/Repo Vault Tx1/)).toBeNull();
+  });
 });

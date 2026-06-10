@@ -134,6 +134,31 @@ describe('btcTransaction', () => {
       expect(result.inputCount).toBeGreaterThan(0);
     });
 
+    it('should create a Taproot-sourced BTC intent when requested', async () => {
+      const taprootAddress = 'tb1ptest123';
+      const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
+      (fetchUtxos as jest.Mock).mockResolvedValue(utxos);
+      registerUtxoValues(utxos);
+
+      const result = await createBtcIntent(
+        recipient,
+        amount,
+        taprootAddress,
+        0,
+        [],
+        new Set(),
+        undefined,
+        'taproot'
+      );
+
+      expect(result).toMatchObject({
+        type: 'send',
+        assetType: 'BTC',
+        addressType: 'taproot',
+        sourceAddress: taprootAddress,
+      });
+    });
+
     it('should handle comma as decimal separator', async () => {
       const utxos = [{ txid: 'tx1', vout: 0, value: 200000, status: { confirmed: true } }];
       (fetchUtxos as jest.Mock).mockResolvedValue(utxos);

@@ -62,6 +62,8 @@ interface ReceiveScreenProps {
   onClose: () => void;
   segwitAddress: string;
   taprootAddress: string;
+  btcAddress?: string;
+  btcAddressType?: string;
   showToast: (message: string) => void;
   autoOpenQR?: boolean;
   preSelectedAddress?: string | null;
@@ -77,6 +79,8 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
   onClose,
   segwitAddress,
   taprootAddress,
+  btcAddress,
+  btcAddressType = 'Native SegWit',
   showToast,
   autoOpenQR = false,
   preSelectedAddress = null,
@@ -210,6 +214,7 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
     onClose();
     onVaultDeposit?.();
   };
+  const resolvedBtcAddress = btcAddress || segwitAddress;
 
   return (
     <>
@@ -240,11 +245,11 @@ const ReceiveScreen = React.memo(function ReceiveScreen({
 
             {/* BTC Address Row */}
             <AddressRow
-              label="BTC Address"
-              address={segwitAddress}
+              label={btcAddressType}
+              address={resolvedBtcAddress}
               tag="BTC"
-              onCopy={() => handleCopyAddress(segwitAddress, 'BTC')}
-              onQrPress={() => handleQrPress(segwitAddress, 'BTC Address')}
+              onCopy={() => handleCopyAddress(resolvedBtcAddress, 'BTC')}
+              onQrPress={() => handleQrPress(resolvedBtcAddress, btcAddressType)}
               styles={styles}
             />
 

@@ -26,6 +26,7 @@ import type {
 import type { UTXO } from '../services/transaction/utxoSelection';
 import type { UtxoRef } from '../types/assets';
 import type { BtcTransactionIntent, UnitTransactionIntent } from '../services/transaction';
+import type { WalletImportProfile } from '../constants/bitcoin';
 
 /**
  * Convert PendingUnconfirmedUTXO to UTXO format for BTC transaction services
@@ -72,6 +73,7 @@ export type SendIntent = (BtcTransactionIntent | UnitTransactionIntent) & {
 
 export interface UseTransactionBuilderParams {
   wallet: WalletAddresses | null;
+  walletProfile?: WalletImportProfile;
   currentAccount: number;
   sendRecipient: string;
   sendAmount: string;
@@ -98,6 +100,18 @@ interface UseTransactionBuilderReturn {
   cancelIntent: () => Promise<void>;
 }
 
+type BtcSourceType = 'segwit' | 'taproot';
+
+const getBtcSourceCandidates = (walletProfile: WalletImportProfile): BtcSourceType[] =>
+  walletProfile === 'unisat' ? ['taproot', 'segwit'] : ['segwit', 'taproot'];
+
+const isBtcFundingError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return [ERRORS.NO_CONFIRMED_FUNDS, ERRORS.INSUFFICIENT_FUNDS, 'All UTXOs are currently locked']
+    .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0)
+    .some((candidate) => message.includes(candidate));
+};
+
 /**
  * Hook for building Bitcoin and UNIT (Runes) transaction intents
  * Handles UTXO selection, locking, and PSBT creation with proper cleanup on failure
@@ -122,6 +136,7 @@ interface UseTransactionBuilderReturn {
  */
 export function useTransactionBuilder({
   wallet,
+  walletProfile = 'xverse',
   currentAccount,
   sendRecipient,
   sendAmount,
@@ -144,7 +159,7 @@ export function useTransactionBuilder({
     let lockedUtxos: UtxoRef[] = [];
 
     try {
-      if (!wallet?.segwitAddress) {
+      if (!wallet?.segwitAddress && !wallet?.taprootAddress) {
         throw new Error('Wallet not initialized');
       }
 
@@ -166,32 +181,66 @@ export function useTransactionBuilder({
         }
       }
 
-      // Pass null to avoid excluding old intent's UTXOs - we're starting fresh
-      const unconfirmedUtxos = getUnconfirmedUTXOs('segwit', null);
       const spentUtxos = getSpentUtxos();
-
-      logger.debug('[createBtcIntent] Unconfirmed UTXOs from pending:', {
-        count: unconfirmedUtxos.length,
-        utxos: unconfirmedUtxos.map((u) => ({
-          txid: u.txid.slice(0, 16) + '...',
-          vout: u.vout,
-          value: u.value,
-        })),
-      });
       logger.debug('[createBtcIntent] Spent UTXOs:', {
         count: spentUtxos.size,
         keys: Array.from(spentUtxos).slice(0, 5),
       });
 
-      const intent = await createBtcIntentService(
-        sendRecipient,
-        sendAmount,
-        wallet.segwitAddress,
-        currentAccount,
-        unconfirmedUtxos.map(toUtxo),
-        spentUtxos,
-        selectedFeeRate
-      );
+      let intent: BtcTransactionIntent | null = null;
+      let firstFundingError: unknown = null;
+      const sourceCandidates = getBtcSourceCandidates(walletProfile);
+
+      for (const sourceType of sourceCandidates) {
+        const sourceAddress =
+          sourceType === 'taproot' ? wallet.taprootAddress : wallet.segwitAddress;
+        if (!sourceAddress) {
+          continue;
+        }
+
+        // Pass null to avoid excluding old intent's UTXOs - we're starting fresh.
+        const unconfirmedUtxos = getUnconfirmedUTXOs(sourceType, null);
+
+        logger.debug('[createBtcIntent] Trying BTC source:', {
+          sourceType,
+          unconfirmedCount: unconfirmedUtxos.length,
+          utxos: unconfirmedUtxos.map((u) => ({
+            txid: u.txid.slice(0, 16) + '...',
+            vout: u.vout,
+            value: u.value,
+          })),
+        });
+
+        try {
+          intent = await createBtcIntentService(
+            sendRecipient,
+            sendAmount,
+            sourceAddress,
+            currentAccount,
+            unconfirmedUtxos.map(toUtxo),
+            spentUtxos,
+            selectedFeeRate,
+            sourceType
+          );
+          break;
+        } catch (error: unknown) {
+          if (!isBtcFundingError(error)) {
+            throw error;
+          }
+
+          firstFundingError = firstFundingError ?? error;
+          logger.info('[createBtcIntent] BTC source cannot fund send; trying fallback', {
+            sourceType,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (!intent) {
+        throw firstFundingError instanceof Error
+          ? firstFundingError
+          : new Error(ERRORS.NO_CONFIRMED_FUNDS);
+      }
 
       // Lock UTXOs immediately
       if (intent.inputs?.length > 0) {
@@ -219,6 +268,7 @@ export function useTransactionBuilder({
     sendRecipient,
     sendAmount,
     wallet,
+    walletProfile,
     currentAccount,
     sendIntent,
     selectedFeeRate,

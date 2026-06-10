@@ -300,7 +300,7 @@ type WalletAddressCache = CachedAddresses['addresses'];
 const ADDRESS_CACHE_VERSION = 3;
 
 const isWalletDerivationMode = (value: unknown): value is WalletDerivationMode =>
-  value === 'legacy_address_index' || value === 'bip44_account';
+  value === 'legacy_address_index' || value === 'bip44_account' || value === 'unisat_account';
 
 const hasValidAddressFields = (value: unknown): value is WalletAddressCache => {
   if (typeof value !== 'object' || value === null) {

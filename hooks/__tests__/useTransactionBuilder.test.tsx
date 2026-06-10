@@ -23,6 +23,8 @@ jest.mock('../../utils/messages', () => ({
     MISSING_RECIPIENT_AMOUNT: 'Missing recipient or amount',
     NO_UNIT_BALANCE: 'No UNIT balance available',
     ASSET_SELECTION_REQUIRED: 'Please select an asset',
+    NO_CONFIRMED_FUNDS: 'No confirmed funds available',
+    INSUFFICIENT_FUNDS: 'Insufficient funds',
   },
 }));
 
@@ -63,6 +65,7 @@ function renderHook<T, P>(hook: (props: P) => T, props: P) {
 // Type for the hook props - simplified version for testing
 type MockProps = {
   wallet: { segwitAddress: string; taprootAddress: string } | null;
+  walletProfile?: 'xverse' | 'unisat';
   currentAccount: number;
   sendRecipient: string;
   sendAmount: string;
@@ -93,6 +96,7 @@ describe('useTransactionBuilder', () => {
         segwitAddress: 'bc1qtest...',
         taprootAddress: 'tb1ptest...',
       },
+      walletProfile: 'xverse',
       currentAccount: 0,
       sendRecipient: 'bc1qrecipient...',
       sendAmount: '0.001',
@@ -211,7 +215,8 @@ describe('useTransactionBuilder', () => {
         0,
         [],
         expect.any(Set),
-        undefined
+        undefined,
+        'segwit'
       );
       expect(mockProps.setSendIntent).toHaveBeenCalled();
       expect(mockProps.setIntentStep).toHaveBeenCalledWith('reviewing');
@@ -241,8 +246,8 @@ describe('useTransactionBuilder', () => {
       expect(notify.build.error).toHaveBeenCalled();
     });
 
-    it('should throw error when segwitAddress is missing', async () => {
-      mockProps.wallet = { segwitAddress: '', taprootAddress: 'tb1ptest...' };
+    it('should throw error when wallet has no BTC source address', async () => {
+      mockProps.wallet = { segwitAddress: '', taprootAddress: '' };
 
       const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
 
@@ -308,7 +313,81 @@ describe('useTransactionBuilder', () => {
         0,
         [{ txid: 'unconfirmed1', vout: 0, value: 5000, status: { confirmed: false } }],
         expect.any(Set),
-        undefined
+        undefined,
+        'segwit'
+      );
+    });
+
+    it('should prefer Taproot source for UniSat BTC sends', async () => {
+      mockProps.walletProfile = 'unisat';
+
+      const { result } = renderHook(
+        useTransactionBuilder,
+        mockProps as unknown as UseTransactionBuilderParams
+      );
+
+      await act(async () => {
+        await result.current!.createSendIntent();
+      });
+
+      expect(mockProps.getUnconfirmedUTXOs).toHaveBeenCalledWith('taproot', null);
+      expect(createBtcIntent).toHaveBeenCalledWith(
+        'bc1qrecipient...',
+        '0.001',
+        'tb1ptest...',
+        0,
+        [],
+        expect.any(Set),
+        undefined,
+        'taproot'
+      );
+    });
+
+    it('should fall back to Taproot source when SegWit cannot fund BTC sends', async () => {
+      (createBtcIntent as jest.Mock)
+        .mockRejectedValueOnce(new Error('No confirmed funds available'))
+        .mockResolvedValueOnce({
+          assetType: 'BTC',
+          inputs: [{ txid: 'txid-taproot', vout: 0, value: 10000 }],
+          outputs: [],
+          fee: 500,
+        });
+
+      const { result } = renderHook(
+        useTransactionBuilder,
+        mockProps as unknown as UseTransactionBuilderParams
+      );
+
+      await act(async () => {
+        await result.current!.createSendIntent();
+      });
+
+      expect(createBtcIntent).toHaveBeenNthCalledWith(
+        1,
+        'bc1qrecipient...',
+        '0.001',
+        'bc1qtest...',
+        0,
+        [],
+        expect.any(Set),
+        undefined,
+        'segwit'
+      );
+      expect(createBtcIntent).toHaveBeenNthCalledWith(
+        2,
+        'bc1qrecipient...',
+        '0.001',
+        'tb1ptest...',
+        0,
+        [],
+        expect.any(Set),
+        undefined,
+        'taproot'
+      );
+      expect(mockProps.setSendIntent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          inputs: [expect.objectContaining({ txid: 'txid-taproot' })],
+        })
       );
     });
 

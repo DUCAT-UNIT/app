@@ -359,6 +359,47 @@ describe('useLiquidationExecution', () => {
         expect(mockClearPendingLiquidationSwapBroadcast).not.toHaveBeenCalled();
       });
 
+      it('clears the repo pending lock if a pre-submit request is rejected as a stale opportunity', async () => {
+        const spentVault = makeFullVault({ vaultId: 'spent-vault' });
+        const remainingVault = makeFullVault({ vaultId: 'remaining-vault' });
+        mockSelectItems.mockReturnValue([spentVault]);
+        useLiquidationFlowStore.getState().setVaultData(
+          [makeDisplayVault(spentVault), makeDisplayVault(remainingVault)],
+          [spentVault, remainingVault],
+          0,
+          0,
+          0,
+        );
+        mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
+          await onRequestCreated({
+            txid: 'pre-submit-repo-txid',
+            vaultTxid: 'pre-submit-repo-txid',
+            request: {},
+            swapPsbtHex: 'pre-submit-swap-hex',
+          });
+
+          return {
+            success: false,
+            error: 'Vault was already claimed by another transaction',
+          };
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const state = useLiquidationFlowStore.getState();
+        expect(usePendingVaultTransactionStore.getState().pendingTransaction).toBeNull();
+        expect(mockClearPendingLiquidationSwapBroadcast).toHaveBeenCalledWith(
+          'pre-submit-repo-txid',
+        );
+        expect(state.suppressedVaultIds).toContain('spent-vault');
+        expect(state.vaultsFull.map((vault) => vault.vaultId)).toEqual(['remaining-vault']);
+        expect(state.isExecuting).toBe(false);
+      });
+
       it('saves liquidation swap recovery from the pre-submit request callback', async () => {
         const vault = makeFullVault({ unit: 77 });
         mockSelectItems.mockReturnValue([vault]);

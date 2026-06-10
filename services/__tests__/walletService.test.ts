@@ -47,7 +47,7 @@ const mockWalletDerivation = WalletDerivationService as jest.Mocked<typeof Walle
 const NEW_MODE = 'legacy_address_index';
 const LEGACY_MODE = 'legacy_address_index';
 const LEGACY_PROFILE = 'xverse';
-const UNISAT_MODE = 'bip44_account';
+const UNISAT_MODE = 'unisat_account';
 const UNISAT_PROFILE = 'unisat';
 
 describe('walletService', () => {
