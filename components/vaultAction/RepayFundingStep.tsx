@@ -156,6 +156,11 @@ export function RepayFundingStep({
             const balance = balances[asset] || 0;
             const isFunded = !isUsdcByRequest && balance >= amountUsd;
             const isDisabled = isUsdcByRequest || !isFunded;
+            const stateTestID = testIDPrefix
+              ? `${testIDPrefix}-${asset.toLowerCase()}-card-${
+                  isDisabled ? 'disabled' : isSelected ? 'selected' : 'enabled'
+                }`
+              : undefined;
             const optionSubtitle = isUsdcByRequest
               ? DISABLED_USDC_SUBTITLE
               : `${option.subtitle} · ${formatBalance(balance)} available`;
@@ -163,6 +168,7 @@ export function RepayFundingStep({
             return (
               <View
                 key={asset}
+                testID={stateTestID}
                 style={[
                   styles.optionCard,
                   isSelected && styles.optionCardSelected,

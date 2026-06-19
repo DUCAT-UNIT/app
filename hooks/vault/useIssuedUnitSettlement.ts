@@ -35,6 +35,8 @@ import {
 
 const BRIDGE_SEND_BUILD_RETRY_MS = 2_500;
 const BRIDGE_SEND_BUILD_TIMEOUT_MS = 90_000;
+const TURBO_SEND_BROADCAST_RETRY_MS = 10_000;
+const TURBO_SEND_BROADCAST_TIMEOUT_MS = 360_000;
 const CASHU_MINT_POLL_INTERVAL_MS = 4_000;
 const CASHU_MINT_COMPLETION_TIMEOUT_MS = 90_000;
 
@@ -74,6 +76,58 @@ function isBridgeSettlementPendingError(error: unknown): boolean {
 
 function isTurboMintPendingError(error: unknown): boolean {
   return error instanceof Error && error.message === 'TurboUNIT mint is still processing.';
+}
+
+function isPendingParentBroadcastError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /RPC error|missing inputs|missingorspent|not in mempool|txn-mempool-conflict/i.test(
+    error.message,
+  );
+}
+
+async function broadcastTurboMintSend(
+  signedTxHex: string,
+  parentTxid: string | null,
+): Promise<string> {
+  if (!parentTxid) {
+    return broadcastTransaction(signedTxHex);
+  }
+
+  const deadline = Date.now() + TURBO_SEND_BROADCAST_TIMEOUT_MS;
+  let attempt = 0;
+  let lastError: unknown = null;
+
+  while (Date.now() < deadline) {
+    try {
+      return await broadcastTransaction(signedTxHex);
+    } catch (error) {
+      lastError = error;
+
+      if (!isPendingParentBroadcastError(error)) {
+        throw error;
+      }
+
+      const retryMs = attempt === 0 ? 0 : TURBO_SEND_BROADCAST_RETRY_MS;
+      logger.info('[VaultSettlement] Waiting to rebroadcast TurboUNIT mint send', {
+        attempt: attempt + 1,
+        parentTxid: parentTxid.slice(0, 16) + '...',
+        retryMs,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (retryMs > 0) {
+        await delay(retryMs);
+      }
+      attempt += 1;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Timed out broadcasting TurboUNIT mint send');
 }
 
 function sumCashuProofs(proofs: CashuProof[]): number {
@@ -228,6 +282,7 @@ export function useIssuedUnitSettlement() {
   const unmarkUtxosAsSpent = usePendingTransactionsStore((state) => state.unmarkUtxosAsSpent);
   const addPendingTransaction = usePendingTransactionsStore((state) => state.addPendingTransaction);
   const confirmTransaction = usePendingTransactionsStore((state) => state.confirmTransaction);
+  const invalidateTransaction = usePendingTransactionsStore((state) => state.invalidateTransaction);
 
   const setQuote = useVaultSettlementStore((state) => state.setQuote);
   const setPhase = useVaultSettlementStore((state) => state.setPhase);
@@ -532,7 +587,7 @@ export function useIssuedUnitSettlement() {
       const amountSmallestUnits = Math.round(faceValueUsd * 100);
       let cashuMintQuoteId: string | undefined;
       let broadcastedMintSendTxid: string | null = null;
-      let mintSendBroadcastAttempted = false;
+      let mintSendBroadcastAccepted = false;
 
       try {
         const persistedSettlement = useVaultSettlementStore.getState();
@@ -604,8 +659,11 @@ export function useIssuedUnitSettlement() {
             );
 
             setPhase('broadcasting_turbo_send');
-            mintSendBroadcastAttempted = true;
-            const finalMintSendTxid = await broadcastTransaction(signed.signedTxHex);
+            const finalMintSendTxid = await broadcastTurboMintSend(
+              signed.signedTxHex,
+              parentTxid,
+            );
+            mintSendBroadcastAccepted = true;
             broadcastedMintSendTxid = finalMintSendTxid;
             if (finalMintSendTxid !== preparedMintSendTxid) {
               setCashuMintSendTxid(finalMintSendTxid);
@@ -625,13 +683,27 @@ export function useIssuedUnitSettlement() {
               },
             );
           } catch (error) {
-            if (!mintSendBroadcastAttempted) {
-              if (broadcastedMintSendTxid) {
-                broadcastedMintSendTxid = null;
+            if (!mintSendBroadcastAccepted) {
+              const failedMintSendTxid = broadcastedMintSendTxid;
+              broadcastedMintSendTxid = null;
+              if (failedMintSendTxid) {
                 setCashuMintSendTxid(null);
                 await persistVaultSettlementNow().catch((persistError) => {
                   logger.error('[VaultSettlement] Failed to clear unbroadcast Turbo mint send txid', {
                     error: persistError instanceof Error ? persistError.message : String(persistError),
+                  });
+                });
+
+                await invalidateTransaction(
+                  failedMintSendTxid,
+                  'TurboUNIT mint send broadcast failed'
+                ).catch((invalidateError) => {
+                  logger.error('[VaultSettlement] Failed to invalidate Turbo mint send after broadcast error', {
+                    txid: failedMintSendTxid.slice(0, 16) + '...',
+                    error:
+                      invalidateError instanceof Error
+                        ? invalidateError.message
+                        : String(invalidateError),
                   });
                 });
               }
@@ -722,6 +794,7 @@ export function useIssuedUnitSettlement() {
       markNeedsRetry,
       showSnackbar,
       waitForCashuMintCompletion,
+      invalidateTransaction,
     ],
   );
 

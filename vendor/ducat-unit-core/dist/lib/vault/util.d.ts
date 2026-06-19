@@ -1,0 +1,10 @@
+import type { ProtoMemberRecord, ProtoProfile, VaultProfile, VaultTerms } from '../../types/index.js';
+export declare function is_vault_active(profile: VaultProfile): boolean;
+export declare function is_above_liquidation_threshold(profile: VaultProfile): boolean;
+export declare function is_valid_unit_balance(unit_balance: number, vault_terms: VaultTerms): boolean;
+export declare function resolve_guardian_pubkeys(proto_profile: ProtoProfile, guard_pubkeys: string[]): ProtoMemberRecord[];
+export declare function resolve_guardian_indices(proto_profile: ProtoProfile, guard_indices: number[]): ProtoMemberRecord[];
+export declare function get_guardian_records(proto_profile: ProtoProfile): ProtoMemberRecord[];
+export declare function find_oracle_record_by_pubkey(proto_members: ProtoMemberRecord[], oracle_pubkey: string): ProtoMemberRecord;
+export declare function find_oracle_record_by_idx(proto_members: ProtoMemberRecord[], oracle_index: number): ProtoMemberRecord;
+export declare function get_oracle_records(proto_profile: ProtoProfile): ProtoMemberRecord[];

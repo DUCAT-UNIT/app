@@ -1,28 +1,12 @@
-export interface WalletVaultOpenConfig {
-    borrow_amount: number;
-    deposit_amount: number;
-    tx_feerate: number;
-    vault_label: string;
+import type { ObserveContext, ObservabilityOptions } from '../../../lib/observe/index.js';
+import type { ChainNetwork } from '@ducat-unit/core';
+export interface ProtoWalletRuntimeOptions {
+    observability?: ObservabilityOptions | ObserveContext;
 }
-export interface WalletVaultBorrowConfig {
-    borrow_amount: number;
-    deposit_amount: number;
-    tx_feerate: number;
-}
-export interface WalletVaultRepoConfig {
-    deposit_amount: number;
-    tx_feerate: number;
-}
-export interface WalletVaultRepayConfig {
-    deposit_amount: number;
-    repay_amount: number;
-    tx_feerate: number;
-}
-export interface WalletVaultDepositConfig {
-    deposit_amount: number;
-    tx_feerate: number;
-}
-export interface WalletVaultWithdrawConfig {
-    change_amount: number;
-    tx_feerate: number;
+export type ProtoWalletOptions = Partial<ProtoWalletConfig> & ProtoWalletRuntimeOptions;
+export interface ProtoWalletConfig {
+    asset_postage: number;
+    chain_network: ChainNetwork;
+    txfee_rate: number;
+    txfee_reserve: number;
 }

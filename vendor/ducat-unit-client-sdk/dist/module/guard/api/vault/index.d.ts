@@ -1,9 +1,8 @@
-import { GuardianClient } from '../../class/client.js';
-export default function (client: GuardianClient): {
-    borrow: (request: import("../../../wallet/index.js").WalletVaultBorrowRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultBorrowSubscription>;
-    deposit: (request: import("../../../wallet/index.js").WalletVaultDepositRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultUpdateSubscription>;
-    open: (request: import("../../../wallet/index.js").WalletVaultOpenRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultOpenSubscription>;
-    repay: (request: import("../../../wallet/index.js").WalletVaultRepayRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultRepaySubscription>;
-    repo: (request: import("../../../wallet/index.js").WalletVaultRepoRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultRepoSubscription>;
-    withdraw: (request: import("../../../wallet/index.js").WalletVaultWithdrawRequest) => import("../../../../index.js").SocketSubscription<import("../../index.js").VaultUpdateSubscription>;
-};
+export { borrow_vault_api } from './borrow.js';
+export { close_vault_api } from './close.js';
+export { deposit_vault_api } from './deposit.js';
+export { open_vault_api } from './open.js';
+export { repay_vault_api } from './repay.js';
+export { repo_vault_api } from './repo.js';
+export { trim_vault_api } from './trim.js';
+export { withdraw_vault_api } from './withdraw.js';

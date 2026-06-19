@@ -4,6 +4,7 @@
  */
 
 import type { HealthStatus } from '../../utils/vaultUtils';
+import { VAULT_CONFIG } from '../../utils/constants';
 
 /**
  * Common step type for all vault operations
@@ -77,7 +78,7 @@ export interface CommonVaultActions {
  * Initial state for common fields
  */
 export const commonInitialState: CommonVaultState = {
-  selectedFeeRate: 1,
+  selectedFeeRate: VAULT_CONFIG.DEFAULT_FEE_RATE,
   currentUnitBorrowed: 0,
   currentBtcLocked: 0,
   bitcoinPrice: null,

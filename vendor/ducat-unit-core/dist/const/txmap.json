@@ -1,0 +1,107 @@
+{
+    "UNIT_ISSUE": {
+        "VIN": {
+            "RESRV": 0
+        },
+        "VOUT": {
+            "RESRV": 0,
+            "UNIT": 1,
+            "CONN": 2,
+            "RDATA": 3
+        }
+    },
+    "UNIT_REPAY": {
+        "VIN": {
+            "UNIT": 0
+        },
+        "VOUT": {
+            "CONN": 0,
+            "RDATA": 1,
+            "CHANGE": 2
+        }
+    },
+    "VAULT_OPEN": {
+        "VIN": {
+            "UNIT": 0,
+            "CONN": 1
+        },
+        "VOUT": {
+            "UNIT": 0,
+            "VAULT": 1,
+            "CHANGE": 2,
+            "RDATA": 3
+        }
+    },
+    "VAULT_BORROW": {
+        "VIN": {
+            "UNIT": 0,
+            "VAULT": 1,
+            "CONN": 2
+        },
+        "VOUT": {
+            "UNIT": 0,
+            "VAULT": 1,
+            "CHANGE": 2,
+            "RDATA": 3
+        }
+    },
+    "VAULT_REPAY": {
+        "VIN": {
+            "VAULT": 0,
+            "CONN": 1
+        },
+        "VOUT": {
+            "VAULT": 0,
+            "CHANGE": 1,
+            "RDATA": 2
+        }
+    },
+    "VAULT_DEPOSIT": {
+        "VIN": {
+            "VAULT": 0
+        },
+        "VOUT": {
+            "VAULT": 0,
+            "CHANGE": 1,
+            "RDATA": 2
+        }
+    },
+    "VAULT_WITHDRAW": {
+        "VIN": {
+            "VAULT": 0
+        },
+        "VOUT": {
+            "VAULT": 0,
+            "CHANGE": 1,
+            "RDATA": 2
+        }
+    },
+    "VAULT_CLOSE": {
+        "VIN": {
+            "VAULT": 0
+        },
+        "VOUT": {
+            "CHANGE": 0,
+            "RDATA": 1
+        }
+    },
+    "VAULT_REPO": {
+        "VIN": {
+            "VAULT": 0
+        },
+        "VOUT": {
+            "VAULT": 0
+        }
+    },
+    "VAULT_TRIM": {
+        "VIN": {
+            "VAULT": 0,
+            "TRIM": 1
+        },
+        "VOUT": {
+            "VAULT": 0,
+            "TRIM": 1,
+            "RDATA": 2
+        }
+    }
+}

@@ -1,31 +1,38 @@
-import type { SocketSubscription, WebSocketClient } from '../class/socket.js';
-export type EventMap = Record<string, any>;
-export type EventType = 'req' | 'rej' | 'res' | 'info';
-export type MessageEnvelope = [type: EventType, id: string, topic: string, data: any];
-export type SubscriptionHandler<T extends SubscriptionEventMap> = (sub: SocketSubscription<T>, msg: MessageData<T>) => void;
-export interface MessageConfig {
-    data: any;
-    id: string;
-    topic: string;
-    type: EventType;
-}
-export interface MessageData<T = any> {
+import { TOPICS } from '../const.js';
+export type MessageEnvelope = [type: MessageType, id: string, topic: string, data: unknown, code?: number];
+export type MessageTopic = typeof TOPICS;
+export type MessageType = 'request' | 'reject' | 'result' | 'info' | 'status';
+export type SubscriptionResult<T = unknown> = SubscriptionData<T> | SubscriptionError;
+export interface MessageConfig<T = unknown> {
     data: T;
-    id: string;
+    id?: string;
     topic: string;
-    type: EventType;
 }
-export interface SocketEventMap {
-    bounced: [reason: string, data: any];
-    close: WebSocketClient;
-    error: string;
-    message: MessageData;
-    ready: WebSocketClient;
+export interface MessageData<T = unknown> extends MessageConfig<T> {
+    id: string;
+    type: MessageType;
+    code?: number;
 }
-export interface SubscriptionEventMap<T = any> extends Record<string, any> {
-    'err': string;
-    'info': string;
-    'msg': MessageData;
-    'rej': string;
-    'res': T;
+export interface SubscriptionData<T = unknown> {
+    ok: true;
+    data: T;
+}
+export interface SubscriptionError {
+    ok: false;
+    reason: unknown;
+}
+export interface SubscriptionEventMap<T = unknown> extends Record<string, any[]> {
+    message: [MessageData];
+    bounced: [reason: string, data: unknown];
+    info: [string];
+    reject: [unknown];
+    result: [T];
+    status: [string];
+}
+export interface WebSocketEventMap extends Record<string, any[]> {
+    bounced: [reason: string, data: unknown];
+    close: [undefined];
+    error: [string];
+    message: [MessageData];
+    ready: [undefined];
 }

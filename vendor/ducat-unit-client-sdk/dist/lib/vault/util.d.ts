@@ -1,0 +1,14 @@
+import type { VaultActionBalance, VaultActionConfig } from '../../types/index.js';
+import type { PriceCommitData, PriceQuote, ProtoProfile } from '@ducat-unit/core';
+export declare function get_adjusted_quote_price(proto_profile: ProtoProfile, price_quote: PriceQuote): number;
+export declare function get_adjusted_commit_price(proto_profile: ProtoProfile, price_commit: PriceCommitData): number;
+export declare function get_adjusted_liquid_price(proto_profile: ProtoProfile, liquid_price: number): number;
+export declare function get_price_bucket_rate(price_quote: PriceQuote, collateral_ratio: number): number;
+export declare function is_ratio_clamped(price_quote: PriceQuote, collateral_ratio: number): boolean;
+export declare function get_price_commit_hashes(proto_profile: ProtoProfile, action_quote: VaultActionBalance, price_quotes: PriceQuote[]): string[];
+export declare function get_vault_guardian_count(action_config: VaultActionConfig): number;
+export declare function get_price_oracle_count(action_config: VaultActionConfig): number;
+export declare function has_asset_change(action_config: VaultActionConfig): boolean;
+export declare function get_vault_action_postage(action_config: VaultActionConfig): number;
+export declare function get_max_sats_at_ratio(target_ratio: number, unit_balance: number, unit_price: number): number;
+export declare function get_collateral_overflow(vault_balance: number, unit_balance: number, price_quotes: PriceQuote[], proto_profile: ProtoProfile): number;

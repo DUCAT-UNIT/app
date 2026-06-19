@@ -9,6 +9,7 @@ import {
   getOrdOutputUrl,
   getTxOutspendUrl,
   getAddressUtxoUrl,
+  RUNES_CONFIG,
 } from '../../utils/constants';
 import { fetchWithTimeout } from '../../utils/api';
 
@@ -50,11 +51,7 @@ interface OrdData {
 interface OrdUtxoData {
   transaction: string;
   value: number;
-  runes?: {
-    'DUCAT•UNIT•RUNE'?: {
-      amount: string;
-    };
-  };
+  runes?: Record<string, { amount?: string }>;
 }
 
 interface SpendData {
@@ -92,6 +89,16 @@ async function fetchOrdOutputDetails(output: string): Promise<OrdOutputDetails> 
     vout,
     key: `${data.transaction}:${vout}`,
   };
+}
+
+function getDucatUnitRuneData(
+  runes: OrdUtxoData['runes']
+): { amount?: string } | undefined {
+  if (!runes) {
+    return undefined;
+  }
+
+  return runes[RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL] || runes['DUCAT•UNIT•RUNE'];
 }
 
 /**
@@ -161,7 +168,7 @@ export async function findRuneUtxo(
   for (let startIndex = 0; startIndex < outputs.length; startIndex += RUNE_OUTPUT_BATCH_SIZE) {
     const batch = outputs.slice(startIndex, startIndex + RUNE_OUTPUT_BATCH_SIZE);
     const outputDetails = await Promise.all(batch.map(fetchOrdOutputDetails));
-    const runeOutputs = outputDetails.filter(({ data }) => data.runes?.['DUCAT•UNIT•RUNE']);
+    const runeOutputs = outputDetails.filter(({ data }) => getDucatUnitRuneData(data.runes));
 
     const spendChecks = await Promise.all(
       runeOutputs.map(async (details) => {
@@ -191,7 +198,7 @@ export async function findRuneUtxo(
       }
 
       // Safe access with validation (already filtered but double-check for safety)
-      const runeData = data.runes?.['DUCAT•UNIT•RUNE'];
+      const runeData = getDucatUnitRuneData(data.runes);
       if (!runeData?.amount) {
         logger.warn('[findRuneUtxo] Skipping UTXO with missing rune data:', { key });
         continue;

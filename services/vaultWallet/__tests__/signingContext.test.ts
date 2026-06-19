@@ -39,10 +39,7 @@ jest.mock('@ducat-unit/client-sdk', () => ({
     withdraw: {
       create_psbt: jest.fn(),
     },
-    repo: {
-      create_psbt1: jest.fn(),
-      create_psbt2: jest.fn(),
-    },
+    repo: {},
   },
 }));
 
@@ -120,13 +117,10 @@ const mockRepayCreatePsbt1 = VaultAPI.repay.create_psbt1 as jest.Mock;
 const mockRepayCreatePsbt2 = VaultAPI.repay.create_psbt2 as jest.Mock;
 const mockDepositCreatePsbt = VaultAPI.deposit.create_psbt as jest.Mock;
 const mockWithdrawCreatePsbt = VaultAPI.withdraw.create_psbt as jest.Mock;
-const mockRepoCreatePsbt1 = VaultAPI.repo.create_psbt1 as jest.Mock;
-const mockRepoCreatePsbt2 = VaultAPI.repo.create_psbt2 as jest.Mock;
-
 describe('vault signing context', () => {
   const ctx = { ctx: true };
   const liquidCtx = { liquid: true };
-  const vaultCtx = { vault: true };
+  const vaultCtx = { vault: true, __create_psbts: jest.fn(() => [PSBT_A]) };
   const satsUtxos = [{ txid: 'sats', vout: 0, value: 50_000 }];
   const unitUtxos = [{ txid: 'unit', vout: 1, value: 10_000 }];
 
@@ -142,8 +136,7 @@ describe('vault signing context', () => {
     mockRepayCreatePsbt2.mockReturnValue(PSBT_B);
     mockDepositCreatePsbt.mockReturnValue(PSBT_A);
     mockWithdrawCreatePsbt.mockReturnValue(PSBT_A);
-    mockRepoCreatePsbt1.mockReturnValue(PSBT_A);
-    mockRepoCreatePsbt2.mockReturnValue(PSBT_B);
+    vaultCtx.__create_psbts.mockReturnValue([PSBT_A]);
   });
 
   afterEach(() => {
@@ -239,7 +232,22 @@ describe('vault signing context', () => {
     const templates = getExpectedVaultPsbtTemplates();
 
     expect(templates).toHaveLength(1);
-    expect(mockDepositCreatePsbt).toHaveBeenCalledWith(ctx, satsUtxos);
+    expect(mockDepositCreatePsbt).toHaveBeenCalledWith(ctx);
+  });
+
+  it('routes compat deposit operations through the stored PSBT replay builder', () => {
+    const compatCtx = { ...ctx, __create_psbts: jest.fn(() => [PSBT_A]) };
+    setPendingVaultSigningOperation({
+      action: 'deposit',
+      ctx: compatCtx as never,
+      satsUtxos: satsUtxos as never,
+    });
+
+    const templates = getExpectedVaultPsbtTemplates();
+
+    expect(templates).toHaveLength(1);
+    expect(compatCtx.__create_psbts).toHaveBeenCalledWith(satsUtxos);
+    expect(mockDepositCreatePsbt).not.toHaveBeenCalled();
   });
 
   it('routes withdraw operations through the single withdraw PSBT builder', () => {
@@ -254,18 +262,34 @@ describe('vault signing context', () => {
     expect(mockWithdrawCreatePsbt).toHaveBeenCalledWith(ctx);
   });
 
-  it('routes repo operations through liquidation and vault contexts', () => {
+  it('routes compat withdraw operations through the stored PSBT replay builder', () => {
+    const compatCtx = { ...ctx, __create_psbts: jest.fn(() => [PSBT_A]) };
+    setPendingVaultSigningOperation({
+      action: 'withdraw',
+      ctx: compatCtx as never,
+    });
+
+    const templates = getExpectedVaultPsbtTemplates();
+
+    expect(templates).toHaveLength(1);
+    expect(compatCtx.__create_psbts).toHaveBeenCalledWith([]);
+    expect(mockWithdrawCreatePsbt).not.toHaveBeenCalled();
+  });
+
+  it('routes repo operations through the single latest repo PSBT builder', () => {
+    const repoLiquidCtx = { ...liquidCtx, liquid_vaults: [{ vault: 1 }] };
     setPendingVaultSigningOperation({
       action: 'repo',
-      liquidCtx: liquidCtx as never,
+      liquidCtx: repoLiquidCtx as never,
       vaultCtx: vaultCtx as never,
       satsUtxos: satsUtxos as never,
     });
 
     const templates = getExpectedVaultPsbtTemplates();
 
-    expect(templates).toHaveLength(2);
-    expect(mockRepoCreatePsbt1).toHaveBeenCalledWith(liquidCtx, vaultCtx, satsUtxos);
-    expect(mockRepoCreatePsbt2).toHaveBeenCalledWith(liquidCtx, vaultCtx, PSBT_A);
+    expect(templates).toHaveLength(1);
+    expect(vaultCtx.__create_psbts).toHaveBeenCalledWith(satsUtxos, {
+      liquid_profiles: repoLiquidCtx.liquid_vaults,
+    });
   });
 });

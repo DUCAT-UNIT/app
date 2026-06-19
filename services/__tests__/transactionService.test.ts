@@ -12,6 +12,7 @@ import * as SecureStorageService from '../secureStorageService';
 import { ERRORS } from '../../utils/messages';
 import * as bitcoinUtils from '../../utils/bitcoin';
 import { decodeRunestone } from '../../utils/runestoneEncoder';
+import { RUNES_CONFIG } from '../../utils/constants';
 import {
   setupMockFetch,
   getMockFetch,
@@ -40,7 +41,7 @@ jest.mock('../../utils/runestoneEncoder', () => ({
   decodeRunestone: jest.fn(() => ({
     edicts: [
       {
-        id: { block: 1527352n, tx: 1n },
+        id: { block: 3007902n, tx: 1n },
         amount: 10000n,
         output: 0n,
       },
@@ -164,7 +165,7 @@ describe('transactionService', () => {
     (decodeRunestone as jest.Mock).mockReturnValue({
       edicts: [
         {
-          id: { block: 1527352n, tx: 1n },
+          id: RUNES_CONFIG.DUCAT_UNIT_RUNE_ID,
           amount: 10000n,
           output: 0n,
         },
@@ -832,7 +833,7 @@ describe('transactionService', () => {
         (decodeRunestone as jest.Mock).mockReturnValue({
           edicts: [
             {
-              id: { block: 1527352n, tx: 1n },
+              id: RUNES_CONFIG.DUCAT_UNIT_RUNE_ID,
               amount: 9999n,
               output: 0n,
             },

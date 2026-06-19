@@ -1,63 +1,52 @@
-import { TX } from '../../../util/index.js';
-import { create_vault_return, create_vault_spend_out, create_vault_spend_vin, get_contract_input, get_vault_input, get_vault_return_data, create_change_out, get_estimated_spend_size, get_actual_spend_size } from '../../../module/vault/lib/index.js';
-import CONST from '../../../const.js';
-import PSBT from '../../../util/psbt.js';
-import Schema from '../../../schema/index.js';
-const VAULT_VIN_IDX = CONST.TXMAP.deposit.vault_tx.vin.vault;
-export function create_vault_deposit_ctx(price_quote, proto_profile, vault_profile, req_config) {
-    return {
-        ...req_config,
-        ...get_contract_input(proto_profile),
-        ...get_vault_input(vault_profile),
-        vault_quote: price_quote,
-        vault_action: 'd'
-    };
+import { get_txid } from '@vbyte/btc-dev/tx';
+import { PSBT } from '@ducat-unit/core';
+import { emit_info, with_observe_span } from '../../../lib/observe/index.js';
+import { create_sats_change_output, create_vault_return_output, create_vault_spend_input, create_vault_output, finalize_cosign_inputs, finalize_spending_inputs, verify_vault_request_psbt, verify_vault_action_rules, create_vault_ctx, validate_vault_deposit_config, create_vault_request, validate_vault_deposit_request } from '../lib/index.js';
+export function create_vault_deposit_ctx(vault_config) {
+    validate_vault_deposit_config(vault_config);
+    return create_vault_ctx(vault_config);
 }
-export function create_vault_deposit_psbt(vault_ctx, sats_utxos) {
-    const { deposit_amount, vault_balance, vault_utxo } = vault_ctx;
-    const vault_amt = vault_utxo.value + deposit_amount;
-    const change_amt = get_vault_deposit_change(vault_ctx, sats_utxos);
-    const return_data = get_vault_return_data(vault_ctx, vault_balance);
-    const pdata = PSBT.create.psbt({ allowUnknownOutputs: true });
-    pdata.addOutput(create_vault_spend_out(vault_ctx, vault_balance, vault_amt));
-    if (change_amt > 0) {
-        pdata.addOutput(create_change_out(vault_ctx, change_amt));
-    }
-    pdata.addOutput(create_vault_return(return_data));
-    pdata.addInput(create_vault_spend_vin(vault_ctx));
-    for (const utxo of sats_utxos) {
-        pdata.addInput(PSBT.create.input(utxo));
-    }
-    return PSBT.encode(pdata);
+export function create_vault_deposit_psbt(vault_ctx) {
+    return with_observe_span(vault_ctx.observe, 'vault.deposit.create_psbt', { fund_input_count: vault_ctx.fund_inputs.length }, scope => {
+        const { change_value, fund_inputs, unit_balance, vault_balance } = vault_ctx;
+        const pdata = PSBT.create_psbt({ allowUnknownOutputs: true });
+        pdata.addOutput(create_vault_output(vault_ctx, unit_balance, vault_balance));
+        if (change_value > 0) {
+            pdata.addOutput(create_sats_change_output(vault_ctx, change_value));
+        }
+        pdata.addOutput(create_vault_return_output(vault_ctx));
+        pdata.addInput(create_vault_spend_input(vault_ctx));
+        for (const utxo of fund_inputs) {
+            pdata.addInput(PSBT.create_psbt_input(utxo));
+        }
+        const psbt = PSBT.encode_psbt(pdata);
+        emit_info(scope, 'vault.deposit.psbt.created', 'created vault deposit PSBT', {
+            psbt_length: psbt.length
+        });
+        return psbt;
+    });
 }
-export function create_vault_deposit_req(vault_ctx, vault_psbt) {
-    const vault_txhex = PSBT.get.txhex(vault_psbt);
-    const vault_txid = TX.get_txid(vault_txhex);
-    const sats_inputs = PSBT.extract.funding_vins(vault_psbt, { start_idx: VAULT_VIN_IDX + 1 });
-    const vault_input = PSBT.extract.script_vin(vault_psbt, VAULT_VIN_IDX);
-    const schema = Schema.vault.req.deposit_req;
-    return schema.parse({ ...vault_ctx, sats_inputs, vault_input, vault_psbt, vault_txhex, vault_txid });
+export function create_vault_deposit_request(vault_ctx, vault_psbt) {
+    return with_observe_span(vault_ctx.observe, 'vault.deposit.create_request', { signed_psbt_length: vault_psbt.length }, scope => {
+        const context = create_vault_request(vault_ctx);
+        const vault_pdata = PSBT.parse_psbt(vault_psbt);
+        finalize_spending_inputs(vault_pdata);
+        finalize_cosign_inputs(vault_pdata);
+        verify_vault_request_psbt(vault_pdata, vault_ctx.txfee_rate, { ...vault_ctx.validation_options, observe: vault_ctx.observe });
+        const vault_txid = get_txid(vault_pdata.hex);
+        verify_vault_action_rules(vault_ctx, vault_txid);
+        vault_psbt = PSBT.encode_psbt(vault_pdata);
+        const request = { ...context, vault_psbt, vault_txid };
+        validate_vault_deposit_request(request);
+        emit_info(scope, 'vault.deposit.request.created', 'created vault deposit guardian request', {
+            vault_txid
+        });
+        return request;
+    });
 }
-export function get_vault_deposit_quote(vault_config, fee_options = {}) {
-    const { deposit_amount, tx_feerate } = vault_config;
-    const spend_size = get_estimated_spend_size(fee_options);
-    const tx_vsize = CONST.TXSIZE.ACTION.VAULT_DEPOSIT + spend_size;
-    const tx_cost = tx_vsize * tx_feerate;
-    const total_cost = deposit_amount + tx_cost;
-    return { tx_vsize, tx_cost, total_cost };
-}
-function get_vault_deposit_change(vault_config, vin_utxos) {
-    const { tx_feerate } = vault_config;
-    const vin_value = vin_utxos.reduce((prev, curr) => prev + curr.value, 0);
-    const vin_vsize = get_actual_spend_size(vin_utxos);
-    const tx_quote = get_vault_deposit_quote(vault_config);
-    const vin_cost = vin_vsize * tx_feerate;
-    return vin_value - (vin_cost + tx_quote.total_cost);
-}
-export default {
-    create_ctx: create_vault_deposit_ctx,
-    create_psbt: create_vault_deposit_psbt,
-    create_req: create_vault_deposit_req,
-    get_quote: get_vault_deposit_quote,
-    get_change: get_vault_deposit_change
-};
+export var VaultDepositAPI;
+(function (VaultDepositAPI) {
+    VaultDepositAPI.create_ctx = create_vault_deposit_ctx;
+    VaultDepositAPI.create_psbt = create_vault_deposit_psbt;
+    VaultDepositAPI.create_request = create_vault_deposit_request;
+})(VaultDepositAPI || (VaultDepositAPI = {}));

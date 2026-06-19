@@ -64,7 +64,7 @@ describe('createVaultOperationStore', () => {
       });
 
       expect(store1.getState().selectedFeeRate).toBe(5);
-      expect(store2.getState().selectedFeeRate).toBe(1); // unchanged
+      expect(store2.getState().selectedFeeRate).toBe(commonInitialState.selectedFeeRate);
     });
   });
 
@@ -243,7 +243,7 @@ describe('createVaultOperationStore', () => {
 
       const state = store.getState();
       expect(state.customAmount).toBe(42);
-      expect(state.selectedFeeRate).toBe(1); // common state preserved
+      expect(state.selectedFeeRate).toBe(commonInitialState.selectedFeeRate);
     });
 
     it('should allow extension to override reset', () => {
@@ -268,7 +268,7 @@ describe('createVaultOperationStore', () => {
         store.getState().reset();
       });
 
-      expect(store.getState().selectedFeeRate).toBe(1);
+      expect(store.getState().selectedFeeRate).toBe(commonInitialState.selectedFeeRate);
     });
 
     it('should provide context with initial state and store name', () => {

@@ -9,31 +9,23 @@ jest.mock('expo-crypto', () => ({
   getRandomBytes: jest.fn(() => new Uint8Array([0xab, 0xcd, 0xef, 0x12])),
 }));
 
-jest.mock('@ducat-unit/client-sdk', () => ({
-  VaultAPI: {
-    open: {
-      get_quote: jest.fn(() => ({ total_cost: 5000 })),
-    },
-    borrow: {
-      get_quote: jest.fn(() => ({ total_cost: 5000 })),
-    },
-  },
-}));
-
 jest.mock('../constants', () => ({
   VAULT_CONFIG: {
     MIN_COL_RATE: 1.6,
     LIQUIDATION_RATE: 1.5,
     VIN_ALLOWANCE: 100,
-    UNIT_POSTAGE: 330,
-    TOKEN_POSTAGE: 546,
+    UNIT_POSTAGE: 1000,
+    TOKEN_POSTAGE: 1000,
   },
 }));
 
 import {
   generateVaultName,
   getOpCostBorrow,
+  getOpCostDeposit,
   getOpCostOpen,
+  getOpCostRepay,
+  getOpCostWithdraw,
   getMaxUnit,
   getMaxUnitRounded,
   computeLiquidationPrice,
@@ -59,8 +51,8 @@ describe('vaultUtils', () => {
   describe('getOpCostOpen', () => {
     it('should calculate operation cost without UTXOs', () => {
       const cost = getOpCostOpen(10);
-      // 5000 (from quote) + 100 * 10 (VIN_ALLOWANCE * feeRate)
-      expect(cost).toBe(6000);
+      // SDK-size estimate + UNIT postage + VIN_ALLOWANCE * feeRate
+      expect(cost).toBe(9350);
     });
 
     it('should calculate operation cost with p2tr UTXOs', () => {
@@ -68,8 +60,7 @@ describe('vaultUtils', () => {
         { txid: 'abc', vout: 0, value: 10000, script: '5120abcd' },
       ];
       const cost = getOpCostOpen(10, utxos);
-      // 5000 (from quote) + 57 * 10 (p2tr size * feeRate)
-      expect(cost).toBe(5570);
+      expect(cost).toBe(8920);
     });
 
     it('should calculate operation cost with p2w-pkh UTXOs', () => {
@@ -77,8 +68,7 @@ describe('vaultUtils', () => {
         { txid: 'abc', vout: 0, value: 10000, script: '0014abcd' },
       ];
       const cost = getOpCostOpen(10, utxos);
-      // 5000 (from quote) + 68 * 10 (p2w-pkh size * feeRate)
-      expect(cost).toBe(5680);
+      expect(cost).toBe(9030);
     });
 
     it('should calculate operation cost with p2sh UTXOs', () => {
@@ -86,8 +76,7 @@ describe('vaultUtils', () => {
         { txid: 'abc', vout: 0, value: 10000, script: 'a914abcd' },
       ];
       const cost = getOpCostOpen(10, utxos);
-      // 5000 (from quote) + 108 * 10 (p2sh size * feeRate)
-      expect(cost).toBe(6080);
+      expect(cost).toBe(9430);
     });
 
     it('should calculate operation cost with legacy UTXOs', () => {
@@ -95,8 +84,7 @@ describe('vaultUtils', () => {
         { txid: 'abc', vout: 0, value: 10000, script: '76a914abcd' },
       ];
       const cost = getOpCostOpen(10, utxos);
-      // 5000 (from quote) + 148 * 10 (legacy size * feeRate)
-      expect(cost).toBe(6480);
+      expect(cost).toBe(9830);
     });
 
     it('should handle multiple UTXOs', () => {
@@ -105,19 +93,23 @@ describe('vaultUtils', () => {
         { txid: 'def', vout: 1, value: 20000, script: '5120efgh' },
       ];
       const cost = getOpCostOpen(10, utxos);
-      // 5000 (from quote) + (57 + 57) * 10
-      expect(cost).toBe(6140);
+      expect(cost).toBe(9490);
     });
   });
 
   describe('getOpCostBorrow', () => {
-    it('should clamp negative SDK quotes to zero', () => {
-      const { VaultAPI } = require('@ducat-unit/client-sdk');
-      VaultAPI.borrow.get_quote.mockReturnValueOnce({ total_cost: -5000 });
-
+    it('should calculate a non-negative SDK-size-based fee estimate', () => {
       const cost = getOpCostBorrow(1, []);
 
-      expect(cost).toBe(0);
+      expect(cost).toBe(1818);
+    });
+  });
+
+  describe('other vault operation costs', () => {
+    it('should estimate repay, deposit, and withdraw costs from SDK sizing constants', () => {
+      expect(getOpCostRepay(1, [])).toBe(501);
+      expect(getOpCostDeposit(1, [])).toBe(334);
+      expect(getOpCostWithdraw(1)).toBe(334);
     });
   });
 

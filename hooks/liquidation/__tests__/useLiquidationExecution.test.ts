@@ -332,6 +332,24 @@ describe('useLiquidationExecution', () => {
         expect(pending!.vaultPubkey).toBe(MOCK_WALLET.taprootPubkey);
       });
 
+      it('should register partial liquidation pending transactions as trim', async () => {
+        const partialVault = makePartialVault();
+        mockSelectItems.mockReturnValue([partialVault]);
+        mockRecomputePartial.mockResolvedValue({ ...partialVault, vaultId: 'partial-recomputed' });
+        mockExecuteLiquidation.mockResolvedValue({ success: true, txid: 'trimtx', vaultTxid: 'trimtx' });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const pending = usePendingVaultTransactionStore.getState().pendingTransaction;
+        expect(pending).not.toBeNull();
+        expect(pending!.txid).toBe('trimtx');
+        expect(pending!.action).toBe('trim');
+      });
+
       it('keeps the repo pending lock if execution fails after pre-submit request creation', async () => {
         mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
           await onRequestCreated({

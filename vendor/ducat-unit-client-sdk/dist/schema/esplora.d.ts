@@ -1,0 +1,79 @@
+import { z } from 'zod';
+export declare const address_utxo: z.ZodObject<{
+    txid: z.ZodString;
+    vout: z.ZodNumber;
+    value: z.ZodNumber;
+}, z.core.$strip>;
+export declare const tx_output: z.ZodObject<{
+    scriptpubkey: z.ZodString;
+    value: z.ZodNumber;
+}, z.core.$strip>;
+export declare const tx_coinbase: z.ZodObject<{
+    is_coinbase: z.ZodLiteral<true>;
+    prevout: z.ZodNull;
+    txid: z.ZodString;
+    vout: z.ZodNumber;
+    scriptsig: z.ZodString;
+    sequence: z.ZodNumber;
+    witness: z.ZodArray<z.ZodString>;
+}, z.core.$strip>;
+export declare const tx_input: z.ZodObject<{
+    is_coinbase: z.ZodLiteral<false>;
+    txid: z.ZodString;
+    vout: z.ZodNumber;
+    prevout: z.ZodObject<{
+        scriptpubkey: z.ZodString;
+        value: z.ZodNumber;
+    }, z.core.$strip>;
+    scriptsig: z.ZodString;
+    sequence: z.ZodNumber;
+    witness: z.ZodArray<z.ZodString>;
+}, z.core.$strip>;
+export declare const tx_data: z.ZodObject<{
+    locktime: z.ZodNumber;
+    txid: z.ZodString;
+    version: z.ZodNumber;
+    vin: z.ZodArray<z.ZodObject<{
+        is_coinbase: z.ZodLiteral<false>;
+        txid: z.ZodString;
+        vout: z.ZodNumber;
+        prevout: z.ZodObject<{
+            scriptpubkey: z.ZodString;
+            value: z.ZodNumber;
+        }, z.core.$strip>;
+        scriptsig: z.ZodString;
+        sequence: z.ZodNumber;
+        witness: z.ZodArray<z.ZodString>;
+    }, z.core.$strip>>;
+    vout: z.ZodArray<z.ZodObject<{
+        scriptpubkey: z.ZodString;
+        value: z.ZodNumber;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const block_data: z.ZodObject<{
+    hash: z.ZodString;
+    height: z.ZodNumber;
+    prev: z.ZodString;
+    stamp: z.ZodNumber;
+    tx: z.ZodArray<z.ZodObject<{
+        locktime: z.ZodNumber;
+        txid: z.ZodString;
+        version: z.ZodNumber;
+        vin: z.ZodArray<z.ZodObject<{
+            is_coinbase: z.ZodLiteral<false>;
+            txid: z.ZodString;
+            vout: z.ZodNumber;
+            prevout: z.ZodObject<{
+                scriptpubkey: z.ZodString;
+                value: z.ZodNumber;
+            }, z.core.$strip>;
+            scriptsig: z.ZodString;
+            sequence: z.ZodNumber;
+            witness: z.ZodArray<z.ZodString>;
+        }, z.core.$strip>>;
+        vout: z.ZodArray<z.ZodObject<{
+            scriptpubkey: z.ZodString;
+            value: z.ZodNumber;
+        }, z.core.$strip>>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;

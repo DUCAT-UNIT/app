@@ -252,6 +252,7 @@ export function mapVaultActionToJournalKind(action: string): OperationJournalKin
     case 'withdraw':
       return 'vault_withdraw';
     case 'repo':
+    case 'trim':
       return 'vault_repossess';
     default:
       return 'vault_settlement';

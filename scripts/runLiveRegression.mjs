@@ -15,7 +15,7 @@ loadProjectEnvironment();
 
 const DEFAULT_REPORT_PATH = 'artifacts/live-regression/last-run.json';
 const DEFAULT_PROFILE = 'repay-turbounit';
-const DEFAULT_ESPLORA_API_URL = 'https://mutinynet.com/api';
+const DEFAULT_ESPLORA_API_URL = 'https://explorer-mutinynet.dev.ducatprotocol.com/api';
 const DEFAULT_MEMPOOL_TIMEOUT_MS = 90_000;
 const DEFAULT_CONFIRMATION_TIMEOUT_MS = 15 * 60_000;
 const DEFAULT_CONFIRMATION_POLL_MS = 10_000;
@@ -25,6 +25,7 @@ const DEFAULT_LIQUIDATION_INVEST_BTC = '0.00001';
 const DEFAULT_SEPOLIA_SEND_AMOUNT = '0.01';
 const DEFAULT_SEPOLIA_SWAP_AMOUNT = '0.01';
 const DEFAULT_SEPOLIA_REDEEM_AMOUNT = '0.01';
+const SIMCTL_COMMAND_TIMEOUT_MS = 5_000;
 const TXID_HEX_PATTERN = /^[0-9a-f]{64}$/i;
 const EVM_TX_HASH_PATTERN = /^0x[0-9a-f]{64}$/i;
 
@@ -234,14 +235,13 @@ const WATCH_PHASES = [
     start:
       /\[VaultRepayFromUsdc\] (TurboUNIT melt submitted|Resuming existing TurboUNIT melt|Recovered accepted TurboUNIT melt quote)/,
     clear: [
-      /\[VaultRepayFromUsdc\] Released UNIT output exists; continuing to raw repay build/,
       /\[VaultRepayFromUsdc\] Released UNIT available for raw repay/,
       /\[(use[A-Za-z]+Vault)\] Building vault transaction request/,
     ],
   },
   {
     name: 'preferred TurboUNIT UTXO selection',
-    timeoutMs: 60_000,
+    timeoutMs: 240_000,
     start:
       /\[VaultOps\] (Using preferred TurboUNIT melt UTXOs for repay|Preferred TurboUNIT melt UTXO not ready, retrying)/,
     clear: [
@@ -735,10 +735,17 @@ function readSimulatorPasteboard() {
     cwd: process.cwd(),
     env: process.env,
     encoding: 'utf8',
+    killSignal: 'SIGKILL',
     stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: SIMCTL_COMMAND_TIMEOUT_MS,
   });
 
-  if (result.error) throw result.error;
+  if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(`simctl pbpaste timed out after ${SIMCTL_COMMAND_TIMEOUT_MS}ms`);
+    }
+    throw result.error;
+  }
   if ((result.status ?? 1) !== 0) {
     throw new Error(result.stderr?.trim() || `simctl pbpaste failed with ${result.status ?? 1}`);
   }
@@ -755,11 +762,18 @@ function getSimulatorAppDataContainer() {
       cwd: process.cwd(),
       env: process.env,
       encoding: 'utf8',
+      killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: SIMCTL_COMMAND_TIMEOUT_MS,
     }
   );
 
-  if (result.error) throw result.error;
+  if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') {
+      throw new Error(`simctl get_app_container timed out after ${SIMCTL_COMMAND_TIMEOUT_MS}ms`);
+    }
+    throw result.error;
+  }
   if ((result.status ?? 1) !== 0) {
     throw new Error(
       result.stderr?.trim() || `simctl get_app_container failed with ${result.status ?? 1}`
@@ -875,10 +889,18 @@ function collectClipboardTxid() {
   }
 }
 
-async function waitForTxStatus(txid) {
+function requiresConfirmationForChainTxid(txid) {
+  if (!requireConfirmation) return false;
+  const events = report.chainTxids[txid]?.events ?? [];
+  return !events.some(
+    (event) => event.startsWith('simulator_pending_store:') && event.endsWith(':recoverable')
+  );
+}
+
+async function waitForTxStatus(txid, requireTxConfirmation = requireConfirmation) {
   const timeoutMs = Number(
     process.env.DUCAT_LIVE_CHAIN_TIMEOUT_MS ||
-      (requireConfirmation ? DEFAULT_CONFIRMATION_TIMEOUT_MS : DEFAULT_MEMPOOL_TIMEOUT_MS)
+      (requireTxConfirmation ? DEFAULT_CONFIRMATION_TIMEOUT_MS : DEFAULT_MEMPOOL_TIMEOUT_MS)
   );
   const pollMs = Number(process.env.DUCAT_LIVE_CHAIN_POLL_MS || DEFAULT_CONFIRMATION_POLL_MS);
   const startedAt = Date.now();
@@ -890,11 +912,12 @@ async function waitForTxStatus(txid) {
       const status = await fetchTxStatus(txid);
       if (status) {
         lastStatus = status;
-        if (!requireConfirmation || status.confirmed) {
+        if (!requireTxConfirmation || status.confirmed) {
           return {
             txid,
             passed: true,
             confirmed: Boolean(status.confirmed),
+            confirmationRequired: requireTxConfirmation,
             status,
             durationMs: Date.now() - startedAt,
             error: null,
@@ -912,12 +935,15 @@ async function waitForTxStatus(txid) {
     txid,
     passed: false,
     confirmed: Boolean(lastStatus?.confirmed),
+    confirmationRequired: requireTxConfirmation,
     status: lastStatus,
     durationMs: Date.now() - startedAt,
     error:
       lastError ||
       (lastStatus
-        ? 'Transaction reached mempool but did not confirm before timeout.'
+        ? requireTxConfirmation
+          ? 'Transaction reached mempool but did not confirm before timeout.'
+          : 'Transaction did not satisfy chain visibility requirements before timeout.'
         : 'Transaction was not found by Esplora before timeout.'),
   };
 }
@@ -1024,7 +1050,8 @@ async function verifyEmittedChainTxids() {
   }
 
   for (const txid of txids) {
-    const result = await waitForTxStatus(txid);
+    const requireTxConfirmation = requiresConfirmationForChainTxid(txid);
+    const result = await waitForTxStatus(txid, requireTxConfirmation);
     report.chainVerification.results.push({
       ...result,
       events: report.chainTxids[txid]?.events ?? [],

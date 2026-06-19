@@ -10,6 +10,7 @@ import {
   ProcessingStep,
   getPersistedVaultCreationState,
 } from '../vaultCreationStore';
+import { VAULT_CONFIG } from '../../utils/constants';
 
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -45,7 +46,7 @@ describe('vaultCreationStore', () => {
     expect(state).toMatchObject({
       btcAmount: 0,
       unitAmount: 0,
-      selectedFeeRate: 1,
+      selectedFeeRate: VAULT_CONFIG.DEFAULT_FEE_RATE,
       bitcoinPrice: null,
       currentStep: 'amounts',
       processingStep: 1,

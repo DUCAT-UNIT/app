@@ -132,13 +132,19 @@ Core public endpoints:
 
 | Service            | Default                                               |
 | ------------------ | ----------------------------------------------------- |
-| Esplora            | `https://mutinynet.com/api`                           |
+| Validator          | `https://validator-mutinynet.dev.ducatprotocol.com`   |
+| Relay              | `https://relay-mutinynet.dev.ducatprotocol.com`       |
+| Relay WebSocket    | `wss://relay-mutinynet.dev.ducatprotocol.com`         |
+| Oracle/watchtower  | `https://oracle-mutinynet.dev.ducatprotocol.com`      |
+| Tools              | `https://tools-mutinynet.dev.ducatprotocol.com`       |
+| Explorer           | `https://explorer-mutinynet.dev.ducatprotocol.com`    |
+| Esplora            | `https://explorer-mutinynet.dev.ducatprotocol.com/api` |
 | Ord API            | `https://ord-mutinynet.ducatprotocol.com`             |
-| Guardian WebSocket | `wss://guardian-mutinynet-1.ducatprotocol.com`        |
-| Vault API          | `https://validator.ducatprotocol.com/api`             |
+| Guardian WebSocket | `wss://guardian-1-mutinynet.dev.ducatprotocol.com/ws` |
+| Vault API          | `https://validator-mutinynet.dev.ducatprotocol.com/api` |
 | Cashu mint         | `https://dev-cashu-mint.ducatprotocol.com`            |
-| Quote service      | `https://quote.ducatprotocol.com`                     |
-| Price service      | `https://price.ducatprotocol.com`                     |
+| Quote service      | `https://validator-mutinynet.dev.ducatprotocol.com`   |
+| Price service      | `https://validator-mutinynet.dev.ducatprotocol.com`   |
 | Unit bridge API    | `https://unit-bridge-sepolia-z6mcndbb6q-ue.a.run.app` |
 
 The mobile runtime rejects non-Mutinynet `EXPO_PUBLIC_APP_NETWORK` values in

@@ -1,25 +1,51 @@
-import { SocketSubscription, WebSocketClient } from '../../../class/socket.js';
-import unit_req_api from '../api/unit/index.js';
-import vault_req_api from '../api/vault/index.js';
-export class GuardianClient extends WebSocketClient {
-    constructor(host_url, network, pubkey) {
-        super(host_url);
+import { WebSocketClient } from '../../../class/socket.js';
+import { child_observe_context } from '../../../lib/observe/index.js';
+import { get_observe_context } from '../../../lib/observe/index.js';
+import { reserve_asset_account_api } from '../../../module/guard/api/asset/reserve.js';
+import * as VAULT_API from '../../../module/guard/api/vault/index.js';
+export class GuardianClient {
+    constructor(host_url, network, options = {}) {
         this._network = network;
-        this._pubkey = pubkey;
+        this._observe = get_observe_context(options.observability, {
+            module: 'guardian',
+            network
+        });
+        this._socket = new WebSocketClient(host_url, {
+            allow_insecure_ws: options.allow_insecure_ws,
+            observability: child_observe_context(this.observe, {
+                module: 'guardian_socket',
+                network,
+                socket_url: host_url
+            })
+        });
     }
     get network() {
         return this._network;
     }
-    get pubkey() {
-        return this._pubkey;
+    get observe() {
+        return this._observe;
     }
-    get req() {
+    get request() {
         return {
-            unit: unit_req_api(this),
-            vault: vault_req_api(this)
+            asset: {
+                reserve: reserve_asset_account_api(this)
+            },
+            vault: {
+                borrow: VAULT_API.borrow_vault_api(this),
+                close: VAULT_API.close_vault_api(this),
+                deposit: VAULT_API.deposit_vault_api(this),
+                open: VAULT_API.open_vault_api(this),
+                repay: VAULT_API.repay_vault_api(this),
+                repo: VAULT_API.repo_vault_api(this),
+                trim: VAULT_API.trim_vault_api(this),
+                withdraw: VAULT_API.withdraw_vault_api(this)
+            }
         };
     }
-    subscribe(topic, identifier) {
-        return new SocketSubscription(this, topic, identifier);
+    get socket() {
+        return this._socket;
+    }
+    close() {
+        this._socket.close();
     }
 }

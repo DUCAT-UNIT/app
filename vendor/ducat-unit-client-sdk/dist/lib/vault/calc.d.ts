@@ -1,0 +1,10 @@
+import type { ProtoProfile, VaultConfigData } from '@ducat-unit/core/types';
+export declare function get_sigops_vsize(sigops_count: number): number;
+export declare function get_vault_connect_witness_vsize(commit_size?: number): number;
+export declare function get_vault_spend_witness_vsize(guard_count: number, oracle_count: number): number;
+export declare function get_vault_liquidation_total_size(guard_count: number, oracle_count: number, liquid_count: number): number;
+export declare function get_control_block_size(script_count: number): number;
+export declare function get_vault_script_tree_count(guard_count: number, oracle_count: number): number;
+export declare function get_vault_commit_script_size(proto_profile: ProtoProfile, vault_config: VaultConfigData): number;
+export declare function get_liquid_reserve_output_size(reserve_balance: number): number;
+export declare function get_vault_return_size(guard_count: number, oracle_count: number, unit_balance: number): number;

@@ -57,6 +57,8 @@ const formatAction = (action: string): string => {
     'deposit': 'Deposit BTC',
     'withdraw': 'Withdraw BTC',
     'liquidate': 'Liquidation',
+    'repo': 'Liquidation',
+    'trim': 'Liquidation',
   };
   return actionMap[action.toLowerCase()] || action;
 };
@@ -85,6 +87,8 @@ const getActionDescription = (action: string, btcAmt: number, unitAmt: number): 
     case 'withdraw':
       return `Withdrew ${btcFormatted} BTC`;
     case 'liquidate':
+    case 'repo':
+    case 'trim':
       return 'Vault was liquidated';
     default:
       return action;

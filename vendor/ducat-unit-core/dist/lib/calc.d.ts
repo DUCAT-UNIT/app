@@ -1,0 +1,15 @@
+export declare function trim_float(float_value: number, precision?: number): number;
+export declare function calc_ratio(amount: number, total: number): number;
+export declare function calc_portion(amount: number, ratio: number): number;
+export declare function calc_portion_ceil(amount: number, ratio: number): number;
+export declare function convert_sats_to_unit(sats_amount: number, unit_rate: number): number;
+export declare function convert_unit_to_sats(unit_amount: number, unit_rate: number): number;
+export declare function calc_collateral_ratio(sats_amount: number, unit_amount: number, unit_rate: number): number;
+export declare function calc_collateral_portion(coll_ratio: number, unit_amount: number, unit_rate: number): number;
+export declare function get_decimal_count(value: number): number;
+export declare function count_steps_scaled(value: number, base: number, step_size: number): number;
+export declare function get_bucket_rate(rate_min: number, step_size: number, step_count: number): number;
+export declare function floor_to_precision(value: number, precision: number): number;
+export declare function get_adjusted_unit_price(base_price: number, divisibility?: number): number;
+export declare function convert_display_to_smallest(display_amount: number, divisibility?: number): number;
+export declare function convert_smallest_to_display(smallest_amount: number, divisibility?: number): number;

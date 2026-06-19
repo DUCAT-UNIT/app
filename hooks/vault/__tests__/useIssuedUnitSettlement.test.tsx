@@ -118,6 +118,7 @@ const mockMarkUtxosAsSpent = jest.fn();
 const mockUnmarkUtxosAsSpent = jest.fn();
 const mockAddPendingTransaction = jest.fn();
 const mockConfirmTransaction = jest.fn();
+const mockInvalidateTransaction = jest.fn();
 const mockSetQuote = jest.fn();
 const mockSetPhase = jest.fn();
 const mockSetBridgeClientRequestId = jest.fn();
@@ -156,6 +157,7 @@ function configureIssuedUnitSettlement({
   mockUnmarkUtxosAsSpent.mockResolvedValue(undefined);
   mockAddPendingTransaction.mockResolvedValue(undefined);
   mockConfirmTransaction.mockResolvedValue(undefined);
+  mockInvalidateTransaction.mockResolvedValue(['broadcast-txid']);
   mockGetUnconfirmedUTXOs.mockImplementation((kind: string) =>
     kind === 'taproot'
       ? [{ txid: 'tap-unconfirmed', vout: 0, value: 546, runeAmount: 250 }]
@@ -188,6 +190,7 @@ function configureIssuedUnitSettlement({
     unmarkUtxosAsSpent: mockUnmarkUtxosAsSpent,
     addPendingTransaction: mockAddPendingTransaction,
     confirmTransaction: mockConfirmTransaction,
+    invalidateTransaction: mockInvalidateTransaction,
   };
   pendingTransactionsStoreMock.mockImplementation((selector) =>
     selector(pendingTransactionsState)
@@ -676,6 +679,58 @@ describe('useIssuedUnitSettlement', () => {
       { txid: 'sat-input', vout: 1 },
     ]);
     expect(mockMarkNeedsRetry).toHaveBeenCalledWith('turbo pending tracking failed');
+    expect(mockCompleteSettlement).not.toHaveBeenCalled();
+  });
+
+  it('retries Turbo mint send broadcast when a pending parent is not accepted yet', async () => {
+    (broadcastTransaction as jest.Mock)
+      .mockRejectedValueOnce(new Error('RPC error'))
+      .mockResolvedValueOnce('broadcast-txid');
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+    let settlementResult: unknown;
+
+    await act(async () => {
+      settlementResult = await result.current.settleIssuedUnitToTurboUnit('borrow', 50);
+    });
+
+    expect(settlementResult).toEqual({
+      status: 'settled',
+      payoutAsset: 'TURBOUNIT',
+      payoutAmount: '50.00',
+      cashuMintQuoteId: 'cashu-quote-1',
+      cashuMintSendTxid: 'broadcast-txid',
+    });
+    expect(broadcastTransaction).toHaveBeenCalledTimes(2);
+    expect(mockSetCashuMintSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockInvalidateTransaction).not.toHaveBeenCalled();
+    expect(mockUnmarkUtxosAsSpent).not.toHaveBeenCalled();
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('clears Turbo mint send state when broadcast fails before network acceptance', async () => {
+    (broadcastTransaction as jest.Mock).mockRejectedValueOnce(new Error('malformed transaction'));
+    const { result } = renderHook(() => useIssuedUnitSettlement());
+    let settlementResult: unknown;
+
+    await act(async () => {
+      settlementResult = await result.current.settleIssuedUnitToTurboUnit('borrow', 50);
+    });
+
+    expect(settlementResult).toEqual({
+      status: 'needs_retry',
+      cashuMintQuoteId: 'cashu-quote-1',
+      error: 'malformed transaction',
+    });
+    expect(mockSetCashuMintSendTxid).toHaveBeenCalledWith('broadcast-txid');
+    expect(mockSetCashuMintSendTxid).toHaveBeenLastCalledWith(null);
+    expect(mockInvalidateTransaction).toHaveBeenCalledWith(
+      'broadcast-txid',
+      'TurboUNIT mint send broadcast failed',
+    );
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith([
+      { txid: 'unit-input', vout: 0 },
+      { txid: 'sat-input', vout: 1 },
+    ]);
     expect(mockCompleteSettlement).not.toHaveBeenCalled();
   });
 

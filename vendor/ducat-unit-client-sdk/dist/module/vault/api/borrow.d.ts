@@ -1,16 +1,12 @@
-import { BaseUtxo, VaultBorrowRequest, VaultBorrowCtx, PSBTData, AccountProfile, VaultBorrowConfig, PriceQuote, ProtocolProfile, VaultProfile, VaultTxQuote, VaultFeeOptions } from '../../../types/index.js';
-export declare function create_vault_borrow_ctx(acct_profile: AccountProfile, price_quote: PriceQuote, proto_profile: ProtocolProfile, vault_profile: VaultProfile, req_config: VaultBorrowConfig): VaultBorrowCtx;
-export declare function create_vault_borrow_psbt1(vault_ctx: VaultBorrowCtx, sats_utxos: BaseUtxo[]): string;
-export declare function create_vault_borrow_psbt2(vault_ctx: VaultBorrowCtx, acct_psbt: PSBTData): string;
-export declare function create_vault_borrow_req(vault_ctx: VaultBorrowCtx, issue_psbt: string, vault_psbt: string): VaultBorrowRequest;
-export declare function get_vault_borrow_quote(vault_config: VaultBorrowConfig, fee_options?: VaultFeeOptions): VaultTxQuote;
-export declare function get_vault_borrow_change(vault_config: VaultBorrowConfig, sats_utxos: BaseUtxo[]): number;
-declare const _default: {
-    create_ctx: typeof create_vault_borrow_ctx;
-    create_psbt1: typeof create_vault_borrow_psbt1;
-    create_psbt2: typeof create_vault_borrow_psbt2;
-    create_req: typeof create_vault_borrow_req;
-    get_quote: typeof get_vault_borrow_quote;
-    get_change: typeof get_vault_borrow_change;
-};
-export default _default;
+import type { VaultBorrowRequest } from '@ducat-unit/core';
+import type { VaultBorrowRequestConfig, VaultBorrowRequestCtx } from '../../../types/index.js';
+export declare function create_vault_borrow_ctx(vault_config: VaultBorrowRequestConfig): VaultBorrowRequestCtx;
+export declare function create_vault_borrow_psbt1(vault_ctx: VaultBorrowRequestCtx): string;
+export declare function create_vault_borrow_psbt2(vault_ctx: VaultBorrowRequestCtx, issue_psbt: string | Uint8Array): string;
+export declare function create_vault_borrow_psbts(vault_ctx: VaultBorrowRequestCtx): string[];
+export declare function create_vault_borrow_request(vault_ctx: VaultBorrowRequestCtx, vault_psbts: string[]): VaultBorrowRequest;
+export declare namespace VaultBorrowAPI {
+    const create_ctx: typeof create_vault_borrow_ctx;
+    const create_psbts: typeof create_vault_borrow_psbts;
+    const create_request: typeof create_vault_borrow_request;
+}

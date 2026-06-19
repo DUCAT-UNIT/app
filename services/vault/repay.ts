@@ -15,7 +15,6 @@ import type {
   WalletVaultRepayConfig,
   WalletVaultRepayRequest,
 } from '@ducat-unit/client-sdk';
-import { CONST, VaultAPI } from '@ducat-unit/client-sdk';
 import {
   getAddressUtxoUrl,
   getOrdOutputUrl,
@@ -27,18 +26,19 @@ import { getErrorMessage } from '../../utils/errorUtils';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
-import { withVaultOperationLock, checkBatchAllowed, Utxo } from './utils';
+import { withVaultOperationLock, Utxo } from './utils';
 import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
 
-const REPAY_REQUEST_BUILD_TIMEOUT_MS = 45_000;
-const REPAY_PSBT_SIGN_TIMEOUT_MS = 30_000;
+const REPAY_REQUEST_BUILD_TIMEOUT_MS = 225_000;
 const PREFERRED_UNIT_DIRECT_TIMEOUT_MS = 8_000;
-const PREFERRED_UNIT_DIRECT_WAIT_MS = 30_000;
+const PREFERRED_UNIT_DIRECT_WAIT_MS = 180_000;
 const PREFERRED_UNIT_DIRECT_RETRY_MS = 2_000;
+const PREFERRED_UNIT_FETCH_TIMEOUT_MS =
+  PREFERRED_UNIT_DIRECT_WAIT_MS + PREFERRED_UNIT_DIRECT_TIMEOUT_MS + 7_000;
 
 export interface CreateRepayReqOptions {
   feeRate: number;
@@ -98,14 +98,6 @@ export function createRepayConfig(
 
   logger.debug('[VaultOps] Repay config created:', config);
   return config;
-}
-
-function createPsbtManifest(inputs: [string, number[]][]): Record<string, number[]> {
-  const manifest: Record<string, number[]> = {};
-  for (const [address, indexes] of inputs) {
-    manifest[address] = [...(manifest[address] ?? []), ...indexes];
-  }
-  return manifest;
 }
 
 function getRuneUtxoAmount(utxo: RuneUtxo): number {
@@ -304,70 +296,26 @@ async function fetchRepayUnitUtxos(wallet: VaultWallet, repayAmount: number): Pr
   return fetchPreferredRepayUnitUtxos(wallet, repayAmount, preferredRepayUnitTxids);
 }
 
+function getRepayUnitFetchTimeoutMs(): number | undefined {
+  return preferredRepayUnitTxids && preferredRepayUnitTxids.size > 0
+    ? PREFERRED_UNIT_FETCH_TIMEOUT_MS
+    : undefined;
+}
+
 async function createSequentialRepayRequest(
   wallet: VaultWallet,
   vaultCtx: VaultRepayCtx,
   satsUtxos: BaseUtxo[],
   unitUtxos: RuneUtxo[]
 ): Promise<WalletVaultRepayRequest> {
-  const txMap = CONST.TXMAP.repay;
-  const vinVaultIdx = txMap.vault_tx.vin.vault;
-  const vinConnIdx = txMap.vault_tx.vin.conn;
-  const unitFundIdx = txMap.acct_tx.vin.acct + 1;
-  const unitInputs = unitUtxos.map((_, idx) => unitFundIdx + idx);
-  const satsFundIdx = unitFundIdx + unitUtxos.length;
-  const satsInputs = satsUtxos.map((_, idx) => satsFundIdx + idx);
-  const utxoManifest = createPsbtManifest([
-    [wallet.acct.runes.address, unitInputs],
-    [wallet.acct.sats.address, satsInputs],
-  ]);
-  const vaultManifest = createPsbtManifest([
-    [wallet.acct.vault.address, [vinVaultIdx, vinConnIdx]],
-  ]);
-
-  let startedAt = Date.now();
-  logger.info('[VaultOps] Creating repay account PSBT', {
-    satsInputs: satsInputs.length,
-    unitInputs: unitInputs.length,
-  });
-  const accountPsbt = VaultAPI.repay.create_psbt1(vaultCtx, satsUtxos, unitUtxos);
-  logger.info('[VaultOps] Repay account PSBT created', {
-    durationMs: Date.now() - startedAt,
+  const startedAt = Date.now();
+  logger.info('[VaultOps] Building latest repay request', {
+    satsUtxosCount: satsUtxos.length,
+    unitUtxosCount: unitUtxos.length,
   });
 
-  startedAt = Date.now();
-  logger.info('[VaultOps] Signing repay account PSBT');
-  const signedAccountPsbt = await withVaultBuildTimeout(
-    wallet.sign.psbt(accountPsbt, utxoManifest),
-    'Timed out signing the repay funding transaction. Please try again.',
-    REPAY_PSBT_SIGN_TIMEOUT_MS
-  );
-  logger.info('[VaultOps] Repay account PSBT signed', {
-    durationMs: Date.now() - startedAt,
-  });
-
-  startedAt = Date.now();
-  logger.info('[VaultOps] Creating repay vault PSBT');
-  const vaultPsbt = VaultAPI.repay.create_psbt2(vaultCtx, signedAccountPsbt);
-  logger.info('[VaultOps] Repay vault PSBT created', {
-    durationMs: Date.now() - startedAt,
-  });
-
-  startedAt = Date.now();
-  logger.info('[VaultOps] Signing repay vault PSBT');
-  const signedVaultPsbt = await withVaultBuildTimeout(
-    wallet.sign.psbt(vaultPsbt, vaultManifest),
-    'Timed out signing the repay vault transaction. Please try again.',
-    REPAY_PSBT_SIGN_TIMEOUT_MS
-  );
-  logger.info('[VaultOps] Repay vault PSBT signed', {
-    durationMs: Date.now() - startedAt,
-  });
-
-  startedAt = Date.now();
-  logger.info('[VaultOps] Creating final repay request');
-  const request = VaultAPI.repay.create_req(vaultCtx, signedAccountPsbt, signedVaultPsbt);
-  logger.info('[VaultOps] Final repay request created', {
+  const request = await wallet.vault.repay.req(vaultCtx, satsUtxos, unitUtxos);
+  logger.info('[VaultOps] Latest repay request built', {
     durationMs: Date.now() - startedAt,
   });
 
@@ -520,7 +468,8 @@ async function buildVaultReqRepay(
     const unitStartedAt = Date.now();
     const unitUtxos = await withVaultBuildTimeout(
       fetchRepayUnitUtxos(wallet, vaultCtx.repay_amount),
-      'Timed out fetching UNIT UTXOs for repay. Please try again.'
+      'Timed out fetching UNIT UTXOs for repay. Please try again.',
+      getRepayUnitFetchTimeoutMs()
     );
     logger.info('[VaultOps] UNIT UTXOs ready for repay', {
       durationMs: Date.now() - unitStartedAt,
@@ -536,12 +485,8 @@ async function buildVaultReqRepay(
       unitUtxosCount: unitUtxos.length,
     });
 
-    // Batch signing is supported for this address type, but repay uses the
-    // sequential path on mobile so the JS thread can yield between the two PSBTs.
-    const isBatchSupported = checkBatchAllowed(wallet);
     logger.info('[VaultOps] Signing repay request', {
-      isBatchSupported,
-      signingMode: 'sequential',
+      signingMode: 'latest-sdk',
       satsUtxosCount: satsUtxos.length,
       unitUtxosCount: unitUtxos.length,
     });
@@ -561,7 +506,7 @@ async function buildVaultReqRepay(
       );
       logger.info('[VaultOps] Repay request signed', {
         durationMs: Date.now() - signingStartedAt,
-        signingMode: 'sequential',
+        signingMode: 'latest-sdk',
       });
     } finally {
       clearPendingVaultSigningOperation();
@@ -614,7 +559,10 @@ export async function guardianSendReqRepay(
       vault_txid,
     });
 
-    return { txid, vault_txid };
+    return {
+      txid: txid ?? vault_txid ?? '',
+      vault_txid: vault_txid ?? txid ?? '',
+    };
   } catch (error) {
     const errorMessage = getErrorMessage(error, 'Unknown guardian repay submit error');
     logger.error('[VaultOps] Failed to submit repay request:', {

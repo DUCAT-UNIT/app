@@ -15,7 +15,7 @@ import {
   useOperationJournalStore,
 } from './operationJournalStore';
 
-export type VaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'repo';
+export type VaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw' | 'repo' | 'trim';
 
 export interface PendingVaultTransaction {
   txid: string;

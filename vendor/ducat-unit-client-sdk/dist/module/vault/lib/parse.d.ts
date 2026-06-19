@@ -1,0 +1,14 @@
+import type { VaultBorrowRequest, VaultDepositRequest, VaultCloseRequest, VaultOpenRequest, VaultRepayRequest, VaultWithdrawRequest } from '@ducat-unit/core';
+import type { VaultBorrowRequestConfig, VaultDepositRequestConfig, VaultCloseRequestConfig, VaultOpenRequestConfig, VaultRepayRequestConfig, VaultWithdrawRequestConfig } from '../../../types/index.js';
+export declare function parse_vault_open_config(config: unknown): VaultOpenRequestConfig;
+export declare function parse_vault_borrow_config(config: unknown): VaultBorrowRequestConfig;
+export declare function parse_vault_repay_config(config: unknown): VaultRepayRequestConfig;
+export declare function parse_vault_deposit_config(config: unknown): VaultDepositRequestConfig;
+export declare function parse_vault_withdraw_config(config: unknown): VaultWithdrawRequestConfig;
+export declare function parse_vault_close_config(config: unknown): VaultCloseRequestConfig;
+export declare function parse_vault_open_request(req: unknown): VaultOpenRequest;
+export declare function parse_vault_borrow_request(req: unknown): VaultBorrowRequest;
+export declare function parse_vault_repay_request(req: unknown): VaultRepayRequest;
+export declare function parse_vault_deposit_request(req: unknown): VaultDepositRequest;
+export declare function parse_vault_withdraw_request(req: unknown): VaultWithdrawRequest;
+export declare function parse_vault_close_request(req: unknown): VaultCloseRequest;

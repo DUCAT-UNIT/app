@@ -1,0 +1,247 @@
+import { Buff } from '@vbyte/buff';
+var pushdata;
+(function (pushdata) {
+    function encodingLength(i) {
+        return i < OPS.OP_PUSHDATA1 ? 1 : i <= 0xff ? 2 : i <= 0xffff ? 3 : 5;
+    }
+    pushdata.encodingLength = encodingLength;
+    function encode(buffer, num, offset) {
+        const size = encodingLength(num);
+        if (size === 1) {
+            buffer[offset] = num;
+        }
+        else if (size === 2) {
+            buffer[offset] = OPS.OP_PUSHDATA1;
+            buffer[offset + 1] = num;
+        }
+        else if (size === 3) {
+            buffer[offset] = OPS.OP_PUSHDATA2;
+            buffer[offset + 1] = num & 0xff;
+            buffer[offset + 2] = (num >> 8) & 0xff;
+        }
+        else {
+            buffer[offset] = OPS.OP_PUSHDATA4;
+            buffer[offset + 1] = num & 0xff;
+            buffer[offset + 2] = (num >> 8) & 0xff;
+            buffer[offset + 3] = (num >> 16) & 0xff;
+            buffer[offset + 4] = (num >> 24) & 0xff;
+        }
+        return size;
+    }
+    pushdata.encode = encode;
+    function decode(buffer, offset) {
+        const opcode = buffer[offset];
+        let num;
+        let size;
+        if (opcode < OPS.OP_PUSHDATA1) {
+            num = opcode;
+            size = 1;
+        }
+        else if (opcode === OPS.OP_PUSHDATA1) {
+            if (offset + 2 > buffer.length)
+                return null;
+            num = buffer[offset + 1];
+            size = 2;
+        }
+        else if (opcode === OPS.OP_PUSHDATA2) {
+            if (offset + 3 > buffer.length)
+                return null;
+            num = buffer[offset + 1] | (buffer[offset + 2] << 8);
+            size = 3;
+        }
+        else {
+            if (offset + 5 > buffer.length)
+                return null;
+            if (opcode !== OPS.OP_PUSHDATA4)
+                throw new Error('Unexpected opcode');
+            num =
+                buffer[offset + 1] +
+                    buffer[offset + 2] * 2 ** 8 +
+                    buffer[offset + 3] * 2 ** 16 +
+                    buffer[offset + 4] * 2 ** 24;
+            size = 5;
+        }
+        return {
+            opcode,
+            number: num,
+            size,
+        };
+    }
+    pushdata.decode = decode;
+})(pushdata || (pushdata = {}));
+const OPS = {
+    OP_FALSE: 0,
+    OP_0: 0,
+    OP_PUSHDATA1: 76,
+    OP_PUSHDATA2: 77,
+    OP_PUSHDATA4: 78,
+    OP_1NEGATE: 79,
+    OP_RESERVED: 80,
+    OP_TRUE: 81,
+    OP_1: 81,
+    OP_2: 82,
+    OP_3: 83,
+    OP_4: 84,
+    OP_5: 85,
+    OP_6: 86,
+    OP_7: 87,
+    OP_8: 88,
+    OP_9: 89,
+    OP_10: 90,
+    OP_11: 91,
+    OP_12: 92,
+    OP_13: 93,
+    OP_14: 94,
+    OP_15: 95,
+    OP_16: 96,
+    OP_NOP: 97,
+    OP_VER: 98,
+    OP_IF: 99,
+    OP_NOTIF: 100,
+    OP_VERIF: 101,
+    OP_VERNOTIF: 102,
+    OP_ELSE: 103,
+    OP_ENDIF: 104,
+    OP_VERIFY: 105,
+    OP_RETURN: 106,
+    OP_TOALTSTACK: 107,
+    OP_FROMALTSTACK: 108,
+    OP_2DROP: 109,
+    OP_2DUP: 110,
+    OP_3DUP: 111,
+    OP_2OVER: 112,
+    OP_2ROT: 113,
+    OP_2SWAP: 114,
+    OP_IFDUP: 115,
+    OP_DEPTH: 116,
+    OP_DROP: 117,
+    OP_DUP: 118,
+    OP_NIP: 119,
+    OP_OVER: 120,
+    OP_PICK: 121,
+    OP_ROLL: 122,
+    OP_ROT: 123,
+    OP_SWAP: 124,
+    OP_TUCK: 125,
+    OP_CAT: 126,
+    OP_SUBSTR: 127,
+    OP_LEFT: 128,
+    OP_RIGHT: 129,
+    OP_SIZE: 130,
+    OP_INVERT: 131,
+    OP_AND: 132,
+    OP_OR: 133,
+    OP_XOR: 134,
+    OP_EQUAL: 135,
+    OP_EQUALVERIFY: 136,
+    OP_RESERVED1: 137,
+    OP_RESERVED2: 138,
+    OP_1ADD: 139,
+    OP_1SUB: 140,
+    OP_2MUL: 141,
+    OP_2DIV: 142,
+    OP_NEGATE: 143,
+    OP_ABS: 144,
+    OP_NOT: 145,
+    OP_0NOTEQUAL: 146,
+    OP_ADD: 147,
+    OP_SUB: 148,
+    OP_MUL: 149,
+    OP_DIV: 150,
+    OP_MOD: 151,
+    OP_LSHIFT: 152,
+    OP_RSHIFT: 153,
+    OP_BOOLAND: 154,
+    OP_BOOLOR: 155,
+    OP_NUMEQUAL: 156,
+    OP_NUMEQUALVERIFY: 157,
+    OP_NUMNOTEQUAL: 158,
+    OP_LESSTHAN: 159,
+    OP_GREATERTHAN: 160,
+    OP_LESSTHANOREQUAL: 161,
+    OP_GREATERTHANOREQUAL: 162,
+    OP_MIN: 163,
+    OP_MAX: 164,
+    OP_WITHIN: 165,
+    OP_RIPEMD160: 166,
+    OP_SHA1: 167,
+    OP_SHA256: 168,
+    OP_HASH160: 169,
+    OP_HASH256: 170,
+    OP_CODESEPARATOR: 171,
+    OP_CHECKSIG: 172,
+    OP_CHECKSIGVERIFY: 173,
+    OP_CHECKMULTISIG: 174,
+    OP_CHECKMULTISIGVERIFY: 175,
+    OP_NOP1: 176,
+    OP_NOP2: 177,
+    OP_CHECKLOCKTIMEVERIFY: 177,
+    OP_NOP3: 178,
+    OP_CHECKSEQUENCEVERIFY: 178,
+    OP_NOP4: 179,
+    OP_NOP5: 180,
+    OP_NOP6: 181,
+    OP_NOP7: 182,
+    OP_NOP8: 183,
+    OP_NOP9: 184,
+    OP_NOP10: 185,
+    OP_CHECKSIGADD: 186,
+    OP_PUBKEYHASH: 253,
+    OP_PUBKEY: 254,
+    OP_INVALIDOPCODE: 255,
+};
+export const opcodes = OPS;
+function singleChunkIsBuffer(buf) {
+    return Buff.is_bytes(buf);
+}
+export var script;
+(function (script) {
+    function compile(chunks) {
+        const bufferSize = chunks.reduce((accum, chunk) => {
+            if (singleChunkIsBuffer(chunk)) {
+                return accum + pushdata.encodingLength(chunk.length) + chunk.length;
+            }
+            return accum + 1;
+        }, 0.0);
+        const buffer = new Buff(new Uint8Array(bufferSize));
+        let offset = 0;
+        chunks.forEach((chunk) => {
+            if (singleChunkIsBuffer(chunk)) {
+                offset += pushdata.encode(buffer, chunk.length, offset);
+                buffer.set(chunk, offset);
+                offset += chunk.length;
+            }
+            else {
+                buffer[offset] = chunk;
+                offset += 1;
+            }
+        });
+        if (offset !== buffer.length)
+            throw new Error('Could not decode chunks');
+        return buffer;
+    }
+    script.compile = compile;
+    function* decompile(buffer) {
+        let i = 0;
+        while (i < buffer.length) {
+            const opcode = buffer[i];
+            if (opcode >= OPS.OP_0 && opcode <= OPS.OP_PUSHDATA4) {
+                const d = pushdata.decode(buffer, i);
+                if (d === null)
+                    return false;
+                i += d.size;
+                if (i + d.number > buffer.length)
+                    return false;
+                const data = buffer.subarray(i, i + d.number);
+                i += d.number;
+                yield data;
+            }
+            else {
+                yield opcode;
+                i += 1;
+            }
+        }
+        return true;
+    }
+    script.decompile = decompile;
+})(script || (script = {}));

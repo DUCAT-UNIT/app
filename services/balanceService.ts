@@ -3,7 +3,14 @@
  */
 
 import { getJSON, fetchParallel } from '../utils/apiClient';
-import { getAddressUrl, getAddressUtxoUrl, getOrdAddressUrl, API_KEYS, API } from '../utils/constants';
+import {
+  getAddressUrl,
+  getAddressUtxoUrl,
+  getOrdAddressUrl,
+  API_KEYS,
+  API,
+  RUNES_CONFIG,
+} from '../utils/constants';
 import { satsToBTC } from '../utils/bitcoin/conversions';
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { isE2E } from '../utils/e2e';
@@ -80,15 +87,25 @@ const getCoinGeckoHeaders = (): Record<string, string> => {
 };
 
 const extractBtcUsdPrice = (data: unknown): number | null => {
+  if (Array.isArray(data)) {
+    const latest = data
+      .map((item) => extractBtcUsdPrice(item))
+      .find(isValidUsdPrice);
+    return latest ?? null;
+  }
+
   if (!data || typeof data !== 'object') {
     return null;
   }
 
-  const response = data as DucatPriceServerResponse & Partial<CoinGeckoResponse>;
+  const response = data as DucatPriceServerResponse & Partial<CoinGeckoResponse> & {
+    base_price?: number;
+  };
   const candidates = [
     response.price,
     response.curr_price,
     response.current_price,
+    response.base_price,
     response.bitcoin?.usd,
   ];
 
@@ -180,8 +197,8 @@ export const fetchWalletBalances = async (
         // so getRunesAmount uses parseFloat(amount) directly
         if (isE2E() && e2eVaultState.vaultCreated && e2eVaultState.unitBorrowed > 0) {
           return [{
-            rune: 'DUCAT•UNIT•RUNE',
-            runeid: '1527352:1',
+            rune: RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL,
+            runeid: `${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.block}:${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.tx}`,
             amount: String(e2eVaultState.unitBorrowed),
             divisibility: 2,
             symbol: '¤',

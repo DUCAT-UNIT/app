@@ -1,8 +1,8 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Import the reviewer wallet, submit a small vault deposit, and stop on success.
+# Create a fresh confirmed vault, submit a small vault deposit, and stop on success.
 
-- runFlow: ../test/setup-reviewer-wallet.yaml
+- runFlow: create-wallet-with-vault.yaml
 
 - extendedWaitUntil:
     visible:

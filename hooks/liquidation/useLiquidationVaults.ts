@@ -17,9 +17,11 @@ import {
   LIQ_DEFAULT_FEE_RATE,
   LIQ_VALIDATOR_WS,
 } from '../../services/liquidation/constants';
+import { filterUnspentLiquidVaultProfiles } from '../../services/liquidation/spendability';
 import type { LiqVaultDisplay, ValidatorLiquidatedVault } from '../../services/liquidation/types';
 import { fetchProtocolContract, prefetchProtocolContract } from '../../services/vaultWallet';
 import { fetchBtcPrice } from '../../services/balanceService';
+import { fetchBreachedPriceContracts } from '../../services/oracleService';
 import type { ProtocolProfile } from '@ducat-unit/client-sdk';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
@@ -246,6 +248,7 @@ export function useLiquidationVaults({
       }
 
       const contract = await fetchProtocolContractWithTimeout();
+      const breachContracts = await fetchBreachedPriceContracts();
       logger.debug('[Liquidation] Fetch result', { rawCount: raw.length, price: currentPrice });
 
       // Use computeLiquidVaultProfiles from calculations.ts (no duplication)
@@ -253,9 +256,10 @@ export function useLiquidationVaults({
         ...store.getState().suppressedVaultIds,
         ...store.getState().executingVaultIds,
       ]);
-      const fullProfiles = computeLiquidVaultProfiles(raw, currentPrice, contract).filter(
+      const computedProfiles = computeLiquidVaultProfiles(raw, currentPrice, contract, breachContracts).filter(
         (vault) => !suppressedVaultIds.has(vault.vaultId),
       );
+      const fullProfiles = await filterUnspentLiquidVaultProfiles(computedProfiles);
 
       // Derive display projections
       const displayProfiles: LiqVaultDisplay[] = fullProfiles.map((p) => ({

@@ -5,13 +5,14 @@
  * and the @ducat-unit/client-sdk interfaces.
  */
 
-import type { LiquidVaultProfile, LiquidationQuote } from '@ducat-unit/client-sdk/vault';
+import type { LiquidVaultProfile, LiquidationQuote, VaultProfile } from '@ducat-unit/client-sdk';
 
 // ============================================================
 // Validator API Response Types
 // ============================================================
 
 export interface ValidatorLiquidatedVault {
+  latest_profile?: VaultProfile;
   vault_id: string;
   master_id: string;
   guardian_pubkey: string;

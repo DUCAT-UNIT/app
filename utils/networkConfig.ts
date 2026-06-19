@@ -25,6 +25,12 @@ export interface AppNetworkConfig {
     oppositeAll: string[];
   };
   api: {
+    validatorUrl: string;
+    relayUrl: string;
+    relayWsUrl: string;
+    oraclePubkey: string;
+    oracleUrl: string;
+    toolsUrl: string;
     explorerBaseUrl: string;
     esploraApiUrl: string;
     ordUrl: string;
@@ -127,7 +133,11 @@ function buildAddressPrefixes(
 
 function resolveMutinynetConfig(): AppNetworkConfig {
   assertMutinynetOnlyConfig();
-  const unitLabel = getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•RUNE';
+  const unitLabel = getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•MTNY';
+  const validatorUrl = requireHttpsUrl(
+    'EXPO_PUBLIC_VALIDATOR_URL',
+    getEnv('EXPO_PUBLIC_VALIDATOR_URL') ?? 'https://validator-mutinynet.dev.ducatprotocol.com'
+  );
 
   return {
     id: 'mutinynet',
@@ -139,16 +149,31 @@ function resolveMutinynetConfig(): AppNetworkConfig {
     vaultSdkNetwork: 'mutiny',
     addressPrefixes: buildAddressPrefixes('tb', ['2', 'm', 'n'], 'mainnet', 'bc', ['3', '1']),
     api: {
-      explorerBaseUrl: getEnv('EXPO_PUBLIC_EXPLORER_URL') ?? 'https://mutinynet.com',
-      esploraApiUrl: getEnv('EXPO_PUBLIC_ESPLORA_API_URL') ?? 'https://mutinynet.com/api',
+      validatorUrl,
+      relayUrl: getEnv('EXPO_PUBLIC_RELAY_URL') ?? 'https://relay-mutinynet.dev.ducatprotocol.com',
+      relayWsUrl:
+        getEnv('EXPO_PUBLIC_RELAY_WS_URL') ?? 'wss://relay-mutinynet.dev.ducatprotocol.com',
+      oraclePubkey:
+        getEnv('EXPO_PUBLIC_ORACLE_PUBKEY') ??
+        'a12736a47c9e8f20c863bff8c35fa7db2d79875e5812f419799da2e8ec7cd41e',
+      oracleUrl:
+        getEnv('EXPO_PUBLIC_ORACLE_URL') ?? 'https://oracle-mutinynet.dev.ducatprotocol.com',
+      toolsUrl: getEnv('EXPO_PUBLIC_TOOLS_URL') ?? 'https://tools-mutinynet.dev.ducatprotocol.com',
+      explorerBaseUrl:
+        getEnv('EXPO_PUBLIC_EXPLORER_URL') ??
+        'https://explorer-mutinynet.dev.ducatprotocol.com',
+      esploraApiUrl:
+        getEnv('EXPO_PUBLIC_ESPLORA_API_URL') ??
+        'https://explorer-mutinynet.dev.ducatprotocol.com/api',
       ordUrl: getEnv('EXPO_PUBLIC_ORD_API_URL') ?? 'https://ord-mutinynet.ducatprotocol.com',
       guardianWs:
-        getEnv('EXPO_PUBLIC_GUARDIAN_WS_URL') ?? 'wss://guardian-mutinynet-1.ducatprotocol.com',
-      quoteServer: getEnv('EXPO_PUBLIC_QUOTE_SERVER_URL') ?? 'https://quote.ducatprotocol.com',
-      priceServer: getEnv('EXPO_PUBLIC_PRICE_SERVER_URL') ?? 'https://price.ducatprotocol.com',
+        getEnv('EXPO_PUBLIC_GUARDIAN_WS_URL') ??
+        'wss://guardian-1-mutinynet.dev.ducatprotocol.com/ws',
+      quoteServer: getEnv('EXPO_PUBLIC_QUOTE_SERVER_URL') ?? validatorUrl,
+      priceServer: getEnv('EXPO_PUBLIC_PRICE_SERVER_URL') ?? validatorUrl,
       vaultUrl: requireHttpsUrl(
         'EXPO_PUBLIC_VAULT_API_URL',
-        getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? 'https://validator.ducatprotocol.com/api'
+        getEnv('EXPO_PUBLIC_VAULT_API_URL') ?? `${validatorUrl}/api`
       ),
       phoneUrl: getEnv('EXPO_PUBLIC_PHONE_URL') ?? 'https://phone.ducatprotocol.com',
       coingeckoUrl: 'https://api.coingecko.com/api/v3',
@@ -162,14 +187,14 @@ function resolveMutinynetConfig(): AppNetworkConfig {
     protocol: {
       masterContractId:
         getEnv('EXPO_PUBLIC_MASTER_CONTRACT_ID') ??
-        '02837661131516ad503dbe0bcf73964244d5f02bc577678ffd3fcbb54f493f36i0',
+        '4c7a39a8e71b5d891fe5321a2e6fc6cf72039c60096ee63f591ecc7ecfaba115',
       turboMintAddress:
         getEnv('EXPO_PUBLIC_TURBO_MINT_ADDRESS') ??
         'tb1p7p74tg67aaw94vz2kewzeyuq80x0a65wpgegnat98f5hkcnpfjsqntv2em',
     },
     runes: {
       unitId: {
-        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 1527352n,
+        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 3007902n,
         tx: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX') ?? 1n,
       },
       unitLabel,

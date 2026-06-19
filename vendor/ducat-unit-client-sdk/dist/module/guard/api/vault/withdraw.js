@@ -1,40 +1,53 @@
-import { Assert, parse_error } from '../../../../util/index.js';
-import CONST from '../../../../const.js';
-import Schema from '../../../../schema/index.js';
-export default function (client) {
+import { TOPICS } from '../../../../const.js';
+import { child_observe_context, emit_debug, emit_info, emit_warn } from '../../../../lib/observe/index.js';
+import { validate_vault_withdraw_request } from '../../../../module/vault/lib/validate.js';
+import * as SCHEMA from '../../../../schema/index.js';
+import * as SHARED from '@ducat-unit/core/schema';
+export function withdraw_vault_api(client) {
     return (request) => {
-        const schema = Schema.wallet.req.withdraw_req;
-        const config = schema.parse(request);
-        const topic = CONST.TOPICS.VAULT_WITHDRAW;
-        Assert.ok(config.network === client.network, 'network mismatch');
-        const sub = client.subscribe(topic);
-        sub.register(handler);
-        sub.send({ ...config, network: client.network });
+        validate_vault_withdraw_request(request);
+        const msg = { data: request, topic: TOPICS.GUARDIAN.VAULT_WITHDRAW };
+        const sub = client.socket.subscribe(msg);
+        const observe = child_observe_context(client.observe, {
+            contract_id: request.contract_id,
+            request_id: sub.id,
+            topic: msg.topic,
+            vault_action: request.vault_action
+        });
+        emit_info(observe, 'guardian.request.vault.withdraw.start', 'created guardian vault withdraw request', { contract_id: request.contract_id });
+        sub.on('message', (message) => {
+            switch (message.type) {
+                case 'info': {
+                    const parsed = SHARED.base.str.parse(message.data);
+                    emit_info(observe, 'guardian.request.subscription.info', parsed);
+                    sub.emit('info', parsed);
+                    break;
+                }
+                case 'reject': {
+                    const parsed = SHARED.base.str.parse(message.data);
+                    emit_warn(observe, 'guardian.request.vault.withdraw.reject', 'guardian vault withdraw request rejected', {
+                        reason: parsed
+                    });
+                    sub.emit('reject', parsed);
+                    break;
+                }
+                case 'result': {
+                    const schema = SCHEMA.module.guard.response.vault_withdraw;
+                    const parsed = schema.parse(message.data);
+                    emit_debug(observe, 'guardian.request.vault.withdraw.result', {
+                        vault_txid: parsed.vault_txid
+                    });
+                    sub.emit('result', parsed);
+                    break;
+                }
+                case 'status': {
+                    const parsed = SHARED.base.str.parse(message.data);
+                    emit_info(observe, 'guardian.request.subscription.status', parsed);
+                    sub.emit('status', parsed);
+                    break;
+                }
+            }
+        });
         return sub;
     };
-}
-function handler(sub, msg) {
-    try {
-        switch (msg.type) {
-            case 'info': {
-                const parsed = Schema.base.str.parse(msg.data);
-                sub.emit('info', parsed);
-                break;
-            }
-            case 'res': {
-                const parsed = Schema.guard.vault_update_res.parse(msg.data);
-                sub.emit('res', parsed);
-                break;
-            }
-            case 'rej': {
-                const parsed = Schema.base.str.parse(msg.data);
-                sub.emit('rej', parsed);
-                break;
-            }
-        }
-    }
-    catch (err) {
-        const reason = parse_error(err);
-        sub.emit('err', reason);
-    }
 }

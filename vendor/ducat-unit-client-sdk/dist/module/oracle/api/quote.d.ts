@@ -1,2 +1,6 @@
-import type { ApiResponse, PriceQuote } from '../../../types/index.js';
-export declare function fetch_price_quote(exchange_url: string, thold_price: number, quote_stamp?: number): Promise<ApiResponse<PriceQuote>>;
+import { PriceOracleClient } from '../class/client.js';
+import type { PriceQuote } from '@ducat-unit/core';
+export interface FetchPriceQuotesOptions {
+    max_age_ms?: number;
+}
+export declare function fetch_price_quotes_api(client: PriceOracleClient): (options?: FetchPriceQuotesOptions) => Promise<PriceQuote[]>;

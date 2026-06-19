@@ -101,6 +101,10 @@ function isPendingHistoryTransaction(transaction: VaultHistoryTransaction): bool
   return (transaction as VaultHistoryTransaction & { isPending?: boolean }).isPending === true;
 }
 
+function isPendingLiquidationAction(action: PendingVaultTransaction['action']): boolean {
+  return action === 'repo' || action === 'trim';
+}
+
 function getLatestSettledHistoryTransaction(
   vaultTransactions: VaultHistoryTransaction[]
 ): VaultHistoryTransaction | null {
@@ -156,7 +160,7 @@ export function isPendingVaultTransactionApplied(
   }
 
   if (!vaultData) {
-    return pendingTransaction.action === 'repo';
+    return isPendingLiquidationAction(pendingTransaction.action);
   }
 
   return (

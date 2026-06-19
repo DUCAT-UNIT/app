@@ -6,8 +6,10 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { act } from '@testing-library/react-native';
 import { useWithdraw, useWithdrawStore } from '../withdrawStore';
+import { BITCOIN_TX, VAULT_CONFIG } from '../../utils/constants';
 
 const resetWithdrawStore = () => useWithdrawStore.getState().reset();
+const mockWithdrawFeeSats = (feeRate = VAULT_CONFIG.DEFAULT_FEE_RATE) => 256 * feeRate;
 
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
@@ -57,7 +59,9 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(24_999_197);
+    expect(result.current!.maxWithdrawable).toBe(
+      25_000_000 - mockWithdrawFeeSats() - BITCOIN_TX.DUST_LIMIT - 1
+    );
   });
 
   it('should return zero max withdrawable when debt exists and price is missing', () => {
@@ -77,13 +81,26 @@ describe('withdrawStore', () => {
     });
 
     const { result } = renderHook(() => useWithdraw());
-    expect(result.current!.maxWithdrawable).toBe(23_398_744);
+    expect(result.current!.maxWithdrawable).toBe(
+      25_000_000 - 1_600_000 - mockWithdrawFeeSats() - 1_000
+    );
+  });
+
+  it('should return zero when the default fee consumes the health boundary remainder', () => {
+    act(() => {
+      useWithdrawStore.getState().setCurrentVaultData(5001, 0.09963611);
+      useWithdrawStore.getState().setBitcoinPrice(80326);
+    });
+
+    const { result } = renderHook(() => useWithdraw());
+    expect(result.current!.maxWithdrawable).toBe(0);
   });
 
   it('should not offer a dust max withdraw that sits on the health boundary', () => {
     act(() => {
       useWithdrawStore.getState().setCurrentVaultData(5001, 0.09963611);
       useWithdrawStore.getState().setBitcoinPrice(80326);
+      useWithdrawStore.getState().setSelectedFeeRate(1);
     });
 
     const { result } = renderHook(() => useWithdraw());

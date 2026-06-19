@@ -33,6 +33,12 @@ export const PIN_HASH_VERSION = {
 
 // API endpoints
 export const API = {
+  VALIDATOR: APP_NETWORK_CONFIG.api.validatorUrl,
+  RELAY: APP_NETWORK_CONFIG.api.relayUrl,
+  RELAY_WS: APP_NETWORK_CONFIG.api.relayWsUrl,
+  ORACLE_PUBKEY: APP_NETWORK_CONFIG.api.oraclePubkey,
+  ORACLE: APP_NETWORK_CONFIG.api.oracleUrl,
+  TOOLS: APP_NETWORK_CONFIG.api.toolsUrl,
   BASE: APP_NETWORK_CONFIG.api.esploraApiUrl,
   ORD_BASE: APP_NETWORK_CONFIG.api.ordUrl,
   EXPLORER: APP_NETWORK_CONFIG.api.explorerBaseUrl,
@@ -62,14 +68,15 @@ export const BITCOIN_TX = {
 
 // Vault creation constants
 export const VAULT_CONFIG = {
+  DEFAULT_FEE_RATE: 5, // Priority tier; avoids low-fee package replacement failures on Mutinynet
   MIN_COL_RATE: 1.6, // 160% minimum collateralization ratio
   LIQUIDATION_RATE: 1.35, // 135% liquidation threshold
   MIN_VAULT_BALANCE: 10_000, // Minimum sats to leave in an active vault output
   VIN_ALLOWANCE: 350, // Virtual bytes allowance per input
   TX_TIMEOUT: 60_000, // 60s guardian timeout
-  UNIT_POSTAGE: 10_000, // Satoshis for UNIT output
-  TOKEN_POSTAGE: 10_000, // Satoshis for token output
-  RUNE_LABEL: 'DUCAT•UNIT•RUNE', // Rune label for UNIT token
+  UNIT_POSTAGE: 1_000, // Validator-required sats for UNIT outputs
+  TOKEN_POSTAGE: 1_000, // Validator-required sats for token outputs
+  RUNE_LABEL: APP_NETWORK_CONFIG.runes.unitLabel, // Rune label for UNIT token
 } as const;
 
 // Runes configuration

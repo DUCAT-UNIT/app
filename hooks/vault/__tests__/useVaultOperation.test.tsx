@@ -223,6 +223,7 @@ describe('useVaultOperation', () => {
       extractVaultFinalizationPendingData,
     } = require('../../../services/vault/pendingIssueOutputs');
     const spentInputs = [{ txid: 'vault-input-txid', vout: 0 }];
+    const expectedSpentInputs = [...spentInputs, { txid: 'prevout', vout: 0 }];
     extractVaultFinalizationPendingData.mockReturnValueOnce({
       outputs: [],
       spentInputs,
@@ -276,14 +277,68 @@ describe('useVaultOperation', () => {
       expect.objectContaining({ txid: 'vault-final-txid', action: 'deposit' }),
       0
     );
-    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(expectedSpentInputs);
     expect(mockAddPendingTransaction).toHaveBeenCalledWith(
       'vault-final-txid',
       [],
       'BTC',
       null,
       undefined,
-      spentInputs
+      expectedSpentInputs
+    );
+  });
+
+  it('locks the active vault prevout when finalization txhex is unavailable', async () => {
+    const activeVaultInput = [{ txid: 'prevout', vout: 0 }];
+    const actions = makeActions();
+    const config = {
+      operationType: 'deposit',
+      operationName: 'testDeposit',
+      needsReservation: false,
+      hasIssueTxid: false,
+      useStore: () => ({
+        state: {
+          amount: 50_000,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ deposit_amount: 50_000 }),
+      createRequest: jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' }),
+      sendRequest: jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' }),
+      extractResult: () => ({ vaultTxid: 'vault-final-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'vault-final-txid',
+        vaultTxid: 'vault-final-txid',
+        action: 'deposit',
+        btcAmt: 50_000,
+        unitAmt: 0,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+
+    await act(async () => {
+      await result.current.execute();
+    });
+
+    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(activeVaultInput);
+    expect(mockAddPendingTransaction).toHaveBeenCalledWith(
+      'vault-final-txid',
+      [],
+      'BTC',
+      null,
+      undefined,
+      activeVaultInput
     );
   });
 
@@ -394,6 +449,7 @@ describe('useVaultOperation', () => {
       extractVaultFinalizationPendingData,
     } = require('../../../services/vault/pendingIssueOutputs');
     const spentInputs = [{ txid: 'vault-input-txid', vout: 0 }];
+    const expectedSpentInputs = [...spentInputs, { txid: 'prevout', vout: 0 }];
     const sendRequest = jest.fn().mockResolvedValue({ vault_txid: 'vault-final-txid' });
     mockAddPendingTransaction.mockRejectedValueOnce(new Error('pending storage failed'));
     extractVaultFinalizationPendingData.mockReturnValueOnce({
@@ -447,8 +503,8 @@ describe('useVaultOperation', () => {
 
     expect(sendRequest).not.toHaveBeenCalled();
     expect(mockSetPendingVaultTransactionForAccount).toHaveBeenCalled();
-    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
-    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+    expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(expectedSpentInputs);
+    expect(mockUnmarkUtxosAsSpent).toHaveBeenCalledWith(expectedSpentInputs);
     expect(mockDiscardPendingVaultTransactionForAccount).toHaveBeenCalledWith(
       0,
       'vault-final-txid',

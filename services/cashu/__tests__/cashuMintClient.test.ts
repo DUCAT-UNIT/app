@@ -217,7 +217,7 @@ describe('cashuMintClient', () => {
         expect.objectContaining({
           unit: 'unit',
           pubkey,
-          rune_id: '1527352:1',
+          rune_id: '3007902:1',
         }),
         expect.objectContaining({ timeout: 10000 })
       );
@@ -457,7 +457,7 @@ describe('cashuMintClient', () => {
           request: 'tb1pwithdraw',
           amount: 1000,
           unit: 'unit',
-          rune_id: '1527352:1',
+          rune_id: '3007902:1',
         }),
         expect.any(Object)
       );

@@ -1,9 +1,15 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Live liquidation execution.
-# Requires at least one claimable vault from the live liquidation validator.
+# Requires a liquidator wallet with an active vault plus at least one claimable
+# vault from the live liquidation validator.
 
-- runFlow: setup-reviewer-wallet.yaml
+- runFlow: ../helpers/create-wallet-with-vault.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-vault-actions-ready'
+    timeout: 240000
 
 - openLink: 'ducat://liquidations'
 - runFlow: ../helpers/accept-open-in-app-alert.yaml

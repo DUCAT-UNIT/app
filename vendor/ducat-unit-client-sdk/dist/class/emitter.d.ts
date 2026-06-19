@@ -1,15 +1,12 @@
-type EventKey<S extends EventMap> = string & keyof S;
-type EventMap = Record<string, any>;
-export declare class EventEmitter<S extends EventMap = {}> {
-    private readonly _events;
+export declare class EventEmitter<T extends Record<string, any[]> = {}> {
+    private readonly eventMap;
     constructor();
-    private _getHandlers;
-    has: (event: string) => boolean;
-    on: <K extends EventKey<S>>(event: K, fn: (payload: S[K]) => void | Promise<void>) => void;
-    once: <K extends EventKey<S>>(event: K, fn: (payload: S[K]) => void | Promise<void>) => void;
-    within: <K extends EventKey<S>>(event: K, fn: (payload: S[K]) => void | Promise<void>, timeout: number) => void;
-    emit: <K extends EventKey<S>>(event: K, payload?: S[K] | null) => void;
-    remove: <K extends EventKey<S>>(event: K, fn: (payload: S[K]) => void) => void;
-    clear: (event: string) => void;
+    private getEventHandlers;
+    has<K extends keyof T>(eventName: K): boolean;
+    on<K extends keyof T>(eventName: K, handler: (...args: T[K]) => void | Promise<void>): void;
+    once<K extends keyof T>(eventName: K, handler: (...args: T[K]) => void | Promise<void>): void;
+    within<K extends keyof T>(eventName: K, handler: (...args: T[K]) => void | Promise<void>, timeoutMs: number): void;
+    emit<K extends keyof T>(eventName: K, ...args: T[K]): void;
+    off<K extends keyof T>(eventName: string, handler: (...args: T[K]) => void | Promise<void>): void;
+    clear(eventName: string): void;
 }
-export {};

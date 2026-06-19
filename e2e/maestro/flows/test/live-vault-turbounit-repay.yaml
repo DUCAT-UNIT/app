@@ -12,8 +12,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'wallet-screen'
     timeout: 10000
 
-# Repay through the TurboUNIT funding card. Use an exact tiny amount so the
-# TurboUNIT card is funded even when direct on-chain UNIT also exists.
+# Repay through the TurboUNIT funding card. The guardian rejects sub-$1
+# vault repay reservations, so use the minimum supported live amount.
 - extendedWaitUntil:
     visible:
       id: 'wallet-repay-btn'
@@ -36,7 +36,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 5000
 
 - eraseText
-- inputText: '0.01'
+- inputText: '1'
 
 - tapOn:
     id: 'vault-repay-amount-done-btn'
@@ -64,8 +64,19 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'vault-repay-funding-turbounit-card'
     direction: DOWN
     timeout: 5000
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-funding-turbounit-card-enabled'
+    timeout: 420000
+
 - tapOn:
     id: 'vault-repay-funding-turbounit-card'
+
+- extendedWaitUntil:
+    visible:
+      id: 'vault-repay-funding-turbounit-card-selected'
+    timeout: 5000
 
 - tapOn:
     id: 'vault-repay-funding-continue-btn'

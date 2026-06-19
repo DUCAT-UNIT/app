@@ -191,6 +191,11 @@ export async function signPsbtRaw(
           throw new Error(`SECURITY: Missing witnessUtxo for requested input ${inputIndex}`);
         }
 
+        if (isInputAlreadySigned(input)) {
+          logger.debug(`[signPsbtRaw] Skipping already signed input ${inputIndex} for ${address}`);
+          continue;
+        }
+
         const scriptHex = Buffer.from(input.witnessUtxo.script).toString('hex');
         const { isSegwit, isTaproot, derivationPath } = getAddressTypeInfo(
           address,
@@ -251,6 +256,20 @@ export async function signPsbtRaw(
     logger.debug(`[signPsbtRaw] Signed PSBT encoded`);
     return signedPsbt;
   });
+}
+
+function isInputAlreadySigned(input: {
+  finalScriptWitness?: unknown;
+  partialSig?: unknown[];
+  tapKeySig?: unknown;
+  tapScriptSig?: unknown[];
+}): boolean {
+  return Boolean(
+    input.finalScriptWitness ||
+      input.tapKeySig ||
+      (input.partialSig?.length ?? 0) > 0 ||
+      (input.tapScriptSig?.length ?? 0) > 0
+  );
 }
 
 /**

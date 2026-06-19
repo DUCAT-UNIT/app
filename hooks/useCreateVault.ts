@@ -9,6 +9,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useBalance } from '../contexts/WalletDataContext';
 import { usePrice } from '../stores/priceStore';
 import { getGuardianClient, disconnectGuardian } from '../services/guardianService';
+import { getJsonWithNativeTimeout } from '../utils/nativeHttp';
 import {
   createVaultConfig,
   guardianOpenVaultReserve,
@@ -30,6 +31,8 @@ import type { ProcessingStep } from '../stores/vaultCreationStore';
 import { usePendingVaultTransactionStore } from '../stores/pendingVaultTransactionStore';
 import { usePendingTransactionsStore } from '../stores/pendingTransactionsStore';
 import { useNotificationStore } from '../stores/notificationStore';
+import { getTxApiUrl } from '../utils/constants';
+import { getErrorMessage } from '../utils/errorUtils';
 import {
   extractVaultFinalizationPendingData,
   extractVaultIssuePendingData,
@@ -59,6 +62,65 @@ export interface UseCreateVaultResult {
   vaultTxid: string | null;
 }
 
+const VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS = 3;
+const VAULT_RECOVERY_TX_VISIBILITY_TIMEOUT_MS = 4_000;
+const VAULT_RECOVERY_TX_VISIBILITY_RETRY_MS = 2_000;
+
+function compactTxids(txids: Array<string | null | undefined>): string[] {
+  return [...new Set(txids.filter((txid): txid is string => Boolean(txid)))];
+}
+
+function isMissingTxError(error: unknown): boolean {
+  return /\bHTTP\s+404\b/i.test(getErrorMessage(error, ''));
+}
+
+async function wait(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, ms);
+    (timeout as { unref?: () => void }).unref?.();
+  });
+}
+
+async function checkTxMissingFromExplorer(txid: string): Promise<boolean | null> {
+  try {
+    await getJsonWithNativeTimeout<unknown>(getTxApiUrl(txid), {
+      timeout: VAULT_RECOVERY_TX_VISIBILITY_TIMEOUT_MS,
+      headers: { Accept: 'application/json' },
+    });
+    return false;
+  } catch (error) {
+    if (isMissingTxError(error)) {
+      return true;
+    }
+
+    logger.warn('[useCreateVault] Could not verify failed vault tx visibility', {
+      txid,
+      error: getErrorMessage(error, 'Unknown transaction visibility check error'),
+    });
+    return null;
+  }
+}
+
+async function areTxidsStillMissingFromExplorer(txids: string[]): Promise<boolean> {
+  if (txids.length === 0) {
+    return false;
+  }
+
+  for (let attempt = 1; attempt <= VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS; attempt += 1) {
+    const statuses = await Promise.all(txids.map((txid) => checkTxMissingFromExplorer(txid)));
+
+    if (statuses.some((status) => status === false || status === null)) {
+      return false;
+    }
+
+    if (attempt < VAULT_RECOVERY_TX_VISIBILITY_ATTEMPTS) {
+      await wait(VAULT_RECOVERY_TX_VISIBILITY_RETRY_MS);
+    }
+  }
+
+  return true;
+}
+
 export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVaultResult {
   const { wallet, currentAccount } = useWallet();
   const { segwitBalance } = useBalance();
@@ -69,7 +131,11 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
   const clearPendingTransactionForAccount = usePendingVaultTransactionStore(
     (s) => s.clearPendingTransactionForAccount
   );
+  const discardPendingTransactionForAccount = usePendingVaultTransactionStore(
+    (s) => s.discardPendingTransactionForAccount
+  );
   const addPendingTransaction = usePendingTransactionsStore((s) => s.addPendingTransaction);
+  const invalidatePendingTransaction = usePendingTransactionsStore((s) => s.invalidateTransaction);
   const markUtxoAsSpent = usePendingTransactionsStore((s) => s.markUtxoAsSpent);
   const markUtxosAsSpent = usePendingTransactionsStore((s) => s.markUtxosAsSpent);
   const unmarkUtxosAsSpent = usePendingTransactionsStore((s) => s.unmarkUtxosAsSpent);
@@ -173,6 +239,7 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
 
       let guardianSubmitAttempted = false;
       let localVaultRecoveryWrittenBeforeSubmit = false;
+      let recoveryTxidsForSubmit: { txid: string; vaultTxid: string } | null = null;
       const spentInputsForPreSubmitRollback: Array<{ txid: string; vout: number }> = [];
       const recordPreSubmitRollbackInputs = (
         inputs: Array<{ txid: string; vout: number }>
@@ -242,6 +309,10 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
           unitAmt: Math.round(protocolUnitAmount * 100),
           timestamp: Date.now(),
           vaultPubkey: wallet.taprootPubkey || '',
+        };
+        recoveryTxidsForSubmit = {
+          txid: vaultReq.issue_txid,
+          vaultTxid: vaultReq.vault_txid,
         };
         await setPendingTransactionForAccount(pendingVaultTx, currentAccount);
         localVaultRecoveryWrittenBeforeSubmit = true;
@@ -313,8 +384,10 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         updateProcessingStep(4);
         logger.debug('[useCreateVault] Step 4: Submitting to guardian...');
 
+        disconnectGuardian();
+        const submitClient = await getGuardianClient(wallet.taprootPubkey || '');
         guardianSubmitAttempted = true;
-        const resultTxid = await guardianSendReqOpen(gclient, vaultReq);
+        const resultTxid = await guardianSendReqOpen(submitClient, vaultReq);
 
         setTxid(resultTxid);
         setVaultTxid(vaultReq.vault_txid);
@@ -364,6 +437,50 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
               });
             }
           }
+        } else if (localVaultRecoveryWrittenBeforeSubmit && recoveryTxidsForSubmit) {
+          const recoveryTxids = compactTxids([
+            recoveryTxidsForSubmit.txid,
+            recoveryTxidsForSubmit.vaultTxid,
+          ]);
+          const txidsMissing = await areTxidsStillMissingFromExplorer(recoveryTxids);
+
+          if (txidsMissing) {
+            logger.warn(
+              '[useCreateVault] Guardian submit failed before recovery txids reached mempool; clearing local recovery lock',
+              {
+                recoveryTxids,
+                error: errorMessage,
+              }
+            );
+
+            try {
+              await discardPendingTransactionForAccount(
+                currentAccount,
+                recoveryTxidsForSubmit.vaultTxid || recoveryTxidsForSubmit.txid,
+                err
+              );
+            } catch (clearError) {
+              logger.error('[useCreateVault] Failed to discard rejected vault recovery lock:', {
+                error: getErrorMessage(clearError, 'Unknown vault recovery cleanup error'),
+              });
+            }
+
+            for (const rejectedTxid of recoveryTxids) {
+              try {
+                await invalidatePendingTransaction(rejectedTxid, errorMessage);
+              } catch (invalidateError) {
+                logger.error('[useCreateVault] Failed to invalidate rejected vault tx:', {
+                  txid: rejectedTxid,
+                  error: getErrorMessage(invalidateError, 'Unknown pending tx cleanup error'),
+                });
+              }
+            }
+          } else {
+            logger.warn('[useCreateVault] Guardian submit failed after local recovery was written', {
+              recoveryTxids,
+              error: errorMessage,
+            });
+          }
         }
         setCurrentStep('confirm'); // Go back to confirm step on error
         setError(errorMessage);
@@ -391,8 +508,10 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
       updateProcessingStep,
       setPendingTransactionForAccount,
       clearPendingTransactionForAccount,
+      discardPendingTransactionForAccount,
       currentAccount,
       addPendingTransaction,
+      invalidatePendingTransaction,
       markUtxoAsSpent,
       markUtxosAsSpent,
       unmarkUtxosAsSpent,

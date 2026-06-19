@@ -1,12 +1,10 @@
-import { VaultWithdrawCtx, VaultWithdrawRequest, VaultWithdrawConfig, PriceQuote, ProtocolProfile, VaultProfile, VaultTxQuote } from '../../../types/index.js';
-export declare function create_vault_withdraw_ctx(price_quote: PriceQuote, proto_profile: ProtocolProfile, vault_profile: VaultProfile, req_config: VaultWithdrawConfig): VaultWithdrawCtx;
-export declare function create_vault_withdraw_psbt(vault_ctx: VaultWithdrawCtx): string;
-export declare function create_vault_withdraw_req(vault_ctx: VaultWithdrawCtx, vault_psbt: string): VaultWithdrawRequest;
-export declare function get_vault_withdraw_quote(vault_config: VaultWithdrawConfig): VaultTxQuote;
-declare const _default: {
-    create_ctx: typeof create_vault_withdraw_ctx;
-    create_psbt: typeof create_vault_withdraw_psbt;
-    create_req: typeof create_vault_withdraw_req;
-    get_quote: typeof get_vault_withdraw_quote;
-};
-export default _default;
+import type { VaultWithdrawRequest } from '@ducat-unit/core';
+import type { VaultWithdrawRequestCtx, VaultWithdrawRequestConfig } from '../../../types/index.js';
+export declare function create_vault_withdraw_ctx(vault_config: VaultWithdrawRequestConfig): VaultWithdrawRequestCtx;
+export declare function create_vault_withdraw_psbt(vault_ctx: VaultWithdrawRequestCtx): string;
+export declare function create_vault_withdraw_request(vault_ctx: VaultWithdrawRequestCtx, vault_psbt: string): VaultWithdrawRequest;
+export declare namespace VaultWithdrawAPI {
+    const create_ctx: typeof create_vault_withdraw_ctx;
+    const create_psbt: typeof create_vault_withdraw_psbt;
+    const create_request: typeof create_vault_withdraw_request;
+}

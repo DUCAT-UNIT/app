@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { PriceOracleClient } from '@ducat-unit/client-sdk/oracle';
 import { readProjectEnvironment } from './loadEnv.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,9 +19,13 @@ const skipTooling = args.has('--skip-tooling') || env.DUCAT_LIVE_DOCTOR_SKIP_TOO
 const allowLocal = args.has('--allow-local') || env.DUCAT_LIVE_ALLOW_LOCAL === '1';
 
 const DEFAULT_SEPOLIA_USDC = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
-const DEFAULT_MUTINYNET_ESPLORA = 'https://mutinynet.com/api';
+const DEFAULT_MUTINYNET_ORACLE_RELAY_WS = 'wss://relay-mutinynet.dev.ducatprotocol.com';
+const DEFAULT_MUTINYNET_ORACLE_PUBKEY =
+  'a12736a47c9e8f20c863bff8c35fa7db2d79875e5812f419799da2e8ec7cd41e';
+const DEFAULT_MUTINYNET_ESPLORA = 'https://explorer-mutinynet.dev.ducatprotocol.com/api';
 const DUCAT_CASHU_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
 const MINT_CONFIG_PATH = join(root, 'services', 'cashu', 'mintClient', 'mintConfig.ts');
+const MAX_GUARDIAN_PRICE_AGE_SECONDS = 5 * 60;
 const REQUIRED_ADDRESS_ENV = [
   'EXPO_PUBLIC_WUNIT_ADDRESS',
   'EXPO_PUBLIC_UNIT_BRIDGE_ROUTER_ADDRESS',
@@ -97,6 +102,21 @@ function validateAddress(name, { required = true, defaultValue } = {}) {
   }
 
   return value;
+}
+
+function validateHex32(name, { required = true, defaultValue } = {}) {
+  const value = envValue(name) || defaultValue || '';
+  if (!value) {
+    if (required) fail(`${name} is required for live integration runs`);
+    return null;
+  }
+
+  if (!/^[a-fA-F0-9]{64}$/.test(value)) {
+    fail(`${name} must be a 32-byte hex public key`);
+    return null;
+  }
+
+  return value.toLowerCase();
 }
 
 function getCashuMintUrlFromSource() {
@@ -256,6 +276,47 @@ async function probeMutinynetEsplora() {
   }
 }
 
+async function probeOracleRelayPriceFreshness() {
+  const relayUrl =
+    validateHttpUrl('EXPO_PUBLIC_RELAY_WS_URL', { required: false, allowWebSocket: true }) ??
+    new URL(DEFAULT_MUTINYNET_ORACLE_RELAY_WS);
+  const oraclePubkey = validateHex32('EXPO_PUBLIC_ORACLE_PUBKEY', {
+    required: false,
+    defaultValue: DEFAULT_MUTINYNET_ORACLE_PUBKEY,
+  });
+
+  if (!oraclePubkey) return;
+
+  const client = new PriceOracleClient([oraclePubkey], [relayUrl.toString()]);
+  try {
+    const quotes = await client.fetch.quotes({ max_age_ms: MAX_GUARDIAN_PRICE_AGE_SECONDS * 1000 });
+    const stamps = quotes
+      .map((quote) => Number(quote?.base_stamp ?? quote?.latest_stamp ?? quote?.price_stamp))
+      .filter((stamp) => Number.isFinite(stamp) && stamp > 0);
+
+    if (stamps.length === 0) {
+      fail('Oracle relay did not return a fresh usable price timestamp');
+      return;
+    }
+
+    const newestStamp = Math.max(...stamps);
+    const ageSeconds = Math.floor(Date.now() / 1000) - newestStamp;
+    if (ageSeconds > MAX_GUARDIAN_PRICE_AGE_SECONDS) {
+      fail(
+        `Oracle relay quote is stale: newest price timestamp is ${ageSeconds}s old; guardian rejects vault requests older than ${MAX_GUARDIAN_PRICE_AGE_SECONDS}s`
+      );
+    }
+  } catch (error) {
+    fail(
+      `Oracle relay price probe failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  } finally {
+    client.close();
+  }
+}
+
 function checkMutinynetOnly() {
   const network = envValue('EXPO_PUBLIC_APP_NETWORK');
   if (network && network !== 'mutinynet') {
@@ -271,6 +332,11 @@ function checkRequiredConfiguration() {
   validateHttpUrl('EXPO_PUBLIC_VAULT_API_URL', { required: false });
   validateHttpUrl('EXPO_PUBLIC_QUOTE_SERVER_URL', { required: false });
   validateHttpUrl('EXPO_PUBLIC_PRICE_SERVER_URL', { required: false });
+  validateHttpUrl('EXPO_PUBLIC_RELAY_WS_URL', { required: false, allowWebSocket: true });
+  validateHex32('EXPO_PUBLIC_ORACLE_PUBKEY', {
+    required: false,
+    defaultValue: DEFAULT_MUTINYNET_ORACLE_PUBKEY,
+  });
 
   for (const name of REQUIRED_ADDRESS_ENV) {
     validateAddress(name);
@@ -327,6 +393,7 @@ async function checkNetworkProbes() {
     probeSepoliaRpc(rpcUrl),
     probeBridgeApi(bridgeUrl),
     probeMutinynetEsplora(),
+    probeOracleRelayPriceFreshness(),
     probeCashuMintInfo(cashuMintUrl),
   ]);
 }

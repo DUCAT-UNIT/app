@@ -13,6 +13,9 @@ const DEFAULT_EXPO_PORT = 8081;
 const DEFAULT_REPORT_PATH = 'artifacts/live-maestro/last-run.json';
 const DEFAULT_CASHU_MINT_URL = 'https://dev-cashu-mint.ducatprotocol.com';
 const DEFAULT_DRIVER_CRASH_RETRIES = 1;
+const DEFAULT_FLOW_TIMEOUT_MS = 20 * 60_000;
+const DEFAULT_DRIVER_CRASH_HANG_TIMEOUT_MS = 15_000;
+const SIMULATOR_CLIPBOARD_TIMEOUT_MS = 5_000;
 const DEFAULT_REVIEWER_MNEMONIC =
   'pool token pledge wagon rebuild vast bracket denial fashion cattle pave royal';
 const MAESTRO_FORWARD_ENV_KEYS = [
@@ -37,6 +40,14 @@ let metroStartedByScript = false;
 const driverCrashRetries = Number.isInteger(Number(process.env.MAESTRO_DRIVER_CRASH_RETRIES))
   ? Math.max(0, Number(process.env.MAESTRO_DRIVER_CRASH_RETRIES))
   : DEFAULT_DRIVER_CRASH_RETRIES;
+const flowTimeoutMs = Number.isInteger(Number(process.env.MAESTRO_FLOW_TIMEOUT_MS))
+  ? Math.max(30_000, Number(process.env.MAESTRO_FLOW_TIMEOUT_MS))
+  : DEFAULT_FLOW_TIMEOUT_MS;
+const driverCrashHangTimeoutMs = Number.isInteger(
+  Number(process.env.MAESTRO_DRIVER_CRASH_HANG_TIMEOUT_MS)
+)
+  ? Math.max(1_000, Number(process.env.MAESTRO_DRIVER_CRASH_HANG_TIMEOUT_MS))
+  : DEFAULT_DRIVER_CRASH_HANG_TIMEOUT_MS;
 
 const liveReport = {
   schemaVersion: 1,
@@ -91,13 +102,19 @@ function primeReviewerSeedClipboard() {
   const result = spawnSync('xcrun', ['simctl', 'pbcopy', 'booted'], {
     input: reviewerMnemonic(),
     encoding: 'utf8',
+    killSignal: 'SIGKILL',
     stdio: ['pipe', 'ignore', 'pipe'],
+    timeout: SIMULATOR_CLIPBOARD_TIMEOUT_MS,
   });
 
   if ((result.status ?? 1) !== 0) {
     const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    const timeoutMessage =
+      result.error?.code === 'ETIMEDOUT'
+        ? ` after ${SIMULATOR_CLIPBOARD_TIMEOUT_MS}ms`
+        : '';
     console.warn(
-      `Could not prime simulator clipboard for reviewer wallet import${
+      `Could not prime simulator clipboard for reviewer wallet import${timeoutMessage}${
         stderr ? `: ${stderr}` : ''
       }`
     );
@@ -175,6 +192,24 @@ function isRetryableMaestroDriverCrash(output) {
   );
 }
 
+function signalProcessTree(child, signal) {
+  if (!child || child.killed) return;
+
+  try {
+    if (process.platform !== 'win32' && child.pid) {
+      process.kill(-child.pid, signal);
+    } else {
+      child.kill(signal);
+    }
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      // Already exited.
+    }
+  }
+}
+
 function runMaestroOnce(flow, devClientUrl) {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -184,21 +219,70 @@ function runMaestroOnce(flow, devClientUrl) {
         cwd: process.cwd(),
         env: liveEnvironment({ MAESTRO_EXPO_DEV_CLIENT_URL: devClientUrl }),
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       }
     );
 
     let output = '';
+    let settled = false;
+    let retryableCrashKillTimer = null;
+
+    const clearTimers = () => {
+      clearTimeout(flowTimer);
+      clearTimeout(retryableCrashKillTimer);
+    };
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      resolve(result);
+    };
+
+    const killAfterRetryableCrash = () => {
+      if (settled || retryableCrashKillTimer || !isRetryableMaestroDriverCrash(output)) {
+        return;
+      }
+
+      retryableCrashKillTimer = setTimeout(() => {
+        if (settled) return;
+        console.warn(
+          `Maestro reported a retryable XCUITest hierarchy crash in ${flow}; ` +
+            'terminating the stale process tree before retry.'
+        );
+        signalProcessTree(child, 'SIGTERM');
+        setTimeout(() => {
+          if (!settled) signalProcessTree(child, 'SIGKILL');
+        }, 2_000);
+      }, driverCrashHangTimeoutMs);
+    };
+
+    const flowTimer = setTimeout(() => {
+      if (settled) return;
+      output = appendCapturedOutput(
+        output,
+        `\n[runMaestroLive] Flow timed out after ${flowTimeoutMs}ms: ${flow}\n`
+      );
+      console.error(`[runMaestroLive] Flow timed out after ${flowTimeoutMs}ms: ${flow}`);
+      signalProcessTree(child, 'SIGTERM');
+      setTimeout(() => {
+        if (!settled) signalProcessTree(child, 'SIGKILL');
+      }, 2_000);
+    }, flowTimeoutMs);
+
     child.stdout?.on('data', (chunk) => {
       process.stdout.write(chunk);
       output = appendCapturedOutput(output, chunk.toString('utf8'));
+      killAfterRetryableCrash();
     });
     child.stderr?.on('data', (chunk) => {
       process.stderr.write(chunk);
       output = appendCapturedOutput(output, chunk.toString('utf8'));
+      killAfterRetryableCrash();
     });
     child.on('error', reject);
     child.on('close', (status, signal) => {
-      resolve({
+      finish({
         status: status ?? 1,
         signal: signal ?? null,
         output,
@@ -364,6 +448,8 @@ Defaults to e2e/maestro/flows/test/. Override with:
   MAESTRO_EXPO_DEV_CLIENT_URL=<url>
   MAESTRO_LIVE_REUSE_METRO=true
   MAESTRO_LIVE_REPORT_PATH=<path|off>
+  MAESTRO_FLOW_TIMEOUT_MS=<ms>
+  MAESTRO_DRIVER_CRASH_HANG_TIMEOUT_MS=<ms>
 
 Forwarded to Maestro when present:
   ${MAESTRO_FORWARD_ENV_KEYS.join('\n  ')}`);

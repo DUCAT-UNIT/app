@@ -1,25 +1,32 @@
 import { EventEmitter } from './emitter.js';
-import type { MessageConfig, MessageData, SocketEventMap, SubscriptionEventMap, SubscriptionHandler } from '../types/index.js';
-export declare class WebSocketClient extends EventEmitter<SocketEventMap> {
-    private readonly _url;
+import type { MessageConfig, MessageData, SubscriptionEventMap, SubscriptionResult, WebSocketEventMap } from '../types/index.js';
+import type { ObserveContext, ObservabilityOptions } from '../lib/observe/index.js';
+export interface WebSocketClientOptions {
+    allow_insecure_ws?: boolean;
+    observability?: ObservabilityOptions | ObserveContext;
+}
+export declare function sanitize_bounced_data(data: unknown): string;
+export declare class WebSocketClient extends EventEmitter<WebSocketEventMap> {
+    private readonly _observe;
     private readonly _socket;
-    constructor(socket: string | WebSocket);
+    private readonly _url;
+    constructor(socket: string | WebSocket, options?: WebSocketClientOptions);
     get ready(): boolean;
     get url(): string;
-    send(config: MessageConfig): void;
+    get observe(): ObserveContext;
+    close(): void;
+    send(message: MessageData): void;
+    subscribe<T = unknown>(request: MessageConfig): SocketSubscription<T>;
 }
-export declare class SocketSubscription<T extends SubscriptionEventMap> extends EventEmitter<T> {
-    private readonly _client;
-    private readonly _id;
-    private readonly _topic;
-    private _outbox;
-    constructor(client: WebSocketClient, topic: string, identifier?: string);
-    get client(): WebSocketClient;
+export declare class SocketSubscription<T> extends EventEmitter<SubscriptionEventMap<T>> {
+    private readonly _request;
+    private readonly _socket;
+    constructor(socket: WebSocketClient, request: MessageConfig);
     get id(): string;
+    get socket(): WebSocketClient;
+    get topic(): string;
+    _connect(timeout?: number): Promise<void>;
     _filter(msg: MessageData): boolean;
-    _resolve(timeout: number): Promise<T['res']>;
-    _send(): void;
-    register(handler: SubscriptionHandler<T>): void;
-    resolve(timeout?: number): Promise<T["res"]>;
-    send(data: any): void;
+    _resolve(timeout: number): Promise<SubscriptionResult<T>>;
+    send(timeout?: number): Promise<SubscriptionResult<T>>;
 }

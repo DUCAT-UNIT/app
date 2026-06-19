@@ -1,0 +1,83 @@
+import { z } from 'zod';
+export declare const quote: z.ZodObject<{
+    claimed_sats: z.ZodInt;
+    claimed_unit: z.ZodNumber;
+    deficit_ratio: z.ZodFloat32;
+    deficit_sats: z.ZodInt;
+    reserve_rate: z.ZodFloat32;
+    reserve_sats: z.ZodInt;
+    reward_ratio: z.ZodFloat32;
+    reward_sats: z.ZodInt;
+    subsidy_multi: z.ZodFloat32;
+    subsidy_rate: z.ZodFloat32;
+}, z.core.$strip>;
+export declare const breached_contract: z.ZodObject<{
+    commit_hash: z.ZodString;
+    contract_id: z.ZodString;
+    oracle_sig: z.ZodString;
+    thold_hash: z.ZodString;
+    thold_price: z.ZodNumber;
+    base_price: z.ZodNumber;
+    base_stamp: z.ZodNumber;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+        "alpha-mainnet": "alpha-mainnet";
+    }>;
+    oracle_pubkey: z.ZodString;
+    thold_key: z.ZodString;
+}, z.core.$strip>;
+export declare const vault: z.ZodObject<{
+    liquid_key: z.ZodString;
+    liquid_price: z.ZodNumber;
+    claimed_sats: z.ZodInt;
+    claimed_unit: z.ZodNumber;
+    deficit_ratio: z.ZodFloat32;
+    deficit_sats: z.ZodInt;
+    reserve_rate: z.ZodFloat32;
+    reserve_sats: z.ZodInt;
+    reward_ratio: z.ZodFloat32;
+    reward_sats: z.ZodInt;
+    subsidy_multi: z.ZodFloat32;
+    subsidy_rate: z.ZodFloat32;
+    coin_id: z.ZodNullable<z.ZodString>;
+    client_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    guard_pubkey: z.ZodString;
+    root_txid: z.ZodString;
+    vault_balance: z.ZodNumber;
+    vault_config: z.ZodNullable<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    vault_ratio: z.ZodNullable<z.ZodFloat32>;
+    vault_script: z.ZodNullable<z.ZodString>;
+    vault_value: z.ZodNullable<z.ZodInt>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_version: z.ZodNumber;
+    guard_members: z.ZodArray<z.ZodString>;
+    price_commits: z.ZodArray<z.ZodObject<{
+        base_price: z.ZodNumber;
+        oracle_pubkey: z.ZodString;
+        oracle_sig: z.ZodString;
+        thold_hash: z.ZodString;
+        thold_price: z.ZodNumber;
+    }, z.core.$strip>>;
+    price_stamp: z.ZodNullable<z.ZodNumber>;
+    unit_balance: z.ZodNumber;
+    unit_price: z.ZodNullable<z.ZodNumber>;
+    thold_price: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;

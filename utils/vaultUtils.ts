@@ -3,16 +3,79 @@
  * Helper functions for vault operations and calculations
  */
 
-import { VaultAPI } from '@ducat-unit/client-sdk';
-import type {
-  VaultBorrowConfig,
-  VaultDepositConfig,
-  VaultOpenConfig,
-  VaultRepayConfig,
-  VaultWithdrawConfig,
-} from '@ducat-unit/client-sdk/vault';
+import { SIGCOUNT, TXSIZE } from '@ducat-unit/client-sdk/const';
+import {
+  get_effective_vsize,
+  get_vault_connect_witness_vsize,
+  get_vault_return_size,
+  get_vault_spend_witness_vsize,
+} from '@ducat-unit/client-sdk/lib';
 import * as Crypto from 'expo-crypto';
 import { BITCOIN_TX, VAULT_CONFIG } from './constants';
+
+const ESTIMATED_GUARDIAN_COUNT = 1;
+const ESTIMATED_ORACLE_COUNT = 1;
+const ESTIMATED_ACTIVE_UNIT_BALANCE = 1;
+const ESTIMATED_VAULT_COMMIT_SCRIPT_SIZE = 96;
+const ESTIMATED_ASSET_RETURN_SCRIPT_SIZE = 72;
+
+type EstimatedVaultAction = 'open' | 'borrow' | 'repay' | 'deposit' | 'withdraw';
+
+function estimateVaultActionFee(action: EstimatedVaultAction, feeRate: number): number {
+  const vaultReturnSize = get_vault_return_size(
+    ESTIMATED_GUARDIAN_COUNT,
+    ESTIMATED_ORACLE_COUNT,
+    ESTIMATED_ACTIVE_UNIT_BALANCE
+  );
+  const spendWitnessVsize = get_vault_spend_witness_vsize(
+    ESTIMATED_GUARDIAN_COUNT,
+    ESTIMATED_ORACLE_COUNT
+  );
+  const connectWitnessVsize = get_vault_connect_witness_vsize();
+  const txVsizeByAction: Record<EstimatedVaultAction, number> = {
+    open:
+      TXSIZE.ASSET_ISSUE_TX_BASE_SIZE
+      + ESTIMATED_ASSET_RETURN_SCRIPT_SIZE
+      + TXSIZE.VAULT_OPEN_TX_BASE_SIZE
+      + get_vault_connect_witness_vsize(ESTIMATED_VAULT_COMMIT_SCRIPT_SIZE)
+      + vaultReturnSize,
+    borrow:
+      TXSIZE.ASSET_ISSUE_TX_BASE_SIZE
+      + ESTIMATED_ASSET_RETURN_SCRIPT_SIZE
+      + TXSIZE.VAULT_BORROW_TX_BASE_SIZE
+      + spendWitnessVsize
+      + connectWitnessVsize
+      + vaultReturnSize,
+    repay:
+      TXSIZE.ASSET_BURN_TX_BASE_SIZE
+      + TXSIZE.VAULT_REPAY_TX_BASE_SIZE
+      + spendWitnessVsize
+      + connectWitnessVsize
+      + vaultReturnSize,
+    deposit:
+      TXSIZE.VAULT_UPDATE_TX_BASE_SIZE
+      + spendWitnessVsize
+      + vaultReturnSize,
+    withdraw:
+      TXSIZE.VAULT_UPDATE_TX_BASE_SIZE
+      + spendWitnessVsize
+      + vaultReturnSize,
+  };
+  const sigopsByAction: Record<EstimatedVaultAction, number> = {
+    open: SIGCOUNT.VAULT_OPEN,
+    borrow: SIGCOUNT.VAULT_BORROW,
+    repay: SIGCOUNT.VAULT_REPAY,
+    deposit: SIGCOUNT.VAULT_DEPOSIT,
+    withdraw: SIGCOUNT.VAULT_WITHDRAW,
+  };
+
+  return Math.ceil(
+    get_effective_vsize({
+      tx_vsize: txVsizeByAction[action],
+      sigops_count: sigopsByAction[action],
+    }) * feeRate
+  );
+}
 
 /**
  * Generates a random vault name/tag
@@ -35,15 +98,7 @@ export function getOpCostOpen(feeRate: number, utxos?: Utxo[]): number {
     ? calculateVinAllowance(utxos, feeRate)
     : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
 
-  const txQuote = VaultAPI.open.get_quote({
-    deposit_amount: 0,
-    unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
-    token_postage: VAULT_CONFIG.TOKEN_POSTAGE,
-    token_data: { rev: 0, tag: 'vault-name', ver: 1 },
-    tx_feerate: feeRate,
-  } as VaultOpenConfig);
-
-  return txQuote.total_cost + vinAllowanceSats;
+  return estimateVaultActionFee('open', feeRate) + VAULT_CONFIG.UNIT_POSTAGE + vinAllowanceSats;
 }
 
 /**
@@ -55,14 +110,10 @@ export function getOpCostBorrow(feeRate: number, utxos?: Utxo[]): number {
     ? calculateVinAllowance(utxos, feeRate)
     : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
 
-  const txQuote = VaultAPI.borrow.get_quote({
-    borrow_amount: 0,
-    deposit_amount: 0,
-    tx_feerate: feeRate,
-    unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
-  } as VaultBorrowConfig);
-
-  return Math.max(0, Math.ceil(txQuote.total_cost + vinAllowanceSats));
+  return Math.max(
+    0,
+    Math.ceil(estimateVaultActionFee('borrow', feeRate) + VAULT_CONFIG.UNIT_POSTAGE + vinAllowanceSats)
+  );
 }
 
 /**
@@ -74,14 +125,7 @@ export function getOpCostRepay(feeRate: number, utxos?: Utxo[]): number {
     ? calculateVinAllowance(utxos, feeRate)
     : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
 
-  const txQuote = VaultAPI.repay.get_quote({
-    deposit_amount: 0,
-    repay_amount: 0,
-    tx_feerate: feeRate,
-    unit_postage: VAULT_CONFIG.UNIT_POSTAGE,
-  } as VaultRepayConfig);
-
-  return txQuote.total_cost + vinAllowanceSats;
+  return estimateVaultActionFee('repay', feeRate) + vinAllowanceSats;
 }
 
 /**
@@ -104,12 +148,7 @@ export function getOpCostDeposit(feeRate: number, utxos?: Utxo[]): number {
     ? calculateVinAllowance(utxos, feeRate)
     : VAULT_CONFIG.VIN_ALLOWANCE * feeRate;
 
-  const txQuote = VaultAPI.deposit.get_quote({
-    deposit_amount: 0,
-    tx_feerate: feeRate,
-  } as VaultDepositConfig);
-
-  return txQuote.total_cost + vinAllowanceSats;
+  return estimateVaultActionFee('deposit', feeRate) + vinAllowanceSats;
 }
 
 /**
@@ -117,12 +156,7 @@ export function getOpCostDeposit(feeRate: number, utxos?: Utxo[]): number {
  * Withdraw fees come out of the vault output itself, not the wallet balance.
  */
 export function getOpCostWithdraw(feeRate: number): number {
-  const txQuote = VaultAPI.withdraw.get_quote({
-    change_amount: 0,
-    tx_feerate: feeRate,
-  } as VaultWithdrawConfig);
-
-  return txQuote.tx_cost ?? txQuote.total_cost;
+  return estimateVaultActionFee('withdraw', feeRate);
 }
 
 export interface Utxo {

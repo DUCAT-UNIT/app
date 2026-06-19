@@ -349,8 +349,13 @@ export async function createVaultReqOpen(
       if (vaultReq.sats_inputs && vaultReq.sats_inputs.length > 0) {
         logger.debug('[VaultOps] sats_inputs:', {
           count: vaultReq.sats_inputs.length,
-          totalValue: vaultReq.sats_inputs.reduce((sum, inp) => sum + Number(inp.value || 0), 0),
-          witnessLengths: vaultReq.sats_inputs.map(inp => inp.witness?.length ?? 0),
+          totalValue: vaultReq.sats_inputs.reduce(
+            (sum: number, inp: { value?: number }) => sum + Number(inp.value || 0),
+            0
+          ),
+          witnessLengths: vaultReq.sats_inputs.map(
+            (inp: { witness?: unknown[] }) => inp.witness?.length ?? 0
+          ),
         });
       }
 

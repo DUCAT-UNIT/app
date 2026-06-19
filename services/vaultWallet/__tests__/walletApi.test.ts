@@ -175,8 +175,8 @@ describe('walletApi', () => {
           8000
         );
         expect(utxos).toEqual([
-          { txid: 'abc123', vout: 0, value: 50000, script: '001400112233' },
-          { txid: 'def456', vout: 1, value: 25000, script: '001400112233' },
+          { txid: 'abc123', vout: 0, value: 50000, script: '001400112233', script_pk: '001400112233' },
+          { txid: 'def456', vout: 1, value: 25000, script: '001400112233', script_pk: '001400112233' },
         ]);
       });
 
@@ -245,6 +245,7 @@ describe('walletApi', () => {
               ],
             ]),
             script: '5120aabbcc',
+            script_pk: '5120aabbcc',
             txid: 'rune123',
             value: 10000,
             vout: 0,

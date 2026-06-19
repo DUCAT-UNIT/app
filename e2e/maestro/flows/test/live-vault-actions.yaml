@@ -175,7 +175,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'vault-repay-amount-input'
     timeout: 5000
 - eraseText
-- inputText: '0.01'
+- inputText: '1'
 - tapOn:
     id: 'vault-repay-amount-done-btn'
 - waitForAnimationToEnd

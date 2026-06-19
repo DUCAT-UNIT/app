@@ -40,6 +40,8 @@ import { useRepayVault, type UseRepayVaultResult } from './useRepayVault';
 
 const RELEASED_UNIT_UTXO_TIMEOUT_MS = 15_000;
 const RELEASED_UNIT_DIRECT_TIMEOUT_MS = 8_000;
+const RELEASED_UNIT_VISIBILITY_TIMEOUT_MS = 180_000;
+const RELEASED_UNIT_VISIBILITY_POLL_MS = 5_000;
 const RAW_REPAY_LOAD_TIMEOUT_MS = 15_000;
 const TURBO_REPAY_BALANCE_TIMEOUT_MS = 8_000;
 const TURBO_REPAY_MELT_QUOTE_TIMEOUT_MS = 15_000;
@@ -688,7 +690,14 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       const requiredAmount = Math.round(amountUsd * 100);
       let lastError: unknown = null;
 
-      try {
+      const deadline = Date.now() + (requiredTxid
+        ? RELEASED_UNIT_VISIBILITY_TIMEOUT_MS
+        : RELEASED_UNIT_UTXO_TIMEOUT_MS);
+      let attempt = 0;
+
+      while (true) {
+        attempt += 1;
+
         if (requiredTxid) {
           try {
             const releasedUnit = await withVaultBuildTimeoutFn(
@@ -697,6 +706,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
               RELEASED_UNIT_UTXO_TIMEOUT_MS
             );
             logger.info('[VaultRepayFromUsdc] Checked released UNIT output directly', {
+              attempt,
               currentAccount,
               requiredAmount,
               requiredTxid,
@@ -705,25 +715,20 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             });
 
             if (releasedUnit.spendableAmount >= requiredAmount) {
-              return;
-            }
-
-            if (releasedUnit.outputCount > 0) {
-              logger.info(
-                '[VaultRepayFromUsdc] Released UNIT output exists; continuing to raw repay build',
-                {
-                  currentAccount,
-                  requiredAmount,
-                  requiredTxid,
-                  spendableAmount: releasedUnit.spendableAmount,
-                  outputCount: releasedUnit.outputCount,
-                }
-              );
+              logger.info('[VaultRepayFromUsdc] Released UNIT available for raw repay', {
+                currentAccount,
+                attempt,
+                requiredAmount,
+                requiredTxid,
+                spendableAmount: releasedUnit.spendableAmount,
+                outputCount: releasedUnit.outputCount,
+              });
               return;
             }
           } catch (error) {
             lastError = error;
             logger.info('[VaultRepayFromUsdc] Direct released UNIT output check failed', {
+              attempt,
               currentAccount,
               requiredTxid,
               error: error instanceof Error ? error.message : String(error),
@@ -731,35 +736,53 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           }
         }
 
-        const unitUtxos = await withVaultBuildTimeoutFn(
-          () =>
-            requiredTxid
-              ? vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL)
-              : vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, requiredAmount),
-          'Timed out checking released UNIT UTXOs.',
-          RELEASED_UNIT_UTXO_TIMEOUT_MS
-        );
-        const typedUnitUtxos = normalizeRuneUtxos(unitUtxos as RuneUtxo[] | Map<string, RuneUtxo>);
-        const spendableAmount = getSpendableUnitAmount(typedUnitUtxos, requiredTxid);
+        try {
+          const unitUtxos = await withVaultBuildTimeoutFn(
+            () =>
+              requiredTxid
+                ? vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL)
+                : vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, requiredAmount),
+            'Timed out checking released UNIT UTXOs.',
+            RELEASED_UNIT_UTXO_TIMEOUT_MS
+          );
+          const typedUnitUtxos = normalizeRuneUtxos(unitUtxos as RuneUtxo[] | Map<string, RuneUtxo>);
+          const spendableAmount = getSpendableUnitAmount(typedUnitUtxos, requiredTxid);
 
-        logger.info('[VaultRepayFromUsdc] Checked released UNIT spendability', {
-          currentAccount,
-          requiredAmount,
-          requiredTxid,
-          spendableAmount,
-          utxoCount: typedUnitUtxos.length,
-        });
+          logger.info('[VaultRepayFromUsdc] Checked released UNIT spendability', {
+            attempt,
+            currentAccount,
+            requiredAmount,
+            requiredTxid,
+            spendableAmount,
+            utxoCount: typedUnitUtxos.length,
+          });
 
-        if (hasSpendableUnitUtxo(typedUnitUtxos, requiredAmount, requiredTxid)) {
-          return;
+          if (hasSpendableUnitUtxo(typedUnitUtxos, requiredAmount, requiredTxid)) {
+            return;
+          }
+        } catch (error) {
+          lastError = error;
+          logger.info('[VaultRepayFromUsdc] Released UNIT spendability check failed', {
+            attempt,
+            currentAccount,
+            requiredTxid,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        lastError = error;
-        logger.info('[VaultRepayFromUsdc] Released UNIT spendability check failed', {
+
+        const remainingMs = deadline - Date.now();
+        if (!requiredTxid || remainingMs <= 0) {
+          break;
+        }
+
+        const retryMs = Math.min(RELEASED_UNIT_VISIBILITY_POLL_MS, remainingMs);
+        logger.info('[VaultRepayFromUsdc] Waiting for released UNIT output visibility', {
+          attempt,
           currentAccount,
           requiredTxid,
-          error: error instanceof Error ? error.message : String(error),
+          retryMs,
         });
+        await waitForRetryDelay(retryMs);
       }
 
       throw lastError instanceof Error

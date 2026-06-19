@@ -28,6 +28,23 @@ export interface CreateWithdrawReqOptions {
   vaultProfile: VaultProfile;
 }
 
+type CompatWithdrawCtx = VaultWithdrawCtx & {
+  __base_config?: (overrides?: Record<string, unknown>) => Record<string, unknown>;
+};
+
+function forceNoTxFeeReserve(vaultCtx: VaultWithdrawCtx): void {
+  const compatCtx = vaultCtx as CompatWithdrawCtx;
+  if (typeof compatCtx.__base_config !== 'function') {
+    return;
+  }
+
+  const buildBaseConfig = compatCtx.__base_config.bind(compatCtx);
+  compatCtx.__base_config = (overrides = {}) => ({
+    ...buildBaseConfig({ ...overrides, txfee_reserve: 0 }),
+    txfee_reserve: 0,
+  });
+}
+
 /**
  * Creates a withdraw configuration object
  * @param withdrawAmountSats - BTC amount to withdraw in satoshis
@@ -96,6 +113,7 @@ export async function createVaultReqWithdraw(
         vaultProfile,
         withdrawConfig
       );
+      forceNoTxFeeReserve(vaultCtx);
 
       let withdrawReq: WalletVaultWithdrawRequest;
       setPendingVaultSigningOperation({

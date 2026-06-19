@@ -4,10 +4,10 @@ const STALE_OPPORTUNITY_PATTERNS = [
   /already claimed/i,
   /already liquidated/i,
   /already repossessed/i,
-  /validation of repovault failed/i,
+  /failed to find utxo/i,
+  /input for outpoint/i,
+  /vault coin .* already spent/i,
   /vault.*already.*(?:claimed|liquidated|repossessed)/i,
-  /repo vault tx1\s*i\s*d.*does not match computed repo.*tx1\s*i\s*d/i,
-  /tx1\s*i\s*d in request does not match computed/i,
 ];
 
 function extractLiquidationErrorText(error: string): string {
@@ -39,15 +39,7 @@ export function isStaleLiquidationOpportunityError(error: string | null | undefi
   }
 
   const text = extractLiquidationErrorText(error);
-  const normalized = text.toLocaleLowerCase('en-US');
-
-  return (
-    STALE_OPPORTUNITY_PATTERNS.some((pattern) => pattern.test(text)) ||
-    (
-      normalized.includes('repo vault tx1') &&
-      normalized.includes('in request does not match computed repo')
-    )
-  );
+  return STALE_OPPORTUNITY_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 export function getStaleLiquidationOpportunityMessage(remainingVaultCount: number): string {

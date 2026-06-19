@@ -1,9 +1,5 @@
 /**
- * Tests for Vault Service
- * Tests vault history and vault data fetching
- *
- * NOTE: This file uses a type-safe fetch mock pattern.
- * See testUtils/fetchMock.ts for the implementation.
+ * Tests for the v3 validator profile-backed vault service.
  */
 
 import {
@@ -18,12 +14,10 @@ import {
   createMockResponse,
   getFetchCallCount,
   getFetchCall,
-  getFetchCallBody,
   mockFetchReject,
   expectFetchNotCalled,
 } from './testUtils';
 
-// Mock dependencies
 jest.mock('../../utils/retry', () => ({
   retrySilently: jest.fn((fn) => fn()),
 }));
@@ -34,14 +28,84 @@ jest.mock('../../utils/constants', () => ({
   },
 }));
 
-// Required fields for VaultInfo validation
-const REQUIRED_VAULT_FIELDS = {
-  vault_pubkey: 'vpk_test_123',
-  creation_account: 'acct_test_123',
-  guard_pubkey: 'gpk_test_123',
-  master_id: 'mid_test_123',
-  utxo: 'txid:0',
+const SATS_PER_BTC = 100_000_000;
+const CENTS_PER_UNIT = 100;
+const nowSeconds = () => Math.floor(Date.now() / 1000);
+
+type TestVaultProfile = {
+  block_timestamp: number;
+  client_pubkey: string | null;
+  coin_id: string | null;
+  contract_id?: string | null;
+  guard_pubkey: string | null;
+  price_commits: Array<{
+    base_price: number;
+    thold_hash: string;
+    thold_price: number;
+  }>;
+  price_stamp: number;
+  root_txid: string | null;
+  thold_price: number;
+  unit_balance: number;
+  unit_price: number | null;
+  vault_action: string;
+  vault_balance: number;
+  vault_config: { label?: string | null } | null;
+  vault_ratio?: number | null;
+  vault_script: string | null;
+  vault_version: number;
 };
+
+function makeProfile(overrides: Partial<TestVaultProfile> = {}): TestVaultProfile {
+  const rootTxid = overrides.root_txid ?? 'vault_1';
+  const timestamp = overrides.block_timestamp ?? nowSeconds() - 60;
+
+  return {
+    block_timestamp: timestamp,
+    client_pubkey: 'vpk_test_123',
+    coin_id: `${rootTxid}:0`,
+    contract_id: 'mid_test_123',
+    guard_pubkey: 'gpk_test_123',
+    price_commits: [
+      {
+        base_price: 50_000,
+        thold_hash: 'liqhash',
+        thold_price: 37_500,
+      },
+    ],
+    price_stamp: timestamp,
+    root_txid: rootTxid,
+    thold_price: 37_500,
+    unit_balance: 100_000,
+    unit_price: 50_000,
+    vault_action: 'deposit',
+    vault_balance: 500_000_000_000,
+    vault_config: { label: 'My Vault' },
+    vault_ratio: 2,
+    vault_script: '5120script',
+    vault_version: 3,
+    ...overrides,
+  };
+}
+
+function expectedHistory(profile: TestVaultProfile, previous?: TestVaultProfile) {
+  return {
+    amount_borrowed: profile.unit_balance,
+    vault_amount: profile.vault_balance,
+    btc_amt: profile.vault_balance - (previous?.vault_balance ?? 0),
+    unit_amt: profile.unit_balance - (previous?.unit_balance ?? 0),
+    oracle_price: profile.unit_price ?? profile.price_commits[0]?.base_price ?? 0,
+    timestamp: profile.block_timestamp,
+    action: profile.vault_action,
+    transaction_id: profile.coin_id?.split(':')[0],
+    root_txid: profile.root_txid ?? profile.coin_id?.split(':')[0],
+    utxo: profile.coin_id,
+    utxo_script: profile.vault_script ?? '',
+    liquidation_hash: profile.price_commits[0]?.thold_hash ?? '',
+    liquidation_threshold: profile.thold_price ?? profile.price_commits[0]?.thold_price ?? 0,
+    latest_profile: profile,
+  };
+}
 
 describe('vaultService', () => {
   beforeEach(() => {
@@ -50,234 +114,117 @@ describe('vaultService', () => {
   });
 
   describe('fetchVaultHistory', () => {
-    it('should return empty array if no vaultPubkey provided', async () => {
+    it('returns an empty array if no vaultPubkey is provided', async () => {
       const result = await fetchVaultHistory(null as unknown as string);
       expect(result).toEqual([]);
       expect(getFetchCallCount()).toBe(0);
     });
 
-    it('should fetch vault history successfully', async () => {
+    it('fetches vault history from v3 profile endpoints', async () => {
       const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'My Vault',
-          },
-        ],
-      };
-
-      const historyResponse = {
-        history: [
-          {
-            transaction_id: 'tx1',
-            timestamp: 1000,
-            action: 'deposit',
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0.5,
-            unit_amt: 500,
-            oracle_price: 50000,
-          },
-        ],
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(historyResponse));
-
-      const result = await fetchVaultHistory(vaultPubkey);
-
-      expect(result).toEqual(historyResponse.history);
-      expect(getFetchCallCount()).toBe(2);
-    });
-
-    it('should return empty array if no vaults found', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse({ vaults: [] }));
-
-      const result = await fetchVaultHistory(vaultPubkey);
-
-      expect(result).toEqual([]);
-    });
-
-    it('should handle pagination correctly', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1' }],
-      };
-
-      // First page: 250 items
-      const page1 = {
-        history: Array.from({ length: 250 }, (_, i) => ({
-          transaction_id: `tx${i}`,
-          timestamp: 1000 + i,
-        })),
-      };
-
-      // Second page: 100 items (less than limit, so last page)
-      const page2 = {
-        history: Array.from({ length: 100 }, (_, i) => ({
-          transaction_id: `tx${250 + i}`,
-          timestamp: 2000 + i,
-        })),
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(page1))
-        .mockResolvedValueOnce(createMockResponse(page2));
-
-      const result = await fetchVaultHistory(vaultPubkey);
-
-      expect(result).toHaveLength(350);
-      expect(getFetchCallCount()).toBe(3); // 1 for vault list, 2 for history
-    });
-
-    it('should stop after max pages (20)', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1' }],
-      };
-
-      // Always return full pages
-      const fullPageResponse = {
-        history: Array.from({ length: 250 }, (_, i) => ({
-          transaction_id: `tx${i}`,
-          timestamp: 1000,
-        })),
-      };
-
-      getMockFetch().mockImplementation((url: RequestInfo | URL) => {
-        const urlStr = String(url);
-        if (urlStr.includes('vault_list')) {
-          return Promise.resolve(createMockResponse(vaultListResponse));
-        }
-        return Promise.resolve(createMockResponse(fullPageResponse));
+      const first = makeProfile({
+        root_txid: 'tx1',
+        coin_id: 'tx1:0',
+        block_timestamp: nowSeconds() - 120,
+        vault_action: 'open',
+        vault_balance: 400_000_000,
+        unit_balance: 50_000,
+      });
+      const second = makeProfile({
+        root_txid: 'tx1',
+        coin_id: 'tx2:0',
+        block_timestamp: nowSeconds() - 60,
+        vault_action: 'deposit',
+        vault_balance: 500_000_000,
+        unit_balance: 60_000,
       });
 
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse([second]))
+        .mockResolvedValueOnce(createMockResponse([first, second]));
+
       const result = await fetchVaultHistory(vaultPubkey);
 
-      // 1 for vault_list + 20 for history pages
-      expect(getFetchCallCount()).toBe(21);
-      expect(result).toHaveLength(5000); // 20 pages * 250 items
+      expect(result).toEqual([
+        expectedHistory(second, first),
+        expectedHistory(first),
+      ]);
+      expect(getFetchCallCount()).toBe(2);
+      expect(String(getFetchCall(0)?.[0])).toBe(
+        'https://api.example.com/vault/vault/pubkey/vault_pubkey_123'
+      );
+      expect(String(getFetchCall(1)?.[0])).toBe(
+        'https://api.example.com/vault/vault/tx1/history'
+      );
     });
 
-    it('should handle empty history gracefully', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+    it('returns an empty array if no v3 profiles are found', async () => {
+      getMockFetch().mockResolvedValueOnce(createMockResponse({ data: [] }));
 
-      const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1' }],
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
-
-      const result = await fetchVaultHistory(vaultPubkey);
+      const result = await fetchVaultHistory('vault_pubkey_123');
 
       expect(result).toEqual([]);
+      expect(getFetchCallCount()).toBe(1);
     });
 
-    it('should return empty array on error', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+    it('caps derived history by limit and maxPages', async () => {
+      const profiles = Array.from({ length: 5 }, (_, index) => makeProfile({
+        root_txid: 'tx-root',
+        coin_id: `tx${index}:0`,
+        block_timestamp: nowSeconds() - (5 - index) * 60,
+      }));
 
+      getMockFetch().mockResolvedValueOnce(createMockResponse(profiles));
+
+      const result = await fetchVaultHistory('vault_pubkey_123', {
+        vaultId: 'tx-root',
+        limit: 2,
+        maxPages: 1,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.transaction_id).toBe('tx4');
+      expect(result[1]?.transaction_id).toBe('tx3');
+      expect(getFetchCallCount()).toBe(1);
+      expect(String(getFetchCall(0)?.[0])).toBe(
+        'https://api.example.com/vault/vault/tx-root/history'
+      );
+    });
+
+    it('filters history outside the requested lookback window', async () => {
+      const recent = makeProfile({
+        root_txid: 'tx-root',
+        coin_id: 'recent-tx:0',
+        block_timestamp: nowSeconds() - 60,
+      });
+      const old = makeProfile({
+        root_txid: 'tx-root',
+        coin_id: 'old-tx:0',
+        block_timestamp: nowSeconds() - 10 * 24 * 60 * 60,
+      });
+
+      getMockFetch().mockResolvedValueOnce(createMockResponse([old, recent]));
+
+      const result = await fetchVaultHistory('vault_pubkey_123', {
+        vaultId: 'tx-root',
+        lookbackDays: 1,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.transaction_id).toBe('recent-tx');
+    });
+
+    it('returns an empty array on error', async () => {
       mockFetchReject(new Error('Network error'));
 
-      const result = await fetchVaultHistory(vaultPubkey);
+      const result = await fetchVaultHistory('vault_pubkey_123');
 
       expect(result).toEqual([]);
-    });
-
-    it('should make correct API calls with pagination parameters', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1' }],
-      };
-
-      const historyResponse = {
-        history: Array.from({ length: 100 }, () => ({
-          transaction_id: 'tx1',
-          timestamp: 1000,
-        })),
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(historyResponse));
-
-      await fetchVaultHistory(vaultPubkey);
-
-      const requestBody = getFetchCallBody<{
-        vault_id: string;
-        pagination: { limit: number; offset: number };
-        timestamp_start?: number;
-        timestamp_end?: number;
-      }>(1);
-
-      expect(requestBody).toMatchObject({
-        vault_id: 'vault_1',
-        pagination: {
-          limit: 250,
-          offset: 0,
-        },
-      });
-      expect(requestBody?.timestamp_start).toBeDefined();
-      expect(requestBody?.timestamp_end).toBeDefined();
-    });
-
-    it('should fetch a limited page directly when vault id is provided', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-      const historyResponse = {
-        history: [
-          {
-            transaction_id: 'tx1',
-            timestamp: 1000,
-          },
-        ],
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(historyResponse));
-
-      const result = await fetchVaultHistory(vaultPubkey, {
-        vaultId: 'vault_1',
-        limit: 50,
-        maxPages: 1,
-        lookbackDays: 120,
-      });
-
-      expect(result).toEqual(historyResponse.history);
-      expect(getFetchCallCount()).toBe(1);
-      expect(String(getFetchCall(0)?.[0])).toContain('vault_history_tx');
-
-      const requestBody = getFetchCallBody<{
-        vault_id: string;
-        pagination: { limit: number; offset: number };
-        timestamp_start?: number;
-        timestamp_end?: number;
-      }>(0);
-
-      expect(requestBody).toMatchObject({
-        vault_id: 'vault_1',
-        pagination: {
-          limit: 50,
-          offset: 0,
-        },
-      });
-
-      const oneHundredTwentyDaysInSeconds = 120 * 24 * 60 * 60;
-      const timeDiff = (requestBody?.timestamp_end ?? 0) - (requestBody?.timestamp_start ?? 0);
-      expect(timeDiff).toBeCloseTo(oneHundredTwentyDaysInSeconds, -2);
     });
   });
 
   describe('selectLatestUsableVaultHistoryTransaction', () => {
-    it('should pick the newest transaction with a usable vault prevout', () => {
+    it('picks the newest transaction with a usable vault prevout', () => {
       const result = selectLatestUsableVaultHistoryTransaction([
         {
           transaction_id: 'old-tx',
@@ -318,114 +265,65 @@ describe('vaultService', () => {
   });
 
   describe('fetchLatestVaultHistoryTransaction', () => {
-    it('should not assume the first validator history row is latest', async () => {
-      getMockFetch().mockResolvedValueOnce(createMockResponse({
-        history: [
-          {
-            transaction_id: 'old-tx',
-            utxo: 'old-tx:0',
-            timestamp: 1000,
-            action: 'borrow',
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0,
-            unit_amt: 0,
-            oracle_price: 50000,
-          },
-          {
-            transaction_id: 'new-tx',
-            utxo: 'new-tx:0',
-            timestamp: 2000,
-            action: 'repay',
-            amount_borrowed: 90,
-            vault_amount: 1000,
-            btc_amt: 0,
-            unit_amt: 0,
-            oracle_price: 50000,
-          },
-        ],
-      }));
+    it('does not assume the first validator history profile is latest', async () => {
+      const oldProfile = makeProfile({
+        root_txid: 'vault_1',
+        coin_id: 'old-tx:0',
+        block_timestamp: nowSeconds() - 120,
+        vault_action: 'borrow',
+      });
+      const newProfile = makeProfile({
+        root_txid: 'vault_1',
+        coin_id: 'new-tx:0',
+        block_timestamp: nowSeconds() - 60,
+        vault_action: 'repay',
+      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([oldProfile, newProfile]));
 
       const result = await fetchLatestVaultHistoryTransaction('vault_1', 540);
 
       expect(result?.transaction_id).toBe('new-tx');
-      const requestBody = getFetchCallBody<{
-        vault_id: string;
-        pagination: { limit: number; offset: number };
-      }>(0);
-      expect(requestBody).toMatchObject({
-        vault_id: 'vault_1',
-        pagination: { limit: 250, offset: 0 },
-      });
+      expect(String(getFetchCall(0)?.[0])).toBe(
+        'https://api.example.com/vault/vault/vault_1/history'
+      );
     });
 
-    it('should scan later pages before selecting the latest usable history row', async () => {
-      const fullOldPage = {
-        history: Array.from({ length: 250 }, (_, index) => ({
-          transaction_id: `old-tx-${index}`,
-          utxo: `old-tx-${index}:0`,
-          timestamp: 1000 + index,
-          action: 'borrow',
-          amount_borrowed: 100,
-          vault_amount: 1000,
-          btc_amt: 0,
-          unit_amt: 0,
-          oracle_price: 50000,
-        })),
-      };
-      const finalPage = {
-        history: [
-          {
-            transaction_id: 'latest-tx',
-            utxo: 'latest-tx:0',
-            timestamp: 5000,
-            action: 'deposit',
-            amount_borrowed: 100,
-            vault_amount: 1200,
-            btc_amt: 0,
-            unit_amt: 0,
-            oracle_price: 50000,
-          },
-        ],
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(fullOldPage))
-        .mockResolvedValueOnce(createMockResponse(finalPage));
+    it('uses the latest profile after deriving history and applying limits', async () => {
+      const profiles = [
+        makeProfile({
+          root_txid: 'vault_2',
+          coin_id: 'old-tx:0',
+          block_timestamp: nowSeconds() - 180,
+        }),
+        makeProfile({
+          root_txid: 'vault_2',
+          coin_id: 'latest-tx:0',
+          block_timestamp: nowSeconds() - 60,
+          vault_action: 'deposit',
+        }),
+      ];
+      getMockFetch().mockResolvedValueOnce(createMockResponse({ data: profiles }));
 
       const result = await fetchLatestVaultHistoryTransaction('vault_2', 540);
 
       expect(result?.transaction_id).toBe('latest-tx');
-      expect(getFetchCallCount()).toBe(2);
-      expect(getFetchCallBody<{ pagination: { offset: number } }>(1)?.pagination.offset).toBe(250);
+      expect(getFetchCallCount()).toBe(1);
     });
 
-    it('should ignore rows without vault prevouts when signing requires a usable prevout', async () => {
-      getMockFetch().mockResolvedValueOnce(createMockResponse({
-        history: [
-          {
-            transaction_id: 'display-only-newer',
-            timestamp: 3000,
-            action: 'repay',
-            amount_borrowed: 90,
-            vault_amount: 1000,
-            btc_amt: 0,
-            unit_amt: 0,
-            oracle_price: 50000,
-          },
-          {
-            transaction_id: 'signable-older',
-            utxo: 'signable-older:0',
-            timestamp: 2000,
-            action: 'borrow',
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0,
-            unit_amt: 0,
-            oracle_price: 50000,
-          },
-        ],
-      }));
+    it('ignores rows without vault prevouts when signing requires a usable prevout', async () => {
+      const displayOnlyNewer = makeProfile({
+        root_txid: null,
+        coin_id: null,
+        block_timestamp: nowSeconds() - 60,
+        vault_action: 'repay',
+      });
+      const signableOlder = makeProfile({
+        root_txid: 'vault_3',
+        coin_id: 'signable-older:0',
+        block_timestamp: nowSeconds() - 120,
+        vault_action: 'borrow',
+      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([displayOnlyNewer, signableOlder]));
 
       const result = await fetchLatestVaultHistoryTransaction('vault_3', 540, {
         requireUsablePrevout: true,
@@ -436,63 +334,49 @@ describe('vaultService', () => {
   });
 
   describe('fetchVaultData', () => {
-    it('should return null if no vaultPubkey provided', async () => {
+    it('returns null if no vaultPubkey is provided', async () => {
       const result = await fetchVaultData(null as unknown as string);
       expect(result).toBeNull();
       expectFetchNotCalled();
     });
 
-    it('should fetch vault data with latest transaction', async () => {
+    it('fetches vault data with latest transaction from v3 profiles', async () => {
       const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'My Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        total_debt: 1000,
-        total_collateral: 5000,
-        current_price: 50000,
-      };
-
-      const historyResponse = {
-        history: [
-          {
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0.5,
-            unit_amt: 500,
-            oracle_price: 50000,
-            timestamp: 1000,
-            action: 'deposit',
-          },
-        ],
-      };
+      const profile = makeProfile({
+        root_txid: 'vault_1',
+        coin_id: 'vault_1:0',
+        vault_config: { label: 'My Vault' },
+        vault_balance: 500_000_000_000,
+        unit_balance: 100_000,
+      });
+      const historyProfile = makeProfile({
+        root_txid: 'vault_1',
+        coin_id: 'history-tx:0',
+        block_timestamp: nowSeconds() - 30,
+        vault_action: 'deposit',
+        vault_balance: 1000,
+        unit_balance: 100,
+      });
 
       getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(historyResponse));
+        .mockResolvedValueOnce(createMockResponse([profile]))
+        .mockResolvedValueOnce(createMockResponse([historyProfile]));
 
       const result = await fetchVaultData(vaultPubkey, { includeLatestTransaction: true });
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'My Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
-        currentPrice: 50000,
+        currentPrice: 50_000,
         latestTransaction: {
           amountBorrowed: 100,
           vaultAmount: 1000,
-          btcAmount: 0.5,
-          unitAmt: 500,
-          oraclePrice: 50000,
-          timestamp: 1000,
+          btcAmount: 1000,
+          unitAmt: 100,
+          oraclePrice: 50_000,
+          timestamp: historyProfile.block_timestamp,
           action: 'deposit',
         },
         vaultInfo: {
@@ -500,50 +384,37 @@ describe('vaultService', () => {
           vault_tag: 'My Vault',
           unit_borrowed: 1000,
           btc_locked: 5000,
-          oracle_price: 50000,
-          vault_version: 1,
-          collateral_ratio: 0,
-          liquidation_price: 0,
-          master_id: REQUIRED_VAULT_FIELDS.master_id,
-          creation_account: REQUIRED_VAULT_FIELDS.creation_account,
-          guard_pubkey: REQUIRED_VAULT_FIELDS.guard_pubkey,
-          vault_pubkey: REQUIRED_VAULT_FIELDS.vault_pubkey,
-          liquidation_hash: '',
-          utxo: REQUIRED_VAULT_FIELDS.utxo,
-          oracle_timestamp: 1000,
+          oracle_price: 50_000,
+          vault_version: 3,
+          collateral_ratio: 200,
+          liquidation_price: 37_500,
+          master_id: 'mid_test_123',
+          creation_account: 'vpk_test_123',
+          guard_pubkey: 'gpk_test_123',
+          vault_pubkey: 'vpk_test_123',
+          liquidation_hash: 'liqhash',
+          utxo: 'vault_1:0',
+          oracle_timestamp: profile.price_stamp,
           vault_last_action: 'deposit',
         },
       });
     });
 
-    it('should return vault data from the fast list-only path by default', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+    it('returns vault data from the fast profile-only path by default', async () => {
+      const profile = makeProfile({
+        root_txid: 'vault_1',
+        vault_config: { label: 'My Vault' },
+      });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([profile]));
 
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'My Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        total_debt: 1000,
-        total_collateral: 5000,
-        current_price: 50000,
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
-
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123');
 
       expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'My Vault',
-        totalDebt: 1000,
-        totalCollateral: 5000,
-        currentPrice: 50000,
+        totalDebt: profile.unit_balance / CENTS_PER_UNIT,
+        totalCollateral: profile.vault_balance / SATS_PER_BTC,
+        currentPrice: 50_000,
       });
       expect(result?.vaultInfo).toBeDefined();
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
@@ -551,306 +422,136 @@ describe('vaultService', () => {
       expect(getFetchCallCount()).toBe(1);
     });
 
-    it('should return null if no vaults found', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+    it('returns null if no vault profiles are found', async () => {
+      getMockFetch().mockResolvedValueOnce(createMockResponse([]));
 
-      getMockFetch().mockResolvedValueOnce(createMockResponse({ vaults: [] }));
-
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123');
 
       expect(result).toBeNull();
     });
 
-    it('should return null on error', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
+    it('returns null on error', async () => {
       mockFetchReject(new Error('Network error'));
 
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123');
 
       expect(result).toBeNull();
     });
 
-    it('should make correct API calls with 30-day time range', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [{ vault_id: 'vault_1', vault_tag: 'My Vault', ...REQUIRED_VAULT_FIELDS }],
-        total_debt: 0,
-        total_collateral: 0,
-        current_price: 0,
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse({ history: [] }));
-
-      await fetchVaultData(vaultPubkey);
-
-      const requestBody = getFetchCallBody<{
-        vault_id: string;
-        pagination: { limit: number; offset: number };
-        timestamp_start: number;
-        timestamp_end: number;
-      }>(1);
-
-      expect(requestBody).toMatchObject({
-        vault_id: 'vault_1',
-        pagination: {
-          limit: 250,
-          offset: 0,
-        },
+    it('handles multiple profiles and uses the first one', async () => {
+      const first = makeProfile({
+        root_txid: 'vault_1',
+        vault_config: { label: 'First Vault' },
+        unit_balance: 100_000,
+        vault_balance: 500_000_000_000,
+      });
+      const second = makeProfile({
+        root_txid: 'vault_2',
+        coin_id: 'vault_2:0',
+        vault_config: { label: 'Second Vault' },
+        unit_balance: 200_000,
+        vault_balance: 1_000_000_000_000,
       });
 
-      // Verify 30-day time range
-      const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
-      const timeDiff = (requestBody?.timestamp_end ?? 0) - (requestBody?.timestamp_start ?? 0);
-      expect(timeDiff).toBeCloseTo(thirtyDaysInSeconds, -2); // Allow some variance
-    });
+      getMockFetch().mockResolvedValueOnce(createMockResponse([first, second]));
 
-    it('should handle multiple vaults and use the first one', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+      const result = await fetchVaultData('vault_pubkey_123');
 
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'First Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-          {
-            vault_id: 'vault_2',
-            vault_tag: 'Second Vault',
-            unit_borrowed: 2000,
-            btc_locked: 10000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-          {
-            vault_id: 'vault_3',
-            vault_tag: 'Third Vault',
-            unit_borrowed: 3000,
-            btc_locked: 15000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        current_price: 50000,
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
-
-      const result = await fetchVaultData(vaultPubkey);
-
-      // Should use first vault's data, not totals
       expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'First Vault',
         totalDebt: 1000,
         totalCollateral: 5000,
-        currentPrice: 50000,
+        currentPrice: 50_000,
       });
-      expect(result?.vaultInfo).toBeDefined();
       expect(result?.vaultInfo?.vault_id).toBe('vault_1');
-
       expect(getFetchCallCount()).toBe(1);
     });
 
-    it('should log debug messages for multiple vaults', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+    it('requests profiles by vault pubkey', async () => {
+      getMockFetch().mockResolvedValueOnce(createMockResponse([
+        makeProfile({ root_txid: 'vault_1' }),
+      ]));
 
-      jest.spyOn(console, 'log').mockImplementation();
+      await fetchVaultData('vault_pubkey_123');
 
-      const vaultListResponse = {
-        vaults: [
-          { vault_id: 'vault_1', vault_tag: 'Vault 1', unit_borrowed: 100, btc_locked: 500, ...REQUIRED_VAULT_FIELDS },
-          { vault_id: 'vault_2', vault_tag: 'Vault 2', unit_borrowed: 200, btc_locked: 1000, ...REQUIRED_VAULT_FIELDS },
-        ],
-        current_price: 50000,
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
-
-      await fetchVaultData(vaultPubkey);
-
-      // Should have used first vault
-      const call = getFetchCall(0);
-      expect(call?.[1]?.body).toContain(vaultPubkey);
+      expect(String(getFetchCall(0)?.[0])).toBe(
+        'https://api.example.com/vault/vault/pubkey/vault_pubkey_123'
+      );
     });
 
-    it('should handle single vault without logging multiple vaults warning', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'Only Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        current_price: 50000,
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
-
-      const result = await fetchVaultData(vaultPubkey);
-
-      expect(result).toMatchObject({
-        vaultId: 'vault_1',
-        vaultTag: 'Only Vault',
-        totalDebt: 1000,
-        totalCollateral: 5000,
-        currentPrice: 50000,
+    it('returns display data without vaultInfo when a v3 profile is missing contract id', async () => {
+      const profile = makeProfile({
+        root_txid: 'vault_1',
+        contract_id: null,
+        vault_config: { label: 'Incomplete Vault' },
       });
-      expect(result?.vaultInfo).toBeDefined();
-      expect(result?.vaultInfo?.vault_id).toBe('vault_1');
-    });
 
-    it('should return display data without vaultInfo when vault is missing operation fields', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
+      getMockFetch().mockResolvedValueOnce(createMockResponse([profile]));
 
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'Incomplete Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            // Missing vault_pubkey, creation_account, guard_pubkey, master_id, utxo
-          },
-        ],
-        current_price: 50000,
-      };
-
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
-
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123');
 
       expect(result).toMatchObject({
         vaultId: 'vault_1',
         vaultTag: 'Incomplete Vault',
-        totalDebt: 1000,
-        totalCollateral: 5000,
-        currentPrice: 50000,
+        totalDebt: profile.unit_balance / CENTS_PER_UNIT,
+        totalCollateral: profile.vault_balance / SATS_PER_BTC,
+        currentPrice: 50_000,
       });
       expect(result?.vaultInfo).toBeUndefined();
     });
 
-    it('should use vault oracle_price when current_price is unavailable', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
+    it('uses price commit base_price when unit_price is unavailable', async () => {
+      const profile = makeProfile({
+        root_txid: 'vault_1',
+        unit_price: null,
+        price_commits: [
           {
-            vault_id: 'vault_1',
-            vault_tag: 'Oracle Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            oracle_price: 51000,
-            ...REQUIRED_VAULT_FIELDS,
+            base_price: 52_000,
+            thold_hash: 'fallbackhash',
+            thold_price: 39_000,
           },
         ],
-        current_price: 0,
-      };
+      });
 
-      getMockFetch().mockResolvedValueOnce(createMockResponse(vaultListResponse));
+      getMockFetch().mockResolvedValueOnce(createMockResponse([profile]));
 
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123');
 
-      expect(result?.currentPrice).toBe(51000);
-      expect(result?.vaultInfo?.oracle_price).toBe(51000);
+      expect(result?.currentPrice).toBe(52_000);
+      expect(result?.vaultInfo?.oracle_price).toBe(52_000);
+      expect(result?.vaultInfo?.liquidation_hash).toBe('fallbackhash');
     });
 
-    it('should use latest transaction oracle price when list prices are unavailable', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'History Oracle Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        current_price: 0,
-      };
-
-      const historyResponse = {
-        history: [
-          {
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0.5,
-            unit_amt: 500,
-            oracle_price: 52000,
-            timestamp: 1000,
-            action: 'borrow',
-          },
-        ],
-      };
+    it('uses first profile data while attaching latest history when requested', async () => {
+      const first = makeProfile({
+        root_txid: 'vault_1',
+        vault_config: { label: 'First Vault' },
+        unit_balance: 100_000,
+        vault_balance: 500_000_000_000,
+      });
+      const second = makeProfile({
+        root_txid: 'vault_2',
+        coin_id: 'vault_2:0',
+        vault_config: { label: 'Second Vault' },
+        unit_balance: 200_000,
+        vault_balance: 1_000_000_000_000,
+      });
+      const historyProfile = makeProfile({
+        root_txid: 'vault_1',
+        coin_id: 'history-tx:0',
+        block_timestamp: nowSeconds() - 30,
+      });
 
       getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(historyResponse));
+        .mockResolvedValueOnce(createMockResponse([first, second]))
+        .mockResolvedValueOnce(createMockResponse([historyProfile]));
 
-      const result = await fetchVaultData(vaultPubkey);
+      const result = await fetchVaultData('vault_pubkey_123', { includeLatestTransaction: true });
 
-      expect(result?.currentPrice).toBe(52000);
-      expect(result?.vaultInfo?.oracle_price).toBe(52000);
-      expect(result?.latestTransaction?.oraclePrice).toBe(52000);
-    });
-
-    it('should use first vault data in latestTransaction', async () => {
-      const vaultPubkey = 'vault_pubkey_123';
-
-      const vaultListResponse = {
-        vaults: [
-          {
-            vault_id: 'vault_1',
-            vault_tag: 'First Vault',
-            unit_borrowed: 1000,
-            btc_locked: 5000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-          {
-            vault_id: 'vault_2',
-            vault_tag: 'Second Vault',
-            unit_borrowed: 2000,
-            btc_locked: 10000,
-            ...REQUIRED_VAULT_FIELDS,
-          },
-        ],
-        current_price: 50000,
-      };
-
-      const historyResponse = {
-        history: [
-          {
-            amount_borrowed: 100,
-            vault_amount: 1000,
-            btc_amt: 0.5,
-            unit_amt: 500,
-            oracle_price: 50000,
-            timestamp: 1000,
-            action: 'deposit',
-          },
-        ],
-      };
-
-      getMockFetch()
-        .mockResolvedValueOnce(createMockResponse(vaultListResponse))
-        .mockResolvedValueOnce(createMockResponse(historyResponse));
-
-      const result = await fetchVaultData(vaultPubkey, { includeLatestTransaction: true });
-
-      // Should use first vault's data, not sum of all vaults
       expect(result?.totalDebt).toBe(1000);
       expect(result?.totalCollateral).toBe(5000);
+      expect(result?.latestTransaction?.action).toBe(historyProfile.vault_action);
     });
   });
 });

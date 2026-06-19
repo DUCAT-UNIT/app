@@ -25,6 +25,12 @@ jest.mock('../../utils/retry', () => ({
 }));
 
 jest.mock('../../utils/constants', () => ({
+  RUNES_CONFIG: {
+    DUCAT_UNIT_RUNE_ID: {
+      block: 3007902n,
+      tx: 1n,
+    },
+  },
   getAddressTxsUrl: jest.fn((address: string, lastTxid?: string) =>
     lastTxid
       ? `https://api.example.com/address/${address}/txs/chain/${lastTxid}`
@@ -41,6 +47,11 @@ const { decodeRunestone } = jest.requireMock('../../utils/runestoneEncoder') as 
 const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fetchVaultHistory>;
 
 describe('transactionHistoryService', () => {
+  const configuredUnitRuneId = {
+    block: 3007902n,
+    tx: 1n,
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     setupMockFetch();
@@ -171,7 +182,7 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce({
         edicts: [
           {
-            id: { block: 1527352n, tx: 1n },
+            id: configuredUnitRuneId,
             amount: 1000n,
             output: 1,
           },
@@ -213,7 +224,7 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce({
         edicts: [
           {
-            id: { block: 1527352n, tx: 1n },
+            id: configuredUnitRuneId,
             amount: 500n,
             output: 0,
           },
@@ -334,7 +345,7 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce({
         edicts: [
           {
-            id: { block: 1527352n, tx: 1n },
+            id: configuredUnitRuneId,
             amount: 1000n,
             output: 10, // Output index that doesn't exist
           },
@@ -377,7 +388,7 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce({
         edicts: [
           {
-            id: { block: 1527352n, tx: 1n },
+            id: configuredUnitRuneId,
             amount: 1000n,
             output: 0,
           },
@@ -427,7 +438,7 @@ describe('transactionHistoryService', () => {
       decodeRunestone.mockReturnValueOnce({
         edicts: [
           {
-            id: { block: 1527352n, tx: 1n },
+            id: configuredUnitRuneId,
             amount: 500n,
             output: 0,
           },
@@ -695,6 +706,74 @@ describe('transactionHistoryService', () => {
       expect(result).toHaveLength(2);
       expect(result.find(tx => tx.txid === 'tx1')).toBeDefined();
       expect(result.find(tx => tx.txid === 'vault_tx1' && tx.vaultTransaction)).toBeDefined();
+    });
+
+    it('should hide companion UNIT issue transactions for indexed open vault actions', async () => {
+      const issueTx = {
+        txid: 'open_issue_tx',
+        status: { block_time: 2000 },
+        vin: [
+          {
+            prevout: {
+              scriptpubkey_address: taprootAddress,
+              value: 1000,
+            },
+          },
+        ],
+        vout: [
+          { scriptpubkey: '6a5dissue', value: 0 },
+          { scriptpubkey_address: 'tb1pguardianaddress', value: 1000 },
+        ],
+      };
+      const unrelatedUnitSend = {
+        txid: 'unrelated_unit_send',
+        status: { block_time: 2000 },
+        vin: [
+          {
+            prevout: {
+              scriptpubkey_address: taprootAddress,
+              value: 1000,
+            },
+          },
+        ],
+        vout: [
+          { scriptpubkey: '6a5dother', value: 0 },
+          { scriptpubkey_address: 'tb1potheraddress', value: 1000 },
+        ],
+      };
+
+      decodeRunestone.mockImplementation((scriptpubkey: string) => ({
+        edicts: [
+          {
+            id: configuredUnitRuneId,
+            amount: scriptpubkey === '6a5dissue' ? 120000n : 2500n,
+            output: 1,
+          },
+        ],
+      }));
+
+      getMockFetch()
+        .mockResolvedValueOnce(createMockResponse([issueTx, unrelatedUnitSend]))
+        .mockResolvedValueOnce(createMockResponse([]));
+
+      mockFetchVaultHistory.mockResolvedValueOnce([
+        {
+          transaction_id: 'vault_tx1',
+          timestamp: 2000,
+          action: 'open',
+          amount_borrowed: 120000,
+          vault_amount: 4999000,
+          btc_amt: 4999000,
+          unit_amt: 120000,
+          oracle_price: 50000,
+        },
+      ]);
+
+      const result = await fetchAllTransactionHistory(segwitAddress, taprootAddress, vaultPubkey);
+
+      expect(result.find((tx) => tx.txid === 'open_issue_tx')).toBeUndefined();
+      expect(result.find((tx) => tx.txid === 'unrelated_unit_send')).toBeDefined();
+      expect(result.find((tx) => tx.txid === 'vault_tx1' && tx.vaultTransaction)).toBeDefined();
     });
 
     it('should sort transactions by timestamp (most recent first)', async () => {

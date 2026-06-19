@@ -1,0 +1,328 @@
+import { z } from 'zod';
+export declare const vault_open: z.ZodObject<{
+    borrow_amount: z.ZodNumber;
+    deposit_amount: z.ZodNumber;
+    issue_psbt: z.ZodString;
+    issue_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    root_txid: z.ZodOptional<z.ZodString>;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_borrow: z.ZodObject<{
+    borrow_amount: z.ZodNumber;
+    issue_psbt: z.ZodString;
+    issue_txid: z.ZodString;
+    root_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_repay: z.ZodObject<{
+    repay_amount: z.ZodNumber;
+    burn_psbt: z.ZodString;
+    burn_txid: z.ZodString;
+    root_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_repo: z.ZodObject<{
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    root_txid: z.ZodOptional<z.ZodString>;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_trim: z.ZodObject<{
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    root_txid: z.ZodOptional<z.ZodString>;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_deposit: z.ZodObject<{
+    deposit_amount: z.ZodNumber;
+    root_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;
+export declare const vault_withdraw: z.ZodObject<{
+    root_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    withdraw_amount: z.ZodNumber;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const vault_close: z.ZodObject<{
+    root_txid: z.ZodString;
+    vault_psbt: z.ZodString;
+    vault_txid: z.ZodString;
+    borrow_amount: z.ZodOptional<z.ZodNumber>;
+    chain_network: z.ZodEnum<{
+        main: "main";
+        testnet3: "testnet3";
+        testnet4: "testnet4";
+        mutiny: "mutiny";
+        regtest: "regtest";
+        signet: "signet";
+    }>;
+    change_amount: z.ZodOptional<z.ZodNumber>;
+    client_pubkey: z.ZodString;
+    deposit_amount: z.ZodOptional<z.ZodNumber>;
+    guard_members: z.ZodArray<z.ZodString>;
+    guard_pubkey: z.ZodString;
+    contract_id: z.ZodString;
+    sighashes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        idx: z.ZodNumber;
+        sighash: z.ZodString;
+        sigflag: z.ZodNumber;
+    }, z.core.$strip>>>;
+    vault_action: z.ZodEnum<{
+        open: "open";
+        close: "close";
+        borrow: "borrow";
+        repay: "repay";
+        repo: "repo";
+        withdraw: "withdraw";
+        deposit: "deposit";
+        trim: "trim";
+        liquidate: "liquidate";
+    }>;
+    vault_config: z.ZodOptional<z.ZodObject<{
+        label: z.ZodString;
+    }, z.core.$strip>>;
+    withdraw_amount: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strip>;

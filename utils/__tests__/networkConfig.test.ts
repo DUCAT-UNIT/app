@@ -7,6 +7,7 @@ describe('networkConfig', () => {
     delete process.env.EXPO_PUBLIC_APP_NETWORK;
     delete process.env.EXPO_PUBLIC_UNIT_RUNE_BLOCK;
     delete process.env.EXPO_PUBLIC_UNIT_RUNE_TX;
+    delete process.env.EXPO_PUBLIC_VALIDATOR_URL;
     delete process.env.EXPO_PUBLIC_ESPLORA_API_URL;
     delete process.env.EXPO_PUBLIC_VAULT_API_URL;
   });
@@ -63,7 +64,12 @@ describe('networkConfig', () => {
   it('uses the reachable Mutinynet validator by default', () => {
     const { APP_NETWORK_CONFIG } = loadConfig();
 
-    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe('https://validator.ducatprotocol.com/api');
+    expect(APP_NETWORK_CONFIG.api.validatorUrl).toBe(
+      'https://validator-mutinynet.dev.ducatprotocol.com'
+    );
+    expect(APP_NETWORK_CONFIG.api.vaultUrl).toBe(
+      'https://validator-mutinynet.dev.ducatprotocol.com/api'
+    );
   });
 
   it('rejects insecure vault API overrides', () => {

@@ -25,6 +25,12 @@ const RUNE_OUTPUT_FETCH_TIMEOUT_MS = 8_000;
 const RUNE_OUTPUT_BATCH_SIZE = 4;
 const SATS_UTXO_FETCH_TIMEOUT_MS = 8_000;
 
+type LegacyResolve<T> = {
+  ok: boolean;
+  data: T;
+  error?: string;
+};
+
 interface OrdAddressResponse {
   outputs?: string[];
 }
@@ -111,6 +117,7 @@ async function fetchRuneOutput(output: string): Promise<RuneUtxo | null> {
     records: data.inscriptions ?? [],
     runes,
     script,
+    script_pk: script,
     txid: data.transaction ?? txid,
     value,
     vout,
@@ -165,7 +172,7 @@ async function fetchRuneUtxoMap(address: string): Promise<Map<string, RuneUtxo>>
 
 async function fetchSatsUtxos(
   address: string
-): Promise<Array<{ txid: string; vout: number; value: number; script: string }>> {
+): Promise<Array<{ txid: string; vout: number; value: number; script: string; script_pk: string }>> {
   const startedAt = Date.now();
   const data = await getJsonWithNativeTimeout<EsploraUtxoResponse[]>(getAddressUtxoUrl(address), {
     timeout: SATS_UTXO_FETCH_TIMEOUT_MS,
@@ -182,6 +189,7 @@ async function fetchSatsUtxos(
     vout: utxo.vout,
     value: utxo.value,
     script,
+    script_pk: script,
   }));
 
   logger.info('[VaultWalletService] BTC UTXOs fetched', {
@@ -202,8 +210,8 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         const res = await withVaultBuildTimeout(
           OracleAPI.wallet.fetch_address_bal(API.ORD_URL, segwitAddress),
           'Timed out fetching vault wallet balance. Please try again.'
-        );
-        if (!res.ok) throw new Error(res.error);
+        ) as LegacyResolve<unknown>;
+        if (!res.ok) throw new Error(res.error ?? 'Failed to fetch vault wallet balance');
         return res.data;
       },
 
@@ -236,8 +244,8 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         const res = await withVaultBuildTimeout(
           OracleAPI.wallet.fetch_vault_tokens(API.ESPLORA_URL, API.ORD_URL, address, postage),
           'Timed out fetching vault tokens. Please try again.'
-        );
-        if (!res.ok) throw new Error(res.error);
+        ) as LegacyResolve<Map<string, unknown>>;
+        if (!res.ok) throw new Error(res.error ?? 'Failed to fetch vault tokens');
         return res.data;
       },
     },

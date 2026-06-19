@@ -32,6 +32,12 @@ export const VIN_ALLOWANCE = 350;
 /** Default fee rate in sat/vB (Mutinynet) */
 export const LIQ_DEFAULT_FEE_RATE = 1;
 
+/** Validator /api/liquid/vaults currently returns up to 250 entries per page. */
+export const LIQ_PAGE_SIZE = 250;
+
+/** Guardrail against a malformed pagination loop. */
+export const LIQ_MAX_PAGES = 10;
+
 /** Swap PSBT fee buffer: 2% of swap amount, with a 10k sat minimum for Mutinynet variance. */
 export const SWAP_PSBT_FEE_BUFFER_BPS = 200;
 export const SWAP_PSBT_MIN_FEE_BUFFER_SATS = 10_000;
@@ -70,16 +76,20 @@ function requireWssBaseUrl(name: string, value: string): string {
   return parsed.toString().replace(/\/$/, '');
 }
 
+function normalizeValidatorBaseUrl(name: string, value: string): string {
+  return requireHttpsBaseUrl(name, value)
+    .replace(/\/api\/?$/, '')
+    .replace(/\/liq\/?$/, '')
+    .replace(/\/+$/, '');
+}
+
 function resolveLiquidationValidatorUrl(): string {
   const configured = process.env.EXPO_PUBLIC_LIQ_VALIDATOR_URL?.trim();
   if (configured) {
-    return requireHttpsBaseUrl('EXPO_PUBLIC_LIQ_VALIDATOR_URL', configured);
+    return normalizeValidatorBaseUrl('EXPO_PUBLIC_LIQ_VALIDATOR_URL', configured);
   }
 
-  return requireHttpsBaseUrl(
-    'EXPO_PUBLIC_LIQ_VALIDATOR_URL',
-    APP_NETWORK_CONFIG.api.vaultUrl.replace(/\/api\/?$/, '').replace(/\/$/, '') + '/liq'
-  );
+  return normalizeValidatorBaseUrl('EXPO_PUBLIC_LIQ_VALIDATOR_URL', APP_NETWORK_CONFIG.api.validatorUrl);
 }
 
 /** Liquidation validator base URL */

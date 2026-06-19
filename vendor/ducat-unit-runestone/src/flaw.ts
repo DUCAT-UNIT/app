@@ -1,0 +1,16 @@
+/**
+ * @fileoverview runestone-ts/src/flaw.ts
+ */
+
+export enum Flaw {
+  EDICT_OUTPUT,
+  EDICT_RUNE_ID,
+  INVALID_SCRIPT,
+  OPCODE,
+  SUPPLY_OVERFLOW,
+  TRAILING_INTEGERS,
+  TRUNCATED_FIELD,
+  UNRECOGNIZED_EVEN_TAG,
+  UNRECOGNIZED_FLAG,
+  VARINT,
+}

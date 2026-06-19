@@ -1,11 +1,29 @@
 {
   "name": "@ducat-unit/client-sdk",
-  "version": "0.7.23",
+  "version": "0.25.2",
   "description": "Client SDK for the Ducat Protocol.",
   "author": "Christopher Scott",
   "repository": {
     "type": "git",
     "url": "https://github.com/DUCAT-UNIT/client-sdk"
+  },
+  "homepage": "https://github.com/DUCAT-UNIT/client-sdk#readme",
+  "keywords": [
+    "bitcoin",
+    "ducat",
+    "unit",
+    "vault",
+    "stablecoin",
+    "collateral",
+    "psbt"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   },
   "unpkg": "./dist/script.js",
   "files": [
@@ -16,42 +34,69 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./const": {
+      "types": "./dist/const.d.ts",
+      "default": "./dist/const.js"
+    },
     "./guard": {
-      "import": "./dist/module/guard/index.js",
       "types": "./dist/module/guard/index.d.ts",
       "default": "./dist/module/guard/index.js"
     },
+    "./fetch": {
+      "types": "./dist/lib/fetch/index.d.ts",
+      "default": "./dist/lib/fetch/index.js"
+    },
+    "./lib": {
+      "types": "./dist/lib/index.d.ts",
+      "default": "./dist/lib/index.js"
+    },
+    "./observe": {
+      "types": "./dist/lib/observe/index.d.ts",
+      "default": "./dist/lib/observe/index.js"
+    },
     "./oracle": {
-      "import": "./dist/module/oracle/index.js",
       "types": "./dist/module/oracle/index.d.ts",
       "default": "./dist/module/oracle/index.js"
     },
-    "./util": {
-      "import": "./dist/util/index.js",
-      "types": "./dist/util/index.d.ts",
-      "default": "./dist/util/index.js"
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "default": "./dist/schema/index.js"
     },
     "./vault": {
-      "import": "./dist/module/vault/index.js",
       "types": "./dist/module/vault/index.d.ts",
       "default": "./dist/module/vault/index.js"
     },
     "./wallet": {
-      "import": "./dist/module/wallet/index.js",
       "types": "./dist/module/wallet/index.d.ts",
       "default": "./dist/module/wallet/index.js"
+    },
+    "./util": {
+      "types": "./dist/util/index.d.ts",
+      "default": "./dist/util/index.js"
     }
   },
   "dependencies": {
-    "@cmdcode/buff": "2.2.5",
-    "@ducat-unit/runestone": "^1.0.5",
-    "@noble/curves": "^1.9.2",
-    "@scrow/tapscript": "2.3.0",
-    "@scure/btc-signer": "^1.8.1",
-    "zod": "^3.25.67"
+    "@ducat-unit/core": "^0.22.0",
+    "@ducat-unit/runestone": "^2.0.11",
+    "@opentelemetry/api": "^1.9.0",
+    "@scure/btc-signer": "2.2.0",
+    "@vbyte/btc-dev": "2.1.0",
+    "@vbyte/buff": "1.1.0",
+    "@vbyte/crypto": "^1.0.1",
+    "@vbyte/nostr-sdk": "^1.0.1",
+    "@vbyte/util": "2.0.0",
+    "websocket-polyfill": "^1.0.0",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    }
   }
 }

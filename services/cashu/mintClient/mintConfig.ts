@@ -2,6 +2,8 @@
  * Mint Client Configuration
  */
 
+import { RUNES_CONFIG } from '../../../utils/constants';
+
 function resolveMintUrl(): string {
   const configured = process.env.EXPO_PUBLIC_CASHU_MINT_URL?.trim()
     ?? 'https://dev-cashu-mint.ducatprotocol.com';
@@ -22,4 +24,4 @@ function resolveMintUrl(): string {
 
 export const MINT_URL = resolveMintUrl();
 export const CASHU_UNIT = 'unit'; // Cashu unit advertised for Ducat UNIT
-export const RUNE_ID = '1527352:1'; // DUCAT•UNIT•RUNE (Mutinynet)
+export const RUNE_ID = `${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.block}:${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.tx}`;

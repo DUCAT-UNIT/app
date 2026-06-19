@@ -12,21 +12,31 @@
  * 5. Build liquidation context (VaultAPI.repo.liquidation.get_ctx)
  * 6. Build vault repo context (wallet.vault.repo.ctx)
  * 7. Fetch & select UTXOs
- * 8. Create PSBTs manually, batch sign, build request
+ * 8. Create one repo PSBT, sign it, build request
  * 9. Submit to Guardian
  */
 
-import { CONST, VaultAPI, select_sat_utxos } from '@ducat-unit/client-sdk';
+import {
+  VaultAPI,
+  select_sat_utxos,
+} from '@ducat-unit/client-sdk';
+import {
+  create_vault_action_quote,
+  filter_price_contracts,
+  get_price_commit_hashes,
+} from '@ducat-unit/client-sdk/lib';
 import type {
   BaseUtxo,
   GuardianSocket,
   LiquidVaultProfile,
+  PriceContract,
   PriceQuote,
-  SignPSBTEntry,
+  ProtocolProfile,
   VaultProfile,
   VaultWallet,
   WalletVaultRepoRequest,
 } from '@ducat-unit/client-sdk';
+import type { PriceQuote as CorePriceQuote } from '@ducat-unit/core';
 import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
@@ -57,6 +67,7 @@ import {
   finalizeSwapPsbt,
   validateSwapPsbtUnitPayout,
 } from './swapService';
+import { assertLiquidVaultProfilesUnspent } from './spendability';
 
 // ============================================================
 // Types
@@ -132,6 +143,249 @@ type RepoRequestWithTransactions = WalletVaultRepoRequest & {
   vault_txid?: string;
 };
 
+type LiquidationAction = 'repo' | 'trim';
+
+type LiquidVaultProfileWithSelection = LiquidVaultProfile & {
+  claimAmountBtc?: number;
+  claimAmountDiff?: number;
+  claimAmountPartial?: number;
+};
+
+type LatestRepoVaultContext = {
+  __create_psbts?: (
+    fundInputs?: BaseUtxo[],
+    extra?: { liquid_profiles?: LiquidVaultProfile[] }
+  ) => string[];
+  __latest_ctx?: unknown;
+};
+
+type GuardianVaultRequestSubscription<T> = {
+  on?: (event: string, handler: (...args: unknown[]) => void) => unknown;
+  resolve?: (timeoutMs?: number) => Promise<T>;
+  send?: (timeoutMs?: number) => Promise<T | { ok: boolean; data?: T; reason?: unknown }>;
+};
+
+type GuardianSocketWithInternalClient = GuardianSocket & {
+  _client?: {
+    request?: {
+      vault?: {
+        trim?: (
+          request: WalletVaultRepoRequest
+        ) => GuardianVaultRequestSubscription<GuardianVaultResponse>;
+      };
+    };
+  };
+};
+
+type GuardianVaultResponse = {
+  vault_txid?: string;
+  repo_txid?: string;
+  liquid_txid?: string;
+};
+
+type VaultContextWithValidationOptions = {
+  validation_options?: {
+    warn_only_high_fees?: boolean;
+    [key: string]: unknown;
+  };
+};
+
+function allowHighFeeValidationWarnings(ctx: unknown): unknown {
+  if (!ctx || typeof ctx !== 'object') {
+    return ctx;
+  }
+
+  const ctxWithOptions = ctx as VaultContextWithValidationOptions;
+  ctxWithOptions.validation_options = {
+    ...ctxWithOptions.validation_options,
+    warn_only_high_fees: true,
+  };
+
+  return ctx;
+}
+
+function isPartialLiquidVault(profile: LiquidVaultProfile): boolean {
+  const selected = profile as LiquidVaultProfileWithSelection;
+
+  if (typeof selected.claimAmountDiff === 'number' && selected.claimAmountDiff > 0) {
+    return true;
+  }
+
+  if (
+    typeof selected.claimAmountPartial === 'number'
+    && typeof selected.claimAmountBtc === 'number'
+  ) {
+    return selected.claimAmountPartial > 0
+      && selected.claimAmountPartial < selected.claimAmountBtc;
+  }
+
+  return false;
+}
+
+function splitLiquidationActions(liquidVaults: LiquidVaultProfile[]): {
+  fullVaults: LiquidVaultProfile[];
+  partialVault?: LiquidVaultProfile;
+} {
+  const fullVaults: LiquidVaultProfile[] = [];
+  let partialVault: LiquidVaultProfile | undefined;
+
+  for (const vault of liquidVaults) {
+    if (isPartialLiquidVault(vault)) {
+      if (partialVault) {
+        throw new Error('Only one partial liquidation can be submitted at a time');
+      }
+      partialVault = vault;
+      continue;
+    }
+
+    fullVaults.push(vault);
+  }
+
+  return { fullVaults, partialVault };
+}
+
+function firstProtocolMemberPubkey(contract: ProtocolProfile, group: number): string {
+  return contract.proto_members?.find((member) => member.group === group)?.pubkey
+    ?? contract.proto_members?.[0]?.pubkey
+    ?? '';
+}
+
+function toCorePriceQuote(quote: PriceQuote, contract: ProtocolProfile): CorePriceQuote {
+  const runtimeQuote = quote as PriceQuote & {
+    base_price?: number;
+    base_stamp?: number;
+    chain_network?: PriceContract['chain_network'];
+    oracle_pubkey?: string;
+    rate_min?: number;
+    rate_max?: number;
+    rate_thold?: number;
+    step_size?: number;
+  };
+  const basePrice = runtimeQuote.base_price ?? quote.latest_price ?? quote.quote_price;
+  const baseStamp = runtimeQuote.base_stamp ?? quote.latest_stamp ?? quote.quote_stamp;
+
+  if (!basePrice || !baseStamp) {
+    throw new Error('Oracle quote is missing base price data');
+  }
+
+  return {
+    base_price: basePrice,
+    base_stamp: baseStamp,
+    chain_network: runtimeQuote.chain_network ?? contract.chain_network ?? 'mutiny',
+    oracle_pubkey: runtimeQuote.oracle_pubkey ?? firstProtocolMemberPubkey(contract, 22),
+    rate_max: runtimeQuote.rate_max ?? 0,
+    rate_min: runtimeQuote.rate_min ?? 0,
+    rate_thold: runtimeQuote.rate_thold ?? 0,
+    step_size: runtimeQuote.step_size ?? 1,
+  };
+}
+
+function getQuotePriceContracts(quote: PriceQuote): PriceContract[] {
+  const runtimeQuote = quote as PriceQuote & {
+    contracts?: PriceContract[];
+    price_contracts?: PriceContract[];
+  };
+
+  return runtimeQuote.price_contracts ?? runtimeQuote.contracts ?? [];
+}
+
+function selectActionPriceContracts(
+  contract: ProtocolProfile,
+  actionConfig: Record<string, unknown>,
+  oracleQuote: PriceQuote
+): PriceContract[] {
+  const priceContracts = getQuotePriceContracts(oracleQuote);
+  if (priceContracts.length === 0) {
+    return [];
+  }
+
+  const actionQuote = create_vault_action_quote(actionConfig as never);
+  const commitHashes = get_price_commit_hashes(
+    contract,
+    actionQuote,
+    [toCorePriceQuote(oracleQuote, contract)]
+  );
+  const filtered = filter_price_contracts(priceContracts, commitHashes);
+
+  return filtered.length > 0 ? filtered : priceContracts;
+}
+
+function getGuardPubkey(contract: ProtocolProfile, vaultProfile: VaultProfile): string {
+  return vaultProfile.guard_pubkey
+    ?? vaultProfile.guard_pk
+    ?? firstProtocolMemberPubkey(contract, 21);
+}
+
+function createTrimConfig(params: {
+  contract: ProtocolProfile;
+  feeRate: number;
+  liquidVault: LiquidVaultProfile;
+  oracleQuote: PriceQuote;
+  userVaultProfile: VaultProfile;
+  wallet: VaultWallet;
+}): Record<string, unknown> {
+  const { contract, feeRate, liquidVault, oracleQuote, userVaultProfile, wallet } = params;
+  const baseConfig: Record<string, unknown> = {
+    change_address: wallet.acct.sats.address,
+    guard_pubkey: getGuardPubkey(contract, userVaultProfile),
+    liquid_profiles: [liquidVault],
+    price_quotes: [toCorePriceQuote(oracleQuote, contract)],
+    proto_profile: contract,
+    txfee_rate: feeRate,
+    txfee_reserve: 0,
+    validation_options: {
+      warn_only_high_fees: true,
+    },
+    vault_action: 'trim',
+    vault_profile: userVaultProfile,
+  };
+
+  return {
+    ...baseConfig,
+    price_contracts: selectActionPriceContracts(contract, baseConfig, oracleQuote),
+  };
+}
+
+function createUnsignedTrimPsbt(params: {
+  contract: ProtocolProfile;
+  feeRate: number;
+  liquidVault: LiquidVaultProfile;
+  oracleQuote: PriceQuote;
+  userVaultProfile: VaultProfile;
+  wallet: VaultWallet;
+}): { psbt: string; trimCtx: unknown } {
+  const trimConfig = createTrimConfig(params);
+  const trimCtx = allowHighFeeValidationWarnings(VaultAPI.trim.create_ctx(trimConfig as never));
+  const psbt = VaultAPI.trim.create_psbt(trimCtx as never);
+
+  if (!psbt) {
+    throw new Error('Failed to build trim PSBT');
+  }
+
+  return { psbt, trimCtx };
+}
+
+function createUnsignedLatestRepoPsbt(
+  vaultCtx: unknown,
+  liquidVaults: LiquidVaultProfile[],
+  fundInputs: BaseUtxo[]
+): { psbt: string; latestCtx: unknown } {
+  const repoCtx = vaultCtx as LatestRepoVaultContext;
+  if (typeof repoCtx.__create_psbts !== 'function') {
+    throw new Error('Latest repo PSBT builder is unavailable');
+  }
+
+  const [psbt] = repoCtx.__create_psbts(fundInputs, { liquid_profiles: liquidVaults });
+  if (!psbt) {
+    throw new Error('Failed to build repo PSBT');
+  }
+  if (!repoCtx.__latest_ctx) {
+    throw new Error('Failed to build latest repo context');
+  }
+
+  return { psbt, latestCtx: allowHighFeeValidationWarnings(repoCtx.__latest_ctx) };
+}
+
 function normalizeRepoRequestTxids(request: WalletVaultRepoRequest): WalletVaultRepoRequest {
   const txRequest = request as RepoRequestWithTransactions;
   const normalized: RepoRequestWithTransactions = { ...txRequest };
@@ -188,6 +442,95 @@ function assertRepoRequestTxidsConsistent(request: WalletVaultRepoRequest): void
       throw new Error('Repo liquidation request vault Tx ID does not match its signed transaction');
     }
   }
+}
+
+function createGuardianVaultSubscription(
+  guardian: GuardianSocket,
+  action: LiquidationAction,
+  request: WalletVaultRepoRequest
+): GuardianVaultRequestSubscription<GuardianVaultResponse> {
+  if (action === 'repo') {
+    return guardian.req.vault.repo(request);
+  }
+
+  const compatTrim = (guardian.req.vault as {
+    trim?: (
+      request: WalletVaultRepoRequest
+    ) => GuardianVaultRequestSubscription<GuardianVaultResponse>;
+  }).trim;
+  if (typeof compatTrim === 'function') {
+    return compatTrim(request);
+  }
+
+  const rawTrim = (guardian as GuardianSocketWithInternalClient)._client?.request?.vault?.trim;
+  if (typeof rawTrim !== 'function') {
+    throw new Error('Guardian trim request API is unavailable');
+  }
+
+  const rawSub = rawTrim(request);
+  return {
+    on: (...args) => rawSub.on?.(...args),
+    resolve: async (timeoutMs?: number) => {
+      if (typeof rawSub.resolve === 'function') {
+        return rawSub.resolve(timeoutMs);
+      }
+      if (typeof rawSub.send !== 'function') {
+        throw new Error('Guardian trim subscription cannot be resolved');
+      }
+
+      const response = await rawSub.send(timeoutMs);
+      if (
+        response
+        && typeof response === 'object'
+        && 'ok' in response
+        && response.ok === false
+      ) {
+        throw new Error(String(response.reason));
+      }
+      if (
+        response
+        && typeof response === 'object'
+        && 'ok' in response
+        && response.ok === true
+      ) {
+        return response.data as GuardianVaultResponse;
+      }
+
+      return response as GuardianVaultResponse;
+    },
+  };
+}
+
+async function resolveGuardianVaultSubscription(
+  sub: GuardianVaultRequestSubscription<GuardianVaultResponse>
+): Promise<GuardianVaultResponse> {
+  if (typeof sub.resolve === 'function') {
+    return withGuardianTimeout(sub.resolve(60_000), 70_000);
+  }
+
+  if (typeof sub.send !== 'function') {
+    throw new Error('Guardian subscription cannot be resolved');
+  }
+
+  const response = await withGuardianTimeout(sub.send(60_000), 70_000);
+  if (
+    response
+    && typeof response === 'object'
+    && 'ok' in response
+    && response.ok === false
+  ) {
+    throw new Error(String(response.reason));
+  }
+  if (
+    response
+    && typeof response === 'object'
+    && 'ok' in response
+    && response.ok === true
+  ) {
+    return response.data as GuardianVaultResponse;
+  }
+
+  return response as GuardianVaultResponse;
 }
 
 // ============================================================
@@ -288,67 +631,108 @@ export async function executeLiquidation(
       depositAmountSats,
     });
 
+    const { fullVaults, partialVault } = splitLiquidationActions(liquidVaults);
+    if (partialVault && fullVaults.length > 0) {
+      throw new Error(
+        'Mixed partial and full liquidation is not supported in a single mobile request yet.'
+      );
+    }
+
+    const action: LiquidationAction = partialVault ? 'trim' : 'repo';
+    const actionLiquidVaults = partialVault ? [partialVault] : fullVaults;
+    if (actionLiquidVaults.length === 0) {
+      throw new Error('No liquidation vaults selected');
+    }
+    await assertLiquidVaultProfilesUnspent(actionLiquidVaults);
+
     // ── Step 5: Build Liquidation Context ──
     // (matches web: repossess.op.ts:84 — NO is_locked modification)
     progress('Building liquidation context...');
 
-    const liquidCtx = VaultAPI.repo.liquidation.get_ctx(liquidVaults, contract);
+    const liquidCtx = VaultAPI.repo.liquidation.get_ctx(actionLiquidVaults, contract);
 
     logger.debug('[Liquidation] Context', {
+      action,
       vaultCount: liquidCtx.vault_count,
       claimedSats: liquidCtx.claimed_sats,
       claimedUnit: liquidCtx.claimed_unit,
     });
 
-    // ── Step 6: Build Vault Repo Context ──
+    // ── Step 6: Build Vault Action Context ──
     // (matches web: repossess.op.ts:74-77, 88)
     progress('Preparing transaction...');
 
-    const vaultConfig = {
-      deposit_amount: depositAmountSats,
-      tx_feerate: feeRate,
-    };
+    let allUtxos: BaseUtxo[] = [];
+    let utxos: BaseUtxo[] = [];
+    let repoVaultCtx: unknown;
+    let unsignedActionPsbt: string;
+    let latestActionCtx: unknown;
 
-    const vaultCtx = wallet.vault.repo.ctx(oracleQuote, userVaultProfile, vaultConfig);
+    if (action === 'repo') {
+      const vaultConfig = {
+        deposit_amount: depositAmountSats,
+        tx_feerate: feeRate,
+        liquid_profiles: actionLiquidVaults,
+        validation_options: {
+          warn_only_high_fees: true,
+        },
+      };
 
-    // ── Step 7: Fetch & Select UTXOs ──
-    // (matches web: repossess.op.ts:91-99 — fetch all, then select)
-    progress('Fetching available funds...');
+      repoVaultCtx = wallet.vault.repo.ctx(oracleQuote, userVaultProfile, vaultConfig);
 
-    const txQuote = wallet.vault.repo.quote(vaultCtx, liquidVaults.length);
-    const allUtxos: BaseUtxo[] = await wallet.fetch.sats_utxos();
-    const utxos = select_sat_utxos(allUtxos, txQuote.total_cost);
+      // matches web: repossess.op.ts:91-99 — fetch all, then select
+      progress('Fetching available funds...');
 
-    logger.debug('[Liquidation] UTXOs', {
-      totalAvailable: allUtxos.length,
-      selected: utxos?.length ?? 0,
-      totalCost: txQuote.total_cost,
-    });
+      const txQuote = wallet.vault.repo.quote(repoVaultCtx, actionLiquidVaults.length);
+      allUtxos = await wallet.fetch.sats_utxos();
+      utxos = select_sat_utxos(allUtxos, txQuote.total_cost);
 
-    if (!utxos?.length) {
-      throw new Error('Insufficient funds for liquidation');
+      logger.debug('[Liquidation] UTXOs', {
+        totalAvailable: allUtxos.length,
+        selected: utxos?.length ?? 0,
+        totalCost: txQuote.total_cost,
+      });
+
+      if (!utxos?.length) {
+        throw new Error('Insufficient funds for liquidation');
+      }
+
+      progress('Building transactions...');
+
+      const repoPsbt = createUnsignedLatestRepoPsbt(
+        repoVaultCtx,
+        actionLiquidVaults,
+        utxos
+      );
+      unsignedActionPsbt = repoPsbt.psbt;
+      latestActionCtx = repoPsbt.latestCtx;
+    } else {
+      progress('Building transactions...');
+
+      const trimPsbt = createUnsignedTrimPsbt({
+        contract,
+        feeRate,
+        liquidVault: actionLiquidVaults[0],
+        oracleQuote,
+        userVaultProfile,
+        wallet,
+      });
+      unsignedActionPsbt = trimPsbt.psbt;
+      latestActionCtx = trimPsbt.trimCtx;
     }
 
-    // ── Step 8: Create Repo PSBTs ──
-    // (matches web: repossess.api.ts:32-61)
-    progress('Building transactions...');
-
-    // Create PSBTs manually (same as web repoCreatePsbtsBatch)
-    const psbt1Raw = VaultAPI.repo.create_psbt1(liquidCtx, vaultCtx, utxos);
-    const psbt2Raw = VaultAPI.repo.create_psbt2(liquidCtx, vaultCtx, psbt1Raw);
-
-    // ── Step 8a: Extract change UTXO from psbt2 for swap ──
+    // ── Step 8a: Extract change UTXO from the repo PSBT for swap ──
     let swapPsbtHex: string | undefined;
     let swapData: Awaited<ReturnType<typeof fetchSwapPsbt>> = null;
     let maxSwapSpendSats = 0;
 
-    if (enableSwap) {
+    if (enableSwap && action === 'repo') {
       try {
         progress('Preparing swap...');
 
-        // Parse psbt2 and extract change UTXO (index 1 = change output)
-        const pdata = PSBT.parse(psbt2Raw);
-        const changeUtxo: BaseUtxo = PSBT.extract.utxo(pdata, 1);
+        const pdata = PSBT.parse(unsignedActionPsbt);
+        const changeOutputIndex = 1 + actionLiquidVaults.length;
+        const changeUtxo: BaseUtxo = PSBT.extract.utxo(pdata, changeOutputIndex);
 
         // Calculate swap amounts
         const swapClaimedUnit = liquidCtx.claimed_unit / 100;
@@ -387,7 +771,11 @@ export async function executeLiquidation(
           btcPrice: bitcoinPrice,
           paymentAddress: wallet.acct.sats.address,
           ordinalsAddress: wallet.acct.vault.address,
-          vaultTxId: liquidCtx.liquid_vaults[0]?.utxo?.txid || '',
+          vaultTxId:
+            liquidCtx.liquid_vaults[0]?.root_txid
+            || liquidCtx.liquid_vaults[0]?.coin_id?.split(':')[0]
+            || liquidCtx.liquid_vaults[0]?.utxo?.txid
+            || '',
         });
 
         swapData = await fetchSwapPsbt(swapPayload);
@@ -412,45 +800,29 @@ export async function executeLiquidation(
       }
     }
 
-    // ── Step 8b: Batch Sign (2 or 3 PSBTs) ──
-    // (matches web: repossess.api.ts:63-75)
+    // ── Step 8b: Sign action PSBT ──
     progress('Signing transaction...');
 
-    // Build manifests (same as web repossess.api.ts:34-50)
-    const vinVaultIdx = CONST.TXMAP.repo.vault_tx.vin.vault;
-    const vinConnIdx = CONST.TXMAP.repo.vault_tx.vin.conn;
-    const vinFundIdx = liquidCtx.liquid_vaults.length;
-    const utxoInputs = utxos.map((_: BaseUtxo, idx: number) => vinFundIdx + idx);
+    if (action === 'repo') {
+      setPendingVaultSigningOperation({
+        action: 'repo',
+        liquidCtx,
+        vaultCtx: repoVaultCtx as LatestRepoVaultContext,
+        satsUtxos: utxos,
+      });
+    } else {
+      setPendingVaultSigningOperation({
+        action: 'trim',
+        ctx: latestActionCtx as never,
+      });
+    }
 
-    const utxoManifest: Record<string, number[]> = {
-      [wallet.acct.sats.address]: utxoInputs,
-    };
-    const vaultManifest: Record<string, number[]> = {
-      [wallet.acct.vault.address]: [vinVaultIdx, vinConnIdx],
-    };
-
-    // Sign repo PSBTs (2 PSBTs with security context validation)
-    const repoBatchRequest: SignPSBTEntry[] = [
-      [psbt1Raw, utxoManifest],
-      [psbt2Raw, vaultManifest],
-    ];
-
-    setPendingVaultSigningOperation({
-      action: 'repo',
-      liquidCtx,
-      vaultCtx,
-      satsUtxos: utxos,
-    });
-
-    let signedRepoPsbts: string[];
+    let signedActionPsbt: string;
     try {
-      signedRepoPsbts = await wallet.sign.batch(repoBatchRequest);
+      signedActionPsbt = await wallet.sign.psbt(unsignedActionPsbt);
     } finally {
       clearPendingVaultSigningOperation();
     }
-
-    const psbt1 = signedRepoPsbts[0];
-    const psbt2 = signedRepoPsbts[1];
 
     // Sign swap PSBT separately using raw signing (no vault security context needed)
     if (swapData) {
@@ -482,8 +854,13 @@ export async function executeLiquidation(
     }
 
     // ── Step 9: Build request and submit ──
-    // (matches web: repossess.api.ts:82-93)
-    const req = VaultAPI.repo.create_req(liquidCtx, vaultCtx, psbt1, psbt2);
+    const requestBuilder = action === 'repo'
+      ? VaultAPI.repo.create_request
+      : VaultAPI.trim.create_request;
+    const req = (requestBuilder as unknown as (
+      ctx: unknown,
+      signedPsbt: string
+    ) => WalletVaultRepoRequest)(latestActionCtx, signedActionPsbt);
     const request: WalletVaultRepoRequest = normalizeRepoRequestTxids({
       ...req,
       contract_id: wallet.contract_id,
@@ -506,13 +883,9 @@ export async function executeLiquidation(
     progress('Submitting to network...');
 
     guardian = await getGuardianClient(vaultPubkey);
-    const guardSub = guardian.req.vault.repo(request);
-    guardSub.on('info', (info: string) => logger.debug(`[Liquidation] Guardian: ${info}`));
-    const guardRes = (await withGuardianTimeout(guardSub.resolve(60_000), 70_000)) as {
-      vault_txid?: string;
-      repo_txid?: string;
-      liquid_txid?: string;
-    };
+    const guardSub = createGuardianVaultSubscription(guardian, action, request);
+    guardSub.on?.('info', (info: unknown) => logger.debug(`[Liquidation] Guardian: ${info}`));
+    const guardRes = await resolveGuardianVaultSubscription(guardSub);
 
     const txid = guardRes.vault_txid || guardRes.repo_txid || guardRes.liquid_txid || '';
     if (txid) {

@@ -113,6 +113,47 @@ function compactTxids(txids: Array<string | null | undefined>): string[] {
   return [...new Set(txids.filter((txid): txid is string => Boolean(txid)))];
 }
 
+function sameUtxo(
+  left: { txid: string; vout: number },
+  right: { txid: string; vout: number }
+): boolean {
+  return left.txid === right.txid && left.vout === right.vout;
+}
+
+function appendUniqueUtxo(
+  inputs: Array<{ txid: string; vout: number }>,
+  input: { txid: string; vout: number } | null
+): Array<{ txid: string; vout: number }> {
+  if (!input || inputs.some((existing) => sameUtxo(existing, input))) {
+    return inputs;
+  }
+
+  return [...inputs, input];
+}
+
+function vaultPrevoutToInput(prevout: unknown): { txid: string; vout: number } | null {
+  if (!prevout || typeof prevout !== 'object') {
+    return null;
+  }
+
+  const maybePrevout = prevout as {
+    txid?: unknown;
+    vout?: unknown;
+    utxo?: {
+      txid?: unknown;
+      vout?: unknown;
+    };
+  };
+  const txid = maybePrevout.utxo?.txid ?? maybePrevout.txid;
+  const vout = maybePrevout.utxo?.vout ?? maybePrevout.vout;
+
+  if (typeof txid !== 'string' || typeof vout !== 'number' || !Number.isInteger(vout) || vout < 0) {
+    return null;
+  }
+
+  return { txid, vout };
+}
+
 function isMissingTxError(error: unknown): boolean {
   return /\bHTTP\s+404\b/i.test(getErrorMessage(error, ''));
 }
@@ -240,6 +281,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
 
   // Operation state
   const operationInProgressRef = useRef(false);
+  const activeVaultPrevoutInputRef = useRef<{ txid: string; vout: number } | null>(null);
   const [vaultDataLoaded, setVaultDataLoaded] = useState(false);
 
   // Sync bitcoin price to store
@@ -370,6 +412,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
         'Timed out verifying the current vault UTXO. Please try again.',
         VAULT_PREVOUT_RESOLVE_TIMEOUT_MS
       );
+      activeVaultPrevoutInputRef.current = vaultPrevoutToInput(resolvedVaultPrevout.prevout);
 
       if (resolvedVaultPrevout.replaced) {
         logger.warn(`[${operationName}] Using on-chain vault prevout ahead of validator history`, {
@@ -465,6 +508,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
     }
 
     operationInProgressRef.current = true;
+    activeVaultPrevoutInputRef.current = null;
     setLoading(true);
     setError(null);
     setCurrentStep('processing');
@@ -687,21 +731,25 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
             wallet,
             latestPendingTransactions
           );
-          recordPreSubmitRollbackInputs(finalizationPendingData.spentInputs);
+          const finalizationSpentInputs = appendUniqueUtxo(
+            finalizationPendingData.spentInputs,
+            activeVaultPrevoutInputRef.current
+          );
+          recordPreSubmitRollbackInputs(finalizationSpentInputs);
 
-          for (const spentInput of finalizationPendingData.spentInputs) {
+          for (const spentInput of finalizationSpentInputs) {
             if (latestPendingTransactions[spentInput.txid]?.status === 'pending') {
               await markUtxoAsSpent(spentInput.txid, spentInput.vout);
             }
           }
 
-          if (finalizationPendingData.spentInputs.length > 0) {
-            await markUtxosAsSpent(finalizationPendingData.spentInputs);
+          if (finalizationSpentInputs.length > 0) {
+            await markUtxosAsSpent(finalizationSpentInputs);
           }
 
           if (
             finalizationPendingData.outputs.length > 0 ||
-            finalizationPendingData.spentInputs.length > 0
+            finalizationSpentInputs.length > 0
           ) {
             await addPendingTransaction(
               recoveryResult.vaultTxid,
@@ -709,7 +757,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
               'BTC',
               finalizationPendingData.parentTxid,
               undefined,
-              finalizationPendingData.spentInputs
+              finalizationSpentInputs
             );
           }
         }
@@ -731,10 +779,17 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
       recoveryTxidsForSubmit = requestTxids;
       await persistVaultRecovery(requestTxids);
 
+      disconnectGuardian();
+      const submitClient = await withVaultBuildTimeout(
+        getGuardianClient(wallet!.taprootPubkey || ''),
+        'Timed out reconnecting to Guardian. Please try again.',
+        15_000
+      );
+
       guardianSubmitAttempted = true;
       const submitStartedAt = Date.now();
       const result = await withVaultBuildTimeout(
-        sendRequest(gclient, request),
+        sendRequest(submitClient, request),
         `Timed out submitting the ${operationType} request to Guardian. Please wait for confirmation or try again after the pending transaction clears.`,
         VAULT_REQUEST_SUBMIT_TIMEOUT_MS
       );

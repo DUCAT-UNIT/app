@@ -1,25 +1,89 @@
 # @ducat-unit/runestone
 
-Vendored copy of `@ducat-unit/runestone@1.0.5`, the Ducat fork of the Magic Eden
-Runestone library.
+TypeScript implementation of the Bitcoin Runestone protocol used by DUCAT packages.
 
-The mobile app depends on this package through:
+This package intentionally focuses on runestone encoding/decoding primitives consumed by
+`core-ts`, `bootstrap-ts`, and `validator-ts`.
 
-```json
-"@ducat-unit/runestone": "file:vendor/ducat-unit-runestone"
+## Encode Runestone
+
+To encode a runestone, use `encodeRunestone()` method, with an example below:
+
+```ts
+import { encodeRunestone } from '@ducat-unit/runestone';
+
+// To deploy a new rune ticker
+// (this will require a commitment in an input script)
+const etchingRunestone = encodeRunestone({
+  etching: {
+    runeName: 'THIS•IS•AN•EXAMPLE•RUNE',
+    divisibility: 0,
+    premine: 0,
+    symbol: '',
+    terms: {
+      cap: 69,
+      amount: 420,
+      offset: {
+        end: 9001,
+      },
+    },
+    turbo: true,
+  },
+});
+
+// To mint UNCOMMON•GOODS
+const mintRunestone = encodeRunestone({
+  mint: {
+    block: 1n,
+    tx: 0,
+  },
+});
+
+// Transfer 10 UNCOMMON•GOODS to output 1
+const edictRunestone = encodeRunestone({
+  edicts: [
+    {
+      id: {
+        block: 1n,
+        tx: 0,
+      },
+      amount: 10n,
+      output: 1,
+    },
+  ],
+});
 ```
 
-## What It Provides
+## Decode Runestone
 
-- Runestone encoding and decoding
-- Rune ID, edict, etching, and artifact types
-- Helpers used by UNIT Runes transaction construction and validation
+Decoding a runestone within a transaction is as simple as passing in
+the transaction data from Bitcoin Core RPC server.
 
-## Maintenance Notes
+```ts
+import {
+  tryDecodeRunestone,
+  isRunestone,
+  RunestoneSpec,
+  Cenotaph
+} from '@ducat-unit/runestone';
 
-This folder is treated as a pinned package artifact. Do not hand-edit generated
-files under `dist/`. To change Runestone behavior, update the source package,
-rebuild it, then replace this vendored copy as one coherent version bump.
+// transaction retrieved with getrawtransaction RPC call
+const tx = ...;
 
-The vendored package keeps CI and fresh local installs reproducible without a
-private package registry token.
+const artifact = tryDecodeRunestone(tx);
+
+if (isRunestone(artifact)) {
+  const runestone: RunestoneSpec = artifact;
+  ...
+} else {
+  const cenotaph: Cenotaph = artifact;
+  ...
+}
+```
+
+## Exported API
+
+- `encodeRunestone(runestone: RunestoneSpec)`
+- `tryDecodeRunestone(tx: RunestoneTx)`
+- `isRunestone(artifact)`
+- Types: `RunestoneSpec`, `Cenotaph`, `Flaw`

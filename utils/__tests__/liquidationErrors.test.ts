@@ -12,20 +12,20 @@ describe('liquidationErrors', () => {
     ).toBe(true);
   });
 
-  it('detects guardian repo Tx1 mismatch responses as changed opportunities', () => {
+  it('does not hide guardian repo Tx1 mismatch responses as already claimed opportunities', () => {
     expect(
       isStaleLiquidationOpportunityError(
         '{"code":null,"message":"Message: Repo Vault Tx1ID in request does not match computed Repo vault Tx1ID"}'
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('detects guardian repo Tx1 mismatch responses with spaced IDs and escaped JSON details', () => {
+  it('keeps escaped guardian repo Tx1 mismatch details visible for debugging', () => {
     expect(
       isStaleLiquidationOpportunityError(
         '{"code":null,"message":"Message: Repo Vault Tx1 ID in request does not match computed Repo Tx1ID Error: Custom(\\"Repo Vault Tx1ID d85cd3 in request does not match computed Repo vault Tx1ID aa885d\\")"}'
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('detects already-claimed liquidation opportunity responses', () => {
@@ -35,6 +35,14 @@ describe('liquidationErrors', () => {
       )
     ).toBe(true);
     expect(isStaleLiquidationOpportunityError('Opportunity already liquidated')).toBe(true);
+  });
+
+  it('detects missing liquidation outpoint responses from validator pre-check', () => {
+    expect(
+      isStaleLiquidationOpportunityError(
+        'Validator pre-check: Validation failed: Failed to find utxo for a41d9f:1 input for outpoint c9b847:1'
+      )
+    ).toBe(true);
   });
 
   it('does not treat generic liquidation failures as stale opportunities', () => {

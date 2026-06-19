@@ -1,0 +1,13 @@
+{
+    "GUARDIAN": {
+        "ASSET_RESERVE": "/guardian/asset/reserve",
+        "VAULT_OPEN": "/guardian/vault/open",
+        "VAULT_BORROW": "/guardian/vault/borrow",
+        "VAULT_REPAY": "/guardian/vault/repay",
+        "VAULT_DEPOSIT": "/guardian/vault/deposit",
+        "VAULT_CLOSE": "/guardian/vault/close",
+        "VAULT_WITHDRAW": "/guardian/vault/withdraw",
+        "VAULT_REPO": "/guardian/vault/repo",
+        "VAULT_TRIM": "/guardian/vault/trim"
+    }
+}

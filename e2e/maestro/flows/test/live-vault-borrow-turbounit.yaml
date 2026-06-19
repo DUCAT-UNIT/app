@@ -1,10 +1,10 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Live borrow-to-TurboUNIT path.
-# Imports the TestFlight reviewer wallet, runs a real vault borrow, selects
-# TurboUNIT as the payout asset, and waits for the borrow success screen.
+# Creates a fresh live vault, runs a real vault borrow, selects TurboUNIT as the
+# payout asset, and waits for the borrow success screen.
 
-- runFlow: setup-reviewer-wallet.yaml
+- runFlow: ../helpers/create-wallet-with-vault.yaml
 
 - extendedWaitUntil:
     visible:

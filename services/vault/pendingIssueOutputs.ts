@@ -28,8 +28,11 @@ interface PendingTransactionLike {
 
 interface VaultIssueRequestLike {
   issue_txhex?: string;
+  issue_psbt?: string;
   repay_txhex?: string;
+  repay_psbt?: string;
   vault_txhex?: string;
+  vault_psbt?: string;
 }
 
 export interface VaultIssuePendingData {
@@ -38,9 +41,24 @@ export interface VaultIssuePendingData {
   parentTxid: string | null;
 }
 
-function getRuneAmountsByOutput(tx: bitcoin.Transaction): Map<number, number> {
+interface ExtractedTxInput {
+  txid: string;
+  vout: number;
+}
+
+interface ExtractedTxOutput {
+  script: Buffer;
+  value: number;
+}
+
+interface ExtractedTxData {
+  inputs: ExtractedTxInput[];
+  outputs: ExtractedTxOutput[];
+}
+
+function getRuneAmountsByOutput(outputs: ExtractedTxOutput[]): Map<number, number> {
   const runeAmounts = new Map<number, number>();
-  const runestoneOutput = tx.outs.find((output) => output.script[0] === 0x6a);
+  const runestoneOutput = outputs.find((output) => output.script[0] === 0x6a);
 
   if (!runestoneOutput) {
     return runeAmounts;
@@ -67,12 +85,64 @@ function getRuneAmountsByOutput(tx: bitcoin.Transaction): Map<number, number> {
   return runeAmounts;
 }
 
+function txInputToOutpoint(input: bitcoin.Transaction['ins'][number]): ExtractedTxInput {
+  return {
+    txid: Buffer.from(input.hash).reverse().toString('hex'),
+    vout: input.index,
+  };
+}
+
+function extractFromTransaction(tx: bitcoin.Transaction): ExtractedTxData {
+  return {
+    inputs: tx.ins.map(txInputToOutpoint),
+    outputs: tx.outs.map((output) => ({
+      script: Buffer.from(output.script),
+      value: Number(output.value),
+    })),
+  };
+}
+
+function extractFromPsbt(psbtBase64: string): ExtractedTxData {
+  const psbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });
+
+  try {
+    return extractFromTransaction(psbt.extractTransaction(true));
+  } catch {
+    return {
+      inputs: psbt.txInputs.map((input) => ({
+        txid: Buffer.from(input.hash).reverse().toString('hex'),
+        vout: input.index,
+      })),
+      outputs: psbt.txOutputs.map((output) => ({
+        script: Buffer.from(output.script),
+        value: Number(output.value),
+      })),
+    };
+  }
+}
+
+function extractPendingSource(
+  txhex: string | undefined,
+  psbtBase64: string | undefined
+): ExtractedTxData | null {
+  if (txhex) {
+    return extractFromTransaction(bitcoin.Transaction.fromHex(txhex));
+  }
+
+  if (psbtBase64) {
+    return extractFromPsbt(psbtBase64);
+  }
+
+  return null;
+}
+
 function extractPendingTxData(
   txhex: string | undefined,
+  psbtBase64: string | undefined,
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
 ): VaultIssuePendingData {
-  if (!txhex || !wallet?.segwitAddress || !wallet?.taprootAddress) {
+  if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return {
       outputs: [],
       spentInputs: [],
@@ -80,23 +150,29 @@ function extractPendingTxData(
     };
   }
 
-  const tx = bitcoin.Transaction.fromHex(txhex);
-  const runeAmounts = getRuneAmountsByOutput(tx);
+  const txData = extractPendingSource(txhex, psbtBase64);
+  if (!txData) {
+    return {
+      outputs: [],
+      spentInputs: [],
+      parentTxid: null,
+    };
+  }
+
+  const runeAmounts = getRuneAmountsByOutput(txData.outputs);
   const outputs: PendingTransactionOutput[] = [];
   const spentInputs: Array<{ txid: string; vout: number }> = [];
   let parentTxid: string | null = null;
 
-  tx.ins.forEach((input) => {
-    const txid = Buffer.from(input.hash).reverse().toString('hex');
-    const spentInput = { txid, vout: input.index };
+  txData.inputs.forEach((spentInput) => {
     spentInputs.push(spentInput);
 
-    if (!parentTxid && pendingTransactions[txid]?.status === 'pending') {
-      parentTxid = txid;
+    if (!parentTxid && pendingTransactions[spentInput.txid]?.status === 'pending') {
+      parentTxid = spentInput.txid;
     }
   });
 
-  tx.outs.forEach((output, vout) => {
+  txData.outputs.forEach((output, vout) => {
     try {
       const address = bitcoin.address.fromOutputScript(output.script, MUTINYNET_NETWORK);
       const isWalletOutput = address === wallet.segwitAddress || address === wallet.taprootAddress;
@@ -134,7 +210,12 @@ export function extractVaultIssuePendingData(
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
 ): VaultIssuePendingData {
-  return extractPendingTxData(request.issue_txhex || request.repay_txhex, wallet, pendingTransactions);
+  return extractPendingTxData(
+    request.issue_txhex || request.repay_txhex,
+    request.issue_psbt || request.repay_psbt,
+    wallet,
+    pendingTransactions
+  );
 }
 
 export function extractVaultFinalizationPendingData(
@@ -142,5 +223,10 @@ export function extractVaultFinalizationPendingData(
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
 ): VaultIssuePendingData {
-  return extractPendingTxData(request.vault_txhex, wallet, pendingTransactions);
+  return extractPendingTxData(
+    request.vault_txhex,
+    request.vault_psbt,
+    wallet,
+    pendingTransactions
+  );
 }

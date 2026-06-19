@@ -1,0 +1,10 @@
+import type { ClearedVaultReturnData, EncumberedVaultReturnData, ProtoProfile, VaultReturnData } from '../../types/index.js';
+export declare function validate_vault_return_data(return_data: VaultReturnData): asserts return_data is VaultReturnData;
+export declare function verify_encumbered_vault(return_data: VaultReturnData): asserts return_data is EncumberedVaultReturnData;
+export declare function verify_cleared_vault(return_data: VaultReturnData): asserts return_data is ClearedVaultReturnData;
+export declare function verify_guardian_data(guard_pubkeys: string[]): void;
+export declare function verify_price_oracle_data(return_data: VaultReturnData): void;
+export declare function verify_vault_balance(vault_value: number, min_value: number): void;
+export declare function verify_borrow_limits(vault_ratio: number | null, rate_min: number): void;
+export declare function verify_withdrawal_limits(vault_ratio: number | null, rate_min: number): void;
+export declare function verify_price_commit_signatures(vault_return: VaultReturnData, proto_profile: ProtoProfile): void;

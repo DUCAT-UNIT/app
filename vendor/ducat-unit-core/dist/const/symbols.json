@@ -1,0 +1,62 @@
+{
+    "CODE": {
+        "ASSET": {
+            "DUCAT": 101,
+            "UNIT": 102
+        },
+        "DATA": {
+            "ANCHOR": 121,
+            "PROP": 122,
+            "VOTE": 123,
+            "RECORD": 124
+        },
+        "INPUT": {
+            "CONNECT": 141,
+            "LIQUID": 142
+        },
+        "VAULT": {
+            "OPEN": 161,
+            "CLOSE": 163,
+            "BORROW": 164,
+            "REPAY": 165,
+            "DEPOSIT": 166,
+            "WITHDRAW": 167,
+            "REPO": 168,
+            "TRIM": 169,
+            "UPDATE": 170,
+            "RECOVER": 171
+        }
+    },
+    "SIGNER": {
+        "GUARDIAN": 21,
+        "ORACLE": 22
+    },
+    "STORE": {
+        "GOVERN": 61,
+        "PRICE": 62,
+        "VAULT": 63
+    },
+    "TERM": {
+        "GOVERN": {
+            "PROP_LOCKTIME": 200,
+            "TOKEN_ASSET_ID": 201,
+            "VOTE_LOCKTIME": 202,
+            "VOTING_THOLD": 203,
+            "QUORUM_THOLD": 204
+        },
+        "PRICE": {},
+        "VAULT": {
+            "LIQUIDATION_TAX": 241,
+            "LIQUIDATION_THOLD": 242,
+            "RESERVE_PUBKEY": 243,
+            "RESERVE_VALUE_MIN": 244,
+            "SUBSIDY_INCREMENT": 245,
+            "SUBSIDY_THOLD": 246,
+            "UNIT_ASSET_ID": 247,
+            "UNIT_BALANCE_MIN": 248,
+            "VAULT_RATIO_MIN": 249,
+            "VAULT_VALUE_MIN": 250
+        }
+    },
+    "VERSION": 1
+}

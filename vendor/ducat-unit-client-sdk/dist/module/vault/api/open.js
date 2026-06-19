@@ -1,103 +1,103 @@
-import { create_unit_output, create_unit_rune_data, calc_issuance_tx_cost, create_change_out, create_vault_open_conn_out, create_vault_open_conn_vin, create_vault_return, create_vault_spend_out, get_account_input, get_contract_input, get_vault_return_data, get_vault_token_vsize, get_estimated_spend_size } from '../../../module/vault/lib/index.js';
-import CONST from '../../../const.js';
-import PSBT from '../../../util/psbt.js';
-import Schema from '../../../schema/index.js';
-import TX from '../../../util/tx.js';
-const ACCT_VIN_IDX = CONST.TXMAP.open.acct_tx.vin.acct;
-const ACCT_OUT_IDX = CONST.TXMAP.open.acct_tx.vout.acct;
-const CONN_OUT_IDX = CONST.TXMAP.open.acct_tx.vout.conn;
-const UNIT_OUT_IDX = CONST.TXMAP.open.acct_tx.vout.unit;
-const CONN_VIN_IDX = CONST.TXMAP.open.vault_tx.vin.conn;
-export function create_vault_open_ctx(acct_profile, price_quote, proto_profile, req_config) {
-    return {
-        ...req_config,
-        ...get_account_input(acct_profile),
-        ...get_contract_input(proto_profile),
-        vault_quote: price_quote,
-        vault_action: 'o'
-    };
+import { Assert } from '@vbyte/util';
+import { PSBT } from '@ducat-unit/core';
+import { get_coin_total_value } from '@ducat-unit/core/lib';
+import { get_txid } from '@vbyte/btc-dev/tx';
+import { PSBT_CONFIG, TXMAP } from '../../../const.js';
+import { emit_debug, emit_info, with_observe_span } from '../../../lib/observe/index.js';
+import { finalize_cosign_inputs, finalize_spending_inputs, create_unit_issue_runestone, create_issue_account_output, create_unit_change_output, create_unit_spend_input, create_sats_change_output, create_vault_commit_input, create_vault_return_output, create_vault_output, verify_vault_request_psbt, verify_vault_action_rules, validate_vault_open_config, create_vault_ctx, create_vault_request, create_unit_account_input, create_issue_change_output, create_vault_commit_vout, validate_vault_open_request } from '../lib/index.js';
+const UNIT_XFER_VOUT = TXMAP.UNIT_ISSUE.VOUT.UNIT;
+const UNIT_CONN_VOUT = TXMAP.UNIT_ISSUE.VOUT.CONN;
+export function create_vault_open_ctx(vault_config) {
+    validate_vault_open_config(vault_config);
+    return create_vault_ctx(vault_config);
 }
-export function create_vault_open_psbt1(vault_ctx, sats_utxos) {
-    const { acct_utxo, borrow_amount, unit_address, unit_postage, unit_rune_id } = vault_ctx;
-    const conn_value = calc_conn_amount(vault_ctx, sats_utxos);
-    const pdata = PSBT.create.psbt({ allowUnknownOutputs: true });
-    pdata.addOutput(PSBT.create.output(acct_utxo));
-    pdata.addOutput(create_vault_open_conn_out(vault_ctx, conn_value));
-    pdata.addOutput(create_unit_output(unit_address, unit_postage));
-    pdata.addOutput(create_unit_rune_data(unit_rune_id, borrow_amount, UNIT_OUT_IDX));
-    pdata.addInput(PSBT.create.input(acct_utxo));
-    for (const utxo of sats_utxos) {
-        pdata.addInput(PSBT.create.input(utxo));
-    }
-    PSBT.assert.is_funded(pdata);
-    return PSBT.encode(pdata);
+export function create_vault_open_psbt_1(vault_ctx) {
+    return with_observe_span(vault_ctx.observe, 'vault.open.create_issue_psbt', { fund_input_count: vault_ctx.fund_inputs.length }, scope => {
+        const { fund_inputs, issue_account, unit_postage } = vault_ctx;
+        const fund_value = get_coin_total_value(fund_inputs);
+        const conn_value = fund_value - unit_postage;
+        const pdata = PSBT.create_psbt(PSBT_CONFIG);
+        pdata.addOutput(create_issue_account_output(vault_ctx));
+        pdata.addOutput(create_issue_change_output(vault_ctx));
+        pdata.addOutput(create_vault_commit_vout(vault_ctx, conn_value));
+        pdata.addOutput(create_unit_issue_runestone(vault_ctx));
+        pdata.addInput(create_unit_account_input(issue_account));
+        for (const utxo of fund_inputs) {
+            pdata.addInput(PSBT.create_psbt_input(utxo));
+        }
+        PSBT.assert_is_funded(pdata);
+        const psbt = PSBT.encode_psbt(pdata);
+        emit_info(scope, 'vault.open.psbt.issue.created', 'created vault open issue PSBT', {
+            psbt_length: psbt.length
+        });
+        return psbt;
+    });
 }
-export function create_vault_open_psbt2(vault_ctx, acct_psbt) {
-    const { borrow_amount, deposit_amount, token_address, token_postage } = vault_ctx;
-    const acct_pdata = PSBT.parse(acct_psbt);
-    const acct_utxo = PSBT.extract.utxo(acct_pdata, ACCT_OUT_IDX);
-    const conn_utxo = PSBT.extract.utxo(acct_pdata, CONN_OUT_IDX);
-    const change_amt = calc_change_amount(vault_ctx, conn_utxo.value);
-    const return_data = get_vault_return_data(vault_ctx, borrow_amount);
-    const pdata = PSBT.create.psbt({ allowUnknownOutputs: true });
-    pdata.addOutput(PSBT.create.output(acct_utxo));
-    pdata.addOutput(PSBT.create.payout(token_postage, token_address));
-    pdata.addOutput(create_vault_spend_out(vault_ctx, borrow_amount, deposit_amount));
-    if (change_amt > 0) {
-        pdata.addOutput(create_change_out(vault_ctx, change_amt));
-    }
-    pdata.addOutput(create_vault_return(return_data));
-    pdata.addInput(PSBT.create.input(acct_utxo));
-    pdata.addInput(create_vault_open_conn_vin(vault_ctx, conn_utxo));
-    PSBT.assert.is_funded(pdata);
-    return PSBT.encode(pdata);
+export function create_vault_open_psbt_2(vault_ctx, issue_psbt) {
+    return with_observe_span(vault_ctx.observe, 'vault.open.create_vault_psbt', { issue_psbt_length: typeof issue_psbt === 'string' ? issue_psbt.length : issue_psbt.length }, scope => {
+        const { change_value, unit_balance, vault_balance } = vault_ctx;
+        const issue_pdata = PSBT.parse_psbt(issue_psbt);
+        const unit_utxo = PSBT.extract_utxo(issue_pdata, UNIT_XFER_VOUT);
+        const conn_utxo = PSBT.extract_utxo(issue_pdata, UNIT_CONN_VOUT);
+        const pdata = PSBT.create_psbt(PSBT_CONFIG);
+        pdata.addOutput(create_unit_change_output(vault_ctx));
+        pdata.addOutput(create_vault_output(vault_ctx, unit_balance, vault_balance));
+        pdata.addOutput(create_sats_change_output(vault_ctx, change_value));
+        pdata.addOutput(create_vault_return_output(vault_ctx));
+        pdata.addInput(create_unit_spend_input(unit_utxo));
+        pdata.addInput(create_vault_commit_input(vault_ctx, conn_utxo));
+        PSBT.assert_is_funded(pdata);
+        const psbt = PSBT.encode_psbt(pdata);
+        emit_info(scope, 'vault.open.psbt.vault.created', 'created vault open vault PSBT', {
+            psbt_length: psbt.length
+        });
+        return psbt;
+    });
 }
-export function create_vault_open_req(vault_ctx, issue_psbt, vault_psbt) {
-    vault_psbt = PSBT.finalize.script_vin(vault_psbt, CONN_VIN_IDX);
-    const issue_pdata = PSBT.decode(issue_psbt);
-    const issue_txhex = PSBT.get.txhex(issue_psbt);
-    const issue_txid = TX.get_txid(issue_txhex);
-    const vault_pdata = PSBT.decode(vault_psbt);
-    const vault_txhex = PSBT.get.txhex(vault_psbt);
-    const vault_txid = TX.get_txid(vault_txhex);
-    const sats_inputs = PSBT.extract.funding_vins(issue_pdata, { start_idx: ACCT_VIN_IDX + 1 });
-    const connect_input = PSBT.extract.script_vin(vault_pdata, CONN_VIN_IDX);
-    const schema = Schema.vault.req.open_req;
-    return schema.parse({ ...vault_ctx, connect_input, sats_inputs, issue_psbt, issue_txhex, issue_txid, vault_psbt, vault_txhex, vault_txid });
+export function create_vault_open_psbt_pkg(vault_ctx) {
+    return with_observe_span(vault_ctx.observe, 'vault.open.create_psbts', {}, scope => {
+        const issue_psbt = create_vault_open_psbt_1(vault_ctx);
+        const vault_psbt = create_vault_open_psbt_2(vault_ctx, issue_psbt);
+        emit_debug(scope, 'vault.open.create_psbts.complete', {
+            issue_psbt_length: issue_psbt.length,
+            vault_psbt_length: vault_psbt.length
+        });
+        return [issue_psbt, vault_psbt];
+    });
 }
-function calc_conn_amount(vault_config, sats_utxos) {
-    const { unit_postage, tx_feerate } = vault_config;
-    const fund_value = sats_utxos.reduce((prev, curr) => prev + curr.value, 0);
-    const issue_cost = calc_issuance_tx_cost(sats_utxos, unit_postage, tx_feerate);
-    return fund_value - issue_cost;
+export function create_vault_open_request(vault_ctx, signed_psbts) {
+    return with_observe_span(vault_ctx.observe, 'vault.open.create_request', { signed_psbt_count: signed_psbts.length }, scope => {
+        const [signed_issue_psbt, signed_vault_psbt] = signed_psbts;
+        Assert.exists(signed_issue_psbt, 'issue PSBT is undefined');
+        Assert.exists(signed_vault_psbt, 'vault PSBT is undefined');
+        const context = create_vault_request(vault_ctx);
+        const issue_pdata = PSBT.parse_psbt(signed_issue_psbt);
+        const vault_pdata = PSBT.parse_psbt(signed_vault_psbt);
+        finalize_spending_inputs(issue_pdata);
+        finalize_cosign_inputs(vault_pdata);
+        verify_vault_request_psbt(issue_pdata, 0);
+        verify_vault_request_psbt(vault_pdata, vault_ctx.txfee_rate, {
+            ...vault_ctx.validation_options,
+            asset_pdata: issue_pdata,
+            observe: vault_ctx.observe
+        });
+        const issue_txid = get_txid(issue_pdata.hex);
+        const vault_txid = get_txid(vault_pdata.hex);
+        verify_vault_action_rules(vault_ctx, vault_txid);
+        const issue_psbt = PSBT.encode_psbt(issue_pdata);
+        const vault_psbt = PSBT.encode_psbt(vault_pdata);
+        const request = { ...context, issue_psbt, issue_txid, vault_psbt, vault_txid };
+        validate_vault_open_request(request);
+        emit_info(scope, 'vault.open.request.created', 'created vault open guardian request', {
+            issue_txid,
+            vault_txid
+        });
+        return request;
+    });
 }
-function calc_change_amount(vault_config, conn_value) {
-    const { deposit_amount, token_postage, token_data, tx_feerate } = vault_config;
-    const token_size = get_vault_token_vsize(token_data);
-    const tx_size = CONST.TXSIZE.TX.VAULT_OPEN;
-    const total_size = token_size + tx_size;
-    const tx_cost = total_size * tx_feerate;
-    return conn_value - (deposit_amount + token_postage + tx_cost);
-}
-export function get_vault_open_quote(vault_config, fee_options) {
-    const { deposit_amount, unit_postage, token_postage, token_data, tx_feerate } = vault_config;
-    const spend_size = get_estimated_spend_size(fee_options);
-    const action_size = CONST.TXSIZE.ACTION.VAULT_OPEN;
-    const token_size = get_vault_token_vsize(token_data);
-    const total_size = action_size + spend_size + token_size;
-    const tx_cost = total_size * tx_feerate;
-    const total_cost = deposit_amount + unit_postage + token_postage + tx_cost;
-    return { tx_vsize: total_size, tx_cost, total_cost };
-}
-export function get_vault_open_change(vault_config, sats_utxos) {
-    const conn_value = calc_conn_amount(vault_config, sats_utxos);
-    return calc_change_amount(vault_config, conn_value);
-}
-export default {
-    create_ctx: create_vault_open_ctx,
-    create_psbt1: create_vault_open_psbt1,
-    create_psbt2: create_vault_open_psbt2,
-    create_req: create_vault_open_req,
-    get_quote: get_vault_open_quote,
-    get_change: get_vault_open_change
-};
+export var VaultOpenAPI;
+(function (VaultOpenAPI) {
+    VaultOpenAPI.create_ctx = create_vault_open_ctx;
+    VaultOpenAPI.create_psbts = create_vault_open_psbt_pkg;
+    VaultOpenAPI.create_request = create_vault_open_request;
+})(VaultOpenAPI || (VaultOpenAPI = {}));

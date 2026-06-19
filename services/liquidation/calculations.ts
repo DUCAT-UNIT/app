@@ -7,9 +7,21 @@
  */
 
 import { VaultAPI } from '@ducat-unit/client-sdk';
-import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
-// ProtocolProfile is exported from the main SDK module
-type ProtocolProfile = Parameters<typeof VaultAPI.repo.liquidation.get_profile>[0];
+import type { LiquidVaultProfile, PriceContract, ProtocolProfile, VaultProfile } from '@ducat-unit/client-sdk';
+import { SIGCOUNT, TXSIZE } from '@ducat-unit/client-sdk/const';
+import {
+  get_effective_vsize,
+  get_liquid_reserve_output_size,
+  get_vault_liquidation_total_size,
+  get_vault_return_size,
+  get_vault_spend_witness_vsize,
+} from '@ducat-unit/client-sdk/lib';
+import {
+  get_liquidation_quote,
+  get_liquid_vault_profiles,
+  get_partial_liquidation_quote,
+} from '@ducat-unit/core/lib';
+import type { VaultProfile as CoreVaultProfile } from '@ducat-unit/core';
 import { logger } from '../../utils/logger';
 import { fetchProtocolContract } from '../vaultWallet';
 import {
@@ -27,12 +39,19 @@ import type {
   ValidatorLiquidatedVault,
   LiquidationVaultComputedData,
   LiquidVaultProfileWithMeta,
+  ExtendedVaultProfile,
   LiquidationInvestStats,
   ClaimFromInvestResult,
   EstimatedYield,
   HealthAfterLiquidation,
   SelectionStats,
 } from './types';
+
+const ESTIMATED_REPO_GUARDIAN_COUNT = 1;
+const ESTIMATED_REPO_ORACLE_COUNT = 1;
+const ESTIMATED_REPO_UNIT_BALANCE = 1;
+const ESTIMATED_REPO_RESERVE_BALANCE = 1;
+const HEX_32_BYTE_PATTERN = /^[0-9a-f]{64}$/i;
 
 // ============================================================
 // Health Factor
@@ -73,6 +92,37 @@ export function getAvailableCollateralBtc(
  *               + (subsidy_rate × sats_balance) / COIN_SIZE|
  */
 export function computeLiqMeta(profile: LiquidVaultProfile): Omit<LiquidationVaultComputedData, 'vaultId' | 'unit' | 'btcInVault' | 'unitSwapBtc'> {
+  const legacyQuote = (profile as LiquidVaultProfile & {
+    liquid_quote?: {
+      sats_balance: number;
+      taxable_sats: number;
+      unit_balance: number;
+      coin_price: number;
+      subsidy_rate: number;
+      deficit_sats: number;
+      profit_margin: number;
+    };
+  }).liquid_quote;
+
+  if (!legacyQuote) {
+    const postTaxBtcInVault = profile.reward_sats / COIN_SIZE;
+    const claimAmountBtc = profile.deficit_sats > 0 ? profile.deficit_sats / COIN_SIZE : 0;
+    const unitSwapBtc = profile.liquid_price > 0
+      ? (profile.claimed_unit / 100) / profile.liquid_price
+      : 0;
+    const profitBtc = Math.max(0, postTaxBtcInVault - unitSwapBtc);
+    const profitMargin = claimAmountBtc > 0 ? profitBtc / claimAmountBtc : 0;
+
+    return {
+      postTaxBtcInVault,
+      claimAmountBtc,
+      profitBtc,
+      profitPercent: Math.abs(roundNumber(profitMargin * 100)),
+      profitPercentPrecised: Math.abs(roundNumber(profitMargin * 100)),
+      liquidationTaxRebatePercent: roundNumber(profile.subsidy_rate * 100, 2),
+    };
+  }
+
   const {
     sats_balance,
     taxable_sats,
@@ -81,7 +131,7 @@ export function computeLiqMeta(profile: LiquidVaultProfile): Omit<LiquidationVau
     subsidy_rate,
     deficit_sats,
     profit_margin,
-  } = profile.liquid_quote;
+  } = legacyQuote;
 
   const profitBtc =
     (((sats_balance - taxable_sats) / COIN_SIZE) * coin_price - unit_balance / 100) / coin_price +
@@ -95,6 +145,138 @@ export function computeLiqMeta(profile: LiquidVaultProfile): Omit<LiquidationVau
     profitPercentPrecised: Math.abs(roundNumber(profit_margin * 100)),
     liquidationTaxRebatePercent: roundNumber(subsidy_rate * 100, 2),
   };
+}
+
+function firstOraclePubkey(contract: ProtocolProfile): string {
+  return contract.proto_members?.find((member) => member.group === 22)?.pubkey
+    ?? contract.proto_members?.[0]?.pubkey
+    ?? '';
+}
+
+function normalizeVaultActionLabel(action: string): VaultProfile['vault_action'] {
+  const normalized = action.trim().toLowerCase();
+  const map: Record<string, VaultProfile['vault_action']> = {
+    o: 'open',
+    b: 'borrow',
+    r: 'repay',
+    d: 'deposit',
+    w: 'withdraw',
+    l: 'repo',
+    x: 'close',
+    liquidation: 'repo',
+    liquidate: 'liquidate',
+    repo: 'repo',
+    open: 'open',
+    borrow: 'borrow',
+    repay: 'repay',
+    deposit: 'deposit',
+    withdraw: 'withdraw',
+    close: 'close',
+  };
+  return map[normalized] ?? 'open';
+}
+
+function legacyVaultToLatestProfile(
+  vault: ExtendedVaultProfile,
+  contract: ProtocolProfile
+): VaultProfile {
+  return {
+    coin_id: `${vault.utxo.txid}:${vault.utxo.vout}`,
+    client_pubkey: vault.vault_pk,
+    contract_id: contract.contract_id,
+    guard_members: [vault.guard_pk].filter(Boolean),
+    guard_pubkey: vault.guard_pk,
+    price_commits: vault.rdata.thold_hash ? [{
+      base_price: vault.rdata.unit_price,
+      oracle_pubkey: firstOraclePubkey(contract),
+      oracle_sig: '',
+      thold_hash: vault.rdata.thold_hash,
+      thold_price: vault.rdata.thold_price,
+    }] : [],
+    price_stamp: vault.rdata.unit_stamp,
+    root_txid: vault.utxo.txid,
+    thold_price: vault.rdata.thold_price,
+    unit_balance: vault.rdata.unit_balance,
+    unit_price: vault.rdata.unit_price,
+    vault_action: normalizeVaultActionLabel(vault.rdata.vault_action),
+    vault_balance: vault.utxo.value,
+    vault_config: null,
+    vault_ratio: null,
+    vault_script: vault.utxo.script,
+    vault_value: vault.utxo.value,
+    vault_version: 3,
+  };
+}
+
+function getLatestVaultProfile(
+  rawVault: ValidatorLiquidatedVault,
+  extended: ExtendedVaultProfile,
+  contract: ProtocolProfile
+): VaultProfile {
+  return rawVault.latest_profile ?? legacyVaultToLatestProfile(extended, contract);
+}
+
+function liquidationSortScore(profile: LiquidVaultProfileWithMeta): number {
+  const legacyQuote = (profile as LiquidVaultProfileWithMeta & {
+    liquid_quote?: { profit_margin?: number };
+  }).liquid_quote;
+
+  return legacyQuote?.profit_margin ?? profile.profitPercent;
+}
+
+function hasLatestProtoShape(contract: unknown): contract is ProtocolProfile {
+  const proto = contract as Partial<ProtocolProfile> | null;
+  return Boolean(
+    proto
+      && Array.isArray(proto.proto_members)
+      && Array.isArray(proto.proto_terms)
+      && typeof proto.contract_id === 'string'
+  );
+}
+
+function computeLegacyLiquidVaultProfiles(
+  rawVaults: ValidatorLiquidatedVault[],
+  btcPrice: number,
+  contract: unknown
+): LiquidVaultProfileWithMeta[] {
+  const extendedProfiles = formatValidatorResponse(rawVaults);
+  const results: LiquidVaultProfileWithMeta[] = [];
+
+  for (const v of extendedProfiles) {
+    const collateralRatio = getHealthValue(btcPrice, v.btcInVault - 0.0001, v.unit) / 100;
+
+    if (collateralRatio <= 0) continue;
+
+    try {
+      const liquidProfile = VaultAPI.repo.liquidation.get_profile(
+        contract,
+        v,
+        v.thold_key,
+        btcPrice
+      ) as LiquidVaultProfile;
+
+      const meta = computeLiqMeta(liquidProfile);
+      const unitSwapBtc = v.unit / btcPrice;
+
+      if (meta.profitBtc > 0 && meta.claimAmountBtc > DUST_BTC) {
+        results.push({
+          ...v,
+          ...liquidProfile,
+          ...meta,
+          unitSwapBtc,
+        } as LiquidVaultProfileWithMeta);
+      }
+    } catch (error: unknown) {
+      logger.debug('[Liquidation] Failed to compute profile for vault', {
+        vaultId: v.vaultId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return results
+    .sort((a, b) => liquidationSortScore(b) - liquidationSortScore(a))
+    .slice(0, 300);
 }
 
 // ============================================================
@@ -137,6 +319,16 @@ function normalizePartialClaimForRepo(
   };
 }
 
+function getLiquidationProfilePrice(
+  profile: LiquidVaultProfileWithMeta,
+  fallbackBtcPrice: number
+): number {
+  const profilePrice = Number((profile as LiquidVaultProfile).liquid_price);
+  return Number.isFinite(profilePrice) && profilePrice > 0
+    ? profilePrice
+    : fallbackBtcPrice;
+}
+
 /**
  * Re-compute a partial vault profile with its repo_portion applied.
  * Used when a vault is only partially claimed (last vault in a selection).
@@ -153,23 +345,56 @@ export async function recomputePartialVaultProfile(
     throw new Error('Partial liquidation amount is below the minimum protocol claim size');
   }
 
+  const liquidationPrice = getLiquidationProfilePrice(claimedPartial, btcPrice);
   const contract = await fetchProtocolContract();
-  const partialProfile = VaultAPI.repo.liquidation.get_profile(
+  const legacyQuote = (claimedPartial as LiquidVaultProfileWithMeta & {
+    liquid_quote?: unknown;
+  }).liquid_quote;
+  if (legacyQuote) {
+    const partialProfile = VaultAPI.repo.liquidation.get_profile(
+      contract,
+      claimedPartial,
+      claimedPartial.thold_key,
+      liquidationPrice,
+      normalized.repoPortion
+    ) as LiquidVaultProfile;
+    const partialMeta = computeLiqMeta(partialProfile);
+    const partialUnit = ((partialProfile as LiquidVaultProfile & {
+      liquid_quote?: { unit_balance?: number };
+    }).liquid_quote?.unit_balance ?? partialProfile.claimed_unit ?? 0) / 100;
+
+    return {
+      ...claimedPartial,
+      ...partialProfile,
+      ...partialMeta,
+      unit: partialUnit,
+      unitSwapBtc: liquidationPrice > 0 ? partialUnit / liquidationPrice : 0,
+      claimAmountPartial: partialMeta.claimAmountBtc,
+      claimAmountDiff: Number(
+        Math.max(0, claimedPartial.claimAmountBtc - partialMeta.claimAmountBtc).toFixed(8)
+      ),
+    } as LiquidVaultProfileWithMeta;
+  }
+
+  const partialQuote = get_partial_liquidation_quote(
     contract,
-    claimedPartial as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
-    claimedPartial.thold_key,
-    btcPrice,
-    normalized.repoPortion,
+    claimedPartial as Required<Pick<LiquidVaultProfile, 'claimed_sats' | 'claimed_unit' | 'deficit_ratio' | 'deficit_sats' | 'reserve_rate' | 'reserve_sats' | 'reward_ratio' | 'reward_sats' | 'subsidy_multi' | 'subsidy_rate'>>,
+    Math.ceil(normalized.claimAmountBtc * COIN_SIZE),
+    liquidationPrice
   );
+  const partialProfile: LiquidVaultProfile = {
+    ...claimedPartial,
+    ...partialQuote,
+  };
   const partialMeta = computeLiqMeta(partialProfile);
-  const partialUnit = partialProfile.liquid_quote.unit_balance / 100;
+  const partialUnit = partialProfile.claimed_unit / 100;
 
   return {
     ...claimedPartial,
     ...partialProfile,
     ...partialMeta,
     unit: partialUnit,
-    unitSwapBtc: btcPrice > 0 ? partialUnit / btcPrice : 0,
+    unitSwapBtc: liquidationPrice > 0 ? partialUnit / liquidationPrice : 0,
     claimAmountPartial: partialMeta.claimAmountBtc,
     claimAmountDiff: Number(
       Math.max(0, claimedPartial.claimAmountBtc - partialMeta.claimAmountBtc).toFixed(8)
@@ -189,32 +414,58 @@ export async function recomputePartialVaultProfile(
 export function computeLiquidVaultProfiles(
   rawVaults: ValidatorLiquidatedVault[],
   btcPrice: number,
-  contract: ProtocolProfile
+  contract: ProtocolProfile | unknown,
+  breachContracts: PriceContract[] = []
 ): LiquidVaultProfileWithMeta[] {
+  if (!hasLatestProtoShape(contract)) {
+    return computeLegacyLiquidVaultProfiles(rawVaults, btcPrice, contract);
+  }
+
+  const proto = contract as ProtocolProfile;
   const extendedProfiles = formatValidatorResponse(rawVaults);
   const results: LiquidVaultProfileWithMeta[] = [];
+  const latestProfiles = extendedProfiles.map((extended, index) =>
+    getLatestVaultProfile(rawVaults[index] as ValidatorLiquidatedVault, extended, proto)
+  );
+  const breachedContracts = breachContracts.filter((contract): contract is PriceContract & { thold_key: string } =>
+    typeof contract.thold_key === 'string' && contract.thold_key.length > 0
+  );
+  const liquidProfiles = get_liquid_vault_profiles({
+    breach_contracts: breachedContracts,
+    liquid_price: btcPrice,
+    proto_profile: proto,
+  }, latestProfiles as CoreVaultProfile[]);
+  const liquidByRoot = new Map(liquidProfiles.map((profile) => [profile.root_txid, profile]));
+  let missingLiquidKeyCount = 0;
 
-  for (const v of extendedProfiles) {
+  for (const [index, v] of extendedProfiles.entries()) {
     const collateralRatio = getHealthValue(btcPrice, v.btcInVault - 0.0001, v.unit) / 100;
 
     if (collateralRatio <= 0) continue;
 
     try {
-      const liquidProfile = VaultAPI.repo.liquidation.get_profile(
-        contract,
-        v as unknown as Parameters<typeof VaultAPI.repo.liquidation.get_profile>[1],
-        v.thold_key,
-        btcPrice
-      );
+      const latestProfile = latestProfiles[index];
+      if (typeof latestProfile.root_txid !== 'string' || latestProfile.root_txid.length === 0) {
+        missingLiquidKeyCount += 1;
+        continue;
+      }
+      const liquidProfile = liquidByRoot.get(latestProfile.root_txid);
+      if (!liquidProfile || !HEX_32_BYTE_PATTERN.test(liquidProfile.liquid_key)) {
+        missingLiquidKeyCount += 1;
+        continue;
+      }
 
       const meta = computeLiqMeta(liquidProfile);
-      const unitSwapBtc = v.unit / btcPrice;
+      const unit = liquidProfile.claimed_unit / 100;
+      const unitSwapBtc = unit / btcPrice;
 
       if (meta.profitBtc > 0 && meta.claimAmountBtc > DUST_BTC) {
         results.push({
           ...v,
           ...liquidProfile,
           ...meta,
+          thold_key: liquidProfile.liquid_key,
+          unit,
           unitSwapBtc,
         } as LiquidVaultProfileWithMeta);
       }
@@ -226,8 +477,15 @@ export function computeLiquidVaultProfiles(
     }
   }
 
+  if (missingLiquidKeyCount > 0) {
+    logger.debug('[Liquidation] Skipped vaults without revealed liquid key', {
+      count: missingLiquidKeyCount,
+      breachedContractCount: breachedContracts.length,
+    });
+  }
+
   return results
-    .sort((a, b) => b.liquid_quote.profit_margin - a.liquid_quote.profit_margin)
+    .sort((a, b) => liquidationSortScore(b) - liquidationSortScore(a))
     .slice(0, 300);
 }
 
@@ -432,17 +690,28 @@ export function getOpCostRepo(feeRate: number, vaultCount: number): number {
   if (vaultCount === 0) return 0;
 
   const vinAllowanceSats = VIN_ALLOWANCE * feeRate;
-
-  try {
-    const txQuote = VaultAPI.repo.get_tx_quote(
-      { deposit_amount: 0, tx_feerate: feeRate } as Parameters<typeof VaultAPI.repo.get_tx_quote>[0],
+  const txVsize =
+    TXSIZE.VAULT_UPDATE_TX_BASE_SIZE
+    + get_vault_spend_witness_vsize(ESTIMATED_REPO_GUARDIAN_COUNT, ESTIMATED_REPO_ORACLE_COUNT)
+    + get_vault_liquidation_total_size(
+      ESTIMATED_REPO_GUARDIAN_COUNT,
+      ESTIMATED_REPO_ORACLE_COUNT,
       vaultCount
+    )
+    + get_liquid_reserve_output_size(ESTIMATED_REPO_RESERVE_BALANCE)
+    + get_vault_return_size(
+      ESTIMATED_REPO_GUARDIAN_COUNT,
+      ESTIMATED_REPO_ORACLE_COUNT,
+      ESTIMATED_REPO_UNIT_BALANCE
     );
-    return txQuote.total_cost + vinAllowanceSats;
-  } catch {
-    // Fallback: estimate ~250 vbytes per vault at feeRate
-    return (250 * vaultCount * feeRate) + vinAllowanceSats;
-  }
+  const txFeeSats = Math.ceil(
+    get_effective_vsize({
+      tx_vsize: txVsize,
+      sigops_count: SIGCOUNT.VAULT_REPO + vaultCount,
+    }) * feeRate
+  );
+
+  return txFeeSats + vinAllowanceSats;
 }
 
 // ============================================================

@@ -7,12 +7,14 @@ import {
   setupMockFetch,
   getMockFetch,
   mockFetchSuccess,
+  mockFetchSuccessSequence,
   mockFetchError,
   mockFetchReject,
+  createMockTextResponse,
   getFetchCall,
   getFetchCallCount,
 } from '../../__tests__/testUtils';
-import { COIN_SIZE, LIQ_VALIDATOR_URL } from '../constants';
+import { COIN_SIZE, LIQ_PAGE_SIZE, LIQ_VALIDATOR_URL } from '../constants';
 import type { ValidatorLiquidatedVault } from '../types';
 import { logger } from '../../../utils/logger';
 
@@ -111,7 +113,75 @@ describe('fetchLiquidatableVaults', () => {
       expect(result[1].vault_id).toBe('v2');
     });
 
-    it('should keep vaults from the liquidated feed even when the embedded quote is expired', async () => {
+    it('should merge all cursor-paginated liquidation vault pages', async () => {
+      mockFetchSuccessSequence([
+        {
+          data: [makeVault({ vault_id: 'page-1' })],
+          has_more: true,
+          next_cursor: 'cursor-2',
+        },
+        {
+          data: [makeVault({ vault_id: 'page-2' })],
+          has_more: false,
+          next_cursor: null,
+        },
+      ]);
+
+      const result = await fetchLiquidatableVaults();
+
+      expect(result.map((vault) => vault.vault_id)).toEqual(['page-1', 'page-2']);
+      expect(getFetchCallCount()).toBe(2);
+      expect(String(getFetchCall(0)![0])).toBe(
+        `${LIQ_VALIDATOR_URL}/api/liquid/vaults?page_size=${LIQ_PAGE_SIZE}`
+      );
+      expect(String(getFetchCall(1)![0])).toBe(
+        `${LIQ_VALIDATOR_URL}/api/liquid/vaults?page_size=${LIQ_PAGE_SIZE}&cursor=cursor-2`
+      );
+    });
+
+    it('should keep fetched pages if the validator cursor snapshot expires mid-pagination', async () => {
+      mockFetchSuccessSequence([
+        {
+          data: [makeVault({ vault_id: 'page-1' })],
+          has_more: true,
+          next_cursor: 'cursor-2',
+        },
+        {
+          data: [makeVault({ vault_id: 'page-2' })],
+          has_more: true,
+          next_cursor: 'cursor-3',
+        },
+      ]);
+      getMockFetch().mockResolvedValueOnce(
+        createMockTextResponse('Cursor references an expired snapshot', {
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+        })
+      );
+
+      const result = await fetchLiquidatableVaults();
+
+      expect(result.map((vault) => vault.vault_id)).toEqual(['page-1', 'page-2']);
+      expect(getFetchCallCount()).toBe(3);
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[Liquidation] Cursor snapshot expired; using partial liquidation page set',
+        expect.objectContaining({
+          pageCount: 2,
+          rawCount: 2,
+          status: 400,
+        })
+      );
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[Liquidation] Fetched vaults',
+        expect.objectContaining({
+          count: 2,
+          paginationIncomplete: true,
+        })
+      );
+    });
+
+    it('should ignore liquidated feed entries with expired embedded quotes', async () => {
       const vaults = [
         makeVault({ vault_id: 'active' }),
         makeVault({
@@ -123,12 +193,11 @@ describe('fetchLiquidatableVaults', () => {
 
       const result = await fetchLiquidatableVaults();
 
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(1);
       expect(result[0].vault_id).toBe('active');
-      expect(result[1].vault_id).toBe('expired');
     });
 
-    it('should return liquidated feed entries when every embedded quote is expired', async () => {
+    it('should return no liquidatable vaults when every embedded quote is expired', async () => {
       mockFetchSuccess([
         makeVault({
           vault_id: 'expired-1',
@@ -142,8 +211,25 @@ describe('fetchLiquidatableVaults', () => {
 
       const result = await fetchLiquidatableVaults();
 
-      expect(result).toHaveLength(2);
-      expect(result.map((vault) => vault.vault_id)).toEqual(['expired-1', 'expired-2']);
+      expect(result).toEqual([]);
+    });
+
+    it('should ignore feed entries that are already terminal liquidation actions', async () => {
+      mockFetchSuccess([
+        makeVault({ vault_id: 'active', stone: { ...makeVault().stone, action: 'Open' } }),
+        makeVault({
+          vault_id: 'already-liquidated',
+          stone: { ...makeVault().stone, action: 'Liquidation' },
+        }),
+        makeVault({
+          vault_id: 'repo-action',
+          stone: { ...makeVault().stone, action: 'repo' },
+        }),
+      ]);
+
+      const result = await fetchLiquidatableVaults();
+
+      expect(result.map((vault) => vault.vault_id)).toEqual(['active']);
     });
 
     it('should return [] when server responds with null', async () => {
@@ -169,7 +255,9 @@ describe('fetchLiquidatableVaults', () => {
 
       const call = getFetchCall(0);
       expect(call).toBeDefined();
-      expect(String(call![0])).toBe(`${LIQ_VALIDATOR_URL}/api/liquidated`);
+      expect(String(call![0])).toBe(
+        `${LIQ_VALIDATOR_URL}/api/liquid/vaults?page_size=${LIQ_PAGE_SIZE}`
+      );
       expect(call![1]).toMatchObject({
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -232,12 +320,16 @@ describe('fetchLiquidatableVaults', () => {
       );
     });
 
-    it('should log how many liquidated feed entries have expired embedded quotes', async () => {
+    it('should log how many liquidated feed entries were not claimable', async () => {
       mockFetchSuccess([
         makeVault(),
         makeVault({
           vault_id: 'expired',
           quote: { ...makeVault().quote, is_expired: true },
+        }),
+        makeVault({
+          vault_id: 'already-liquidated',
+          stone: { ...makeVault().stone, action: 'Liquidation' },
         }),
       ]);
 
@@ -245,7 +337,12 @@ describe('fetchLiquidatableVaults', () => {
 
       expect(logger.debug).toHaveBeenCalledWith(
         '[Liquidation] Fetched vaults',
-        expect.objectContaining({ count: 2, expiredQuoteCount: 1 })
+        expect.objectContaining({
+          count: 1,
+          rawCount: 3,
+          expiredQuoteCount: 1,
+          terminalActionCount: 1,
+        })
       );
     });
   });
@@ -273,7 +370,7 @@ describe('fetchVaultsByIds', () => {
 
     it('should return multiple vaults for multiple IDs', async () => {
       const vaults = [makeVault({ vault_id: 'v-001' }), makeVault({ vault_id: 'v-002' })];
-      mockFetchSuccess(vaults);
+      mockFetchSuccessSequence(vaults);
 
       const result = await fetchVaultsByIds(['v-001', 'v-002']);
 
@@ -281,7 +378,7 @@ describe('fetchVaultsByIds', () => {
     });
 
     it('should keep expired embedded quotes for requested liquidated IDs', async () => {
-      mockFetchSuccess([
+      mockFetchSuccessSequence([
         makeVault({ vault_id: 'v-active' }),
         makeVault({
           vault_id: 'v-expired',
@@ -303,8 +400,8 @@ describe('fetchVaultsByIds', () => {
 
       const call = getFetchCall(0);
       const url = String(call![0]);
-      expect(url).toContain('id=v-001');
-      expect(url).toContain('id=v-002');
+      expect(url).toBe(`${LIQ_VALIDATOR_URL}/api/vault/v-001/latest`);
+      expect(String(getFetchCall(1)![0])).toBe(`${LIQ_VALIDATOR_URL}/api/vault/v-002/latest`);
     });
 
     it('should URL-encode IDs that contain special characters', async () => {
@@ -314,7 +411,9 @@ describe('fetchVaultsByIds', () => {
 
       const call = getFetchCall(0);
       const url = String(call![0]);
-      expect(url).toContain('id=vault%2Fwith%20spaces%26symbols%3D1');
+      expect(url).toBe(
+        `${LIQ_VALIDATOR_URL}/api/vault/vault%2Fwith%20spaces%26symbols%3D1/latest`
+      );
     });
 
     it('should build the URL against the correct base path', async () => {
@@ -324,7 +423,7 @@ describe('fetchVaultsByIds', () => {
 
       const call = getFetchCall(0);
       const url = String(call![0]);
-      expect(url).toMatch(new RegExp(`^${LIQ_VALIDATOR_URL}/api/vault\\?`));
+      expect(url).toBe(`${LIQ_VALIDATOR_URL}/api/vault/abc/latest`);
     });
 
     it('should use GET with JSON Content-Type header', async () => {
@@ -339,14 +438,12 @@ describe('fetchVaultsByIds', () => {
       });
     });
 
-    it('should handle an empty IDs array (no params in URL)', async () => {
+    it('should handle an empty IDs array without fetching', async () => {
       mockFetchSuccess([]);
 
       const result = await fetchVaultsByIds([]);
 
-      expect(getFetchCallCount()).toBe(1);
-      const url = String(getFetchCall(0)![0]);
-      expect(url).toBe(`${LIQ_VALIDATOR_URL}/api/vault?`);
+      expect(getFetchCallCount()).toBe(0);
       expect(result).toEqual([]);
     });
   });
@@ -561,11 +658,18 @@ describe('formatValidatorResponse', () => {
       expect(result[0].rdata.unit_stamp).toBe(1700001234);
     });
 
-    it('should map stone.action to rdata.vault_action', () => {
+    it('should normalize stone.action to the SDK vault action flag', () => {
       const vault = makeVault();
-      vault.stone.action = 'liquidate';
+      vault.stone.action = 'Liquidation';
       const result = formatValidatorResponse([vault]);
-      expect(result[0].rdata.vault_action).toBe('liquidate');
+      expect(result[0].rdata.vault_action).toBe('l');
+    });
+
+    it('should normalize open actions from the live feed to the SDK flag', () => {
+      const vault = makeVault();
+      vault.stone.action = 'Open';
+      const result = formatValidatorResponse([vault]);
+      expect(result[0].rdata.vault_action).toBe('o');
     });
   });
 

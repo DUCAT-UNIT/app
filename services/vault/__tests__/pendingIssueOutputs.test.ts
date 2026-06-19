@@ -69,6 +69,65 @@ function createVaultTxHex({
   };
 }
 
+function createVaultPsbtBase64({
+  segwitScript,
+  taprootScript,
+  includeRunestone = true,
+}: {
+  segwitScript: Buffer;
+  taprootScript: Buffer;
+  includeRunestone?: boolean;
+}): { psbt: string; pendingParentTxid: string; confirmedParentTxid: string } {
+  const pendingParentTxid = Buffer.from(Array.from({ length: 32 }, (_, index) => index)).toString(
+    'hex'
+  );
+  const confirmedParentTxid = Buffer.from(
+    Array.from({ length: 32 }, (_, index) => 0xff - index)
+  ).toString('hex');
+  const psbt = new bitcoin.Psbt({ network: MUTINYNET_NETWORK });
+
+  psbt.addInput({
+    hash: pendingParentTxid,
+    index: 3,
+    witnessUtxo: {
+      script: segwitScript,
+      value: 10_000n,
+    },
+  });
+  psbt.addInput({
+    hash: confirmedParentTxid,
+    index: 4,
+    witnessUtxo: {
+      script: taprootScript,
+      value: 20_000n,
+    },
+  });
+  psbt.addOutput({
+    script: segwitScript,
+    value: 5_000n,
+  });
+  psbt.addOutput({
+    script: Buffer.from(`0014${'33'.repeat(20)}`, 'hex'),
+    value: 9_999n,
+  });
+  psbt.addOutput({
+    script: taprootScript,
+    value: 7_000n,
+  });
+  if (includeRunestone) {
+    psbt.addOutput({
+      script: Buffer.from('6a0100', 'hex'),
+      value: 0n,
+    });
+  }
+
+  return {
+    psbt: psbt.toBase64(),
+    pendingParentTxid,
+    confirmedParentTxid,
+  };
+}
+
 describe('pending vault issue outputs', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -165,6 +224,47 @@ describe('pending vault issue outputs', () => {
     });
   });
 
+  it('extracts pending data from issue_psbt when issue_txhex is absent', () => {
+    const wallet = createAddressPair();
+    const { psbt, pendingParentTxid, confirmedParentTxid } = createVaultPsbtBase64(wallet);
+
+    const result = extractVaultIssuePendingData(
+      { issue_psbt: psbt },
+      wallet,
+      {
+        [pendingParentTxid]: { status: 'pending' },
+        [confirmedParentTxid]: { status: 'confirmed' },
+      },
+    );
+
+    expect(result).toEqual({
+      outputs: [
+        {
+          address: wallet.segwitAddress,
+          value: 5_000,
+          vout: 0,
+          runeAmount: 300,
+        },
+        {
+          address: wallet.taprootAddress,
+          value: 7_000,
+          vout: 2,
+        },
+      ],
+      spentInputs: [
+        {
+          txid: pendingParentTxid,
+          vout: 3,
+        },
+        {
+          txid: confirmedParentTxid,
+          vout: 4,
+        },
+      ],
+      parentTxid: pendingParentTxid,
+    });
+  });
+
   it('uses vault_txhex for finalization pending data', () => {
     const wallet = createAddressPair();
     const { txhex } = createVaultTxHex(wallet);
@@ -173,6 +273,33 @@ describe('pending vault issue outputs', () => {
       {
         issue_txhex: createVaultTxHex(wallet).txhex,
         vault_txhex: txhex,
+      },
+      wallet,
+      {},
+    );
+
+    expect(result.outputs).toEqual([
+      {
+        address: wallet.segwitAddress,
+        value: 5_000,
+        vout: 0,
+        runeAmount: 300,
+      },
+      {
+        address: wallet.taprootAddress,
+        value: 7_000,
+        vout: 2,
+      },
+    ]);
+  });
+
+  it('uses vault_psbt for finalization pending data when vault_txhex is absent', () => {
+    const wallet = createAddressPair();
+    const { psbt } = createVaultPsbtBase64(wallet);
+
+    const result = extractVaultFinalizationPendingData(
+      {
+        vault_psbt: psbt,
       },
       wallet,
       {},

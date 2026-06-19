@@ -18,6 +18,10 @@ jest.mock('../../../utils/constants', () => ({
   getOrdOutputUrl: jest.fn((output: string) => `https://ord.api/output/${output}`),
   getTxOutspendUrl: jest.fn((txid: string, vout: number) => `https://api/tx/${txid}/outspend/${vout}`),
   getAddressUtxoUrl: jest.fn((address: string) => `https://api/address/${address}/utxo`),
+  RUNES_CONFIG: {
+    DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•MTNY',
+    DUCAT_UNIT_RUNE_ID: { block: 3007902n, tx: 1n },
+  },
 }));
 
 describe('runesUtxoSelection', () => {
@@ -86,7 +90,7 @@ describe('runesUtxoSelection', () => {
           transaction: 'txid1',
           value: 10000,
           runes: {
-            'DUCAT•UNIT•RUNE': {
+            'DUCAT•UNIT•MTNY': {
               amount: '150',
             },
           },

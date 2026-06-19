@@ -1,46 +1,65 @@
 import { z } from 'zod';
-import base from '../../../schema/base.js';
-import vdata from './vdata.js';
-const base_config = z.object({
-    sats_address: base.str,
-    tx_feerate: base.num
+import { asset, base, chain, liquid, price, vault } from '@ducat-unit/core/schema';
+import * as action from '../../../schema/vault.js';
+export const base_config = z.object({
+    ...action.config.shape,
+    client_pubkey: base.hex32.optional(),
+    guard_pubkey: base.hex32,
+    change_address: base.bech32.optional(),
+    issue_account: asset.account.optional(),
+    price_contracts: price.contract.array().optional(),
+    unit_address: base.bech32.optional(),
 });
-const open_config = base_config.extend({
-    borrow_amount: base.num,
-    deposit_amount: base.num,
-    token_address: base.bech32,
-    token_data: vdata.token_data,
-    token_postage: base.num,
+export const open_config = base_config.extend({
+    borrow_amount: base.uint,
+    client_pubkey: base.hex32,
+    deposit_amount: base.uint,
+    issue_account: asset.account,
     unit_address: base.bech32,
-    unit_postage: base.num,
-    vault_pubkey: base.hash32,
+    unit_postage: base.uint,
+    vault_action: z.literal('open'),
+    vault_config: vault.config,
 });
-const borrow_config = base_config.extend({
-    borrow_amount: base.num,
-    deposit_amount: base.num,
+export const borrow_config = base_config.extend({
+    borrow_amount: base.uint,
+    issue_account: asset.account,
     unit_address: base.bech32,
-    unit_postage: base.num
+    unit_postage: base.uint,
+    vault_action: z.literal('borrow'),
+    vault_profile: vault.profile,
 });
-const repay_config = base_config.extend({
-    deposit_amount: base.num,
-    repay_amount: base.num,
-    unit_address: base.bech32,
-    unit_postage: base.num
+export const repay_config = base_config.extend({
+    asset_inputs: asset.account.array(),
+    repay_amount: base.uint,
+    unit_address: base.bech32.optional(),
+    vault_action: z.literal('repay'),
+    vault_profile: vault.profile,
 });
-const repo_config = base_config.extend({
-    deposit_amount: base.num,
+export const deposit_config = base_config.extend({
+    deposit_amount: base.uint,
+    vault_action: z.literal('deposit'),
+    vault_profile: vault.profile,
 });
-const deposit_config = base_config.extend({
-    deposit_amount: base.num
+export const withdraw_config = base_config.extend({
+    change_address: chain.address,
+    vault_action: z.literal('withdraw'),
+    vault_profile: vault.profile,
+    withdraw_amount: base.uint,
 });
-const withdraw_config = base_config.extend({
-    change_amount: base.num
+export const close_config = base_config.extend({
+    change_address: chain.address,
+    vault_action: z.literal('close'),
+    vault_profile: vault.profile,
 });
-export default {
-    borrow_config,
-    deposit_config,
-    open_config,
-    repay_config,
-    repo_config,
-    withdraw_config
-};
+export const repo_config = base_config.extend({
+    liquid_profiles: liquid.vault.array(),
+    price_contracts: price.contract.array(),
+    vault_action: z.literal('repo'),
+    vault_profile: vault.profile,
+});
+export const trim_config = base_config.extend({
+    liquid_profiles: liquid.vault.array(),
+    price_contracts: price.contract.array(),
+    vault_action: z.literal('trim'),
+    vault_profile: vault.profile,
+});

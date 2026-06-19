@@ -1,0 +1,11 @@
+import { Bytes } from '@vbyte/buff';
+import type { PriceBucket, PriceContract, PriceQuote, BreachedPriceContract, PriceObservation } from '../../types/index.js';
+export declare function create_price_contract(oracle_seckey: string, price_data: PriceObservation, thold_price: number): PriceContract;
+export declare function create_breached_contract(oracle_seckey: string, price_contract: PriceContract): BreachedPriceContract;
+export declare function generate_price_buckets(oracle_seckey: string, price_quote: PriceQuote): PriceBucket[];
+export declare function generate_price_contracts(oracle_seckey: string, price_quote: PriceQuote): PriceContract[];
+export declare function verify_price_contract_signature(contract: PriceContract): asserts contract is PriceContract;
+export declare function get_price_contract_commit_hash(price_data: PriceObservation, thold_price: number): string;
+export declare function get_price_contract_thold_key(oracle_seckey: string, price_commit: string): string;
+export declare function get_price_contract_thold_hash(thold_key: string): string;
+export declare function get_price_contract_id(commit_id: Bytes, thold_hash: Bytes): string;

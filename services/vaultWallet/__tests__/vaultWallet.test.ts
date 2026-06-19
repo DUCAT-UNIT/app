@@ -113,13 +113,18 @@ jest.mock('../../../utils/logger', () => ({
 // Mock constants
 jest.mock('../../../utils/constants', () => ({
   API: {
+    VALIDATOR: 'https://validator.test',
     ESPLORA_URL: 'https://test.esplora.url',
     ORD_URL: 'https://test.ord.url',
   },
   VAULT_CONFIG: {
-    UNIT_POSTAGE: 330,
-    TOKEN_POSTAGE: 546,
+    UNIT_POSTAGE: 1000,
+    TOKEN_POSTAGE: 1000,
   },
+}));
+
+jest.mock('../../../utils/apiClient', () => ({
+  getJSON: jest.fn(),
 }));
 
 // Mock crypto helpers
@@ -143,14 +148,35 @@ jest.mock('../../../utils/wallet/cryptoHelpers', () => ({
 import { readVarInt, createPsbtKv, encodeWitnessStack } from '../psbtBinaryUtils';
 import { MASTER_CONTRACT_ID, WALLET_CFG } from '../types';
 
+const MOCK_PROTO_PROFILE = {
+  anchor_id: 'anchor',
+  anchor_height: 1,
+  anchor_index: 0,
+  anchor_txid: 'anchor-txid',
+  boot_height: 1,
+  chain_network: 'mutiny',
+  domain_hash: 'domain',
+  chain_height: 2,
+  contract_height: 3,
+  contract_index: 0,
+  contract_txid: 'contract-txid',
+  contract_id: MASTER_CONTRACT_ID,
+  proto_assets: [{ div: 2, id: '3007902:1', label: 'DUCAT•UNIT•MTNY', symbol: '$', supply: '1' }],
+  proto_members: [
+    { group: 21, idx: 0, pubkey: 'guard-pubkey' },
+    { group: 22, idx: 0, pubkey: 'oracle-pubkey' },
+  ],
+  proto_terms: [],
+};
+
 describe('VaultWallet Types', () => {
   describe('MASTER_CONTRACT_ID', () => {
-    it('should be a valid inscription ID format', () => {
-      expect(MASTER_CONTRACT_ID).toMatch(/^[a-f0-9]{64}i\d+$/);
+    it('should be a valid protocol contract ID format', () => {
+      expect(MASTER_CONTRACT_ID).toMatch(/^[a-f0-9]{64}$/);
     });
 
-    it('should end with i0', () => {
-      expect(MASTER_CONTRACT_ID).toMatch(/i0$/);
+    it('should match the Dev mutinynet proto id', () => {
+      expect(MASTER_CONTRACT_ID).toBe('4c7a39a8e71b5d891fe5321a2e6fc6cf72039c60096ee63f591ecc7ecfaba115');
     });
   });
 
@@ -167,8 +193,8 @@ describe('VaultWallet Types', () => {
 
     it('should have postage values', () => {
       expect(WALLET_CFG.postage).toBeDefined();
-      expect(WALLET_CFG.postage.unit).toBe(330);
-      expect(WALLET_CFG.postage.vault).toBe(546);
+      expect(WALLET_CFG.postage.unit).toBe(1000);
+      expect(WALLET_CFG.postage.vault).toBe(1000);
     });
   });
 });
@@ -377,20 +403,30 @@ describe('Protocol contract loading', () => {
   beforeEach(() => {
     jest.resetModules();
     const { OracleAPI } = require('@ducat-unit/client-sdk');
+    const { getJSON } = require('../../../utils/apiClient');
     OracleAPI.proto.fetch_master_ctx.mockReset();
+    getJSON.mockReset();
+    getJSON.mockResolvedValue(MOCK_PROTO_PROFILE);
   });
 
-  it('uses the bundled protocol contract without fetching from the network', async () => {
+  it('fetches the latest protocol contract from the validator', async () => {
     const { OracleAPI } = require('@ducat-unit/client-sdk');
+    const { getJSON } = require('../../../utils/apiClient');
     const index = require('../index');
 
     const contract = await index.fetchProtocolContract();
 
-    expect(contract.master_id).toBe(index.MASTER_CONTRACT_ID);
+    expect(contract.contract_id).toBe(index.MASTER_CONTRACT_ID);
+    expect(getJSON).toHaveBeenCalledWith(
+      'https://validator.test/api/proto/latest',
+      expect.objectContaining({
+        cacheKey: 'validator-proto-latest',
+      })
+    );
     expect(OracleAPI.proto.fetch_master_ctx).not.toHaveBeenCalled();
   });
 
-  it('creates a VaultWallet from the bundled protocol contract', async () => {
+  it('creates a VaultWallet from the validator protocol contract', async () => {
     const { OracleAPI, VaultWallet } = require('@ducat-unit/client-sdk');
     const index = require('../index');
 
@@ -399,7 +435,7 @@ describe('Protocol contract loading', () => {
     expect(OracleAPI.proto.fetch_master_ctx).not.toHaveBeenCalled();
     expect(VaultWallet).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ master_id: index.MASTER_CONTRACT_ID }),
+      expect.objectContaining({ contract_id: index.MASTER_CONTRACT_ID }),
       expect.any(Object),
       index.WALLET_CFG
     );

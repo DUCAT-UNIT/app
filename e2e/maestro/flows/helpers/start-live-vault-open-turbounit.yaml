@@ -43,7 +43,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-create-borrow-usd-input"
     timeout: 5000
 - eraseText
-- inputText: "1"
+- inputText: "1200"
 - pressKey: Enter
 - waitForAnimationToEnd
 - runFlow:

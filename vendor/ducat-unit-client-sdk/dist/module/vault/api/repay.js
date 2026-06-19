@@ -1,115 +1,114 @@
-import { sum_rune_utxos } from '../../../lib/utxo.js';
-import { Assert } from '../../../util/index.js';
-import { create_unit_output, create_unit_rune_data, get_unit_balance, get_unit_change, create_vault_spend_vin, get_account_input, get_contract_input, get_vault_input, create_vault_return, create_vault_spend_out, create_vault_fund_conn_out, create_vault_fund_conn_vin, get_vault_return_data, calc_issuance_tx_cost, create_change_out, get_estimated_spend_size } from '../../../module/vault/lib/index.js';
-import CONST from '../../../const.js';
-import PSBT from '../../../util/psbt.js';
-import Schema from '../../../schema/index.js';
-import TX from '../../../util/tx.js';
-const ACCT_VIN_IDX = CONST.TXMAP.repay.acct_tx.vin.acct;
-const CONN_OUT_IDX = CONST.TXMAP.repay.acct_tx.vout.conn;
-const UNIT_OUT_IDX = CONST.TXMAP.repay.acct_tx.vout.unit;
-const VAULT_VIN_IDX = CONST.TXMAP.repay.vault_tx.vin.vault;
-const CONN_VIN_IDX = CONST.TXMAP.repay.vault_tx.vin.conn;
-export function create_vault_repay_ctx(acct_profile, price_quote, proto_profile, vault_profile, req_config) {
-    return {
-        ...req_config,
-        ...get_account_input(acct_profile),
-        ...get_contract_input(proto_profile),
-        ...get_vault_input(vault_profile),
-        vault_quote: price_quote,
-        vault_action: 'r'
-    };
+import { Assert } from '@vbyte/util';
+import { get_txid } from '@vbyte/btc-dev/tx';
+import { PSBT } from '@ducat-unit/core';
+import { emit_debug, emit_info, with_observe_span } from '../../../lib/observe/index.js';
+import { PSBT_CONFIG, TXMAP } from '../../../const.js';
+import { get_asset_account_utxo } from '@ducat-unit/core/lib';
+import { create_sats_change_output, create_vault_return_output, create_vault_spend_input, create_vault_output, finalize_cosign_inputs, create_vault_connector_vout, create_unit_burn_runestone, create_vault_conn_input, finalize_spending_inputs, create_unit_change_output, verify_vault_request_psbt, verify_vault_action_rules, create_vault_ctx, validate_vault_repay_config, create_vault_request, get_unit_asset_pool, get_vault_context_coin_value, validate_vault_repay_request } from '../../../module/vault/lib/index.js';
+const UNIT_CONN_VOUT = TXMAP.UNIT_REPAY.VOUT.CONN;
+export function create_vault_repay_ctx(vault_config) {
+    validate_vault_repay_config(vault_config);
+    return create_vault_ctx(vault_config);
 }
-export function create_vault_repay_psbt1(vault_ctx, sats_utxos, unit_utxos) {
-    const { acct_utxo, repay_amount, unit_rune_id, unit_rune_lbl, unit_address, unit_postage } = vault_ctx;
-    const fund_utxos = [...unit_utxos, ...sats_utxos];
-    const conn_value = calc_connector_amt(vault_ctx, fund_utxos);
-    const unit_value = sum_rune_utxos(unit_utxos, unit_rune_lbl);
-    const unit_change = get_unit_change(unit_value, repay_amount);
-    const pdata = PSBT.create.psbt({ allowUnknownOutputs: true });
-    pdata.addOutput(PSBT.create.output(acct_utxo));
-    pdata.addOutput(create_vault_fund_conn_out(vault_ctx, conn_value));
-    if (unit_change !== 0) {
-        pdata.addOutput(create_unit_output(unit_address, unit_postage));
-        pdata.addOutput(create_unit_rune_data(unit_rune_id, unit_change, UNIT_OUT_IDX));
-    }
-    pdata.addInput(PSBT.create.input(acct_utxo));
-    for (const utxo of fund_utxos) {
-        pdata.addInput(PSBT.create.input(utxo));
-    }
-    return PSBT.encode(pdata);
-}
-export function create_vault_repay_psbt2(vault_ctx, acct_psbt) {
-    const { repay_amount, vault_balance } = vault_ctx;
-    const acct_pdata = PSBT.parse(acct_psbt);
-    const conn_utxo = PSBT.extract.utxo(acct_pdata, CONN_OUT_IDX);
-    const vault_amount = calc_vault_amount(vault_ctx);
-    Assert.ok(repay_amount <= vault_balance, 'over-repayment detected');
-    const unit_balance = get_unit_balance(vault_balance, repay_amount);
-    const change_amt = calc_change_amount(vault_ctx, conn_utxo.value);
-    const return_data = get_vault_return_data(vault_ctx, unit_balance);
-    const pdata = PSBT.create.psbt({ allowUnknownOutputs: true });
-    pdata.addOutput(create_vault_spend_out(vault_ctx, unit_balance, vault_amount));
-    if (change_amt > 0) {
-        pdata.addOutput(create_change_out(vault_ctx, change_amt));
-    }
-    pdata.addOutput(create_vault_return(return_data));
-    pdata.addInput(create_vault_spend_vin(vault_ctx));
-    pdata.addInput(create_vault_fund_conn_vin(vault_ctx, conn_utxo));
-    return PSBT.encode(pdata);
-}
-export function create_vault_repay_req(vault_ctx, repay_psbt, vault_psbt) {
-    const repay_pdata = PSBT.decode(repay_psbt);
-    const repay_txhex = PSBT.get.txhex(repay_psbt);
-    const repay_txid = TX.get_txid(repay_txhex);
-    const vault_pdata = PSBT.decode(vault_psbt);
-    const vault_txhex = PSBT.get.txhex(vault_psbt);
-    const vault_txid = TX.get_txid(vault_txhex);
-    const sats_inputs = PSBT.extract.funding_vins(repay_pdata, {
-        start_idx: ACCT_VIN_IDX + 1, post_exclude: vault_ctx.unit_postage
+export function create_vault_repay_psbt_1(vault_ctx) {
+    return with_observe_span(vault_ctx.observe, 'vault.repay.create_burn_psbt', {
+        asset_input_count: vault_ctx.asset_inputs.length,
+        fund_input_count: vault_ctx.fund_inputs.length
+    }, scope => {
+        const { asset_inputs, fund_inputs, action_postage, repay_amount } = vault_ctx;
+        const unit_pool = get_unit_asset_pool(vault_ctx);
+        Assert.ok(unit_pool.pool_active >= repay_amount, 'account balance is below the configured repay amount');
+        const has_change = unit_pool.pool_active > repay_amount;
+        if (has_change) {
+            Assert.exists(action_postage, 'unit postage is required when there is change');
+        }
+        const fund_value = get_vault_context_coin_value(vault_ctx);
+        const conn_value = fund_value - ((has_change) ? action_postage : 0);
+        const pdata = PSBT.create_psbt(PSBT_CONFIG);
+        pdata.addOutput(create_vault_connector_vout(vault_ctx, conn_value));
+        pdata.addOutput(create_unit_burn_runestone(vault_ctx, has_change));
+        if (has_change) {
+            pdata.addOutput(create_unit_change_output(vault_ctx));
+        }
+        for (const asset of asset_inputs) {
+            pdata.addInput(PSBT.create_psbt_input(get_asset_account_utxo(asset)));
+        }
+        for (const utxo of fund_inputs) {
+            pdata.addInput(PSBT.create_psbt_input(utxo));
+        }
+        PSBT.assert_is_funded(pdata);
+        const psbt = PSBT.encode_psbt(pdata);
+        emit_info(scope, 'vault.repay.psbt.burn.created', 'created vault repay burn PSBT', {
+            psbt_length: psbt.length
+        });
+        return psbt;
     });
-    const unit_inputs = PSBT.extract.funding_vins(repay_pdata, {
-        start_idx: ACCT_VIN_IDX + 1, post_filter: vault_ctx.unit_postage
+}
+export function create_vault_repay_psbt_2(vault_ctx, burn_psbt) {
+    return with_observe_span(vault_ctx.observe, 'vault.repay.create_vault_psbt', { burn_psbt_length: burn_psbt.length }, scope => {
+        const { change_value, unit_balance, vault_balance } = vault_ctx;
+        const burn_pdata = PSBT.parse_psbt(burn_psbt);
+        const conn_utxo = PSBT.extract_utxo(burn_pdata, UNIT_CONN_VOUT);
+        const pdata = PSBT.create_psbt(PSBT_CONFIG);
+        pdata.addOutput(create_vault_output(vault_ctx, unit_balance, vault_balance));
+        if (change_value > 0) {
+            pdata.addOutput(create_sats_change_output(vault_ctx, change_value));
+        }
+        pdata.addOutput(create_vault_return_output(vault_ctx));
+        pdata.addInput(create_vault_spend_input(vault_ctx));
+        pdata.addInput(create_vault_conn_input(vault_ctx, conn_utxo));
+        PSBT.assert_is_funded(pdata);
+        const psbt = PSBT.encode_psbt(pdata);
+        emit_info(scope, 'vault.repay.psbt.vault.created', 'created vault repay vault PSBT', {
+            psbt_length: psbt.length
+        });
+        return psbt;
     });
-    const vault_input = PSBT.extract.script_vin(vault_pdata, VAULT_VIN_IDX);
-    const connect_input = PSBT.extract.script_vin(vault_pdata, CONN_VIN_IDX);
-    const schema = Schema.vault.req.repay_req;
-    return schema.parse({ ...vault_ctx, connect_input, sats_inputs, unit_inputs, vault_input, repay_psbt, repay_txhex, repay_txid, vault_psbt, vault_txhex, vault_txid });
 }
-function calc_connector_amt(vault_config, sats_utxos) {
-    const { unit_postage, tx_feerate } = vault_config;
-    const fund_value = sats_utxos.reduce((prev, curr) => prev + curr.value, 0);
-    const issue_cost = calc_issuance_tx_cost(sats_utxos, unit_postage, tx_feerate);
-    return fund_value - issue_cost;
+export function create_vault_repay_psbts(vault_ctx) {
+    return with_observe_span(vault_ctx.observe, 'vault.repay.create_psbts', {}, scope => {
+        const burn_psbt = create_vault_repay_psbt_1(vault_ctx);
+        const vault_psbt = create_vault_repay_psbt_2(vault_ctx, burn_psbt);
+        emit_debug(scope, 'vault.repay.create_psbts.complete', {
+            burn_psbt_length: burn_psbt.length,
+            vault_psbt_length: vault_psbt.length
+        });
+        return [burn_psbt, vault_psbt];
+    });
 }
-function calc_vault_amount(vault_ctx) {
-    const { deposit_amount, vault_utxo } = vault_ctx;
-    return vault_utxo.value + deposit_amount;
+export function create_vault_repay_request(vault_ctx, vault_psbts) {
+    return with_observe_span(vault_ctx.observe, 'vault.repay.create_request', { signed_psbt_count: vault_psbts.length }, scope => {
+        const [signed_burn_psbt, signed_vault_psbt] = vault_psbts;
+        Assert.exists(signed_burn_psbt, 'burn PSBT is undefined');
+        Assert.exists(signed_vault_psbt, 'vault PSBT is undefined');
+        const context = create_vault_request(vault_ctx);
+        const burn_pdata = PSBT.parse_psbt(signed_burn_psbt);
+        const vault_pdata = PSBT.parse_psbt(signed_vault_psbt);
+        finalize_spending_inputs(burn_pdata);
+        finalize_cosign_inputs(vault_pdata);
+        verify_vault_request_psbt(burn_pdata, 0);
+        verify_vault_request_psbt(vault_pdata, vault_ctx.txfee_rate, {
+            ...vault_ctx.validation_options,
+            asset_pdata: burn_pdata,
+            observe: vault_ctx.observe
+        });
+        const burn_txid = get_txid(burn_pdata.hex);
+        const vault_txid = get_txid(vault_pdata.hex);
+        verify_vault_action_rules(vault_ctx, vault_txid);
+        const burn_psbt = PSBT.encode_psbt(burn_pdata);
+        const vault_psbt = PSBT.encode_psbt(vault_pdata);
+        const request = { ...context, burn_psbt, burn_txid, vault_psbt, vault_txid };
+        validate_vault_repay_request(request);
+        emit_info(scope, 'vault.repay.request.created', 'created vault repay guardian request', {
+            burn_txid,
+            vault_txid
+        });
+        return request;
+    });
 }
-function calc_change_amount(vault_config, conn_value) {
-    const { deposit_amount, tx_feerate } = vault_config;
-    const tx_size = CONST.TXSIZE.TX.VAULT_CONN;
-    const tx_cost = tx_size * tx_feerate;
-    return conn_value - (deposit_amount + tx_cost);
-}
-export function get_vault_repay_quote(vault_config, fee_options) {
-    const { deposit_amount, unit_postage, tx_feerate } = vault_config;
-    const spend_size = get_estimated_spend_size(fee_options);
-    const action_size = CONST.TXSIZE.ACTION.VAULT_REPAY;
-    const total_size = action_size + spend_size;
-    const tx_cost = total_size * tx_feerate;
-    const total_cost = deposit_amount + unit_postage + tx_cost;
-    return { tx_vsize: total_size, tx_cost, total_cost };
-}
-export function get_vault_repay_change(vault_config, sats_utxos) {
-    const conn_value = calc_connector_amt(vault_config, sats_utxos);
-    return calc_change_amount(vault_config, conn_value);
-}
-export default {
-    create_ctx: create_vault_repay_ctx,
-    create_psbt1: create_vault_repay_psbt1,
-    create_psbt2: create_vault_repay_psbt2,
-    create_req: create_vault_repay_req,
-    get_quote: get_vault_repay_quote,
-    get_change: get_vault_repay_change
-};
+export var VaultRepayAPI;
+(function (VaultRepayAPI) {
+    VaultRepayAPI.create_ctx = create_vault_repay_ctx;
+    VaultRepayAPI.create_psbts = create_vault_repay_psbts;
+    VaultRepayAPI.create_request = create_vault_repay_request;
+})(VaultRepayAPI || (VaultRepayAPI = {}));

@@ -103,6 +103,14 @@ module.exports = {
     '<rootDir>/evm/',
     '<rootDir>/tmp/',
   ],
+  moduleNameMapper: {
+    '^@vbyte/btc-dev/(.*)$': '<rootDir>/node_modules/@vbyte/btc-dev/dist/lib/$1/index.js',
+    '^@vbyte/crypto$': '<rootDir>/node_modules/@vbyte/crypto/dist/index.js',
+    '^@vbyte/crypto/(.*)$': '<rootDir>/node_modules/@vbyte/crypto/dist/lib/$1.js',
+    '^@vbyte/util$': '<rootDir>/node_modules/@vbyte/util/dist/index.js',
+    '^@vbyte/util/(.*)$': '<rootDir>/node_modules/@vbyte/util/dist/lib/$1.js',
+    '^@vbyte/buff$': '<rootDir>/node_modules/@vbyte/buff/dist/index.js',
+  },
   // resetMocks: false — mocks persist across tests within a file. This is intentional:
   // jest.setup.js configures global mocks (SecureStore, logger, etc.) that must survive
   // between tests. Individual test files use beforeEach/clearAllMocks for isolation.
@@ -111,6 +119,6 @@ module.exports = {
     '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|@cashu/.*|@noble/.*|@scure/.*|@cmdcode/.*|@scrow/.*|@ducat-unit/.*)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|native-base|react-native-svg|@cashu/.*|@noble/.*|@scure/.*|@cmdcode/.*|@scrow/.*|@ducat-unit/.*|@vbyte/.*|micro-packed)',
   ],
 };

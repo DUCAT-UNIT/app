@@ -102,7 +102,7 @@ function shouldDiscardMissingRepoPendingTransaction(
   const ageMs = Date.now() - tx.timestamp;
 
   return (
-    tx.action === 'repo' &&
+    (tx.action === 'repo' || tx.action === 'trim') &&
     Number.isFinite(ageMs) &&
     ageMs >= REPO_PENDING_NOT_FOUND_GRACE_MS &&
     chainStates.length > 0 &&

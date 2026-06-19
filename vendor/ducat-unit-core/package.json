@@ -1,0 +1,68 @@
+{
+  "name": "@ducat-unit/core",
+  "version": "0.22.1",
+  "description": "Core libraries, schemas and interfaces for the DUCAT protocol.",
+  "author": "Christopher Scott",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DUCAT-UNIT/core-ts"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "unpkg": "./dist/script.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./const": {
+      "import": "./dist/const.js",
+      "types": "./dist/const.d.ts",
+      "default": "./dist/const.js"
+    },
+    "./lib": {
+      "import": "./dist/lib/index.js",
+      "types": "./dist/lib/index.d.ts",
+      "default": "./dist/lib/index.js"
+    },
+    "./psbt": {
+      "import": "./dist/psbt/index.js",
+      "types": "./dist/psbt/index.d.ts",
+      "default": "./dist/psbt/index.js"
+    },
+    "./schema": {
+      "import": "./dist/schema/index.js",
+      "types": "./dist/schema/index.d.ts",
+      "default": "./dist/schema/index.js"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/types/index.js"
+    },
+    "./validate": {
+      "import": "./dist/validate/index.js",
+      "types": "./dist/validate/index.d.ts",
+      "default": "./dist/validate/index.js"
+    }
+  },
+  "dependencies": {
+    "@ducat-unit/runestone": "^2.0.11",
+    "@scure/btc-signer": "2.2.0",
+    "@vbyte/btc-dev": "^2.1.0",
+    "@vbyte/buff": "^1.1.0",
+    "@vbyte/crypto": "^1.0.1",
+    "@vbyte/util": "^2.0.0",
+    "zod": "^4.4.3"
+  }
+}

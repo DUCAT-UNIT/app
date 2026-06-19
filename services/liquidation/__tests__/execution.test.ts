@@ -9,7 +9,7 @@
  *   5. Build liquidation context
  *   6. Build vault repo context
  *   7. Fetch & select UTXOs
- *   8. Create PSBTs, batch sign, build request
+ *   8. Create repo PSBT, sign it, build request
  *   9. Submit to Guardian
  */
 
@@ -43,6 +43,10 @@ jest.mock('../swapService', () => ({
   validateSwapPsbtUnitPayout: jest.fn(),
 }));
 
+jest.mock('../spendability', () => ({
+  assertLiquidVaultProfilesUnspent: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('@ducat-unit/client-sdk', () => ({
   CONST: {
     TXMAP: {
@@ -61,9 +65,24 @@ jest.mock('@ducat-unit/client-sdk', () => ({
       create_psbt1: jest.fn(),
       create_psbt2: jest.fn(),
       create_req: jest.fn(),
+      create_request: jest.fn(),
+    },
+    trim: {
+      create_ctx: jest.fn(),
+      create_psbt: jest.fn(),
+      create_request: jest.fn(),
     },
   },
   select_sat_utxos: jest.fn(),
+}));
+
+jest.mock('@ducat-unit/client-sdk/lib', () => ({
+  create_vault_action_quote: jest.fn(() => ({
+    action_value: 0,
+    total_cost: 0,
+  })),
+  filter_price_contracts: jest.fn((contracts) => contracts),
+  get_price_commit_hashes: jest.fn(() => []),
 }));
 
 // Required because vaultWallet/signingContext.ts → vaultWallet/walletApi.ts imports this
@@ -74,6 +93,7 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
     get_txid: jest.fn((txhex: string) => {
       if (txhex === 'signed_liquid_txhex') return 'signed_liquid_txid';
       if (txhex === 'signed_vault_txhex') return 'signed_vault_txid';
+      if (txhex === 'signed_trim_txhex') return 'signed_trim_txid';
       if (txhex === 'normalized_liquid_txhex') return 'normalized_liquid_txid';
       if (txhex === 'normalized_vault_txhex') return 'normalized_vault_txid';
       return 'mock_txid';
@@ -85,10 +105,10 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
     parse: jest.fn(() => ({})),
     get: {
       txhex: jest.fn((psbt: string) => {
-        if (psbt === 'signed_psbt1_base64') return 'signed_liquid_txhex';
-        if (psbt === 'signed_psbt2_base64') return 'signed_vault_txhex';
+        if (psbt === 'signed_repo_psbt_base64') return 'signed_vault_txhex';
+        if (psbt === 'signed_trim_psbt_base64') return 'signed_trim_txhex';
         if (psbt === 'liquid_psbt_needs_normalizing') return 'normalized_liquid_txhex';
-        if (psbt === 'vault_psbt_needs_normalizing') return 'normalized_vault_txhex';
+        if (psbt === 'repo_psbt_needs_normalizing') return 'normalized_vault_txhex';
         return 'mock_txhex';
       }),
     },
@@ -167,6 +187,7 @@ import {
 import { signPsbtRaw } from '../../signing';
 import { getAvailableCollateralBtc } from '../calculations';
 import { fetchSwapPsbt, finalizeSwapPsbt } from '../swapService';
+import { assertLiquidVaultProfilesUnspent } from '../spendability';
 import { VaultAPI, select_sat_utxos } from '@ducat-unit/client-sdk';
 import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 
@@ -213,9 +234,17 @@ function makeMockWallet(
     repoQuoteReturn?: unknown;
     satsUtxosReturn?: unknown;
     signBatchReturn?: unknown;
+    signPsbtReturn?: unknown;
   } = {}
 ) {
-  const mockVaultCtx = { deposit_amount: 0, tx_feerate: 10, _tag: 'vaultCtx' };
+  const mockLatestRepoCtx = { _tag: 'latestRepoCtx' };
+  const mockVaultCtx = {
+    deposit_amount: 0,
+    tx_feerate: 10,
+    _tag: 'vaultCtx',
+    __latest_ctx: mockLatestRepoCtx,
+    __create_psbts: jest.fn(() => ['raw_repo_psbt_base64']),
+  };
   const mockLiquidVaults = [makeLiquidVault()];
 
   const wallet = {
@@ -240,6 +269,9 @@ function makeMockWallet(
       ),
     },
     sign: {
+      psbt: jest
+        .fn()
+        .mockResolvedValue(overrides.signPsbtReturn ?? 'signed_repo_psbt_base64'),
       batch: jest
         .fn()
         .mockResolvedValue(
@@ -330,6 +362,10 @@ const mockGetAvailableCollateralBtc = getAvailableCollateralBtc as jest.MockedFu
 >;
 const mockFetchSwapPsbt = fetchSwapPsbt as jest.MockedFunction<typeof fetchSwapPsbt>;
 const mockFinalizeSwapPsbt = finalizeSwapPsbt as jest.MockedFunction<typeof finalizeSwapPsbt>;
+const mockAssertLiquidVaultProfilesUnspent =
+  assertLiquidVaultProfilesUnspent as jest.MockedFunction<
+    typeof assertLiquidVaultProfilesUnspent
+  >;
 const mockSelectSatUtxos = select_sat_utxos as jest.MockedFunction<typeof select_sat_utxos>;
 const mockVaultApiRepoLiquidGetCtx = VaultAPI.repo.liquidation.get_ctx as jest.MockedFunction<
   typeof VaultAPI.repo.liquidation.get_ctx
@@ -343,6 +379,18 @@ const mockVaultApiRepoCreatePsbt2 = VaultAPI.repo.create_psbt2 as jest.MockedFun
 const mockVaultApiRepoCreateReq = VaultAPI.repo.create_req as jest.MockedFunction<
   typeof VaultAPI.repo.create_req
 >;
+const mockVaultApiRepoCreateRequest = VaultAPI.repo.create_request as jest.MockedFunction<
+  typeof VaultAPI.repo.create_request
+>;
+const mockVaultApiTrimCreateCtx = VaultAPI.trim.create_ctx as jest.MockedFunction<
+  typeof VaultAPI.trim.create_ctx
+>;
+const mockVaultApiTrimCreatePsbt = VaultAPI.trim.create_psbt as jest.MockedFunction<
+  typeof VaultAPI.trim.create_psbt
+>;
+const mockVaultApiTrimCreateRequest = VaultAPI.trim.create_request as jest.MockedFunction<
+  typeof VaultAPI.trim.create_request
+>;
 const mockPsbtGetTxhex = PSBT.get.txhex as jest.MockedFunction<typeof PSBT.get.txhex>;
 const mockTxGetTxid = TX.get_txid as jest.MockedFunction<typeof TX.get_txid>;
 
@@ -351,7 +399,7 @@ const mockTxGetTxid = TX.get_txid as jest.MockedFunction<typeof TX.get_txid>;
 describe('executeLiquidation', () => {
   let mockWallet: ReturnType<typeof makeMockWallet>;
   let mockGuardianSub: ReturnType<typeof makeGuardianSub>;
-  let mockGuardian: { req: { vault: { repo: jest.Mock } } };
+  let mockGuardian: { req: { vault: { repo: jest.Mock; trim: jest.Mock } } };
   const mockPrevout = { rdata: { is_locked: false }, utxo: { txid: 'txid-001', vout: 0 } };
   const mockVaultProfile = { vault_pk: 'vault_pubkey_hex', acct_id: 'acct', guard_pk: 'guard' };
   const mockLiquidCtx = {
@@ -392,6 +440,7 @@ describe('executeLiquidation', () => {
       req: {
         vault: {
           repo: jest.fn().mockReturnValue(mockGuardianSub),
+          trim: jest.fn().mockReturnValue(mockGuardianSub),
         },
       },
     };
@@ -444,15 +493,22 @@ describe('executeLiquidation', () => {
     );
     mockVaultApiRepoCreatePsbt1.mockReturnValue('raw_psbt1_base64');
     mockVaultApiRepoCreatePsbt2.mockReturnValue('raw_psbt2_base64');
-    mockVaultApiRepoCreateReq.mockReturnValue({
-      liquid_psbt: 'signed_psbt1_base64',
-      liquid_txhex: 'stale_liquid_txhex',
-      liquid_txid: 'stale_liquid_txid',
-      vault_psbt: 'signed_psbt2_base64',
+    mockVaultApiRepoCreateRequest.mockReturnValue({
+      vault_psbt: 'signed_repo_psbt_base64',
       vault_txhex: 'stale_vault_txhex',
       vault_txid: 'stale_vault_txid',
-    } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
+    } as unknown as ReturnType<typeof VaultAPI.repo.create_request>);
+    mockVaultApiTrimCreateCtx.mockReturnValue(
+      { _tag: 'trimCtx' } as unknown as ReturnType<typeof VaultAPI.trim.create_ctx>
+    );
+    mockVaultApiTrimCreatePsbt.mockReturnValue('raw_trim_psbt_base64');
+    mockVaultApiTrimCreateRequest.mockReturnValue({
+      vault_psbt: 'signed_trim_psbt_base64',
+      vault_txhex: 'stale_trim_txhex',
+      vault_txid: 'stale_trim_txid',
+    } as unknown as ReturnType<typeof VaultAPI.trim.create_request>);
     mockFetchSwapPsbt.mockResolvedValue(null);
+    mockAssertLiquidVaultProfilesUnspent.mockResolvedValue(undefined);
     mockSignPsbtRaw.mockResolvedValue('signed_swap_psbt_base64');
     mockFinalizeSwapPsbt.mockReturnValue('swap_tx_hex');
     mockSetPendingVaultSigningOperation.mockImplementation(() => undefined);
@@ -477,6 +533,15 @@ describe('executeLiquidation', () => {
       expect(result.txid).toBe('guardian-txid-001');
       expect(result.vaultTxid).toBe('guardian-txid-001');
       expect(result.error).toBeUndefined();
+    });
+
+    it('should verify selected liquidation vault coins are unspent before building the request', async () => {
+      const params = makeParams();
+
+      await executeLiquidation(params);
+
+      expect(mockAssertLiquidVaultProfilesUnspent).toHaveBeenCalledWith(params.liquidVaults);
+      expect(mockVaultApiRepoLiquidGetCtx).toHaveBeenCalled();
     });
 
     it('should call computeLiquidationPrice with correct unitDebt and btcInVault', async () => {
@@ -576,10 +641,15 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.01 }));
 
-      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(mockOracleQuote, mockVaultProfile, {
-        deposit_amount: 0,
-        tx_feerate: 10,
-      });
+      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
+        mockOracleQuote,
+        mockVaultProfile,
+        expect.objectContaining({
+          deposit_amount: 0,
+          tx_feerate: 10,
+          liquid_profiles: expect.any(Array),
+        })
+      );
     });
 
     it('should compute correct depositAmountSats when deficitAmountBtc > availableCollateral', async () => {
@@ -589,10 +659,15 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams({ deficitAmountBtc: 0.02 }));
 
-      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(mockOracleQuote, mockVaultProfile, {
-        deposit_amount: 1_500_000,
-        tx_feerate: 10,
-      });
+      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
+        mockOracleQuote,
+        mockVaultProfile,
+        expect.objectContaining({
+          deposit_amount: 1_500_000,
+          tx_feerate: 10,
+          liquid_profiles: expect.any(Array),
+        })
+      );
     });
 
     it('should call VaultAPI.repo.liquidation.get_ctx with liquidVaults and contract', async () => {
@@ -630,34 +705,30 @@ describe('executeLiquidation', () => {
       );
     });
 
-    it('should call VaultAPI.repo.create_psbt1 and create_psbt2 with correct contexts', async () => {
-      await executeLiquidation(makeParams());
+    it('should build the latest repo PSBT with selected UTXOs and liquid profiles', async () => {
+      const params = makeParams();
 
-      expect(mockVaultApiRepoCreatePsbt1).toHaveBeenCalledWith(
-        mockLiquidCtx,
-        expect.anything(), // vaultCtx
-        mockSelectedUtxos
-      );
-      expect(mockVaultApiRepoCreatePsbt2).toHaveBeenCalledWith(
-        mockLiquidCtx,
-        expect.anything(), // vaultCtx
-        'raw_psbt1_base64'
-      );
+      await executeLiquidation(params);
+
+      const vaultCtx = mockWallet.vault.repo.ctx.mock.results[0].value;
+      expect(vaultCtx.__create_psbts).toHaveBeenCalledWith(mockSelectedUtxos, {
+        liquid_profiles: params.liquidVaults,
+      });
     });
 
-    it('should call setPendingVaultSigningOperation before wallet.sign.batch', async () => {
+    it('should call setPendingVaultSigningOperation before wallet.sign.psbt', async () => {
       const callOrder: string[] = [];
       mockSetPendingVaultSigningOperation.mockImplementation(() => {
         callOrder.push('setPending');
       });
-      mockWallet.sign.batch.mockImplementation(async () => {
-        callOrder.push('signBatch');
-        return ['signed_psbt1_base64', 'signed_psbt2_base64'];
+      mockWallet.sign.psbt.mockImplementation(async () => {
+        callOrder.push('signPsbt');
+        return 'signed_repo_psbt_base64';
       });
 
       await executeLiquidation(makeParams());
 
-      expect(callOrder.indexOf('setPending')).toBeLessThan(callOrder.indexOf('signBatch'));
+      expect(callOrder.indexOf('setPending')).toBeLessThan(callOrder.indexOf('signPsbt'));
     });
 
     it('should call setPendingVaultSigningOperation with repo action and correct context', async () => {
@@ -678,17 +749,13 @@ describe('executeLiquidation', () => {
       expect(mockClearPendingVaultSigningOperation).toHaveBeenCalled();
     });
 
-    it('should call wallet.sign.batch with the two PSBT manifests', async () => {
+    it('should sign the latest repo PSBT', async () => {
       await executeLiquidation(makeParams());
 
-      expect(mockWallet.sign.batch).toHaveBeenCalledWith([
-        ['raw_psbt1_base64', { tb1qsegwit000000000000000000000000000000: expect.any(Array) }],
-        ['raw_psbt2_base64', { tb1ptaproot00000000000000000000000000000: [0, 1] }],
-      ]);
+      expect(mockWallet.sign.psbt).toHaveBeenCalledWith('raw_repo_psbt_base64');
     });
 
-    it('should build utxoManifest keyed by sats address with correct input indices', async () => {
-      // liquid_vaults.length = 1, so vinFundIdx = 1; 2 UTXOs → inputs at [1, 2]
+    it('should pass the selected UTXOs to the latest repo PSBT builder', async () => {
       mockWallet.fetch.sats_utxos.mockResolvedValue([
         { txid: 'u1', vout: 0, value: 50_000, script: '0014aa' },
         { txid: 'u2', vout: 0, value: 50_000, script: '0014bb' },
@@ -700,22 +767,105 @@ describe('executeLiquidation', () => {
 
       await executeLiquidation(makeParams());
 
-      const batchCallArg = mockWallet.sign.batch.mock.calls[0][0];
-      const [, utxoManifest] = batchCallArg[0];
-
-      // liquid_vaults has 1 entry → vinFundIdx = 1; 2 UTXOs → indices [1, 2]
-      expect(utxoManifest['tb1qsegwit000000000000000000000000000000']).toEqual([1, 2]);
+      const vaultCtx = mockWallet.vault.repo.ctx.mock.results[0].value;
+      expect(vaultCtx.__create_psbts).toHaveBeenCalledWith(
+        [
+          { txid: 'u1', vout: 0, value: 50_000, script: '0014aa' },
+          { txid: 'u2', vout: 0, value: 50_000, script: '0014bb' },
+        ],
+        expect.any(Object)
+      );
     });
 
-    it('should call VaultAPI.repo.create_req with correct signed PSBTs', async () => {
+    it('should call VaultAPI.repo.create_request with latest context and signed PSBT', async () => {
       await executeLiquidation(makeParams());
 
-      expect(mockVaultApiRepoCreateReq).toHaveBeenCalledWith(
-        mockLiquidCtx,
-        expect.anything(), // vaultCtx
-        'signed_psbt1_base64',
-        'signed_psbt2_base64'
+      const vaultCtx = mockWallet.vault.repo.ctx.mock.results[0].value;
+      expect(mockVaultApiRepoCreateRequest).toHaveBeenCalledWith(
+        vaultCtx.__latest_ctx,
+        'signed_repo_psbt_base64'
       );
+    });
+
+    it('should allow high-fee warnings on the latest repo context passed to create_request', async () => {
+      await executeLiquidation(makeParams());
+
+      const vaultCtx = mockWallet.vault.repo.ctx.mock.results[0].value;
+      expect(vaultCtx.__latest_ctx.validation_options).toEqual(
+        expect.objectContaining({
+          warn_only_high_fees: true,
+        })
+      );
+      expect(mockVaultApiRepoCreateRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          validation_options: expect.objectContaining({
+            warn_only_high_fees: true,
+          }),
+        }),
+        'signed_repo_psbt_base64'
+      );
+    });
+
+    it('should submit partial liquidations as trim requests instead of repo requests', async () => {
+      const partialVault = makeLiquidVault({
+        claimAmountBtc: 0.00001,
+        claimAmountDiff: 0.03,
+        claimAmountPartial: 0.00001,
+        claimed_sats: 1495,
+        claimed_unit: 74,
+      });
+
+      const result = await executeLiquidation(
+        makeParams({
+          enableSwap: false,
+          liquidVaults: [partialVault] as unknown as LiquidationExecutionParams['liquidVaults'],
+        })
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockWallet.vault.repo.ctx).not.toHaveBeenCalled();
+      expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+      expect(mockVaultApiTrimCreateCtx).toHaveBeenCalledWith(
+        expect.objectContaining({
+          guard_pubkey: 'guard',
+          liquid_profiles: [partialVault],
+          txfee_rate: 10,
+          txfee_reserve: 0,
+          validation_options: expect.objectContaining({
+            warn_only_high_fees: true,
+          }),
+          vault_action: 'trim',
+          vault_profile: mockVaultProfile,
+        })
+      );
+      expect(mockVaultApiTrimCreatePsbt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _tag: 'trimCtx',
+          validation_options: expect.objectContaining({
+            warn_only_high_fees: true,
+          }),
+        })
+      );
+      expect(mockSetPendingVaultSigningOperation).toHaveBeenCalledWith({
+        action: 'trim',
+        ctx: expect.objectContaining({
+          _tag: 'trimCtx',
+        }),
+      });
+      expect(mockVaultApiTrimCreateRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _tag: 'trimCtx',
+        }),
+        'signed_repo_psbt_base64'
+      );
+      expect(mockGuardian.req.vault.trim).toHaveBeenCalledWith(
+        expect.objectContaining({
+          vault_txhex: 'signed_trim_txhex',
+          vault_txid: 'signed_trim_txid',
+        })
+      );
+      expect(mockGuardian.req.vault.repo).not.toHaveBeenCalled();
+      expect(mockFetchSwapPsbt).not.toHaveBeenCalled();
     });
 
     it('should sign swap PSBTs with bounded external spend validation', async () => {
@@ -789,29 +939,21 @@ describe('executeLiquidation', () => {
     });
 
     it('normalizes repo transaction ids from the signed PSBTs before guardian submission', async () => {
-      mockVaultApiRepoCreateReq.mockReturnValue({
-        liquid_psbt: 'liquid_psbt_needs_normalizing',
-        liquid_txhex: 'wrong_liquid_txhex',
-        liquid_txid: 'wrong_liquid_txid',
-        vault_psbt: 'vault_psbt_needs_normalizing',
+      mockVaultApiRepoCreateRequest.mockReturnValue({
+        vault_psbt: 'repo_psbt_needs_normalizing',
         vault_txhex: 'wrong_vault_txhex',
         vault_txid: 'wrong_vault_txid',
-      } as unknown as ReturnType<typeof VaultAPI.repo.create_req>);
+      } as unknown as ReturnType<typeof VaultAPI.repo.create_request>);
 
       await executeLiquidation(makeParams());
 
       const guardianRepoCall = mockGuardian.req.vault.repo.mock.calls[0][0];
       expect(guardianRepoCall).toMatchObject({
-        liquid_psbt: 'liquid_psbt_needs_normalizing',
-        liquid_txhex: 'normalized_liquid_txhex',
-        liquid_txid: 'normalized_liquid_txid',
-        vault_psbt: 'vault_psbt_needs_normalizing',
+        vault_psbt: 'repo_psbt_needs_normalizing',
         vault_txhex: 'normalized_vault_txhex',
         vault_txid: 'normalized_vault_txid',
       });
-      expect(mockPsbtGetTxhex).toHaveBeenCalledWith('liquid_psbt_needs_normalizing');
-      expect(mockPsbtGetTxhex).toHaveBeenCalledWith('vault_psbt_needs_normalizing');
-      expect(mockTxGetTxid).toHaveBeenCalledWith('normalized_liquid_txhex');
+      expect(mockPsbtGetTxhex).toHaveBeenCalledWith('repo_psbt_needs_normalizing');
       expect(mockTxGetTxid).toHaveBeenCalledWith('normalized_vault_txhex');
     });
 
@@ -833,7 +975,6 @@ describe('executeLiquidation', () => {
         txid: 'signed_vault_txid',
         vaultTxid: 'signed_vault_txid',
         request: expect.objectContaining({
-          liquid_txid: 'signed_liquid_txid',
           vault_txid: 'signed_vault_txid',
           contract_id: 'test_contract_id',
           network: 'mutiny',
@@ -1162,8 +1303,8 @@ describe('executeLiquidation', () => {
   // ─── Step 8: Signing failures ────────────────────────────────────────────────
 
   describe('signing failures (step 8)', () => {
-    it('should return error when wallet.sign.batch rejects', async () => {
-      mockWallet.sign.batch.mockRejectedValue(new Error('User rejected signing'));
+    it('should return error when wallet.sign.psbt rejects', async () => {
+      mockWallet.sign.psbt.mockRejectedValue(new Error('User rejected signing'));
 
       const result = await executeLiquidation(makeParams());
 
@@ -1171,18 +1312,18 @@ describe('executeLiquidation', () => {
       expect(result.error).toBe('User rejected signing');
     });
 
-    it('should call clearPendingVaultSigningOperation even when sign.batch rejects (finally block)', async () => {
-      mockWallet.sign.batch.mockRejectedValue(new Error('signing error'));
+    it('should call clearPendingVaultSigningOperation even when sign.psbt rejects (finally block)', async () => {
+      mockWallet.sign.psbt.mockRejectedValue(new Error('signing error'));
 
       await executeLiquidation(makeParams());
 
       expect(mockClearPendingVaultSigningOperation).toHaveBeenCalled();
     });
 
-    it('should call clearPendingVaultSigningOperation even after VaultAPI.repo.create_req throws', async () => {
-      mockWallet.sign.batch.mockResolvedValue(['psbt1', 'psbt2']);
-      mockVaultApiRepoCreateReq.mockImplementation(() => {
-        throw new Error('create_req failed');
+    it('should call clearPendingVaultSigningOperation even after VaultAPI.repo.create_request throws', async () => {
+      mockWallet.sign.psbt.mockResolvedValue('signed_repo_psbt_base64');
+      mockVaultApiRepoCreateRequest.mockImplementation(() => {
+        throw new Error('create_request failed');
       });
 
       await executeLiquidation(makeParams());
@@ -1358,14 +1499,27 @@ describe('executeLiquidation', () => {
         expect.objectContaining({ tx_feerate: 25 })
       );
     });
+
+    it('should match web frontend repo validation options for high-fee liquidation PSBTs', async () => {
+      await executeLiquidation(makeParams());
+
+      expect(mockWallet.vault.repo.ctx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          validation_options: {
+            warn_only_high_fees: true,
+          },
+        })
+      );
+    });
   });
 
   // ─── Multiple liquidVaults ────────────────────────────────────────────────────
 
   describe('multiple liquidVaults', () => {
-    it('should pass correct vinFundIdx when there are multiple liquid vaults', async () => {
+    it('should pass every liquid profile to the latest repo PSBT builder', async () => {
       const threeVaults = [makeLiquidVault(), makeLiquidVault(), makeLiquidVault()];
-      // liquid_vaults.length = 3, so vinFundIdx = 3
       mockVaultApiRepoLiquidGetCtx.mockReturnValue({
         ...mockLiquidCtx,
         liquid_vaults: threeVaults,
@@ -1389,10 +1543,10 @@ describe('executeLiquidation', () => {
         })
       );
 
-      const batchCallArg = mockWallet.sign.batch.mock.calls[0][0];
-      const [, utxoManifest] = batchCallArg[0];
-      // 3 liquid vaults → vinFundIdx = 3; 1 UTXO → index [3]
-      expect(utxoManifest['tb1qsegwit000000000000000000000000000000']).toEqual([3]);
+      const vaultCtx = mockWallet.vault.repo.ctx.mock.results[0].value;
+      expect(vaultCtx.__create_psbts).toHaveBeenCalledWith(allUtxos, {
+        liquid_profiles: threeVaults,
+      });
     });
 
     it('should pass liquidVaults.length to wallet.vault.repo.quote', async () => {

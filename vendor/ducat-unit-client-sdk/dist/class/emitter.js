@@ -1,50 +1,59 @@
 export class EventEmitter {
     constructor() {
-        this._getHandlers = (event) => {
-            let events = this._events.get(event);
-            if (events === undefined) {
-                events = new Set();
-                this._events.set(event, events);
+        this.eventMap = new Map();
+    }
+    getEventHandlers(eventName) {
+        const handlers = this.eventMap.get(eventName);
+        if (!handlers) {
+            const newHandlers = new Set();
+            this.eventMap.set(eventName, newHandlers);
+            return newHandlers;
+        }
+        return handlers;
+    }
+    has(eventName) {
+        const handlers = this.eventMap.get(eventName);
+        return handlers !== undefined && handlers.size > 0;
+    }
+    on(eventName, handler) {
+        this.getEventHandlers(eventName).add(handler);
+    }
+    once(eventName, handler) {
+        const oneTimeHandler = (...args) => {
+            this.off(eventName, oneTimeHandler);
+            void handler(...args);
+        };
+        this.on(eventName, oneTimeHandler);
+    }
+    within(eventName, handler, timeoutMs) {
+        const timeoutHandler = (...args) => {
+            void handler(...args);
+        };
+        setTimeout(() => {
+            this.off(eventName, timeoutHandler);
+        }, timeoutMs);
+        this.on(eventName, timeoutHandler);
+    }
+    emit(eventName, ...args) {
+        const promises = [];
+        this.getEventHandlers(eventName).forEach(handler => {
+            const result = handler(...args);
+            if (result instanceof Promise) {
+                promises.push(result);
             }
-            return events;
-        };
-        this.has = (event) => {
-            const res = this._events.get(event);
-            return (res instanceof Set && res.size > 0);
-        };
-        this.on = (event, fn) => {
-            void this._getHandlers(event).add(fn);
-        };
-        this.once = (event, fn) => {
-            const onceFn = (payload) => {
-                this.remove(event, onceFn);
-                void fn.apply(this, [payload]);
-            };
-            this.on(event, onceFn);
-        };
-        this.within = (event, fn, timeout) => {
-            const withinFn = (payload) => {
-                void fn.apply(this, [payload]);
-            };
-            setTimeout(() => { this.remove(event, withinFn); }, timeout);
-            this.on(event, withinFn);
-        };
-        this.emit = (event, payload) => {
-            const methods = [];
-            this._getHandlers(event).forEach((fn) => {
-                methods.push(fn.apply(this, [payload]));
-            });
-            this._getHandlers('*').forEach((fn) => {
-                methods.push(fn.apply(this, [event, payload]));
-            });
-            void Promise.allSettled(methods);
-        };
-        this.remove = (event, fn) => {
-            this._getHandlers(event).delete(fn);
-        };
-        this.clear = (event) => {
-            this._events.delete(event);
-        };
-        this._events = new Map();
+        });
+        this.getEventHandlers('*').forEach(handler => {
+            const result = handler(eventName, ...args);
+            if (result instanceof Promise) {
+                promises.push(result);
+            }
+        });
+        void Promise.allSettled(promises);
+    }
+    off(eventName, handler) {
+        this.getEventHandlers(eventName).delete(handler);
+    }
+    clear(eventName) {
+        this.eventMap.delete(eventName);
     }
 }

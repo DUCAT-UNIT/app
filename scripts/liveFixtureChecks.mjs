@@ -48,7 +48,7 @@ function getEsploraUrl(env) {
   return envValue(
     env,
     'DUCAT_LIVE_ESPLORA_API_URL',
-    envValue(env, 'EXPO_PUBLIC_ESPLORA_API_URL', 'https://mutinynet.com/api')
+    envValue(env, 'EXPO_PUBLIC_ESPLORA_API_URL', 'https://explorer-mutinynet.dev.ducatprotocol.com/api')
   ).replace(/\/+$/, '');
 }
 
@@ -57,15 +57,12 @@ function getSepoliaRpcUrl(env) {
 }
 
 function getLiquidationValidatorUrl(env) {
-  const configured = envValue(env, 'EXPO_PUBLIC_LIQ_VALIDATOR_URL');
-  if (configured) return configured.replace(/\/+$/, '');
-
-  const vaultApi = envValue(
+  const configured = envValue(
     env,
-    'EXPO_PUBLIC_VAULT_API_URL',
-    'https://validator.ducatprotocol.com/api'
+    'EXPO_PUBLIC_LIQ_VALIDATOR_URL',
+    envValue(env, 'EXPO_PUBLIC_VALIDATOR_URL', 'https://validator-mutinynet.dev.ducatprotocol.com')
   );
-  return vaultApi.replace(/\/api\/?$/, '/liq').replace(/\/+$/, '');
+  return configured.replace(/\/api\/?$/, '').replace(/\/liq\/?$/, '').replace(/\/+$/, '');
 }
 
 function getRequiredEvmAddress(env, name) {
@@ -265,18 +262,16 @@ export async function checkBridgePoolLiquidity(env = process.env) {
 
 export async function checkLiquidationAvailability(env = process.env) {
   const liquidationUrl = getLiquidationValidatorUrl(env);
-  const vaults = await fetchJson(`${liquidationUrl}/api/liquidated`);
-  if (!Array.isArray(vaults)) {
-    throw new Error('Liquidation validator returned a non-array liquidated vault response.');
-  }
+  const stats = await fetchJson(`${liquidationUrl}/api/liquid/stats`);
+  const availableVaults = Number(stats?.data?.total_count ?? stats?.total_count ?? 0);
 
   return {
     id: 'liquidation-availability',
-    passed: vaults.length > 0,
+    passed: availableVaults > 0,
     liquidationUrl,
-    availableVaults: vaults.length,
+    availableVaults,
     error:
-      vaults.length > 0
+      availableVaults > 0
         ? null
         : 'Liquidation validator has no liquidatable vaults available for a live claim.',
   };

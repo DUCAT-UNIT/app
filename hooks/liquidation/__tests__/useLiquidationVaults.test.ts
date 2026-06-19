@@ -29,10 +29,18 @@ jest.mock('../../../services/balanceService', () => ({
   fetchBtcPrice: jest.fn(),
 }));
 
+jest.mock('../../../services/oracleService', () => ({
+  fetchBreachedPriceContracts: jest.fn(),
+}));
+
 jest.mock('../../../services/liquidation/calculations', () => ({
   computeLiquidVaultProfiles: jest.fn(),
   getMaxInvest: jest.fn(),
   getAvailableCollateralBtc: jest.fn(),
+}));
+
+jest.mock('../../../services/liquidation/spendability', () => ({
+  filterUnspentLiquidVaultProfiles: jest.fn(async (profiles) => profiles),
 }));
 
 jest.mock('../../../utils/logger', () => ({
@@ -47,17 +55,21 @@ jest.mock('../../../utils/logger', () => ({
 import { fetchLiquidatableVaults } from '../../../services/liquidation/fetchVaults';
 import { fetchProtocolContract, prefetchProtocolContract } from '../../../services/vaultWallet';
 import { fetchBtcPrice } from '../../../services/balanceService';
+import { fetchBreachedPriceContracts } from '../../../services/oracleService';
 import {
   computeLiquidVaultProfiles,
   getMaxInvest,
   getAvailableCollateralBtc,
 } from '../../../services/liquidation/calculations';
+import { filterUnspentLiquidVaultProfiles } from '../../../services/liquidation/spendability';
 
 const mockFetchVaults = fetchLiquidatableVaults as jest.Mock;
 const mockFetchContract = fetchProtocolContract as jest.Mock;
 const mockPrefetchContract = prefetchProtocolContract as jest.Mock;
 const mockFetchBtcPrice = fetchBtcPrice as jest.Mock;
+const mockFetchBreachedPriceContracts = fetchBreachedPriceContracts as jest.Mock;
 const mockComputeProfiles = computeLiquidVaultProfiles as jest.Mock;
+const mockFilterUnspentProfiles = filterUnspentLiquidVaultProfiles as jest.Mock;
 const mockGetMaxInvest = getMaxInvest as jest.Mock;
 const mockGetAvailableCollateral = getAvailableCollateralBtc as jest.Mock;
 
@@ -147,7 +159,9 @@ describe('useLiquidationVaults', () => {
     mockFetchContract.mockResolvedValue(MOCK_CONTRACT);
     mockPrefetchContract.mockImplementation(() => undefined);
     mockFetchBtcPrice.mockResolvedValue(null);
+    mockFetchBreachedPriceContracts.mockResolvedValue([]);
     mockComputeProfiles.mockReturnValue([]);
+    mockFilterUnspentProfiles.mockImplementation(async (profiles) => profiles);
     mockGetMaxInvest.mockReturnValue({
       maxInvestBtc: 0,
       maxClaimAmountBtc: 0,
@@ -203,7 +217,7 @@ describe('useLiquidationVaults', () => {
           await result.current!.refreshLiqVaults();
         });
 
-        expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 80_000, MOCK_CONTRACT);
+        expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 80_000, MOCK_CONTRACT, []);
       });
 
       it('should fetch BTC price directly when props and validator vaults do not provide one', async () => {
@@ -219,7 +233,7 @@ describe('useLiquidationVaults', () => {
         });
 
         expect(mockFetchBtcPrice).toHaveBeenCalled();
-        expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 81_000, MOCK_CONTRACT);
+        expect(mockComputeProfiles).toHaveBeenCalledWith(rawVaults, 81_000, MOCK_CONTRACT, []);
         expect(useLiquidationFlowStore.getState().fetchStatus).toBe('loaded');
       });
 

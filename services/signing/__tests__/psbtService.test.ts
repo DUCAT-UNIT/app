@@ -432,6 +432,28 @@ describe('psbtService', () => {
       expect(mockFinalizeInput).not.toHaveBeenCalled();
     });
 
+    it('should skip requested inputs that are already signed', async () => {
+      const mockInput = {
+        witnessUtxo: {
+          script: Buffer.from('0014' + '00'.repeat(20), 'hex'),
+          value: BigInt(10000),
+        },
+        partialSig: [{
+          pubkey: Buffer.alloc(33, 0x02),
+          signature: Buffer.alloc(72, 0x30),
+        }],
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(createMockPsbt([mockInput]));
+
+      const result = await signPsbtRaw('test_psbt_base64', {
+        'tb1qtest': [0],
+      }, { recipient: 'recipient', change: 'recipient', minAmountSats: 0 });
+
+      expect(result).toBe('signed_psbt_base64');
+      expect(mockSignInput).not.toHaveBeenCalled();
+      expect(mockUpdateInput).not.toHaveBeenCalled();
+    });
+
     it('should sign Taproot key-path inputs', async () => {
       const mockInput = {
         witnessUtxo: {

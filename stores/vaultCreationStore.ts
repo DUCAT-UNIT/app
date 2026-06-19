@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logger } from '../utils/logger';
+import { VAULT_CONFIG } from '../utils/constants';
 import {
   computeHealthFactor,
   computeLiquidationPrice,
@@ -91,7 +92,7 @@ const initialState: VaultCreationState = {
   btcAmount: 0,
   unitAmount: 0,
   receiveAsset: 'UNIT',
-  selectedFeeRate: 1, // Default 1 sat/vB
+  selectedFeeRate: VAULT_CONFIG.DEFAULT_FEE_RATE,
   bitcoinPrice: null,
   currentStep: 'amounts',
   processingStep: 1,

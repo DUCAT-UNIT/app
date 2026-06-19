@@ -10,4 +10,4 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'transaction-history-row-0-amount'
     timeout: 10000
 - assertVisible:
-    text: '1.00'
+    text: '1,200.00'

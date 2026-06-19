@@ -1,9 +1,9 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Live regression for the "first repay passes, second repay fails" class.
-# Runs two tiny on-chain UNIT repayments against the same real vault.
+# Runs two on-chain UNIT repayments against the same real vault.
 
-- runFlow: setup-reviewer-wallet.yaml
+- runFlow: ../helpers/create-wallet-with-vault.yaml
 
 - extendedWaitUntil:
     visible:
@@ -24,7 +24,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'vault-repay-amount-input'
     timeout: 5000
 - eraseText
-- inputText: '0.01'
+- inputText: '1'
 - tapOn:
     id: 'vault-repay-amount-done-btn'
 - waitForAnimationToEnd
@@ -105,7 +105,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'vault-repay-amount-input'
     timeout: 5000
 - eraseText
-- inputText: '0.01'
+- inputText: '1'
 - tapOn:
     id: 'vault-repay-amount-done-btn'
 - waitForAnimationToEnd

@@ -35,6 +35,7 @@ export const formatAction = (action: string): string => {
     'withdraw': 'Withdraw',
     'liquidate': 'Repossess',
     'repo': 'Repossess',
+    'trim': 'Repossess',
     'repossess': 'Repossess',
     'swap': 'Swap',
   };

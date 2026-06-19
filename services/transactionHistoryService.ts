@@ -6,15 +6,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodeRunestone } from '../utils/runestoneEncoder';
 import { fetchVaultHistory } from './vaultService';
-import { getAddressTxsUrl } from '../utils/constants';
+import { getAddressTxsUrl, RUNES_CONFIG } from '../utils/constants';
 import { logger } from '../utils/logger';
 import { getWithRetry } from '../utils/apiClient';
 import { withTimeout } from '../utils/withTimeout';
 import type { FetchVaultHistoryOptions } from './vaultService';
 
-// UNIT•RUNE identifier
-const UNIT_RUNE_BLOCK = 1527352n;
-const UNIT_RUNE_TX = 1n;
 const HISTORY_SOURCE_TIMEOUT_MS = 15_000;
 
 export interface TransactionOutput {
@@ -282,8 +279,9 @@ export const parseRuneTransfer = (
     }
 
     // Find UNIT rune edicts
+    const unitRuneId = RUNES_CONFIG.DUCAT_UNIT_RUNE_ID;
     const unitEdicts = runestone.edicts.filter(
-      (edict) => edict.id.block === UNIT_RUNE_BLOCK && edict.id.tx === UNIT_RUNE_TX
+      (edict) => edict.id.block === unitRuneId.block && edict.id.tx === unitRuneId.tx
     );
 
     if (unitEdicts.length === 0) {
@@ -497,6 +495,7 @@ export const fetchAllTransactionHistory = async (
         liquidate: 'Repossess',
         repossess: 'Repossess',
         repo: 'Repossess',
+        trim: 'Repossess',
       };
       return actionMap[action.toLowerCase()] || action;
     };
@@ -587,6 +586,42 @@ export const fetchAllTransactionHistory = async (
     for (const [txid, tx] of txMap) {
       if (!tx.vaultTransaction && tx.status.block_time && repoTimestamps.has(tx.status.block_time)) {
         txMap.delete(txid);
+      }
+    }
+  }
+
+  // Filter out blockchain "Sent UNIT" rows that are the companion issue tx for
+  // indexed Open/Borrow vault actions. The validator history exposes the vault
+  // txid, while the paired issue tx can still appear in address history.
+  const vaultIssueKeys = new Set<string>();
+  for (const tx of txMap.values()) {
+    const action = tx.vaultData?.action?.toLowerCase();
+    const unitAmount = tx.vaultData?.unitAmount ?? 0;
+    if (
+      tx.vaultTransaction &&
+      tx.status.block_time &&
+      (action === 'open' || action === 'borrow') &&
+      Number.isFinite(unitAmount) &&
+      unitAmount > 0
+    ) {
+      vaultIssueKeys.add(`${tx.status.block_time}:${Math.round(unitAmount)}`);
+    }
+  }
+  if (vaultIssueKeys.size > 0) {
+    for (const [txid, tx] of txMap) {
+      if (tx.vaultTransaction || !tx.status.block_time) {
+        continue;
+      }
+      const amount = calculateTransactionAmount(tx, segwitAddress, taprootAddress);
+      if (amount.type !== 'UNIT' || amount.amount >= 0n) {
+        continue;
+      }
+      const issueAmount = -amount.amount;
+      if (issueAmount <= BigInt(Number.MAX_SAFE_INTEGER)) {
+        const key = `${tx.status.block_time}:${issueAmount.toString()}`;
+        if (vaultIssueKeys.has(key)) {
+          txMap.delete(txid);
+        }
       }
     }
   }

@@ -143,8 +143,14 @@ function unitUtxo(txid: string, amount = 5000) {
     txid,
     vout: 0,
     value: 10_000,
-    runes: new Map([['DUCAT•UNIT•RUNE', { amount, divisibility: 2, symbol: 'UNIT' }]]),
+    runes: new Map([[VAULT_CONFIG.RUNE_LABEL, { amount, divisibility: 2, symbol: 'UNIT' }]]),
   };
+}
+
+async function flushPromises(count = 20): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await Promise.resolve();
+  }
 }
 
 function configure({
@@ -494,6 +500,47 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(mockMarkNeedsRetry).not.toHaveBeenCalled();
     expect(mockRawRepay).toHaveBeenCalledTimes(1);
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+  });
+
+  it('waits for a pending TurboUNIT melt output to become visible before raw repay', async () => {
+    jest.useFakeTimers();
+    configure({ repayFundingAsset: 'TURBOUNIT' });
+    mockRuneUtxos
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([unitUtxo('pending-melt-txid')]);
+    (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
+    const pendingMeltError = Object.assign(
+      new Error('Mint did not confirm the withdrawal. State: PENDING.'),
+      {
+        meltState: 'PENDING',
+        meltTxid: 'pending-melt-txid:0',
+      }
+    );
+    (completeMelt as jest.Mock).mockRejectedValueOnce(pendingMeltError);
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+    let repayPromise: Promise<unknown>;
+
+    await act(async () => {
+      repayPromise = result.current.repay();
+      await flushPromises();
+    });
+
+    expect(mockRuneUtxos).toHaveBeenCalledTimes(1);
+    expect(mockRawRepay).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(5_000);
+      await flushPromises();
+      repayResult = await repayPromise;
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(mockRuneUtxos).toHaveBeenCalledTimes(2);
+    expect(mockRawRepay).toHaveBeenCalledTimes(1);
+    expect(mockSetCashuMeltTxid).toHaveBeenCalledWith('pending-melt-txid');
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+    jest.useRealTimers();
   });
 
   it('retries TurboUNIT raw repay when Guardian rejects before the melt tx propagates', async () => {

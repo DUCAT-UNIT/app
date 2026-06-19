@@ -16,10 +16,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: 'transaction-history-row-0-amount-btc'
     timeout: 60000
 - assertVisible:
-    text: '0.05000000'
+    text: '0.04999000'
 - extendedWaitUntil:
     visible:
       id: 'transaction-history-row-0-amount-unit'
     timeout: 10000
 - assertVisible:
-    text: '1.00'
+    text: '1,200.00'

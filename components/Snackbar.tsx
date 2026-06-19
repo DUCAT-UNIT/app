@@ -29,6 +29,7 @@ const ACTION_LABELS: Record<string, string> = {
   btc_claim: 'BTC Claim',
   liquidation: 'Vault Liquidation',
   repossess: 'Liquidation Claim',
+  trim: 'Liquidation Claim',
   conversion_turbo: 'Conversion to Turbo Unit',
   convert: 'TurboUNIT Conversion',
 };
@@ -126,6 +127,7 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   btc_claim: 'BTC claimed successfully',
   liquidation: 'Vault liquidation processed',
   repossess: 'Liquidation claim completed',
+  trim: 'Liquidation claim completed',
   conversion_turbo: 'Converted to Turbo UNIT',
   convert: 'TurboUNIT conversion completed',
 };

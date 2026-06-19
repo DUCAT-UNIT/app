@@ -1,0 +1,18 @@
+import type { VaultBorrowRequest, VaultDepositRequest, VaultCloseRequest, VaultRepayRequest, VaultRepoRequest, VaultTrimRequest, VaultOpenRequest, VaultWithdrawRequest } from '@ducat-unit/core';
+import type { VaultOpenRequestConfig, VaultBorrowRequestConfig, VaultRepayRequestConfig, VaultDepositRequestConfig, VaultCloseRequestConfig, VaultWithdrawRequestConfig, VaultRepoRequestConfig, VaultTrimRequestConfig } from '../../../types/index.js';
+export declare function validate_vault_open_config(req_config: unknown): asserts req_config is VaultOpenRequestConfig;
+export declare function validate_vault_borrow_config(req_config: unknown): asserts req_config is VaultBorrowRequestConfig;
+export declare function validate_vault_repay_config(req_config: unknown): asserts req_config is VaultRepayRequestConfig;
+export declare function validate_vault_deposit_config(req_config: unknown): asserts req_config is VaultDepositRequestConfig;
+export declare function validate_vault_withdraw_config(req_config: unknown): asserts req_config is VaultWithdrawRequestConfig;
+export declare function validate_vault_close_config(req_config: unknown): asserts req_config is VaultCloseRequestConfig;
+export declare function validate_vault_repo_config(req_config: unknown): asserts req_config is VaultRepoRequestConfig;
+export declare function validate_vault_trim_config(req_config: unknown): asserts req_config is VaultTrimRequestConfig;
+export declare function validate_vault_open_request(request: unknown): asserts request is VaultOpenRequest;
+export declare function validate_vault_borrow_request(request: unknown): asserts request is VaultBorrowRequest;
+export declare function validate_vault_repay_request(request: unknown): asserts request is VaultRepayRequest;
+export declare function validate_vault_deposit_request(request: unknown): asserts request is VaultDepositRequest;
+export declare function validate_vault_withdraw_request(request: unknown): asserts request is VaultWithdrawRequest;
+export declare function validate_vault_close_request(request: unknown): asserts request is VaultCloseRequest;
+export declare function validate_vault_repo_request(request: unknown): asserts request is VaultRepoRequest;
+export declare function validate_vault_trim_request(request: unknown): asserts request is VaultTrimRequest;

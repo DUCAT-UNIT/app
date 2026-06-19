@@ -1,0 +1,14 @@
+import type { VaultActionConfig, VaultActionContext } from '../../types/index.js';
+export declare function get_vault_action_tx_vsize(action_config: VaultActionConfig, action_ctx: VaultActionContext): number;
+export declare function get_vault_action_sigops_count(action_config: VaultActionConfig): number;
+export declare function get_vault_action_sigops_vsize(action_config: VaultActionConfig): number;
+export declare function get_asset_issue_tx_vsize(action_config: VaultActionConfig): number;
+export declare function get_asset_burn_tx_vsize(action_config: VaultActionConfig): number;
+export declare function get_vault_open_tx_vsize(action_config: VaultActionConfig, action_ctx: VaultActionContext): number;
+export declare function get_vault_borrow_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_repay_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_deposit_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_withdraw_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_close_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_repo_tx_vsize(action_ctx: VaultActionContext): number;
+export declare function get_vault_trim_tx_vsize(action_ctx: VaultActionContext): number;

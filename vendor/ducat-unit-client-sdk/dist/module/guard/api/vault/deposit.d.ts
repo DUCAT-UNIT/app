@@ -1,4 +1,4 @@
+import { GuardianClient } from '../../../../module/guard/class/client.js';
 import { SocketSubscription } from '../../../../class/socket.js';
-import { GuardianClient } from '../../class/client.js';
-import type { VaultUpdateSubscription, WalletVaultDepositRequest } from '../../../../types/index.js';
-export default function (client: GuardianClient): (request: WalletVaultDepositRequest) => SocketSubscription<VaultUpdateSubscription>;
+import type { VaultBaseResponse, VaultDepositRequest } from '@ducat-unit/core';
+export declare function deposit_vault_api(client: GuardianClient): (request: VaultDepositRequest) => SocketSubscription<VaultBaseResponse>;

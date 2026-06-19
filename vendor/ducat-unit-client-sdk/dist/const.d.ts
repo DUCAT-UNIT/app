@@ -1,209 +1,30 @@
-declare const _default: {
-    ACCOUNT_POSTAGE: number;
-    BIGINT: {
-        _0: bigint;
-    };
-    COIN_SIZE: number;
-    FETCH_IVAL: number;
-    FLOAT_PREC: number;
-    BLOCK_DURATION: number;
-    DEFAULT_POSTAGE: number;
-    DUST_LIMIT: number;
-    MIN_VAULT_BAL: number;
-    TOPICS: {
-        UNIT_ACCT: "/unit/reserve";
-        VAULT_OPEN: "/vault/open";
-        VAULT_BORROW: "/vault/borrow";
-        VAULT_REPAY: "/vault/repay";
-        VAULT_REPO: "/vault/repo";
-        VAULT_DEPOSIT: "/vault/deposit";
-        VAULT_WITHDRAW: "/vault/withdraw";
-    };
-    TXMAP: {
-        open: {
-            acct_tx: {
-                vin: {
-                    acct: number;
-                };
-                vout: {
-                    acct: number;
-                    conn: number;
-                    unit: number;
-                    stone: number;
-                };
-            };
-            vault_tx: {
-                vin: {
-                    acct: number;
-                    conn: number;
-                };
-                vout: {
-                    acct: number;
-                    token: number;
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        borrow: {
-            acct_tx: {
-                vin: {
-                    acct: number;
-                };
-                vout: {
-                    acct: number;
-                    conn: number;
-                    unit: number;
-                    stone: number;
-                };
-            };
-            vault_tx: {
-                vin: {
-                    vault: number;
-                    conn: number;
-                };
-                vout: {
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        repay: {
-            acct_tx: {
-                vin: {
-                    acct: number;
-                };
-                vout: {
-                    acct: number;
-                    conn: number;
-                    unit: number;
-                    stone: number;
-                };
-            };
-            vault_tx: {
-                vin: {
-                    vault: number;
-                    conn: number;
-                };
-                vout: {
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        deposit: {
-            vault_tx: {
-                vin: {
-                    vault: number;
-                };
-                vout: {
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        withdraw: {
-            vault_tx: {
-                vin: {
-                    vault: number;
-                };
-                vout: {
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        repo: {
-            vault_tx: {
-                vin: {
-                    vault: number;
-                    conn: number;
-                };
-                vout: {
-                    vault: number;
-                    change: number;
-                    vdata: number;
-                };
-            };
-        };
-        liquidate: {
-            vault_tx: {
-                vin: {
-                    vault: number;
-                };
-                vout: {
-                    vault: number;
-                    conn: number;
-                    vdata: number;
-                };
-            };
-        };
-    };
-    UNIT_RUNE_LBL: string;
-    UNSPENDABLE_KEY: string;
-    VAULT_VERSION: number;
-    VDATA_MAX_SIZE: number;
-    VDATA_MIN_SIZE: number;
-    TXSIZE: {
-        ACTION: {
-            VAULT_OPEN: number;
-            VAULT_BORROW: number;
-            VAULT_REPAY: number;
-            VAULT_LIQUID: number;
-            VAULT_DEPOSIT: number;
-            VAULT_WITHDRAW: number;
-        };
-        BASE: {
-            TX: number;
-            TXIN: number;
-            TXOUT: number;
-        };
-        RETURN: {
-            RUNE: number;
-            VDATA: number;
-        };
-        WITNESS: {
-            P2SH: number;
-            P2WPKH: number;
-            P2TR: number;
-            VAULT_VTKN: number;
-            VAULT_SIGN: number;
-            VAULT_REPO: number;
-        };
-        TX: {
-            GUARD_ACCOUNT: number;
-            VAULT_OPEN: number;
-            VAULT_CONN: number;
-            VAULT_UPDATE: number;
-            VAULT_LIQUID: number;
-        };
-        TXIN: {
-            P2SH: number;
-            P2WK: number;
-            P2TR: number;
-        };
-        TXOUT: {
-            P2SH: number;
-            P2WK: number;
-            P2TR: number;
-            RUNE_CHANGE: number;
-            SATS_CHANGE: number;
-            VAULT_CONN: number;
-        };
-        TXIO: {
-            GUARD_ACCOUNT: number;
-            LIQUID_VAULT: number;
-            VAULT_VTKN: number;
-            VAULT_SPND: number;
-            VAULT_CONN: number;
-        };
-    };
-    POINTER: typeof import("./config/postmap.js").POINTER;
-    POSTAGE: typeof import("./config/postmap.js").POSTAGE;
+import { TXMAP } from '@ducat-unit/core/const';
+import SIGCOUNT from './const/sigcount.json';
+import TOPICS from './const/topics.json';
+import * as TXSIZE from './const/txsize.js';
+import type { VaultAction } from '@ducat-unit/core';
+export { SIGCOUNT, TOPICS, TXSIZE };
+export declare const TXMAP: any;
+export declare const SATS_PER_BTC = 100000000n;
+export declare const BIGINT: {
+    _0: bigint;
+    _MAX: bigint;
 };
-export default _default;
+export declare const FLOAT_PRECISION = 4;
+export declare const OUTPUT_CODES: number[];
+export declare const COSIGN_CODES: readonly [...number[], number];
+export declare const LIQUID_CODES: readonly [number];
+export declare const SIGOPS_CODES: readonly [...number[], number, number];
+export declare const TAPLEAF_VERSION = 81;
+export declare const DEFAULT_POSTAGE = 1000;
+export declare const DUST_LIMIT = 546;
+export declare const FEERATE_TOLERANCE = 0.1;
+export declare const NO_FUND_ACTIONS: VaultAction[];
+export declare const MAX_GUARD_COUNT = 3;
+export declare const MAX_ORACLE_COUNT = 3;
+export declare const PSBT_CONFIG: {
+    allowUnknownOutputs: boolean;
+    version: number;
+};
+export declare const SUB_TIMEOUT = 5000;
+export declare const VAULT_VERSION = 1;

@@ -1,0 +1,10 @@
+{
+    "VAULT_OPEN": 2,
+    "VAULT_BORROW": 2,
+    "VAULT_REPAY": 2,
+    "VAULT_CLOSE": 1,
+    "VAULT_REPO": 1,
+    "VAULT_TRIM": 2,
+    "VAULT_DEPOSIT": 1,
+    "VAULT_WITHDRAW": 1
+}

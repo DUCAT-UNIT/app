@@ -18,7 +18,10 @@ import {
 } from '../../services/liquidation/liquidationSwapBroadcastRecovery';
 import { registerSwapTxid } from '../../services/transactionHistoryService';
 import type { LiquidVaultProfileWithMeta } from '../../services/liquidation/types';
-import { usePendingVaultTransactionStore } from '../../stores/pendingVaultTransactionStore';
+import {
+  usePendingVaultTransactionStore,
+  type VaultAction,
+} from '../../stores/pendingVaultTransactionStore';
 import { useLiquidationFlowStore } from '../../stores/liquidationFlowStore';
 import { useSwapDiagnosticsStore } from '../../stores/swapDiagnosticsStore';
 import { logger } from '../../utils/logger';
@@ -53,6 +56,24 @@ interface UseLiquidationExecutionReturn {
   execute: () => Promise<void>;
   resetAfterSuccess: () => void;
   resetAfterError: () => void;
+}
+
+function hasPartialLiquidationSelection(vaults: LiquidVaultProfileWithMeta[]): boolean {
+  return vaults.some((vault) => {
+    const claimAmountPartial = Number(vault.claimAmountPartial);
+    const claimAmountBtc = Number(vault.claimAmountBtc);
+    const claimAmountDiff = Number(vault.claimAmountDiff);
+
+    return (
+      (Number.isFinite(claimAmountDiff) && claimAmountDiff > 0) ||
+      (
+        Number.isFinite(claimAmountPartial) &&
+        claimAmountPartial > 0 &&
+        Number.isFinite(claimAmountBtc) &&
+        claimAmountPartial < claimAmountBtc
+      )
+    );
+  });
 }
 
 export function useLiquidationExecution({
@@ -186,12 +207,15 @@ export function useLiquidationExecution({
       );
       const unitAmt = Math.round(selectedVaults.reduce((acc, v) => acc + v.unit, 0) * 100);
       const swapUnitAmount = selectedVaults.reduce((acc, v) => acc + v.unit, 0);
+      const pendingLiquidationAction: VaultAction = hasPartialLiquidationSelection(selectedVaults)
+        ? 'trim'
+        : 'repo';
 
       const persistRepoPendingTransaction = async (txid: string, vaultTxid?: string) => {
         await usePendingVaultTransactionStore.getState().setPendingTransactionForAccount({
           txid,
           vaultTxid,
-          action: 'repo' as const,
+          action: pendingLiquidationAction,
           btcAmt: Math.round(deficitBtc * 100_000_000),
           unitAmt,
           timestamp: Date.now(),
@@ -254,8 +278,9 @@ export function useLiquidationExecution({
         // Add as pending vault transaction
         if (result.txid) {
           await persistRepoPendingTransaction(result.txid, result.vaultTxid).catch((pendingError) => {
-            logger.error('[Liquidation] Repo submitted but pending vault lock could not be persisted', {
+            logger.error('[Liquidation] Liquidation submitted but pending vault lock could not be persisted', {
               txid: result.txid,
+              action: pendingLiquidationAction,
               error: pendingError instanceof Error ? pendingError.message : String(pendingError),
             });
           });

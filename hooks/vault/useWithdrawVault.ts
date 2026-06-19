@@ -173,10 +173,10 @@ function createWithdrawPendingTransaction(params: PendingTransactionParams<Withd
 } {
   const { config, result, taprootPubkey } = params;
   return {
-    txid: result.vaultTxid,
-    vaultTxid: result.vaultTxid,
+    txid: result.vaultTxid ?? result.txid ?? '',
+    vaultTxid: result.vaultTxid ?? result.txid ?? '',
     action: 'withdraw',
-    btcAmt: config.change_amount, // In sats (uses change_amount in SDK)
+    btcAmt: config.change_amount ?? config.withdraw_amount ?? 0, // In sats
     unitAmt: 0,
     timestamp: Date.now(),
     vaultPubkey: taprootPubkey,

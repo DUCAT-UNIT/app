@@ -76,6 +76,7 @@ jest.mock('../../guardianService', () => ({
 jest.mock('../../../utils/constants', () => ({
   API: {
     ORD_BASE: 'https://ord.test',
+    VAULT: 'https://validator.test/api',
   },
   VAULT_CONFIG: {
     VIN_ALLOWANCE: 200,
@@ -124,7 +125,6 @@ import {
   type MockTxForPrevout,
   type MockVaultHistoryTx,
 } from './mockTypes';
-import { OracleAPI } from '@ducat-unit/client-sdk';
 import { getJsonWithNativeTimeout } from '../../../utils/nativeHttp';
 
 describe('Vault Utils', () => {
@@ -317,6 +317,9 @@ describe('Vault Utils', () => {
       expect(normalizeVaultAction('Deposit')).toBe('d');
       expect(normalizeVaultAction('Withdraw')).toBe('w');
       expect(normalizeVaultAction('Liquidate')).toBe('l');
+      expect(normalizeVaultAction('Liquidation')).toBe('l');
+      expect(normalizeVaultAction('Repo')).toBe('l');
+      expect(normalizeVaultAction('Trim')).toBe('l');
       expect(normalizeVaultAction('Close')).toBe('x');
     });
 
@@ -327,6 +330,9 @@ describe('Vault Utils', () => {
       expect(normalizeVaultAction('deposit')).toBe('d');
       expect(normalizeVaultAction('withdraw')).toBe('w');
       expect(normalizeVaultAction('liquidate')).toBe('l');
+      expect(normalizeVaultAction('liquidation')).toBe('l');
+      expect(normalizeVaultAction('repo')).toBe('l');
+      expect(normalizeVaultAction('trim')).toBe('l');
       expect(normalizeVaultAction('close')).toBe('x');
     });
 
@@ -441,13 +447,9 @@ describe('Vault Utils', () => {
     const mockGetJsonWithNativeTimeout = getJsonWithNativeTimeout as jest.MockedFunction<
       typeof getJsonWithNativeTimeout
     >;
-    const mockFetchVaultPrevout = OracleAPI.vault.fetch_vault_prevout as jest.MockedFunction<
-      typeof OracleAPI.vault.fetch_vault_prevout
-    >;
 
     beforeEach(() => {
       mockGetJsonWithNativeTimeout.mockReset();
-      mockFetchVaultPrevout.mockReset();
     });
 
     function makePrevout(txid: string, vout = 0) {
@@ -476,48 +478,83 @@ describe('Vault Utils', () => {
 
       mockGetJsonWithNativeTimeout.mockImplementation(async (url: string) => {
         const match = /\/tx\/([^/]+)\/outspend\/(\d+)$/.exec(url);
-        const txid = match?.[1];
-        const index = txids.indexOf(txid || '');
+        if (match) {
+          const txid = match[1];
+          const index = txids.indexOf(txid || '');
 
-        if (index >= 0 && index < replacementCount) {
+          if (index >= 0 && index < replacementCount) {
+            return {
+              spent: true,
+              txid: txids[index + 1],
+              vin: 0,
+            };
+          }
+
+          return { spent: false };
+        }
+
+        const latestMatch = /\/vault\/([^/]+)\/latest$/.exec(url);
+        if (latestMatch) {
+          const rootTxid = latestMatch[1];
+          const nextIndex = txids.indexOf(rootTxid) + mockGetJsonWithNativeTimeout.mock.calls
+            .filter(([calledUrl]) => /\/vault\/([^/]+)\/latest$/.test(String(calledUrl)))
+            .length;
           return {
-            spent: true,
-            txid: txids[index + 1],
-            vin: 0,
+            coin_id: `${txids[nextIndex]}:0`,
+            root_txid: txids[0],
+            price_commits: [{ base_price: 50000, thold_hash: 'hash', thold_price: 135 }],
+            price_stamp: 1234567890,
+            unit_balance: 1000,
+            unit_price: 50000,
+            vault_action: 'open',
+            vault_balance: 100000,
+            vault_script: '5120abcd',
           };
         }
 
-        return { spent: false };
+        throw new Error(`unexpected url: ${url}`);
       });
-
-      mockFetchVaultPrevout.mockImplementation(async (_ordUrl, txid) => ({
-        ok: true,
-        status: 200,
-        data: makePrevout(String(txid)),
-      }));
 
       const result = await resolveLatestUnspentVaultPrevout(makePrevout(txids[0]));
 
       expect(result.replaced).toBe(true);
       expect(result.hopCount).toBe(replacementCount);
       expect(result.prevout.utxo.txid).toBe(txids[replacementCount]);
-      expect(mockFetchVaultPrevout).toHaveBeenCalledTimes(replacementCount);
+      expect(
+        mockGetJsonWithNativeTimeout.mock.calls.filter(([url]) =>
+          /\/vault\/([^/]+)\/latest$/.test(String(url))
+        )
+      ).toHaveLength(replacementCount);
     });
 
     it('should still fail closed when the spend chain exceeds the hard cap', async () => {
       mockGetJsonWithNativeTimeout.mockImplementation(async (url: string) => {
         const match = /\/tx\/([^/]+)\/outspend\/(\d+)$/.exec(url);
-        return {
-          spent: true,
-          txid: `${match?.[1] || 'unknown'}-spend`,
-          vin: 0,
-        };
+        if (match) {
+          return {
+            spent: true,
+            txid: `${match[1]}-spend`,
+            vin: 0,
+          };
+        }
+
+        const latestMatch = /\/vault\/([^/]+)\/latest$/.exec(url);
+        if (latestMatch) {
+          return {
+            coin_id: `${latestMatch[1]}-spend:0`,
+            root_txid: latestMatch[1],
+            price_commits: [{ base_price: 50000, thold_hash: 'hash', thold_price: 135 }],
+            price_stamp: 1234567890,
+            unit_balance: 1000,
+            unit_price: 50000,
+            vault_action: 'open',
+            vault_balance: 100000,
+            vault_script: '5120abcd',
+          };
+        }
+
+        throw new Error(`unexpected url: ${url}`);
       });
-      mockFetchVaultPrevout.mockImplementation(async (_ordUrl, txid) => ({
-        ok: true,
-        status: 200,
-        data: makePrevout(String(txid)),
-      }));
 
       await expect(resolveLatestUnspentVaultPrevout(makePrevout('loop-tx-start'), 1)).rejects.toThrow(
         'Could not resolve the latest vault UTXO before the safety hop limit.'
@@ -559,6 +596,72 @@ describe('Vault Utils', () => {
       expect(profile.vault_pk).toBe('vaultpubkey123');
       expect(profile.rdata).toEqual(vaultPrevout.rdata);
       expect(profile.utxo).toEqual(vaultPrevout.utxo);
+    });
+
+    it('should preserve signed latest validator profiles for follow-up actions', () => {
+      const latestProfile = {
+        coin_id: 'txid:0',
+        client_pubkey: 'a'.repeat(64),
+        contract_id: 'b'.repeat(64),
+        guard_members: ['c'.repeat(64)],
+        guard_pubkey: 'c'.repeat(64),
+        price_commits: [
+          {
+            base_price: 50000,
+            oracle_pubkey: 'd'.repeat(64),
+            oracle_sig: 'e'.repeat(128),
+            thold_hash: 'f'.repeat(40),
+            thold_price: 30000,
+          },
+        ],
+        price_stamp: 1234567890,
+        root_txid: '1'.repeat(64),
+        thold_price: 30000,
+        unit_balance: 1000,
+        unit_price: 50000,
+        vault_action: 'open',
+        vault_balance: 100000,
+        vault_config: { label: 'vault-test' },
+        vault_ratio: 2,
+        vault_script: '5120abcd',
+        vault_value: 100000,
+        vault_version: 3,
+      };
+      const vaultPrevout = {
+        rdata: {
+          is_locked: false,
+          thold_hash: 'hash',
+          thold_price: 135,
+          unit_balance: 1000,
+          unit_price: 50000,
+          unit_stamp: 1234567890,
+          vault_action: 'o' as const,
+        },
+        utxo: {
+          value: 100000,
+          script: 'script',
+          txid: 'txid',
+          vout: 0,
+        },
+      };
+
+      const profile = buildVaultProfile('a'.repeat(64), {
+        creation_account: 'acct123',
+        guard_pubkey: 'c'.repeat(64),
+        latest_profile: latestProfile,
+        master_id: 'b'.repeat(64),
+      }, vaultPrevout);
+
+      expect(profile).toMatchObject({
+        coin_id: 'txid:0',
+        client_pubkey: 'a'.repeat(64),
+        price_commits: [
+          expect.objectContaining({
+            oracle_sig: 'e'.repeat(128),
+          }),
+        ],
+      });
+      expect((profile as { rdata?: unknown }).rdata).toBeUndefined();
     });
 
     it('should normalize master_id with i suffix', () => {
@@ -1629,13 +1732,16 @@ describe('Vault Request Creation', () => {
   describe('createVaultReqRepay', () => {
     it('should create repay request with sats and unit UTXOs', async () => {
       const { createVaultReqRepay } = require('../repay');
-      const { VaultAPI } = require('@ducat-unit/client-sdk');
 
       const mockWallet = {
         vault: {
           repay: {
             ctx: jest.fn().mockReturnValue({ repay_amount: 5000, config: 'repay_ctx' }),
             quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+            req: jest.fn().mockResolvedValue({
+              sats_inputs: [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
+              unit_inputs: [{ txid: 'unit_utxo', vout: 0, amount: 5000 }],
+            }),
           },
         },
         fetch: {
@@ -1661,16 +1767,11 @@ describe('Vault Request Creation', () => {
       const result = await createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
 
       expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT', 5000);
-      expect(VaultAPI.repay.create_psbt1).toHaveBeenCalledWith(
+      expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(Array),
-        expect.any(Array)
+        [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
+        [{ txid: 'unit_utxo', vout: 0, amount: 5000 }]
       );
-      expect(VaultAPI.repay.create_psbt2).toHaveBeenCalledWith(
-        expect.anything(),
-        'signed-repay-account-psbt'
-      );
-      expect(mockWallet.sign.psbt).toHaveBeenCalledTimes(2);
       expect(result.sats_inputs).toHaveLength(1);
     });
 
@@ -1680,7 +1781,6 @@ describe('Vault Request Creation', () => {
         createVaultReqRepay,
         setPreferredRepayUnitTxids,
       } = require('../repay');
-      const { VaultAPI } = require('@ducat-unit/client-sdk');
       const directUnitUtxo = {
         txid: 'direct_unit_txid',
         vout: 0,
@@ -1699,6 +1799,10 @@ describe('Vault Request Creation', () => {
           repay: {
             ctx: jest.fn().mockReturnValue({ repay_amount: 5000, config: 'repay_ctx' }),
             quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+            req: jest.fn().mockResolvedValue({
+              sats_inputs: [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
+              unit_inputs: [meltedUnitUtxo],
+            }),
           },
         },
         fetch: {
@@ -1729,9 +1833,9 @@ describe('Vault Request Creation', () => {
       }
 
       expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT');
-      expect(VaultAPI.repay.create_psbt1).toHaveBeenCalledWith(
+      expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(
         expect.anything(),
-        expect.any(Array),
+        [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
         [meltedUnitUtxo]
       );
     });
@@ -1791,7 +1895,7 @@ describe('Vault Request Creation', () => {
       ).rejects.toThrow('No UNIT UTXOs available to repay');
     });
 
-    it('should time out the total repay transaction build when subcalls stall cumulatively', async () => {
+    it('should time out UNIT UTXO fetching when repay inputs stall', async () => {
       jest.useFakeTimers();
 
       try {
@@ -1831,13 +1935,13 @@ describe('Vault Request Creation', () => {
 
         const result = createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
         const expectation = expect(result).rejects.toThrow(
-          'Timed out building the repay transaction. Please try again.'
+          'Timed out fetching UNIT UTXOs for repay. Please try again.'
         );
 
         await jest.advanceTimersByTimeAsync(25_000);
         expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT', 5000);
 
-        await jest.advanceTimersByTimeAsync(20_000);
+        await jest.advanceTimersByTimeAsync(30_000);
         await expectation;
       } finally {
         jest.useRealTimers();
@@ -1871,6 +1975,40 @@ describe('Vault Request Creation', () => {
         withdrawConfig
       );
       expect(result.vault_txid).toBe('withdraw_vault');
+    });
+
+    it('should force zero txfee reserve for compat withdraw contexts', async () => {
+      const { createVaultReqWithdraw } = require('../withdraw');
+
+      const buildBaseConfig = jest.fn((overrides = {}) => ({
+        txfee_reserve: 1000,
+        ...overrides,
+      }));
+      const withdrawCtx = {
+        config: 'withdraw_ctx',
+        __base_config: buildBaseConfig,
+      };
+      const mockWallet = {
+        vault: {
+          withdraw: {
+            ctx: jest.fn().mockReturnValue(withdrawCtx),
+            req: jest.fn().mockImplementation((ctx) => {
+              expect(ctx.__base_config()).toEqual({ txfee_reserve: 0 });
+              return Promise.resolve({
+                vault_txid: 'withdraw_vault',
+              });
+            }),
+          },
+        },
+      };
+
+      const withdrawConfig = { change_amount: 50000, tx_feerate: 3 };
+      const options = { feeRate: 3, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+      const result = await createVaultReqWithdraw(mockWallet as any, withdrawConfig, options);
+
+      expect(result.vault_txid).toBe('withdraw_vault');
+      expect(buildBaseConfig).toHaveBeenCalledWith({ txfee_reserve: 0 });
     });
 
     it('should handle errors during withdraw request creation', async () => {

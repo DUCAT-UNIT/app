@@ -28,7 +28,7 @@ import {
   getSelectionStats,
   getHealthAfterLiquidation,
 } from '../calculations';
-import { COIN_SIZE, DUST_BTC, MIN_COL_RATE, VIN_ALLOWANCE } from '../constants';
+import { COIN_SIZE, DUST_BTC, MIN_COL_RATE } from '../constants';
 import type { LiquidVaultProfileWithMeta } from '../types';
 import type { LiquidVaultProfile } from '@ducat-unit/client-sdk/vault';
 
@@ -42,7 +42,6 @@ jest.mock('@ducat-unit/client-sdk', () => ({
       liquidation: {
         get_profile: jest.fn(),
       },
-      get_tx_quote: jest.fn(),
     },
   },
 }));
@@ -71,7 +70,6 @@ import { formatValidatorResponse } from '../fetchVaults';
 import { fetchProtocolContract } from '../../vaultWallet';
 
 const mockGetProfile = VaultAPI.repo.liquidation.get_profile as jest.Mock;
-const mockGetTxQuote = VaultAPI.repo.get_tx_quote as jest.Mock;
 const mockFormatValidatorResponse = formatValidatorResponse as jest.Mock;
 const mockFetchProtocolContract = fetchProtocolContract as jest.Mock;
 
@@ -430,8 +428,8 @@ describe('computeLiquidVaultProfiles', () => {
         .mockReturnValueOnce(makeLiquidVaultProfile({ profit_margin: 0.05 }));
 
       const result = computeLiquidVaultProfiles([{} as any, {} as any], 80_000, mockContract);
-      expect(result[0].liquid_quote.profit_margin).toBeGreaterThanOrEqual(
-        result[1].liquid_quote.profit_margin
+      expect(result[0].liquid_quote?.profit_margin).toBeGreaterThanOrEqual(
+        result[1].liquid_quote?.profit_margin ?? Number.NEGATIVE_INFINITY
       );
     });
 
@@ -629,6 +627,32 @@ describe('recomputePartialVaultProfile', () => {
     );
   });
 
+  it('uses the selected liquidation profile price instead of the wallet price fallback', async () => {
+    const partialProfile = makeLiquidVaultProfile({
+      deficit_sats: 512_300,
+      unit_balance: 321,
+    });
+    mockGetProfile.mockReturnValue(partialProfile);
+
+    const result = await recomputePartialVaultProfile(
+      makeProfile({
+        claimAmountBtc: 0.01,
+        claimAmountPartial: 0.00512345,
+        liquid_price: 62_000,
+      } as Partial<LiquidVaultProfileWithMeta>),
+      80_000
+    );
+
+    expect(mockGetProfile).toHaveBeenCalledWith(
+      { terms: [] },
+      expect.anything(),
+      'mock-thold-key',
+      62_000,
+      0.5123
+    );
+    expect(result.unitSwapBtc).toBe(3.21 / 62_000);
+  });
+
   it('normalizes partial metadata to the recomputed SDK profile', async () => {
     const partialProfile = makeLiquidVaultProfile({
       deficit_sats: 512_300,
@@ -660,12 +684,10 @@ describe('recomputePartialVaultProfile', () => {
 
 // ============================================================
 
-describe('getMaxInvest', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    // Default: get_tx_quote returns a small cost
-    mockGetTxQuote.mockReturnValue({ total_cost: 500 });
-  });
+  describe('getMaxInvest', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
   const btcPrice = 80_000;
   // 1 BTC wallet = 100_000_000 sats
@@ -760,9 +782,8 @@ describe('getMaxInvest', () => {
     });
   });
 
-  describe('SDK fallback', () => {
-    it('should still return valid result when get_tx_quote throws', () => {
-      mockGetTxQuote.mockImplementation(() => { throw new Error('SDK down'); });
+  describe('fee estimate resilience', () => {
+    it('should still return valid result without a legacy get_tx_quote path', () => {
       const result = getMaxInvest(false, availableCollateral, walletSats, btcPrice, 1, [vault1]);
       expect(result.maxInvestBtc).toBeGreaterThan(0);
     });
@@ -771,11 +792,10 @@ describe('getMaxInvest', () => {
 
 // ============================================================
 
-describe('computeClaimFromInvest', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockGetTxQuote.mockReturnValue({ total_cost: 500 });
-  });
+  describe('computeClaimFromInvest', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
   const vault1 = makeProfile({ vaultId: 'v1', claimAmountBtc: 0.005, unitSwapBtc: 0.00015 });
   const vault2 = makeProfile({ vaultId: 'v2', claimAmountBtc: 0.004, unitSwapBtc: 0.000125 });
@@ -836,8 +856,7 @@ describe('computeClaimFromInvest', () => {
       expect(result.vaultCount).toBe(0);
     });
 
-    it('should handle SDK failure and fall back gracefully in fee calc', () => {
-      mockGetTxQuote.mockImplementation(() => { throw new Error('SDK error'); });
+    it('should not depend on a legacy get_tx_quote path in fee calc', () => {
       expect(() => computeClaimFromInvest(false, 0.01, [vault1], 1)).not.toThrow();
     });
   });
@@ -848,46 +867,23 @@ describe('computeClaimFromInvest', () => {
 describe('getOpCostRepo', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetTxQuote.mockReturnValue({ total_cost: 1000 });
   });
 
   describe('happy path', () => {
     it('should return 0 when vaultCount is 0', () => {
       expect(getOpCostRepo(1, 0)).toBe(0);
-      expect(mockGetTxQuote).not.toHaveBeenCalled();
     });
 
-    it('should return SDK total_cost + VIN_ALLOWANCE × feeRate', () => {
-      const feeRate = 5;
-      const result = getOpCostRepo(feeRate, 1);
-      // SDK returns total_cost = 1000; VIN_ALLOWANCE * feeRate = 350 * 5 = 1750
-      expect(result).toBe(1000 + VIN_ALLOWANCE * feeRate);
+    it('should return a SDK-size-based repo fee estimate', () => {
+      expect(getOpCostRepo(1, 1)).toBe(882);
+      expect(getOpCostRepo(5, 1)).toBe(4410);
     });
 
-    it('should call get_tx_quote with correct vaultCount', () => {
-      getOpCostRepo(2, 3);
-      expect(mockGetTxQuote).toHaveBeenCalledWith(
-        expect.objectContaining({ deposit_amount: 0, tx_feerate: 2 }),
-        3
-      );
-    });
-  });
-
-  describe('SDK fallback', () => {
-    it('should use fallback formula when SDK throws', () => {
-      mockGetTxQuote.mockImplementation(() => { throw new Error('SDK unavailable'); });
-      const feeRate = 2;
-      const vaultCount = 3;
-      const result = getOpCostRepo(feeRate, vaultCount);
-      const expected = 250 * vaultCount * feeRate + VIN_ALLOWANCE * feeRate;
-      expect(result).toBe(expected);
-    });
-
-    it('should scale fallback with vault count', () => {
-      mockGetTxQuote.mockImplementation(() => { throw new Error('fail'); });
+    it('should scale with vault count', () => {
       const single = getOpCostRepo(1, 1);
       const triple = getOpCostRepo(1, 3);
       expect(triple).toBeGreaterThan(single);
+      expect(triple).toBe(1192);
     });
   });
 

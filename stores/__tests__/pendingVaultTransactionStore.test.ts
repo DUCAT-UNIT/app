@@ -32,6 +32,7 @@ jest.mock('../operationJournalStore', () => ({
       case 'withdraw':
         return 'vault_withdraw';
       case 'repo':
+      case 'trim':
         return 'vault_repossess';
       default:
         return 'vault_open';
@@ -110,6 +111,7 @@ describe('pendingVaultTransactionStore', () => {
     ['deposit', 'vault_deposit', 'Vault deposit submitted', 'BTC', '1000'],
     ['withdraw', 'vault_withdraw', 'Vault withdraw submitted', 'BTC', '1000'],
     ['repay', 'vault_repay', 'Vault repay submitted', 'UNIT', '100'],
+    ['trim', 'vault_repossess', 'Vault liquidation submitted', 'UNIT', '100'],
   ] as const)(
     'rehydrates a submitted vault %s after relaunch and records an unsafe recovery journal',
     async (action, kind, label, asset, amount) => {
