@@ -15,6 +15,7 @@ import { satsToBTC } from '../utils/bitcoin/conversions';
 import { e2eVaultState } from '../utils/e2eVaultState';
 import { isE2E } from '../utils/e2e';
 import { logger } from '../utils/logger';
+import { fetchCurrentPrice } from './oracleService';
 
 const BALANCE_FETCH_TIMEOUT = 10000; // 10 seconds
 const OVERALL_FETCH_TIMEOUT = 30000; // 30 seconds - ceiling for entire fetchWalletBalances
@@ -270,6 +271,19 @@ export const fetchUtxos = async (address: string): Promise<UTXO[]> => {
  * @returns BTC price in USD, or null if unavailable
  */
 export const fetchBtcPrice = async (): Promise<number | null> => {
+  try {
+    const price = await fetchCurrentPrice();
+    if (isValidUsdPrice(price)) {
+      return price;
+    }
+
+    logger.warn('[balanceService] Oracle relay returned invalid BTC price', { price });
+  } catch (error: unknown) {
+    logger.debug('[balanceService] Oracle relay price unavailable, falling back to validator price server', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const ducatPriceUrl = `${API.PRICE_SERVER}/api/price/latest`;
 
   try {

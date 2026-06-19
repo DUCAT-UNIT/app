@@ -32,11 +32,18 @@ import type {
   PriceContract,
   PriceQuote,
   ProtocolProfile,
+  VaultActionConfig,
   VaultProfile,
+  VaultTrimRequestConfig,
+  VaultTrimRequestCtx,
   VaultWallet,
   WalletVaultRepoRequest,
 } from '@ducat-unit/client-sdk';
-import type { PriceQuote as CorePriceQuote } from '@ducat-unit/core';
+import type {
+  LiquidVaultProfile as CoreLiquidVaultProfile,
+  PriceQuote as CorePriceQuote,
+  VaultProfile as CoreVaultProfile,
+} from '@ducat-unit/core';
 import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 import { logger } from '../../utils/logger';
 import { fetchPriceQuote } from '../oracleService';
@@ -190,7 +197,7 @@ type VaultContextWithValidationOptions = {
   };
 };
 
-function allowHighFeeValidationWarnings(ctx: unknown): unknown {
+function allowHighFeeValidationWarnings<T>(ctx: T): T {
   if (!ctx || typeof ctx !== 'object') {
     return ctx;
   }
@@ -291,7 +298,7 @@ function getQuotePriceContracts(quote: PriceQuote): PriceContract[] {
 
 function selectActionPriceContracts(
   contract: ProtocolProfile,
-  actionConfig: Record<string, unknown>,
+  actionConfig: VaultActionConfig,
   oracleQuote: PriceQuote
 ): PriceContract[] {
   const priceContracts = getQuotePriceContracts(oracleQuote);
@@ -299,7 +306,7 @@ function selectActionPriceContracts(
     return [];
   }
 
-  const actionQuote = create_vault_action_quote(actionConfig as never);
+  const actionQuote = create_vault_action_quote(actionConfig);
   const commitHashes = get_price_commit_hashes(
     contract,
     actionQuote,
@@ -323,12 +330,12 @@ function createTrimConfig(params: {
   oracleQuote: PriceQuote;
   userVaultProfile: VaultProfile;
   wallet: VaultWallet;
-}): Record<string, unknown> {
+}): VaultTrimRequestConfig {
   const { contract, feeRate, liquidVault, oracleQuote, userVaultProfile, wallet } = params;
-  const baseConfig: Record<string, unknown> = {
+  const baseConfig: Omit<VaultTrimRequestConfig, 'price_contracts'> = {
     change_address: wallet.acct.sats.address,
     guard_pubkey: getGuardPubkey(contract, userVaultProfile),
-    liquid_profiles: [liquidVault],
+    liquid_profiles: [liquidVault as CoreLiquidVaultProfile],
     price_quotes: [toCorePriceQuote(oracleQuote, contract)],
     proto_profile: contract,
     txfee_rate: feeRate,
@@ -337,7 +344,7 @@ function createTrimConfig(params: {
       warn_only_high_fees: true,
     },
     vault_action: 'trim',
-    vault_profile: userVaultProfile,
+    vault_profile: userVaultProfile as CoreVaultProfile,
   };
 
   return {
@@ -353,10 +360,10 @@ function createUnsignedTrimPsbt(params: {
   oracleQuote: PriceQuote;
   userVaultProfile: VaultProfile;
   wallet: VaultWallet;
-}): { psbt: string; trimCtx: unknown } {
+}): { psbt: string; trimCtx: VaultTrimRequestCtx } {
   const trimConfig = createTrimConfig(params);
-  const trimCtx = allowHighFeeValidationWarnings(VaultAPI.trim.create_ctx(trimConfig as never));
-  const psbt = VaultAPI.trim.create_psbt(trimCtx as never);
+  const trimCtx = allowHighFeeValidationWarnings(VaultAPI.trim.create_ctx(trimConfig));
+  const psbt = VaultAPI.trim.create_psbt(trimCtx);
 
   if (!psbt) {
     throw new Error('Failed to build trim PSBT');
@@ -366,11 +373,10 @@ function createUnsignedTrimPsbt(params: {
 }
 
 function createUnsignedLatestRepoPsbt(
-  vaultCtx: unknown,
+  repoCtx: LatestRepoVaultContext,
   liquidVaults: LiquidVaultProfile[],
   fundInputs: BaseUtxo[]
 ): { psbt: string; latestCtx: unknown } {
-  const repoCtx = vaultCtx as LatestRepoVaultContext;
   if (typeof repoCtx.__create_psbts !== 'function') {
     throw new Error('Latest repo PSBT builder is unavailable');
   }
@@ -664,9 +670,10 @@ export async function executeLiquidation(
 
     let allUtxos: BaseUtxo[] = [];
     let utxos: BaseUtxo[] = [];
-    let repoVaultCtx: unknown;
+    let repoVaultCtx: LatestRepoVaultContext | undefined;
     let unsignedActionPsbt: string;
     let latestActionCtx: unknown;
+    let trimActionCtx: VaultTrimRequestCtx | undefined;
 
     if (action === 'repo') {
       const vaultConfig = {
@@ -678,7 +685,11 @@ export async function executeLiquidation(
         },
       };
 
-      repoVaultCtx = wallet.vault.repo.ctx(oracleQuote, userVaultProfile, vaultConfig);
+      repoVaultCtx = wallet.vault.repo.ctx(
+        oracleQuote,
+        userVaultProfile,
+        vaultConfig
+      ) as LatestRepoVaultContext;
 
       // matches web: repossess.op.ts:91-99 — fetch all, then select
       progress('Fetching available funds...');
@@ -719,6 +730,7 @@ export async function executeLiquidation(
       });
       unsignedActionPsbt = trimPsbt.psbt;
       latestActionCtx = trimPsbt.trimCtx;
+      trimActionCtx = trimPsbt.trimCtx;
     }
 
     // ── Step 8a: Extract change UTXO from the repo PSBT for swap ──
@@ -804,16 +816,24 @@ export async function executeLiquidation(
     progress('Signing transaction...');
 
     if (action === 'repo') {
+      if (!repoVaultCtx) {
+        throw new Error('Missing repo signing context');
+      }
+
       setPendingVaultSigningOperation({
         action: 'repo',
         liquidCtx,
-        vaultCtx: repoVaultCtx as LatestRepoVaultContext,
+        vaultCtx: repoVaultCtx,
         satsUtxos: utxos,
       });
     } else {
+      if (!trimActionCtx) {
+        throw new Error('Missing trim signing context');
+      }
+
       setPendingVaultSigningOperation({
         action: 'trim',
-        ctx: latestActionCtx as never,
+        ctx: trimActionCtx,
       });
     }
 

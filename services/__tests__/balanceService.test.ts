@@ -30,6 +30,10 @@ jest.mock('../../utils/constants', () => ({
   },
 }));
 
+jest.mock('../oracleService', () => ({
+  fetchCurrentPrice: jest.fn(),
+}));
+
 /**
  * Typed mock references for apiClient
  */
@@ -39,11 +43,13 @@ interface ApiClientMocks {
 }
 
 const { getJSON, fetchParallel } = jest.requireMock('../../utils/apiClient') as ApiClientMocks;
+const { fetchCurrentPrice } = jest.requireMock('../oracleService') as { fetchCurrentPrice: jest.Mock };
 
 describe('balanceService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.requireMock('../../utils/constants').API_KEYS.COINGECKO = undefined;
+    fetchCurrentPrice.mockRejectedValue(new Error('Oracle relay unavailable'));
   });
 
   describe('fetchWalletBalances', () => {
@@ -258,7 +264,17 @@ describe('balanceService', () => {
   });
 
   describe('fetchBtcPrice', () => {
-    it('should fetch current BTC price from the DUCAT price server first', async () => {
+    it('should fetch current BTC price from the oracle relay first', async () => {
+      fetchCurrentPrice.mockResolvedValueOnce(47000.25);
+
+      const result = await fetchBtcPrice();
+
+      expect(result).toBe(47000.25);
+      expect(fetchCurrentPrice).toHaveBeenCalledTimes(1);
+      expect(getJSON).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to the DUCAT price server when the oracle relay is unavailable', async () => {
       const mockPriceData = {
         price: 45000.50,
         stamp: 123456,
@@ -269,6 +285,7 @@ describe('balanceService', () => {
       const result = await fetchBtcPrice();
 
       expect(result).toBe(45000.50);
+      expect(fetchCurrentPrice).toHaveBeenCalledTimes(1);
       expect(getJSON).toHaveBeenCalledWith(
         'https://price.example.com/api/price/latest',
         expect.objectContaining({
@@ -278,7 +295,22 @@ describe('balanceService', () => {
       );
     });
 
-    it('should fall back to CoinGecko if the DUCAT price server fails', async () => {
+    it('should fall back to validator price when the oracle relay returns an invalid value', async () => {
+      fetchCurrentPrice.mockResolvedValueOnce(0);
+      getJSON.mockResolvedValueOnce({ base_price: 45250 });
+
+      const result = await fetchBtcPrice();
+
+      expect(result).toBe(45250);
+      expect(getJSON).toHaveBeenCalledWith(
+        'https://price.example.com/api/price/latest',
+        expect.objectContaining({
+          description: 'Fetch BTC price from DUCAT price server',
+        })
+      );
+    });
+
+    it('should fall back to CoinGecko if the oracle relay and DUCAT price server fail', async () => {
       getJSON
         .mockRejectedValueOnce(new Error('DUCAT price unavailable'))
         .mockResolvedValueOnce({ bitcoin: { usd: 46000 } });
@@ -286,6 +318,7 @@ describe('balanceService', () => {
       const result = await fetchBtcPrice();
 
       expect(result).toBe(46000);
+      expect(fetchCurrentPrice).toHaveBeenCalledTimes(1);
       expect(getJSON).toHaveBeenNthCalledWith(
         2,
         'https://api.example.com/coingecko/simple/price?ids=bitcoin&vs_currencies=usd',
@@ -304,6 +337,7 @@ describe('balanceService', () => {
       const result = await fetchBtcPrice();
 
       expect(result).toBeNull();
+      expect(fetchCurrentPrice).toHaveBeenCalledTimes(1);
     });
 
     it('should return null if response is invalid', async () => {
