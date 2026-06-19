@@ -8,8 +8,8 @@ It is meant to answer two questions before a release:
 
 ## Current Release Target
 
-- App version: `0.0.14`
-- Target build: iOS build `4`
+- App version: `0.2.0`
+- Target build: iOS build `5`
 - Network: Mutinynet
 - Fixture: submitted TestFlight reviewer wallet
 - Command: `npm run e2e:real:no-usdc`
@@ -104,7 +104,7 @@ Confirmed txids:
 
 ## Release Rule
 
-For build `0.0.14 (4)` or any later build-number bump, rerun `npm run e2e:real:no-usdc` before submission. Only submit the EAS production build if:
+For build `0.2.0 (5)` or any later build-number bump, rerun `npm run e2e:real:no-usdc` before submission. Only submit the EAS production build if:
 
 - The live gate exits `0`.
 - The live regression report result is `passed`.
