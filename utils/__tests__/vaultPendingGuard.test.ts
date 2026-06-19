@@ -42,6 +42,17 @@ function makeVaultData(overrides: Partial<VaultData> = {}): VaultData {
   };
 }
 
+function makePendingLiquidation(action: 'repo' | 'trim'): PendingVaultTransaction {
+  return {
+    ...pendingDeposit,
+    txid: `${action}-txid`,
+    vaultTxid: `${action}-vault-txid`,
+    action,
+    btcAmt: 2_500,
+    unitAmt: 7_500,
+  };
+}
+
 describe('vaultPendingGuard', () => {
   it('blocks vault operations while a pending vault transaction exists', () => {
     expect(shouldBlockVaultOperationForPendingTx('deposit', pendingDeposit)).toBe(true);
@@ -76,6 +87,28 @@ describe('vaultPendingGuard', () => {
     expect(isPendingVaultTransactionApplied(pendingDeposit, makeVaultData(), [makeHistory()])).toBe(
       true
     );
+  });
+
+  it.each(['repo', 'trim'] as const)(
+    'releases liquidation %s recovery when matching history exists without vault data',
+    (action) => {
+      const pendingLiquidation = makePendingLiquidation(action);
+
+      expect(
+        isPendingVaultTransactionApplied(pendingLiquidation, null, [
+          makeHistory({
+            transaction_id: `${action}-vault-txid`,
+            action,
+            btc_amt: pendingLiquidation.btcAmt,
+            unit_amt: pendingLiquidation.unitAmt,
+          }),
+        ])
+      ).toBe(true);
+    }
+  );
+
+  it('keeps non-liquidation recovery blocked when vault data is unavailable', () => {
+    expect(isPendingVaultTransactionApplied(pendingDeposit, null, [makeHistory()])).toBe(false);
   });
 
   it('matches debt whether vault data is reported in UNIT or cents', () => {

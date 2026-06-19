@@ -66,6 +66,7 @@ jest.mock('../../../utils/vaultUtils', () => ({
 
 // Mock other dependencies
 jest.mock('../../oracleService', () => ({
+  MAX_QUOTE_AGE_SECONDS: 5 * 60,
   fetchPriceQuote: jest.fn(),
 }));
 
@@ -1072,6 +1073,11 @@ describe('Vault Request Creation', () => {
     timestamp: 1234567890,
   };
 
+  const makeStaleOracleQuote = () => ({
+    ...mockOracleQuote,
+    latest_stamp: Math.floor(Date.now() / 1000) - 3600,
+  });
+
   describe('createVaultReqOpen', () => {
     it('should create vault open request successfully', async () => {
       const { createVaultReqOpen } = require('../open');
@@ -1359,6 +1365,40 @@ describe('Vault Request Creation', () => {
   });
 
   describe('createVaultReqBorrow', () => {
+    it('should reject stale oracle quotes before building borrow context', async () => {
+      const { createVaultReqBorrow } = require('../borrow');
+
+      const mockWallet = {
+        vault: {
+          borrow: {
+            ctx: jest.fn(),
+            quote: jest.fn(),
+            req: jest.fn(),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+      };
+
+      const borrowConfig = { borrow_amount: 5000, deposit_amount: 0, tx_feerate: 3 };
+      const acctRes = { mint_account: 'mint_123' };
+      const options = {
+        feeRate: 3,
+        oracleQuote: makeStaleOracleQuote(),
+        vaultProfile: mockVaultProfile,
+      };
+
+      await expect(
+        createVaultReqBorrow(mockWallet as any, borrowConfig, acctRes, options)
+      ).rejects.toThrow('Oracle price is stale');
+
+      expect(mockWallet.vault.borrow.ctx).not.toHaveBeenCalled();
+      expect(mockWallet.vault.borrow.quote).not.toHaveBeenCalled();
+      expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+      expect(mockWallet.vault.borrow.req).not.toHaveBeenCalled();
+    });
+
     it('should create borrow request with wallet vault operations', async () => {
       const { createVaultReqBorrow } = require('../borrow');
 
@@ -1470,6 +1510,39 @@ describe('Vault Request Creation', () => {
   });
 
   describe('createVaultReqDeposit', () => {
+    it('should reject stale oracle quotes before building deposit context', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+
+      const mockWallet = {
+        vault: {
+          deposit: {
+            ctx: jest.fn(),
+            quote: jest.fn(),
+            req: jest.fn(),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+      };
+
+      const depositConfig = { deposit_amount: 10000, tx_feerate: 5 };
+      const options = {
+        feeRate: 5,
+        oracleQuote: makeStaleOracleQuote(),
+        vaultProfile: mockVaultProfile,
+      };
+
+      await expect(
+        createVaultReqDeposit(mockWallet as any, depositConfig, options)
+      ).rejects.toThrow('Oracle price is stale');
+
+      expect(mockWallet.vault.deposit.ctx).not.toHaveBeenCalled();
+      expect(mockWallet.vault.deposit.quote).not.toHaveBeenCalled();
+      expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+      expect(mockWallet.vault.deposit.req).not.toHaveBeenCalled();
+    });
+
     it('should create deposit request successfully', async () => {
       const { createVaultReqDeposit } = require('../deposit');
 
@@ -1730,6 +1803,42 @@ describe('Vault Request Creation', () => {
   });
 
   describe('createVaultReqRepay', () => {
+    it('should reject stale oracle quotes before building repay context', async () => {
+      const { createVaultReqRepay } = require('../repay');
+
+      const mockWallet = {
+        vault: {
+          repay: {
+            ctx: jest.fn(),
+            quote: jest.fn(),
+            req: jest.fn(),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+          rune_utxos: jest.fn(),
+        },
+      };
+
+      const repayConfig = { repay_amount: 5000, deposit_amount: 0, tx_feerate: 4 };
+      const acctRes = { mint_account: 'burn_123' };
+      const options = {
+        feeRate: 4,
+        oracleQuote: makeStaleOracleQuote(),
+        vaultProfile: mockVaultProfile,
+      };
+
+      await expect(
+        createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options)
+      ).rejects.toThrow('Oracle price is stale');
+
+      expect(mockWallet.vault.repay.ctx).not.toHaveBeenCalled();
+      expect(mockWallet.vault.repay.quote).not.toHaveBeenCalled();
+      expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
+      expect(mockWallet.fetch.rune_utxos).not.toHaveBeenCalled();
+      expect(mockWallet.vault.repay.req).not.toHaveBeenCalled();
+    });
+
     it('should create repay request with sats and unit UTXOs', async () => {
       const { createVaultReqRepay } = require('../repay');
 
@@ -1950,6 +2059,33 @@ describe('Vault Request Creation', () => {
   });
 
   describe('createVaultReqWithdraw', () => {
+    it('should reject stale oracle quotes before building withdraw context', async () => {
+      const { createVaultReqWithdraw } = require('../withdraw');
+
+      const mockWallet = {
+        vault: {
+          withdraw: {
+            ctx: jest.fn(),
+            req: jest.fn(),
+          },
+        },
+      };
+
+      const withdrawConfig = { change_amount: 50000, tx_feerate: 3 };
+      const options = {
+        feeRate: 3,
+        oracleQuote: makeStaleOracleQuote(),
+        vaultProfile: mockVaultProfile,
+      };
+
+      await expect(
+        createVaultReqWithdraw(mockWallet as any, withdrawConfig, options)
+      ).rejects.toThrow('Oracle price is stale');
+
+      expect(mockWallet.vault.withdraw.ctx).not.toHaveBeenCalled();
+      expect(mockWallet.vault.withdraw.req).not.toHaveBeenCalled();
+    });
+
     it('should create withdraw request successfully', async () => {
       const { createVaultReqWithdraw } = require('../withdraw');
 

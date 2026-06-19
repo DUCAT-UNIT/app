@@ -1,6 +1,6 @@
 # Client SDK Migration Plan
 
-Status date: 2026-06-18
+Status date: 2026-06-19
 
 ## Goal
 
@@ -39,7 +39,7 @@ The upgraded SDK exposes `VaultActionAPI` actions for:
 | `withdraw` | Active mobile vault flow |
 | `repo` | Active liquidation claim flow |
 | `close` | SDK-exported only; no current mobile flow found |
-| `trim` | SDK-exported only; no current mobile flow found |
+| `trim` | Active partial-liquidation claim path; no standalone wallet action UI |
 
 ## Frontend Migration Shape
 
@@ -53,8 +53,11 @@ The app keeps the existing mobile-facing `VaultWallet` service boundary while th
 | `wallet.vault.repay.ctx/quote/req` | `VaultActionAPI.repay.create_ctx/create_psbts/create_request` |
 | `wallet.vault.withdraw.ctx/req` | `VaultActionAPI.withdraw.create_ctx/create_psbt/create_request` |
 | `wallet.vault.repo.ctx/quote/request` | `VaultActionAPI.repo.create_ctx/create_psbt/create_request` |
+| partial liquidation trim path | `VaultActionAPI.trim.create_ctx/create_psbt/create_request` |
 
 The mobile signing guard still builds expected unsigned PSBT templates before signing. This is intentional: it preserves the app's transaction safety checks while letting the latest SDK own the vault transaction construction.
+
+`close` remains explicitly excluded from mobile parity because no mobile close workflow exists today. Adding it would be a new product surface, not a parity repair.
 
 ## Required Backend Preconditions
 
@@ -71,10 +74,12 @@ The live regression doctor now checks this precondition before launching Maestro
 Passing local/static checks:
 
 ```bash
+npm run parity:check
+npm run roadmap:check
 npm run typecheck -- --pretty false
 npm test -- services/__tests__/oracleService.test.ts services/vaultWallet/__tests__/walletApi.test.ts services/vault/__tests__/vault.test.ts services/liquidation/__tests__/fetchVaults.test.ts services/liquidation/__tests__/execution.test.ts --runInBand
 npm run e2e:validate
-npm run test:user-facing:validate
+DUCAT_USER_FACING_REGRESSION_REPORT_PATH=off node scripts/runUserFacingRegression.mjs --validate --enforce-complete
 node --check scripts/runLiveRegression.mjs
 node --check scripts/liveFixtureChecks.mjs
 node --check scripts/liveIntegrationDoctor.mjs
@@ -90,7 +95,8 @@ Latest full gate:
 
 - Report: `artifacts/live-regression/testflight-no-usdc-20260619T001057Z.json`
 - Result: passed
-- Coverage: 17 live flows, including receive/send, vault actions, TurboUNIT borrow/repay, liquidation execution, and pending relaunch recovery flows.
+- Coverage: 17 live flows, including receive/send, vault actions, TurboUNIT borrow/repay, and pending relaunch recovery flows.
+- Liquidation execution coverage: focused Jest coverage for repo and trim paths, plus static parity guards for the full validator liquidation feed.
 - Generated site: `docs/regression/index.html`
 
 ## Completion Criteria

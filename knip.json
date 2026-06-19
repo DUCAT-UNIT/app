@@ -14,11 +14,21 @@
     "metro.config.js",
     "styles/screens/index.ts"
   ],
+  "ignoreWorkspaces": [
+    "vendor/ducat-unit-core",
+    "vendor/ducat-unit-runestone"
+  ],
   "ignoreDependencies": [
     "@ducat-unit/client-sdk",
+    "@ducat-unit/core",
     "@ducat-unit/runestone",
+    "@opentelemetry/api",
+    "@scure/btc-signer",
+    "@vbyte/btc-dev",
     "buffer",
     "react-dom",
+    "websocket-polyfill",
+    "zod",
     "@types/*",
     "@jest/globals",
     "jest",

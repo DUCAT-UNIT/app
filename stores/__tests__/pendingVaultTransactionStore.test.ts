@@ -111,6 +111,7 @@ describe('pendingVaultTransactionStore', () => {
     ['deposit', 'vault_deposit', 'Vault deposit submitted', 'BTC', '1000'],
     ['withdraw', 'vault_withdraw', 'Vault withdraw submitted', 'BTC', '1000'],
     ['repay', 'vault_repay', 'Vault repay submitted', 'UNIT', '100'],
+    ['repo', 'vault_repossess', 'Vault liquidation submitted', 'UNIT', '100'],
     ['trim', 'vault_repossess', 'Vault liquidation submitted', 'UNIT', '100'],
   ] as const)(
     'rehydrates a submitted vault %s after relaunch and records an unsafe recovery journal',

@@ -40,6 +40,9 @@ jest.mock('@ducat-unit/client-sdk', () => ({
       create_psbt: jest.fn(),
     },
     repo: {},
+    trim: {
+      create_psbt: jest.fn(),
+    },
   },
 }));
 
@@ -117,6 +120,7 @@ const mockRepayCreatePsbt1 = VaultAPI.repay.create_psbt1 as jest.Mock;
 const mockRepayCreatePsbt2 = VaultAPI.repay.create_psbt2 as jest.Mock;
 const mockDepositCreatePsbt = VaultAPI.deposit.create_psbt as jest.Mock;
 const mockWithdrawCreatePsbt = VaultAPI.withdraw.create_psbt as jest.Mock;
+const mockTrimCreatePsbt = VaultAPI.trim.create_psbt as jest.Mock;
 describe('vault signing context', () => {
   const ctx = { ctx: true };
   const liquidCtx = { liquid: true };
@@ -136,6 +140,7 @@ describe('vault signing context', () => {
     mockRepayCreatePsbt2.mockReturnValue(PSBT_B);
     mockDepositCreatePsbt.mockReturnValue(PSBT_A);
     mockWithdrawCreatePsbt.mockReturnValue(PSBT_A);
+    mockTrimCreatePsbt.mockReturnValue(PSBT_A);
     vaultCtx.__create_psbts.mockReturnValue([PSBT_A]);
   });
 
@@ -274,6 +279,18 @@ describe('vault signing context', () => {
     expect(templates).toHaveLength(1);
     expect(compatCtx.__create_psbts).toHaveBeenCalledWith([]);
     expect(mockWithdrawCreatePsbt).not.toHaveBeenCalled();
+  });
+
+  it('routes trim operations through the single trim PSBT builder', () => {
+    setPendingVaultSigningOperation({
+      action: 'trim',
+      ctx: ctx as never,
+    });
+
+    const templates = getExpectedVaultPsbtTemplates();
+
+    expect(templates).toHaveLength(1);
+    expect(mockTrimCreatePsbt).toHaveBeenCalledWith(ctx);
   });
 
   it('routes repo operations through the single latest repo PSBT builder', () => {

@@ -138,10 +138,11 @@ function checkProjectScripts() {
   }
 
   check(
-    scripts.verify?.includes('npm run doctor') &&
+    scripts.verify?.includes('npm run parity:check') &&
+      scripts.verify?.includes('npm run doctor') &&
       scripts.verify?.includes('npm run e2e:validate') &&
       scripts.verify?.includes('npm run test:coverage'),
-    'npm run verify must include doctor, E2E validation, and Jest coverage'
+    'npm run verify must include parity check, doctor, E2E validation, and Jest coverage'
   );
 }
 
@@ -246,6 +247,7 @@ function checkSensitiveLoggingInvariant() {
 
 function checkCashuDucatUnitInvariant() {
   const mintConfig = read('services/cashu/mintClient/mintConfig.ts');
+  const networkConfig = read('utils/networkConfig.ts');
   check(
     mintConfig.includes("'https://dev-cashu-mint.ducatprotocol.com'"),
     'Cashu mint config must default to the Ducat Cashu mint URL'
@@ -255,8 +257,13 @@ function checkCashuDucatUnitInvariant() {
     'Cashu mint config must use unit for Ducat UNIT'
   );
   check(
-    mintConfig.includes("export const RUNE_ID = '1527352:1'"),
-    'Cashu mint config must keep the Ducat UNIT rune id'
+    mintConfig.includes('export const RUNE_ID = `${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.block}:${RUNES_CONFIG.DUCAT_UNIT_RUNE_ID.tx}`'),
+    'Cashu mint config must derive the Ducat UNIT rune id from RUNES_CONFIG'
+  );
+  check(
+    networkConfig.includes("block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 3007902n") &&
+      networkConfig.includes("tx: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX') ?? 1n"),
+    'Network config must default the Ducat UNIT rune id to 3007902:1'
   );
 
   const codeFiles = getAppCodeFiles();

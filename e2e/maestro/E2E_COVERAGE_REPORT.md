@@ -15,7 +15,7 @@ The maintained Maestro suite now covers all primary product areas: auth, wallet,
 | Vault | 9 | ~70% | Create/deposit/borrow/repay/withdraw, full lifecycle, max borrow/repay, insufficient-fee guard. Live timing remains the main risk. |
 | Ecash | 5 | ~45% | Low-balance modal, mint navigation, receive-token screen, mint screen, mint initiation. Full token lifecycle and melt completion are not fully automated. |
 | Sepolia/Bridge | Product suite partial + live flows | ~45% | Developer unlock, ETH and USDC asset send validation, swap/redeem entry, redeem destination validation, and live vault USDC settlement flows exist. Direct Sepolia send/swap/redeem completion coverage still needs funded live environments. |
-| Liquidation | Dashboard/state only | ~20% | UI entry and dashboard state exist; full liquidation claim execution is still not E2E-covered. |
+| Liquidation | Product suite dashboard/state; fixture-gated live execution | ~35% | Maintained product flows cover entry/dashboard state. The user-facing regression manifest tracks live claim execution behind the `real-liquidation-execution` fixture because it requires a claimable validator liquidation. |
 
 ## Suite Hygiene
 
@@ -46,7 +46,8 @@ The maintained Maestro suite now covers all primary product areas: auth, wallet,
    - Empty state with no available vaults.
    - Available-vault list and amount selection.
    - Review tabs.
-   - Claim execution success/failure.
+   - Claim execution success/failure in deterministic product-suite fixtures.
+   - Repo/trim pending relaunch recovery after claim submission.
 
 4. Deep links and background behavior:
    - Bitcoin URI deep link.

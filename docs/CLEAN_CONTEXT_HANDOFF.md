@@ -43,7 +43,7 @@ Ducat UNIT must use the advertised generic Cashu method:
 ```text
 method: onchain
 unit: unit
-rune_id: 1527352:1
+rune_id: 3007902:1
 ```
 
 Do not reintroduce:
