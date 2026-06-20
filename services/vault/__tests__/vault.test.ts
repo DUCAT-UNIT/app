@@ -10,10 +10,29 @@ jest.mock('@ducat-unit/client-sdk/util', () => ({
   },
   PSBT: {
     decode: jest.fn(() => ({
+      hex: '0200000000',
       inputsLength: 1,
       getInput: jest.fn(() => ({})),
     })),
   },
+}));
+
+jest.mock('@ducat-unit/client-sdk/vault', () => ({
+  create_vault_request: jest.fn(() => ({
+    borrow_amount: 10000,
+    chain_network: 'mutiny',
+    client_pubkey: 'client_pubkey',
+    contract_id: 'contract_id',
+    deposit_amount: 100000,
+    guard_members: ['guard_pubkey'],
+    guard_pubkey: 'guard_pubkey',
+    vault_action: 'open',
+  })),
+  finalize_cosign_inputs: jest.fn(),
+  finalize_spending_inputs: jest.fn(),
+  validate_vault_open_request: jest.fn(),
+  verify_vault_action_rules: jest.fn(),
+  verify_vault_request_psbt: jest.fn(),
 }));
 
 // Mock SDK
@@ -1079,30 +1098,37 @@ describe('Vault Request Creation', () => {
   });
 
   describe('createVaultReqOpen', () => {
+    const createOpenCtxMock = (ctx: Record<string, unknown> = {}) => ({
+      ...ctx,
+      __latest_ctx: {
+        observe: {},
+        txfee_rate: 5,
+        validation_options: {},
+      },
+      __create_psbts: jest.fn(() => ['unsigned_issue_psbt', 'unsigned_vault_psbt']),
+    });
+
     it('should create vault open request successfully', async () => {
       const { createVaultReqOpen } = require('../open');
       const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
       fetchPriceQuote.mockResolvedValue(mockOracleQuote);
+      const openCtx = createOpenCtxMock({ config: 'open_ctx' });
 
       const mockWallet = {
         vault: {
           open: {
-            ctx: jest.fn().mockReturnValue({ config: 'open_ctx' }),
+            ctx: jest.fn().mockReturnValue(openCtx),
             quote: jest.fn().mockReturnValue({ total_cost: 1500 }),
-            req: jest.fn().mockResolvedValue({
-              issue_txid: 'open_issue',
-              vault_txid: 'open_vault',
-              issue_txhex: '0200000001',
-              vault_txhex: '0200000002',
-              issue_psbt: Buffer.from('psbt1'),
-              vault_psbt: Buffer.from('psbt2'),
-              sats_inputs: [{ txid: 'sats', vout: 0, value: 5000, witness: [] }],
-              connect_input: { txid: 'connect', vout: 1, value: 10000, witness: [] },
-            }),
+            req: jest.fn().mockRejectedValue(
+              new Error('Writer(magic): TypeError: undefined is not a function')
+            ),
           },
         },
         fetch: {
           sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10000 }]),
+        },
+        sign: {
+          batch: jest.fn().mockResolvedValue(['signed_issue_psbt', 'signed_vault_psbt']),
         },
         acct: {
           sats: { address: 'tb1qtest' },
@@ -1126,8 +1152,13 @@ describe('Vault Request Creation', () => {
         mockOracleQuote,
         vaultConfig
       );
-      expect(result.issue_txid).toBe('open_issue');
-      expect(result.vault_txid).toBe('open_vault');
+      expect(openCtx.__create_psbts).toHaveBeenCalledWith([{ txid: 'utxo1', vout: 0, value: 10000 }]);
+      expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+      expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
+      expect(result.issue_psbt).toBe('signed_issue_psbt');
+      expect(result.vault_psbt).toBe('signed_vault_psbt');
+      expect(result.issue_txid).toBe('mock_txid');
+      expect(result.vault_txid).toBe('mock_txid');
     });
 
     it('should throw when no UTXOs available', async () => {
@@ -1168,19 +1199,20 @@ describe('Vault Request Creation', () => {
       const { createVaultReqOpen } = require('../open');
       const fetchPriceQuote = require('../../oracleService').fetchPriceQuote;
       fetchPriceQuote.mockResolvedValue(mockOracleQuote);
+      const openCtx = createOpenCtxMock({ config: 'open_ctx' });
 
       const mockWallet = {
         vault: {
           open: {
-            ctx: jest.fn().mockReturnValue({ config: 'open_ctx' }),
-            req: jest.fn().mockResolvedValue({
-              issue_txid: 'open_issue',
-              vault_txid: 'open_vault',
-            }),
+            ctx: jest.fn().mockReturnValue(openCtx),
+            req: jest.fn(),
           },
         },
         fetch: {
           sats_utxos: jest.fn(),
+        },
+        sign: {
+          batch: jest.fn().mockResolvedValue(['signed_issue_psbt', 'signed_vault_psbt']),
         },
         acct: {
           sats: { address: 'tb1qtest' },
@@ -1205,11 +1237,9 @@ describe('Vault Request Creation', () => {
       await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
       expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
-      expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
-        expect.anything(),
-        providedUtxos,
-        true
-      );
+      expect(openCtx.__create_psbts).toHaveBeenCalledWith(providedUtxos);
+      expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+      expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
     });
 
     it('should adjust a near-max vault open deposit to the exact safe amount', async () => {
@@ -1233,19 +1263,17 @@ describe('Vault Request Creation', () => {
                 if (config.deposit_amount === 0) {
                   throw new Error('zero deposit context should not be created');
                 }
-                return { ...config };
+                return createOpenCtxMock({ ...config });
               }),
               quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
-              req: jest.fn().mockResolvedValue({
-                issue_txid: 'open_issue',
-                vault_txid: 'open_vault',
-                issue_txhex: '0200000001',
-                vault_txhex: '0200000002',
-              }),
+              req: jest.fn(),
             },
           },
           fetch: {
             sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 10_000 }]),
+          },
+          sign: {
+            batch: jest.fn().mockResolvedValue(['signed_issue_psbt', 'signed_vault_psbt']),
           },
           acct: {
             sats: { address: 'tb1qtest' },
@@ -1264,11 +1292,8 @@ describe('Vault Request Creation', () => {
         await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
         expect(vaultConfig.deposit_amount).toBe(9_750);
-        expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
-          expect.objectContaining({ deposit_amount: 9_750 }),
-          [{ txid: 'utxo1', vout: 0, value: 10_000 }],
-          true
-        );
+        expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+        expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
       } finally {
         getChange.mockReturnValue(1_000);
       }
@@ -1295,19 +1320,17 @@ describe('Vault Request Creation', () => {
                 if (config.deposit_amount === 0) {
                   throw new Error('zero deposit context should not be created');
                 }
-                return { ...config };
+                return createOpenCtxMock({ ...config });
               }),
               quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
-              req: jest.fn().mockResolvedValue({
-                issue_txid: 'open_issue',
-                vault_txid: 'open_vault',
-                issue_txhex: '0200000001',
-                vault_txhex: '0200000002',
-              }),
+              req: jest.fn(),
             },
           },
           fetch: {
             sats_utxos: jest.fn().mockResolvedValue([{ txid: 'utxo1', vout: 0, value: 12_000 }]),
+          },
+          sign: {
+            batch: jest.fn().mockResolvedValue(['signed_issue_psbt', 'signed_vault_psbt']),
           },
           acct: {
             sats: { address: 'tb1qtest' },
@@ -1331,11 +1354,8 @@ describe('Vault Request Creation', () => {
         await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
         expect(vaultConfig.deposit_amount).toBe(10_000);
-        expect(mockWallet.vault.open.req).toHaveBeenCalledWith(
-          expect.objectContaining({ deposit_amount: 10_000 }),
-          [{ txid: 'utxo1', vout: 0, value: 12_000 }],
-          true
-        );
+        expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+        expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
       } finally {
         getChange.mockReturnValue(1_000);
       }

@@ -11,6 +11,15 @@ import type {
   WalletVaultOpenRequest,
 } from '@ducat-unit/client-sdk';
 import { VaultAPI } from '@ducat-unit/client-sdk';
+import type { VaultOpenRequestCtx } from '@ducat-unit/client-sdk/vault';
+import {
+  create_vault_request,
+  finalize_cosign_inputs,
+  finalize_spending_inputs,
+  validate_vault_open_request,
+  verify_vault_action_rules,
+  verify_vault_request_psbt,
+} from '@ducat-unit/client-sdk/vault';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
 import { BITCOIN_TX, VAULT_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
@@ -32,6 +41,11 @@ export interface CreateVaultReqOptions {
 }
 
 const MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS = 50_000;
+
+type CompatVaultOpenCtx = VaultOpenCtx & {
+  __create_psbts?: (fundInputs?: Utxo[]) => string[];
+  __latest_ctx?: VaultOpenRequestCtx;
+};
 
 function isInsufficientSatsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -115,6 +129,66 @@ function resolveOpenContext(
 
   assertOpenChange(vaultCtx, utxos);
   return vaultCtx;
+}
+
+async function createVaultOpenRequestWithoutSdkEncode(
+  wallet: VaultWallet,
+  vaultCtx: VaultOpenCtx,
+  utxos: Utxo[]
+): Promise<WalletVaultOpenRequest> {
+  const compatCtx = vaultCtx as CompatVaultOpenCtx;
+  if (typeof compatCtx.__create_psbts !== 'function') {
+    throw new Error('Vault open context cannot create unsigned PSBTs');
+  }
+
+  const unsignedPsbts = compatCtx.__create_psbts(utxos);
+  const [unsignedIssuePsbt, unsignedVaultPsbt] = unsignedPsbts;
+  if (!unsignedIssuePsbt || !unsignedVaultPsbt) {
+    throw new Error('Vault open did not create both unsigned PSBTs');
+  }
+
+  const signedPsbts = await wallet.sign.batch(unsignedPsbts);
+  const [signedIssuePsbt, signedVaultPsbt] = signedPsbts;
+  if (!signedIssuePsbt || !signedVaultPsbt) {
+    throw new Error('Vault open did not sign both PSBTs');
+  }
+
+  const latestCtx = compatCtx.__latest_ctx;
+  if (!latestCtx) {
+    throw new Error('Vault open context missing latest request context');
+  }
+
+  const issuePdata = PSBT.decode(signedIssuePsbt);
+  const vaultPdata = PSBT.decode(signedVaultPsbt);
+
+  finalize_spending_inputs(issuePdata);
+  finalize_cosign_inputs(vaultPdata);
+  verify_vault_request_psbt(issuePdata, 0);
+  verify_vault_request_psbt(vaultPdata, latestCtx.txfee_rate, {
+    ...latestCtx.validation_options,
+    asset_pdata: issuePdata,
+    observe: latestCtx.observe,
+  });
+
+  const issueTxid = TX.get_txid(issuePdata.hex);
+  const vaultTxid = TX.get_txid(vaultPdata.hex);
+  verify_vault_action_rules(latestCtx, vaultTxid);
+
+  const request = {
+    ...create_vault_request(latestCtx),
+    issue_psbt: signedIssuePsbt,
+    issue_txid: issueTxid,
+    vault_psbt: signedVaultPsbt,
+    vault_txid: vaultTxid,
+  };
+  validate_vault_open_request(request);
+
+  logger.info('[VaultOps] Vault open request assembled without SDK PSBT re-encode', {
+    issueTxid,
+    vaultTxid,
+  });
+
+  return request as WalletVaultOpenRequest;
 }
 
 /**
@@ -256,8 +330,9 @@ export async function createVaultReqOpen(
       utxos = allUtxos;
     }
 
-    // Check if batch signing is allowed (native segwit addresses)
-    const isBatch = checkBatchAllowed(wallet);
+    if (!checkBatchAllowed(wallet)) {
+      throw new Error('Vault open requires a native SegWit BTC account for batch signing.');
+    }
 
     let vaultReq: WalletVaultOpenRequest;
     setPendingVaultSigningOperation({
@@ -266,7 +341,7 @@ export async function createVaultReqOpen(
       satsUtxos: utxos,
     });
     try {
-      vaultReq = await wallet.vault.open.req(vaultCtx, utxos, isBatch);
+      vaultReq = await createVaultOpenRequestWithoutSdkEncode(wallet, vaultCtx, utxos);
     } finally {
       clearPendingVaultSigningOperation();
     }
