@@ -287,7 +287,7 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           durationMs: Date.now() - preprocessStartedAt,
         });
 
-        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
+        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates(preProcessedPsbt);
         const intent = {
           recipient: client.acct.vault.address,
           change: client.acct.sats.address,
@@ -358,7 +358,7 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         // Pre-process
         const preProcessedPsbt = patchPreProcessFields(psbt, client, manifest);
 
-        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
+        const expectedPsbtTemplates = getExpectedVaultPsbtTemplates(preProcessedPsbt);
         // Sign
         const intent = {
           recipient: client.acct.vault.address,
@@ -406,7 +406,9 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
 
           // Step 2: Sign using binary patching (preserves OP_RETURN outputs)
           const pre_pdata = PSBT.decode(preProcessedPsbt);
-          const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
+          const expectedPsbtTemplates = getExpectedVaultPsbtTemplates(
+            psbts.map(([originalPsbt]) => originalPsbt)
+          );
           const intent = {
             recipient: client.acct.vault.address,
             change: client.acct.sats.address,

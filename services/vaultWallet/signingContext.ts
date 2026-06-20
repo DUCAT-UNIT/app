@@ -1,28 +1,21 @@
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
-import {
-  VaultAPI,
-  type BaseUtxo,
-  type RuneUtxo,
-  type VaultBorrowCtx,
-  type VaultDepositCtx,
-  type VaultOpenCtx,
-  type VaultRepayCtx,
-  type VaultWithdrawCtx,
+import type {
+  BaseUtxo,
+  RuneUtxo,
+  VaultBorrowCtx,
+  VaultDepositCtx,
+  VaultOpenCtx,
+  VaultRepayCtx,
+  VaultWithdrawCtx,
 } from '@ducat-unit/client-sdk';
-// Repo context types are inferred from VaultAPI.repo return types
-type VaultRepoLiquidCtx = ReturnType<typeof VaultAPI.repo.liquidation.get_ctx>;
-type VaultRepoCtx = ReturnType<typeof VaultAPI.repo.create_ctx> & {
-  __create_psbts?: (
-    fundInputs?: BaseUtxo[],
-    extra?: { liquid_profiles?: VaultRepoLiquidCtx['liquid_vaults'] }
-  ) => string[];
-};
-type VaultTrimCtx = ReturnType<typeof VaultAPI.trim.create_ctx>;
-type CompatSinglePsbtCtx = {
-  __create_psbts?: (fundInputs?: BaseUtxo[]) => string[];
-};
 import { MUTINYNET_NETWORK } from '../../utils/bitcoin';
+
+type VaultRepoLiquidCtx = {
+  liquid_vaults?: unknown[];
+};
+type VaultRepoCtx = unknown;
+type VaultTrimCtx = unknown;
 
 export interface ExpectedPsbtInputTemplate {
   hashHex: string;
@@ -132,66 +125,15 @@ function toExpectedPsbtTemplate(psbtBase64: string): ExpectedPsbtTemplate {
   };
 }
 
-function createCompatSinglePsbt(
-  ctx: CompatSinglePsbtCtx,
-  fundInputs: BaseUtxo[] = [],
-  fallback: () => string
-): string {
-  if (typeof ctx.__create_psbts === 'function') {
-    const [psbt] = ctx.__create_psbts(fundInputs);
-    if (!psbt) {
-      throw new Error('SECURITY: Unable to build unsigned vault PSBT template');
-    }
-    return psbt;
+export function getExpectedVaultPsbtTemplates(
+  unsignedPsbts: string | string[]
+): ExpectedPsbtTemplate[] {
+  getPendingVaultSigningOperation();
+
+  const psbts = Array.isArray(unsignedPsbts) ? unsignedPsbts : [unsignedPsbts];
+  if (psbts.length === 0 || psbts.some((psbt) => typeof psbt !== 'string' || psbt.length === 0)) {
+    throw new Error('SECURITY: Missing unsigned vault PSBT template');
   }
 
-  return fallback();
-}
-
-export function getExpectedVaultPsbtTemplates(): ExpectedPsbtTemplate[] {
-  const operation = getPendingVaultSigningOperation();
-
-  switch (operation.action) {
-    case 'open': {
-      const psbt1 = VaultAPI.open.create_psbt1(operation.ctx, operation.satsUtxos);
-      const psbt2 = VaultAPI.open.create_psbt2(operation.ctx, psbt1);
-      return [toExpectedPsbtTemplate(psbt1), toExpectedPsbtTemplate(psbt2)];
-    }
-    case 'borrow': {
-      const psbt1 = VaultAPI.borrow.create_psbt1(operation.ctx, operation.satsUtxos);
-      const psbt2 = VaultAPI.borrow.create_psbt2(operation.ctx, psbt1);
-      return [toExpectedPsbtTemplate(psbt1), toExpectedPsbtTemplate(psbt2)];
-    }
-    case 'repay': {
-      const psbt1 = VaultAPI.repay.create_psbt1(
-        operation.ctx,
-        operation.satsUtxos,
-        operation.unitUtxos
-      );
-      const psbt2 = VaultAPI.repay.create_psbt2(operation.ctx, psbt1);
-      return [toExpectedPsbtTemplate(psbt1), toExpectedPsbtTemplate(psbt2)];
-    }
-    case 'deposit': {
-      const psbt = createCompatSinglePsbt(
-        operation.ctx as CompatSinglePsbtCtx,
-        operation.satsUtxos,
-        () => VaultAPI.deposit.create_psbt(operation.ctx)
-      );
-      return [toExpectedPsbtTemplate(psbt)];
-    }
-    case 'withdraw': {
-      const psbt = createCompatSinglePsbt(
-        operation.ctx as CompatSinglePsbtCtx,
-        [],
-        () => VaultAPI.withdraw.create_psbt(operation.ctx)
-      );
-      return [toExpectedPsbtTemplate(psbt)];
-    }
-    case 'repo': {
-      return [toExpectedPsbtTemplate(operation.unsignedPsbt)];
-    }
-    case 'trim': {
-      return [toExpectedPsbtTemplate(operation.unsignedPsbt)];
-    }
-  }
+  return psbts.map(toExpectedPsbtTemplate);
 }

@@ -6,6 +6,7 @@ import { createMobileWalletAPI } from '../walletApi';
 import { OracleAPI } from '@ducat-unit/client-sdk';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
 import * as signing from '../../signing';
+import { getExpectedVaultPsbtTemplates } from '../signingContext';
 import { Buffer } from 'buffer';
 import { fetchWithTimeout } from '../../../utils/api';
 
@@ -330,6 +331,7 @@ describe('walletApi', () => {
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
         expect(signing.patchPreProcessFields).toHaveBeenCalledWith(mockPsbt, mockClient, mockManifest);
+        expect(getExpectedVaultPsbtTemplates).toHaveBeenCalledWith('cHNidP8PRE==');
         expect(signing.signPsbtWithSdkObject).toHaveBeenCalledWith(
           mockPdata,
           mockManifest,
@@ -377,6 +379,7 @@ describe('walletApi', () => {
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
         expect(signing.patchPreProcessFields).toHaveBeenCalled();
+        expect(getExpectedVaultPsbtTemplates).toHaveBeenCalledWith(mockPsbt);
         expect(signing.signPsbtWithSdkObject).toHaveBeenCalled();
         expect(signing.patchPostProcessFields).toHaveBeenCalled();
         expect(PSBT.encode).not.toHaveBeenCalled();
@@ -446,6 +449,7 @@ describe('walletApi', () => {
         const result = await api.sign.batch!(mockClient)(mockPsbts);
 
         expect(result).toHaveLength(2);
+        expect(getExpectedVaultPsbtTemplates).toHaveBeenCalledWith(['cHNidP8BAA==', 'cHNidP8BBB==']);
         expect(signing.patchPreProcessFields).toHaveBeenCalledTimes(2);
         expect(signing.signPsbtWithSdkObject).toHaveBeenCalledTimes(2);
         expect(signing.patchPostProcessFields).toHaveBeenCalledTimes(2); // Only first 2 PSBTs

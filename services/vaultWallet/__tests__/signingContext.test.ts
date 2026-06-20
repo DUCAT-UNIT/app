@@ -1,6 +1,5 @@
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
-import { VaultAPI } from '@ducat-unit/client-sdk';
 import {
   clearPendingVaultSigningOperation,
   getExpectedVaultPsbtTemplates,
@@ -18,33 +17,6 @@ const mockTestNetwork = {
   scriptHash: 196,
   wif: 239,
 };
-
-jest.mock('@ducat-unit/client-sdk', () => ({
-  VaultAPI: {
-    open: {
-      create_psbt1: jest.fn(),
-      create_psbt2: jest.fn(),
-    },
-    borrow: {
-      create_psbt1: jest.fn(),
-      create_psbt2: jest.fn(),
-    },
-    repay: {
-      create_psbt1: jest.fn(),
-      create_psbt2: jest.fn(),
-    },
-    deposit: {
-      create_psbt: jest.fn(),
-    },
-    withdraw: {
-      create_psbt: jest.fn(),
-    },
-    repo: {},
-    trim: {
-      create_psbt: jest.fn(),
-    },
-  },
-}));
 
 jest.mock('../../../utils/bitcoin', () => ({
   MUTINYNET_NETWORK: mockTestNetwork,
@@ -112,15 +84,6 @@ const PSBT_B = createPsbtBase64({
   version: 1,
 });
 
-const mockOpenCreatePsbt1 = VaultAPI.open.create_psbt1 as jest.Mock;
-const mockOpenCreatePsbt2 = VaultAPI.open.create_psbt2 as jest.Mock;
-const mockBorrowCreatePsbt1 = VaultAPI.borrow.create_psbt1 as jest.Mock;
-const mockBorrowCreatePsbt2 = VaultAPI.borrow.create_psbt2 as jest.Mock;
-const mockRepayCreatePsbt1 = VaultAPI.repay.create_psbt1 as jest.Mock;
-const mockRepayCreatePsbt2 = VaultAPI.repay.create_psbt2 as jest.Mock;
-const mockDepositCreatePsbt = VaultAPI.deposit.create_psbt as jest.Mock;
-const mockWithdrawCreatePsbt = VaultAPI.withdraw.create_psbt as jest.Mock;
-const mockTrimCreatePsbt = VaultAPI.trim.create_psbt as jest.Mock;
 describe('vault signing context', () => {
   const ctx = { ctx: true };
   const liquidCtx = { liquid: true };
@@ -131,16 +94,6 @@ describe('vault signing context', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearPendingVaultSigningOperation();
-
-    mockOpenCreatePsbt1.mockReturnValue(PSBT_A);
-    mockOpenCreatePsbt2.mockReturnValue(PSBT_B);
-    mockBorrowCreatePsbt1.mockReturnValue(PSBT_A);
-    mockBorrowCreatePsbt2.mockReturnValue(PSBT_B);
-    mockRepayCreatePsbt1.mockReturnValue(PSBT_A);
-    mockRepayCreatePsbt2.mockReturnValue(PSBT_B);
-    mockDepositCreatePsbt.mockReturnValue(PSBT_A);
-    mockWithdrawCreatePsbt.mockReturnValue(PSBT_A);
-    mockTrimCreatePsbt.mockReturnValue(PSBT_A);
     vaultCtx.__create_psbts.mockReturnValue([PSBT_A]);
   });
 
@@ -149,7 +102,7 @@ describe('vault signing context', () => {
   });
 
   it('throws a security error when no signing operation is pending', () => {
-    expect(() => getExpectedVaultPsbtTemplates()).toThrow(
+    expect(() => getExpectedVaultPsbtTemplates(PSBT_A)).toThrow(
       'SECURITY: Missing pending vault signing context',
     );
   });
@@ -161,7 +114,7 @@ describe('vault signing context', () => {
       satsUtxos: satsUtxos as never,
     });
 
-    expect(getExpectedVaultPsbtTemplates()).toEqual([
+    expect(getExpectedVaultPsbtTemplates(PSBT_A)).toEqual([
       {
         version: 2,
         locktime: 7,
@@ -184,35 +137,33 @@ describe('vault signing context', () => {
     ]);
   });
 
-  it('routes open operations through both SDK PSBT builders', () => {
+  it('uses the supplied open PSBT templates without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'open',
       ctx: ctx as never,
       satsUtxos: satsUtxos as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates([PSBT_A, PSBT_B]);
 
     expect(templates).toHaveLength(2);
-    expect(mockOpenCreatePsbt1).toHaveBeenCalledWith(ctx, satsUtxos);
-    expect(mockOpenCreatePsbt2).toHaveBeenCalledWith(ctx, PSBT_A);
+    expect(templates[0].inputs[0].hashHex).toBe('11'.repeat(32));
+    expect(templates[1].inputs[0].hashHex).toBe('22'.repeat(32));
   });
 
-  it('routes borrow operations through both SDK PSBT builders', () => {
+  it('uses the supplied borrow PSBT templates without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'borrow',
       ctx: ctx as never,
       satsUtxos: satsUtxos as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates([PSBT_A, PSBT_B]);
 
     expect(templates).toHaveLength(2);
-    expect(mockBorrowCreatePsbt1).toHaveBeenCalledWith(ctx, satsUtxos);
-    expect(mockBorrowCreatePsbt2).toHaveBeenCalledWith(ctx, PSBT_A);
   });
 
-  it('routes repay operations with sats and UNIT UTXOs', () => {
+  it('uses the supplied repay PSBT templates without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'repay',
       ctx: ctx as never,
@@ -220,27 +171,24 @@ describe('vault signing context', () => {
       unitUtxos: unitUtxos as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates([PSBT_A, PSBT_B]);
 
     expect(templates).toHaveLength(2);
-    expect(mockRepayCreatePsbt1).toHaveBeenCalledWith(ctx, satsUtxos, unitUtxos);
-    expect(mockRepayCreatePsbt2).toHaveBeenCalledWith(ctx, PSBT_A);
   });
 
-  it('routes deposit operations through the single deposit PSBT builder', () => {
+  it('uses the supplied deposit PSBT template without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'deposit',
       ctx: ctx as never,
       satsUtxos: satsUtxos as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
-    expect(mockDepositCreatePsbt).toHaveBeenCalledWith(ctx);
   });
 
-  it('routes compat deposit operations through the stored PSBT replay builder', () => {
+  it('does not call compat deposit replay builders when a PSBT is supplied', () => {
     const compatCtx = { ...ctx, __create_psbts: jest.fn(() => [PSBT_A]) };
     setPendingVaultSigningOperation({
       action: 'deposit',
@@ -248,50 +196,46 @@ describe('vault signing context', () => {
       satsUtxos: satsUtxos as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
-    expect(compatCtx.__create_psbts).toHaveBeenCalledWith(satsUtxos);
-    expect(mockDepositCreatePsbt).not.toHaveBeenCalled();
+    expect(compatCtx.__create_psbts).not.toHaveBeenCalled();
   });
 
-  it('routes withdraw operations through the single withdraw PSBT builder', () => {
+  it('uses the supplied withdraw PSBT template without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'withdraw',
       ctx: ctx as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
-    expect(mockWithdrawCreatePsbt).toHaveBeenCalledWith(ctx);
   });
 
-  it('routes compat withdraw operations through the stored PSBT replay builder', () => {
+  it('does not call compat withdraw replay builders when a PSBT is supplied', () => {
     const compatCtx = { ...ctx, __create_psbts: jest.fn(() => [PSBT_A]) };
     setPendingVaultSigningOperation({
       action: 'withdraw',
       ctx: compatCtx as never,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
-    expect(compatCtx.__create_psbts).toHaveBeenCalledWith([]);
-    expect(mockWithdrawCreatePsbt).not.toHaveBeenCalled();
+    expect(compatCtx.__create_psbts).not.toHaveBeenCalled();
   });
 
-  it('routes trim operations through the single trim PSBT builder', () => {
+  it('uses the supplied trim PSBT template without SDK rebuilds', () => {
     setPendingVaultSigningOperation({
       action: 'trim',
       ctx: ctx as never,
       unsignedPsbt: PSBT_A,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
-    expect(mockTrimCreatePsbt).not.toHaveBeenCalled();
   });
 
   it('routes repo operations through the exact unsigned action PSBT', () => {
@@ -304,7 +248,7 @@ describe('vault signing context', () => {
       unsignedPsbt: PSBT_A,
     });
 
-    const templates = getExpectedVaultPsbtTemplates();
+    const templates = getExpectedVaultPsbtTemplates(PSBT_A);
 
     expect(templates).toHaveLength(1);
     expect(vaultCtx.__create_psbts).not.toHaveBeenCalled();
