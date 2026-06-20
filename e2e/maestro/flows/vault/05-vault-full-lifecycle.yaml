@@ -1,12 +1,12 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Vault Full Lifecycle - Deposit → Borrow → Repay ALL → Withdraw ALL
-# Tests zero-debt and zero-collateral edge cases in a single flow
+# Vault Full Lifecycle - Deposit → Borrow → Repay → Withdraw
+# Exercises repay and withdraw in a single active-vault flow.
 
 # Step 1: Create wallet with vault (HALF BTC deposit + QTR UNIT borrow)
 - runFlow: ../helpers/create-wallet-with-vault.yaml
 
-# Step 2: Repay ALL UNIT debt
+# Step 2: Repay a live-validator-safe UNIT amount
 - extendedWaitUntil:
     visible:
       id: "wallet-repay-btn"
@@ -19,9 +19,17 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-repay-input-screen"
     timeout: 10000
 
-# Repay MAX (all debt)
+# Repay the minimum UNIT amount accepted by the live guardian.
 - tapOn:
-    id: "unit-slider-max-btn"
+    id: "vault-repay-amount-display"
+- extendedWaitUntil:
+    visible:
+      id: "vault-repay-amount-input"
+    timeout: 5000
+- eraseText
+- inputText: "1"
+- tapOn:
+    id: "vault-repay-amount-done-btn"
 - waitForAnimationToEnd
 
 - tapOn:

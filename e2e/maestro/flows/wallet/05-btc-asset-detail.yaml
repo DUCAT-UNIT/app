@@ -12,13 +12,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: ../helpers/dismiss-airdrop.yaml
 
 # Dismiss passkey migration modal if it appears
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Wait for asset cards to load
 - extendedWaitUntil:

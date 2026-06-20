@@ -48,29 +48,18 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: 'biometric-skip-btn'
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: 'passkey-migration-modal'
-    commands:
-      - tapOn:
-          id: 'passkey-skip-btn'
+# Skip passkey recovery if prompted
+- runFlow: dismiss-passkey-recovery.yaml
 
-# A fresh live wallet should receive a faucet response before we wait for the
-# funded BTC card. Wait for the funding modal once so it cannot appear later and
-# cover the wallet-screen assertion.
+# A fresh live wallet should receive faucet BTC before we continue. The funding
+# modal can be skipped by the app when the balance arrives first, so dismiss it
+# opportunistically and let the funded BTC balance be the required gate.
 - waitForAnimationToEnd
 - waitForAnimationToEnd
 - runFlow: unlock-if-locked.yaml
 
-# Accept airdrop once it appears. Tapping "Get Started" dismisses the success modal.
-- extendedWaitUntil:
-    visible:
-      text: 'Get Started'
-    timeout: 45000
-- tapOn:
-    text: 'Get Started'
+# Accept the airdrop modal if it appears.
+- runFlow: dismiss-airdrop.yaml
 - waitForAnimationToEnd
 - runFlow: unlock-if-locked.yaml
 
@@ -78,43 +67,27 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: dismiss-low-ecash.yaml
 
 # Passkey prompt can appear a little later on fresh wallet creation
-- runFlow:
-    when:
-      visible:
-        id: 'passkey-migration-modal'
-    commands:
-      - tapOn:
-          id: 'passkey-skip-btn'
+- runFlow: dismiss-passkey-recovery.yaml
 
 # Verify wallet screen loads
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'
     timeout: 15000
+- runFlow: dismiss-airdrop.yaml
 
 # This prompt can appear slightly later, after the wallet home mounts.
-- runFlow:
-    when:
-      visible:
-        id: 'passkey-migration-modal'
-    commands:
-      - tapOn:
-          id: 'passkey-skip-btn'
+- runFlow: dismiss-passkey-recovery.yaml
 
 # Wait for balance section to appear
 - extendedWaitUntil:
     visible:
       id: 'balance-section'
     timeout: 30000
+- runFlow: dismiss-airdrop.yaml
 
 # Dismiss any delayed passkey prompt before continuing the funded-wallet flow.
-- runFlow:
-    when:
-      visible:
-        id: 'passkey-migration-modal'
-    commands:
-      - tapOn:
-          id: 'passkey-skip-btn'
+- runFlow: dismiss-passkey-recovery.yaml
 
 # Wait for the funded BTC card to render in the live wallet UI.
 # The exact decimal formatting changes over time, so do not pin this to one string.
@@ -126,6 +99,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       text: "^(0\\.0*[1-9]\\d*|[1-9][\\d,]*\\.\\d{8})$"
     timeout: 180000
+- runFlow: dismiss-airdrop.yaml
 
 # Force defaults again now that the authenticated settings provider is mounted.
 # This updates live auto-lock/feature-flag state, not only persisted storage.
@@ -136,3 +110,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: 'wallet-screen'
     timeout: 15000
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml

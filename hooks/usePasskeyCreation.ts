@@ -16,6 +16,8 @@ import { isE2E } from '../utils/e2e';
 import { analytics } from '../services/analyticsService';
 import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 
+const isLiveRegression = (): boolean => process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION === 'true';
+
 interface UsePasskeyCreationParams {
   setIsAuthenticated: (value: boolean) => void;
   setSeedConfirmed: (value: boolean) => void;
@@ -149,7 +151,7 @@ export function usePasskeyCreation({
 
       // Step 4: Offer passkey backup first (most important for wallet recovery)
       // Biometric setup will be offered after passkey decision, or in Settings
-      if (showPasskeyMigrationPrompt && !isE2E()) {
+      if (showPasskeyMigrationPrompt && !isE2E() && !isLiveRegression()) {
         analytics.track(ONBOARDING_EVENTS.PASSKEY_SETUP_OFFERED);
         showPasskeyMigrationPrompt(pin);
       } else if (biometricSupported) {

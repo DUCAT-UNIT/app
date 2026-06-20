@@ -85,6 +85,7 @@ describe('usePasskeyCreation', () => {
   let mockProps: MockProps;
 
   beforeEach(() => {
+    delete process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION;
     mockProps = {
       setIsAuthenticated: jest.fn(),
       setSeedConfirmed: jest.fn(),
@@ -306,6 +307,27 @@ describe('usePasskeyCreation', () => {
 
       // In non-E2E mode, passkey migration prompt should be offered
       expect(showPasskeyPrompt).toHaveBeenCalledWith('123456');
+    });
+
+    it('should skip passkey migration during live regression', async () => {
+      process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION = 'true';
+      const showPasskeyPrompt = jest.fn();
+      const propsWithPasskey = { ...mockProps, showPasskeyMigrationPrompt: showPasskeyPrompt };
+
+      const { result } = renderHook(() => usePasskeyCreation(propsWithPasskey));
+
+      await act(async () => {
+        await result.current!.handlePinEntry('123456');
+      });
+      act(() => {
+        result.current!.setPasskeyPin('123456');
+      });
+
+      await act(async () => {
+        await result.current!.handlePinEntry('123456');
+      });
+
+      expect(showPasskeyPrompt).not.toHaveBeenCalled();
     });
 
     it('should set isCreating to true during creation', async () => {

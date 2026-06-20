@@ -40,14 +40,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+# Skip passkey recovery if prompted
+- runFlow: dismiss-passkey-recovery.yaml
 
 # Dismiss airdrop modal if it appears
 - runFlow: dismiss-airdrop.yaml
@@ -60,3 +54,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "wallet-screen"
     timeout: 15000
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml

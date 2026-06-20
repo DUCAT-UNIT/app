@@ -1,0 +1,39 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Dismiss the passkey recovery prompt when it appears after wallet creation/import.
+
+- runFlow:
+    when:
+      visible:
+        id: "passkey-migration-modal"
+    commands:
+      - tapOn:
+          id: "passkey-skip-btn"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Enable Passkey Recovery.*"
+    commands:
+      - tapOn:
+          text: "Skip for Now"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Upgrade Passkey Security.*"
+    commands:
+      - tapOn:
+          text: "Skip for Now"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
+        text: "Skip for Now"
+    commands:
+      - tapOn:
+          text: "Skip for Now"
+      - waitForAnimationToEnd

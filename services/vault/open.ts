@@ -90,11 +90,9 @@ function resolveOpenContext(
     (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)
   ) {
     const requestedAmount = vaultConfig.deposit_amount;
-    const zeroDepositCtx = createOpenCtx(wallet, acctRes, oracleQuote, {
-      ...vaultConfig,
-      deposit_amount: 0,
-    });
-    const maxSafeDeposit = Math.floor(getOpenChange(zeroDepositCtx, utxos) - postOpenReserveSats);
+    const maxSafeDeposit = Math.floor(
+      requestedAmount + changeSats - postOpenReserveSats
+    );
     const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
     const canAutoAdjust =
       isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;

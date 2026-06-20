@@ -116,6 +116,12 @@ const PROFILES = {
       'Submit a live vault withdrawal, relaunch before confirmation, and verify vault lock recovery.',
     flows: ['e2e/maestro/flows/test/live-vault-withdraw-relaunch-pending.yaml'],
   },
+  'liquidation-feed': {
+    description:
+      'Verify the live liquidation validator feed has claimable vaults without claiming one.',
+    flows: [],
+    expectChainTxids: false,
+  },
   'liquidation-execution': {
     description: 'Claim a live liquidation, capture claim/swap txids, and verify confirmation.',
     flows: ['e2e/maestro/flows/test/live-liquidation-execution.yaml'],
@@ -168,6 +174,7 @@ const PROFILE_GROUPS = {
     'vault-borrow-turbounit',
     'repay-turbounit',
     'vault-second-repay',
+    'liquidation-feed',
     'relaunch-recovery',
   ],
   real: [
@@ -538,7 +545,9 @@ async function validateLiveFixtureFunding() {
     ].includes(profileName)
   );
   const needsSepoliaWallet = selectedProfiles.includes('sepolia-send-swap-redeem');
-  const needsLiquidationAvailability = selectedProfiles.includes('liquidation-execution');
+  const needsLiquidationAvailability = selectedProfiles.some((profileName) =>
+    ['liquidation-feed', 'liquidation-execution'].includes(profileName)
+  );
   const needsBridgePool = selectedProfiles.some((profileName) =>
     ['vault-usdc-lifecycle', 'sepolia-send-swap-redeem'].includes(profileName)
   );
@@ -1194,6 +1203,7 @@ function runDoctor() {
 
 function requireLogCoverage(exitCode) {
   if (process.env.DUCAT_LIVE_REGRESSION_REQUIRE_LOGS === 'false') return;
+  if (selectedFlows.length === 0) return;
   if (selectedProfiles.length === 1 && selectedProfiles[0] === 'receive-btc') return;
   collectClipboardTxid();
   collectTxidsFromPendingTransactionEntries();
@@ -1240,6 +1250,10 @@ try {
 
   console.log(`Running live regression profiles: ${selectedProfiles.join(', ')}`);
   console.log(`Flows: ${selectedFlows.join(', ')}`);
+  if (selectedFlows.length === 0) {
+    console.log('No Maestro flows selected; fixture checks completed.');
+    await finishRun(0, null);
+  }
   if (verifyChain) {
     console.log(
       `Chain verification: ${requireConfirmation ? 'requires confirmation' : 'requires mempool visibility'} via ${report.chainVerification.esploraApiUrl}`

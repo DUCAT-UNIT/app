@@ -25,7 +25,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-repay-input-screen"
     timeout: 10000
 
-# Enter a small UNIT repayment amount.
+# Enter the minimum UNIT repayment accepted by the live guardian.
 - tapOn:
     id: "vault-repay-amount-display"
 - extendedWaitUntil:
@@ -33,7 +33,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "vault-repay-amount-input"
     timeout: 5000
 - eraseText
-- inputText: "0.01"
+- inputText: "1"
 - tapOn:
     id: "vault-repay-amount-done-btn"
 - waitForAnimationToEnd

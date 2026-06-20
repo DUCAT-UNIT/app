@@ -18,16 +18,13 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: dismiss-debug-warning.yaml
 - runFlow: dismiss-low-ecash.yaml
 - runFlow: dismiss-airdrop.yaml
-- runFlow:
-    when:
-      visible:
-        text: "Skip for Now"
-    commands:
-      - tapOn:
-          text: "Skip for Now"
-      - waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
 
 - extendedWaitUntil:
     visible:
       id: "wallet-screen"
     timeout: 30000
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml

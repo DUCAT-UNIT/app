@@ -63,6 +63,7 @@ describe('useOnboardingHandlers', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION;
     mockProps = {
       setIsImportedWallet: jest.fn(),
       setImportedMnemonic: jest.fn(),
@@ -134,6 +135,22 @@ describe('useOnboardingHandlers', () => {
       expect(mockProps.showPasskeyMigrationPromptGlobal).toHaveBeenCalledWith('1234');
 
       jest.useRealTimers();
+    });
+
+    it('should skip imported wallet passkey migration during live regression', async () => {
+      process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION = 'true';
+
+      const { result } = renderHookWithProps({
+        ...mockProps,
+        isImportedWallet: true,
+        importedMnemonic: 'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12',
+      });
+
+      await act(async () => {
+        await result.current!.handlePinSetupComplete('1234');
+      });
+
+      expect(mockProps.showPasskeyMigrationPromptGlobal).not.toHaveBeenCalled();
     });
 
     it('should not use legacy wallet creation state for imported wallet', async () => {

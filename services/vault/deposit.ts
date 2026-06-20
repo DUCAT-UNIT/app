@@ -89,11 +89,7 @@ function resolveDepositContext(
 
   if (changeSats < 0 || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
     const requestedAmount = depositConfig.deposit_amount;
-    const zeroDepositCtx = createDepositCtx(wallet, oracleQuote, vaultProfile, {
-      ...depositConfig,
-      deposit_amount: 0,
-    });
-    const maxSafeDeposit = Math.floor(getDepositChange(zeroDepositCtx, utxos));
+    const maxSafeDeposit = Math.floor(requestedAmount + changeSats);
     const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
     const canAutoAdjust =
       Boolean(isMaxAmount) || adjustmentSats <= MAX_AUTO_ADJUST_DEPOSIT_SATS;

@@ -30,6 +30,8 @@ const MUTINYNET_NETWORK = {
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 const bip32 = BIP32Factory(ecc);
+const LIQ_PAGE_SIZE = 250;
+const LIQ_MAX_PAGES = 10;
 
 if (typeof bitcoin.initEccLib === 'function') {
   bitcoin.initEccLib(ecc);
@@ -115,6 +117,94 @@ async function fetchJson(url) {
     throw new Error(`${url} returned HTTP ${response.status}`);
   }
   return response.json();
+}
+
+function liquidationPageRows(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== 'object') return [];
+  if (Array.isArray(data.data)) return data.data;
+  if (Array.isArray(data.items)) return data.items;
+  return [];
+}
+
+function liquidationNextCursor(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  return data.has_more === true && typeof data.next_cursor === 'string' && data.next_cursor
+    ? data.next_cursor
+    : null;
+}
+
+function isExpiredSnapshotPaginationError(response, body) {
+  return response.status === 400 && body.toLowerCase().includes('expired snapshot');
+}
+
+function liquidationAction(row) {
+  return row?.stone?.action ?? row?.vault_action ?? row?.latest_profile?.vault_action;
+}
+
+function isTerminalLiquidationAction(action) {
+  const normalized = typeof action === 'string' ? action.trim().toLowerCase() : '';
+  return (
+    normalized === 'liquidation' ||
+    normalized === 'liquidate' ||
+    normalized === 'repo' ||
+    normalized === 'l'
+  );
+}
+
+function isClaimableLiquidationRow(row) {
+  return row?.quote?.is_expired !== true && !isTerminalLiquidationAction(liquidationAction(row));
+}
+
+async function fetchLiquidationFeed(liquidationUrl) {
+  const rows = [];
+  let cursor = null;
+  let pageCount = 0;
+  let stoppedAtExpiredSnapshot = false;
+  let stoppedAtPageGuard = false;
+
+  do {
+    const url = new URL(`${liquidationUrl}/api/liquid/vaults`);
+    url.searchParams.set('page_size', String(LIQ_PAGE_SIZE));
+    if (cursor) url.searchParams.set('cursor', cursor);
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      if (rows.length > 0 && isExpiredSnapshotPaginationError(response, body)) {
+        stoppedAtExpiredSnapshot = true;
+        break;
+      }
+
+      throw new Error(`${url.toString()} returned HTTP ${response.status} ${body.slice(0, 160)}`);
+    }
+
+    const pageData = await response.json();
+    rows.push(...liquidationPageRows(pageData));
+    pageCount += 1;
+    const nextCursor = liquidationNextCursor(pageData);
+    stoppedAtPageGuard = pageCount >= LIQ_MAX_PAGES && nextCursor !== null;
+    cursor = stoppedAtPageGuard ? null : nextCursor;
+  } while (cursor);
+
+  const expiredQuoteCount = rows.filter((row) => row?.quote?.is_expired === true).length;
+  const terminalActionCount = rows.filter((row) =>
+    isTerminalLiquidationAction(liquidationAction(row))
+  ).length;
+  const claimableCount = rows.filter(isClaimableLiquidationRow).length;
+
+  return {
+    endpoint: `${liquidationUrl}/api/liquid/vaults`,
+    pageSize: LIQ_PAGE_SIZE,
+    pageCount,
+    rawCount: rows.length,
+    claimableCount,
+    expiredQuoteCount,
+    terminalActionCount,
+    paginationIncomplete: stoppedAtExpiredSnapshot || stoppedAtPageGuard,
+    stoppedAtExpiredSnapshot,
+    stoppedAtPageGuard,
+  };
 }
 
 async function addressUtxoSats(esploraUrl, address) {
@@ -262,17 +352,46 @@ export async function checkBridgePoolLiquidity(env = process.env) {
 
 export async function checkLiquidationAvailability(env = process.env) {
   const liquidationUrl = getLiquidationValidatorUrl(env);
-  const stats = await fetchJson(`${liquidationUrl}/api/liquid/stats`);
-  const availableVaults = Number(stats?.data?.total_count ?? stats?.total_count ?? 0);
+  let statsTotalCount = null;
+  let statsError = null;
+  try {
+    const stats = await fetchJson(`${liquidationUrl}/api/liquid/stats`);
+    statsTotalCount = Number(stats?.data?.total_count ?? stats?.total_count ?? 0);
+  } catch (error) {
+    statsError = error instanceof Error ? error.message : String(error);
+  }
+
+  let feed;
+  try {
+    feed = await fetchLiquidationFeed(liquidationUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      id: 'liquidation-availability',
+      passed: false,
+      liquidationUrl,
+      availableVaults: 0,
+      statsTotalCount,
+      statsError,
+      feed: null,
+      error: `Liquidation validator feed is unavailable: ${message}`,
+    };
+  }
+
+  const availableVaults = feed.claimableCount;
+  const passed = availableVaults > 0;
 
   return {
     id: 'liquidation-availability',
-    passed: availableVaults > 0,
+    passed,
     liquidationUrl,
     availableVaults,
+    statsTotalCount,
+    statsError,
+    feed,
     error:
-      availableVaults > 0
+      passed
         ? null
-        : 'Liquidation validator has no liquidatable vaults available for a live claim.',
+        : `Liquidation validator feed has no claimable vaults: raw=${feed.rawCount}, terminal=${feed.terminalActionCount}, expired=${feed.expiredQuoteCount}, stats=${statsTotalCount ?? 'unknown'}.`,
   };
 }

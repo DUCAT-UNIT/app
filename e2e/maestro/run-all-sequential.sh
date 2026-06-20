@@ -1,77 +1,62 @@
 #!/bin/bash
-# Run all Maestro E2E tests sequentially (one at a time on the same simulator)
+# Run maintained Maestro product flows sequentially against the Expo dev-client app.
 # Usage: ./e2e/maestro/run-all-sequential.sh
 
-set +e
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 FLOWS_DIR="$SCRIPT_DIR/flows"
-PASSED=0
-FAILED=0
-FAILURES=""
-
 APP_BUNDLE_ID="com.ducatprotocol.DucatProtocolWallet"
+SUITES=(auth wallet send settings vault ecash)
+FLOWS=()
 
-# Get the booted device UDID
-DEVICE_ID=$(xcrun simctl list devices booted | grep -o '[A-F0-9-]\{36\}' | head -1)
+DEVICE_ID="$(xcrun simctl list devices booted | grep -o '[A-F0-9-]\{36\}' | head -1 || true)"
 if [ -z "$DEVICE_ID" ]; then
   echo "ERROR: No booted simulator found"
   exit 1
 fi
-echo "Using simulator: $DEVICE_ID"
 
-# Flows reset app state themselves via Maestro helpers (clearKeychain + clearState).
-# Do not manually uninstall/reinstall or delete the simulator keychain DB here,
-# because that can corrupt the simulator and cause clearKeychain to fail globally.
 if ! xcrun simctl get_app_container "$DEVICE_ID" "$APP_BUNDLE_ID" app > /dev/null 2>&1; then
   echo "ERROR: App is not installed on the booted simulator."
   echo "  Run: npx expo run:ios --device \"iPhone 16 Pro - Maestro\""
   exit 1
 fi
-echo ""
 
-run_test() {
-  local file="$1"
-  local name=$(basename "$file" .yaml)
-  local suite=$(basename "$(dirname "$file")")
-  printf "  %-40s " "[$suite] $name"
-
-  if maestro test --device "$DEVICE_ID" "$file" > /dev/null 2>&1; then
-    echo "✓ PASSED"
-    PASSED=$((PASSED + 1))
-  else
-    echo "✗ FAILED"
-    FAILED=$((FAILED + 1))
-    FAILURES="$FAILURES\n  [$suite] $name"
-  fi
-}
-
-START_TIME=$(date +%s)
-
-echo "Running E2E tests sequentially..."
-echo ""
-
-for suite in auth wallet send settings vault ecash; do
-  echo "=== $(echo "$suite" | tr '[:lower:]' '[:upper:]') SUITE ==="
+for suite in "${SUITES[@]}"; do
   for file in "$FLOWS_DIR/$suite"/*.yaml; do
-    [ -f "$file" ] && run_test "$file"
+    [ -f "$file" ] && FLOWS+=("$file")
   done
-  echo ""
 done
 
-END_TIME=$(date +%s)
-ELAPSED=$((END_TIME - START_TIME))
-MINUTES=$((ELAPSED / 60))
-SECONDS=$((ELAPSED % 60))
-
-TOTAL=$((PASSED + FAILED))
-echo "==============================="
-echo "Results: $PASSED/$TOTAL passed, $FAILED failed"
-echo "Time: ${MINUTES}m ${SECONDS}s"
-
-if [ -n "$FAILURES" ]; then
-  echo ""
-  echo "Failed tests:"
-  echo -e "$FAILURES"
+if [ "${#FLOWS[@]}" -eq 0 ]; then
+  echo "ERROR: No Maestro flows found under $FLOWS_DIR"
+  exit 1
 fi
 
-exit $FAILED
+mkdir -p "$ROOT_DIR/artifacts/maestro-full" "$ROOT_DIR/artifacts/live-maestro"
+TS="$(date +%Y%m%d-%H%M%S)"
+LOG_PATH="artifacts/maestro-full/product-suite-${TS}.log"
+REPORT_PATH="${MAESTRO_LIVE_REPORT_PATH:-artifacts/live-maestro/product-suite-${TS}.json}"
+
+printf "%s\n" "$LOG_PATH" > "$ROOT_DIR/artifacts/maestro-full/latest-product-suite-log.txt"
+printf "%s\n" "$REPORT_PATH" > "$ROOT_DIR/artifacts/maestro-full/latest-product-suite-report.txt"
+
+echo "Using simulator: $DEVICE_ID"
+echo "Running ${#FLOWS[@]} Maestro flows through scripts/runMaestroLive.mjs"
+echo "Log: $LOG_PATH"
+echo "Report: $REPORT_PATH"
+
+cd "$ROOT_DIR"
+
+export MAESTRO_LIVE_REUSE_METRO="${MAESTRO_LIVE_REUSE_METRO:-false}"
+export MAESTRO_DRIVER_CRASH_RETRIES="${MAESTRO_DRIVER_CRASH_RETRIES:-2}"
+export MAESTRO_DRIVER_CRASH_HANG_TIMEOUT_MS="${MAESTRO_DRIVER_CRASH_HANG_TIMEOUT_MS:-5000}"
+export MAESTRO_LIVE_REPORT_PATH="$REPORT_PATH"
+
+set +e
+node scripts/runMaestroLive.mjs "${FLOWS[@]}" 2>&1 | tee "$LOG_PATH"
+STATUS="${PIPESTATUS[0]}"
+set -e
+
+exit "$STATUS"

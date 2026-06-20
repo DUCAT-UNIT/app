@@ -63,20 +63,16 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: unlock-if-locked.yaml
 - runFlow: dismiss-airdrop.yaml
 - runFlow: dismiss-low-ecash.yaml
-
-- runFlow:
-    when:
-      visible:
-        text: 'Skip for Now'
-    commands:
-      - tapOn:
-          text: 'Skip for Now'
-      - waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
 
 - extendedWaitUntil:
     visible:
       id: 'wallet-screen'
     timeout: 30000
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
 - extendedWaitUntil:
     visible:
       id: 'balance-section'
@@ -85,20 +81,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # This can appear after the wallet home has already mounted and would block
 # the first tap in transaction flows.
 - waitForAnimationToEnd
-- runFlow:
-    when:
-      visible:
-        text: 'Skip for Now'
-    commands:
-      - tapOn:
-          text: 'Skip for Now'
-      - waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml
 - waitForAnimationToEnd
-- runFlow:
-    when:
-      visible:
-        text: 'Skip for Now'
-    commands:
-      - tapOn:
-          text: 'Skip for Now'
-      - waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml

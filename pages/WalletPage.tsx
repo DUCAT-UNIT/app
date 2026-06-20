@@ -13,7 +13,6 @@ import { useAuthSession } from '../contexts/AuthContext';
 // Components
 import MutinynetBanner from '../components/MutinynetBanner';
 import SplashScreen from '../screens/SplashScreen';
-import ReceiveScreen from '../screens/wallet/ReceiveScreen';
 import TransactionHistoryScreen from '../screens/wallet/TransactionHistoryScreen';
 import WalletScreen from '../screens/wallet/WalletScreen';
 // EcashThresholdSheet is now rendered at app level in AppNavigatorContent
@@ -123,7 +122,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const { intentStep, sendAssetType, sendAddressType, turboEnabled, btcTurboEnabled } =
     useSendFlow();
   const { broadcastedTxid } = useTransactionExecution();
-  const { showToast, dismissSnackbar, showSnackbar } = useNotifications();
+  const { dismissSnackbar, showSnackbar } = useNotifications();
   const isPendingVaultTx = useHasPendingVaultTx();
 
   // Calculate current UNIT balance for ecash balance check
@@ -168,10 +167,7 @@ export default function WalletPage({ route }: WalletPageProps) {
   const [showWithdrawSheet, setShowWithdrawSheet] = useState(false);
   const [showDepositSheet, setShowDepositSheet] = useState(false);
 
-  // Receive screen with QR (for when user selects asset from deposit sheet)
-  const [showReceiveQR, setShowReceiveQR] = useState(false);
-  const [receiveAssetType, setReceiveAssetType] = useState<'btc' | 'unit' | null>(null);
-  const shouldHideTabBarForOverlay = showWithdrawSheet || showDepositSheet || showReceiveQR;
+  const shouldHideTabBarForOverlay = showWithdrawSheet || showDepositSheet;
   const btcReceiveTarget = getReceiveAddressTarget({
     assetType: 'BTC',
     wallet,
@@ -292,6 +288,21 @@ export default function WalletPage({ route }: WalletPageProps) {
     navigateRoot('VaultCreateFlow');
   };
 
+  const handleDepositAssetSelect = (assetType: 'btc' | 'unit') => {
+    const receiveAsset = assetType === 'btc' ? 'BTC' : 'UNIT';
+    const receiveTarget = receiveAsset === 'BTC' ? btcReceiveTarget : unitReceiveTarget;
+
+    if (!receiveTarget.address) {
+      return;
+    }
+
+    navigateWalletFlow('ReceiveQR', {
+      address: receiveTarget.address,
+      addressType: receiveTarget.addressType,
+      assetType: receiveAsset,
+    });
+  };
+
   if (!hasCheckedInitialFlags) return <SplashScreen />;
 
   return (
@@ -369,31 +380,7 @@ export default function WalletPage({ route }: WalletPageProps) {
         <DepositSheet
           visible={showDepositSheet}
           onClose={() => setShowDepositSheet(false)}
-          onAssetSelect={(assetType) => {
-            setReceiveAssetType(assetType);
-            setShowReceiveQR(true);
-          }}
-        />
-        <ReceiveScreen
-          key={`receive-qr-${currentAccount}`}
-          styles={styles}
-          showReceiveSheet={showReceiveQR}
-          onClose={() => {
-            setShowReceiveQR(false);
-            setReceiveAssetType(null);
-          }}
-          segwitAddress={wallet?.segwitAddress || ''}
-          taprootAddress={wallet?.taprootAddress || ''}
-          btcAddress={btcReceiveTarget.address || ''}
-          btcAddressType={btcReceiveTarget.addressType}
-          showToast={showToast}
-          autoOpenQR={true}
-          preSelectedAddress={
-            receiveAssetType === 'btc' ? btcReceiveTarget.address : unitReceiveTarget.address
-          }
-          preSelectedType={
-            receiveAssetType === 'btc' ? btcReceiveTarget.addressType : unitReceiveTarget.addressType
-          }
+          onAssetSelect={handleDepositAssetSelect}
         />
         <StatusBar style="light" />
         {/* Snackbar is rendered at app level in AppNavigatorContent */}

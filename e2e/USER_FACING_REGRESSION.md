@@ -47,7 +47,9 @@ checks, and Sepolia receipt checks.
 `test:user-facing:real-no-usdc` runs the strict live phone suite backed by the
 submitted TestFlight reviewer data, excluding Sepolia/USDC flows and other
 fixture-gated extras that need fresh external data. It includes both TurboUNIT
-directions: borrow settled to TurboUNIT and repay funded by TurboUNIT.
+directions: borrow settled to TurboUNIT and repay funded by TurboUNIT, plus a
+non-destructive liquidation validator feed check against the app's live feed
+endpoint.
 
 `test:user-facing:serve-sim` starts a `serve-sim` preview/control plane for the
 selected simulator, then runs the selected user-facing profile and captures

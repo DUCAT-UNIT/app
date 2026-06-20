@@ -10,6 +10,8 @@ import { ONBOARDING_EVENTS } from '../constants/analyticsEvents';
 import { createEmptySeedPhrase } from '../constants/mnemonic';
 import type { WalletAddresses } from '../contexts/WalletContext';
 
+const isLiveRegression = (): boolean => process.env.EXPO_PUBLIC_DUCAT_LIVE_REGRESSION === 'true';
+
 interface LoadWalletResult {
   exists: boolean;
   addresses?: WalletAddresses;
@@ -83,11 +85,11 @@ export function useOnboardingHandlers({
       // Show passkey modal immediately after setup completes
       // Skip in __DEV__ mode — passkey requires native WebAuthn dialog
       // which blocks Maestro/simulator automation
-      if (!isE2E()) {
+      if (!isE2E() && !isLiveRegression()) {
         logger.debug('[OnboardingHandlers] Showing passkey migration modal');
         showPasskeyMigrationPromptGlobal(capturedPin);
       } else {
-        logger.debug('[OnboardingHandlers] Skipping passkey migration modal in E2E mode');
+        logger.debug('[OnboardingHandlers] Skipping passkey migration modal in E2E/live mode');
       }
 
       // Complete setup

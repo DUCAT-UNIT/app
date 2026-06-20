@@ -10,13 +10,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Dismiss modals that may appear after wallet loads
 - runFlow: dismiss-low-ecash.yaml
 - runFlow: dismiss-airdrop.yaml
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: dismiss-passkey-recovery.yaml
 
 - tapOn:
     id: "wallet-settings-btn"

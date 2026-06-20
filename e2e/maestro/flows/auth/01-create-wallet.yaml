@@ -44,14 +44,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+# Skip passkey recovery if prompted
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Airdrop is not mandatory for auth coverage. Slow network/faucet responses
 # should not fail the wallet creation smoke test.
@@ -60,25 +54,13 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: ../helpers/unlock-if-locked.yaml
 
 # Passkey prompt can appear just after wallet state is committed.
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Dismiss airdrop modal if it appears
 - runFlow: ../helpers/dismiss-airdrop.yaml
 - runFlow: ../helpers/unlock-if-locked.yaml
 
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Dismiss low ecash modal if it appears
 - runFlow: ../helpers/dismiss-low-ecash.yaml
@@ -88,3 +70,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "wallet-screen"
     timeout: 15000
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml

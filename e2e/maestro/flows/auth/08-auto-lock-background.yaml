@@ -14,13 +14,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Dismiss modals
 - runFlow: ../helpers/dismiss-low-ecash.yaml
 - runFlow: ../helpers/dismiss-airdrop.yaml
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Verify we're on wallet screen
 - assertVisible:
@@ -50,9 +44,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Dismiss modals after unlock
 - runFlow: ../helpers/dismiss-low-ecash.yaml
 - runFlow: ../helpers/dismiss-airdrop.yaml
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Verify wallet screen loads after unlock
 - extendedWaitUntil:
     visible:
       id: "wallet-screen"
     timeout: 15000
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
+- waitForAnimationToEnd
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml

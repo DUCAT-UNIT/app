@@ -4,6 +4,7 @@ import {
   getRedemptionStatus,
 } from '../bridgeApiService';
 import { checkMeltQuote, checkMintQuote } from '../cashu/cashuMintClient';
+import { completeMint } from '../cashu/cashuWalletService';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -49,6 +50,10 @@ jest.mock('../cashu/cashuMintClient', () => ({
       return 'UNPAID';
     }
   ),
+}));
+
+jest.mock('../cashu/cashuWalletService', () => ({
+  completeMint: jest.fn(),
 }));
 
 jest.mock('../evmBridgeService', () => ({
@@ -304,9 +309,9 @@ describe('vaultSettlementService', () => {
     });
   });
 
-  it('keeps a paid TurboUNIT mint settlement pending until proofs are issued', async () => {
+  it('claims a paid TurboUNIT mint settlement and completes store state', async () => {
     useVaultSettlementStore.getState().startOperation('open', 75, 'TURBOUNIT');
-    useVaultSettlementStore.getState().setCashuMintQuote('cashu-quote-paid', 'tb1pmint');
+    useVaultSettlementStore.getState().setCashuMintQuote('cashu-quote-paid', 'tb1pmint', 7500);
     useVaultSettlementStore.getState().setCashuMintSendTxid('unit-send-txid');
     (checkMintQuote as jest.Mock).mockResolvedValue({
       quote: 'cashu-quote-paid',
@@ -314,17 +319,20 @@ describe('vaultSettlementService', () => {
       amount_paid: 7500,
       amount_issued: 0,
     });
+    (completeMint as jest.Mock).mockResolvedValue([{ amount: 5000 }, { amount: 2500 }]);
 
     await expect(refreshPersistedVaultSettlementStatus()).resolves.toEqual({
-      status: 'pending',
-      message: 'TurboUNIT mint is paid and ready to claim.',
+      status: 'settled',
+      message: 'TurboUNIT mint completed.',
       lastStatus: 'PAID',
     });
 
-    expect(mockConfirmPendingTransaction).not.toHaveBeenCalled();
+    expect(completeMint).toHaveBeenCalledWith('cashu-quote-paid', 7500);
+    expect(mockConfirmPendingTransaction).toHaveBeenCalledWith('unit-send-txid');
     expect(useVaultSettlementStore.getState()).toMatchObject({
-      phase: 'waiting_turbo_mint',
-      payoutAsset: null,
+      phase: 'settled',
+      payoutAsset: 'TURBOUNIT',
+      payoutAmount: '75',
     });
   });
 

@@ -57,16 +57,11 @@ appId: com.ducatprotocol.DucatProtocolWallet
       - tapOn:
           id: "biometric-skip-btn"
 
-# Skip passkey migration if prompted
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+# Skip passkey recovery if prompted
+- runFlow: dismiss-passkey-recovery.yaml
 
 # Dismiss airdrop modal if it appears
 - runFlow: dismiss-airdrop.yaml
+- runFlow: dismiss-passkey-recovery.yaml
 
 # NOTE: Intentionally NOT dismissing low ecash modal

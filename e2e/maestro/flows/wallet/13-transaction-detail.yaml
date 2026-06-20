@@ -12,13 +12,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # Dismiss modals that may appear
 - runFlow: ../helpers/dismiss-low-ecash.yaml
 - runFlow: ../helpers/dismiss-airdrop.yaml
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Navigate to transaction history (opens as bottom sheet)
 - tapOn:
@@ -31,6 +25,10 @@ appId: com.ducatprotocol.DucatProtocolWallet
       text: "Transaction History"
     timeout: 10000
 
-# Verify "No transactions yet" is NOT shown (airdrop creates at least 1 transaction)
-- assertNotVisible:
-    text: "No transactions yet"
+# Verify a transaction row appears. Live explorer/indexer reads can lag or
+# briefly fail, so wait for the concrete first-row testID instead of sampling
+# the empty state once.
+- extendedWaitUntil:
+    visible:
+      id: "transaction-history-row-0"
+    timeout: 180000

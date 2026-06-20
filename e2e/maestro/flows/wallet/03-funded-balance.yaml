@@ -12,13 +12,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 15000
 
 # Skip passkey migration if it appears late
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 
 # Verify BTC asset card is visible with balance data
 - extendedWaitUntil:

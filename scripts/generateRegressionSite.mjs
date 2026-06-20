@@ -248,15 +248,21 @@ function renderFixtureRows(checks = []) {
     .map((check) => {
       const status = check.passed ? 'PASS' : 'FAIL';
       const statusClass = check.passed ? 'pass' : 'fail';
-      const addressSummary = Array.isArray(check.addresses)
+      const primary =
+        check.totalSats ??
+        check.availableVaults ??
+        (check.reserves ? `USDC ${check.reserves.usdc} / wUNIT ${check.reserves.wunit}` : 'n/a');
+      const details = Array.isArray(check.addresses)
         ? check.addresses.map((item) => `${item.utxos} UTXOs / ${item.sats} sats`).join(', ')
-        : 'n/a';
+        : check.feed
+          ? `claimable ${check.feed.claimableCount}, raw ${check.feed.rawCount}, terminal ${check.feed.terminalActionCount}, expired ${check.feed.expiredQuoteCount}`
+          : check.error || 'n/a';
 
       return `<tr>
         <td data-label="Check">${escapeHtml(check.id)}</td>
         <td data-label="Status"><span class="status ${statusClass}">${status}</span></td>
-        <td data-label="Total Sats">${escapeHtml(check.totalSats ?? 'n/a')}</td>
-        <td data-label="Addresses">${escapeHtml(addressSummary)}</td>
+        <td data-label="Primary">${escapeHtml(primary)}</td>
+        <td data-label="Details">${escapeHtml(details)}</td>
       </tr>`;
     })
     .join('\n');
@@ -747,8 +753,8 @@ function buildHtml({ appJson, regression, maestro, paths }) {
           <tr>
             <th>Check</th>
             <th>Status</th>
-            <th>Total Sats</th>
-            <th>Addresses</th>
+            <th>Primary</th>
+            <th>Details</th>
           </tr>
         </thead>
         <tbody>

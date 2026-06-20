@@ -33,7 +33,8 @@ waits for block confirmation when `--require-confirmation` is enabled.
 `e2e:real:no-usdc` is the strict live TestFlight reviewer-data gate while USDC is
 out of scope. It runs receive BTC, BTC send, UNIT send, vault
 open/deposit/borrow/repay/withdraw, borrow settled to TurboUNIT, TurboUNIT
-repay, and consecutive second repay with Mutinynet confirmation checks.
+repay, consecutive second repay, and a non-destructive live liquidation feed
+check with Mutinynet confirmation checks.
 
 `e2e:serve-sim` wraps the strict real gate with `serve-sim`, leaving a visible
 simulator preview and screenshots in `artifacts/serve-sim-regression/`.
@@ -47,6 +48,7 @@ node scripts/runLiveRegression.mjs --require-confirmation send-unit
 node scripts/runLiveRegression.mjs --require-confirmation vault-actions
 node scripts/runLiveRegression.mjs --require-confirmation vault-borrow-turbounit
 node scripts/runLiveRegression.mjs --require-confirmation vault-second-repay
+node scripts/runLiveRegression.mjs liquidation-feed
 node scripts/runLiveRegression.mjs --require-confirmation liquidation-execution
 node scripts/runLiveRegression.mjs deep-link-recovery
 node scripts/runLiveRegression.mjs --require-confirmation sepolia-send-swap-redeem
@@ -63,8 +65,8 @@ The runner automatically loads the submitted TestFlight `production` profile fro
 `eas.json`, then layers `.env` and `.env.local` on top. If omitted, it also
 defaults the Sepolia recipient to the reviewer wallet, uses tiny Sepolia amounts,
 and uses `0.00001` BTC for liquidation invest amount. Funded Mutinynet/Sepolia
-fixtures, bridge pool liquidity, and liquidation availability are verified from
-public chain/API state instead of manual acknowledgement flags.
+fixtures, bridge pool liquidity, and liquidation feed/claim availability are
+verified from public chain/API state instead of manual acknowledgement flags.
 
 ## Watchdog
 

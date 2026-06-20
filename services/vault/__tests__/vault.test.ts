@@ -1221,7 +1221,6 @@ describe('Vault Request Creation', () => {
       const getChange = VaultAPI.open.get_change as jest.Mock;
       getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
         if (ctx.deposit_amount === 10_000) return -250;
-        if (ctx.deposit_amount === 0) return 9_750;
         if (ctx.deposit_amount === 9_750) return 0;
         return 1_000;
       });
@@ -1230,7 +1229,12 @@ describe('Vault Request Creation', () => {
         const mockWallet = {
           vault: {
             open: {
-              ctx: jest.fn((_acct, _quote, config) => ({ ...config })),
+              ctx: jest.fn((_acct, _quote, config) => {
+                if (config.deposit_amount === 0) {
+                  throw new Error('zero deposit context should not be created');
+                }
+                return { ...config };
+              }),
               quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
               req: jest.fn().mockResolvedValue({
                 issue_txid: 'open_issue',
@@ -1279,7 +1283,6 @@ describe('Vault Request Creation', () => {
       const getChange = VaultAPI.open.get_change as jest.Mock;
       getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
         if (ctx.deposit_amount === 10_500) return 500;
-        if (ctx.deposit_amount === 0) return 11_000;
         if (ctx.deposit_amount === 10_000) return 1_000;
         return 1_000;
       });
@@ -1288,7 +1291,12 @@ describe('Vault Request Creation', () => {
         const mockWallet = {
           vault: {
             open: {
-              ctx: jest.fn((_acct, _quote, config) => ({ ...config })),
+              ctx: jest.fn((_acct, _quote, config) => {
+                if (config.deposit_amount === 0) {
+                  throw new Error('zero deposit context should not be created');
+                }
+                return { ...config };
+              }),
               quote: jest.fn().mockReturnValue({ total_cost: 1_500 }),
               req: jest.fn().mockResolvedValue({
                 issue_txid: 'open_issue',
@@ -1667,7 +1675,6 @@ describe('Vault Request Creation', () => {
       const getChange = VaultAPI.deposit.get_change as jest.Mock;
       getChange.mockImplementation((ctx: { deposit_amount?: number }) => {
         if (ctx.deposit_amount === 10_000) return -250;
-        if (ctx.deposit_amount === 0) return 9_750;
         if (ctx.deposit_amount === 9_750) return 0;
         return 1_000;
       });
@@ -1676,7 +1683,12 @@ describe('Vault Request Creation', () => {
         const mockWallet = {
           vault: {
             deposit: {
-              ctx: jest.fn((_quote, _profile, config) => ({ ...config })),
+              ctx: jest.fn((_quote, _profile, config) => {
+                if (config.deposit_amount === 0) {
+                  throw new Error('zero deposit context should not be created');
+                }
+                return { ...config };
+              }),
               quote: jest.fn().mockReturnValue({ total_cost: 500 }),
               req: jest.fn().mockResolvedValue({ vault_txid: 'deposit_vault' }),
             },

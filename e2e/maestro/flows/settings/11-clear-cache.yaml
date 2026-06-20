@@ -13,13 +13,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
     timeout: 15000
 - runFlow: ../helpers/dismiss-low-ecash.yaml
 - runFlow: ../helpers/dismiss-airdrop.yaml
-- runFlow:
-    when:
-      visible:
-        id: "passkey-migration-modal"
-    commands:
-      - tapOn:
-          id: "passkey-skip-btn"
+- runFlow: ../helpers/dismiss-passkey-recovery.yaml
 - tapOn:
     id: "wallet-settings-btn"
 - extendedWaitUntil:

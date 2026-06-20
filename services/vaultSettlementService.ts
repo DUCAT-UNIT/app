@@ -5,6 +5,7 @@ import {
 } from './bridgeApiService';
 import { checkMeltQuote, checkMintQuote, deriveMintQuoteState } from './cashu/cashuMintClient';
 import type { MeltQuote } from './cashu/cashuMintClient';
+import { completeMint, type CashuProof } from './cashu/cashuWalletService';
 import {
   estimateUsdcToUnitSwapExecution,
   quoteUnitUsdcSwap,
@@ -47,6 +48,10 @@ function delay(ms: number): Promise<void> {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function sumCashuProofs(proofs: CashuProof[]): number {
+  return proofs.reduce((sum, proof) => sum + proof.amount, 0);
 }
 
 export function formatVaultSettlementAmountInput(amountUsd: number): string {
@@ -536,6 +541,15 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
   const mintState = deriveMintQuoteState(mintQuote);
   const amountPaid = mintQuote.amount_paid ?? 0;
   const amountIssued = mintQuote.amount_issued ?? 0;
+  const availableAmount = Math.max(0, amountPaid - amountIssued);
+  const fallbackClaimAmount =
+    settlement.cashuMintQuoteAmount || mintQuote.amount || Math.round(settlement.faceValueUsd * 100);
+  const claimAmount =
+    availableAmount > 0
+      ? availableAmount
+      : mintState === 'PAID'
+        ? amountPaid || fallbackClaimAmount
+        : 0;
   const isFullyIssued = mintState === 'ISSUED' || (amountPaid > 0 && amountIssued >= amountPaid);
 
   if (!cashuMintSendTxid && amountPaid <= 0 && amountIssued <= 0 && mintState !== 'PAID') {
@@ -547,6 +561,36 @@ export async function refreshPersistedTurboMintSettlementStatus(): Promise<Vault
       message,
       lastStatus: mintState,
     };
+  }
+
+  if (claimAmount > 0 && !isFullyIssued) {
+    useVaultSettlementStore.getState().setPhase('waiting_turbo_mint');
+
+    try {
+      const proofs = await completeMint(cashuMintQuoteId, claimAmount);
+      if (cashuMintSendTxid) {
+        await usePendingTransactionsStore
+          .getState()
+          .confirmTransaction(cashuMintSendTxid)
+          .catch(() => undefined);
+      }
+
+      const issuedSmallestUnits = sumCashuProofs(proofs) || claimAmount;
+      const payoutAmount = formatVaultSettlementAmountInput(issuedSmallestUnits / 100);
+      useVaultSettlementStore.getState().completeSettlement('TURBOUNIT', payoutAmount);
+
+      return {
+        status: 'settled',
+        message: 'TurboUNIT mint completed.',
+        lastStatus: mintState,
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: getErrorMessage(error),
+        lastStatus: mintState,
+      };
+    }
   }
 
   if (isFullyIssued) {

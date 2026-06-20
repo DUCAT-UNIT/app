@@ -3,6 +3,104 @@ if (typeof global.Buffer === 'undefined') {
   global.Buffer = require('buffer').Buffer;
 }
 
+const BufferCtor = global.Buffer || require('buffer').Buffer;
+
+function hasWorkingTextEncoder(Encoder) {
+  try {
+    return (
+      typeof Encoder === 'function' &&
+      BufferCtor.from(new Encoder().encode('psbt')).toString('hex') === '70736274'
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
+function hasWorkingTextDecoder(Decoder) {
+  try {
+    return (
+      typeof Decoder === 'function' &&
+      new Decoder('utf-8').decode(Uint8Array.from([0x70, 0x73, 0x62, 0x74])) === 'psbt'
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
+class BufferTextEncoder {
+  encoding = 'utf-8';
+
+  encode(input = '') {
+    return Uint8Array.from(BufferCtor.from(String(input), 'utf8'));
+  }
+
+  encodeInto(input = '', destination) {
+    const source = String(input);
+    const encoded = this.encode(source);
+    const written = Math.min(encoded.length, destination.length);
+    destination.set(encoded.subarray(0, written));
+    return {
+      read: written === encoded.length ? source.length : written,
+      written,
+    };
+  }
+}
+
+class BufferTextDecoder {
+  encoding = 'utf-8';
+  fatal = false;
+  ignoreBOM = false;
+
+  constructor(_label = 'utf-8', options = {}) {
+    this.fatal = Boolean(options.fatal);
+    this.ignoreBOM = Boolean(options.ignoreBOM);
+  }
+
+  decode(input = new Uint8Array()) {
+    if (input instanceof ArrayBuffer) {
+      return BufferCtor.from(new Uint8Array(input)).toString('utf8');
+    }
+
+    if (ArrayBuffer.isView(input)) {
+      return BufferCtor.from(input.buffer, input.byteOffset, input.byteLength).toString('utf8');
+    }
+
+    return BufferCtor.from(input).toString('utf8');
+  }
+}
+
+function defineGlobal(name, value) {
+  try {
+    Object.defineProperty(globalThis, name, {
+      configurable: true,
+      writable: true,
+      value,
+    });
+  } catch (_e) {
+    globalThis[name] = value;
+  }
+
+  if (typeof global !== 'undefined' && global[name] !== value) {
+    try {
+      Object.defineProperty(global, name, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    } catch (_e) {
+      global[name] = value;
+    }
+  }
+}
+
+if (!hasWorkingTextEncoder(globalThis.TextEncoder)) {
+  defineGlobal('TextEncoder', BufferTextEncoder);
+}
+
+if (!hasWorkingTextDecoder(globalThis.TextDecoder)) {
+  defineGlobal('TextDecoder', BufferTextDecoder);
+}
+
 // Lazy import to avoid blocking during module initialization
 let getRandomValuesImpl = null;
 
@@ -26,6 +124,12 @@ if (typeof global.crypto.getRandomValues !== 'function') {
 if (typeof window !== 'undefined') {
   if (typeof window.Buffer === 'undefined') {
     window.Buffer = global.Buffer;
+  }
+  if (!hasWorkingTextEncoder(window.TextEncoder)) {
+    window.TextEncoder = globalThis.TextEncoder;
+  }
+  if (!hasWorkingTextDecoder(window.TextDecoder)) {
+    window.TextDecoder = globalThis.TextDecoder;
   }
   if (typeof window.crypto !== 'object') {
     window.crypto = {};
