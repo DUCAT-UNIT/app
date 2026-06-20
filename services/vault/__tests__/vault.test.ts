@@ -68,6 +68,26 @@ jest.mock('@ducat-unit/client-sdk', () => ({
   },
 }));
 
+jest.mock('@ducat-unit/client-sdk/lib', () => ({
+  create_vault_action_quote: jest.fn(
+    (config: { actionQuote?: unknown }) =>
+      config.actionQuote ?? {
+        vault_balance: 1_000_000,
+        unit_balance: 10_000,
+      }
+  ),
+  get_adjusted_quote_price: jest.fn(
+    (_protoProfile: unknown, quote: { base_price?: number; latest_price?: number }) =>
+      quote.base_price ?? quote.latest_price ?? 100_000
+  ),
+  get_price_bucket_rate: jest.fn(() => 1.6),
+  get_price_commit_hashes: jest.fn(() => ['commit-hash']),
+}));
+
+jest.mock('@ducat-unit/core/lib', () => ({
+  calc_collateral_ratio: jest.fn(() => 1.6),
+}));
+
 // Mock logger to prevent console output during tests
 jest.mock('../../../utils/logger', () => ({
   logger: {
@@ -87,6 +107,8 @@ jest.mock('../../../utils/vaultUtils', () => ({
 jest.mock('../../oracleService', () => ({
   MAX_QUOTE_AGE_SECONDS: 5 * 60,
   fetchPriceQuote: jest.fn(),
+  fetchPriceContractsByBucketTag: jest.fn().mockResolvedValue([]),
+  fetchPriceContractsByCommitHashes: jest.fn().mockResolvedValue([]),
 }));
 
 jest.mock('../../guardianService', () => ({
@@ -516,9 +538,11 @@ describe('Vault Utils', () => {
         const latestMatch = /\/vault\/([^/]+)\/latest$/.exec(url);
         if (latestMatch) {
           const rootTxid = latestMatch[1];
-          const nextIndex = txids.indexOf(rootTxid) + mockGetJsonWithNativeTimeout.mock.calls
-            .filter(([calledUrl]) => /\/vault\/([^/]+)\/latest$/.test(String(calledUrl)))
-            .length;
+          const nextIndex =
+            txids.indexOf(rootTxid) +
+            mockGetJsonWithNativeTimeout.mock.calls.filter(([calledUrl]) =>
+              /\/vault\/([^/]+)\/latest$/.test(String(calledUrl))
+            ).length;
           return {
             coin_id: `${txids[nextIndex]}:0`,
             root_txid: txids[0],
@@ -576,9 +600,9 @@ describe('Vault Utils', () => {
         throw new Error(`unexpected url: ${url}`);
       });
 
-      await expect(resolveLatestUnspentVaultPrevout(makePrevout('loop-tx-start'), 1)).rejects.toThrow(
-        'Could not resolve the latest vault UTXO before the safety hop limit.'
-      );
+      await expect(
+        resolveLatestUnspentVaultPrevout(makePrevout('loop-tx-start'), 1)
+      ).rejects.toThrow('Could not resolve the latest vault UTXO before the safety hop limit.');
     });
   });
 
@@ -665,12 +689,16 @@ describe('Vault Utils', () => {
         },
       };
 
-      const profile = buildVaultProfile('a'.repeat(64), {
-        creation_account: 'acct123',
-        guard_pubkey: 'c'.repeat(64),
-        latest_profile: latestProfile,
-        master_id: 'b'.repeat(64),
-      }, vaultPrevout);
+      const profile = buildVaultProfile(
+        'a'.repeat(64),
+        {
+          creation_account: 'acct123',
+          guard_pubkey: 'c'.repeat(64),
+          latest_profile: latestProfile,
+          master_id: 'b'.repeat(64),
+        },
+        vaultPrevout
+      );
 
       expect(profile).toMatchObject({
         coin_id: 'txid:0',
@@ -1097,6 +1125,13 @@ describe('Vault Request Creation', () => {
     latest_stamp: Math.floor(Date.now() / 1000) - 3600,
   });
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+    const oracleService = require('../../oracleService');
+    oracleService.fetchPriceContractsByBucketTag.mockResolvedValue([]);
+    oracleService.fetchPriceContractsByCommitHashes.mockResolvedValue([]);
+  });
+
   describe('createVaultReqOpen', () => {
     const createOpenCtxMock = (ctx: Record<string, unknown> = {}) => ({
       ...ctx,
@@ -1119,9 +1154,11 @@ describe('Vault Request Creation', () => {
           open: {
             ctx: jest.fn().mockReturnValue(openCtx),
             quote: jest.fn().mockReturnValue({ total_cost: 1500 }),
-            req: jest.fn().mockRejectedValue(
-              new Error('Writer(magic): TypeError: undefined is not a function')
-            ),
+            req: jest
+              .fn()
+              .mockRejectedValue(
+                new Error('Writer(magic): TypeError: undefined is not a function')
+              ),
           },
         },
         fetch: {
@@ -1146,19 +1183,123 @@ describe('Vault Request Creation', () => {
 
       const result = await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
-      expect(fetchPriceQuote).toHaveBeenCalledWith(45000);
+      expect(fetchPriceQuote).toHaveBeenCalledWith(
+        45000,
+        expect.objectContaining({
+          includeContracts: false,
+          cache: false,
+          dedupe: false,
+        })
+      );
       expect(mockWallet.vault.open.ctx).toHaveBeenCalledWith(
         'mint_open',
         mockOracleQuote,
         vaultConfig
       );
-      expect(openCtx.__create_psbts).toHaveBeenCalledWith([{ txid: 'utxo1', vout: 0, value: 10000 }]);
-      expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+      expect(openCtx.__create_psbts).toHaveBeenCalledWith([
+        { txid: 'utxo1', vout: 0, value: 10000 },
+      ]);
+      expect(mockWallet.sign.batch).toHaveBeenCalledWith([
+        'unsigned_issue_psbt',
+        'unsigned_vault_psbt',
+      ]);
       expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
       expect(result.issue_psbt).toBe('signed_issue_psbt');
       expect(result.vault_psbt).toBe('signed_vault_psbt');
       expect(result.issue_txid).toBe('mock_txid');
       expect(result.vault_txid).toBe('mock_txid');
+    });
+
+    it('should hydrate quote-only open requests with targeted price contracts', async () => {
+      const { createVaultReqOpen } = require('../open');
+      const {
+        fetchPriceContractsByBucketTag,
+        fetchPriceContractsByCommitHashes,
+        fetchPriceQuote,
+      } = require('../../oracleService');
+
+      const oracleQuote = {
+        ...mockOracleQuote,
+        base_price: 100_000,
+        base_stamp: Math.floor(Date.now() / 1000),
+        latest_stamp: Math.floor(Date.now() / 1000),
+        oracle_pubkey: 'oracle_pubkey',
+      };
+      const priceContract = {
+        base_price: oracleQuote.base_price,
+        base_stamp: oracleQuote.base_stamp,
+        commit_hash: 'commit-hash',
+        oracle_pubkey: oracleQuote.oracle_pubkey,
+      };
+      fetchPriceQuote.mockResolvedValue(oracleQuote);
+      fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
+
+      const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10_000, script: 'script' }];
+      const initialCtx = createOpenCtxMock({
+        config: 'quote_only_open_ctx',
+        __base_config: jest.fn((overrides: Record<string, unknown> = {}) => ({
+          actionQuote: {
+            unit_balance: 10_000,
+            vault_balance: 1_000_000,
+          },
+          proto_profile: {},
+          ...overrides,
+        })),
+      });
+      const enrichedCtx = createOpenCtxMock({ config: 'enriched_open_ctx' });
+      const mockWallet = {
+        vault: {
+          open: {
+            ctx: jest.fn((_mintAccount: unknown, quote: { contracts?: unknown[] }) =>
+              (quote.contracts?.length ?? 0) > 0 ? enrichedCtx : initialCtx
+            ),
+            req: jest.fn(),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+        sign: {
+          batch: jest.fn().mockResolvedValue(['signed_issue_psbt', 'signed_vault_psbt']),
+        },
+        acct: {
+          sats: { address: 'tb1qtest' },
+        },
+      };
+
+      await createVaultReqOpen(
+        mockWallet as any,
+        {
+          borrow_amount: 10_000,
+          deposit_amount: 100_000,
+          vault_label: 'test',
+          tx_feerate: 5,
+        },
+        { mint_account: 'mint_open' },
+        {
+          feeRate: 5,
+          isMaxDeposit: false,
+          liquidationPrice: 45_000,
+          utxos: providedUtxos,
+        } as any
+      );
+
+      expect(fetchPriceContractsByCommitHashes).toHaveBeenCalledWith(
+        ['commit-hash'],
+        { timeout: 8_000 },
+        oracleQuote.oracle_pubkey
+      );
+      expect(fetchPriceContractsByBucketTag).not.toHaveBeenCalled();
+      expect(mockWallet.vault.open.ctx).toHaveBeenLastCalledWith(
+        'mint_open',
+        expect.objectContaining({
+          contracts: [priceContract],
+          price_contracts: [priceContract],
+        }),
+        expect.objectContaining({ deposit_amount: 100_000 })
+      );
+      expect(enrichedCtx.__create_psbts).toHaveBeenCalledWith(providedUtxos);
+      expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
     });
 
     it('should throw when no UTXOs available', async () => {
@@ -1238,7 +1379,10 @@ describe('Vault Request Creation', () => {
 
       expect(mockWallet.fetch.sats_utxos).not.toHaveBeenCalled();
       expect(openCtx.__create_psbts).toHaveBeenCalledWith(providedUtxos);
-      expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+      expect(mockWallet.sign.batch).toHaveBeenCalledWith([
+        'unsigned_issue_psbt',
+        'unsigned_vault_psbt',
+      ]);
       expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
     });
 
@@ -1292,7 +1436,10 @@ describe('Vault Request Creation', () => {
         await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
         expect(vaultConfig.deposit_amount).toBe(9_750);
-        expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+        expect(mockWallet.sign.batch).toHaveBeenCalledWith([
+          'unsigned_issue_psbt',
+          'unsigned_vault_psbt',
+        ]);
         expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
       } finally {
         getChange.mockReturnValue(1_000);
@@ -1354,7 +1501,10 @@ describe('Vault Request Creation', () => {
         await createVaultReqOpen(mockWallet as any, vaultConfig, acctRes, options);
 
         expect(vaultConfig.deposit_amount).toBe(10_000);
-        expect(mockWallet.sign.batch).toHaveBeenCalledWith(['unsigned_issue_psbt', 'unsigned_vault_psbt']);
+        expect(mockWallet.sign.batch).toHaveBeenCalledWith([
+          'unsigned_issue_psbt',
+          'unsigned_vault_psbt',
+        ]);
         expect(mockWallet.vault.open.req).not.toHaveBeenCalled();
       } finally {
         getChange.mockReturnValue(1_000);
@@ -1601,6 +1751,79 @@ describe('Vault Request Creation', () => {
         depositConfig
       );
       expect(result.vault_txid).toBe('deposit_vault');
+    });
+
+    it('should hydrate quote-only deposit requests with targeted price contracts', async () => {
+      const { createVaultReqDeposit } = require('../deposit');
+      const {
+        fetchPriceContractsByBucketTag,
+        fetchPriceContractsByCommitHashes,
+      } = require('../../oracleService');
+
+      const oracleQuote = {
+        ...mockOracleQuote,
+        base_price: 100_000,
+        base_stamp: Math.floor(Date.now() / 1000),
+        latest_stamp: Math.floor(Date.now() / 1000),
+        oracle_pubkey: 'oracle_pubkey',
+      };
+      const priceContract = {
+        base_price: oracleQuote.base_price,
+        base_stamp: oracleQuote.base_stamp,
+        commit_hash: 'commit-hash',
+        oracle_pubkey: oracleQuote.oracle_pubkey,
+      };
+      fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
+
+      const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10_000, script: 'script' }];
+      const initialCtx = {
+        config: 'quote_only_deposit_ctx',
+        __base_config: jest.fn((overrides: Record<string, unknown> = {}) => ({
+          actionQuote: {
+            unit_balance: 10_000,
+            vault_balance: 1_000_000,
+          },
+          proto_profile: {},
+          ...overrides,
+        })),
+      };
+      const enrichedCtx = { config: 'enriched_deposit_ctx' };
+      const mockWallet = {
+        vault: {
+          deposit: {
+            ctx: jest.fn((quote: { contracts?: unknown[] }) =>
+              (quote.contracts?.length ?? 0) > 0 ? enrichedCtx : initialCtx
+            ),
+            req: jest.fn().mockResolvedValue({ vault_txid: 'deposit_vault' }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+      };
+
+      await createVaultReqDeposit(mockWallet as any, { deposit_amount: 10_000, tx_feerate: 5 }, {
+        feeRate: 5,
+        oracleQuote,
+        vaultProfile: mockVaultProfile,
+        utxos: providedUtxos,
+      } as any);
+
+      expect(fetchPriceContractsByCommitHashes).toHaveBeenCalledWith(
+        ['commit-hash'],
+        { timeout: 8_000 },
+        oracleQuote.oracle_pubkey
+      );
+      expect(fetchPriceContractsByBucketTag).not.toHaveBeenCalled();
+      expect(mockWallet.vault.deposit.ctx).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contracts: [priceContract],
+          price_contracts: [priceContract],
+        }),
+        mockVaultProfile,
+        expect.objectContaining({ deposit_amount: 10_000 })
+      );
+      expect(mockWallet.vault.deposit.req).toHaveBeenCalledWith(enrichedCtx, providedUtxos);
     });
 
     it('should throw when no UTXOs available', async () => {

@@ -3,14 +3,25 @@
  */
 
 import type {
+  CoinUtxo,
   GuardianSocket,
+  PriceContract,
+  PriceQuote,
   UnitAccountResponse,
+  VaultActionConfig,
+  VaultActionQuote,
   VaultOpenCtx,
   VaultWallet,
   WalletVaultOpenConfig,
   WalletVaultOpenRequest,
 } from '@ducat-unit/client-sdk';
 import { VaultAPI } from '@ducat-unit/client-sdk';
+import {
+  create_vault_action_quote,
+  get_adjusted_quote_price,
+  get_price_bucket_rate,
+  get_price_commit_hashes,
+} from '@ducat-unit/client-sdk/lib';
 import type { VaultOpenRequestCtx } from '@ducat-unit/client-sdk/vault';
 import {
   create_vault_request,
@@ -21,12 +32,18 @@ import {
   verify_vault_request_psbt,
 } from '@ducat-unit/client-sdk/vault';
 import { TX, PSBT } from '@ducat-unit/client-sdk/util';
+import { calc_collateral_ratio } from '@ducat-unit/core/lib';
 import { BITCOIN_TX, VAULT_CONFIG } from '../../utils/constants';
 import { logger } from '../../utils/logger';
-import { fetchPriceQuote } from '../oracleService';
+import {
+  fetchPriceContractsByBucketTag,
+  fetchPriceContractsByCommitHashes,
+  fetchPriceQuote,
+} from '../oracleService';
 import { withGuardianTimeout } from '../guardianService';
 import { generateVaultName } from '../../utils/vaultUtils';
 import { checkBatchAllowed, extractOpReturnFromTxHex, Utxo } from './utils';
+import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
@@ -41,8 +58,15 @@ export interface CreateVaultReqOptions {
 }
 
 const MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS = 50_000;
+const PRICE_CONTRACT_FETCH_TIMEOUT_MS = 15_000;
+
+type PriceQuoteWithContracts = PriceQuote & {
+  contracts?: PriceContract[];
+  price_contracts?: PriceContract[];
+};
 
 type CompatVaultOpenCtx = VaultOpenCtx & {
+  __base_config?: (overrides?: Record<string, unknown>) => VaultActionConfig;
   __create_psbts?: (fundInputs?: Utxo[]) => string[];
   __latest_ctx?: VaultOpenRequestCtx;
 };
@@ -63,6 +87,130 @@ function createOpenCtx(
 
 function getOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): number {
   return VaultAPI.open.get_change(vaultCtx, utxos);
+}
+
+function toCoinUtxos(utxos: Utxo[]): CoinUtxo[] {
+  return utxos.map((utxo) => ({
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.value,
+    script: utxo.script,
+    script_pk: utxo.script,
+  }));
+}
+
+function getOpenActionQuote(
+  vaultCtx: VaultOpenCtx,
+  utxos: Utxo[]
+): { actionConfig: VaultActionConfig; actionQuote: VaultActionQuote } | null {
+  const compatCtx = vaultCtx as CompatVaultOpenCtx;
+  if (typeof compatCtx.__base_config !== 'function') {
+    return null;
+  }
+
+  const actionConfig = compatCtx.__base_config({
+    fund_inputs: toCoinUtxos(utxos),
+  });
+  return {
+    actionConfig,
+    actionQuote: create_vault_action_quote(actionConfig),
+  };
+}
+
+function withPriceContracts(
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  priceContracts: PriceContract[]
+): Awaited<ReturnType<typeof fetchPriceQuote>> {
+  return {
+    ...oracleQuote,
+    contracts: priceContracts,
+    price_contracts: priceContracts,
+  } as Awaited<ReturnType<typeof fetchPriceQuote>>;
+}
+
+function hasPriceContracts(oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>): boolean {
+  const quote = oracleQuote as PriceQuoteWithContracts;
+  return Boolean(
+    (Array.isArray(quote.contracts) && quote.contracts.length > 0) ||
+      (Array.isArray(quote.price_contracts) && quote.price_contracts.length > 0)
+  );
+}
+
+function getOpenBucketRate(
+  actionConfig: VaultActionConfig,
+  actionQuote: VaultActionQuote,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>
+): number {
+  const unitPrice = get_adjusted_quote_price(actionConfig.proto_profile, oracleQuote);
+  const collateralRatio = calc_collateral_ratio(
+    actionQuote.vault_balance,
+    actionQuote.unit_balance,
+    unitPrice
+  );
+  return get_price_bucket_rate(oracleQuote, collateralRatio);
+}
+
+async function resolveOpenPriceQuote(
+  vaultCtx: VaultOpenCtx,
+  oracleQuote: Awaited<ReturnType<typeof fetchPriceQuote>>,
+  utxos: Utxo[]
+): Promise<Awaited<ReturnType<typeof fetchPriceQuote>>> {
+  const action = getOpenActionQuote(vaultCtx, utxos);
+  if (!action || action.actionQuote.unit_balance <= 0) {
+    return oracleQuote;
+  }
+
+  const { actionConfig, actionQuote } = action;
+  const commitHashes = get_price_commit_hashes(actionConfig.proto_profile, actionQuote, [
+    oracleQuote,
+  ]);
+  if (commitHashes.length === 0) {
+    return oracleQuote;
+  }
+
+  const oraclePubkey = oracleQuote.oracle_pubkey;
+  const startedAt = Date.now();
+  let priceContracts = await withVaultBuildTimeout(
+    fetchPriceContractsByCommitHashes(commitHashes, { timeout: 8_000 }, oraclePubkey),
+    'Timed out fetching oracle price contracts. Please try again.',
+    PRICE_CONTRACT_FETCH_TIMEOUT_MS
+  );
+
+  if (priceContracts.length === 0) {
+    const bucketRate = getOpenBucketRate(actionConfig, actionQuote, oracleQuote);
+    logger.warn('[VaultOps] No open price contracts by commit hash; trying oracle bucket tag', {
+      commitHashes,
+      baseStamp: oracleQuote.base_stamp,
+      bucketRate,
+    });
+    priceContracts = await withVaultBuildTimeout(
+      fetchPriceContractsByBucketTag(
+        oracleQuote.base_stamp,
+        bucketRate,
+        { timeout: 8_000 },
+        oraclePubkey
+      ),
+      'Timed out fetching oracle price contracts. Please try again.',
+      PRICE_CONTRACT_FETCH_TIMEOUT_MS
+    );
+  }
+
+  if (priceContracts.length === 0) {
+    if (hasPriceContracts(oracleQuote)) {
+      return oracleQuote;
+    }
+    throw new Error(
+      'Oracle price contracts are temporarily unavailable. Please try again in a minute.'
+    );
+  }
+
+  logger.info('[VaultOps] Vault open oracle price contracts ready', {
+    durationMs: Date.now() - startedAt,
+    contractCount: priceContracts.length,
+    commitHashCount: commitHashes.length,
+  });
+
+  return withPriceContracts(oracleQuote, priceContracts);
 }
 
 function assertOpenChange(vaultCtx: VaultOpenCtx, utxos: Utxo[]): void {
@@ -99,17 +247,11 @@ function resolveOpenContext(
   let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
   const changeSats = getOpenChange(vaultCtx, utxos);
 
-  if (
-    changeSats < postOpenReserveSats ||
-    (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)
-  ) {
+  if (changeSats < postOpenReserveSats || (changeSats > 0 && changeSats <= BITCOIN_TX.DUST_LIMIT)) {
     const requestedAmount = vaultConfig.deposit_amount;
-    const maxSafeDeposit = Math.floor(
-      requestedAmount + changeSats - postOpenReserveSats
-    );
+    const maxSafeDeposit = Math.floor(requestedAmount + changeSats - postOpenReserveSats);
     const adjustmentSats = Math.abs(requestedAmount - maxSafeDeposit);
-    const canAutoAdjust =
-      isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;
+    const canAutoAdjust = isMaxDeposit || adjustmentSats <= MAX_AUTO_ADJUST_OPEN_DEPOSIT_SATS;
 
     if (maxSafeDeposit > 0 && canAutoAdjust) {
       vaultConfig.deposit_amount = maxSafeDeposit;
@@ -267,7 +409,13 @@ export async function createVaultReqOpen(
 
   try {
     // Fetch oracle price quote (staleness enforced in service)
-    const oracleQuote = await fetchPriceQuote(options.liquidationPrice);
+    const oracleQuote = await fetchPriceQuote(options.liquidationPrice, {
+      cache: false,
+      dedupe: false,
+      includeContracts: false,
+      transport: 'xhr',
+      timeout: 8_000,
+    });
 
     let vaultCtx = createOpenCtx(wallet, acctRes, oracleQuote, vaultConfig);
 
@@ -330,6 +478,12 @@ export async function createVaultReqOpen(
       utxos = allUtxos;
     }
 
+    const requestOracleQuote = await resolveOpenPriceQuote(vaultCtx, oracleQuote, utxos);
+    if (requestOracleQuote !== oracleQuote) {
+      vaultCtx = createOpenCtx(wallet, acctRes, requestOracleQuote, vaultConfig);
+      assertOpenChange(vaultCtx, utxos);
+    }
+
     if (!checkBatchAllowed(wallet)) {
       throw new Error('Vault open requires a native SegWit BTC account for batch signing.');
     }
@@ -353,7 +507,9 @@ export async function createVaultReqOpen(
     if (issueTxOpReturn) {
       const isCorrupted = issueTxOpReturn.includes('6a5d00') && !issueTxOpReturn.includes('6a5d09');
       if (isCorrupted) {
-        throw new Error('Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.');
+        throw new Error(
+          'Vault issue transaction has corrupted runestone (OP_RETURN 6a5d00). Aborting to prevent fund loss.'
+        );
       }
     }
 
@@ -366,11 +522,17 @@ export async function createVaultReqOpen(
         if (vaultReq.issue_txhex && vaultReq.vault_txhex) {
           const recomputedIssueTxid = TX.get_txid(vaultReq.issue_txhex);
           const recomputedVaultTxid = TX.get_txid(vaultReq.vault_txhex);
-          logger.debug('[VaultOps] issue_txid match:', { match: vaultReq.issue_txid === recomputedIssueTxid });
-          logger.debug('[VaultOps] vault_txid match:', { match: vaultReq.vault_txid === recomputedVaultTxid });
+          logger.debug('[VaultOps] issue_txid match:', {
+            match: vaultReq.issue_txid === recomputedIssueTxid,
+          });
+          logger.debug('[VaultOps] vault_txid match:', {
+            match: vaultReq.vault_txid === recomputedVaultTxid,
+          });
         }
       } catch (txidError) {
-        logger.warn('[VaultOps] Could not recompute txids:', { error: txidError instanceof Error ? txidError.message : String(txidError) });
+        logger.warn('[VaultOps] Could not recompute txids:', {
+          error: txidError instanceof Error ? txidError.message : String(txidError),
+        });
       }
 
       logger.debug('[VaultOps] issue/vault txhex present:', {
@@ -396,7 +558,9 @@ export async function createVaultReqOpen(
             });
           }
         } catch (psbtError) {
-          logger.warn('[VaultOps] Could not decode issue_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+          logger.warn('[VaultOps] Could not decode issue_psbt:', {
+            error: psbtError instanceof Error ? psbtError.message : String(psbtError),
+          });
         }
       }
 
@@ -415,7 +579,9 @@ export async function createVaultReqOpen(
             });
           }
         } catch (psbtError) {
-          logger.warn('[VaultOps] Could not decode vault_psbt:', { error: psbtError instanceof Error ? psbtError.message : String(psbtError) });
+          logger.warn('[VaultOps] Could not decode vault_psbt:', {
+            error: psbtError instanceof Error ? psbtError.message : String(psbtError),
+          });
         }
       }
 
@@ -469,10 +635,10 @@ export async function guardianSendReqOpen(
     const guardSub = await gclient.req.vault.open(vaultReq);
     logger.debug('[VaultOps] Request submitted, waiting for response...');
 
-    const guardRes = await withGuardianTimeout(
+    const guardRes = (await withGuardianTimeout(
       guardSub.resolve(VAULT_CONFIG.TX_TIMEOUT),
       VAULT_CONFIG.TX_TIMEOUT + 5000 // Add 5s buffer
-    ) as { issue_txid: string };
+    )) as { issue_txid: string };
 
     const txid = guardRes.issue_txid;
     logger.debug('[VaultOps] Vault created, txid:', { txid });

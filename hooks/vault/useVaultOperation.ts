@@ -594,6 +594,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
           fetchPriceQuote(liquidationPrice, {
             cache: false,
             dedupe: false,
+            includeContracts: operationType !== 'deposit',
             transport: 'xhr',
             timeout: 8_000,
           }),
@@ -747,10 +748,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
             await markUtxosAsSpent(finalizationSpentInputs);
           }
 
-          if (
-            finalizationPendingData.outputs.length > 0 ||
-            finalizationSpentInputs.length > 0
-          ) {
+          if (finalizationPendingData.outputs.length > 0 || finalizationSpentInputs.length > 0) {
             await addPendingTransaction(
               recoveryResult.vaultTxid,
               finalizationPendingData.outputs,
@@ -910,11 +908,14 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
             }
           }
         } else {
-          logger.warn(`[${operationName}] Guardian submit failed after local recovery was written`, {
-            operationType,
-            recoveryTxids,
-            error: errorMessage,
-          });
+          logger.warn(
+            `[${operationName}] Guardian submit failed after local recovery was written`,
+            {
+              operationType,
+              recoveryTxids,
+              error: errorMessage,
+            }
+          );
         }
       }
       analytics.track(VAULT_EVENTS.VAULT_OPERATION_FAILED, {

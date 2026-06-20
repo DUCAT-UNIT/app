@@ -38,7 +38,13 @@ jest.mock('@vbyte/nostr-sdk/lib', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-import { fetchCurrentPrice, fetchPriceQuote, MAX_QUOTE_AGE_SECONDS } from '../oracleService';
+import {
+  fetchCurrentPrice,
+  fetchPriceContractsByBucketTag,
+  fetchPriceContractsByCommitHashes,
+  fetchPriceQuote,
+  MAX_QUOTE_AGE_SECONDS,
+} from '../oracleService';
 import { fetchProtocolContract } from '../vaultWallet';
 import { resetRequestPolicyForTests } from '../../utils/requestPolicy';
 
@@ -58,9 +64,7 @@ const relayRequests: unknown[][] = [];
 const relayResponses: RelayResponse[] = [];
 
 function getRelayReqFilters() {
-  return relayRequests
-    .filter((message) => message[0] === 'REQ')
-    .map((message) => message[2]);
+  return relayRequests.filter((message) => message[0] === 'REQ').map((message) => message[2]);
 }
 
 class MockRelayWebSocket {
@@ -80,7 +84,9 @@ class MockRelayWebSocket {
   }
 
   removeEventListener(eventName: string, listener: RelayListener) {
-    this.listeners[eventName] = (this.listeners[eventName] ?? []).filter((item) => item !== listener);
+    this.listeners[eventName] = (this.listeners[eventName] ?? []).filter(
+      (item) => item !== listener
+    );
   }
 
   send(data: string) {
@@ -270,6 +276,29 @@ describe('oracleService', () => {
       });
     });
 
+    it('can fetch a quote without downloading relay contracts', async () => {
+      const quote = makePriceQuote({ base_price: 100000 });
+      pushRelayQuoteResponse([quote]);
+
+      const result = await fetchPriceQuote(50000, {
+        cache: false,
+        dedupe: false,
+        includeContracts: false,
+      });
+      const filters = getRelayReqFilters();
+
+      expect(filters).toHaveLength(1);
+      expect(filters[0]).toMatchObject({
+        kinds: [10000],
+        authors: ['b'.repeat(64)],
+      });
+      expect(result).toMatchObject({
+        base_price: 100000,
+        contracts: [],
+        price_contracts: [],
+      });
+    });
+
     it('keeps the latest valid mutinynet quote within the freshness window', async () => {
       const quote = makePriceQuote({
         base_stamp: Math.floor(Date.now() / 1000) - 4 * 60,
@@ -282,9 +311,11 @@ describe('oracleService', () => {
     });
 
     it('rejects a price quote beyond the freshness window', async () => {
-      pushRelayQuoteResponse([makePriceQuote({
-        base_stamp: Math.floor(Date.now() / 1000) - MAX_QUOTE_AGE_SECONDS - 1,
-      })]);
+      pushRelayQuoteResponse([
+        makePriceQuote({
+          base_stamp: Math.floor(Date.now() / 1000) - MAX_QUOTE_AGE_SECONDS - 1,
+        }),
+      ]);
 
       await expect(fetchPriceQuote(50000, { cache: false, dedupe: false })).rejects.toThrow(
         'Oracle price is stale'
@@ -292,9 +323,11 @@ describe('oracleService', () => {
     });
 
     it('rejects a price quote timestamped in the future', async () => {
-      pushRelayQuoteResponse([makePriceQuote({
-        base_stamp: Math.floor(Date.now() / 1000) + 11,
-      })]);
+      pushRelayQuoteResponse([
+        makePriceQuote({
+          base_stamp: Math.floor(Date.now() / 1000) + 11,
+        }),
+      ]);
 
       await expect(fetchPriceQuote(50000, { cache: false, dedupe: false })).rejects.toThrow(
         'Oracle price timestamp is in the future'
@@ -320,13 +353,13 @@ describe('oracleService', () => {
     it('turns relay timeouts into a user-friendly quote timeout', async () => {
       relayResponses.push({ events: [], skipEose: true });
 
-      await expect(fetchPriceQuote(50000, {
-        cache: false,
-        dedupe: false,
-        timeout: 1,
-      })).rejects.toThrow(
-        'Timed out fetching oracle price quote. Please try again.'
-      );
+      await expect(
+        fetchPriceQuote(50000, {
+          cache: false,
+          dedupe: false,
+          timeout: 1,
+        })
+      ).rejects.toThrow('Timed out fetching oracle price quote. Please try again.');
     });
 
     it('fails when the relay has no matching contracts for the fresh quote', async () => {
@@ -337,6 +370,65 @@ describe('oracleService', () => {
       await expect(fetchPriceQuote(50000, { cache: false, dedupe: false })).rejects.toThrow(
         'Oracle price contracts are temporarily unavailable from the relay'
       );
+    });
+  });
+
+  describe('targeted contract fetches', () => {
+    it('fetches fresh price contracts by commit hash', async () => {
+      const oraclePubkey = 'b'.repeat(64);
+      const commitHash = 'c'.repeat(64);
+      const matchingContract = makePriceContract({
+        commit_hash: commitHash,
+        oracle_pubkey: oraclePubkey,
+      });
+      pushRelayContractResponse([
+        matchingContract,
+        makePriceContract({ commit_hash: 'd'.repeat(64), oracle_pubkey: oraclePubkey }),
+      ]);
+
+      const result = await fetchPriceContractsByCommitHashes(
+        [commitHash],
+        { timeout: 100 },
+        oraclePubkey
+      );
+      const filters = getRelayReqFilters();
+
+      expect(filters[0]).toMatchObject({
+        kinds: [30000],
+        authors: [oraclePubkey],
+        '#h': [commitHash],
+      });
+      expect(result).toEqual([matchingContract]);
+      expect(mockFetchProtocolContract).not.toHaveBeenCalled();
+    });
+
+    it('fetches fresh price contracts by base-stamp bucket tag', async () => {
+      const oraclePubkey = 'b'.repeat(64);
+      const baseStamp = Math.floor(Date.now() / 1000);
+      const matchingContract = makePriceContract({
+        base_stamp: baseStamp,
+        oracle_pubkey: oraclePubkey,
+      });
+      pushRelayContractResponse([
+        matchingContract,
+        makePriceContract({ base_stamp: baseStamp - 1, oracle_pubkey: oraclePubkey }),
+      ]);
+
+      const result = await fetchPriceContractsByBucketTag(
+        baseStamp,
+        1.6,
+        { timeout: 100 },
+        oraclePubkey
+      );
+      const filters = getRelayReqFilters();
+
+      expect(filters[0]).toMatchObject({
+        kinds: [30000],
+        authors: [oraclePubkey],
+        '#d': [`${baseStamp}-1.6`],
+      });
+      expect(result).toEqual([matchingContract]);
+      expect(mockFetchProtocolContract).not.toHaveBeenCalled();
     });
   });
 });

@@ -23,10 +23,13 @@ interface FetchPriceQuoteOptions {
   dedupe?: boolean;
   cache?: boolean;
   transport?: 'fetch' | 'xhr';
+  includeContracts?: boolean;
 }
 
 function isTemporaryOracleQuoteGap(error: Error): boolean {
-  return /price point not found|invalid quote|no fresh oracle price quote|HTTP 400/i.test(error.message);
+  return /price point not found|invalid quote|no fresh oracle price quote|HTTP 400/i.test(
+    error.message
+  );
 }
 
 type ValidatorPriceHistoryResponse = {
@@ -54,7 +57,10 @@ type RuntimeWebSocket = {
   send(data: string): void;
   close(): void;
   addEventListener?: (event: RuntimeWebSocketEventName, handler: RuntimeWebSocketHandler) => void;
-  removeEventListener?: (event: RuntimeWebSocketEventName, handler: RuntimeWebSocketHandler) => void;
+  removeEventListener?: (
+    event: RuntimeWebSocketEventName,
+    handler: RuntimeWebSocketHandler
+  ) => void;
 };
 
 type NostrFilter = {
@@ -82,7 +88,8 @@ function createRelaySubscriptionId(label: string): string {
 }
 
 function getRuntimeWebSocket(): new (url: string) => RuntimeWebSocket {
-  const WebSocketCtor = (globalThis as { WebSocket?: new (url: string) => RuntimeWebSocket }).WebSocket;
+  const WebSocketCtor = (globalThis as { WebSocket?: new (url: string) => RuntimeWebSocket })
+    .WebSocket;
   if (!WebSocketCtor) {
     throw new Error('WebSocket is unavailable in this runtime');
   }
@@ -91,8 +98,8 @@ function getRuntimeWebSocket(): new (url: string) => RuntimeWebSocket {
 
 function getOraclePubkey(proto?: Pick<ProtoProfile, 'proto_members'>): string {
   return (
-    proto?.proto_members?.find((member) => member.group === ORACLE_MEMBER_GROUP)?.pubkey
-    ?? API.ORACLE_PUBKEY
+    proto?.proto_members?.find((member) => member.group === ORACLE_MEMBER_GROUP)?.pubkey ??
+    API.ORACLE_PUBKEY
   );
 }
 
@@ -107,7 +114,10 @@ function attachWebSocketHandler(
   }
 
   const handlerKey = `on${eventName}`;
-  const socketWithHandlers = socket as unknown as Record<string, RuntimeWebSocketHandler | null | undefined>;
+  const socketWithHandlers = socket as unknown as Record<
+    string,
+    RuntimeWebSocketHandler | null | undefined
+  >;
   socketWithHandlers[handlerKey] = handler;
   return () => {
     if (socketWithHandlers[handlerKey] === handler) {
@@ -137,13 +147,13 @@ function isNostrEvent(value: unknown): value is NostrEvent {
 
   const event = value as Partial<NostrEvent>;
   return (
-    typeof event.id === 'string'
-    && typeof event.pubkey === 'string'
-    && typeof event.created_at === 'number'
-    && typeof event.kind === 'number'
-    && Array.isArray(event.tags)
-    && typeof event.content === 'string'
-    && typeof event.sig === 'string'
+    typeof event.id === 'string' &&
+    typeof event.pubkey === 'string' &&
+    typeof event.created_at === 'number' &&
+    typeof event.kind === 'number' &&
+    Array.isArray(event.tags) &&
+    typeof event.content === 'string' &&
+    typeof event.sig === 'string'
   );
 }
 
@@ -238,12 +248,13 @@ function queryOracleRelay(
 
 function pickLatestQuote(quotes: PriceQuote[]): PriceQuote {
   const latest = quotes
-    .filter((quote) => (
-      typeof quote.base_price === 'number'
-      && Number.isFinite(quote.base_price)
-      && typeof quote.base_stamp === 'number'
-      && Number.isFinite(quote.base_stamp)
-    ))
+    .filter(
+      (quote) =>
+        typeof quote.base_price === 'number' &&
+        Number.isFinite(quote.base_price) &&
+        typeof quote.base_stamp === 'number' &&
+        Number.isFinite(quote.base_stamp)
+    )
     .sort((a, b) => b.base_stamp - a.base_stamp)[0];
 
   if (!latest) {
@@ -356,13 +367,14 @@ async function fetchRecentRelayPriceContracts(
   );
 
   const nowSeconds = Math.floor(Date.now() / 1000);
-  return parsePriceContracts(events).filter((contract) => (
-    contract.base_stamp === quote.base_stamp
-    && contract.base_price === quote.base_price
-    && contract.chain_network === quote.chain_network
-    && contract.oracle_pubkey === quote.oracle_pubkey
-    && nowSeconds - contract.base_stamp <= MAX_QUOTE_AGE_SECONDS
-  ));
+  return parsePriceContracts(events).filter(
+    (contract) =>
+      contract.base_stamp === quote.base_stamp &&
+      contract.base_price === quote.base_price &&
+      contract.chain_network === quote.chain_network &&
+      contract.oracle_pubkey === quote.oracle_pubkey &&
+      nowSeconds - contract.base_stamp <= MAX_QUOTE_AGE_SECONDS
+  );
 }
 
 function toLegacyPriceQuote(quote: PriceQuote, contracts: PriceContract[]): LegacyPriceQuote {
@@ -383,10 +395,15 @@ async function fetchRelayPriceQuote(
 ): Promise<LegacyPriceQuote> {
   const proto = await fetchProtocolContract();
   const oraclePubkey = getOraclePubkey(proto);
-  const relayKey = `${cacheKey}:${oraclePubkey}:${API.RELAY_WS}`;
+  const includeContracts = options.includeContracts !== false;
+  const relayKey = `${cacheKey}:${oraclePubkey}:${API.RELAY_WS}:${includeContracts ? 'contracts' : 'quote-only'}`;
   const now = Date.now();
 
-  if (options.cache !== false && cachedRelayQuote?.key === relayKey && cachedRelayQuote.expiresAt > now) {
+  if (
+    options.cache !== false &&
+    cachedRelayQuote?.key === relayKey &&
+    cachedRelayQuote.expiresAt > now
+  ) {
     return cachedRelayQuote.quote;
   }
 
@@ -396,6 +413,16 @@ async function fetchRelayPriceQuote(
 
   const promise = (async () => {
     const quote = await fetchLatestRelayQuote(oraclePubkey, options);
+    if (!includeContracts) {
+      const legacyQuote = toLegacyPriceQuote(quote, []);
+      cachedRelayQuote = {
+        key: relayKey,
+        expiresAt: Date.now() + PRICE_CONTRACT_CACHE_TTL_MS,
+        quote: legacyQuote,
+      };
+      return legacyQuote;
+    }
+
     const contracts = await fetchRecentRelayPriceContracts(oraclePubkey, quote, options);
 
     if (contracts.length === 0) {
@@ -417,6 +444,83 @@ async function fetchRelayPriceQuote(
 
   inFlightRelayQuote = { key: relayKey, promise };
   return promise;
+}
+
+async function getOraclePubkeyForFetch(oraclePubkey?: string): Promise<string> {
+  if (oraclePubkey) {
+    return oraclePubkey;
+  }
+
+  const proto = await fetchProtocolContract();
+  return getOraclePubkey(proto);
+}
+
+function isFreshPriceContract(contract: PriceContract, nowSeconds: number): boolean {
+  return (
+    typeof contract.base_stamp === 'number' &&
+    nowSeconds - contract.base_stamp <= MAX_QUOTE_AGE_SECONDS
+  );
+}
+
+export async function fetchPriceContractsByCommitHashes(
+  commitHashes: string[],
+  options: FetchPriceQuoteOptions = {},
+  oraclePubkey?: string
+): Promise<PriceContract[]> {
+  if (commitHashes.length === 0) {
+    return [];
+  }
+
+  const resolvedOraclePubkey = await getOraclePubkeyForFetch(oraclePubkey);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const events = await queryOracleRelay(
+    {
+      kinds: [30000],
+      authors: [resolvedOraclePubkey],
+      '#h': commitHashes,
+      since: nowSeconds - MAX_QUOTE_AGE_SECONDS,
+    },
+    options,
+    'price contracts'
+  );
+
+  return parsePriceContracts(events).filter(
+    (contract) =>
+      commitHashes.includes(contract.commit_hash) &&
+      contract.oracle_pubkey === resolvedOraclePubkey &&
+      isFreshPriceContract(contract, nowSeconds)
+  );
+}
+
+export async function fetchPriceContractsByBucketTag(
+  baseStamp: number,
+  bucketRate: number,
+  options: FetchPriceQuoteOptions = {},
+  oraclePubkey?: string
+): Promise<PriceContract[]> {
+  if (!Number.isFinite(baseStamp) || !Number.isFinite(bucketRate) || bucketRate <= 0) {
+    return [];
+  }
+
+  const resolvedOraclePubkey = await getOraclePubkeyForFetch(oraclePubkey);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const events = await queryOracleRelay(
+    {
+      kinds: [30000],
+      authors: [resolvedOraclePubkey],
+      '#d': [`${baseStamp}-${bucketRate}`],
+      since: nowSeconds - MAX_QUOTE_AGE_SECONDS,
+    },
+    options,
+    'price contracts'
+  );
+
+  return parsePriceContracts(events).filter(
+    (contract) =>
+      contract.base_stamp === baseStamp &&
+      contract.oracle_pubkey === resolvedOraclePubkey &&
+      isFreshPriceContract(contract, nowSeconds)
+  );
 }
 
 /**
