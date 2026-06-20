@@ -4,6 +4,7 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import { loadProjectEnvironment } from './loadEnv.mjs';
 import {
+  checkBtcFaucetLiquidity,
   checkBridgePoolLiquidity,
   checkLiquidationAvailability,
   checkMutinynetReviewerFunding,
@@ -28,6 +29,23 @@ const DEFAULT_SEPOLIA_REDEEM_AMOUNT = '0.01';
 const SIMCTL_COMMAND_TIMEOUT_MS = 5_000;
 const TXID_HEX_PATTERN = /^[0-9a-f]{64}$/i;
 const EVM_TX_HASH_PATTERN = /^0x[0-9a-f]{64}$/i;
+const FRESH_FAUCET_CLAIMS_BY_PROFILE = {
+  'receive-btc': 1,
+  'vault-actions': 1,
+  'vault-open-relaunch-pending': 1,
+  'vault-deposit-relaunch-pending': 1,
+  'vault-borrow-relaunch-pending': 1,
+  'vault-repay-relaunch-pending': 1,
+  'vault-withdraw-relaunch-pending': 1,
+  'vault-borrow-turbounit': 1,
+  'vault-open-turbounit-relaunch-pending': 1,
+  'vault-borrow-turbounit-relaunch-pending': 1,
+  'vault-repay-turbounit-relaunch-pending': 1,
+  'repay-turbounit': 1,
+  'vault-usdc-lifecycle': 1,
+  'vault-second-repay': 1,
+  'liquidation-execution': 1,
+};
 
 const PROFILES = {
   'receive-btc': {
@@ -524,6 +542,10 @@ function numericEnv(name, fallback) {
 
 async function validateLiveFixtureFunding() {
   const checks = [];
+  const freshFaucetClaimCount = selectedProfiles.reduce(
+    (sum, profileName) => sum + (FRESH_FAUCET_CLAIMS_BY_PROFILE[profileName] ?? 0),
+    0
+  );
   const needsReviewerMutinynet = selectedProfiles.some((profileName) =>
     [
       'send-unit',
@@ -551,6 +573,10 @@ async function validateLiveFixtureFunding() {
   const needsBridgePool = selectedProfiles.some((profileName) =>
     ['vault-usdc-lifecycle', 'sepolia-send-swap-redeem'].includes(profileName)
   );
+
+  if (freshFaucetClaimCount > 0) {
+    checks.push(await checkBtcFaucetLiquidity(process.env, { claims: freshFaucetClaimCount }));
+  }
 
   if (needsReviewerMutinynet) {
     checks.push(await checkMutinynetReviewerFunding(process.env));

@@ -393,17 +393,17 @@
     <section class="grid" aria-label="Run summary">
       <div class="metric">
         <div class="label">Total Runtime</div>
-        <div class="value">29m 38s</div>
-        <div class="detail">Started 2026-05-18 11:33:13.847Z</div>
+        <div class="value">101m 20s</div>
+        <div class="detail">Started 2026-06-20 18:29:15.135Z</div>
       </div>
       <div class="metric">
         <div class="label">Flows</div>
-        <div class="value">7/7</div>
+        <div class="value">17/17</div>
         <div class="detail">All selected live flows passed.</div>
       </div>
       <div class="metric">
         <div class="label">Confirmed Txids</div>
-        <div class="value">5/5</div>
+        <div class="value">6/6</div>
         <div class="detail">Mutinynet confirmation required.</div>
       </div>
       <div class="metric">
@@ -436,11 +436,11 @@
           <span>Creates a fresh wallet, verifies a funded BTC balance, opens receive, and copies the receive address.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">2m 07s</td>
+        <td data-label="Duration" class="duration">2m 16s</td>
         <td data-label="Expected Proofs">1 receive funding proof</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Receive BTC duration">
-            <span style="width: 26%"></span>
+            <span style="width: 20%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-receive-btc-airdrop.yaml</code></td>
@@ -451,11 +451,11 @@
           <span>Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">2m 31s</td>
+        <td data-label="Duration" class="duration">2m 30s</td>
         <td data-label="Expected Proofs">1 BTC send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Send BTC duration">
-            <span style="width: 30%"></span>
+            <span style="width: 22%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-btc.yaml</code></td>
@@ -466,11 +466,11 @@
           <span>Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">2m 43s</td>
+        <td data-label="Duration" class="duration">2m 35s</td>
         <td data-label="Expected Proofs">1 UNIT send txid</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Send UNIT duration">
-            <span style="width: 33%"></span>
+            <span style="width: 23%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-send-unit.yaml</code></td>
@@ -481,11 +481,11 @@
           <span>Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">8m 15s</td>
+        <td data-label="Duration" class="duration">9m 04s</td>
         <td data-label="Expected Proofs">5 vault action checkpoints; raw txids can be 8+</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Vault Actions duration">
-            <span style="width: 100%"></span>
+            <span style="width: 79%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-actions.yaml</code></td>
@@ -496,11 +496,11 @@
           <span>Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">3m 17s</td>
+        <td data-label="Duration" class="duration">6m 03s</td>
         <td data-label="Expected Proofs">Borrow txids plus TurboUNIT mint settlement</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Borrow TurboUNIT duration">
-            <span style="width: 40%"></span>
+            <span style="width: 53%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-borrow-turbounit.yaml</code></td>
@@ -511,11 +511,11 @@
           <span>Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">4m 13s</td>
+        <td data-label="Duration" class="duration">8m 40s</td>
         <td data-label="Expected Proofs">TurboUNIT funding plus repay txids</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Repay TurboUNIT duration">
-            <span style="width: 51%"></span>
+            <span style="width: 75%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-turbounit-repay.yaml</code></td>
@@ -526,14 +526,164 @@
           <span>Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.</span>
         </td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Duration" class="duration">6m 05s</td>
+        <td data-label="Duration" class="duration">6m 40s</td>
         <td data-label="Expected Proofs">2 consecutive repay checkpoints</td>
         <td data-label="Relative">
           <div class="bar" aria-label="Second Repay duration">
-            <span style="width: 74%"></span>
+            <span style="width: 58%"></span>
           </div>
         </td>
         <td data-label="Source"><code>live-vault-second-repay.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>BTC Relaunch Recovery</strong>
+          <span>Broadcasts a BTC send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">3m 10s</td>
+        <td data-label="Expected Proofs">Pending BTC send panel plus 1 BTC send txid</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="BTC Relaunch Recovery duration">
+            <span style="width: 28%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-send-btc-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>UNIT Relaunch Recovery</strong>
+          <span>Broadcasts an on-chain UNIT send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">7m 48s</td>
+        <td data-label="Expected Proofs">Pending UNIT send panel plus 1 UNIT send txid</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="UNIT Relaunch Recovery duration">
+            <span style="width: 68%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-send-unit-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Open Relaunch Recovery</strong>
+          <span>Submits a vault open, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">4m 28s</td>
+        <td data-label="Expected Proofs">Pending vault open lock and vault checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Open Relaunch Recovery duration">
+            <span style="width: 39%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-open-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Deposit Relaunch Recovery</strong>
+          <span>Submits a vault deposit, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">5m 42s</td>
+        <td data-label="Expected Proofs">Pending vault deposit lock and vault checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Deposit Relaunch Recovery duration">
+            <span style="width: 50%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-deposit-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Borrow Relaunch Recovery</strong>
+          <span>Submits an on-chain UNIT borrow, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">5m 47s</td>
+        <td data-label="Expected Proofs">Pending vault borrow lock and vault checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Borrow Relaunch Recovery duration">
+            <span style="width: 50%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-borrow-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Repay Relaunch Recovery</strong>
+          <span>Submits a real vault repay, kills the app on the success screen, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">6m 01s</td>
+        <td data-label="Expected Proofs">Pending vault lock, recovery panel, and repay checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Repay Relaunch Recovery duration">
+            <span style="width: 52%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-repay-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Vault Withdraw Relaunch Recovery</strong>
+          <span>Submits a vault withdrawal, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">6m 05s</td>
+        <td data-label="Expected Proofs">Pending vault withdraw lock and vault checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Vault Withdraw Relaunch Recovery duration">
+            <span style="width: 53%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-withdraw-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Open TurboUNIT Relaunch Recovery</strong>
+          <span>Opens a vault with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">5m 20s</td>
+        <td data-label="Expected Proofs">Pending vault open lock plus TurboUNIT settlement checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Open TurboUNIT Relaunch Recovery duration">
+            <span style="width: 46%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-open-turbounit-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Borrow TurboUNIT Relaunch Recovery</strong>
+          <span>Borrows with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">7m 30s</td>
+        <td data-label="Expected Proofs">Pending vault borrow lock plus TurboUNIT settlement checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Borrow TurboUNIT Relaunch Recovery duration">
+            <span style="width: 65%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-borrow-turbounit-relaunch-pending.yaml</code></td>
+      </tr>
+<tr>
+        <td data-label="Flow">
+          <strong>Repay TurboUNIT Relaunch Recovery</strong>
+          <span>Repays with TurboUNIT funding, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.</span>
+        </td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Duration" class="duration">11m 29s</td>
+        <td data-label="Expected Proofs">Pending vault repay lock plus TurboUNIT melt checkpoint</td>
+        <td data-label="Relative">
+          <div class="bar" aria-label="Repay TurboUNIT Relaunch Recovery duration">
+            <span style="width: 100%"></span>
+          </div>
+        </td>
+        <td data-label="Source"><code>live-vault-repay-turbounit-relaunch-pending.yaml</code></td>
       </tr>
         </tbody>
       </table>
@@ -542,7 +692,7 @@
     <section class="section">
       <div class="section-head">
         <h2>Confirmed Transactions</h2>
-        <span>https://mutinynet.com/api</span>
+        <span>https://explorer-mutinynet.dev.ducatprotocol.com/api</span>
       </div>
       <div class="notice">
         <strong>Capture scope:</strong> these txids are aggregate run evidence from clipboard and simulator pending storage.
@@ -563,52 +713,62 @@
         <tbody>
           <tr>
         <td data-label="Txid">
-          <a href="https://mutinynet.com/tx/2f89335bad92f0d45359f72d682b248f8bb6a0ccabf0f2571a0eb08ba62045f2" target="_blank" rel="noreferrer">2f89335bad...8ba62045f2</a>
-          <button class="copy" type="button" data-copy="2f89335bad92f0d45359f72d682b248f8bb6a0ccabf0f2571a0eb08ba62045f2">Copy</button>
+          <a href="https://mutinynet.com/tx/11266dfd19adde9eeddf9e0e0ea2e172014444e6e49fe92b7c3db24c18542af4" target="_blank" rel="noreferrer">11266dfd19...4c18542af4</a>
+          <button class="copy" type="button" data-copy="11266dfd19adde9eeddf9e0e0ea2e172014444e6e49fe92b7c3db24c18542af4">Copy</button>
         </td>
         <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
-        <td data-label="Block">3110457</td>
-        <td data-label="Evidence">Clipboard txid</td>
+        <td data-label="Block">3198474</td>
+        <td data-label="Evidence">Pending store: btc send:confirmed, Pending store: vault repay:confirmed</td>
         <td data-label="Lookup" class="duration">0s</td>
       </tr>
 <tr>
         <td data-label="Txid">
-          <a href="https://mutinynet.com/tx/daab61a6934e11d7db2430312528661f0097d79df54017fff4a65b378cc00a74" target="_blank" rel="noreferrer">daab61a693...378cc00a74</a>
-          <button class="copy" type="button" data-copy="daab61a6934e11d7db2430312528661f0097d79df54017fff4a65b378cc00a74">Copy</button>
+          <a href="https://mutinynet.com/tx/b3939fd39ebf0ba9167a710179941ed55233e80ea02ff499735efe350d5e35bf" target="_blank" rel="noreferrer">b3939fd39e...350d5e35bf</a>
+          <button class="copy" type="button" data-copy="b3939fd39ebf0ba9167a710179941ed55233e80ea02ff499735efe350d5e35bf">Copy</button>
         </td>
         <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
-        <td data-label="Block">3110498</td>
-        <td data-label="Evidence">Pending store: btc send:pending, Pending store: vault repay:pending</td>
-        <td data-label="Lookup" class="duration">21s</td>
-      </tr>
-<tr>
-        <td data-label="Txid">
-          <a href="https://mutinynet.com/tx/8770de32c84c4ea62808dce5a501f918fe042aca385deef96f5360c582c6cb65" target="_blank" rel="noreferrer">8770de32c8...c582c6cb65</a>
-          <button class="copy" type="button" data-copy="8770de32c84c4ea62808dce5a501f918fe042aca385deef96f5360c582c6cb65">Copy</button>
-        </td>
-        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
-        <td data-label="Block">3110498</td>
-        <td data-label="Evidence">Pending store: unit send:pending, Pending store: vault repay:pending</td>
+        <td data-label="Block">3198466</td>
+        <td data-label="Evidence">Pending store: vault borrow:confirmed, Pending store: unit send:pending</td>
         <td data-label="Lookup" class="duration">0s</td>
       </tr>
 <tr>
         <td data-label="Txid">
-          <a href="https://mutinynet.com/tx/287c1d13b85f3f7902ca2f985ee08755db511431f940b745d3465e4a1c66c039" target="_blank" rel="noreferrer">287c1d13b8...4a1c66c039</a>
-          <button class="copy" type="button" data-copy="287c1d13b85f3f7902ca2f985ee08755db511431f940b745d3465e4a1c66c039">Copy</button>
+          <a href="https://mutinynet.com/tx/fc08898f57b6ff31f5966e4694c65f67cb6ead4acdbfc326d35e5709a9192e5f" target="_blank" rel="noreferrer">fc08898f57...09a9192e5f</a>
+          <button class="copy" type="button" data-copy="fc08898f57b6ff31f5966e4694c65f67cb6ead4acdbfc326d35e5709a9192e5f">Copy</button>
         </td>
         <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
-        <td data-label="Block">3110491</td>
-        <td data-label="Evidence">Pending store: vault repay:recoverable, Pending store: unit send:confirmed</td>
+        <td data-label="Block">3198466</td>
+        <td data-label="Evidence">Pending store: vault borrow:confirmed, Pending store: btc send:confirmed</td>
         <td data-label="Lookup" class="duration">0s</td>
       </tr>
 <tr>
         <td data-label="Txid">
-          <a href="https://mutinynet.com/tx/e9ec002bed27564dd7df7f1767619e5670c9217f34e17671f6539fea3052fbc5" target="_blank" rel="noreferrer">e9ec002bed...ea3052fbc5</a>
-          <button class="copy" type="button" data-copy="e9ec002bed27564dd7df7f1767619e5670c9217f34e17671f6539fea3052fbc5">Copy</button>
+          <a href="https://mutinynet.com/tx/002aa9b0140cc931c6a9f3a24243409527bdee8d8a57075a241e084cf99acf89" target="_blank" rel="noreferrer">002aa9b014...4cf99acf89</a>
+          <button class="copy" type="button" data-copy="002aa9b0140cc931c6a9f3a24243409527bdee8d8a57075a241e084cf99acf89">Copy</button>
         </td>
         <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
-        <td data-label="Block">3110491</td>
-        <td data-label="Evidence">Pending store: vault repay:recoverable, Pending store: btc send:confirmed</td>
+        <td data-label="Block">3198467</td>
+        <td data-label="Evidence">Pending store: unit send:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/d52dc2e39720f6e508cd91295cee86efd76e4c4d68466d589ebba54712524dd6" target="_blank" rel="noreferrer">d52dc2e397...4712524dd6</a>
+          <button class="copy" type="button" data-copy="d52dc2e39720f6e508cd91295cee86efd76e4c4d68466d589ebba54712524dd6">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3198461</td>
+        <td data-label="Evidence">Pending store: btc send:confirmed, Pending store: vault open:confirmed</td>
+        <td data-label="Lookup" class="duration">0s</td>
+      </tr>
+<tr>
+        <td data-label="Txid">
+          <a href="https://mutinynet.com/tx/c8b69d9d4b2eccc414ef351766e76544aa7948a53de29acd265646c8e8d79755" target="_blank" rel="noreferrer">c8b69d9d4b...c8e8d79755</a>
+          <button class="copy" type="button" data-copy="c8b69d9d4b2eccc414ef351766e76544aa7948a53de29acd265646c8e8d79755">Copy</button>
+        </td>
+        <td data-label="Status"><span class="status pass">CONFIRMED</span></td>
+        <td data-label="Block">3198461</td>
+        <td data-label="Evidence">Pending store: vault open:confirmed, Pending store: unit send:pending</td>
         <td data-label="Lookup" class="duration">0s</td>
       </tr>
         </tbody>
@@ -631,10 +791,22 @@
         </thead>
         <tbody>
           <tr>
+        <td data-label="Check">btc-faucet-liquidity</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Primary">1249740251</td>
+        <td data-label="Details">n/a</td>
+      </tr>
+<tr>
         <td data-label="Check">reviewer-mutinynet-funding</td>
         <td data-label="Status"><span class="status pass">PASS</span></td>
-        <td data-label="Primary">28608047</td>
-        <td data-label="Details">7 UTXOs / 28558047 sats, 5 UTXOs / 50000 sats</td>
+        <td data-label="Primary">37646636</td>
+        <td data-label="Details">8 UTXOs / 37126636 sats, 52 UTXOs / 520000 sats</td>
+      </tr>
+<tr>
+        <td data-label="Check">liquidation-availability</td>
+        <td data-label="Status"><span class="status pass">PASS</span></td>
+        <td data-label="Primary">682</td>
+        <td data-label="Details">claimable 682, raw 698, terminal 16, expired 0</td>
       </tr>
         </tbody>
       </table>
@@ -648,11 +820,11 @@
       <div class="commands">
         <div class="command">
           <strong>Regression JSON</strong>
-          <code>artifacts/live-regression/testflight-no-usdc-build2-final.json</code>
+          <code>artifacts/live-regression/testflight-no-usdc-20260620T182914Z.json</code>
         </div>
         <div class="command">
           <strong>Maestro JSON</strong>
-          <code>artifacts/live-maestro/testflight-no-usdc-build2-final.json</code>
+          <code>artifacts/live-maestro/testflight-no-usdc-20260620T182914Z.json</code>
         </div>
         <div class="command">
           <strong>Run the gate</strong>

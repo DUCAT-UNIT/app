@@ -187,10 +187,14 @@ checkNotContainsAny(protocolActionFiles, [
 ]);
 
 checkContainsAll('services/vault/open.ts', [
-  ['fetchPriceQuote(options.liquidationPrice)', 'open uses relay-backed oracle quote'],
+  ['fetchPriceQuote(options.liquidationPrice,', 'open uses relay-backed oracle quote'],
   ['wallet.vault.open.ctx', 'open builds SDK context'],
   ['wallet.vault.open.quote', 'open quotes through SDK'],
-  ['wallet.vault.open.req', 'open builds request through SDK'],
+  [
+    'createVaultOpenRequestWithoutSdkEncode',
+    'open assembles SDK request without Hermes PSBT re-encode',
+  ],
+  ['create_vault_request(latestCtx)', 'open builds request through SDK helper'],
   ['gclient.req.vault.open', 'open submits through guardian vault endpoint'],
 ]);
 checkContainsAll('services/vault/borrow.ts', [

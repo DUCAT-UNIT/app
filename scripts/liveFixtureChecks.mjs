@@ -32,6 +32,11 @@ const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 const bip32 = BIP32Factory(ecc);
 const LIQ_PAGE_SIZE = 250;
 const LIQ_MAX_PAGES = 10;
+const DEFAULT_BTC_FAUCET_ADDRESS = 'tb1q0t5r06dxahch4ft7phkhmgdhqtx060t4lkd7cy';
+const DEFAULT_BTC_FAUCET_CLAIM_SATS = 10_000_000;
+const DEFAULT_BTC_FAUCET_FEE_SATS = 1_000;
+const DEFAULT_BTC_FAUCET_ORD_URL = 'https://ord-mutinynet.ducatprotocol.com';
+const DEFAULT_BTC_FAUCET_MEMPOOL_URL = 'https://mutinynet.com/api';
 
 if (typeof bitcoin.initEccLib === 'function') {
   bitcoin.initEccLib(ecc);
@@ -111,12 +116,17 @@ export function deriveReviewerFixture(env = process.env) {
   };
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, init = undefined) {
+  const response = await fetch(url, init);
   if (!response.ok) {
     throw new Error(`${url} returned HTTP ${response.status}`);
   }
   return response.json();
+}
+
+function positiveNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function liquidationPageRows(data) {
@@ -216,6 +226,79 @@ async function addressUtxoSats(esploraUrl, address) {
     address,
     utxos: utxos.length,
     sats: utxos.reduce((sum, utxo) => sum + Number(utxo?.value || 0), 0),
+  };
+}
+
+async function faucetAddressUtxos(ordUrl, mempoolUrl, address) {
+  const addressData = await fetchJson(`${ordUrl}/address/${address}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const outputs = Array.isArray(addressData?.outputs) ? addressData.outputs : [];
+  const rows = await Promise.all(
+    outputs.map(async (outpoint) => {
+      const [txid, voutText] = String(outpoint).split(':');
+      if (!txid || voutText === undefined) return null;
+
+      const [outputData, spendInfo] = await Promise.all([
+        fetchJson(`${ordUrl}/output/${outpoint}`, { headers: { Accept: 'application/json' } }),
+        fetchJson(`${mempoolUrl}/tx/${txid}/outspend/${voutText}`),
+      ]);
+      if (spendInfo?.spent === true) return null;
+
+      return {
+        outpoint,
+        value: Number(outputData?.value || 0),
+      };
+    })
+  );
+
+  return rows.filter((row) => row && row.value > 0).sort((a, b) => b.value - a.value);
+}
+
+export async function checkBtcFaucetLiquidity(env = process.env, options = {}) {
+  const address = envValue(env, 'DUCAT_LIVE_BTC_FAUCET_ADDRESS', DEFAULT_BTC_FAUCET_ADDRESS);
+  const ordUrl = envValue(env, 'DUCAT_LIVE_BTC_FAUCET_ORD_URL', DEFAULT_BTC_FAUCET_ORD_URL)
+    .replace(/\/+$/, '');
+  const mempoolUrl = envValue(
+    env,
+    'DUCAT_LIVE_BTC_FAUCET_MEMPOOL_URL',
+    DEFAULT_BTC_FAUCET_MEMPOOL_URL
+  ).replace(/\/+$/, '');
+  const claimSats = positiveNumber(
+    options.claimSats ?? envValue(env, 'DUCAT_LIVE_BTC_FAUCET_CLAIM_SATS'),
+    DEFAULT_BTC_FAUCET_CLAIM_SATS
+  );
+  const feeSats = positiveNumber(
+    options.feeSats ?? envValue(env, 'DUCAT_LIVE_BTC_FAUCET_FEE_SATS'),
+    DEFAULT_BTC_FAUCET_FEE_SATS
+  );
+  const requiredClaims = Math.ceil(
+    positiveNumber(options.claims ?? envValue(env, 'DUCAT_LIVE_BTC_FAUCET_REQUIRED_CLAIMS'), 1)
+  );
+  const minSats = positiveNumber(
+    options.minSats ?? envValue(env, 'DUCAT_LIVE_BTC_FAUCET_MIN_SATS'),
+    (claimSats + feeSats) * requiredClaims
+  );
+
+  const utxos = await faucetAddressUtxos(ordUrl, mempoolUrl, address);
+  const totalSats = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+  const largestUtxoSats = utxos[0]?.value ?? 0;
+  const passed = totalSats >= minSats && largestUtxoSats >= claimSats + feeSats;
+
+  return {
+    id: 'btc-faucet-liquidity',
+    passed,
+    address,
+    requiredClaims,
+    minSats,
+    claimSats,
+    feeSats,
+    totalSats,
+    utxoCount: utxos.length,
+    largestUtxoSats,
+    error: passed
+      ? null
+      : `BTC faucet has ${totalSats} sats across ${utxos.length} UTXOs; need at least ${minSats} sats and one UTXO >= ${claimSats + feeSats}.`,
   };
 }
 

@@ -106,6 +106,15 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow:
     when:
       visible:
+        text: "Activate Notifications"
+    commands:
+      - tapOn:
+          text: "Not Now"
+      - waitForAnimationToEnd
+
+- runFlow:
+    when:
+      visible:
         text: "Skip for Now"
     commands:
       - tapOn:
@@ -117,6 +126,14 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       id: "wallet-screen"
     timeout: 30000
+- runFlow:
+    when:
+      visible:
+        text: "Activate Notifications"
+    commands:
+      - tapOn:
+          text: "Not Now"
+      - waitForAnimationToEnd
 - extendedWaitUntil:
     visible:
       id: "balance-section"
@@ -169,7 +186,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # UNIT balance may have comma separators (e.g., "4,625.00")
 - extendedWaitUntil:
     visible:
-      text: "^[1-9][\\d,]*\\.\\d{2}$"
+      id: "asset-card-unit"
+      text: ".*UNIT: [1-9][\\d,]*\\.\\d{2}, value .*"
     timeout: 180000
 
 # Scroll back to top
