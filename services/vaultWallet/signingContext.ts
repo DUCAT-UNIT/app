@@ -75,10 +75,12 @@ type PendingVaultSigningOperation =
       liquidCtx: VaultRepoLiquidCtx;
       vaultCtx: VaultRepoCtx;
       satsUtxos: BaseUtxo[];
+      unsignedPsbt: string;
     }
   | {
       action: 'trim';
       ctx: VaultTrimCtx;
+      unsignedPsbt: string;
     };
 
 let pendingVaultSigningOperation: PendingVaultSigningOperation | null = null;
@@ -186,18 +188,10 @@ export function getExpectedVaultPsbtTemplates(): ExpectedPsbtTemplate[] {
       return [toExpectedPsbtTemplate(psbt)];
     }
     case 'repo': {
-      if (typeof operation.vaultCtx.__create_psbts !== 'function') {
-        throw new Error('SECURITY: Missing repo PSBT builder in signing context');
-      }
-
-      const [psbt] = operation.vaultCtx.__create_psbts(operation.satsUtxos, {
-        liquid_profiles: operation.liquidCtx.liquid_vaults,
-      });
-      return [toExpectedPsbtTemplate(psbt)];
+      return [toExpectedPsbtTemplate(operation.unsignedPsbt)];
     }
     case 'trim': {
-      const psbt = VaultAPI.trim.create_psbt(operation.ctx);
-      return [toExpectedPsbtTemplate(psbt)];
+      return [toExpectedPsbtTemplate(operation.unsignedPsbt)];
     }
   }
 }

@@ -739,6 +739,7 @@ describe('executeLiquidation', () => {
           action: 'repo',
           liquidCtx: mockLiquidCtx,
           satsUtxos: mockSelectedUtxos,
+          unsignedPsbt: 'raw_repo_psbt_base64',
         })
       );
     });
@@ -851,6 +852,7 @@ describe('executeLiquidation', () => {
         ctx: expect.objectContaining({
           _tag: 'trimCtx',
         }),
+        unsignedPsbt: 'raw_trim_psbt_base64',
       });
       expect(mockVaultApiTrimCreateRequest).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -825,6 +825,7 @@ export async function executeLiquidation(
         liquidCtx,
         vaultCtx: repoVaultCtx,
         satsUtxos: utxos,
+        unsignedPsbt: unsignedActionPsbt,
       });
     } else {
       if (!trimActionCtx) {
@@ -834,6 +835,7 @@ export async function executeLiquidation(
       setPendingVaultSigningOperation({
         action: 'trim',
         ctx: trimActionCtx,
+        unsignedPsbt: unsignedActionPsbt,
       });
     }
 

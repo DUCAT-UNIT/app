@@ -10,7 +10,7 @@
 
 import { Buff } from '@cmdcode/buff';
 import type { Transaction as SdkTransaction, VaultWallet } from '@ducat-unit/client-sdk';
-import { PSBT, TX, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
+import { TX, hash160, taptweak_pubkey } from '@ducat-unit/client-sdk/util';
 import * as bitcoin from 'bitcoinjs-lib';
 import { Buffer } from 'buffer';
 
@@ -281,7 +281,7 @@ function isInputAlreadySigned(input: {
  *
  * @param sdkPdata - SDK PSBT data object
  * @param signInputs - Map of addresses to input indices to sign
- * @param originalPsbtBase64 - Optional original PSBT to preserve OP_RETURN
+ * @param originalPsbtBase64 - Original PSBT to preserve OP_RETURN and avoid SDK re-encoding
  * @returns Signed PSBT in base64 format
  */
 export async function signPsbtWithSdkObject(
@@ -292,8 +292,11 @@ export async function signPsbtWithSdkObject(
 ): Promise<string> {
   return withSigningContext(async (mnemonic, accountIndex, derivationMode) => {
     const keyCache = createLocalSigningKeyCache(mnemonic, accountIndex, derivationMode);
-    // Use original PSBT if provided, otherwise encode from SDK object
-    const psbtBase64 = originalPsbtBase64 || PSBT.encode(sdkPdata);
+    if (!originalPsbtBase64) {
+      throw new Error('SECURITY: Missing original PSBT for binary vault signing');
+    }
+
+    const psbtBase64 = originalPsbtBase64;
 
     // Decode with bitcoinjs-lib for sighash computation
     const bjsPsbt = bitcoin.Psbt.fromBase64(psbtBase64, { network: MUTINYNET_NETWORK });

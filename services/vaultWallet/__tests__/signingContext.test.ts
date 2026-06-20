@@ -285,28 +285,28 @@ describe('vault signing context', () => {
     setPendingVaultSigningOperation({
       action: 'trim',
       ctx: ctx as never,
+      unsignedPsbt: PSBT_A,
     });
 
     const templates = getExpectedVaultPsbtTemplates();
 
     expect(templates).toHaveLength(1);
-    expect(mockTrimCreatePsbt).toHaveBeenCalledWith(ctx);
+    expect(mockTrimCreatePsbt).not.toHaveBeenCalled();
   });
 
-  it('routes repo operations through the single latest repo PSBT builder', () => {
+  it('routes repo operations through the exact unsigned action PSBT', () => {
     const repoLiquidCtx = { ...liquidCtx, liquid_vaults: [{ vault: 1 }] };
     setPendingVaultSigningOperation({
       action: 'repo',
       liquidCtx: repoLiquidCtx as never,
       vaultCtx: vaultCtx as never,
       satsUtxos: satsUtxos as never,
+      unsignedPsbt: PSBT_A,
     });
 
     const templates = getExpectedVaultPsbtTemplates();
 
     expect(templates).toHaveLength(1);
-    expect(vaultCtx.__create_psbts).toHaveBeenCalledWith(satsUtxos, {
-      liquid_profiles: repoLiquidCtx.liquid_vaults,
-    });
+    expect(vaultCtx.__create_psbts).not.toHaveBeenCalled();
   });
 });

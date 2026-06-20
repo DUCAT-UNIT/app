@@ -897,7 +897,12 @@ describe('psbtService', () => {
       };
       (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockBjsPsbt);
 
-      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+      const result = await signPsbtWithSdkObject(
+        mockPdata,
+        mockSignInputs,
+        'encoded-psbt',
+        DEFAULT_INTENT
+      );
 
       expect(result).toBe('encoded-psbt-signed');
       expect(mockBjsPsbt.signInput).toHaveBeenCalledWith(0, expect.any(Object));
@@ -943,7 +948,12 @@ describe('psbtService', () => {
         signInput,
       });
 
-      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+      const result = await signPsbtWithSdkObject(
+        mockPdata,
+        mockSignInputs,
+        'encoded-psbt',
+        DEFAULT_INTENT
+      );
 
       expect(result).toBe('encoded-psbt-signed');
       expect(signInput).not.toHaveBeenCalled();
@@ -978,7 +988,12 @@ describe('psbtService', () => {
       mockBjsPsbt.txOutputs = [{ script: RECIPIENT_SCRIPT, value: BigInt(10_000) }];
       (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockBjsPsbt);
 
-      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+      const result = await signPsbtWithSdkObject(
+        mockPdata,
+        mockSignInputs,
+        'encoded-psbt',
+        DEFAULT_INTENT
+      );
 
       expect(result).toBe('encoded-psbt-signed');
     });
@@ -1017,7 +1032,12 @@ describe('psbtService', () => {
       mockBjsPsbt.txOutputs = [{ script: RECIPIENT_SCRIPT, value: BigInt(10_000) }];
       (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockBjsPsbt);
 
-      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+      const result = await signPsbtWithSdkObject(
+        mockPdata,
+        mockSignInputs,
+        'encoded-psbt',
+        DEFAULT_INTENT
+      );
 
       expect(result).toBe('encoded-psbt-signed');
     });
@@ -1038,7 +1058,12 @@ describe('psbtService', () => {
         txOutputs: [{ script: Buffer.from('51', 'hex'), value: BigInt(1000) }],
       });
 
-      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+      const result = await signPsbtWithSdkObject(
+        mockPdata,
+        mockSignInputs,
+        'encoded-psbt',
+        DEFAULT_INTENT
+      );
 
       expect(result).toBe('encoded-psbt-signed');
     });
@@ -1074,6 +1099,17 @@ describe('psbtService', () => {
       await signPsbtWithSdkObject(mockPdata, mockSignInputs, originalPsbt, DEFAULT_INTENT);
 
       expect(bitcoin.Psbt.fromBase64).toHaveBeenCalledWith(originalPsbt, expect.any(Object));
+    });
+
+    it('should reject missing original PSBT instead of SDK re-encoding', async () => {
+      const mockPdata = {} as any;
+      const mockSignInputs = { 'tb1qtest': [0] };
+
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT)
+      ).rejects.toThrow('SECURITY: Missing original PSBT for binary vault signing');
     });
   });
 
