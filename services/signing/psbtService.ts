@@ -320,6 +320,13 @@ export async function signPsbtWithSdkObject(
           continue;
         }
 
+        if (isInputAlreadySigned(bjsInput)) {
+          logger.debug(
+            `[signPsbtWithSdkObject] Skipping already signed input ${inputIndex} for ${address}`
+          );
+          continue;
+        }
+
         const scriptHex = Buffer.from(bjsInput.witnessUtxo.script).toString('hex');
         const { isSegwit, isTaproot, derivationPath } = getAddressTypeInfo(
           address,

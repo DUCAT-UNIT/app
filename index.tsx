@@ -1,3 +1,4 @@
+import './crypto-polyfill';
 import { registerRootComponent } from 'expo';
 import React from 'react';
 import { enableFreeze, enableScreens } from 'react-native-screens';

@@ -872,6 +872,54 @@ describe('psbtService', () => {
       const mockSignInputs = { 'tb1qtest': [0] };
 
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      const mockBjsPsbt: any = {
+        data: {
+          inputs: [
+            {
+              witnessUtxo: {
+                script: Buffer.from('0014aabbcc', 'hex'),
+                value: BigInt(100000),
+              },
+            },
+          ],
+        },
+        txOutputs: [
+          { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
+        ],
+        signInput: jest.fn((inputIndex: number) => {
+          mockBjsPsbt.data.inputs[inputIndex].partialSig = [
+            {
+              pubkey: Buffer.alloc(33, 0x02),
+              signature: Buffer.alloc(64, 0x44),
+            },
+          ];
+        }),
+      };
+      (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue(mockBjsPsbt);
+
+      const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
+
+      expect(result).toBe('encoded-psbt-signed');
+      expect(mockBjsPsbt.signInput).toHaveBeenCalledWith(0, expect.any(Object));
+      expect(psbtBinaryUtils.patchPsbtSignatures).toHaveBeenCalledWith(
+        'encoded-psbt',
+        [
+          expect.objectContaining({
+            inputIndex: 0,
+            type: 'segwit',
+          }),
+        ]
+      );
+    });
+
+    it('should skip already signed inputs before binary patching', async () => {
+      const mockPdata = {} as any;
+      const mockSignInputs = { 'tb1qtest': [0] };
+      const signInput = jest.fn(() => {
+        throw new Error('already signed input should not be signed again');
+      });
+
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
       (bitcoin.Psbt.fromBase64 as jest.Mock).mockReturnValue({
         data: {
           inputs: [
@@ -892,13 +940,14 @@ describe('psbtService', () => {
         txOutputs: [
           { script: RECIPIENT_SCRIPT, value: BigInt(10_000) },
         ],
-        signInput: jest.fn(),
+        signInput,
       });
 
       const result = await signPsbtWithSdkObject(mockPdata, mockSignInputs, undefined, DEFAULT_INTENT);
 
       expect(result).toBe('encoded-psbt-signed');
-      expect(psbtBinaryUtils.patchPsbtSignatures).toHaveBeenCalled();
+      expect(signInput).not.toHaveBeenCalled();
+      expect(psbtBinaryUtils.patchPsbtSignatures).toHaveBeenCalledWith('encoded-psbt', []);
     });
 
     it('should handle Taproot key-path signing', async () => {

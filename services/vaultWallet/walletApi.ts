@@ -11,12 +11,9 @@ import { getJsonWithNativeTimeout } from '../../utils/nativeHttp';
 import { logger } from '../../utils/logger';
 import { withVaultBuildTimeout } from '../vault/operationTimeout';
 import {
-  signPsbtRaw,
   signPsbtWithSdkObject,
   patchPreProcessFields,
   patchPostProcessFields,
-  psbtPreProcess,
-  psbtPostProcess,
 } from '../signing';
 import { getExpectedVaultPsbtTemplates } from './signingContext';
 
@@ -285,14 +282,12 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         }
 
         const preprocessStartedAt = Date.now();
-        psbtPreProcess(client, pre_pdata, manifest);
+        const preProcessedPsbt = patchPreProcessFields(psbt, client, manifest);
         logger.info('[VaultWalletService] PSBT preprocessed for signing', {
           durationMs: Date.now() - preprocessStartedAt,
         });
 
         const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
-        // Sign with the mobile wallet
-        const prePsbt = PSBT.encode(pre_pdata);
         const intent = {
           recipient: client.acct.vault.address,
           change: client.acct.sats.address,
@@ -301,15 +296,19 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           expectedPsbtTemplates,
         };
         const rawSignStartedAt = Date.now();
-        const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
+        const signedPsbt = await signPsbtWithSdkObject(
+          PSBT.decode(preProcessedPsbt),
+          manifest,
+          preProcessedPsbt,
+          intent
+        );
         logger.info('[VaultWalletService] PSBT raw signing complete', {
           durationMs: Date.now() - rawSignStartedAt,
         });
 
         // Post-process the signed PSBT (same as frontend sign_psbt_api)
         const postprocessStartedAt = Date.now();
-        const post_pdata = PSBT.decode(signedPsbt);
-        psbtPostProcess(client, post_pdata, manifest);
+        const finalPsbt = patchPostProcessFields(signedPsbt, client, manifest);
         logger.info('[VaultWalletService] PSBT postprocessed after signing', {
           durationMs: Date.now() - postprocessStartedAt,
         });
@@ -317,7 +316,7 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         logger.info('[VaultWalletService] PSBT signed and post-processed', {
           durationMs: Date.now() - startedAt,
         });
-        return PSBT.encode(post_pdata);
+        return finalPsbt;
       },
 
       utxos: (client: VaultWallet) => async (psbt: string) => {
@@ -357,11 +356,10 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
         logger.debug('[VaultWalletService] Signing UTXOs...');
 
         // Pre-process
-        psbtPreProcess(client, pdata, manifest);
+        const preProcessedPsbt = patchPreProcessFields(psbt, client, manifest);
 
         const expectedPsbtTemplates = getExpectedVaultPsbtTemplates();
         // Sign
-        const prePsbt = PSBT.encode(pdata);
         const intent = {
           recipient: client.acct.vault.address,
           change: client.acct.sats.address,
@@ -369,13 +367,15 @@ export function createMobileWalletAPI(segwitAddress: string): WalletConnectAPI {
           allowOpReturn: true,
           expectedPsbtTemplates,
         };
-        const signedPsbt = await signPsbtRaw(prePsbt, manifest, intent);
+        const signedPsbt = await signPsbtWithSdkObject(
+          PSBT.decode(preProcessedPsbt),
+          manifest,
+          preProcessedPsbt,
+          intent
+        );
 
         // Post-process
-        const post_pdata = PSBT.decode(signedPsbt);
-        psbtPostProcess(client, post_pdata, manifest);
-
-        const finalPsbt = PSBT.encode(post_pdata);
+        const finalPsbt = patchPostProcessFields(signedPsbt, client, manifest);
         logger.debug('[VaultWalletService] UTXOs signed');
         return finalPsbt;
       },

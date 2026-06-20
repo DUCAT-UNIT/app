@@ -107,6 +107,8 @@ describe('walletApi', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (signing.patchPreProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
+    (signing.patchPostProcessFields as jest.Mock).mockImplementation((psbt) => psbt);
   });
 
   describe('createMobileWalletAPI', () => {
@@ -300,7 +302,7 @@ describe('walletApi', () => {
     });
 
     describe('sign.psbt', () => {
-      it('should sign PSBT with pre/post processing', async () => {
+      it('should sign PSBT with binary pre/post processing', async () => {
         const mockPsbt = 'cHNidP8BAA==';
         const mockManifest = { 'tb1qtest': [0, 1] };
         const mockPdata = {
@@ -313,19 +315,37 @@ describe('walletApi', () => {
           })),
         };
         const mockSignedPsbt = 'cHNidP8SIGNED==';
+        const mockFinalPsbt = 'cHNidP8FINAL==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (PSBT.encode as jest.Mock).mockImplementation(() => {
+          throw new Error('Writer(magic): TypeError: undefined is not a function');
+        });
+        (signing.patchPreProcessFields as jest.Mock).mockReturnValue('cHNidP8PRE==');
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.patchPostProcessFields as jest.Mock).mockReturnValue(mockFinalPsbt);
 
         const api = createMobileWalletAPI('tb1qtest');
         const result = await api.sign.psbt(mockClient)(mockPsbt, mockManifest);
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
-        expect(signing.psbtPreProcess).toHaveBeenCalledWith(mockClient, mockPdata, mockManifest);
-        expect(signing.signPsbtRaw).toHaveBeenCalled();
-        expect(signing.psbtPostProcess).toHaveBeenCalled();
-        expect(result).toBe(mockSignedPsbt);
+        expect(signing.patchPreProcessFields).toHaveBeenCalledWith(mockPsbt, mockClient, mockManifest);
+        expect(signing.signPsbtWithSdkObject).toHaveBeenCalledWith(
+          mockPdata,
+          mockManifest,
+          'cHNidP8PRE==',
+          expect.objectContaining({
+            allowOpReturn: true,
+            expectedPsbtTemplates: expect.any(Array),
+          })
+        );
+        expect(signing.patchPostProcessFields).toHaveBeenCalledWith(
+          mockSignedPsbt,
+          mockClient,
+          mockManifest
+        );
+        expect(PSBT.encode).not.toHaveBeenCalled();
+        expect(result).toBe(mockFinalPsbt);
       });
     });
 
@@ -343,8 +363,10 @@ describe('walletApi', () => {
         const mockSignedPsbt = 'cHNidP8SIGNED==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (PSBT.encode as jest.Mock).mockImplementation(() => {
+          throw new Error('Writer(magic): TypeError: undefined is not a function');
+        });
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
         (TX.parse_script_meta as jest.Mock).mockReturnValue({
           type: 'p2w-pkh',
           key: { hex: 'abc123' },
@@ -354,9 +376,10 @@ describe('walletApi', () => {
         const result = await api.sign.utxos(mockClient)(mockPsbt);
 
         expect(PSBT.decode).toHaveBeenCalledWith(mockPsbt);
-        expect(signing.psbtPreProcess).toHaveBeenCalled();
-        expect(signing.signPsbtRaw).toHaveBeenCalled();
-        expect(signing.psbtPostProcess).toHaveBeenCalled();
+        expect(signing.patchPreProcessFields).toHaveBeenCalled();
+        expect(signing.signPsbtWithSdkObject).toHaveBeenCalled();
+        expect(signing.patchPostProcessFields).toHaveBeenCalled();
+        expect(PSBT.encode).not.toHaveBeenCalled();
         expect(result).toBe(mockSignedPsbt);
       });
 
@@ -371,8 +394,7 @@ describe('walletApi', () => {
         const mockSignedPsbt = 'cHNidP8SIGNED==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
 
         const api = createMobileWalletAPI('tb1qtest');
         const result = await api.sign.utxos(mockClient)(mockPsbt);
@@ -393,8 +415,7 @@ describe('walletApi', () => {
         const mockSignedPsbt = 'cHNidP8SIGNED==';
 
         (PSBT.decode as jest.Mock).mockReturnValue(mockPdata);
-        (PSBT.encode as jest.Mock).mockReturnValue(mockSignedPsbt);
-        (signing.signPsbtRaw as jest.Mock).mockResolvedValue(mockSignedPsbt);
+        (signing.signPsbtWithSdkObject as jest.Mock).mockResolvedValue(mockSignedPsbt);
         (TX.parse_script_meta as jest.Mock).mockReturnValue({
           type: 'p2tr',
           key: { hex: 'def456' },
