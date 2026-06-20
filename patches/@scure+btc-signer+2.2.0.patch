@@ -1,0 +1,33 @@
+diff --git a/node_modules/@scure/btc-signer/psbt.js b/node_modules/@scure/btc-signer/psbt.js
+index 3bfb546..1d07aab 100644
+--- a/node_modules/@scure/btc-signer/psbt.js
++++ b/node_modules/@scure/btc-signer/psbt.js
+@@ -511,8 +511,9 @@ const PSBTGlobalCoder = /* @__PURE__ */ (() => P.validate(PSBTKeyMap(PSBTGlobal)
+     }
+     return g;
+ }))();
++const PSBTMagic = /* @__PURE__ */ Uint8Array.of(0x70, 0x73, 0x62, 0x74, 0xff);
+ export const _RawPSBTV0 = /* @__PURE__ */ (() => Object.freeze(P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     global: PSBTGlobalCoder,
+     // Raw v0 framing follows the unsigned transaction for input-map count; the stricter
+     // one-map-per-input/output reconciliation happens in `RawPSBTV0` / `validatePSBT`.
+@@ -520,7 +521,7 @@ export const _RawPSBTV0 = /* @__PURE__ */ (() => Object.freeze(P.struct({
+     outputs: P.array(null, PSBTOutputCoder),
+ })))();
+ export const _RawPSBTV2 = /* @__PURE__ */ (() => Object.freeze(P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     global: PSBTGlobalCoder,
+     // Raw v2 framing takes map counts from the global PSBTv2 count fields; deeper version
+     // and per-field validation still happens in `RawPSBTV2` / `validatePSBT`.
+@@ -528,7 +529,7 @@ export const _RawPSBTV2 = /* @__PURE__ */ (() => Object.freeze(P.struct({
+     outputs: P.array('global/outputCount', PSBTOutputCoder),
+ })))();
+ export const _DebugPSBT = /* @__PURE__ */ (() => Object.freeze(P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     // Debug-only normalized view: maps become plain objects, so key order is intentionally ignored
+     // and duplicate keys fail while decoding instead of being preserved for byte-level diagnostics.
+     // Each `items[i]` is one raw PSBT map (`global`, then inputs, then outputs), keyed by the

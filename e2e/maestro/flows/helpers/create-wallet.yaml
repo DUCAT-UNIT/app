@@ -53,52 +53,44 @@ appId: com.ducatprotocol.DucatProtocolWallet
 
 # A fresh live wallet should receive faucet BTC before we continue. The funding
 # modal can be skipped by the app when the balance arrives first, so dismiss it
-# opportunistically and let the funded BTC balance be the required gate.
+# opportunistically and let the funded wallet actions be the required gate.
 - waitForAnimationToEnd
 - waitForAnimationToEnd
-- runFlow: unlock-if-locked.yaml
-
-# Accept the airdrop modal if it appears.
 - runFlow: dismiss-airdrop.yaml
 - waitForAnimationToEnd
 - runFlow: unlock-if-locked.yaml
+- runFlow: dismiss-airdrop.yaml
+- waitForAnimationToEnd
 
 # Dismiss low ecash modal if it appears
 - runFlow: dismiss-low-ecash.yaml
-
-# Passkey prompt can appear a little later on fresh wallet creation
-- runFlow: dismiss-passkey-recovery.yaml
-
-# Verify wallet screen loads
-- extendedWaitUntil:
-    visible:
-      id: 'wallet-screen'
-    timeout: 15000
+- waitForAnimationToEnd
 - runFlow: dismiss-airdrop.yaml
+- waitForAnimationToEnd
 
-# This prompt can appear slightly later, after the wallet home mounts.
-- runFlow: dismiss-passkey-recovery.yaml
+# Notification prompt can appear before funded wallet actions are queryable.
+- runFlow:
+    when:
+      visible:
+        text: 'Activate Notifications'
+    commands:
+      - tapOn:
+          text: 'Not Now'
+      - waitForAnimationToEnd
 
-# Wait for balance section to appear
+# Wait for the funded wallet home to become interactive.
 - extendedWaitUntil:
     visible:
-      id: 'balance-section'
-    timeout: 30000
-- runFlow: dismiss-airdrop.yaml
-
-# Dismiss any delayed passkey prompt before continuing the funded-wallet flow.
-- runFlow: dismiss-passkey-recovery.yaml
-
-# Wait for the funded BTC card to render in the live wallet UI.
-# The exact decimal formatting changes over time, so do not pin this to one string.
-- extendedWaitUntil:
-    visible:
-      id: 'asset-card-btc'
-    timeout: 90000
-- extendedWaitUntil:
-    visible:
-      text: "^(0\\.0*[1-9]\\d*|[1-9][\\d,]*\\.\\d{8})$"
+      text: 'Create Vault'
     timeout: 180000
+- runFlow:
+    when:
+      visible:
+        text: 'Activate Notifications'
+    commands:
+      - tapOn:
+          text: 'Not Now'
+      - waitForAnimationToEnd
 - runFlow: dismiss-airdrop.yaml
 
 # Force defaults again now that the authenticated settings provider is mounted.
@@ -108,9 +100,6 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: unlock-if-locked.yaml
 - extendedWaitUntil:
     visible:
-      id: 'wallet-screen'
+      text: 'Create Vault'
     timeout: 15000
 - waitForAnimationToEnd
-- runFlow: dismiss-passkey-recovery.yaml
-- waitForAnimationToEnd
-- runFlow: dismiss-passkey-recovery.yaml

@@ -1,0 +1,29 @@
+diff --git a/node_modules/@vbyte/btc-dev/node_modules/@scure/btc-signer/psbt.js b/node_modules/@vbyte/btc-dev/node_modules/@scure/btc-signer/psbt.js
+index 4fbc1f9..d106693 100644
+--- a/node_modules/@vbyte/btc-dev/node_modules/@scure/btc-signer/psbt.js
++++ b/node_modules/@vbyte/btc-dev/node_modules/@scure/btc-signer/psbt.js
+@@ -257,20 +257,21 @@ const PSBTGlobalCoder = P.validate(PSBTKeyMap(PSBTGlobal), (g) => {
+     }
+     return g;
+ });
++const PSBTMagic = Uint8Array.of(0x70, 0x73, 0x62, 0x74, 0xff);
+ export const _RawPSBTV0 = P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     global: PSBTGlobalCoder,
+     inputs: P.array('global/unsignedTx/inputs/length', PSBTInputCoder),
+     outputs: P.array(null, PSBTOutputCoder),
+ });
+ export const _RawPSBTV2 = P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     global: PSBTGlobalCoder,
+     inputs: P.array('global/inputCount', PSBTInputCoder),
+     outputs: P.array('global/outputCount', PSBTOutputCoder),
+ });
+ export const _DebugPSBT = P.struct({
+-    magic: P.magic(P.string(new Uint8Array([0xff])), 'psbt'),
++    magic: P.magic(P.bytes(PSBTMagic.length), PSBTMagic),
+     items: P.array(null, P.apply(P.array(P.NULL, P.tuple([P.hex(CompactSizeLen), P.bytes(CompactSize)])), P.coders.dict())),
+ });
+ function validatePSBTFields(version, info, lst) {
