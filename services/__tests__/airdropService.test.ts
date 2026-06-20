@@ -37,7 +37,12 @@ describe('airdropService', () => {
           captchaToken: 'XXXX.DUMMY.TOKEN.XXXX',
           network: 'mutinynet',
         },
-        { description: 'Request airdrop' }
+        {
+          description: 'Request airdrop',
+          headers: {
+            'User-Agent': 'DucatProtocolWallet',
+          },
+        }
       );
 
       expect(result).toEqual({

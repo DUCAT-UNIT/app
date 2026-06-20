@@ -1,0 +1,26 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Wait until the wallet has real, spendable BTC visible in the asset card.
+# This prevents live vault/send flows from proceeding while the faucet request is
+# still pending and the wallet home already exposes action buttons.
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 30000
+
+- extendedWaitUntil:
+    visible:
+      id: 'asset-card-btc'
+    timeout: 30000
+
+- extendedWaitUntil:
+    notVisible:
+      id: 'airdrop-waiting-panel'
+    timeout: 240000
+
+- extendedWaitUntil:
+    visible:
+      id: 'asset-card-btc-amount'
+      text: "^(0\\.(?!00000000$)[0-9]{8}|[1-9][0-9,]*\\.[0-9]{8})$"
+    timeout: 240000

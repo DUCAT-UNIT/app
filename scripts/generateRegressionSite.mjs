@@ -15,87 +15,104 @@ const defaults = {
 const flowNotes = {
   'live-receive-btc-airdrop.yaml': {
     name: 'Receive BTC',
-    summary: 'Creates a fresh wallet, verifies a funded BTC balance, opens receive, and copies the receive address.',
+    summary:
+      'Creates a fresh wallet, verifies a funded BTC balance, opens receive, and copies the receive address.',
     expectedProofs: '1 receive funding proof',
   },
   'live-send-btc.yaml': {
     name: 'Send BTC',
-    summary: 'Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.',
+    summary:
+      'Creates a funded wallet, enters a BTC address, max-sends, reviews, broadcasts, and copies the txid.',
     expectedProofs: '1 BTC send txid',
   },
   'live-send-btc-relaunch-pending.yaml': {
     name: 'BTC Relaunch Recovery',
-    summary: 'Broadcasts a BTC send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
+    summary:
+      'Broadcasts a BTC send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
     expectedProofs: 'Pending BTC send panel plus 1 BTC send txid',
   },
   'live-send-unit.yaml': {
     name: 'Send UNIT',
-    summary: 'Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.',
+    summary:
+      'Imports the reviewer wallet, verifies UNIT balance, sends on-chain UNIT, and copies the txid.',
     expectedProofs: '1 UNIT send txid',
   },
   'live-send-unit-relaunch-pending.yaml': {
     name: 'UNIT Relaunch Recovery',
-    summary: 'Broadcasts an on-chain UNIT send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
+    summary:
+      'Broadcasts an on-chain UNIT send, kills the app on the confirmation screen, relaunches, and verifies the pending send rehydrates.',
     expectedProofs: 'Pending UNIT send panel plus 1 UNIT send txid',
   },
   'live-vault-actions.yaml': {
     name: 'Vault Actions',
-    summary: 'Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.',
+    summary:
+      'Opens a live vault, deposits collateral, borrows UNIT, repays UNIT, and withdraws collateral.',
     expectedProofs: '5 vault action checkpoints; raw txids can be 8+',
   },
   'live-vault-open-relaunch-pending.yaml': {
     name: 'Vault Open Relaunch Recovery',
-    summary: 'Submits a vault open, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Submits a vault open, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault open lock and vault checkpoint',
   },
   'live-vault-deposit-relaunch-pending.yaml': {
     name: 'Vault Deposit Relaunch Recovery',
-    summary: 'Submits a vault deposit, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Submits a vault deposit, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault deposit lock and vault checkpoint',
   },
   'live-vault-borrow-relaunch-pending.yaml': {
     name: 'Vault Borrow Relaunch Recovery',
-    summary: 'Submits an on-chain UNIT borrow, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Submits an on-chain UNIT borrow, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault borrow lock and vault checkpoint',
   },
   'live-vault-borrow-turbounit.yaml': {
     name: 'Borrow TurboUNIT',
-    summary: 'Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.',
+    summary:
+      'Borrows from the reviewer vault, selects TurboUNIT payout, and mints the issued UNIT into TurboUNIT.',
     expectedProofs: 'Borrow txids plus TurboUNIT mint settlement',
   },
   'live-vault-open-turbounit-relaunch-pending.yaml': {
     name: 'Open TurboUNIT Relaunch Recovery',
-    summary: 'Opens a vault with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
+    summary:
+      'Opens a vault with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
     expectedProofs: 'Pending vault open lock plus TurboUNIT settlement checkpoint',
   },
   'live-vault-borrow-turbounit-relaunch-pending.yaml': {
     name: 'Borrow TurboUNIT Relaunch Recovery',
-    summary: 'Borrows with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
+    summary:
+      'Borrows with TurboUNIT payout, kills the app on success, relaunches, and verifies recovery state.',
     expectedProofs: 'Pending vault borrow lock plus TurboUNIT settlement checkpoint',
   },
   'live-vault-turbounit-repay.yaml': {
     name: 'Repay TurboUNIT',
-    summary: 'Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.',
+    summary:
+      'Creates TurboUNIT, selects the TurboUNIT funding card, and repays the vault through the live path.',
     expectedProofs: 'TurboUNIT funding plus repay txids',
   },
   'live-vault-repay-turbounit-relaunch-pending.yaml': {
     name: 'Repay TurboUNIT Relaunch Recovery',
-    summary: 'Repays with TurboUNIT funding, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Repays with TurboUNIT funding, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault repay lock plus TurboUNIT melt checkpoint',
   },
   'live-vault-second-repay.yaml': {
     name: 'Second Repay',
-    summary: 'Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.',
+    summary:
+      'Runs two consecutive UNIT repayments against the same vault and verifies the second one does not hang.',
     expectedProofs: '2 consecutive repay checkpoints',
   },
   'live-vault-repay-relaunch-pending.yaml': {
     name: 'Vault Repay Relaunch Recovery',
-    summary: 'Submits a real vault repay, kills the app on the success screen, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Submits a real vault repay, kills the app on the success screen, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault lock, recovery panel, and repay checkpoint',
   },
   'live-vault-withdraw-relaunch-pending.yaml': {
     name: 'Vault Withdraw Relaunch Recovery',
-    summary: 'Submits a vault withdrawal, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
+    summary:
+      'Submits a vault withdrawal, kills the app on success, relaunches, and verifies the pending vault lock rehydrates and clears.',
     expectedProofs: 'Pending vault withdraw lock and vault checkpoint',
   },
 };
@@ -184,6 +201,37 @@ function pct(value, max) {
   return Math.max(8, Math.round((value / max) * 100));
 }
 
+function flowPassed(flow) {
+  if (!flow || typeof flow !== 'object') {
+    return false;
+  }
+
+  if (flow.result !== undefined) {
+    return flow.result === 'passed';
+  }
+
+  if (typeof flow.passed === 'boolean') {
+    return flow.passed === true && (flow.status === undefined || flow.status === 0);
+  }
+
+  return flow.status === 0;
+}
+
+function flowStatusLabel(flow) {
+  if (flowPassed(flow)) {
+    return 'PASS';
+  }
+
+  if (
+    !flow ||
+    (flow.result === undefined && flow.passed === undefined && flow.status === undefined)
+  ) {
+    return 'UNKNOWN';
+  }
+
+  return 'FAIL';
+}
+
 function renderFlowRows(flows) {
   const maxDuration = Math.max(...flows.map((flow) => flow.durationMs || 0), 1);
 
@@ -195,8 +243,9 @@ function renderFlowRows(flows) {
         summary: flow.flow,
         expectedProofs: 'Flow-specific proof not annotated',
       };
-      const status = flow.passed ? 'PASS' : 'FAIL';
-      const statusClass = flow.passed ? 'pass' : 'fail';
+      const passed = flowPassed(flow);
+      const status = flowStatusLabel(flow);
+      const statusClass = passed ? 'pass' : 'fail';
       const width = pct(flow.durationMs || 0, maxDuration);
 
       return `<tr>
@@ -273,10 +322,16 @@ function buildHtml({ appJson, regression, maestro, paths }) {
   const build = appJson.expo?.ios?.buildNumber || 'unknown';
   const txResults = regression.chainVerification?.results || [];
   const confirmedCount = txResults.filter((result) => result.confirmed).length;
-  const flowRows = renderFlowRows(maestro.flows || []);
+  const maestroFlows = maestro.flows || [];
+  const passedFlowCount = maestroFlows.filter(flowPassed).length;
+  const allMaestroFlowsPassed = maestroFlows.length > 0 && passedFlowCount === maestroFlows.length;
+  const flowRows = renderFlowRows(maestroFlows);
   const txRows = renderTxRows(txResults);
   const fixtureRows = renderFixtureRows(regression.fixtureVerification?.checks);
-  const resultClass = regression.result === 'passed' && maestro.result === 'passed' ? 'pass' : 'fail';
+  const resultClass =
+    regression.result === 'passed' && maestro.result === 'passed' && allMaestroFlowsPassed
+      ? 'pass'
+      : 'fail';
   const activeAtExit = regression.activeAtExit || [];
 
   return `<!doctype html>
@@ -679,8 +734,12 @@ function buildHtml({ appJson, regression, maestro, paths }) {
       </div>
       <div class="metric">
         <div class="label">Flows</div>
-        <div class="value">${escapeHtml((maestro.flows || []).length)}/${escapeHtml((maestro.flows || []).length)}</div>
-        <div class="detail">All maintained no-USDC live flows passed.</div>
+        <div class="value">${escapeHtml(passedFlowCount)}/${escapeHtml(maestroFlows.length)}</div>
+        <div class="detail">${
+          allMaestroFlowsPassed
+            ? 'All selected live flows passed.'
+            : 'One or more selected live flows failed or did not report a status.'
+        }</div>
       </div>
       <div class="metric">
         <div class="label">Confirmed Txids</div>

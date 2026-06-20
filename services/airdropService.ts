@@ -38,7 +38,12 @@ export const requestAirdrop = async (segwitAddress: string): Promise<AirdropResp
       captchaToken: TESTNET_FAUCET_CAPTCHA_TOKEN,
       network: NETWORK_CONFIG.api.faucetNetwork,
     },
-    { description: 'Request airdrop' }
+    {
+      description: 'Request airdrop',
+      headers: {
+        'User-Agent': 'DucatProtocolWallet',
+      },
+    }
   );
 
   if (!data.data || !data.data.tx_id) {

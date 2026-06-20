@@ -78,7 +78,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
           text: 'Not Now'
       - waitForAnimationToEnd
 
-# Wait for the funded wallet home to become interactive.
+# Wait for the wallet home to become interactive.
 - extendedWaitUntil:
     visible:
       text: 'Create Vault'
@@ -92,6 +92,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
           text: 'Not Now'
       - waitForAnimationToEnd
 - runFlow: dismiss-airdrop.yaml
+- runFlow: wait-for-funded-btc.yaml
 
 # Force defaults again now that the authenticated settings provider is mounted.
 # This updates live auto-lock/feature-flag state, not only persisted storage.
@@ -102,4 +103,5 @@ appId: com.ducatprotocol.DucatProtocolWallet
     visible:
       text: 'Create Vault'
     timeout: 15000
+- runFlow: wait-for-funded-btc.yaml
 - waitForAnimationToEnd

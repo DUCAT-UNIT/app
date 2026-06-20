@@ -302,15 +302,14 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
           airdropInProgress.current = true;
 
           try {
-            // Store attempt time immediately to prevent duplicate requests (per account)
-            await recordAirdropTime(airdropKey);
-            if (cancelled) return;
-
             // Request airdrop
             logger.debug('[Airdrop] Requesting airdrop for', {
               address: address.slice(0, 12) + '...',
             });
             const result = await AirdropService.requestAirdrop(address);
+            if (cancelled) return;
+
+            await recordAirdropTime(airdropKey);
             if (cancelled) return;
 
             logger.debug('[Airdrop] Airdrop received!', { txId: result.txId });
@@ -335,7 +334,6 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
             logger.warn('[Airdrop] Failed to request airdrop', {
               error: error instanceof Error ? error.message : String(error),
             });
-            // Keep the lastAirdropTime to prevent immediate retries
           } finally {
             // Release lock and clear ref
             airdropInProgress.current = false;

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { E2E_AUTO_LOCK_TIMEOUT_MS, USDC_FEATURE_UNLOCK_PHRASE } from '../constants/settings';
 import { useUsdcFeatureFlagStore } from '../stores/usdcFeatureFlagStore';
 import { setBoolean, setNumber, SettingKeys } from './settingsService';
@@ -24,6 +25,19 @@ const getUrlUnlockPhrase = (url: string): string => {
   }
 };
 
+const AIRDROP_E2E_RESET_PREFIXES = ['airdropLock_', 'lastAirdropTime_', 'pendingAirdrop_'] as const;
+
+async function clearAirdropRegressionState(): Promise<void> {
+  const keys = await AsyncStorage.getAllKeys();
+  const airdropKeys = keys.filter((key) =>
+    AIRDROP_E2E_RESET_PREFIXES.some((prefix) => key.startsWith(prefix))
+  );
+
+  if (airdropKeys.length > 0) {
+    await AsyncStorage.multiRemove(airdropKeys);
+  }
+}
+
 /**
  * Reset only non-secret preferences used by E2E. Wallet keys, PINs, and other
  * secrets are intentionally left to Maestro clearKeychain/clearState.
@@ -40,6 +54,7 @@ export async function resetNonSecretE2ESettings(): Promise<void> {
     setNumber(SettingKeys.ECASH_THRESHOLD, 10000),
     setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, E2E_AUTO_LOCK_TIMEOUT_MS),
     setBoolean(SettingKeys.USDC_FEATURES_ENABLED, false),
+    clearAirdropRegressionState(),
   ]);
 }
 

@@ -110,9 +110,7 @@ function primeReviewerSeedClipboard() {
   if ((result.status ?? 1) !== 0) {
     const stderr = typeof result.stderr === 'string' ? result.stderr.trim() : '';
     const timeoutMessage =
-      result.error?.code === 'ETIMEDOUT'
-        ? ` after ${SIMULATOR_CLIPBOARD_TIMEOUT_MS}ms`
-        : '';
+      result.error?.code === 'ETIMEDOUT' ? ` after ${SIMULATOR_CLIPBOARD_TIMEOUT_MS}ms` : '';
     console.warn(
       `Could not prime simulator clipboard for reviewer wallet import${timeoutMessage}${
         stderr ? `: ${stderr}` : ''
@@ -325,9 +323,10 @@ async function runMaestroFlowWithDriverRetry(flow, devClientUrl) {
   return {
     ...(lastResult ?? { status: 1, signal: null, output: '' }),
     attempts: driverCrashRetries + 1,
-    retryReason: lastResult?.output && isRetryableMaestroDriverCrash(lastResult.output)
-      ? 'maestro_xcuitest_hierarchy_crash'
-      : null,
+    retryReason:
+      lastResult?.output && isRetryableMaestroDriverCrash(lastResult.output)
+        ? 'maestro_xcuitest_hierarchy_crash'
+        : null,
   };
 }
 
@@ -466,27 +465,34 @@ try {
     console.log(`\nRunning live Maestro flow: ${flow}`);
     const flowStartedAt = Date.now();
     const result = await runMaestroFlowWithDriverRetry(flow, devClientUrl);
+    const status = result.status ?? 1;
+    const passed = status === 0;
 
-    if ((result.status ?? 1) !== 0) {
+    if (!passed) {
       failed += 1;
     }
 
     liveReport.flows.push({
       flow,
-      status: result.status ?? 1,
+      result: passed ? 'passed' : 'failed',
+      status,
       signal: result.signal ?? null,
       durationMs: Date.now() - flowStartedAt,
-      passed: (result.status ?? 1) === 0,
+      passed,
       attempts: result.attempts,
       retryReason: result.retryReason,
     });
   }
 
   stopMetroIfStarted();
-  liveReport.result = failed > 0 ? 'failed' : 'passed';
+  const allFlowsPassed =
+    liveReport.flows.length === targetFlows.length &&
+    liveReport.flows.length > 0 &&
+    liveReport.flows.every((flow) => flow.result === 'passed' && flow.passed === true);
+  liveReport.result = failed > 0 || !allFlowsPassed ? 'failed' : 'passed';
   liveReport.metro.startedByScript = metroStartedByScript;
   writeLiveReport();
-  process.exit(failed > 0 ? 1 : 0);
+  process.exit(liveReport.result === 'passed' ? 0 : 1);
 } catch (error) {
   stopMetroIfStarted();
   const message = error instanceof Error ? error.message : String(error);

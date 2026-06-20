@@ -497,6 +497,7 @@ describe('AirdropContext', () => {
 
   it('should handle airdrop request error gracefully', async () => {
     const mockWallet = createMockWallet('airdropfail');
+    const airdropKey = `lastAirdropTime_${mockWallet.segwitAddress}_0`;
 
     (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
     (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
@@ -520,6 +521,7 @@ describe('AirdropContext', () => {
     });
 
     expect(AirdropService.requestAirdrop).toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalledWith(airdropKey, expect.any(String));
     // Should not crash or show modal on error
     expect(result!.current!.showAirdropModal).toBe(false);
     expect(result!.current!.airdropPending).toBe(false);
