@@ -4,39 +4,25 @@
 
 import {
   VaultAPI,
-  type CoinUtxo,
   type GuardianSocket,
-  type PriceContract,
   type PriceQuote,
-  type VaultActionConfig,
-  type VaultActionQuote,
   type VaultDepositCtx,
   type VaultProfile,
   type VaultWallet,
   type WalletVaultDepositConfig,
   type WalletVaultDepositRequest,
 } from '@ducat-unit/client-sdk';
-import {
-  create_vault_action_quote,
-  get_adjusted_quote_price,
-  get_price_bucket_rate,
-  get_price_commit_hashes,
-} from '@ducat-unit/client-sdk/lib';
-import { calc_collateral_ratio } from '@ducat-unit/core/lib';
 import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
-import {
-  fetchPriceContractsByBucketTag,
-  fetchPriceContractsByCommitHashes,
-  MAX_QUOTE_AGE_SECONDS,
-} from '../oracleService';
+import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
 import { Utxo, withVaultOperationLock } from './utils';
 import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
+import { resolveVaultActionPriceQuote } from './priceQuote';
 
 export interface CreateDepositReqOptions {
   feeRate: number;
@@ -47,16 +33,6 @@ export interface CreateDepositReqOptions {
 }
 
 const MAX_AUTO_ADJUST_DEPOSIT_SATS = 50_000;
-const PRICE_CONTRACT_FETCH_TIMEOUT_MS = 15_000;
-
-type PriceQuoteWithContracts = PriceQuote & {
-  contracts?: PriceContract[];
-  price_contracts?: PriceContract[];
-};
-
-type CompatDepositCtx = VaultDepositCtx & {
-  __base_config?: (overrides?: Record<string, unknown>) => VaultActionConfig;
-};
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -77,128 +53,6 @@ function createDepositCtx(
   depositConfig: WalletVaultDepositConfig
 ): VaultDepositCtx {
   return wallet.vault.deposit.ctx(oracleQuote, vaultProfile, depositConfig);
-}
-
-function toCoinUtxos(utxos: Utxo[]): CoinUtxo[] {
-  return utxos.map((utxo) => ({
-    txid: utxo.txid,
-    vout: utxo.vout,
-    value: utxo.value,
-    script: utxo.script,
-    script_pk: utxo.script,
-  }));
-}
-
-function getDepositActionQuote(
-  vaultCtx: VaultDepositCtx,
-  utxos: Utxo[]
-): { actionConfig: VaultActionConfig; actionQuote: VaultActionQuote } | null {
-  const compatCtx = vaultCtx as CompatDepositCtx;
-  if (typeof compatCtx.__base_config !== 'function') {
-    return null;
-  }
-
-  const actionConfig = compatCtx.__base_config({
-    fund_inputs: toCoinUtxos(utxos),
-  });
-  return {
-    actionConfig,
-    actionQuote: create_vault_action_quote(actionConfig),
-  };
-}
-
-function hasPriceContracts(oracleQuote: PriceQuote): boolean {
-  const quote = oracleQuote as PriceQuoteWithContracts;
-  return Boolean(
-    (Array.isArray(quote.contracts) && quote.contracts.length > 0) ||
-      (Array.isArray(quote.price_contracts) && quote.price_contracts.length > 0)
-  );
-}
-
-function withPriceContracts(oracleQuote: PriceQuote, priceContracts: PriceContract[]): PriceQuote {
-  return {
-    ...oracleQuote,
-    contracts: priceContracts,
-    price_contracts: priceContracts,
-  } as PriceQuote;
-}
-
-function getDepositBucketRate(
-  actionConfig: VaultActionConfig,
-  actionQuote: VaultActionQuote,
-  oracleQuote: PriceQuote
-): number {
-  const unitPrice = get_adjusted_quote_price(actionConfig.proto_profile, oracleQuote);
-  const collateralRatio = calc_collateral_ratio(
-    actionQuote.vault_balance,
-    actionQuote.unit_balance,
-    unitPrice
-  );
-  return get_price_bucket_rate(oracleQuote, collateralRatio);
-}
-
-async function resolveDepositPriceQuote(
-  vaultCtx: VaultDepositCtx,
-  oracleQuote: PriceQuote,
-  utxos: Utxo[]
-): Promise<PriceQuote> {
-  if (hasPriceContracts(oracleQuote)) {
-    return oracleQuote;
-  }
-
-  const action = getDepositActionQuote(vaultCtx, utxos);
-  if (!action || action.actionQuote.unit_balance <= 0) {
-    return oracleQuote;
-  }
-
-  const { actionConfig, actionQuote } = action;
-  const commitHashes = get_price_commit_hashes(actionConfig.proto_profile, actionQuote, [
-    oracleQuote,
-  ]);
-  if (commitHashes.length === 0) {
-    return oracleQuote;
-  }
-
-  const oraclePubkey = oracleQuote.oracle_pubkey;
-  const startedAt = Date.now();
-  let priceContracts = await withVaultBuildTimeout(
-    fetchPriceContractsByCommitHashes(commitHashes, { timeout: 8_000 }, oraclePubkey),
-    'Timed out fetching oracle price contracts. Please try again.',
-    PRICE_CONTRACT_FETCH_TIMEOUT_MS
-  );
-
-  if (priceContracts.length === 0) {
-    const bucketRate = getDepositBucketRate(actionConfig, actionQuote, oracleQuote);
-    logger.warn('[VaultOps] No price contracts by commit hash; trying oracle bucket tag', {
-      commitHashes,
-      baseStamp: oracleQuote.base_stamp,
-      bucketRate,
-    });
-    priceContracts = await withVaultBuildTimeout(
-      fetchPriceContractsByBucketTag(
-        oracleQuote.base_stamp,
-        bucketRate,
-        { timeout: 8_000 },
-        oraclePubkey
-      ),
-      'Timed out fetching oracle price contracts. Please try again.',
-      PRICE_CONTRACT_FETCH_TIMEOUT_MS
-    );
-  }
-
-  if (priceContracts.length === 0) {
-    throw new Error(
-      'Oracle price contracts are temporarily unavailable. Please try again in a minute.'
-    );
-  }
-
-  logger.info('[VaultOps] Deposit oracle price contracts ready', {
-    durationMs: Date.now() - startedAt,
-    contractCount: priceContracts.length,
-    commitHashCount: commitHashes.length,
-  });
-
-  return withPriceContracts(oracleQuote, priceContracts);
 }
 
 function assertDepositChange(vaultCtx: VaultDepositCtx, utxos: Utxo[]): void {
@@ -408,7 +262,12 @@ export async function createVaultReqDeposit(
         utxos = allUtxos;
       }
 
-      const requestOracleQuote = await resolveDepositPriceQuote(vaultCtx, oracleQuote, utxos);
+      const requestOracleQuote = await resolveVaultActionPriceQuote({
+        actionName: 'deposit',
+        vaultCtx,
+        oracleQuote,
+        fundUtxos: utxos,
+      });
       if (requestOracleQuote !== oracleQuote) {
         vaultCtx = createDepositCtx(wallet, requestOracleQuote, vaultProfile, depositConfig);
         assertDepositChange(vaultCtx, utxos);

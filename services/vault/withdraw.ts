@@ -21,6 +21,7 @@ import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
+import { resolveVaultActionPriceQuote } from './priceQuote';
 
 export interface CreateWithdrawReqOptions {
   feeRate: number;
@@ -108,12 +109,23 @@ export async function createVaultReqWithdraw(
       });
 
       // Create withdraw context
-      const vaultCtx: VaultWithdrawCtx = wallet.vault.withdraw.ctx(
+      let vaultCtx: VaultWithdrawCtx = wallet.vault.withdraw.ctx(
         oracleQuote,
         vaultProfile,
         withdrawConfig
       );
       forceNoTxFeeReserve(vaultCtx);
+
+      const requestOracleQuote = await resolveVaultActionPriceQuote({
+        actionName: 'withdraw',
+        vaultCtx,
+        oracleQuote,
+        fundUtxos: [],
+      });
+      if (requestOracleQuote !== oracleQuote) {
+        vaultCtx = wallet.vault.withdraw.ctx(requestOracleQuote, vaultProfile, withdrawConfig);
+        forceNoTxFeeReserve(vaultCtx);
+      }
 
       let withdrawReq: WalletVaultWithdrawRequest;
       setPendingVaultSigningOperation({

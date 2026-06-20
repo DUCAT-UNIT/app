@@ -32,6 +32,7 @@ import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
+import { resolveVaultActionPriceQuote } from './priceQuote';
 
 const REPAY_REQUEST_BUILD_TIMEOUT_MS = 225_000;
 const PREFERRED_UNIT_DIRECT_TIMEOUT_MS = 8_000;
@@ -421,7 +422,7 @@ async function buildVaultReqRepay(
 
     // Create repay context
     const contextStartedAt = Date.now();
-    const vaultCtx: VaultRepayCtx = wallet.vault.repay.ctx(
+    let vaultCtx: VaultRepayCtx = wallet.vault.repay.ctx(
       acctRes.mint_account,
       oracleQuote,
       vaultProfile,
@@ -484,6 +485,22 @@ async function buildVaultReqRepay(
       satsUtxosCount: satsUtxos.length,
       unitUtxosCount: unitUtxos.length,
     });
+
+    const requestOracleQuote = await resolveVaultActionPriceQuote({
+      actionName: 'repay',
+      vaultCtx,
+      oracleQuote,
+      fundUtxos: satsUtxos,
+      unitUtxos,
+    });
+    if (requestOracleQuote !== oracleQuote) {
+      vaultCtx = wallet.vault.repay.ctx(
+        acctRes.mint_account,
+        requestOracleQuote,
+        vaultProfile,
+        repayConfig
+      );
+    }
 
     logger.info('[VaultOps] Signing repay request', {
       signingMode: 'latest-sdk',

@@ -16,16 +16,13 @@ import { VAULT_CONFIG, BITCOIN_TX } from '../../utils/constants';
 import { logger } from '../../utils/logger';
 import { withGuardianTimeout } from '../guardianService';
 import { MAX_QUOTE_AGE_SECONDS } from '../oracleService';
-import {
-  checkBatchAllowed,
-  Utxo,
-  withVaultOperationLock,
-} from './utils';
+import { checkBatchAllowed, Utxo, withVaultOperationLock } from './utils';
 import { withVaultBuildTimeout } from './operationTimeout';
 import {
   clearPendingVaultSigningOperation,
   setPendingVaultSigningOperation,
 } from '../vaultWallet/signingContext';
+import { resolveVaultActionPriceQuote } from './priceQuote';
 
 export interface CreateBorrowReqOptions {
   feeRate: number;
@@ -131,7 +128,7 @@ export async function createVaultReqBorrow(
       });
 
       // Create borrow context
-      const vaultCtx: VaultBorrowCtx = wallet.vault.borrow.ctx(
+      let vaultCtx: VaultBorrowCtx = wallet.vault.borrow.ctx(
         acctRes.mint_account,
         oracleQuote,
         vaultProfile,
@@ -156,6 +153,21 @@ export async function createVaultReqBorrow(
 
       if (!utxos || utxos.length === 0) {
         throw new Error('No UTXOs available for borrow transaction fees');
+      }
+
+      const requestOracleQuote = await resolveVaultActionPriceQuote({
+        actionName: 'borrow',
+        vaultCtx,
+        oracleQuote,
+        fundUtxos: utxos,
+      });
+      if (requestOracleQuote !== oracleQuote) {
+        vaultCtx = wallet.vault.borrow.ctx(
+          acctRes.mint_account,
+          requestOracleQuote,
+          vaultProfile,
+          borrowConfig
+        );
       }
 
       // Check if batch signing is allowed

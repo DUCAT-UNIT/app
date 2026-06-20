@@ -594,7 +594,7 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
           fetchPriceQuote(liquidationPrice, {
             cache: false,
             dedupe: false,
-            includeContracts: operationType !== 'deposit',
+            includeContracts: false,
             transport: 'xhr',
             timeout: 8_000,
           }),

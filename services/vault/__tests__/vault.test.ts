@@ -81,7 +81,8 @@ jest.mock('@ducat-unit/client-sdk/lib', () => ({
       quote.base_price ?? quote.latest_price ?? 100_000
   ),
   get_price_bucket_rate: jest.fn(() => 1.6),
-  get_price_commit_hashes: jest.fn(() => ['commit-hash']),
+  get_price_commit_hashes: jest.fn(() => []),
+  get_unit_asset_id: jest.fn(() => 'UNIT'),
 }));
 
 jest.mock('@ducat-unit/core/lib', () => ({
@@ -1127,6 +1128,9 @@ describe('Vault Request Creation', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const sdkLib = require('@ducat-unit/client-sdk/lib');
+    sdkLib.get_price_commit_hashes.mockReturnValue([]);
+    sdkLib.get_unit_asset_id.mockReturnValue('UNIT');
     const oracleService = require('../../oracleService');
     oracleService.fetchPriceContractsByBucketTag.mockResolvedValue([]);
     oracleService.fetchPriceContractsByCommitHashes.mockResolvedValue([]);
@@ -1217,6 +1221,7 @@ describe('Vault Request Creation', () => {
         fetchPriceContractsByCommitHashes,
         fetchPriceQuote,
       } = require('../../oracleService');
+      const { get_price_commit_hashes } = require('@ducat-unit/client-sdk/lib');
 
       const oracleQuote = {
         ...mockOracleQuote,
@@ -1232,6 +1237,7 @@ describe('Vault Request Creation', () => {
         oracle_pubkey: oracleQuote.oracle_pubkey,
       };
       fetchPriceQuote.mockResolvedValue(oracleQuote);
+      get_price_commit_hashes.mockReturnValueOnce(['commit-hash']);
       fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
 
       const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10_000, script: 'script' }];
@@ -1617,6 +1623,94 @@ describe('Vault Request Creation', () => {
       expect(result.sats_inputs).toHaveLength(2);
     });
 
+    it('should hydrate quote-only borrow requests with targeted price contracts', async () => {
+      const { createVaultReqBorrow } = require('../borrow');
+      const {
+        fetchPriceContractsByBucketTag,
+        fetchPriceContractsByCommitHashes,
+      } = require('../../oracleService');
+      const { get_price_commit_hashes } = require('@ducat-unit/client-sdk/lib');
+
+      const oracleQuote = {
+        ...mockOracleQuote,
+        base_price: 100_000,
+        base_stamp: Math.floor(Date.now() / 1000),
+        latest_stamp: Math.floor(Date.now() / 1000),
+        oracle_pubkey: 'oracle_pubkey',
+      };
+      const priceContract = {
+        base_price: oracleQuote.base_price,
+        base_stamp: oracleQuote.base_stamp,
+        commit_hash: 'commit-hash',
+        oracle_pubkey: oracleQuote.oracle_pubkey,
+      };
+      get_price_commit_hashes.mockReturnValueOnce(['commit-hash']);
+      fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
+
+      const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10_000, script: 'script' }];
+      const initialCtx = {
+        config: 'quote_only_borrow_ctx',
+        __base_config: jest.fn((overrides: Record<string, unknown> = {}) => ({
+          actionQuote: {
+            unit_balance: 10_000,
+            vault_balance: 1_000_000,
+          },
+          proto_profile: {},
+          ...overrides,
+        })),
+      };
+      const enrichedCtx = { config: 'enriched_borrow_ctx' };
+      const mockWallet = {
+        vault: {
+          borrow: {
+            ctx: jest.fn((_mintAccount: unknown, quote: { contracts?: unknown[] }) =>
+              (quote.contracts?.length ?? 0) > 0 ? enrichedCtx : initialCtx
+            ),
+            quote: jest.fn().mockReturnValue({ total_cost: 1000 }),
+            req: jest.fn().mockResolvedValue({
+              issue_txid: 'borrow_issue',
+              vault_txid: 'borrow_vault',
+            }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn(),
+        },
+        acct: {
+          sats: { address: 'tb1qtest' },
+        },
+      };
+
+      await createVaultReqBorrow(
+        mockWallet as any,
+        { borrow_amount: 5_000, deposit_amount: 0, tx_feerate: 3 },
+        { mint_account: 'mint_123' },
+        {
+          feeRate: 3,
+          oracleQuote,
+          vaultProfile: mockVaultProfile,
+          utxos: providedUtxos,
+        } as any
+      );
+
+      expect(fetchPriceContractsByCommitHashes).toHaveBeenCalledWith(
+        ['commit-hash'],
+        { timeout: 8_000 },
+        oracleQuote.oracle_pubkey
+      );
+      expect(fetchPriceContractsByBucketTag).not.toHaveBeenCalled();
+      expect(mockWallet.vault.borrow.ctx).toHaveBeenLastCalledWith(
+        'mint_123',
+        expect.objectContaining({
+          contracts: [priceContract],
+          price_contracts: [priceContract],
+        }),
+        mockVaultProfile,
+        expect.objectContaining({ borrow_amount: 5_000 })
+      );
+      expect(mockWallet.vault.borrow.req).toHaveBeenCalledWith(enrichedCtx, providedUtxos, true);
+    });
+
     it('should throw when no UTXOs available', async () => {
       const { createVaultReqBorrow } = require('../borrow');
 
@@ -1759,6 +1853,7 @@ describe('Vault Request Creation', () => {
         fetchPriceContractsByBucketTag,
         fetchPriceContractsByCommitHashes,
       } = require('../../oracleService');
+      const { get_price_commit_hashes } = require('@ducat-unit/client-sdk/lib');
 
       const oracleQuote = {
         ...mockOracleQuote,
@@ -1773,6 +1868,7 @@ describe('Vault Request Creation', () => {
         commit_hash: 'commit-hash',
         oracle_pubkey: oracleQuote.oracle_pubkey,
       };
+      get_price_commit_hashes.mockReturnValueOnce(['commit-hash']);
       fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
 
       const providedUtxos = [{ txid: 'utxo1', vout: 0, value: 10_000, script: 'script' }];
@@ -2139,6 +2235,120 @@ describe('Vault Request Creation', () => {
       expect(result.sats_inputs).toHaveLength(1);
     });
 
+    it('should hydrate quote-only repay requests with targeted price contracts and UNIT inputs', async () => {
+      const { createVaultReqRepay } = require('../repay');
+      const {
+        fetchPriceContractsByBucketTag,
+        fetchPriceContractsByCommitHashes,
+      } = require('../../oracleService');
+      const { get_price_commit_hashes } = require('@ducat-unit/client-sdk/lib');
+
+      const oracleQuote = {
+        ...mockOracleQuote,
+        base_price: 100_000,
+        base_stamp: Math.floor(Date.now() / 1000),
+        latest_stamp: Math.floor(Date.now() / 1000),
+        oracle_pubkey: 'oracle_pubkey',
+      };
+      const priceContract = {
+        base_price: oracleQuote.base_price,
+        base_stamp: oracleQuote.base_stamp,
+        commit_hash: 'commit-hash',
+        oracle_pubkey: oracleQuote.oracle_pubkey,
+      };
+      get_price_commit_hashes.mockReturnValueOnce(['commit-hash']);
+      fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
+
+      const satsUtxos = [{ txid: 'sats_utxo', vout: 0, value: 5_000, script: 'sats-script' }];
+      const unitUtxos = [
+        {
+          txid: 'unit_utxo',
+          vout: 1,
+          value: 10_000,
+          script: 'unit-script',
+          runes: new Map([['UNIT', { amount: 5_000 }]]),
+        },
+      ];
+      const initialCtx = {
+        repay_amount: 5_000,
+        config: 'quote_only_repay_ctx',
+        __base_config: jest.fn((overrides: Record<string, unknown> = {}) => ({
+          actionQuote: {
+            unit_balance: 10_000,
+            vault_balance: 1_000_000,
+          },
+          proto_profile: {},
+          ...overrides,
+        })),
+      };
+      const enrichedCtx = { repay_amount: 5_000, config: 'enriched_repay_ctx' };
+      const mockWallet = {
+        vault: {
+          repay: {
+            ctx: jest.fn((_mintAccount: unknown, quote: { contracts?: unknown[] }) =>
+              (quote.contracts?.length ?? 0) > 0 ? enrichedCtx : initialCtx
+            ),
+            quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+            req: jest.fn().mockResolvedValue({
+              repay_txid: 'repay_tx',
+              vault_txid: 'repay_vault',
+            }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn().mockResolvedValue(satsUtxos),
+          rune_utxos: jest.fn().mockResolvedValue(unitUtxos),
+        },
+        acct: {
+          sats: { address: 'tb1qtest' },
+          runes: { address: 'tb1ptest' },
+          vault: { address: 'tb1pvault' },
+        },
+        contract_id: 'contract-id',
+        network: 'mutinynet',
+      };
+
+      await createVaultReqRepay(
+        mockWallet as any,
+        { repay_amount: 5_000, deposit_amount: 0, tx_feerate: 4 },
+        { mint_account: 'burn_123' },
+        {
+          feeRate: 4,
+          oracleQuote,
+          vaultProfile: mockVaultProfile,
+        }
+      );
+
+      expect(fetchPriceContractsByCommitHashes).toHaveBeenCalledWith(
+        ['commit-hash'],
+        { timeout: 8_000 },
+        oracleQuote.oracle_pubkey
+      );
+      expect(fetchPriceContractsByBucketTag).not.toHaveBeenCalled();
+      expect(initialCtx.__base_config).toHaveBeenCalledWith(
+        expect.objectContaining({
+          asset_inputs: [
+            expect.objectContaining({
+              asset_balance: 5_000,
+              asset_id: 'UNIT',
+              coin_id: 'unit_utxo:1',
+              coin_script: 'unit-script',
+            }),
+          ],
+        })
+      );
+      expect(mockWallet.vault.repay.ctx).toHaveBeenLastCalledWith(
+        'burn_123',
+        expect.objectContaining({
+          contracts: [priceContract],
+          price_contracts: [priceContract],
+        }),
+        mockVaultProfile,
+        expect.objectContaining({ repay_amount: 5_000 })
+      );
+      expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(enrichedCtx, satsUtxos, unitUtxos);
+    });
+
     it('should use preferred TurboUNIT melt UTXOs when provided', async () => {
       const {
         clearPreferredRepayUnitTxids,
@@ -2400,6 +2610,83 @@ describe('Vault Request Creation', () => {
 
       expect(result.vault_txid).toBe('withdraw_vault');
       expect(buildBaseConfig).toHaveBeenCalledWith({ txfee_reserve: 0 });
+    });
+
+    it('should hydrate quote-only withdraw requests with targeted price contracts', async () => {
+      const { createVaultReqWithdraw } = require('../withdraw');
+      const {
+        fetchPriceContractsByBucketTag,
+        fetchPriceContractsByCommitHashes,
+      } = require('../../oracleService');
+      const { get_price_commit_hashes } = require('@ducat-unit/client-sdk/lib');
+
+      const oracleQuote = {
+        ...mockOracleQuote,
+        base_price: 100_000,
+        base_stamp: Math.floor(Date.now() / 1000),
+        latest_stamp: Math.floor(Date.now() / 1000),
+        oracle_pubkey: 'oracle_pubkey',
+      };
+      const priceContract = {
+        base_price: oracleQuote.base_price,
+        base_stamp: oracleQuote.base_stamp,
+        commit_hash: 'commit-hash',
+        oracle_pubkey: oracleQuote.oracle_pubkey,
+      };
+      get_price_commit_hashes.mockReturnValueOnce(['commit-hash']);
+      fetchPriceContractsByCommitHashes.mockResolvedValueOnce([priceContract]);
+
+      const initialCtx = {
+        config: 'quote_only_withdraw_ctx',
+        __base_config: jest.fn((overrides: Record<string, unknown> = {}) => ({
+          actionQuote: {
+            unit_balance: 10_000,
+            vault_balance: 1_000_000,
+          },
+          proto_profile: {},
+          txfee_reserve: 1000,
+          ...overrides,
+        })),
+      };
+      const enrichedCtx = { config: 'enriched_withdraw_ctx' };
+      const mockWallet = {
+        vault: {
+          withdraw: {
+            ctx: jest.fn((quote: { contracts?: unknown[] }) =>
+              (quote.contracts?.length ?? 0) > 0 ? enrichedCtx : initialCtx
+            ),
+            req: jest.fn().mockResolvedValue({
+              vault_txid: 'withdraw_vault',
+            }),
+          },
+        },
+      };
+
+      await createVaultReqWithdraw(
+        mockWallet as any,
+        { change_amount: 50_000, tx_feerate: 3 },
+        {
+          feeRate: 3,
+          oracleQuote,
+          vaultProfile: mockVaultProfile,
+        }
+      );
+
+      expect(fetchPriceContractsByCommitHashes).toHaveBeenCalledWith(
+        ['commit-hash'],
+        { timeout: 8_000 },
+        oracleQuote.oracle_pubkey
+      );
+      expect(fetchPriceContractsByBucketTag).not.toHaveBeenCalled();
+      expect(mockWallet.vault.withdraw.ctx).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contracts: [priceContract],
+          price_contracts: [priceContract],
+        }),
+        mockVaultProfile,
+        expect.objectContaining({ change_amount: 50_000 })
+      );
+      expect(mockWallet.vault.withdraw.req).toHaveBeenCalledWith(enrichedCtx);
     });
 
     it('should handle errors during withdraw request creation', async () => {
