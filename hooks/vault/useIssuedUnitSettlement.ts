@@ -32,9 +32,13 @@ import {
   quoteVaultBorrowSettlement,
   waitForBridgeSettlement,
 } from '../../services/vaultSettlementService';
+import { withVaultBuildTimeoutFn } from '../../services/vault/operationTimeout';
 
-const BRIDGE_SEND_BUILD_RETRY_MS = 2_500;
-const BRIDGE_SEND_BUILD_TIMEOUT_MS = 90_000;
+const ISSUED_UNIT_SEND_BUILD_RETRY_MS = 2_500;
+const ISSUED_UNIT_SEND_BUILD_TIMEOUT_MS = 45_000;
+const ISSUED_UNIT_SEND_BUILD_ATTEMPT_TIMEOUT_MS = 12_000;
+const ISSUED_UNIT_SEND_TIMEOUT_MESSAGE =
+  'Issued UNIT is not spendable yet. Retry settlement after the borrow transaction appears.';
 const TURBO_SEND_BROADCAST_RETRY_MS = 10_000;
 const TURBO_SEND_BROADCAST_TIMEOUT_MS = 360_000;
 const CASHU_MINT_POLL_INTERVAL_MS = 4_000;
@@ -67,7 +71,9 @@ function isUnitIntentBuildRetryableError(error: unknown): boolean {
     return false;
   }
 
-  return /failed to fetch transaction .*404|HTTP\s+404|not found/i.test(error.message);
+  return /failed to fetch transaction .*404|HTTP\s+404|not found|timed out|not spendable yet/i.test(
+    error.message,
+  );
 }
 
 function isBridgeSettlementPendingError(error: unknown): boolean {
@@ -343,20 +349,31 @@ export function useIssuedUnitSettlement() {
         throw new Error('Wallet not connected');
       }
 
-      const deadline = Date.now() + BRIDGE_SEND_BUILD_TIMEOUT_MS;
+      const deadline = Date.now() + ISSUED_UNIT_SEND_BUILD_TIMEOUT_MS;
       let lastError: unknown = null;
 
       while (Date.now() < deadline) {
+        const remainingMs = Math.max(0, deadline - Date.now());
+        const attemptTimeoutMs = Math.min(
+          ISSUED_UNIT_SEND_BUILD_ATTEMPT_TIMEOUT_MS,
+          remainingMs,
+        );
+
         try {
-          return await createUnitIntentService(
-            depositAddress,
-            amountInput,
-            wallet.taprootAddress,
-            wallet.segwitAddress,
-            currentAccount,
-            getUnconfirmedUTXOs('taproot').map(toBridgeIntentUnconfirmedUtxo),
-            getUnconfirmedUTXOs('segwit').map(toBridgeIntentUnconfirmedUtxo),
-            getSpentUtxos(),
+          return await withVaultBuildTimeoutFn(
+            () =>
+              createUnitIntentService(
+                depositAddress,
+                amountInput,
+                wallet.taprootAddress,
+                wallet.segwitAddress,
+                currentAccount,
+                getUnconfirmedUTXOs('taproot').map(toBridgeIntentUnconfirmedUtxo),
+                getUnconfirmedUTXOs('segwit').map(toBridgeIntentUnconfirmedUtxo),
+                getSpentUtxos(),
+              ),
+            ISSUED_UNIT_SEND_TIMEOUT_MESSAGE,
+            attemptTimeoutMs,
           );
         } catch (error) {
           lastError = error;
@@ -368,7 +385,13 @@ export function useIssuedUnitSettlement() {
             amountInput,
             error: error instanceof Error ? error.message : String(error),
           });
-          await delay(BRIDGE_SEND_BUILD_RETRY_MS);
+          const retryMs = Math.min(
+            ISSUED_UNIT_SEND_BUILD_RETRY_MS,
+            Math.max(0, deadline - Date.now()),
+          );
+          if (retryMs > 0) {
+            await delay(retryMs);
+          }
         }
       }
 

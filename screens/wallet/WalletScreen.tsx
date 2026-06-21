@@ -460,7 +460,11 @@ const WalletScreen = React.memo(function WalletScreen({
             <Icon name="warning" size={18} color={COLORS.WARNING} />
           </View>
           <View style={localStyles.settlementRecoveryTextWrap}>
-            <Text style={localStyles.settlementRecoveryTitle}>USDC settlement needs retry</Text>
+            <Text style={localStyles.settlementRecoveryTitle}>
+              {settlementRequestedPayoutAsset === 'TURBOUNIT'
+                ? 'TurboUNIT settlement needs retry'
+                : 'USDC settlement needs retry'}
+            </Text>
             <Text style={localStyles.settlementRecoveryMessage} numberOfLines={2}>
               {settlementError || 'Borrow recorded. Retry the settlement without borrowing again.'}
             </Text>
