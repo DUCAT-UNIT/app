@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
 import type { LiqVaultDisplay } from '../../services/liquidation/types';
 import { DUST_BTC } from '../../services/liquidation/constants';
@@ -92,70 +92,76 @@ const VaultSelectorTable = React.memo(function VaultSelectorTable({
               </Text>
             </View>
           ) : (
-            selectedDisplay.map(({ vault, isPartial }, i) => (
-              <TouchableOpacity
-                key={vault.vaultId || `vault-${i}`}
-                style={[
-                  styles.vaultRow,
-                  i === selectedDisplay.length - 1 && {
-                    borderBottomWidth: 0,
-                    paddingBottom: 16,
-                  },
-                ]}
-                onPress={onExpandToggle}
-              >
-                <View style={styles.rowCheck}>
-                  {isPartial ? (
-                    <View style={{ width: 14, height: 16, position: 'relative' }}>
-                      {/* Gray base checkmark */}
-                      <Text
-                        style={{
-                          color: colors.text.tertiary,
-                          fontSize: 14,
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                        }}
-                      >
-                        {'\u2713'}
-                      </Text>
-                      {/* Green left half overlay */}
-                      <View
-                        style={{
-                          position: 'absolute',
-                          left: 0,
-                          top: 0,
-                          width: 7,
-                          height: 16,
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Text style={{ color: LIQ_GREEN, fontSize: 14 }}>{'\u2713'}</Text>
+            <ScrollView
+              style={[styles.vaultRowsScroll, { maxHeight: s(260) }]}
+              contentContainerStyle={styles.vaultRowsContent}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+              testID="liq-vault-row-list"
+            >
+              {selectedDisplay.map(({ vault, isPartial }, i) => (
+                <View
+                  key={vault.vaultId || `vault-${i}`}
+                  style={[
+                    styles.vaultRow,
+                    i === selectedDisplay.length - 1 && styles.vaultRowLast,
+                  ]}
+                  testID={`liq-vault-row-${vault.vaultId || i}`}
+                >
+                  <View style={styles.rowCheck}>
+                    {isPartial ? (
+                      <View style={{ width: 14, height: 16, position: 'relative' }}>
+                        {/* Gray base checkmark */}
+                        <Text
+                          style={{
+                            color: colors.text.tertiary,
+                            fontSize: 14,
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                          }}
+                        >
+                          {'\u2713'}
+                        </Text>
+                        {/* Green left half overlay */}
+                        <View
+                          style={{
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            width: 7,
+                            height: 16,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <Text style={{ color: LIQ_GREEN, fontSize: 14 }}>{'\u2713'}</Text>
+                        </View>
                       </View>
-                    </View>
-                  ) : (
-                    <Text style={{ color: LIQ_GREEN, fontSize: 14 }}>{'\u2713'}</Text>
-                  )}
-                </View>
-                <View style={styles.rowValue}>
-                  <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
-                  <Text style={styles.rowText} numberOfLines={1}>
-                    {formatFiat(vault.unit, 2)}
+                    ) : (
+                      <Text style={{ color: LIQ_GREEN, fontSize: 14 }}>{'\u2713'}</Text>
+                    )}
+                  </View>
+                  <View style={styles.rowValue}>
+                    <Icon name="unit_symbol" size={10} color={colors.text.secondary} />
+                    <Text style={styles.rowText} numberOfLines={1}>
+                      {formatFiat(vault.unit, 2)}
+                    </Text>
+                  </View>
+                  <View style={styles.rowValue}>
+                    <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
+                    <Text style={styles.rowText} numberOfLines={1}>
+                      {vault.btcInVault.toFixed(6)}
+                    </Text>
+                  </View>
+                  <Text style={styles.claimText} numberOfLines={1}>
+                    {showBTC
+                      ? `${vault.claimAmountBtc.toFixed(6)} \u20BF`
+                      : `$${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}`}
                   </Text>
                 </View>
-                <View style={styles.rowValue}>
-                  <Icon name="btc_symbol" size={10} color={colors.text.secondary} />
-                  <Text style={styles.rowText} numberOfLines={1}>
-                    {vault.btcInVault.toFixed(6)}
-                  </Text>
-                </View>
-                <Text style={styles.claimText} numberOfLines={1}>
-                  {showBTC
-                    ? `${vault.claimAmountBtc.toFixed(6)} \u20BF`
-                    : `$${formatFiat(vault.claimAmountBtc * (btcPrice ?? 0), 2)}`}
-                </Text>
-              </TouchableOpacity>
-            ))
+              ))}
+            </ScrollView>
           )}
         </View>
       )}
@@ -214,6 +220,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },
+  vaultRowsScroll: {
+    flexGrow: 0,
+  },
+  vaultRowsContent: {
+    flexGrow: 0,
+  },
   colHeader: {
     flex: 1,
     fontSize: 11,
@@ -228,6 +240,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
+  },
+  vaultRowLast: {
+    borderBottomWidth: 0,
+    paddingBottom: 16,
   },
   rowCheck: {
     width: 20,

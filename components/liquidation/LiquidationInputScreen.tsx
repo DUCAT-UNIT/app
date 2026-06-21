@@ -56,6 +56,8 @@ const LiquidationInputScreen = React.memo(function LiquidationInputScreen({
     <ScrollView
       style={styles.body}
       contentContainerStyle={{ paddingBottom: bottomPadding ?? s(32) }}
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
       {/* Investment Amount */}

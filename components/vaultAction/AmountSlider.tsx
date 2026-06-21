@@ -49,6 +49,8 @@ export interface AmountSliderProps {
 
 const THUMB_SIZE = 24;
 const TRACK_HEIGHT = 4;
+const SLIDER_ACTIVE_OFFSET_X: [number, number] = [-4, 4];
+const SLIDER_FAIL_OFFSET_Y: [number, number] = [-12, 12];
 
 export const AmountSlider = memo(function AmountSlider({
   value,
@@ -116,8 +118,8 @@ export const AmountSlider = memo(function AmountSlider({
 
   const gesture = Gesture.Pan()
     .enabled(!disabled)
-    .activeOffsetX([-0, 0])
-    .activeOffsetY([-0, 0])
+    .activeOffsetX(SLIDER_ACTIVE_OFFSET_X)
+    .failOffsetY(SLIDER_FAIL_OFFSET_Y)
     .onBegin((e) => {
       'worklet';
       isDragging.value = true;
