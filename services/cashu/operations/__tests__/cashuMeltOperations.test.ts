@@ -156,6 +156,21 @@ describe('cashuMeltOperations', () => {
       expect(createMeltQuote).toHaveBeenCalledWith('tb1paddr...', 100);
     });
 
+    it('should ignore proofs from stale keysets when selecting a max melt amount', async () => {
+      const staleProof = { amount: 100, secret: 'stale', C: 'C2', id: 'stale-keyset' };
+      (loadProofs as jest.Mock).mockResolvedValue([staleProof, spendableProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([spendableProof]);
+      (createMeltQuote as jest.Mock).mockResolvedValue({
+        quote: 'quote123',
+        amount: 100,
+        fee: 0,
+      });
+
+      await requestMaxMelt('tb1paddr...', 100);
+
+      expect(selectProofsForAmount).toHaveBeenCalledWith([spendableProof], 100);
+    });
+
     it('should retry with the net amount when the full-balance quote needs a fee', async () => {
       (createMeltQuote as jest.Mock)
         .mockResolvedValueOnce({
@@ -245,6 +260,17 @@ describe('cashuMeltOperations', () => {
       expect(meltTokens).toHaveBeenCalledWith('quote123', [exactProof], []);
       expect(removeProofs).toHaveBeenCalledWith([exactProof]);
       expect(addProofs).not.toHaveBeenCalled();
+    });
+
+    it('should ignore stale keyset proofs before completing a melt', async () => {
+      const staleProof = { amount: 100, secret: 'stale', C: 'C2', id: 'stale-keyset' };
+      (loadProofs as jest.Mock).mockResolvedValue([staleProof, exactProof]);
+      (selectProofsForAmount as jest.Mock).mockReturnValue([exactProof]);
+
+      await completeMelt('quote123', 100);
+
+      expect(selectProofsForAmount).toHaveBeenCalledWith([exactProof], 100);
+      expect(meltTokens).toHaveBeenCalledWith('quote123', [exactProof], []);
     });
 
     it('should pre-swap when melt needs change, then submit exact proofs without melt change outputs', async () => {

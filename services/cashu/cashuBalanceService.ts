@@ -1,6 +1,7 @@
 import { logger } from '../../utils/logger';
 import { getPreferenceItem, setPreferenceItem } from '../storagePolicy';
 import { getKeys, MintKeys } from './cashuMintClient';
+import { filterProofsForCashuUnit } from './cashuKeysetUtils';
 import { sumProofs } from './crypto';
 import { isP2PKSecret } from './p2pk';
 import { loadProofs, loadProofsPartial } from './cashuProofManager';
@@ -87,14 +88,19 @@ export const getBalance = async (
 
   // Filter out P2PK locked proofs - they're not spendable balance
   const spendableProofs = proofs.filter(p => !isP2PKSecret(p.secret));
+  const keyData = await getOrFetchKeys();
+  const validProofResult = filterProofsForCashuUnit(spendableProofs, keyData, unit);
 
   logger.info('Balance calculation', {
     totalProofs: proofs.length,
     spendableProofs: spendableProofs.length,
     lockedProofs: proofs.length - spendableProofs.length,
+    keysetValidProofs: validProofResult.proofs.length,
+    droppedUnknownKeyset: validProofResult.droppedUnknownKeyset,
+    droppedWrongUnit: validProofResult.droppedWrongUnit,
     fullLoad,
     unit,
   });
 
-  return sumProofs(spendableProofs);
+  return sumProofs(validProofResult.proofs);
 };

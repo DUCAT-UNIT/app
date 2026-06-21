@@ -47,10 +47,20 @@ import { isP2PKSecret } from '../p2pk';
 import { sumProofs } from '../crypto';
 
 describe('cashuBalanceService', () => {
+  const balanceKeyData = {
+    keysets: [
+      { id: 'id1', unit: 'unit', active: true, keys: { 1: 'key1' } },
+      { id: 'id2', unit: 'unit', active: true, keys: { 1: 'key2' } },
+      { id: 'id3', unit: 'unit', active: true, keys: { 1: 'key3' } },
+      { id: 'sat-keyset', unit: 'sat', active: true, keys: { 1: 'sat-key' } },
+    ],
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     (AsyncStorage.getItem as jest.Mock).mockResolvedValue(null);
     (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
+    (getKeys as jest.Mock).mockResolvedValue(balanceKeyData);
   });
 
   describe('getOrFetchKeys', () => {
@@ -210,6 +220,22 @@ describe('cashuBalanceService', () => {
         { amount: 64, secret: 'normal', C: 'C1', id: 'id1' },
       ]);
       expect(result).toBe(0.64);
+    });
+
+    it('should filter out proofs whose keyset is not valid for the balance unit', async () => {
+      (loadProofs as jest.Mock).mockResolvedValue([
+        { amount: 64, secret: 'valid', C: 'C1', id: 'id1' },
+        { amount: 32, secret: 'stale', C: 'C2', id: 'stale-keyset' },
+        { amount: 16, secret: 'sat', C: 'C3', id: 'sat-keyset' },
+      ]);
+      (sumProofs as jest.Mock).mockReturnValue(64);
+
+      const result = await getBalance();
+
+      expect(sumProofs).toHaveBeenCalledWith([
+        { amount: 64, secret: 'valid', C: 'C1', id: 'id1' },
+      ]);
+      expect(result).toBe(64);
     });
 
     it('should return 0 when no proofs', async () => {

@@ -49,6 +49,7 @@ const TURBO_REPAY_QUOTE_TIMEOUT_MS = 20_000;
 const USDC_REPAY_QUOTE_TIMEOUT_MS = 30_000;
 const RAW_REPAY_MISSING_INPUT_MAX_ATTEMPTS = 4;
 const RAW_REPAY_MISSING_INPUT_RETRY_MS = 15_000;
+const RAW_REPAY_OPERATION_TIMEOUT_MS = 120_000;
 const TURBO_REPAY_PENDING_MELT_QUOTE_TIMEOUT_MS = 45_000;
 const TURBO_REPAY_PENDING_MELT_QUOTE_POLL_MS = 3_000;
 const CASHU_MINT_WITHDRAWAL_FAILURE = 'Withdrawal failed - your ecash tokens remain valid';
@@ -133,6 +134,14 @@ async function loadRawRepayVaultData(
   });
 
   return loaded;
+}
+
+function executeRawRepayWithTimeout(rawRepay: UseRepayVaultResult) {
+  return withVaultBuildTimeoutFn(
+    () => rawRepay.repay(),
+    'Timed out completing the repay request. Please try again.',
+    RAW_REPAY_OPERATION_TIMEOUT_MS
+  );
 }
 
 function refreshCashuBalanceAfterMelt(
@@ -240,9 +249,12 @@ async function waitForSubmittedMeltQuote(quoteId: string): Promise<RecoverableMe
 }
 
 function getRuneUtxoAmount(utxo: RuneUtxo): number {
-  const runeAmount = utxo.runes?.get(VAULT_CONFIG.RUNE_LABEL)?.amount;
-  if (typeof runeAmount === 'number') {
-    return runeAmount;
+  if (utxo.runes instanceof Map) {
+    const runeAmount =
+      utxo.runes.get(VAULT_CONFIG.RUNE_LABEL)?.amount ?? [...utxo.runes.values()][0]?.amount;
+    if (typeof runeAmount === 'number') {
+      return runeAmount;
+    }
   }
 
   const legacyAmount = (utxo as RuneUtxo & { amount?: unknown }).amount;
@@ -263,14 +275,25 @@ function normalizeRuneUtxos(
   return [];
 }
 
+function getRequiredTxidSet(requiredTxids?: string | string[] | null): Set<string> | null {
+  const txids = Array.isArray(requiredTxids)
+    ? requiredTxids
+    : requiredTxids
+      ? [requiredTxids]
+      : [];
+  const uniqueTxids = txids.filter((txid) => txid.trim().length > 0);
+  return uniqueTxids.length > 0 ? new Set(uniqueTxids) : null;
+}
+
 function hasSpendableUnitUtxo(
   unitUtxos: RuneUtxo[] | Map<string, RuneUtxo> | null | undefined,
   requiredAmount: number,
-  requiredTxid?: string | null
+  requiredTxids?: string | string[] | null
 ): boolean {
   const normalizedUtxos = normalizeRuneUtxos(unitUtxos);
-  const spendableUtxos = requiredTxid
-    ? normalizedUtxos.filter((utxo) => utxo.txid === requiredTxid)
+  const requiredTxidSet = getRequiredTxidSet(requiredTxids);
+  const spendableUtxos = requiredTxidSet
+    ? normalizedUtxos.filter((utxo) => requiredTxidSet.has(utxo.txid))
     : normalizedUtxos;
   return (
     spendableUtxos.reduce((total, utxo) => total + getRuneUtxoAmount(utxo), 0) >= requiredAmount
@@ -279,13 +302,32 @@ function hasSpendableUnitUtxo(
 
 function getSpendableUnitAmount(
   unitUtxos: RuneUtxo[] | Map<string, RuneUtxo> | null | undefined,
-  requiredTxid?: string | null
+  requiredTxids?: string | string[] | null
 ): number {
   const normalizedUtxos = normalizeRuneUtxos(unitUtxos);
-  const spendableUtxos = requiredTxid
-    ? normalizedUtxos.filter((utxo) => utxo.txid === requiredTxid)
+  const requiredTxidSet = getRequiredTxidSet(requiredTxids);
+  const spendableUtxos = requiredTxidSet
+    ? normalizedUtxos.filter((utxo) => requiredTxidSet.has(utxo.txid))
     : normalizedUtxos;
   return spendableUtxos.reduce((total, utxo) => total + getRuneUtxoAmount(utxo), 0);
+}
+
+function selectRuneUtxoTxidsAndAmountForAmount(
+  unitUtxos: RuneUtxo[] | Map<string, RuneUtxo> | null | undefined,
+  requiredAmount: number
+): { txids: string[]; amount: number } {
+  const selectedTxids: string[] = [];
+  let selectedAmount = 0;
+
+  for (const utxo of normalizeRuneUtxos(unitUtxos)) {
+    selectedTxids.push(utxo.txid);
+    selectedAmount += getRuneUtxoAmount(utxo);
+    if (selectedAmount >= requiredAmount) {
+      return { txids: [...new Set(selectedTxids)], amount: selectedAmount };
+    }
+  }
+
+  return { txids: [...new Set(selectedTxids)], amount: selectedAmount };
 }
 
 function getReleasedOutputRuneAmount(output: OrdReleasedOutputResponse): number {
@@ -297,10 +339,11 @@ function getReleasedOutputRuneAmount(output: OrdReleasedOutputResponse): number 
   return runeAmount === undefined ? 0 : Number(runeAmount);
 }
 
-async function fetchReleasedUnitAmountByTxid(
+async function fetchReleasedUnitAmountByTxids(
   taprootAddress: string,
-  requiredTxid: string
+  requiredTxids: string[]
 ): Promise<{ outputCount: number; spendableAmount: number }> {
+  const requiredTxidSet = new Set(requiredTxids);
   const addressUtxos = await getJsonWithNativeTimeout<AddressUtxoResponse[]>(
     getAddressUtxoUrl(taprootAddress),
     {
@@ -308,7 +351,7 @@ async function fetchReleasedUnitAmountByTxid(
       headers: { Accept: 'application/json' },
     }
   );
-  const releasedOutputs = addressUtxos.filter((utxo) => utxo.txid === requiredTxid);
+  const releasedOutputs = addressUtxos.filter((utxo) => requiredTxidSet.has(utxo.txid));
   let spendableAmount = 0;
 
   for (const output of releasedOutputs) {
@@ -355,6 +398,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
   const {
     repayAmountUsd,
     repayFundingAsset,
+    availableDirectUnitBalance,
     estimatedUsdcIn,
     estimatedSepoliaFeeEth,
     error: storeError,
@@ -385,8 +429,8 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     reset: resetSettlement,
   } = useVaultSettlementStore();
 
-  const hasSpendableDirectUnitBalance = useCallback(
-    async (amountUsd: number) => {
+  const getSpendableDirectUnitSelection = useCallback(
+    async (requiredAmount: number) => {
       if (
         !wallet?.segwitAddress ||
         !wallet?.segwitPubkey ||
@@ -403,26 +447,43 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         taprootPubkey: wallet.taprootPubkey,
       });
 
-      const requiredAmount = Math.round(amountUsd * 100);
       const unitUtxos = await vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, requiredAmount);
 
-      return Boolean(unitUtxos && unitUtxos.length > 0);
+      return selectRuneUtxoTxidsAndAmountForAmount(unitUtxos, requiredAmount);
     },
     [wallet?.segwitAddress, wallet?.segwitPubkey, wallet?.taprootAddress, wallet?.taprootPubkey]
   );
 
-  const getRequiredTurboMeltAmount = useCallback((amountUsd: number): number => {
-    return Math.round(amountUsd * 100);
-  }, []);
+  const getSpendableDirectUnitTxids = useCallback(
+    async (amountUsd: number) => {
+      const requiredAmount = Math.round(amountUsd * 100);
+      const selection = await getSpendableDirectUnitSelection(requiredAmount);
+      return selection.amount >= requiredAmount ? selection.txids : [];
+    },
+    [getSpendableDirectUnitSelection]
+  );
 
-  const getTurboRepayQuote = useCallback(
-    async (amountUsd: number): Promise<TurboRepayQuote | null> => {
+  const hasSpendableDirectUnitBalance = useCallback(
+    async (amountUsd: number) => (await getSpendableDirectUnitTxids(amountUsd)).length > 0,
+    [getSpendableDirectUnitTxids]
+  );
+
+  const getRequiredTurboMeltAmount = useCallback(
+    (amountUsd: number): number => {
+      const requestedAmount = Math.max(0, Math.round(amountUsd * 100));
+      const spendableUnitAmount = Math.max(0, Math.round(availableDirectUnitBalance * 100));
+      return Math.max(0, requestedAmount - spendableUnitAmount);
+    },
+    [availableDirectUnitBalance]
+  );
+
+  const requestTurboRepayQuoteForMeltAmount = useCallback(
+    async (amountUsd: number, meltAmount: number): Promise<TurboRepayQuote | null> => {
       if (!wallet?.taprootAddress) {
         throw new Error('Wallet not connected');
       }
 
       const quoteStartedAt = Date.now();
-      const meltAmount = getRequiredTurboMeltAmount(amountUsd);
       logger.info('[VaultRepayFromUsdc] Preparing TurboUNIT repay quote', {
         currentAccount,
         amountUsd,
@@ -511,7 +572,14 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         fee: quote.fee,
       };
     },
-    [currentAccount, getRequiredTurboMeltAmount, wallet?.taprootAddress]
+    [currentAccount, wallet?.taprootAddress]
+  );
+
+  const getTurboRepayQuote = useCallback(
+    async (amountUsd: number): Promise<TurboRepayQuote | null> => {
+      return requestTurboRepayQuoteForMeltAmount(amountUsd, getRequiredTurboMeltAmount(amountUsd));
+    },
+    [getRequiredTurboMeltAmount, requestTurboRepayQuoteForMeltAmount]
   );
 
   const quoteUsdcRepaySettlement = useCallback(
@@ -670,7 +738,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
   );
 
   const waitForSpendableReleasedUnit = useCallback(
-    async (amountUsd: number, requiredTxid?: string | null) => {
+    async (amountUsd: number, requiredTxids?: string | string[] | null) => {
       if (
         !wallet?.segwitAddress ||
         !wallet?.segwitPubkey ||
@@ -689,8 +757,10 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
 
       const requiredAmount = Math.round(amountUsd * 100);
       let lastError: unknown = null;
+      const requiredTxidList = [...(getRequiredTxidSet(requiredTxids) ?? new Set<string>())];
+      const hasRequiredTxids = requiredTxidList.length > 0;
 
-      const deadline = Date.now() + (requiredTxid
+      const deadline = Date.now() + (hasRequiredTxids
         ? RELEASED_UNIT_VISIBILITY_TIMEOUT_MS
         : RELEASED_UNIT_UTXO_TIMEOUT_MS);
       let attempt = 0;
@@ -698,10 +768,10 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       while (true) {
         attempt += 1;
 
-        if (requiredTxid) {
+        if (hasRequiredTxids) {
           try {
             const releasedUnit = await withVaultBuildTimeoutFn(
-              () => fetchReleasedUnitAmountByTxid(wallet.taprootAddress, requiredTxid),
+              () => fetchReleasedUnitAmountByTxids(wallet.taprootAddress, requiredTxidList),
               'Timed out checking released UNIT output.',
               RELEASED_UNIT_UTXO_TIMEOUT_MS
             );
@@ -709,7 +779,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
               attempt,
               currentAccount,
               requiredAmount,
-              requiredTxid,
+              requiredTxids: requiredTxidList,
               spendableAmount: releasedUnit.spendableAmount,
               outputCount: releasedUnit.outputCount,
             });
@@ -719,7 +789,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
                 currentAccount,
                 attempt,
                 requiredAmount,
-                requiredTxid,
+                requiredTxids: requiredTxidList,
                 spendableAmount: releasedUnit.spendableAmount,
                 outputCount: releasedUnit.outputCount,
               });
@@ -730,7 +800,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
             logger.info('[VaultRepayFromUsdc] Direct released UNIT output check failed', {
               attempt,
               currentAccount,
-              requiredTxid,
+              requiredTxids: requiredTxidList,
               error: error instanceof Error ? error.message : String(error),
             });
           }
@@ -739,25 +809,25 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         try {
           const unitUtxos = await withVaultBuildTimeoutFn(
             () =>
-              requiredTxid
+              hasRequiredTxids
                 ? vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL)
                 : vaultWallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, requiredAmount),
             'Timed out checking released UNIT UTXOs.',
             RELEASED_UNIT_UTXO_TIMEOUT_MS
           );
           const typedUnitUtxos = normalizeRuneUtxos(unitUtxos as RuneUtxo[] | Map<string, RuneUtxo>);
-          const spendableAmount = getSpendableUnitAmount(typedUnitUtxos, requiredTxid);
+          const spendableAmount = getSpendableUnitAmount(typedUnitUtxos, requiredTxidList);
 
           logger.info('[VaultRepayFromUsdc] Checked released UNIT spendability', {
             attempt,
             currentAccount,
             requiredAmount,
-            requiredTxid,
+            requiredTxids: requiredTxidList,
             spendableAmount,
             utxoCount: typedUnitUtxos.length,
           });
 
-          if (hasSpendableUnitUtxo(typedUnitUtxos, requiredAmount, requiredTxid)) {
+          if (hasSpendableUnitUtxo(typedUnitUtxos, requiredAmount, requiredTxidList)) {
             return;
           }
         } catch (error) {
@@ -765,13 +835,13 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           logger.info('[VaultRepayFromUsdc] Released UNIT spendability check failed', {
             attempt,
             currentAccount,
-            requiredTxid,
+            requiredTxids: requiredTxidList,
             error: error instanceof Error ? error.message : String(error),
           });
         }
 
         const remainingMs = deadline - Date.now();
-        if (!requiredTxid || remainingMs <= 0) {
+        if (!hasRequiredTxids || remainingMs <= 0) {
           break;
         }
 
@@ -779,7 +849,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         logger.info('[VaultRepayFromUsdc] Waiting for released UNIT output visibility', {
           attempt,
           currentAccount,
-          requiredTxid,
+          requiredTxids: requiredTxidList,
           retryMs,
         });
         await waitForRetryDelay(retryMs);
@@ -788,7 +858,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       throw lastError instanceof Error
         ? lastError
         : new Error(
-            requiredTxid
+            hasRequiredTxids
               ? 'Released UNIT output is not visible yet. Please try again.'
               : 'Released UNIT is not yet spendable for repay'
           );
@@ -816,8 +886,58 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     try {
       const canResumePersistedRepay =
         settlementKind === 'repay' && isSameRepayAmount(settlementFaceValueUsd, repayAmountUsd);
-      const hasPersistedTurboMelt =
-        canResumePersistedRepay && (!!persistedCashuMeltTxid || !!persistedCashuMeltQuoteId);
+      const requestedRepayAmount = Math.max(0, Math.round(repayAmountUsd * 100));
+      const storeDirectUnitAmount = Math.min(
+        requestedRepayAmount,
+        Math.max(0, Math.round(availableDirectUnitBalance * 100))
+      );
+      let liveDirectUnitTxids: string[] = [];
+      let liveDirectUnitAmount = 0;
+      const persistedTurboMeltExists =
+        canResumePersistedRepay &&
+        persistedRequestedPayoutAsset === 'TURBOUNIT' &&
+        (!!persistedCashuMeltTxid || !!persistedCashuMeltQuoteId);
+      const shouldResolveDirectUnitForTurbo =
+        repayFundingAsset === 'TURBOUNIT' ||
+        (canResumePersistedRepay && persistedRequestedPayoutAsset === 'TURBOUNIT');
+      const directUnitSelectionAmount =
+        persistedTurboMeltExists && persistedCashuMeltTxid
+          ? requestedRepayAmount
+          : storeDirectUnitAmount;
+
+      if (shouldResolveDirectUnitForTurbo && directUnitSelectionAmount > 0) {
+        try {
+          const directUnitSelection = await withVaultBuildTimeoutFn(
+            () => getSpendableDirectUnitSelection(directUnitSelectionAmount),
+            'Timed out checking spendable UNIT balance.',
+            RELEASED_UNIT_UTXO_TIMEOUT_MS
+          );
+          liveDirectUnitTxids = directUnitSelection.txids;
+          liveDirectUnitAmount = Math.min(directUnitSelection.amount, requestedRepayAmount);
+          logger.info('[VaultRepayFromUsdc] Resolved live direct UNIT inputs for TurboUNIT repay', {
+            currentAccount,
+            repayAmountUsd,
+            requestedRepayAmount,
+            requestedDirectUnitAmount: directUnitSelectionAmount,
+            liveDirectUnitAmount,
+            liveDirectUnitTxids,
+          });
+        } catch (directUnitCheckError) {
+          logger.info('[VaultRepayFromUsdc] Live direct UNIT coverage check failed', {
+            currentAccount,
+            repayAmountUsd,
+            error:
+              directUnitCheckError instanceof Error
+                ? directUnitCheckError.message
+                : String(directUnitCheckError),
+          });
+        }
+      }
+
+      const currentTurboMeltAmount = Math.max(0, requestedRepayAmount - liveDirectUnitAmount);
+      const liveDirectUnitCoversRepay =
+        currentTurboMeltAmount <= 0 && liveDirectUnitTxids.length > 0;
+      const hasPersistedTurboMelt = persistedTurboMeltExists && currentTurboMeltAmount > 0;
       const requestedPayoutAsset =
         canResumePersistedRepay && (hasPersistedTurboMelt || persistedRedemptionId)
           ? persistedRequestedPayoutAsset
@@ -829,11 +949,18 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       const canRepayDirectly = requestedPayoutAsset === 'UNIT';
       const turboQuote =
         requestedPayoutAsset === 'TURBOUNIT' && !hasPersistedTurboMelt
-          ? await withVaultBuildTimeoutFn(
-              () => getTurboRepayQuote(repayAmountUsd),
-              'Timed out preparing TurboUNIT repay quote. Please try again.',
-              TURBO_REPAY_QUOTE_TIMEOUT_MS
-            )
+          ? liveDirectUnitCoversRepay
+            ? {
+                meltAmount: 0,
+                quote: null,
+                total: 0,
+                fee: 0,
+              }
+            : await withVaultBuildTimeoutFn(
+                () => requestTurboRepayQuoteForMeltAmount(repayAmountUsd, currentTurboMeltAmount),
+                'Timed out preparing TurboUNIT repay quote. Please try again.',
+                TURBO_REPAY_QUOTE_TIMEOUT_MS
+              )
           : null;
       const canRepayWithTurboUnit =
         requestedPayoutAsset === 'TURBOUNIT' && (!!turboQuote || hasPersistedTurboMelt);
@@ -866,7 +993,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           currentAccount,
           fundingAsset: 'UNIT',
         });
-        const result = await rawRepay.repay();
+        const result = await executeRawRepayWithTimeout(rawRepay);
         if (!result) {
           throw new Error(getLatestRawRepayError(rawRepay.error));
         }
@@ -947,17 +1074,19 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       });
 
       let requiredMeltTxid: string | null = null;
+      let preferredDirectUnitTxids: string[] = liveDirectUnitTxids;
       if (requestedPayoutAsset === 'TURBOUNIT') {
         let hasSubmittedTurboMelt = false;
+        let turboMeltRequired = (turboQuote?.meltAmount ?? 0) > 0 || hasPersistedTurboMelt;
         let turboMeltTxid: string | null = persistedCashuMeltTxid;
 
-        if (canResumePersistedRepay && persistedCashuMeltTxid) {
+        if (hasPersistedTurboMelt && persistedCashuMeltTxid) {
           hasSubmittedTurboMelt = true;
           logger.debug('[VaultRepayFromUsdc] Resuming existing TurboUNIT melt', {
             currentAccount,
             cashuMeltTxid: persistedCashuMeltTxid,
           });
-        } else if (canResumePersistedRepay && persistedCashuMeltQuoteId) {
+        } else if (hasPersistedTurboMelt && persistedCashuMeltQuoteId) {
           setPhase('melting_turbo_repay');
           let persistedMeltQuote: RecoverableMeltQuote;
           try {
@@ -1011,14 +1140,23 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           const activeTurboQuote =
             turboQuote ??
             (await withVaultBuildTimeoutFn(
-              () => getTurboRepayQuote(repayAmountUsd),
+              () => requestTurboRepayQuoteForMeltAmount(repayAmountUsd, currentTurboMeltAmount),
               'Timed out preparing TurboUNIT repay quote. Please try again.',
               TURBO_REPAY_QUOTE_TIMEOUT_MS
             ));
           if (!activeTurboQuote) {
             throw new Error('Not enough UNIT plus TurboUNIT to repay this amount.');
           }
-          if (activeTurboQuote.quote && activeTurboQuote.meltAmount > 0) {
+          if (activeTurboQuote.meltAmount <= 0) {
+            turboMeltRequired = false;
+            turboSettlementAmount = formatSmallestUnitAmount(0);
+            logger.info('[VaultRepayFromUsdc] TurboUNIT melt skipped; spendable UNIT covers repay', {
+              currentAccount,
+              repayAmountUsd,
+              availableDirectUnitBalance,
+            });
+          } else if (activeTurboQuote.quote) {
+            turboMeltRequired = true;
             setPhase('melting_turbo_repay');
             useRepayStore.getState().setProcessingStep(2);
             const quoteId = activeTurboQuote.quote.quoteId;
@@ -1099,6 +1237,8 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
           requiredMeltTxid = turboMeltTxid;
           setPhase('waiting_turbo_release');
           useRepayStore.getState().setProcessingStep(3);
+        } else if (!turboMeltRequired) {
+          requiredMeltTxid = null;
         } else {
           throw new Error('TurboUNIT melt was not submitted for repay.');
         }
@@ -1158,13 +1298,19 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         }
       }
 
+      const preferredRepayTxids = [
+        ...new Set([...(requiredMeltTxid ? [requiredMeltTxid] : []), ...preferredDirectUnitTxids]),
+      ];
+      const releaseVisibilityTxids = requiredMeltTxid ? preferredRepayTxids : null;
       setPhase('repaying_vault');
       useRepayStore.getState().setProcessingStep(requiredMeltTxid ? 3 : 2);
-      await waitForSpendableReleasedUnit(repayAmountUsd, requiredMeltTxid);
+      await waitForSpendableReleasedUnit(repayAmountUsd, releaseVisibilityTxids);
       logger.debug('[VaultRepayFromUsdc] Released UNIT became spendable', {
         currentAccount,
         repayAmountUsd,
         requiredMeltTxid,
+        preferredRepayTxids,
+        releaseVisibilityTxids,
       });
 
       const loaded = await loadRawRepayVaultData(rawRepay, 'settlement_release');
@@ -1187,14 +1333,14 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         useRepayStore.getState().setError(null);
         useRepayStore.getState().setProcessingStep(4);
 
-        if (requiredMeltTxid) {
-          setPreferredRepayUnitTxids([requiredMeltTxid]);
+        if (preferredRepayTxids.length > 0) {
+          setPreferredRepayUnitTxids(preferredRepayTxids);
         }
 
         try {
-          result = await rawRepay.repay();
+          result = await executeRawRepayWithTimeout(rawRepay);
         } finally {
-          if (requiredMeltTxid) {
+          if (preferredRepayTxids.length > 0) {
             clearPreferredRepayUnitTxids();
           }
         }
@@ -1230,11 +1376,13 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
         await waitForRetryDelay(RAW_REPAY_MISSING_INPUT_RETRY_MS);
 
         try {
-          await waitForSpendableReleasedUnit(repayAmountUsd, requiredMeltTxid);
+          await waitForSpendableReleasedUnit(repayAmountUsd, releaseVisibilityTxids);
         } catch (releaseError) {
           logger.info('[VaultRepayFromUsdc] Retry release visibility check did not pass yet', {
             currentAccount,
             requiredMeltTxid,
+            preferredRepayTxids,
+            releaseVisibilityTxids,
             error: releaseError instanceof Error ? releaseError.message : String(releaseError),
           });
         }
@@ -1279,7 +1427,8 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
   }, [
     completeSettlement,
     currentAccount,
-    getTurboRepayQuote,
+    getSpendableDirectUnitSelection,
+    availableDirectUnitBalance,
     estimatedSepoliaFeeEth,
     estimatedUsdcIn,
     markNeedsRetry,
@@ -1287,6 +1436,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
     persistedCashuMeltTxid,
     persistedRequestedPayoutAsset,
     persistedRedemptionId,
+    requestTurboRepayQuoteForMeltAmount,
     quoteUsdcRepaySettlement,
     rawRepay,
     refreshCashuBalance,

@@ -133,6 +133,8 @@ jest.mock('../../../utils/constants', () => ({
     RUNE_OUTPUT_AMOUNT: 10_000,
     TX_TIMEOUT_BUFFER: 5_000,
   },
+  getAddressUtxoUrl: jest.fn((address: string) => `https://esplora.test/address/${address}/utxo`),
+  getOrdOutputUrl: jest.fn((outpoint: string) => `https://ord.test/output/${outpoint}`),
   getTxOutspendUrl: jest.fn(
     (txid: string, vout: number) => `https://esplora.test/tx/${txid}/outspend/${vout}`
   ),
@@ -2192,6 +2194,12 @@ describe('Vault Request Creation', () => {
 
     it('should create repay request with sats and unit UTXOs', async () => {
       const { createVaultReqRepay } = require('../repay');
+      const unitUtxo = {
+        txid: 'unit_utxo',
+        vout: 0,
+        value: 10000,
+        runes: new Map([['sdk-unit-asset-id', { amount: 5000 }]]),
+      };
 
       const mockWallet = {
         vault: {
@@ -2200,13 +2208,13 @@ describe('Vault Request Creation', () => {
             quote: jest.fn().mockReturnValue({ total_cost: 800 }),
             req: jest.fn().mockResolvedValue({
               sats_inputs: [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
-              unit_inputs: [{ txid: 'unit_utxo', vout: 0, amount: 5000 }],
+              unit_inputs: [unitUtxo],
             }),
           },
         },
         fetch: {
           sats_utxos: jest.fn().mockResolvedValue([{ txid: 'sats_utxo', vout: 0, value: 5000 }]),
-          rune_utxos: jest.fn().mockResolvedValue([{ txid: 'unit_utxo', vout: 0, amount: 5000 }]),
+          rune_utxos: jest.fn().mockResolvedValue([unitUtxo]),
         },
         sign: {
           psbt: jest.fn(async (psbt: string) => `signed-${psbt}`),
@@ -2230,7 +2238,7 @@ describe('Vault Request Creation', () => {
       expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(
         expect.anything(),
         [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
-        [{ txid: 'unit_utxo', vout: 0, amount: 5000 }]
+        [unitUtxo]
       );
       expect(result.sats_inputs).toHaveLength(1);
     });
@@ -2411,6 +2419,93 @@ describe('Vault Request Creation', () => {
         expect.anything(),
         [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
         [meltedUnitUtxo]
+      );
+    });
+
+    it('should use direct preferred TurboUNIT melt output when SDK rune scan fails', async () => {
+      const mockGetJsonWithNativeTimeout = getJsonWithNativeTimeout as jest.MockedFunction<
+        typeof getJsonWithNativeTimeout
+      >;
+      mockGetJsonWithNativeTimeout.mockImplementation(async (url: string) => {
+        if (url === 'https://esplora.test/address/tb1ptest/utxo') {
+          return [{ txid: 'melted_unit_txid', vout: 1, value: 10000 }];
+        }
+        if (url === 'https://ord.test/output/melted_unit_txid:1') {
+          return {
+            spent: false,
+            transaction: 'melted_unit_txid',
+            value: 10000,
+            script_pubkey: 'melted-script',
+            runes: {
+              UNIT: { amount: 5000, divisibility: 2, symbol: 'UNIT' },
+            },
+          };
+        }
+        throw new Error(`Unexpected URL: ${url}`);
+      });
+
+      const {
+        clearPreferredRepayUnitTxids,
+        createVaultReqRepay,
+        setPreferredRepayUnitTxids,
+      } = require('../repay');
+      const mockWallet = {
+        vault: {
+          repay: {
+            ctx: jest.fn().mockReturnValue({ repay_amount: 5000, config: 'repay_ctx' }),
+            quote: jest.fn().mockReturnValue({ total_cost: 800 }),
+            req: jest.fn().mockResolvedValue({
+              sats_inputs: [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
+              unit_inputs: [{ txid: 'melted_unit_txid', vout: 1, value: 10000 }],
+            }),
+          },
+        },
+        fetch: {
+          sats_utxos: jest.fn().mockResolvedValue([{ txid: 'sats_utxo', vout: 0, value: 5000 }]),
+          rune_utxos: jest.fn().mockRejectedValue(new Error('SDK rune scan stalled')),
+        },
+        sign: {
+          psbt: jest.fn(async (psbt: string) => `signed-${psbt}`),
+        },
+        acct: {
+          sats: { address: 'tb1qtest' },
+          runes: { address: 'tb1ptest' },
+          vault: { address: 'tb1pvault' },
+        },
+        contract_id: 'contract-id',
+        network: 'mutinynet',
+      };
+
+      const repayConfig = { repay_amount: 5000, deposit_amount: 0, tx_feerate: 4 };
+      const acctRes = { mint_account: 'burn_123' };
+      const options = { feeRate: 4, oracleQuote: mockOracleQuote, vaultProfile: mockVaultProfile };
+
+      setPreferredRepayUnitTxids(['melted_unit_txid']);
+      try {
+        await createVaultReqRepay(mockWallet as any, repayConfig, acctRes, options);
+      } finally {
+        clearPreferredRepayUnitTxids();
+      }
+
+      expect(mockWallet.fetch.rune_utxos).toHaveBeenCalledWith('UNIT');
+      expect(mockGetJsonWithNativeTimeout).toHaveBeenCalledWith(
+        'https://esplora.test/address/tb1ptest/utxo',
+        expect.objectContaining({ timeout: 8_000 })
+      );
+      expect(mockGetJsonWithNativeTimeout).toHaveBeenCalledWith(
+        'https://ord.test/output/melted_unit_txid:1',
+        expect.objectContaining({ timeout: 8_000 })
+      );
+      expect(mockWallet.vault.repay.req).toHaveBeenCalledWith(
+        expect.anything(),
+        [{ txid: 'sats_utxo', vout: 0, value: 5000 }],
+        [
+          expect.objectContaining({
+            txid: 'melted_unit_txid',
+            vout: 1,
+            script: 'melted-script',
+          }),
+        ]
       );
     });
 

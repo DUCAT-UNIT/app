@@ -138,12 +138,12 @@ const wallet = {
   taprootPubkey: '03taproot',
 };
 
-function unitUtxo(txid: string, amount = 5000) {
+function unitUtxo(txid: string, amount = 5000, runeKey = VAULT_CONFIG.RUNE_LABEL) {
   return {
     txid,
     vout: 0,
     value: 10_000,
-    runes: new Map([[VAULT_CONFIG.RUNE_LABEL, { amount, divisibility: 2, symbol: 'UNIT' }]]),
+    runes: new Map([[runeKey, { amount, divisibility: 2, symbol: 'UNIT' }]]),
   };
 }
 
@@ -281,7 +281,7 @@ describe('useRepayFromUsdcSettlement', () => {
     mockRuneUtxos.mockReset();
     mockGetBoolean.mockResolvedValue(true);
     configure();
-    mockRuneUtxos.mockResolvedValue([{ txid: 'unit-utxo' }]);
+    mockRuneUtxos.mockResolvedValue([unitUtxo('unit-utxo')]);
   });
 
   it('quotes zero USDC when direct spendable UNIT is already available', async () => {
@@ -332,14 +332,14 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(quoteVaultRepaySettlement).not.toHaveBeenCalled();
   });
 
-  it('quotes full TurboUNIT melt when direct UNIT also exists', async () => {
+  it('quotes only the TurboUNIT deficit when direct UNIT also exists', async () => {
     configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 40 });
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     (requestMelt as jest.Mock).mockResolvedValueOnce({
-      quoteId: 'melt-full',
-      amount: 5000,
+      quoteId: 'melt-deficit',
+      amount: 1000,
       fee: 0,
-      total: 5000,
+      total: 1000,
     });
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
 
@@ -347,12 +347,12 @@ describe('useRepayFromUsdcSettlement', () => {
       fundingAsset: 'TURBOUNIT',
       requiredUsdcIn: '0',
       estimatedSepoliaFeeEth: '0',
-      requiredTurboUnitIn: '50.00',
+      requiredTurboUnitIn: '10.00',
       estimatedTurboUnitFee: '0.00',
     });
 
-    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
-    expect(mockSetTurboRepayQuote).toHaveBeenCalledWith('50.00', '0.00');
+    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 1000);
+    expect(mockSetTurboRepayQuote).toHaveBeenCalledWith('10.00', '0.00');
   });
 
   it('executes a repay directly when spendable UNIT already exists', async () => {
@@ -697,9 +697,9 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(mockRawRepay).toHaveBeenCalledTimes(1);
   });
 
-  it('melts TurboUNIT when selected even if spendable UNIT covers the full amount', async () => {
+  it('skips TurboUNIT melt when spendable UNIT covers the full amount', async () => {
     configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 60 });
-    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('melt-txid')]);
+    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('direct-unit-txid', 5000, 'sdk-unit-asset-id')]);
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
@@ -715,16 +715,68 @@ describe('useRepayFromUsdcSettlement', () => {
       'TURBOUNIT',
       expect.objectContaining({ accountIndex: 4, taprootAddress: 'tb1pwallet' })
     );
-    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
-    expect(completeMelt).toHaveBeenCalledWith('melt-1', 5000);
-    expect(mockSetPhase.mock.calls.map(([phase]) => phase)).toEqual([
-      'melting_turbo_repay',
-      'waiting_turbo_release',
-      'repaying_vault',
-    ]);
+    expect(requestMelt).not.toHaveBeenCalled();
+    expect(completeMelt).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltQuote).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltTxid).not.toHaveBeenCalled();
+    expect(mockSetPhase.mock.calls.map(([phase]) => phase)).toEqual(['repaying_vault']);
     expect(mockLoadVaultData).toHaveBeenCalledTimes(1);
     expect(mockRawRepay).toHaveBeenCalledTimes(1);
-    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '0.00');
+  });
+
+  it('ignores stale persisted TurboUNIT melt state when spendable UNIT now covers repay', async () => {
+    configure({
+      settlementKind: 'repay',
+      settlementFaceValueUsd: 50,
+      repayFundingAsset: 'TURBOUNIT',
+      availableDirectUnitBalance: 60,
+      persistedRequestedPayoutAsset: 'TURBOUNIT',
+      persistedCashuMeltTxid: 'old-melt-txid',
+    });
+    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('direct-unit-txid')]);
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(checkMeltQuote).not.toHaveBeenCalled();
+    expect(requestMelt).not.toHaveBeenCalled();
+    expect(completeMelt).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltTxid).not.toHaveBeenCalled();
+    expect(mockSetPhase.mock.calls.map(([phase]) => phase)).toEqual(['repaying_vault']);
+    expect(mockRawRepay).toHaveBeenCalledTimes(1);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '0.00');
+  });
+
+  it('uses live direct UNIT coverage to ignore stale persisted TurboUNIT melt state', async () => {
+    configure({
+      settlementKind: 'repay',
+      settlementFaceValueUsd: 50,
+      repayFundingAsset: 'TURBOUNIT',
+      availableDirectUnitBalance: 0,
+      persistedRequestedPayoutAsset: 'TURBOUNIT',
+      persistedCashuMeltTxid: 'old-melt-txid',
+    });
+    mockRuneUtxos.mockResolvedValue([unitUtxo('direct-unit-txid')]);
+    const { result } = renderHook(() => useRepayFromUsdcSettlement());
+    let repayResult: unknown;
+
+    await act(async () => {
+      repayResult = await result.current.repay();
+    });
+
+    expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
+    expect(checkMeltQuote).not.toHaveBeenCalled();
+    expect(requestMelt).not.toHaveBeenCalled();
+    expect(completeMelt).not.toHaveBeenCalled();
+    expect(mockSetCashuMeltTxid).not.toHaveBeenCalled();
+    expect(mockRuneUtxos).toHaveBeenCalledWith(VAULT_CONFIG.RUNE_LABEL, 5000);
+    expect(mockRawRepay).toHaveBeenCalledTimes(1);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '0.00');
   });
 
   it('recovers an accepted TurboUNIT melt quote instead of melting again after restart', async () => {
@@ -793,15 +845,15 @@ describe('useRepayFromUsdcSettlement', () => {
     expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
   });
 
-  it('melts the full TurboUNIT repay amount before repaying when direct UNIT also exists', async () => {
+  it('melts only the TurboUNIT deficit before repaying when direct UNIT also exists', async () => {
     configure({ repayFundingAsset: 'TURBOUNIT', availableDirectUnitBalance: 40 });
-    mockRuneUtxos.mockResolvedValueOnce([unitUtxo('melt-txid')]);
+    mockRuneUtxos.mockResolvedValue([unitUtxo('direct-unit-txid', 4000), unitUtxo('melt-txid', 1000)]);
     (getCashuBalance as jest.Mock).mockResolvedValueOnce(6000);
     (requestMelt as jest.Mock).mockResolvedValueOnce({
-      quoteId: 'melt-full',
-      amount: 5000,
+      quoteId: 'melt-deficit',
+      amount: 1000,
       fee: 0,
-      total: 5000,
+      total: 1000,
     });
     const { result } = renderHook(() => useRepayFromUsdcSettlement());
     let repayResult: unknown;
@@ -811,9 +863,9 @@ describe('useRepayFromUsdcSettlement', () => {
     });
 
     expect(repayResult).toEqual({ txid: 'repay-txid', vaultTxid: 'vault-txid' });
-    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 5000);
-    expect(completeMelt).toHaveBeenCalledWith('melt-full', 5000);
-    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '50.00');
+    expect(requestMelt).toHaveBeenCalledWith(wallet.taprootAddress, 1000);
+    expect(completeMelt).toHaveBeenCalledWith('melt-deficit', 1000);
+    expect(mockCompleteSettlement).toHaveBeenCalledWith('TURBOUNIT', '10.00');
   });
 
   it('shows a specific retryable message when the TurboUNIT mint cannot broadcast withdrawal', async () => {

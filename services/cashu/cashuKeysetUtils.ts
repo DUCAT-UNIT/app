@@ -10,6 +10,12 @@ export interface SelectedProofsWithFees {
   requiredAmount: number;
 }
 
+export interface FilterProofsForCashuUnitResult {
+  proofs: CashuProof[];
+  droppedUnknownKeyset: number;
+  droppedWrongUnit: number;
+}
+
 const sumProofAmounts = (proofs: CashuProof[]): number =>
   proofs.reduce((sum, proof) => sum + normalizeCashuAmount(proof.amount, 'proof amount'), 0);
 
@@ -161,6 +167,35 @@ export const assertProofsMatchCashuUnit = (
       throw new Error(`${context} contain ${keyset.unit} proof in ${unit} flow`);
     }
   }
+};
+
+export const filterProofsForCashuUnit = (
+  proofs: CashuProof[],
+  keyData: MintKeys,
+  unit: CashuUnit = DEFAULT_CASHU_UNIT
+): FilterProofsForCashuUnitResult => {
+  const filtered: CashuProof[] = [];
+  let droppedUnknownKeyset = 0;
+  let droppedWrongUnit = 0;
+
+  for (const proof of normalizeCashuProofs(proofs)) {
+    const keyset = findKeysetById(keyData, proof.id);
+    if (!keyset) {
+      droppedUnknownKeyset += 1;
+      continue;
+    }
+    if (keyset.unit !== unit) {
+      droppedWrongUnit += 1;
+      continue;
+    }
+    filtered.push(proof);
+  }
+
+  return {
+    proofs: filtered,
+    droppedUnknownKeyset,
+    droppedWrongUnit,
+  };
 };
 
 export const calculateInputFees = (proofs: CashuProof[], keyData: MintKeys): number => {

@@ -7,6 +7,7 @@ import { logger } from '../../../utils/logger';
 import {
   assertProofsMatchCashuUnit,
   calculateInputFees,
+  filterProofsForCashuUnit,
   findKeysetById,
   resolveResponseSignatureKeysetForUnit,
   selectActiveCashuKeyset,
@@ -56,10 +57,23 @@ const getBalanceForUnit = (unit: CashuUnit): Promise<number> =>
   isDefaultCashuUnit(unit) ? getBalance(true) : getBalance(true, unit);
 
 const loadSpendableProofsForMelt = async (
+  keyData: MintKeys,
   unit: CashuUnit = DEFAULT_CASHU_UNIT
 ): Promise<CashuProof[]> => {
   const allProofs = await loadProofsForUnit(unit);
-  return allProofs.filter((p) => !isP2PKSecret(p.secret));
+  const unlockedProofs = allProofs.filter((p) => !isP2PKSecret(p.secret));
+  const validProofResult = filterProofsForCashuUnit(unlockedProofs, keyData, unit);
+
+  logger.info('Spendable proofs filtered for melt', {
+    unit,
+    totalProofs: allProofs.length,
+    unlockedProofs: unlockedProofs.length,
+    validProofs: validProofResult.proofs.length,
+    droppedUnknownKeyset: validProofResult.droppedUnknownKeyset,
+    droppedWrongUnit: validProofResult.droppedWrongUnit,
+  });
+
+  return validProofResult.proofs;
 };
 
 const canCoverMeltTotal = (
@@ -124,7 +138,7 @@ export const requestMaxMelt = async (
     }
 
     const keyData = await getOrFetchKeys();
-    const spendableProofs = await loadSpendableProofsForMelt(unit);
+    const spendableProofs = await loadSpendableProofsForMelt(keyData, unit);
     const proofBalance = sumProofs(spendableProofs);
     const maxSpendableAmount = Math.min(requestedAvailableAmount, proofBalance);
 
@@ -409,12 +423,16 @@ const prepareMeltSpend = async (
   operationAccount: string | null = null
 ): Promise<PreparedMeltSpend> => {
   const allProofs = await loadProofsForUnit(unit);
-  const spendableProofs = allProofs.filter((p) => !isP2PKSecret(p.secret));
+  const unlockedProofs = allProofs.filter((p) => !isP2PKSecret(p.secret));
+  const validProofResult = filterProofsForCashuUnit(unlockedProofs, keyData, unit);
+  const spendableProofs = validProofResult.proofs;
 
   logger.info('Proofs loaded for melt', {
     count: allProofs.length,
     spendableCount: spendableProofs.length,
-    lockedCount: allProofs.length - spendableProofs.length,
+    lockedCount: allProofs.length - unlockedProofs.length,
+    droppedUnknownKeyset: validProofResult.droppedUnknownKeyset,
+    droppedWrongUnit: validProofResult.droppedWrongUnit,
     proofs: spendableProofs.map((p) => ({ amount: p.amount, id: p.id })),
   });
 

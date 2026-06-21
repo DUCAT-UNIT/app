@@ -34,9 +34,9 @@ import {
 } from '../vaultWallet/signingContext';
 import { resolveVaultActionPriceQuote } from './priceQuote';
 
-const REPAY_REQUEST_BUILD_TIMEOUT_MS = 225_000;
+const REPAY_REQUEST_BUILD_TIMEOUT_MS = 70_000;
 const PREFERRED_UNIT_DIRECT_TIMEOUT_MS = 8_000;
-const PREFERRED_UNIT_DIRECT_WAIT_MS = 180_000;
+const PREFERRED_UNIT_DIRECT_WAIT_MS = 30_000;
 const PREFERRED_UNIT_DIRECT_RETRY_MS = 2_000;
 const PREFERRED_UNIT_FETCH_TIMEOUT_MS =
   PREFERRED_UNIT_DIRECT_WAIT_MS + PREFERRED_UNIT_DIRECT_TIMEOUT_MS + 7_000;
@@ -102,9 +102,12 @@ export function createRepayConfig(
 }
 
 function getRuneUtxoAmount(utxo: RuneUtxo): number {
-  const runeAmount = utxo.runes?.get(VAULT_CONFIG.RUNE_LABEL)?.amount;
-  if (typeof runeAmount === 'number') {
-    return runeAmount;
+  if (utxo.runes instanceof Map) {
+    const runeAmount =
+      utxo.runes.get(VAULT_CONFIG.RUNE_LABEL)?.amount ?? [...utxo.runes.values()][0]?.amount;
+    if (typeof runeAmount === 'number') {
+      return runeAmount;
+    }
   }
 
   const legacyAmount = (utxo as RuneUtxo & { amount?: unknown }).amount;
@@ -134,9 +137,23 @@ function selectRuneUtxosForAmount(utxos: RuneUtxo[], amount: number): RuneUtxo[]
     }
   }
 
-  throw new Error(
-    `Preferred TurboUNIT melt UTXO does not cover repay amount: ${total} < ${amount}`
-  );
+  throw new Error(`Selected UNIT UTXOs do not cover repay amount: ${total} < ${amount}`);
+}
+
+function summarizeRuneUtxos(utxos: RuneUtxo[]): Array<{
+  txid: string;
+  vout: number;
+  value: number;
+  amount: number;
+  hasScript: boolean;
+}> {
+  return utxos.map((utxo) => ({
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.value,
+    amount: getRuneUtxoAmount(utxo),
+    hasScript: typeof utxo.script === 'string' && utxo.script.length > 0,
+  }));
 }
 
 function createRuneUtxoFromOrdOutput(
@@ -230,37 +247,52 @@ async function fetchPreferredRepayUnitUtxos(
   while (Date.now() < deadline) {
     attempt += 1;
 
+    let preferredFromWallet: RuneUtxo[] = [];
+    let directPreferred: RuneUtxo[] = [];
+
     try {
-      const allUnitUtxos = await wallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL);
-      const preferredFromWallet = allUnitUtxos.filter((utxo) => preferredTxids.has(utxo.txid));
-      let directPreferred: RuneUtxo[] = [];
-
-      if (getRuneUtxosAmount(preferredFromWallet) < repayAmount) {
-        directPreferred = await fetchPreferredUnitUtxosDirect(wallet, preferredTxids);
-      }
-
-      lastPreferredUtxos = mergeRuneUtxosByOutpoint(preferredFromWallet, directPreferred);
-      const preferredAmount = getRuneUtxosAmount(lastPreferredUtxos);
-
-      logger.info('[VaultOps] Checked preferred TurboUNIT melt UTXOs for repay', {
-        attempt,
-        preferredTxids: [...preferredTxids],
-        walletPreferredCount: preferredFromWallet.length,
-        directPreferredCount: directPreferred.length,
-        preferredAmount,
-        repayAmount,
-      });
-
-      if (preferredAmount >= repayAmount) {
-        return selectRuneUtxosForAmount(lastPreferredUtxos, repayAmount);
-      }
+      const allUnitUtxos = await withVaultBuildTimeout(
+        wallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL),
+        'Timed out checking preferred TurboUNIT melt UTXOs.',
+        PREFERRED_UNIT_DIRECT_TIMEOUT_MS
+      );
+      preferredFromWallet = allUnitUtxos.filter((utxo) => preferredTxids.has(utxo.txid));
     } catch (error) {
       lastError = error;
-      logger.info('[VaultOps] Preferred TurboUNIT melt UTXO check failed', {
+      logger.info('[VaultOps] Preferred TurboUNIT melt wallet scan failed', {
         attempt,
         preferredTxids: [...preferredTxids],
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+
+    if (getRuneUtxosAmount(preferredFromWallet) < repayAmount) {
+      try {
+        directPreferred = await fetchPreferredUnitUtxosDirect(wallet, preferredTxids);
+      } catch (error) {
+        lastError = error;
+        logger.info('[VaultOps] Preferred TurboUNIT melt direct output check failed', {
+          attempt,
+          preferredTxids: [...preferredTxids],
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    lastPreferredUtxos = mergeRuneUtxosByOutpoint(preferredFromWallet, directPreferred);
+    const preferredAmount = getRuneUtxosAmount(lastPreferredUtxos);
+
+    logger.info('[VaultOps] Checked preferred TurboUNIT melt UTXOs for repay', {
+      attempt,
+      preferredTxids: [...preferredTxids],
+      walletPreferredCount: preferredFromWallet.length,
+      directPreferredCount: directPreferred.length,
+      preferredAmount,
+      repayAmount,
+    });
+
+    if (preferredAmount >= repayAmount) {
+      return selectRuneUtxosForAmount(lastPreferredUtxos, repayAmount);
     }
 
     logger.info('[VaultOps] Preferred TurboUNIT melt UTXO not ready, retrying', {
@@ -286,7 +318,19 @@ async function fetchPreferredRepayUnitUtxos(
 
 async function fetchRepayUnitUtxos(wallet: VaultWallet, repayAmount: number): Promise<RuneUtxo[]> {
   if (!preferredRepayUnitTxids || preferredRepayUnitTxids.size === 0) {
-    return wallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, repayAmount);
+    const unitUtxos = await wallet.fetch.rune_utxos(VAULT_CONFIG.RUNE_LABEL, repayAmount);
+    if (unitUtxos.length === 0) {
+      return [];
+    }
+    const selected = selectRuneUtxosForAmount(unitUtxos, repayAmount);
+    logger.info('[VaultOps] Selected UNIT UTXOs for repay', {
+      repayAmount,
+      fetchedCount: unitUtxos.length,
+      selectedCount: selected.length,
+      selectedAmount: getRuneUtxosAmount(selected),
+      selected: summarizeRuneUtxos(selected),
+    });
+    return selected;
   }
 
   logger.info('[VaultOps] Using preferred TurboUNIT melt UTXOs for repay', {
@@ -294,7 +338,14 @@ async function fetchRepayUnitUtxos(wallet: VaultWallet, repayAmount: number): Pr
     repayAmount,
   });
 
-  return fetchPreferredRepayUnitUtxos(wallet, repayAmount, preferredRepayUnitTxids);
+  const selected = await fetchPreferredRepayUnitUtxos(wallet, repayAmount, preferredRepayUnitTxids);
+  logger.info('[VaultOps] Selected preferred UNIT UTXOs for repay', {
+    repayAmount,
+    selectedCount: selected.length,
+    selectedAmount: getRuneUtxosAmount(selected),
+    selected: summarizeRuneUtxos(selected),
+  });
+  return selected;
 }
 
 function getRepayUnitFetchTimeoutMs(): number | undefined {
@@ -519,7 +570,8 @@ async function buildVaultReqRepay(
       const signingStartedAt = Date.now();
       repayReq = await withVaultBuildTimeout(
         createSequentialRepayRequest(wallet, vaultCtx, satsUtxos, unitUtxos),
-        'Timed out building the repay transaction. Please try again.'
+        'Timed out building the repay transaction. Please try again.',
+        REPAY_REQUEST_BUILD_TIMEOUT_MS
       );
       logger.info('[VaultOps] Repay request signed', {
         durationMs: Date.now() - signingStartedAt,

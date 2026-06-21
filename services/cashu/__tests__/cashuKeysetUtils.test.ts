@@ -2,6 +2,7 @@ import {
   assertProofsMatchCashuUnit,
   assertResponseSignaturesUseExpectedKeyset,
   calculateInputFees,
+  filterProofsForCashuUnit,
   findKeysetById,
   resolveResponseSignatureKeysetForUnit,
   selectActiveCashuKeyset,
@@ -73,6 +74,24 @@ describe('cashuKeysetUtils', () => {
         ambiguousKeyData
       )
     ).toThrow('unknown or ambiguous keyset abc');
+  });
+
+  it('filters proofs to resolvable keysets for the requested unit', () => {
+    expect(
+      filterProofsForCashuUnit(
+        [
+          { amount: 1, secret: 's1', C: 'C1', id: 'unit-keyset' },
+          { amount: 1, secret: 's2', C: 'C2', id: 'sat-keyset' },
+          { amount: 1, secret: 's3', C: 'C3', id: 'missing-keyset' },
+        ],
+        keyData,
+        'unit'
+      )
+    ).toEqual({
+      proofs: [{ amount: 1, secret: 's1', C: 'C1', id: 'unit-keyset' }],
+      droppedUnknownKeyset: 1,
+      droppedWrongUnit: 1,
+    });
   });
 
   it('accepts response signatures from the requested keyset', () => {
