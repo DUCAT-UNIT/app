@@ -646,6 +646,41 @@ describe('useTransactionBuilder', () => {
       expect(notify.build.error).toHaveBeenCalled();
     });
 
+    it('should time out a stuck UNIT intent build and exit creating state', async () => {
+      (createUnitIntent as jest.Mock).mockImplementationOnce(() => new Promise(() => {}));
+
+      const { result } = renderHook(useTransactionBuilder, mockProps as unknown as UseTransactionBuilderParams);
+
+      let createPromise!: Promise<void>;
+      await act(async () => {
+        createPromise = result.current!.createSendIntent();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockProps.setIntentStep).toHaveBeenCalledWith('creating');
+
+      await act(async () => {
+        jest.advanceTimersByTime(45_000);
+        await Promise.resolve();
+        await createPromise;
+      });
+
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+        await Promise.resolve();
+      });
+
+      expect(notify.build.error).toHaveBeenCalledWith(
+        'Timed out preparing the UNIT send. Please try again.'
+      );
+      expect(mockProps.setIntentStep).toHaveBeenCalledWith('entering_amount');
+      expect(mockProps.setSendIntent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ assetType: 'UNIT' })
+      );
+      expect(mockProps.markUtxosAsSpent).not.toHaveBeenCalled();
+    });
+
     it('should release old intent UTXOs when rebuilding UNIT intent', async () => {
       // Existing UNIT intent that hasn't been broadcast
       mockProps.sendIntent = {

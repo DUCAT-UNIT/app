@@ -39,6 +39,22 @@ interface UseTurboReviewReturn {
   handleSendNormally: () => void;
 }
 
+const TURBO_REVIEW_OPERATION_TIMEOUT_MS = 15_000;
+
+const rejectAfter = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    (timeout as { unref?: () => void }).unref?.();
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+};
+
 export function useTurboReview({
   sendAmount,
   sendAssetType,
@@ -74,7 +90,11 @@ export function useTurboReview({
         const amountInSmallestUnits = Math.round(displayAmount * 100);
 
         // getBalance() already returns smallest units (integer)
-        const ecashBalanceSmallestUnits = await getBalance();
+        const ecashBalanceSmallestUnits = await rejectAfter(
+          getBalance(),
+          TURBO_REVIEW_OPERATION_TIMEOUT_MS,
+          'Checking Turbo balance'
+        );
 
         logger.debug('[useTurboReview] Checking ecash balance:', {
           requested: displayAmount,
@@ -160,7 +180,11 @@ export function useTurboReview({
         throw new Error('Wallet Taproot address unavailable for Turbo recovery');
       }
 
-      const mintQuote = await requestMint(fullTurboAmountSmallestUnits);
+      const mintQuote = await rejectAfter(
+        requestMint(fullTurboAmountSmallestUnits),
+        TURBO_REVIEW_OPERATION_TIMEOUT_MS,
+        'Preparing Turbo mint quote'
+      );
       const requestedMintAmount = fullTurboAmountSmallestUnits;
       const originalRecipient = sendRecipient;
       await savePendingTurboSend(

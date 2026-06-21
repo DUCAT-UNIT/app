@@ -102,6 +102,9 @@ interface UseTransactionBuilderReturn {
 
 type BtcSourceType = 'segwit' | 'taproot';
 
+const SEND_INTENT_BUILD_TIMEOUT_MS = 45_000;
+const SEND_UTXO_OPERATION_TIMEOUT_MS = 12_000;
+
 const getBtcSourceCandidates = (walletProfile: WalletImportProfile): BtcSourceType[] =>
   walletProfile === 'unisat' ? ['taproot', 'segwit'] : ['segwit', 'taproot'];
 
@@ -111,6 +114,43 @@ const isBtcFundingError = (error: unknown): boolean => {
     .filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0)
     .some((candidate) => message.includes(candidate));
 };
+
+async function withSendOperationTimeout<T>(
+  operation: () => Promise<T>,
+  message: string,
+  timeoutMs: number
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      logger.warn('[SendProcessing] Send operation timed out', { timeoutMs, message });
+      reject(new Error(message));
+    }, timeoutMs);
+    (timeoutId as { unref?: () => void }).unref?.();
+  });
+
+  const operationPromise = Promise.resolve().then(operation);
+
+  return Promise.race([operationPromise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+async function bestEffortSendCleanup(
+  operation: () => Promise<void>,
+  message: string
+): Promise<void> {
+  try {
+    await withSendOperationTimeout(operation, message, SEND_UTXO_OPERATION_TIMEOUT_MS);
+  } catch (cleanupError) {
+    logger.warn('[SendProcessing] Cleanup timed out or failed', {
+      error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+    });
+  }
+}
 
 /**
  * Hook for building Bitcoin and UNIT (Runes) transaction intents
@@ -167,7 +207,11 @@ export function useTransactionBuilder({
       logger.debug('[createBtcIntent] Current sendIntent:', sendIntent ? 'exists' : 'null');
 
       // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
+      await withSendOperationTimeout(
+        () => releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions),
+        'Timed out preparing wallet UTXOs. Please try again.',
+        SEND_UTXO_OPERATION_TIMEOUT_MS
+      );
 
       // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
       if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'BTC') {
@@ -177,7 +221,11 @@ export function useTransactionBuilder({
           logger.debug('[createBtcIntent] Releasing old intent UTXOs before rebuild:', {
             count: oldUtxosToRelease.length,
           });
-          await unmarkUtxosAsSpent(oldUtxosToRelease);
+          await withSendOperationTimeout(
+            () => unmarkUtxosAsSpent(oldUtxosToRelease),
+            'Timed out releasing the previous send request. Please try again.',
+            SEND_UTXO_OPERATION_TIMEOUT_MS
+          );
         }
       }
 
@@ -212,15 +260,20 @@ export function useTransactionBuilder({
         });
 
         try {
-          intent = await createBtcIntentService(
-            sendRecipient,
-            sendAmount,
-            sourceAddress,
-            currentAccount,
-            unconfirmedUtxos.map(toUtxo),
-            spentUtxos,
-            selectedFeeRate,
-            sourceType
+          intent = await withSendOperationTimeout(
+            () =>
+              createBtcIntentService(
+                sendRecipient,
+                sendAmount,
+                sourceAddress,
+                currentAccount,
+                unconfirmedUtxos.map(toUtxo),
+                spentUtxos,
+                selectedFeeRate,
+                sourceType
+              ),
+            'Timed out preparing the BTC send. Please try again.',
+            SEND_INTENT_BUILD_TIMEOUT_MS
           );
           break;
         } catch (error: unknown) {
@@ -246,7 +299,11 @@ export function useTransactionBuilder({
       if (intent.inputs?.length > 0) {
         logger.debug('🔒 Locking UTXOs for BTC', { count: intent.inputs.length });
         lockedUtxos = intent.inputs.map((i) => ({ txid: i.txid, vout: i.vout }));
-        await markUtxosAsSpent(lockedUtxos);
+        await withSendOperationTimeout(
+          () => markUtxosAsSpent(lockedUtxos),
+          'Timed out saving the send request. Please try again.',
+          SEND_UTXO_OPERATION_TIMEOUT_MS
+        );
       }
 
       setSendIntent(intent);
@@ -257,9 +314,15 @@ export function useTransactionBuilder({
       });
 
       if (lockedUtxos.length > 0) {
-        await unmarkUtxosAsSpent(lockedUtxos);
+        await bestEffortSendCleanup(
+          () => unmarkUtxosAsSpent(lockedUtxos),
+          'Timed out releasing failed BTC send UTXOs. Please refresh the wallet.'
+        );
       }
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
+      await bestEffortSendCleanup(
+        () => releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions),
+        'Timed out releasing stale wallet UTXOs. Please refresh the wallet.'
+      );
 
       notify.build.error(parseErrorMessage(error));
       setTimeout(() => setIntentStep('entering_amount'), 100);
@@ -348,7 +411,11 @@ export function useTransactionBuilder({
       }
 
       // Release any orphaned UTXOs from previous failed attempts BEFORE building intent
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
+      await withSendOperationTimeout(
+        () => releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions),
+        'Timed out preparing wallet UTXOs. Please try again.',
+        SEND_UTXO_OPERATION_TIMEOUT_MS
+      );
 
       // If there's an existing intent, release its UTXOs since we're rebuilding, not chaining
       if (sendIntent && !sendIntent.txid && sendIntent.assetType === 'UNIT') {
@@ -366,7 +433,11 @@ export function useTransactionBuilder({
           logger.debug('[createUnitIntent] Releasing old intent UTXOs before rebuild:', {
             count: oldUtxosToRelease.length,
           });
-          await unmarkUtxosAsSpent(oldUtxosToRelease);
+          await withSendOperationTimeout(
+            () => unmarkUtxosAsSpent(oldUtxosToRelease),
+            'Timed out releasing the previous UNIT send request. Please try again.',
+            SEND_UTXO_OPERATION_TIMEOUT_MS
+          );
         }
       }
 
@@ -379,15 +450,20 @@ export function useTransactionBuilder({
         : getUnconfirmedUTXOs('segwit', null);
       const spentUtxos = getSpentUtxos();
 
-      const intent = await createUnitIntentService(
-        sendRecipient,
-        sendAmount,
-        wallet.taprootAddress,
-        wallet.segwitAddress,
-        currentAccount,
-        unconfirmedTaprootUtxos.map(toUnconfirmedUtxo),
-        unconfirmedSegwitUtxos.map(toUnconfirmedUtxo),
-        spentUtxos
+      const intent = await withSendOperationTimeout(
+        () =>
+          createUnitIntentService(
+            sendRecipient,
+            sendAmount,
+            wallet.taprootAddress,
+            wallet.segwitAddress,
+            currentAccount,
+            unconfirmedTaprootUtxos.map(toUnconfirmedUtxo),
+            unconfirmedSegwitUtxos.map(toUnconfirmedUtxo),
+            spentUtxos
+          ),
+        'Timed out preparing the UNIT send. Please try again.',
+        SEND_INTENT_BUILD_TIMEOUT_MS
       );
 
       // Collect UTXOs to lock
@@ -406,7 +482,11 @@ export function useTransactionBuilder({
       if (utxosToLock.length > 0) {
         logger.debug('🔒 Locking UTXOs for UNIT', { count: utxosToLock.length });
         lockedUtxos = utxosToLock;
-        await markUtxosAsSpent(utxosToLock);
+        await withSendOperationTimeout(
+          () => markUtxosAsSpent(utxosToLock),
+          'Timed out saving the UNIT send request. Please try again.',
+          SEND_UTXO_OPERATION_TIMEOUT_MS
+        );
       }
 
       setSendIntent(intent);
@@ -417,9 +497,15 @@ export function useTransactionBuilder({
       });
 
       if (lockedUtxos.length > 0) {
-        await unmarkUtxosAsSpent(lockedUtxos);
+        await bestEffortSendCleanup(
+          () => unmarkUtxosAsSpent(lockedUtxos),
+          'Timed out releasing failed UNIT send UTXOs. Please refresh the wallet.'
+        );
       }
-      await releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions);
+      await bestEffortSendCleanup(
+        () => releaseOrphanedUtxos(getSpentUtxos, unmarkUtxosAsSpent, getPendingTransactions),
+        'Timed out releasing stale wallet UTXOs. Please refresh the wallet.'
+      );
 
       notify.build.error(parseErrorMessage(error));
       setTimeout(() => setIntentStep('entering_amount'), 100);

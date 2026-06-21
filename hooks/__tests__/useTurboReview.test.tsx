@@ -97,6 +97,10 @@ describe('useTurboReview', () => {
     };
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('should return initial state', () => {
     const { result } = renderHookWithProps(mockProps);
 
@@ -499,6 +503,52 @@ describe('useTurboReview', () => {
       expect(Alert.alert).toHaveBeenCalledWith(
         'Error',
         'Failed to initiate Turbo transaction. Please try again.'
+      );
+    });
+
+    it('should time out a stuck mint quote request and clear requesting state', async () => {
+      jest.useFakeTimers();
+      const { logger } = require('../../utils/logger');
+      mockRequestMintImpl.mockImplementation(() => new Promise(() => {}));
+      mockProps.sendRecipient = 'original_recipient';
+      mockProps.senderTaprootAddress = 'tb1psender';
+      const { result, rerender } = renderHookWithProps(mockProps);
+
+      mockGetBalanceImpl.mockResolvedValue(0);
+      mockProps.sendAmount = '0.5';
+      mockProps.turboEnabled = true;
+      rerender(mockProps);
+
+      await act(async () => {
+        await result.current!.handleReview();
+      });
+
+      let turboPromise!: Promise<void>;
+      await act(async () => {
+        turboPromise = result.current!.handleUseTurbo();
+        await Promise.resolve();
+      });
+
+      expect(result.current!.isRequestingMint).toBe(true);
+
+      await act(async () => {
+        jest.advanceTimersByTime(15_000);
+        await Promise.resolve();
+        await turboPromise;
+      });
+
+      expect(result.current!.isRequestingMint).toBe(false);
+      expect(logger.error).toHaveBeenCalledWith(
+        '[useTurboReview] Failed to request mint quote:',
+        { error: 'Preparing Turbo mint quote timed out after 15s' }
+      );
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Error',
+        'Failed to initiate Turbo transaction. Please try again.'
+      );
+      expect(mockNavigation.navigate).not.toHaveBeenCalledWith(
+        'Processing',
+        expect.objectContaining({ isTurbo: true })
       );
     });
 
