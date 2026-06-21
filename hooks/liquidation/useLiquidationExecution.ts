@@ -76,6 +76,43 @@ function hasPartialLiquidationSelection(vaults: LiquidVaultProfileWithMeta[]): b
   });
 }
 
+function extractLiquidationFailureText(reason: unknown): string {
+  if (reason instanceof Error) {
+    return reason.message;
+  }
+  if (typeof reason === 'string') {
+    return reason;
+  }
+  if (reason && typeof reason === 'object') {
+    try {
+      return JSON.stringify(reason);
+    } catch {
+      return String(reason);
+    }
+  }
+  return String(reason);
+}
+
+function shouldRetainPreSubmitPendingTransaction(reason: unknown): boolean {
+  if (isStaleLiquidationOpportunityError(extractLiquidationFailureText(reason))) {
+    return false;
+  }
+
+  const text = extractLiquidationFailureText(reason)
+    .replace(/\\"/g, '"')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return [
+    /timeout|timed out/i,
+    /network request failed|network error|fetch failed/i,
+    /socket|websocket/i,
+    /connection.*(?:closed|reset|lost)|disconnected|disconnect/i,
+    /interrupted/i,
+  ].some((pattern) => pattern.test(text));
+}
+
 export function useLiquidationExecution({
   wallet,
   vaultCollateral,
@@ -98,8 +135,13 @@ export function useLiquidationExecution({
     let preSubmitSwapRecoveryRepoTxid: string | null = null;
     let preSubmitPendingRepoTxid: string | null = null;
 
-    const retainPreSubmitPendingTransaction = (reason: unknown): void => {
+    const handlePreSubmitPendingFailure = async (reason: unknown): Promise<void> => {
       if (!preSubmitPendingRepoTxid) {
+        return;
+      }
+
+      if (!shouldRetainPreSubmitPendingTransaction(reason)) {
+        await discardPreSubmitPendingTransaction(reason);
         return;
       }
 
@@ -115,7 +157,7 @@ export function useLiquidationExecution({
         return;
       }
 
-      logger.info('[Liquidation] Discarding pre-submit repo recovery after stale rejection', {
+      logger.info('[Liquidation] Discarding pre-submit repo recovery after rejected failure', {
         txid: preSubmitPendingRepoTxid,
         hasSwapRecovery: !!preSubmitSwapRecoveryRepoTxid,
         reason: reason instanceof Error ? reason.message : String(reason),
@@ -376,7 +418,7 @@ export function useLiquidationExecution({
           await discardPreSubmitPendingTransaction(errorMessage);
           store.getState().markVaultsClaimed(claimedVaultIds);
         } else {
-          retainPreSubmitPendingTransaction(errorMessage);
+          await handlePreSubmitPendingFailure(errorMessage);
           store.getState().releaseVaults(claimedVaultIds);
         }
         store.getState().setError(errorMessage);
@@ -390,7 +432,7 @@ export function useLiquidationExecution({
         await discardPreSubmitPendingTransaction(err);
         store.getState().markVaultsClaimed(executingVaultIds);
       } else {
-        retainPreSubmitPendingTransaction(err);
+        await handlePreSubmitPendingFailure(err);
         store.getState().releaseVaults(executingVaultIds);
       }
       logger.warn('[Liquidation] Execution error', {

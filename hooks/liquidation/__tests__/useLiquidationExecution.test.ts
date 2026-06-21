@@ -377,6 +377,41 @@ describe('useLiquidationExecution', () => {
         expect(mockClearPendingLiquidationSwapBroadcast).not.toHaveBeenCalled();
       });
 
+      it('clears the repo pending lock if guardian validation rejects after request creation', async () => {
+        const vault = makeFullVault({ vaultId: 'validation-rejected-vault' });
+        mockSelectItems.mockReturnValue([vault]);
+        mockExecuteLiquidation.mockImplementation(async ({ onRequestCreated }) => {
+          await onRequestCreated({
+            txid: 'pre-submit-repo-txid',
+            vaultTxid: 'pre-submit-repo-txid',
+            request: {},
+            swapPsbtHex: 'pre-submit-swap-hex',
+          });
+
+          return {
+            success: false,
+            error: 'Guardian validation failed: liquidation formula violation',
+          };
+        });
+
+        const { result } = renderHook(() => useLiquidationExecution(DEFAULT_PARAMS));
+
+        await act(async () => {
+          await result.current!.execute();
+        });
+
+        const state = useLiquidationFlowStore.getState();
+        expect(usePendingVaultTransactionStore.getState().pendingTransaction).toBeNull();
+        expect(mockClearPendingLiquidationSwapBroadcast).toHaveBeenCalledWith(
+          'pre-submit-repo-txid',
+        );
+        expect(state.currentStep).toBe('error');
+        expect(state.error).toBe('Guardian validation failed: liquidation formula violation');
+        expect(state.isExecuting).toBe(false);
+        expect(state.executingVaultIds).toEqual([]);
+        expect(state.suppressedVaultIds).not.toContain('validation-rejected-vault');
+      });
+
       it('clears the repo pending lock if a pre-submit request is rejected as a stale opportunity', async () => {
         const spentVault = makeFullVault({ vaultId: 'spent-vault' });
         const remainingVault = makeFullVault({ vaultId: 'remaining-vault' });
