@@ -277,6 +277,12 @@ describe('useVaultOperation', () => {
       expect.objectContaining({ txid: 'vault-final-txid', action: 'deposit' }),
       0
     );
+    expect(extractVaultFinalizationPendingData).toHaveBeenCalledWith(
+      expect.objectContaining({ vault_txhex: 'vault-txhex' }),
+      expect.objectContaining({ taprootAddress: 'tb1pwallet' }),
+      expect.any(Object),
+      undefined
+    );
     expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(expectedSpentInputs);
     expect(mockAddPendingTransaction).toHaveBeenCalledWith(
       'vault-final-txid',
@@ -285,6 +291,67 @@ describe('useVaultOperation', () => {
       null,
       undefined,
       expectedSpentInputs
+    );
+  });
+
+  it('passes the borrowed UNIT amount into finalization pending extraction', async () => {
+    const {
+      extractVaultFinalizationPendingData,
+    } = require('../../../services/vault/pendingIssueOutputs');
+    const borrowRequest = {
+      issue_txhex: 'issue-txhex',
+      vault_txhex: 'vault-txhex',
+      vault_txid: 'borrow-vault-txid',
+    };
+    const actions = makeActions();
+    const config = {
+      operationType: 'borrow',
+      operationName: 'testBorrow',
+      needsReservation: false,
+      hasIssueTxid: true,
+      useStore: () => ({
+        state: {
+          amount: 123,
+          selectedFeeRate: 5,
+          currentUnitBorrowed: 100,
+          currentBtcLocked: 1,
+          loading: false,
+          error: null,
+          vaultTxid: null,
+        },
+        actions,
+      }),
+      validate: () => null,
+      createConfig: () => ({ borrow_amount: 12_300 }),
+      createRequest: jest.fn().mockResolvedValue(borrowRequest),
+      sendRequest: jest.fn().mockResolvedValue({
+        txid: 'borrow-issue-txid',
+        vault_txid: 'borrow-vault-txid',
+      }),
+      extractResult: () => ({ txid: 'borrow-issue-txid', vaultTxid: 'borrow-vault-txid' }),
+      createPendingTransaction: () => ({
+        txid: 'borrow-issue-txid',
+        vaultTxid: 'borrow-vault-txid',
+        action: 'borrow',
+        btcAmt: 0,
+        unitAmt: 12_300,
+        timestamp: 123,
+        vaultPubkey: 'taproot-pubkey',
+      }),
+      calculateLiquidationPrice: () => 50000,
+    };
+
+    const { result } = renderHook(() => useVaultOperation(config as any));
+
+    await act(async () => {
+      await result.current.execute();
+    });
+
+    expect(extractVaultFinalizationPendingData).toHaveBeenCalledWith(
+      borrowRequest,
+      expect.objectContaining({ taprootAddress: 'tb1pwallet' }),
+      expect.any(Object),
+      12_300
     );
   });
 

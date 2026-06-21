@@ -75,7 +75,7 @@ describe('networkConfig', () => {
   it('uses the live Mutinynet UNIT rune by default', () => {
     const { APP_NETWORK_CONFIG } = loadConfig();
 
-    expect(APP_NETWORK_CONFIG.runes.unitId).toEqual({ block: 1527352n, tx: 1n });
+    expect(APP_NETWORK_CONFIG.runes.unitId).toEqual({ block: 3007902n, tx: 1n });
     expect(APP_NETWORK_CONFIG.runes.unitLabel).toBe('DUCAT•UNIT•RUNE');
   });
 

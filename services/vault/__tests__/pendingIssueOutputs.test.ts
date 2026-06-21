@@ -43,10 +43,12 @@ function createVaultTxHex({
   segwitScript,
   taprootScript,
   includeRunestone = true,
+  runestoneScript = Buffer.from('6a0100', 'hex'),
 }: {
   segwitScript: Buffer;
   taprootScript: Buffer;
   includeRunestone?: boolean;
+  runestoneScript?: Buffer;
 }): { txhex: string; pendingParentTxid: string; confirmedParentTxid: string } {
   const pendingParentHash = Buffer.alloc(32, 0x01);
   const confirmedParentHash = Buffer.alloc(32, 0x02);
@@ -59,7 +61,7 @@ function createVaultTxHex({
   tx.addOutput(Buffer.from(`0014${'33'.repeat(20)}`, 'hex'), 9_999n);
   tx.addOutput(taprootScript, 7_000n);
   if (includeRunestone) {
-    tx.addOutput(Buffer.from('6a0100', 'hex'), 0n);
+    tx.addOutput(runestoneScript, 0n);
   }
 
   return {
@@ -316,6 +318,42 @@ describe('pending vault issue outputs', () => {
         address: wallet.taprootAddress,
         value: 7_000,
         vout: 2,
+      },
+    ]);
+  });
+
+  it('applies the expected issued UNIT amount to the taproot finalization output when the validator metadata is non-standard', () => {
+    const wallet = createAddressPair();
+    const nonStandardValidatorMetadata = Buffer.from(
+      '6a584c690101000001d5246a37cf7601000000fac100007eca296ac9a209c952dca106221a24b2dc08a84c4473b3b1d994cea4e1b9d5c378fe335a40e29d8d10fe5563f8e4fad4789c15bfa0841c5ad799b22ac666b2f7be769c12f4d6be459dbcef8bf0020d4ac7d86cb3cb75',
+      'hex'
+    );
+    const { txhex } = createVaultTxHex({
+      ...wallet,
+      runestoneScript: nonStandardValidatorMetadata,
+    });
+    mockDecodeRunestone.mockReturnValueOnce(null);
+
+    const result = extractVaultFinalizationPendingData(
+      {
+        vault_txhex: txhex,
+      },
+      wallet,
+      {},
+      100
+    );
+
+    expect(result.outputs).toEqual([
+      {
+        address: wallet.segwitAddress,
+        value: 5_000,
+        vout: 0,
+      },
+      {
+        address: wallet.taprootAddress,
+        value: 7_000,
+        vout: 2,
+        runeAmount: 100,
       },
     ]);
   });

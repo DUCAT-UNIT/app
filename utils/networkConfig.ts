@@ -194,7 +194,7 @@ function resolveMutinynetConfig(): AppNetworkConfig {
     },
     runes: {
       unitId: {
-        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 1527352n,
+        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 3007902n,
         tx: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX') ?? 1n,
       },
       unitLabel,

@@ -730,7 +730,8 @@ export function useVaultOperation<TConfig, TRequest, TResult>(
               vault_txhex?: string;
             },
             wallet,
-            latestPendingTransactions
+            latestPendingTransactions,
+            operationType === 'borrow' ? pendingTx.unitAmt : undefined
           );
           const finalizationSpentInputs = appendUniqueUtxo(
             finalizationPendingData.spentInputs,

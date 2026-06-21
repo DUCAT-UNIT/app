@@ -415,6 +415,12 @@ describe('useCreateVault', () => {
       });
 
       expect(mockMarkUtxosAsSpent).toHaveBeenCalledWith(spentInputs);
+      expect(extractVaultFinalizationPendingData).toHaveBeenCalledWith(
+        expect.objectContaining({ vault_txid: 'vaulttxid123' }),
+        expect.objectContaining({ taprootAddress: 'tb1ptest...' }),
+        expect.any(Object),
+        10_000,
+      );
       expect(mockAddPendingTransaction).toHaveBeenCalledWith(
         'vaulttxid123',
         [],

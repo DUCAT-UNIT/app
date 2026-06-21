@@ -35,6 +35,10 @@ interface VaultIssueRequestLike {
   vault_psbt?: string;
 }
 
+interface ExtractPendingTxOptions {
+  fallbackRuneAmount?: number;
+}
+
 export interface VaultIssuePendingData {
   outputs: PendingTransactionOutput[];
   spentInputs: Array<{ txid: string; vout: number }>;
@@ -141,6 +145,7 @@ function extractPendingTxData(
   psbtBase64: string | undefined,
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
+  options: ExtractPendingTxOptions = {},
 ): VaultIssuePendingData {
   if (!wallet?.segwitAddress || !wallet?.taprootAddress) {
     return {
@@ -198,6 +203,18 @@ function extractPendingTxData(
     }
   });
 
+  if (
+    options.fallbackRuneAmount !== undefined &&
+    options.fallbackRuneAmount > 0 &&
+    outputs.every((output) => !output.runeAmount)
+  ) {
+    const runeCarrierOutput =
+      outputs.find((output) => output.address === wallet.taprootAddress) || outputs[0];
+    if (runeCarrierOutput) {
+      runeCarrierOutput.runeAmount = options.fallbackRuneAmount;
+    }
+  }
+
   return {
     outputs,
     spentInputs,
@@ -222,11 +239,13 @@ export function extractVaultFinalizationPendingData(
   request: VaultIssueRequestLike,
   wallet: WalletLike | null,
   pendingTransactions: Record<string, PendingTransactionLike>,
+  fallbackRuneAmount?: number,
 ): VaultIssuePendingData {
   return extractPendingTxData(
     request.vault_txhex,
     request.vault_psbt,
     wallet,
-    pendingTransactions
+    pendingTransactions,
+    { fallbackRuneAmount }
   );
 }

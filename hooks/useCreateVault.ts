@@ -351,7 +351,8 @@ export function useCreateVault(options: UseCreateVaultOptions = {}): UseCreateVa
         const finalizationPendingData = extractVaultFinalizationPendingData(
           vaultReq,
           wallet,
-          latestPendingTransactions
+          latestPendingTransactions,
+          Math.round(protocolUnitAmount * 100)
         );
         recordPreSubmitRollbackInputs(finalizationPendingData.spentInputs);
 
