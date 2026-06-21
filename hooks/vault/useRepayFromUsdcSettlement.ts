@@ -1074,7 +1074,7 @@ export function useRepayFromUsdcSettlement(): UseRepayFromUsdcSettlementResult {
       });
 
       let requiredMeltTxid: string | null = null;
-      let preferredDirectUnitTxids: string[] = liveDirectUnitTxids;
+      const preferredDirectUnitTxids: string[] = liveDirectUnitTxids;
       if (requestedPayoutAsset === 'TURBOUNIT') {
         let hasSubmittedTurboMelt = false;
         let turboMeltRequired = (turboQuote?.meltAmount ?? 0) > 0 || hasPersistedTurboMelt;
