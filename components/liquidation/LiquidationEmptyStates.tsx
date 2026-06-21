@@ -5,6 +5,7 @@ import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 
 export type LiquidationEmptyVariant =
+  | 'unavailable'
   | 'noVaults'
   | 'noVault'
   | 'lowCollateral'
@@ -21,6 +22,13 @@ const VARIANT_CONFIG: Record<
   LiquidationEmptyVariant,
   { icon: string; iconColor: string; bgColor: string; title: string; subtitle: string }
 > = {
+  unavailable: {
+    icon: 'liquidations',
+    iconColor: colors.text.secondary,
+    bgColor: colors.bg.secondary,
+    title: 'Liquidations are not available.',
+    subtitle: '',
+  },
   noVault: {
     icon: 'vault',
     iconColor: colors.text.secondary,
@@ -91,7 +99,7 @@ const LiquidationEmptyStates = React.memo(function LiquidationEmptyStates({
         <Icon name={cfg.icon} size={s(48)} color={cfg.iconColor} />
       </View>
       <Text style={styles.title}>{cfg.title}</Text>
-      <Text style={styles.subtitle}>{cfg.subtitle}</Text>
+      {cfg.subtitle.length > 0 && <Text style={styles.subtitle}>{cfg.subtitle}</Text>}
       {onBackToWallet && (
         <TouchableOpacity
           accessibilityRole="button"

@@ -17,9 +17,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
       id: "liquidations-tab-screen"
     timeout: 10000
 - assertVisible:
-    text: "Liquidations"
-- assertVisible:
-    text: "No Vault Found"
+    text: "Liquidations are not available."
 
 - tapOn:
     id: "liquidation-empty-back-btn"

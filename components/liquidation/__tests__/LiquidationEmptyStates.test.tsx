@@ -39,4 +39,10 @@ describe('LiquidationEmptyStates', () => {
 
     expect(getByText('Wallet BTC Too Low')).toBeTruthy();
   });
+
+  it('shows a hard unavailable state for disabled liquidations', () => {
+    const { getByText } = render(<LiquidationEmptyStates variant="unavailable" />);
+
+    expect(getByText('Liquidations are not available.')).toBeTruthy();
+  });
 });
