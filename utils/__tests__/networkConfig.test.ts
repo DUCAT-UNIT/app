@@ -72,6 +72,13 @@ describe('networkConfig', () => {
     );
   });
 
+  it('uses the live Mutinynet UNIT rune by default', () => {
+    const { APP_NETWORK_CONFIG } = loadConfig();
+
+    expect(APP_NETWORK_CONFIG.runes.unitId).toEqual({ block: 1527352n, tx: 1n });
+    expect(APP_NETWORK_CONFIG.runes.unitLabel).toBe('DUCAT•UNIT•RUNE');
+  });
+
   it('rejects insecure vault API overrides', () => {
     process.env.EXPO_PUBLIC_VAULT_API_URL = 'http://validator.example/api';
 

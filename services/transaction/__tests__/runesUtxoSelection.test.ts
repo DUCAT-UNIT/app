@@ -19,8 +19,8 @@ jest.mock('../../../utils/constants', () => ({
   getTxOutspendUrl: jest.fn((txid: string, vout: number) => `https://api/tx/${txid}/outspend/${vout}`),
   getAddressUtxoUrl: jest.fn((address: string) => `https://api/address/${address}/utxo`),
   RUNES_CONFIG: {
-    DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•MTNY',
-    DUCAT_UNIT_RUNE_ID: { block: 3007902n, tx: 1n },
+    DUCAT_UNIT_RUNE_LABEL: 'DUCAT•UNIT•RUNE',
+    DUCAT_UNIT_RUNE_ID: { block: 1527352n, tx: 1n },
   },
 }));
 
@@ -90,7 +90,7 @@ describe('runesUtxoSelection', () => {
           transaction: 'txid1',
           value: 10000,
           runes: {
-            'DUCAT•UNIT•MTNY': {
+            'DUCAT•UNIT•RUNE': {
               amount: '150',
             },
           },
@@ -120,6 +120,42 @@ describe('runesUtxoSelection', () => {
         runeAmount: 150,
         status: { confirmed: true },
       }]);
+    });
+
+    it('should not select a UTXO for a different UNIT rune label', async () => {
+      const taprootAddress = 'bc1ptaproot';
+      const amountInRunes = 100;
+      const unconfirmedUtxos: Array<{
+        txid: string;
+        vout: number;
+        value: number;
+        runeAmount: number;
+      }> = [];
+      const spentUtxos = new Set<string>();
+
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({ outputs: ['txid1:0'] })
+      );
+      getMockFetch().mockResolvedValueOnce(
+        createMockResponse({
+          transaction: 'txid1',
+          value: 10000,
+          runes: {
+            'DUCAT•UNIT•MTNY': {
+              amount: '150',
+            },
+          },
+        })
+      );
+
+      const result = await findRuneUtxo(
+        taprootAddress,
+        amountInRunes,
+        unconfirmedUtxos,
+        spentUtxos
+      );
+
+      expect(result).toBeNull();
     });
 
     it('should skip spent confirmed rune UTXOs', async () => {

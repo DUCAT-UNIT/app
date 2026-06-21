@@ -27,7 +27,7 @@ jest.mock('../../utils/retry', () => ({
 jest.mock('../../utils/constants', () => ({
   RUNES_CONFIG: {
     DUCAT_UNIT_RUNE_ID: {
-      block: 3007902n,
+      block: 1527352n,
       tx: 1n,
     },
   },
@@ -48,7 +48,7 @@ const mockFetchVaultHistory = fetchVaultHistory as jest.MockedFunction<typeof fe
 
 describe('transactionHistoryService', () => {
   const configuredUnitRuneId = {
-    block: 3007902n,
+    block: 1527352n,
     tx: 1n,
   };
 

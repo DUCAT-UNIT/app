@@ -76,6 +76,10 @@ import { performFullWalletReset } from '../services/walletResetService';
 import { useTurboSnackbarQueue } from '../hooks/useTurboSnackbarQueue';
 import { useTurboTokenProcessor } from '../hooks/useTurboTokenProcessor';
 import { createLinkingConfig } from '../services/turbo/turboLinkingConfig';
+import {
+  selectHasProtectedOperation,
+  useProtectedOperationStore,
+} from '../stores/protectedOperationStore';
 import { useTurboProcessingStore } from '../stores/turboProcessingStore';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analyticsService';
@@ -410,6 +414,7 @@ export default function RootNavigator(): React.JSX.Element {
   // Check for pending turbo transaction and navigate to resume
   const pendingTurboChecked = useRef(false);
   const turboIsProcessing = useTurboProcessingStore((state) => state.isProcessing);
+  const protectedOperationIsProcessing = useProtectedOperationStore(selectHasProtectedOperation);
   const borrowIsProcessing = useBorrowStore(
     (state) => state.loading || state.currentStep === 'processing'
   );
@@ -427,6 +432,7 @@ export default function RootNavigator(): React.JSX.Element {
   );
   const walletOperationIsProcessing =
     turboIsProcessing ||
+    protectedOperationIsProcessing ||
     borrowIsProcessing ||
     depositIsProcessing ||
     repayIsProcessing ||

@@ -261,9 +261,9 @@ function checkCashuDucatUnitInvariant() {
     'Cashu mint config must derive the Ducat UNIT rune id from RUNES_CONFIG'
   );
   check(
-    networkConfig.includes("block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 3007902n") &&
+    networkConfig.includes("block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 1527352n") &&
       networkConfig.includes("tx: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX') ?? 1n"),
-    'Network config must default the Ducat UNIT rune id to 3007902:1'
+    'Network config must default the Ducat UNIT rune id to 1527352:1'
   );
 
   const codeFiles = getAppCodeFiles();

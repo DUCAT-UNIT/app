@@ -98,7 +98,7 @@ function getDucatUnitRuneData(
     return undefined;
   }
 
-  return runes[RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL] || runes['DUCAT•UNIT•RUNE'];
+  return runes[RUNES_CONFIG.DUCAT_UNIT_RUNE_LABEL];
 }
 
 /**

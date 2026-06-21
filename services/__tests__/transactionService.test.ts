@@ -41,7 +41,7 @@ jest.mock('../../utils/runestoneEncoder', () => ({
   decodeRunestone: jest.fn(() => ({
     edicts: [
       {
-        id: { block: 3007902n, tx: 1n },
+        id: { block: 1527352n, tx: 1n },
         amount: 10000n,
         output: 0n,
       },

@@ -16,7 +16,7 @@ describe('mintConfig', () => {
 
     expect(config.MINT_URL).toBe('https://dev-cashu-mint.ducatprotocol.com');
     expect(config.CASHU_UNIT).toBe('unit');
-    expect(config.RUNE_ID).toBe('3007902:1');
+    expect(config.RUNE_ID).toBe('1527352:1');
   });
 
   it('rejects insecure mint URL overrides', () => {

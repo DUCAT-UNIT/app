@@ -7,6 +7,10 @@ import React from 'react';
 import { create, act } from 'react-test-renderer';
 import { useTurboMintCompletion } from '../useTurboMintCompletion';
 import { notify } from '../../utils/notify';
+import {
+  selectHasProtectedOperation,
+  useProtectedOperationStore,
+} from '../../stores/protectedOperationStore';
 
 // Mock dependencies
 jest.mock('../../utils/logger', () => ({
@@ -129,6 +133,7 @@ describe('useTurboMintCompletion', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    useProtectedOperationStore.getState().reset();
 
     mockProps = {
       isTurbo: false,
@@ -165,6 +170,7 @@ describe('useTurboMintCompletion', () => {
   });
 
   afterEach(() => {
+    useProtectedOperationStore.getState().reset();
     jest.useRealTimers();
   });
 
@@ -300,6 +306,55 @@ describe('useTurboMintCompletion', () => {
 
       expect(mockCheckMintQuote).toHaveBeenCalledWith('quote123');
       expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
+    });
+
+    it('should keep auto-lock deferred while Turbo mint completion is polling', async () => {
+      mockCheckMintQuote.mockResolvedValue({ state: 'PAID', amount: 100 });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      expect(selectHasProtectedOperation(useProtectedOperationStore.getState())).toBe(true);
+
+      await advanceThroughPolling();
+
+      expect(selectHasProtectedOperation(useProtectedOperationStore.getState())).toBe(false);
+    });
+
+    it('should keep polling past the old three-minute cutoff', async () => {
+      let pollCount = 0;
+      mockCheckMintQuote.mockImplementation(async () => {
+        pollCount += 1;
+        return pollCount <= 90 ? { state: 'PENDING', amount: 100 } : { state: 'PAID', amount: 100 };
+      });
+
+      renderHookWithProps({
+        ...mockProps,
+        isTurbo: true,
+        mintQuoteId: 'quote123',
+      });
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0);
+        for (let i = 0; i < 91; i++) {
+          await jest.advanceTimersByTimeAsync(2100);
+        }
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(0);
+        await jest.advanceTimersByTimeAsync(0);
+      });
+
+      expect(mockCheckMintQuote).toHaveBeenCalledTimes(91);
+      expect(mockCompleteMint).toHaveBeenCalledWith('quote123', 100);
+      expect(notify.cashu.paymentSentAwaiting).not.toHaveBeenCalled();
+      expect(selectHasProtectedOperation(useProtectedOperationStore.getState())).toBe(false);
     });
 
     it('should complete mint when live UNIT quote reports amount_paid without amount', async () => {

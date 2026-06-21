@@ -24,12 +24,17 @@ import {
 } from '../services/cashu/cashuTurboRecovery';
 import { recoverUnclaimedMintQuotes } from '../services/cashu/cashuMintQuoteRecovery';
 import { DEFAULT_CASHU_UNIT, type CashuUnit } from '../services/cashu/cashuUnits';
+import { useProtectedOperationStore } from '../stores/protectedOperationStore';
 
 type ProcessingStage = 'converting' | 'awaiting_confirmation' | 'error' | 'ready';
 
 const MINT_CONFIRMATION_POLL_MS = 2000;
-const MAX_MINT_CONFIRMATION_ATTEMPTS = 90;
+const MINT_CONFIRMATION_WINDOW_MS = 10 * 60_000;
+const MAX_MINT_CONFIRMATION_ATTEMPTS = Math.ceil(
+  MINT_CONFIRMATION_WINDOW_MS / MINT_CONFIRMATION_POLL_MS
+);
 const CASHU_OPERATION_TIMEOUT_MS = 20000;
+const TURBO_MINT_COMPLETION_OPERATION_KEY = 'turbo_mint_completion';
 
 const rejectAfter = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -143,6 +148,8 @@ export function useTurboMintCompletion({
   const hasMintCompleted = useRef(false);
   const mountedRef = useRef(true);
   const continueInBackgroundRef = useRef(false);
+  const beginProtectedOperation = useProtectedOperationStore((state) => state.beginOperation);
+  const endProtectedOperation = useProtectedOperationStore((state) => state.endOperation);
   const shouldContinueProcessing = (): boolean =>
     mountedRef.current || continueInBackgroundRef.current;
 
@@ -178,11 +185,12 @@ export function useTurboMintCompletion({
     setProcessingMessage(null);
 
     const completeMintProcess = async () => {
-      if (!shouldContinueProcessing()) return;
-      setIsCompletingMint(true);
-      const recoverySenderTaprootAddress = senderTaprootAddress;
+      beginProtectedOperation(TURBO_MINT_COMPLETION_OPERATION_KEY);
       let mintProofsAddedSilently = false;
       try {
+        if (!shouldContinueProcessing()) return;
+        setIsCompletingMint(true);
+        const recoverySenderTaprootAddress = senderTaprootAddress;
         const assertSenderAccountActive = (operation: string): void => {
           const currentAccount = getCurrentCashuAccount();
           if (currentAccount !== recoverySenderTaprootAddress) {
@@ -546,6 +554,8 @@ export function useTurboMintCompletion({
           setIsCompletingMint(false);
         }
         notify.cashu.conversionFailed(errorMessage);
+      } finally {
+        endProtectedOperation(TURBO_MINT_COMPLETION_OPERATION_KEY);
       }
     };
 
@@ -566,6 +576,8 @@ export function useTurboMintCompletion({
     fetchTransactionHistory,
     fetchBalance,
     refreshCashuBalance,
+    beginProtectedOperation,
+    endProtectedOperation,
   ]);
 
   return {

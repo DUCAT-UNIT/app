@@ -133,7 +133,7 @@ function buildAddressPrefixes(
 
 function resolveMutinynetConfig(): AppNetworkConfig {
   assertMutinynetOnlyConfig();
-  const unitLabel = getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•MTNY';
+  const unitLabel = getEnv('EXPO_PUBLIC_UNIT_RUNE_LABEL') ?? 'DUCAT•UNIT•RUNE';
   const validatorUrl = requireHttpsUrl(
     'EXPO_PUBLIC_VALIDATOR_URL',
     getEnv('EXPO_PUBLIC_VALIDATOR_URL') ?? 'https://validator-mutinynet.dev.ducatprotocol.com'
@@ -194,7 +194,7 @@ function resolveMutinynetConfig(): AppNetworkConfig {
     },
     runes: {
       unitId: {
-        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 3007902n,
+        block: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_BLOCK') ?? 1527352n,
         tx: getBigIntEnv('EXPO_PUBLIC_UNIT_RUNE_TX') ?? 1n,
       },
       unitLabel,
