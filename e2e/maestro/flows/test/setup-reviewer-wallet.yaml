@@ -186,8 +186,8 @@ appId: com.ducatprotocol.DucatProtocolWallet
 # UNIT balance may have comma separators (e.g., "4,625.00")
 - extendedWaitUntil:
     visible:
-      id: "asset-card-unit"
-      text: ".*UNIT: [1-9][\\d,]*\\.\\d{2}, value .*"
+      id: "asset-card-unit-amount"
+      text: ".*[1-9][\\d,]*\\.\\d{2}.*"
     timeout: 180000
 
 # Scroll back to top
