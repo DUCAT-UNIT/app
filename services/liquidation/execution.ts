@@ -25,6 +25,11 @@ import {
   filter_price_contracts,
   get_price_commit_hashes,
 } from '@ducat-unit/client-sdk/lib';
+import {
+  extract_vault_price_contracts,
+  get_liquid_vault_profiles,
+  get_partial_liquidation_quote,
+} from '@ducat-unit/core/lib';
 import type {
   BaseUtxo,
   GuardianSocket,
@@ -46,7 +51,7 @@ import type {
 } from '@ducat-unit/core';
 import { PSBT, TX } from '@ducat-unit/client-sdk/util';
 import { logger } from '../../utils/logger';
-import { fetchPriceQuote } from '../oracleService';
+import { fetchBreachedPriceContractsByIds, fetchPriceQuote } from '../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../guardianService';
 import { registerLiquidationTxid } from '../transactionHistoryService';
 import { createVaultWallet, fetchProtocolContract } from '../vaultWallet';
@@ -65,7 +70,7 @@ import {
   selectLatestUsableVaultHistoryTransaction,
 } from '../vaultService';
 import { computeLiquidationPrice } from '../../utils/vaultUtils';
-import { getAvailableCollateralBtc } from './calculations';
+import { computeLiqMeta, getAvailableCollateralBtc } from './calculations';
 import { COIN_SIZE, SWAP_PSBT_FEE_BUFFER_BPS, SWAP_PSBT_MIN_FEE_BUFFER_SATS } from './constants';
 import {
   fetchSwapPsbt,
@@ -157,6 +162,15 @@ type LiquidVaultProfileWithSelection = LiquidVaultProfile & {
   claimAmountDiff?: number;
   claimAmountPartial?: number;
 };
+
+type LiquidVaultProfileWithExecutionMeta = LiquidVaultProfileWithSelection & {
+  sourceVaultProfile?: VaultProfile;
+  isLiquidationEstimate?: boolean;
+  unit?: number;
+  unitSwapBtc?: number;
+};
+
+const HEX_32_BYTE_PATTERN = /^[0-9a-f]{64}$/i;
 
 type LatestRepoVaultContext = {
   __create_psbts?: (
@@ -294,6 +308,184 @@ function getQuotePriceContracts(quote: PriceQuote): PriceContract[] {
   };
 
   return runtimeQuote.price_contracts ?? runtimeQuote.contracts ?? [];
+}
+
+function hasValidLiquidationKey(profile?: Pick<LiquidVaultProfile, 'liquid_key'>): boolean {
+  return typeof profile?.liquid_key === 'string' && HEX_32_BYTE_PATTERN.test(profile.liquid_key);
+}
+
+function getLiquidationVaultLookupKey(
+  profile: Partial<Pick<VaultProfile, 'root_txid' | 'coin_id'>>
+): string {
+  return profile.root_txid || profile.coin_id || '';
+}
+
+function getSourceVaultProfile(profile: LiquidVaultProfile): VaultProfile {
+  const selected = profile as LiquidVaultProfileWithExecutionMeta;
+  return selected.sourceVaultProfile ?? profile as unknown as VaultProfile;
+}
+
+function getSelectedLiquidationContractIds(
+  contract: ProtocolProfile,
+  liquidVaults: LiquidVaultProfile[]
+): string[] {
+  const ids = new Set<string>();
+
+  for (const vault of liquidVaults) {
+    const sourceProfile = getSourceVaultProfile(vault);
+    if (!Array.isArray(sourceProfile.price_commits) || sourceProfile.price_commits.length === 0) {
+      continue;
+    }
+
+    try {
+      extract_vault_price_contracts(
+        contract,
+        sourceProfile as unknown as CoreVaultProfile
+      ).forEach((priceContract) => {
+        if (priceContract.contract_id) {
+          ids.add(priceContract.contract_id);
+        }
+      });
+    } catch (error: unknown) {
+      logger.debug('[Liquidation] Failed to extract selected vault price contracts', {
+        vaultId: sourceProfile.root_txid,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return [...ids];
+}
+
+function mergeResolvedLiquidVaultProfile(params: {
+  bitcoinPrice: number;
+  contract: ProtocolProfile;
+  resolvedProfile: LiquidVaultProfile;
+  selectedProfile: LiquidVaultProfile;
+}): LiquidVaultProfile {
+  const { bitcoinPrice, contract, resolvedProfile, selectedProfile } = params;
+  const selectedMeta = selectedProfile as LiquidVaultProfileWithExecutionMeta;
+  const merged = {
+    ...selectedProfile,
+    ...resolvedProfile,
+    isLiquidationEstimate: false,
+    sourceVaultProfile: selectedMeta.sourceVaultProfile,
+    thold_key: resolvedProfile.liquid_key,
+  } as LiquidVaultProfileWithExecutionMeta;
+
+  if (!isPartialLiquidVault(selectedProfile)) {
+    return merged;
+  }
+
+  const partialClaimBtc = selectedMeta.claimAmountPartial ?? 0;
+  const fullClaimBtc = selectedMeta.claimAmountBtc ?? resolvedProfile.deficit_sats / COIN_SIZE;
+  const recapAmountSats = Math.ceil(partialClaimBtc * COIN_SIZE - 1e-6);
+  if (recapAmountSats <= 0) {
+    return merged;
+  }
+
+  const partialQuote = get_partial_liquidation_quote(
+    contract,
+    resolvedProfile as CoreLiquidVaultProfile,
+    recapAmountSats,
+    bitcoinPrice
+  );
+  const partialProfile = {
+    ...merged,
+    ...partialQuote,
+  } as LiquidVaultProfile;
+  const partialMeta = computeLiqMeta(partialProfile);
+  const partialUnit = partialProfile.claimed_unit / 100;
+
+  return {
+    ...partialProfile,
+    ...partialMeta,
+    unit: partialUnit,
+    unitSwapBtc: bitcoinPrice > 0 ? partialUnit / bitcoinPrice : 0,
+    claimAmountPartial: partialMeta.claimAmountBtc,
+    claimAmountDiff: Number(Math.max(0, fullClaimBtc - partialMeta.claimAmountBtc).toFixed(8)),
+  } as LiquidVaultProfile;
+}
+
+async function resolveExecutableLiquidVaults(params: {
+  bitcoinPrice: number;
+  contract: ProtocolProfile;
+  liquidVaults: LiquidVaultProfile[];
+}): Promise<LiquidVaultProfile[]> {
+  const { bitcoinPrice, contract, liquidVaults } = params;
+  const unresolvedVaults = liquidVaults.filter((vault) => !hasValidLiquidationKey(vault));
+  if (unresolvedVaults.length === 0) {
+    return liquidVaults;
+  }
+
+  const contractIds = getSelectedLiquidationContractIds(contract, unresolvedVaults);
+  if (contractIds.length === 0) {
+    throw new Error(
+      'Selected liquidation vault is missing price contract data. Refresh liquidations and choose another vault.'
+    );
+  }
+
+  const breachContracts = await fetchBreachedPriceContractsByIds(contractIds, { timeout: 8_000 });
+  const resolvedByVaultKey = new Map<string, LiquidVaultProfile>();
+
+  for (const vault of unresolvedVaults) {
+    const sourceProfile = getSourceVaultProfile(vault);
+    try {
+      const [resolvedProfile] = get_liquid_vault_profiles({
+        breach_contracts: breachContracts.filter(
+          (priceContract): priceContract is PriceContract & { thold_key: string } =>
+            typeof priceContract.thold_key === 'string' && priceContract.thold_key.length > 0
+        ),
+        liquid_price: bitcoinPrice,
+        proto_profile: contract,
+      }, [sourceProfile] as CoreVaultProfile[]);
+
+      if (hasValidLiquidationKey(resolvedProfile)) {
+        resolvedByVaultKey.set(getLiquidationVaultLookupKey(sourceProfile), resolvedProfile);
+      }
+    } catch (error: unknown) {
+      logger.debug('[Liquidation] Failed to resolve executable liquidation profile', {
+        vaultId: sourceProfile.root_txid,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const resolvedVaults = liquidVaults.map((vault) => {
+    if (hasValidLiquidationKey(vault)) {
+      return vault;
+    }
+
+    const sourceProfile = getSourceVaultProfile(vault);
+    const resolvedProfile = resolvedByVaultKey.get(getLiquidationVaultLookupKey(sourceProfile));
+    if (!resolvedProfile) {
+      return null;
+    }
+
+    return mergeResolvedLiquidVaultProfile({
+      bitcoinPrice,
+      contract,
+      resolvedProfile,
+      selectedProfile: vault,
+    });
+  });
+  const missingCount = resolvedVaults.filter((vault) => vault === null).length;
+
+  logger.info('[Liquidation] Resolved selected liquidation vault proofs', {
+    selectedCount: liquidVaults.length,
+    unresolvedCount: unresolvedVaults.length,
+    breachContractCount: breachContracts.length,
+    resolvedCount: unresolvedVaults.length - missingCount,
+    missingCount,
+  });
+
+  if (missingCount > 0) {
+    throw new Error(
+      'Selected liquidation vault is no longer executable. Refresh liquidations and choose another vault.'
+    );
+  }
+
+  return resolvedVaults as LiquidVaultProfile[];
 }
 
 function selectActionPriceContracts(
@@ -645,10 +837,18 @@ export async function executeLiquidation(
     }
 
     const action: LiquidationAction = partialVault ? 'trim' : 'repo';
-    const actionLiquidVaults = partialVault ? [partialVault] : fullVaults;
+    let actionLiquidVaults = partialVault ? [partialVault] : fullVaults;
     if (actionLiquidVaults.length === 0) {
       throw new Error('No liquidation vaults selected');
     }
+    if (actionLiquidVaults.some((vault) => !hasValidLiquidationKey(vault))) {
+      progress('Resolving liquidation proofs...');
+    }
+    actionLiquidVaults = await resolveExecutableLiquidVaults({
+      bitcoinPrice,
+      contract,
+      liquidVaults: actionLiquidVaults,
+    });
     await assertLiquidVaultProfilesUnspent(actionLiquidVaults);
 
     // ── Step 5: Build Liquidation Context ──

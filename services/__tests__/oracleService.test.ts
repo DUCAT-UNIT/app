@@ -39,6 +39,7 @@ const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 import {
+  fetchBreachedPriceContractsByIds,
   fetchCurrentPrice,
   fetchPriceContractsByBucketTag,
   fetchPriceContractsByCommitHashes,
@@ -184,6 +185,12 @@ function pushRelayQuoteResponse(quotes: unknown[]) {
 function pushRelayContractResponse(contracts: unknown[]) {
   relayResponses.push({
     events: contracts.map((contract) => makeRelayEvent(30000, contract)),
+  });
+}
+
+function pushRelayBreachResponse(contracts: unknown[]) {
+  relayResponses.push({
+    events: contracts.map((contract) => makeRelayEvent(1000, contract)),
   });
 }
 
@@ -426,6 +433,45 @@ describe('oracleService', () => {
         kinds: [30000],
         authors: [oraclePubkey],
         '#d': [`${baseStamp}-1.6`],
+      });
+      expect(result).toEqual([matchingContract]);
+      expect(mockFetchProtocolContract).not.toHaveBeenCalled();
+    });
+
+    it('fetches breached price contracts by contract id without applying quote freshness', async () => {
+      const oraclePubkey = 'b'.repeat(64);
+      const contractId = 'a'.repeat(64);
+      const matchingContract = makePriceContract({
+        base_stamp: Math.floor(Date.now() / 1000) - MAX_QUOTE_AGE_SECONDS - 60,
+        contract_id: contractId,
+        oracle_pubkey: oraclePubkey,
+        thold_key: 'f'.repeat(64),
+      });
+      pushRelayBreachResponse([
+        matchingContract,
+        makePriceContract({
+          contract_id: 'd'.repeat(64),
+          oracle_pubkey: oraclePubkey,
+          thold_key: 'e'.repeat(64),
+        }),
+        makePriceContract({
+          contract_id: contractId,
+          oracle_pubkey: oraclePubkey,
+          thold_key: null,
+        }),
+      ]);
+
+      const result = await fetchBreachedPriceContractsByIds(
+        [contractId],
+        { timeout: 100 },
+        oraclePubkey
+      );
+      const filters = getRelayReqFilters();
+
+      expect(filters[0]).toMatchObject({
+        kinds: [1000],
+        authors: [oraclePubkey],
+        '#h': [contractId],
       });
       expect(result).toEqual([matchingContract]);
       expect(mockFetchProtocolContract).not.toHaveBeenCalled();

@@ -85,6 +85,12 @@ jest.mock('@ducat-unit/client-sdk/lib', () => ({
   get_price_commit_hashes: jest.fn(() => []),
 }));
 
+jest.mock('@ducat-unit/core/lib', () => ({
+  extract_vault_price_contracts: jest.fn(),
+  get_liquid_vault_profiles: jest.fn(),
+  get_partial_liquidation_quote: jest.fn(),
+}));
+
 // Required because vaultWallet/signingContext.ts → vaultWallet/walletApi.ts imports this
 jest.mock('@ducat-unit/client-sdk/util', () => ({
   TX: {
@@ -167,7 +173,7 @@ jest.mock('../../../utils/logger', () => ({
 // ─── Import mocked modules after jest.mock declarations ────────────────────────
 
 import { computeLiquidationPrice } from '../../../utils/vaultUtils';
-import { fetchPriceQuote } from '../../oracleService';
+import { fetchBreachedPriceContractsByIds, fetchPriceQuote } from '../../oracleService';
 import { getGuardianClient, withGuardianTimeout, disconnectGuardian } from '../../guardianService';
 import { registerLiquidationTxid } from '../../transactionHistoryService';
 import { createVaultWallet, fetchProtocolContract } from '../../vaultWallet';
@@ -190,13 +196,25 @@ import { fetchSwapPsbt, finalizeSwapPsbt } from '../swapService';
 import { assertLiquidVaultProfilesUnspent } from '../spendability';
 import { VaultAPI, select_sat_utxos } from '@ducat-unit/client-sdk';
 import { PSBT, TX } from '@ducat-unit/client-sdk/util';
+import { extract_vault_price_contracts, get_liquid_vault_profiles } from '@ducat-unit/core/lib';
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
 /** Minimal mock liquid vault profile */
 function makeLiquidVault(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const rootTxid = '1'.repeat(64);
   return {
     vault_id: 'vault-abc',
+    root_txid: rootTxid,
+    coin_id: `${rootTxid}:0`,
+    claimed_sats: 200_000,
+    claimed_unit: 5000,
+    deficit_sats: 5000,
+    reserve_sats: 10_000,
+    reward_sats: 190_000,
+    subsidy_rate: 0.01,
+    liquid_key: 'f'.repeat(64),
+    liquid_price: 80_000,
     liquid_quote: {
       sats_balance: 200_000,
       taxable_sats: 10_000,
@@ -324,6 +342,10 @@ const mockComputeLiquidationPrice = computeLiquidationPrice as jest.MockedFuncti
   typeof computeLiquidationPrice
 >;
 const mockFetchPriceQuote = fetchPriceQuote as jest.MockedFunction<typeof fetchPriceQuote>;
+const mockFetchBreachedPriceContractsByIds =
+  fetchBreachedPriceContractsByIds as jest.MockedFunction<
+    typeof fetchBreachedPriceContractsByIds
+  >;
 const mockGetGuardianClient = getGuardianClient as jest.MockedFunction<typeof getGuardianClient>;
 const mockWithGuardianTimeout = withGuardianTimeout as jest.MockedFunction<
   typeof withGuardianTimeout
@@ -393,6 +415,10 @@ const mockVaultApiTrimCreateRequest = VaultAPI.trim.create_request as jest.Mocke
 >;
 const mockPsbtGetTxhex = PSBT.get.txhex as jest.MockedFunction<typeof PSBT.get.txhex>;
 const mockTxGetTxid = TX.get_txid as jest.MockedFunction<typeof TX.get_txid>;
+const mockExtractVaultPriceContracts =
+  extract_vault_price_contracts as jest.MockedFunction<typeof extract_vault_price_contracts>;
+const mockGetLiquidVaultProfiles =
+  get_liquid_vault_profiles as jest.MockedFunction<typeof get_liquid_vault_profiles>;
 
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
@@ -452,6 +478,7 @@ describe('executeLiquidation', () => {
         ? T
         : never
     );
+    mockFetchBreachedPriceContractsByIds.mockResolvedValue([]);
     mockCreateVaultWallet.mockResolvedValue(
       mockWallet as unknown as ReturnType<typeof createVaultWallet> extends Promise<infer T>
         ? T
@@ -521,6 +548,8 @@ describe('executeLiquidation', () => {
     mockWithGuardianTimeout.mockImplementation((op) => op);
     mockDisconnectGuardian.mockResolvedValue(undefined as never);
     mockRegisterLiquidationTxid.mockResolvedValue(undefined);
+    mockExtractVaultPriceContracts.mockReturnValue([]);
+    mockGetLiquidVaultProfiles.mockReturnValue([]);
   });
 
   // ─── Happy path ─────────────────────────────────────────────────────────────
@@ -542,6 +571,67 @@ describe('executeLiquidation', () => {
 
       expect(mockAssertLiquidVaultProfilesUnspent).toHaveBeenCalledWith(params.liquidVaults);
       expect(mockVaultApiRepoLiquidGetCtx).toHaveBeenCalled();
+    });
+
+    it('should resolve estimate liquidation rows before checking spendability and building context', async () => {
+      const sourceRootTxid = '2'.repeat(64);
+      const sourceProfile = {
+        root_txid: sourceRootTxid,
+        coin_id: `${sourceRootTxid}:1`,
+        price_commits: [{ thold_hash: 'a'.repeat(40) }],
+        price_stamp: 1_700_000_000,
+        unit_balance: 5000,
+        vault_balance: 200_000,
+      };
+      const estimateVault = makeLiquidVault({
+        root_txid: sourceRootTxid,
+        coin_id: `${sourceRootTxid}:1`,
+        liquid_key: '',
+        isLiquidationEstimate: true,
+        sourceVaultProfile: sourceProfile,
+      });
+      const resolvedVault = makeLiquidVault({
+        root_txid: sourceRootTxid,
+        coin_id: `${sourceRootTxid}:1`,
+        liquid_key: 'a'.repeat(64),
+      });
+
+      mockExtractVaultPriceContracts.mockReturnValue([
+        { contract_id: 'breach-contract-1' },
+      ] as unknown as ReturnType<typeof extract_vault_price_contracts>);
+      mockFetchBreachedPriceContractsByIds.mockResolvedValue([
+        {
+          contract_id: 'breach-contract-1',
+          oracle_pubkey: 'b'.repeat(64),
+          thold_key: 'a'.repeat(64),
+        },
+      ] as unknown as Awaited<ReturnType<typeof fetchBreachedPriceContractsByIds>>);
+      mockGetLiquidVaultProfiles.mockReturnValue([
+        resolvedVault,
+      ] as unknown as ReturnType<typeof get_liquid_vault_profiles>);
+
+      await executeLiquidation(
+        makeParams({
+          liquidVaults: [estimateVault] as unknown as LiquidationExecutionParams['liquidVaults'],
+        })
+      );
+
+      expect(mockFetchBreachedPriceContractsByIds).toHaveBeenCalledWith(
+        ['breach-contract-1'],
+        { timeout: 8_000 }
+      );
+      expect(mockAssertLiquidVaultProfilesUnspent).toHaveBeenCalledWith([
+        expect.objectContaining({
+          liquid_key: 'a'.repeat(64),
+          isLiquidationEstimate: false,
+        }),
+      ]);
+      expect(mockVaultApiRepoLiquidGetCtx).toHaveBeenCalledWith([
+        expect.objectContaining({
+          liquid_key: 'a'.repeat(64),
+          isLiquidationEstimate: false,
+        }),
+      ], mockContract);
     });
 
     it('should call computeLiquidationPrice with correct unitDebt and btcInVault', async () => {

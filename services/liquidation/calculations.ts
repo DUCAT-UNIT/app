@@ -220,8 +220,9 @@ function liquidationSortScore(profile: LiquidVaultProfileWithMeta): number {
   const legacyQuote = (profile as LiquidVaultProfileWithMeta & {
     liquid_quote?: { profit_margin?: number };
   }).liquid_quote;
+  const executableRank = profile.isLiquidationEstimate === true ? 0 : 1;
 
-  return legacyQuote?.profit_margin ?? profile.profitPercent;
+  return executableRank * 1_000_000 + (legacyQuote?.profit_margin ?? profile.profitPercent);
 }
 
 function hasLatestProtoShape(contract: unknown): contract is ProtocolProfile {
@@ -232,6 +233,56 @@ function hasLatestProtoShape(contract: unknown): contract is ProtocolProfile {
       && Array.isArray(proto.proto_terms)
       && typeof proto.contract_id === 'string'
   );
+}
+
+function getVaultProfileLookupKey(profile: Pick<VaultProfile, 'root_txid' | 'coin_id'>): string {
+  return profile.root_txid || profile.coin_id || '';
+}
+
+function hasExecutableLiquidKey(profile: Pick<LiquidVaultProfile, 'liquid_key'> | undefined): boolean {
+  return typeof profile?.liquid_key === 'string' && HEX_32_BYTE_PATTERN.test(profile.liquid_key);
+}
+
+function buildLatestLiquidVaultProfile(params: {
+  extended: ExtendedVaultProfile;
+  executableProfile?: LiquidVaultProfile;
+  latestProfile: VaultProfile;
+  proto: ProtocolProfile;
+  btcPrice: number;
+}): LiquidVaultProfileWithMeta | null {
+  const { extended, executableProfile, latestProfile, proto, btcPrice } = params;
+  const vaultBalance = Number(latestProfile.vault_balance);
+  const unitBalance = Number(latestProfile.unit_balance);
+
+  if (!Number.isFinite(vaultBalance) || vaultBalance <= 0 || !Number.isFinite(unitBalance) || unitBalance <= 0) {
+    return null;
+  }
+
+  const liquidProfile: LiquidVaultProfile = executableProfile ?? {
+    ...latestProfile,
+    ...get_liquidation_quote(proto, vaultBalance, unitBalance, btcPrice),
+    liquid_key: '',
+    liquid_price: btcPrice,
+  } as LiquidVaultProfile;
+  const meta = computeLiqMeta(liquidProfile);
+  const unit = liquidProfile.claimed_unit / 100;
+  const unitSwapBtc = btcPrice > 0 ? unit / btcPrice : 0;
+
+  if (meta.profitBtc <= 0 || meta.claimAmountBtc <= DUST_BTC) {
+    return null;
+  }
+
+  return {
+    ...extended,
+    ...latestProfile,
+    ...liquidProfile,
+    ...meta,
+    sourceVaultProfile: latestProfile,
+    isLiquidationEstimate: !hasExecutableLiquidKey(executableProfile),
+    thold_key: liquidProfile.liquid_key || extended.thold_key,
+    unit,
+    unitSwapBtc,
+  } as LiquidVaultProfileWithMeta;
 }
 
 function computeLegacyLiquidVaultProfiles(
@@ -430,13 +481,30 @@ export function computeLiquidVaultProfiles(
   const breachedContracts = breachContracts.filter((contract): contract is PriceContract & { thold_key: string } =>
     typeof contract.thold_key === 'string' && contract.thold_key.length > 0
   );
-  const liquidProfiles = get_liquid_vault_profiles({
-    breach_contracts: breachedContracts,
-    liquid_price: btcPrice,
-    proto_profile: proto,
-  }, latestProfiles as CoreVaultProfile[]);
-  const liquidByRoot = new Map(liquidProfiles.map((profile) => [profile.root_txid, profile]));
-  let missingLiquidKeyCount = 0;
+  const liquidByVaultKey = new Map<string, LiquidVaultProfile>();
+  let executableLiquidKeyCount = 0;
+  let estimatedWithoutLiquidKeyCount = 0;
+
+  if (breachedContracts.length > 0) {
+    for (const latestProfile of latestProfiles) {
+      try {
+        const [liquidProfile] = get_liquid_vault_profiles({
+          breach_contracts: breachedContracts,
+          liquid_price: btcPrice,
+          proto_profile: proto,
+        }, [latestProfile] as CoreVaultProfile[]);
+
+        if (hasExecutableLiquidKey(liquidProfile)) {
+          liquidByVaultKey.set(getVaultProfileLookupKey(liquidProfile), liquidProfile);
+        }
+      } catch (error: unknown) {
+        logger.debug('[Liquidation] Failed to resolve liquid key for vault estimate', {
+          vaultId: latestProfile.root_txid,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
 
   for (const [index, v] of extendedProfiles.entries()) {
     const collateralRatio = getHealthValue(btcPrice, v.btcInVault - 0.0001, v.unit) / 100;
@@ -445,30 +513,25 @@ export function computeLiquidVaultProfiles(
 
     try {
       const latestProfile = latestProfiles[index];
-      if (typeof latestProfile.root_txid !== 'string' || latestProfile.root_txid.length === 0) {
-        missingLiquidKeyCount += 1;
-        continue;
-      }
-      const liquidProfile = liquidByRoot.get(latestProfile.root_txid);
-      if (!liquidProfile || !HEX_32_BYTE_PATTERN.test(liquidProfile.liquid_key)) {
-        missingLiquidKeyCount += 1;
+      const liquidProfile = liquidByVaultKey.get(getVaultProfileLookupKey(latestProfile));
+      const profile = buildLatestLiquidVaultProfile({
+        extended: v,
+        executableProfile: liquidProfile,
+        latestProfile,
+        proto,
+        btcPrice,
+      });
+
+      if (!profile) {
         continue;
       }
 
-      const meta = computeLiqMeta(liquidProfile);
-      const unit = liquidProfile.claimed_unit / 100;
-      const unitSwapBtc = unit / btcPrice;
-
-      if (meta.profitBtc > 0 && meta.claimAmountBtc > DUST_BTC) {
-        results.push({
-          ...v,
-          ...liquidProfile,
-          ...meta,
-          thold_key: liquidProfile.liquid_key,
-          unit,
-          unitSwapBtc,
-        } as LiquidVaultProfileWithMeta);
+      if (profile.isLiquidationEstimate) {
+        estimatedWithoutLiquidKeyCount += 1;
+      } else {
+        executableLiquidKeyCount += 1;
       }
+      results.push(profile);
     } catch (error: unknown) {
       logger.debug('[Liquidation] Failed to compute profile for vault', {
         vaultId: v.vaultId,
@@ -477,12 +540,12 @@ export function computeLiquidVaultProfiles(
     }
   }
 
-  if (missingLiquidKeyCount > 0) {
-    logger.debug('[Liquidation] Skipped vaults without revealed liquid key', {
-      count: missingLiquidKeyCount,
-      breachedContractCount: breachedContracts.length,
-    });
-  }
+  logger.debug('[Liquidation] Computed latest liquid vault profiles', {
+    totalCount: results.length,
+    executableLiquidKeyCount,
+    estimatedWithoutLiquidKeyCount,
+    breachedContractCount: breachedContracts.length,
+  });
 
   return results
     .sort((a, b) => liquidationSortScore(b) - liquidationSortScore(a))

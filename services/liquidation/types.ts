@@ -83,6 +83,8 @@ export interface LiquidationVaultComputedData {
 export type LiquidVaultProfileWithMeta = LiquidVaultProfile &
   LiquidationVaultComputedData & {
     liquid_quote_partial?: LiquidationQuote;
+    sourceVaultProfile?: VaultProfile;
+    isLiquidationEstimate?: boolean;
   };
 
 // ============================================================

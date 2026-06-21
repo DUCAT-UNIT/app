@@ -46,6 +46,12 @@ jest.mock('@ducat-unit/client-sdk', () => ({
   },
 }));
 
+jest.mock('@ducat-unit/core/lib', () => ({
+  get_liquidation_quote: jest.fn(),
+  get_liquid_vault_profiles: jest.fn(),
+  get_partial_liquidation_quote: jest.fn(),
+}));
+
 // Mock vaultWallet to prevent ESM import of @ducat-unit/client-sdk/util
 jest.mock('../../vaultWallet', () => ({
   fetchProtocolContract: jest.fn(),
@@ -66,10 +72,16 @@ jest.mock('../fetchVaults', () => ({
 }));
 
 import { VaultAPI } from '@ducat-unit/client-sdk';
+import {
+  get_liquidation_quote,
+  get_liquid_vault_profiles,
+} from '@ducat-unit/core/lib';
 import { formatValidatorResponse } from '../fetchVaults';
 import { fetchProtocolContract } from '../../vaultWallet';
 
 const mockGetProfile = VaultAPI.repo.liquidation.get_profile as jest.Mock;
+const mockGetLiquidationQuote = get_liquidation_quote as jest.Mock;
+const mockGetLiquidVaultProfiles = get_liquid_vault_profiles as jest.Mock;
 const mockFormatValidatorResponse = formatValidatorResponse as jest.Mock;
 const mockFetchProtocolContract = fetchProtocolContract as jest.Mock;
 
@@ -120,6 +132,22 @@ function makeLiquidVaultProfile(overrides: Partial<LiquidVaultProfile['liquid_qu
       vault_action: 'lock',
     },
   } as unknown as LiquidVaultProfile;
+}
+
+function makeLatestLiquidationQuote(overrides: Record<string, unknown> = {}) {
+  return {
+    claimed_sats: 2_000_000,
+    claimed_unit: 1_200,
+    deficit_ratio: 0.05,
+    deficit_sats: 500_000,
+    reserve_rate: 0.1,
+    reserve_sats: 200_000,
+    reward_ratio: 1.1,
+    reward_sats: 1_800_000,
+    subsidy_multi: 1,
+    subsidy_rate: 0.01,
+    ...overrides,
+  };
 }
 
 /**
@@ -365,6 +393,8 @@ describe('computeLiqMeta', () => {
 describe('computeLiquidVaultProfiles', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetLiquidationQuote.mockReset();
+    mockGetLiquidVaultProfiles.mockReset();
   });
 
   /** A realistic ExtendedVaultProfile returned by formatValidatorResponse */
@@ -455,6 +485,124 @@ describe('computeLiquidVaultProfiles', () => {
 
       const [profile] = computeLiquidVaultProfiles([{} as any], 80_000, mockContract);
       expect(profile.unitSwapBtc).toBeCloseTo(12 / 80_000, 8);
+    });
+
+    it('should keep latest validator vaults as estimates when no liquid key is revealed in the list fetch', () => {
+      const rootTxid = '1'.repeat(64);
+      const latestProfile = {
+        root_txid: rootTxid,
+        coin_id: `${rootTxid}:0`,
+        contract_id: 'contract-1',
+        guard_pubkey: 'guard',
+        client_pubkey: 'client',
+        price_commits: [{ thold_hash: 'a'.repeat(40), thold_price: 70_000 }],
+        price_stamp: 1_700_000_000,
+        thold_price: 70_000,
+        unit_balance: 1_200,
+        unit_price: 80_000,
+        vault_action: 'open',
+        vault_balance: 2_000_000,
+        vault_config: null,
+        vault_ratio: null,
+        vault_script: 'script',
+        vault_value: 2_000_000,
+        vault_version: 3,
+      };
+      const latestContract = {
+        contract_id: 'contract-1',
+        proto_members: [],
+        proto_terms: [],
+      };
+      mockFormatValidatorResponse.mockReturnValue([mockExtendedVault]);
+      mockGetLiquidVaultProfiles.mockReturnValue([]);
+      mockGetLiquidationQuote.mockReturnValue(makeLatestLiquidationQuote());
+
+      const [profile] = computeLiquidVaultProfiles(
+        [{ latest_profile: latestProfile } as any],
+        80_000,
+        latestContract as any,
+        []
+      );
+
+      expect(profile).toMatchObject({
+        vaultId: 'vault-1',
+        root_txid: rootTxid,
+        liquid_key: '',
+        isLiquidationEstimate: true,
+        claimAmountBtc: 0.005,
+      });
+      expect(mockGetLiquidationQuote).toHaveBeenCalledWith(
+        latestContract,
+        2_000_000,
+        1_200,
+        80_000
+      );
+      expect(mockGetProfile).not.toHaveBeenCalled();
+    });
+
+    it('should sort executable latest vaults before estimate-only rows', () => {
+      const executableRootTxid = '1'.repeat(64);
+      const estimateRootTxid = '2'.repeat(64);
+      const makeLatestProfile = (rootTxid: string) => ({
+        root_txid: rootTxid,
+        coin_id: `${rootTxid}:0`,
+        contract_id: 'contract-1',
+        guard_pubkey: 'guard',
+        client_pubkey: 'client',
+        price_commits: [{ thold_hash: 'a'.repeat(40), thold_price: 70_000 }],
+        price_stamp: 1_700_000_000,
+        thold_price: 70_000,
+        unit_balance: 1_200,
+        unit_price: 80_000,
+        vault_action: 'open',
+        vault_balance: 2_000_000,
+        vault_config: null,
+        vault_ratio: null,
+        vault_script: 'script',
+        vault_value: 2_000_000,
+        vault_version: 3,
+      });
+      const executableProfile = makeLatestProfile(executableRootTxid);
+      const estimateProfile = makeLatestProfile(estimateRootTxid);
+      const latestContract = {
+        contract_id: 'contract-1',
+        proto_members: [],
+        proto_terms: [],
+      };
+      mockFormatValidatorResponse.mockReturnValue([
+        { ...mockExtendedVault, vaultId: 'exec-vault' },
+        { ...mockExtendedVault, vaultId: 'estimate-vault' },
+      ]);
+      mockGetLiquidVaultProfiles
+        .mockReturnValueOnce([{
+          ...executableProfile,
+          ...makeLatestLiquidationQuote({ deficit_sats: 100_000, reward_sats: 200_000 }),
+          liquid_key: 'f'.repeat(64),
+          liquid_price: 80_000,
+        }])
+        .mockReturnValueOnce([]);
+      mockGetLiquidationQuote.mockReturnValue(
+        makeLatestLiquidationQuote({ deficit_sats: 500_000, reward_sats: 1_800_000 })
+      );
+
+      const result = computeLiquidVaultProfiles(
+        [
+          { latest_profile: executableProfile } as any,
+          { latest_profile: estimateProfile } as any,
+        ],
+        80_000,
+        latestContract as any,
+        [{ thold_key: 'f'.repeat(64) } as any]
+      );
+
+      expect(result[0]).toMatchObject({
+        root_txid: executableRootTxid,
+        isLiquidationEstimate: false,
+      });
+      expect(result[1]).toMatchObject({
+        root_txid: estimateRootTxid,
+        isLiquidationEstimate: true,
+      });
     });
   });
 

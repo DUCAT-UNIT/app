@@ -17,8 +17,9 @@ import { fetchProtocolContract } from './vaultWallet';
 const PRICE_CONTRACT_CACHE_TTL_MS = 30_000;
 export const MAX_QUOTE_AGE_SECONDS = 5 * 60;
 const ORACLE_MEMBER_GROUP = 22;
+const BREACHED_CONTRACT_ID_BATCH_SIZE = 100;
 
-interface FetchPriceQuoteOptions {
+export interface FetchPriceQuoteOptions {
   timeout?: number;
   dedupe?: boolean;
   cache?: boolean;
@@ -521,6 +522,52 @@ export async function fetchPriceContractsByBucketTag(
       contract.oracle_pubkey === resolvedOraclePubkey &&
       isFreshPriceContract(contract, nowSeconds)
   );
+}
+
+export async function fetchBreachedPriceContractsByIds(
+  contractIds: string[],
+  options: FetchPriceQuoteOptions = {},
+  oraclePubkey?: string
+): Promise<PriceContract[]> {
+  const uniqueContractIds = [...new Set(contractIds.filter(Boolean))];
+  if (uniqueContractIds.length === 0) {
+    return [];
+  }
+
+  const resolvedOraclePubkey = await getOraclePubkeyForFetch(oraclePubkey);
+  const batches: string[][] = [];
+  for (let index = 0; index < uniqueContractIds.length; index += BREACHED_CONTRACT_ID_BATCH_SIZE) {
+    batches.push(uniqueContractIds.slice(index, index + BREACHED_CONTRACT_ID_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    batches.map(async (batch) => {
+      const events = await queryOracleRelay(
+        {
+          kinds: [1000],
+          authors: [resolvedOraclePubkey],
+          '#h': batch,
+        },
+        options,
+        'breached price contracts'
+      );
+
+      return parsePriceContracts(events).filter(
+        (contract) =>
+          batch.includes(contract.contract_id) &&
+          contract.oracle_pubkey === resolvedOraclePubkey &&
+          typeof contract.thold_key === 'string' &&
+          contract.thold_key.length > 0
+      );
+    })
+  );
+
+  const byId = new Map<string, PriceContract>();
+  results.flat().forEach((contract) => {
+    byId.set(contract.contract_id, contract);
+  });
+
+  return [...byId.values()];
 }
 
 /**
