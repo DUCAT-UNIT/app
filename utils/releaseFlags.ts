@@ -8,3 +8,17 @@
 
 export const ENABLE_QUANTA_REWARDS =
   __DEV__ || process.env.EXPO_PUBLIC_ENABLE_QUANTA_REWARDS === 'true';
+
+export const LIQUIDATIONS_UNAVAILABLE_MESSAGE = 'Liquidations are not available.';
+
+type ResolveLiquidationFlagInput = {
+  explicitFlag?: string;
+  isDev?: boolean;
+  isTest?: boolean;
+};
+
+export function resolveEnableLiquidations(_input: ResolveLiquidationFlagInput = {}): boolean {
+  return false;
+}
+
+export const ENABLE_LIQUIDATIONS = resolveEnableLiquidations();

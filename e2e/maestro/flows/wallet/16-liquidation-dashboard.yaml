@@ -1,8 +1,8 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Liquidation Dashboard - Verify the wallet liquidation surface opens and can return to wallet.
+# Liquidation Dashboard - Verify this release shows liquidations as unavailable.
 
-- runFlow: ../helpers/create-wallet.yaml
+- runFlow: ../helpers/create-wallet-no-funding.yaml
 
 - extendedWaitUntil:
     visible:

@@ -49,6 +49,7 @@ import { useHasPendingVaultTx } from '../../stores/pendingVaultTransactionStore'
 import { useLiquidationVaults } from '../../hooks/liquidation/useLiquidationVaults';
 import { useLiquidationExecution } from '../../hooks/liquidation/useLiquidationExecution';
 import { isStaleLiquidationOpportunityError } from '../../utils/liquidationErrors';
+import { ENABLE_LIQUIDATIONS } from '../../utils/releaseFlags';
 import { colors, fonts, fontSizes } from '../../styles/theme';
 import type { WalletAddresses } from '../../contexts/WalletContext';
 import type { VaultData } from '../../services/vaultService';
@@ -74,7 +75,25 @@ export interface LiquidationScreenProps {
   bottomInset?: number;
 }
 
-const LiquidationScreen = React.memo(function LiquidationScreen({
+const LiquidationScreen = React.memo(function LiquidationScreen(
+  props: LiquidationScreenProps
+): React.ReactElement | null {
+  if (!ENABLE_LIQUIDATIONS) {
+    return (
+      <ErrorBoundary
+        boundaryName="Liquidations"
+        fallbackMessage="Unable to load liquidations. Please try again."
+        onReset={props.onClose}
+      >
+        <LiquidationEmptyStates variant="unavailable" onBackToWallet={props.onClose} />
+      </ErrorBoundary>
+    );
+  }
+
+  return <LiquidationEnabledScreen {...props} />;
+});
+
+function LiquidationEnabledScreen({
   btcPrice,
   segwitBalance,
   taprootBalance,
@@ -496,7 +515,7 @@ const LiquidationScreen = React.memo(function LiquidationScreen({
       {bottomAction}
     </ErrorBoundary>
   );
-});
+}
 
 const styles = StyleSheet.create({
   header: {

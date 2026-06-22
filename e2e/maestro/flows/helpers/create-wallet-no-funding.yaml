@@ -1,0 +1,57 @@
+appId: com.ducatprotocol.DucatProtocolWallet
+---
+# Create a fresh wallet without requiring faucet funding.
+# Use this for UI-only coverage where a funded balance is not part of the story.
+
+- runFlow: clear-and-launch.yaml
+
+- openLink: 'ducat://e2e/skip-airdrop?enabled=true'
+- runFlow: accept-open-in-app-alert.yaml
+
+- tapOn:
+    id: 'welcome-create-wallet-btn'
+
+- runFlow:
+    when:
+      visible:
+        id: 'welcome-screen'
+    commands:
+      - tapOn:
+          id: 'welcome-create-wallet-btn'
+
+- extendedWaitUntil:
+    visible:
+      id: 'pin-setup-screen'
+    timeout: 30000
+
+- runFlow: enter-pin-setup.yaml
+
+- extendedWaitUntil:
+    visible:
+      text: 'Confirm Your PIN'
+    timeout: 10000
+- runFlow: enter-pin-setup.yaml
+- runFlow: retry-pin-setup-if-mismatch.yaml
+
+- runFlow:
+    when:
+      visible:
+        id: 'biometric-modal'
+    commands:
+      - tapOn:
+          id: 'biometric-skip-btn'
+
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+- runFlow: unlock-if-locked.yaml
+- runFlow: dismiss-passkey-recovery.yaml
+- runFlow: unlock-if-locked.yaml
+- runFlow: dismiss-passkey-recovery.yaml
+- runFlow: dismiss-low-ecash.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: 'wallet-screen'
+    timeout: 15000
+- waitForAnimationToEnd
+- runFlow: dismiss-passkey-recovery.yaml

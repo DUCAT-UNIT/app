@@ -42,6 +42,7 @@ export const SettingKeys = {
   RETURN_TO_SETTINGS_AFTER_SEED_PHRASE: 'returnToSettingsAfterSeedPhrase',
   PENDING_WALLET_DELETE: 'pendingWalletDelete',
   PENDING_BIOMETRIC_ENABLE: 'pendingBiometricEnable',
+  E2E_SKIP_AIRDROP_REQUESTS: 'e2eSkipAirdropRequests',
 
   // Wallet settings
   CURRENT_ACCOUNT: 'currentAccount',

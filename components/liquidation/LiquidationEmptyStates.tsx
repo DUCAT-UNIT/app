@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from '../icons';
 import { colors, fonts, fontSizes, spacing } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
+import { LIQUIDATIONS_UNAVAILABLE_MESSAGE } from '../../utils/releaseFlags';
 
 export type LiquidationEmptyVariant =
   | 'unavailable'
@@ -26,7 +27,7 @@ const VARIANT_CONFIG: Record<
     icon: 'liquidations',
     iconColor: colors.text.secondary,
     bgColor: colors.bg.secondary,
-    title: 'Liquidations are not available.',
+    title: LIQUIDATIONS_UNAVAILABLE_MESSAGE,
     subtitle: '',
   },
   noVault: {

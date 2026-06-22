@@ -10,8 +10,10 @@ import { logger } from '../../utils/logger';
 import {
   E2E_ENABLE_USDC_URL_PREFIX,
   E2E_RESET_SETTINGS_URL_PREFIX,
+  E2E_SKIP_AIRDROP_URL_PREFIX,
   enableUsdcFeaturesForE2E,
   resetNonSecretE2ESettings,
+  setSkipAirdropRequestsForE2E,
 } from '../e2eSettingsResetService';
 import { hashToken, initializeTokenStorage, turboGlobal } from './turboTokenStorage';
 import { isSupportedCashuToken, isTurboTokenUrl, resolveCashuTokenFromUrl } from './turboTokenUrl';
@@ -36,6 +38,11 @@ const processE2EControlUrl = async (url: string): Promise<void> => {
 
   if (url.startsWith(E2E_ENABLE_USDC_URL_PREFIX)) {
     await enableUsdcFeaturesForE2E(url);
+    return;
+  }
+
+  if (url.startsWith(E2E_SKIP_AIRDROP_URL_PREFIX)) {
+    await setSkipAirdropRequestsForE2E(url);
   }
 };
 
