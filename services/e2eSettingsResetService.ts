@@ -5,7 +5,6 @@ import { setBoolean, setNumber, SettingKeys } from './settingsService';
 
 export const E2E_RESET_SETTINGS_URL_PREFIX = 'ducat://e2e/reset-settings';
 export const E2E_ENABLE_USDC_URL_PREFIX = 'ducat://e2e/enable-usdc';
-export const E2E_SKIP_AIRDROP_URL_PREFIX = 'ducat://e2e/skip-airdrop';
 
 const canonicalizeUnlockPhrase = (phrase: string): string =>
   phrase
@@ -55,7 +54,6 @@ export async function resetNonSecretE2ESettings(): Promise<void> {
     setNumber(SettingKeys.ECASH_THRESHOLD, 10000),
     setNumber(SettingKeys.AUTO_LOCK_TIMEOUT, E2E_AUTO_LOCK_TIMEOUT_MS),
     setBoolean(SettingKeys.USDC_FEATURES_ENABLED, false),
-    setBoolean(SettingKeys.E2E_SKIP_AIRDROP_REQUESTS, false),
     clearAirdropRegressionState(),
   ]);
 }
@@ -71,11 +69,4 @@ export async function enableUsdcFeaturesForE2E(url = ''): Promise<void> {
 
   useUsdcFeatureFlagStore.getState().setEnabled(true);
   await setBoolean(SettingKeys.USDC_FEATURES_ENABLED, true);
-}
-
-export async function setSkipAirdropRequestsForE2E(url = ''): Promise<void> {
-  if (!__DEV__) return;
-
-  const enabled = /[?&]enabled=true(?:[&#]|$)/.test(url);
-  await setBoolean(SettingKeys.E2E_SKIP_AIRDROP_REQUESTS, enabled);
 }

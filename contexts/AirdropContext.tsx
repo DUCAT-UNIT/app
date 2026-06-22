@@ -38,7 +38,6 @@ import {
   getPendingAirdrop,
   clearPendingAirdrop,
 } from '../utils/airdropLock';
-import { getBoolean, SettingKeys } from '../services/settingsService';
 
 interface AirdropContextValue {
   showAirdropModal: boolean;
@@ -267,11 +266,6 @@ export const AirdropProvider: React.FC<AirdropProviderProps> = ({ children, seed
       // Read fresh address from ref in case it changed between interval ticks
       const address = walletAddressRef.current;
       if (!address) return;
-
-      if (__DEV__ && (await getBoolean(SettingKeys.E2E_SKIP_AIRDROP_REQUESTS, false))) {
-        logger.debug('[Airdrop] Skipping: E2E airdrop requests disabled');
-        return;
-      }
 
       const airdropKey = getAirdropKey(address, currentAccount);
       const lockKey = getLockKey(address, currentAccount);

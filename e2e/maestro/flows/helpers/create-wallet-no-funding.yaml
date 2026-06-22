@@ -1,12 +1,10 @@
 appId: com.ducatprotocol.DucatProtocolWallet
 ---
-# Create a fresh wallet without requiring faucet funding.
-# Use this for UI-only coverage where a funded balance is not part of the story.
+# Create a fresh wallet without waiting for faucet funding.
+# The app still runs its real airdrop behavior; this helper only avoids making
+# funded balance a gate for UI-only coverage.
 
 - runFlow: clear-and-launch.yaml
-
-- openLink: 'ducat://e2e/skip-airdrop?enabled=true'
-- runFlow: accept-open-in-app-alert.yaml
 
 - tapOn:
     id: 'welcome-create-wallet-btn'
@@ -47,6 +45,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 - runFlow: dismiss-passkey-recovery.yaml
 - runFlow: unlock-if-locked.yaml
 - runFlow: dismiss-passkey-recovery.yaml
+- runFlow: dismiss-airdrop.yaml
 - runFlow: dismiss-low-ecash.yaml
 
 - extendedWaitUntil:

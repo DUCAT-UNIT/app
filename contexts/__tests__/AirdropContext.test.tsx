@@ -275,30 +275,6 @@ describe('AirdropContext', () => {
     expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
   });
 
-  it('should not request airdrop when E2E skip funding is enabled', async () => {
-    const mockWallet = createMockWallet('e2eskipfunding');
-
-    (useBalance as jest.Mock).mockReturnValue({ segwitBalance: 0, taprootBalance: 0 });
-    (useWallet as jest.Mock).mockReturnValue({ wallet: mockWallet, currentAccount: 0 });
-    (useAuth as jest.Mock).mockReturnValue({ isAuthenticated: true });
-    (SecureStore.getItemAsync as jest.Mock).mockImplementation((key) => {
-      if (key === 'e2eSkipAirdropRequests') return Promise.resolve('true');
-      return Promise.resolve(null);
-    });
-
-    const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <AirdropProvider seedConfirmed={true}>{children}</AirdropProvider>
-    );
-
-    await act(async () => {
-      renderHook(() => useAirdrop(), { wrapper });
-      jest.advanceTimersByTime(3000);
-      await Promise.resolve();
-    });
-
-    expect(AirdropService.requestAirdrop).not.toHaveBeenCalled();
-  });
-
   it('should wait for the passkey migration decision before requesting airdrop', async () => {
     const mockWallet = createMockWallet('passkeymigrationactive');
     const mockTxId = 'passkey_done_txid';

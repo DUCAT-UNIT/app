@@ -2,7 +2,7 @@ appId: com.ducatprotocol.DucatProtocolWallet
 ---
 # Liquidation Dashboard - Verify this release shows liquidations as unavailable.
 
-- runFlow: ../helpers/create-wallet-no-funding.yaml
+- runFlow: ../helpers/create-wallet.yaml
 
 - extendedWaitUntil:
     visible:

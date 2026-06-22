@@ -98,10 +98,8 @@ jest.mock('../turboTokenStorage', () => ({
 jest.mock('../../e2eSettingsResetService', () => ({
   E2E_ENABLE_USDC_URL_PREFIX: 'ducat://e2e/enable-usdc',
   E2E_RESET_SETTINGS_URL_PREFIX: 'ducat://e2e/reset-settings',
-  E2E_SKIP_AIRDROP_URL_PREFIX: 'ducat://e2e/skip-airdrop',
   enableUsdcFeaturesForE2E: jest.fn().mockResolvedValue(undefined),
   resetNonSecretE2ESettings: jest.fn().mockResolvedValue(undefined),
-  setSkipAirdropRequestsForE2E: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../../stores/tokenProcessingStore', () => ({
@@ -121,7 +119,6 @@ import { hashToken, initializeTokenStorage } from '../turboTokenStorage';
 import {
   enableUsdcFeaturesForE2E,
   resetNonSecretE2ESettings,
-  setSkipAirdropRequestsForE2E,
 } from '../../e2eSettingsResetService';
 
 // Type assertion for the linking config
@@ -641,20 +638,6 @@ describe('turboLinkingConfig', () => {
       await urlHandler({ url });
 
       expect(enableUsdcFeaturesForE2E).toHaveBeenCalledWith(url);
-      expect(listener).not.toHaveBeenCalled();
-    });
-
-    it('should process E2E skip airdrop URL events without forwarding to navigation', async () => {
-      const config = createLinkingConfig();
-      const listener = jest.fn();
-      const url = 'ducat://e2e/skip-airdrop?enabled=true';
-
-      config.subscribe!(listener);
-      const urlHandler = (Linking.addEventListener as jest.Mock).mock.calls[0][1];
-
-      await urlHandler({ url });
-
-      expect(setSkipAirdropRequestsForE2E).toHaveBeenCalledWith(url);
       expect(listener).not.toHaveBeenCalled();
     });
 
